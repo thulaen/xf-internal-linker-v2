@@ -1,0 +1,27 @@
+"""
+Root URL configuration for XF Internal Linker V2.
+
+API routes live under /api/
+Admin lives under /admin/
+WebSocket connections are handled by ASGI/Channels (not here).
+"""
+
+from django.contrib import admin
+from django.urls import path, include
+from django.conf import settings
+from django.conf.urls.static import static
+
+# Customize Django Admin branding
+admin.site.site_header = "XF Internal Linker V2"
+admin.site.site_title = "XF Linker Admin"
+admin.site.index_title = "Administration"
+
+urlpatterns = [
+    path("admin/", admin.site.urls),
+    path("api/", include("apps.api.urls")),
+]
+
+# Serve media files in development
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

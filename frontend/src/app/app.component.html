@@ -1,0 +1,51 @@
+<!-- XF Internal Linker V2 — Main Application Shell -->
+<mat-sidenav-container class="app-container">
+
+  <!-- ── Sidebar Navigation ─────────────────────────────────── -->
+  <mat-sidenav mode="side" opened class="app-sidenav">
+
+    <!-- Logo / Brand -->
+    <div class="sidenav-header">
+      <mat-icon class="brand-icon">link</mat-icon>
+      <span class="brand-name">XF Linker</span>
+      <span class="brand-version">v2</span>
+    </div>
+
+    <!-- Navigation Links -->
+    <mat-nav-list>
+      @for (item of navItems; track item.route) {
+        <a
+          mat-list-item
+          [routerLink]="item.route"
+          routerLinkActive="active-link"
+          [matTooltip]="item.tooltip"
+          matTooltipPosition="right"
+        >
+          <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+          <span matListItemTitle>{{ item.label }}</span>
+        </a>
+      }
+    </mat-nav-list>
+
+  </mat-sidenav>
+
+  <!-- ── Main Content Area ──────────────────────────────────── -->
+  <mat-sidenav-content class="app-content">
+
+    <!-- Top Toolbar -->
+    <mat-toolbar class="app-toolbar" color="primary">
+      <span>{{ title }}</span>
+      <span class="toolbar-spacer"></span>
+      <button mat-icon-button matTooltip="Open Django Admin">
+        <mat-icon>admin_panel_settings</mat-icon>
+      </button>
+    </mat-toolbar>
+
+    <!-- Page Content (routed) -->
+    <main class="page-content">
+      <router-outlet />
+    </main>
+
+  </mat-sidenav-content>
+
+</mat-sidenav-container>

@@ -1,0 +1,43 @@
+# ═══════════════════════════════════════════════════════════════════
+# XF Internal Linker V2 — Production Python Dependencies
+#
+# Pin versions for reproducible Docker builds.
+# Update with care — ML libraries are particularly sensitive.
+# ═══════════════════════════════════════════════════════════════════
+
+# ── Django Core ──────────────────────────────────────────────────
+Django==5.2                          # LTS until April 2028
+djangorestframework==3.15.2          # REST API
+django-cors-headers==4.6.0           # Angular ↔ Django CORS
+django-environ==0.11.2               # .env file management
+daphne==4.1.2                        # ASGI server (Django Channels)
+
+# ── Django Channels (WebSockets) ──────────────────────────────────
+channels==4.2.0
+channels-redis==4.2.1
+
+# ── Celery (background ML jobs) ───────────────────────────────────
+celery==5.4.0
+django-celery-beat==2.7.0            # Scheduled tasks
+django-celery-results==2.5.1         # Store task results in DB
+redis==5.2.1                         # Redis Python client
+
+# ── PostgreSQL (psycopg 3, NOT psycopg2) ─────────────────────────
+psycopg[binary]==3.2.4               # PostgreSQL driver v3
+pgvector==0.3.6                      # pgvector Python client
+
+# ── ML / AI Layer ────────────────────────────────────────────────
+# NOTE: numpy must be 1.x — sentence-transformers not compatible with 2.x
+numpy==1.26.4
+torch==2.3.1                         # PyTorch CPU build (GPU optional)
+sentence-transformers==3.3.1         # Semantic embeddings
+spacy==3.8.3                         # NLP / sentence splitting
+scikit-learn==1.5.2                  # PageRank, scoring utilities
+transformers==4.47.1                 # HuggingFace (sentence-transformers dep)
+
+# ── Utilities ────────────────────────────────────────────────────
+Pillow==11.1.0                       # Image handling
+paramiko==3.5.0                      # SSH sync
+django-redis==5.4.0                  # Django cache backend for Redis
+whitenoise==6.8.2                    # Static file serving in production
+requests==2.32.3                     # HTTP client (XenForo/WP API calls)

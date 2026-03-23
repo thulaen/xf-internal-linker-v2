@@ -77,3 +77,20 @@ celerybeat.pid
 # Test artifacts
 .pytest_cache/
 .tox/
+
+# Django staticfiles (collected at runtime)
+backend/staticfiles/
+
+# Secrets directory (SSH keys, service account JSON)
+backend/secrets/
+secrets/
+
+# mypy cache
+.mypy_cache/
+
+# ruff cache
+.ruff_cache/
+
+# Angular build cache
+frontend/.angular/
+frontend/out-tsc/

@@ -1,0 +1,85 @@
+// ═══════════════════════════════════════════════════════════════════
+// Global styles for XF Internal Linker V2
+// ═══════════════════════════════════════════════════════════════════
+
+// Import GSC theme variables
+@use './styles/gsc-theme';
+
+// ── Reset / Base ───────────────────────────────────────────────────
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg-page);
+  -webkit-font-smoothing: antialiased;
+}
+
+// ── Angular Material Overrides ─────────────────────────────────────
+.mat-typography {
+  font-family: var(--font-family) !important;
+}
+
+// Make cards use the GSC white/faint background
+.mat-mdc-card {
+  background: var(--color-bg-white) !important;
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: var(--radius-lg) !important;
+}
+
+// Consistent chip colors
+.mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; }
+.mat-mdc-chip.status-approved { background: var(--color-success-light) !important; }
+.mat-mdc-chip.status-rejected { background: var(--color-error-light) !important; }
+
+// ── Utility Classes ───────────────────────────────────────────────
+.text-primary   { color: var(--color-primary) !important; }
+.text-success   { color: var(--color-success) !important; }
+.text-error     { color: var(--color-error) !important; }
+.text-warning   { color: var(--color-warning) !important; }
+.text-muted     { color: var(--color-text-muted) !important; }
+
+.bg-primary-light { background: var(--color-blue-50) !important; }
+.bg-success-light { background: var(--color-success-light) !important; }
+.bg-error-light   { background: var(--color-error-light) !important; }
+
+// ── Loading / Empty States ────────────────────────────────────────
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+
+  mat-icon {
+    font-size: 64px;
+    width: 64px;
+    height: 64px;
+    margin-bottom: 16px;
+    opacity: 0.4;
+  }
+
+  h3 {
+    margin: 0 0 8px;
+    font-size: var(--font-size-lg);
+    font-weight: 500;
+  }
+
+  p {
+    margin: 0;
+    font-size: var(--font-size-base);
+    max-width: 400px;
+  }
+}

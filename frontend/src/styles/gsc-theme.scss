@@ -1,0 +1,92 @@
+// ═══════════════════════════════════════════════════════════════════
+// GSC Color Theme — Google Search Console palette
+// Used as CSS custom properties throughout the app.
+// ═══════════════════════════════════════════════════════════════════
+
+:root {
+  // ── Primary Blues ──────────────────────────────────────────────
+  --color-primary:        #4285f4;
+  --color-primary-dark:   #0b57d0;
+  --color-primary-medium: #1a73e8;
+
+  // ── Light Blues ────────────────────────────────────────────────
+  --color-blue-50:  #e8f0fe;
+  --color-blue-100: #d3e3fd;
+  --color-blue-200: #c2e7ff;
+
+  // ── Dark Blues ─────────────────────────────────────────────────
+  --color-dark-blue:        #001d35;
+  --color-dark-blue-medium: #004a77;
+
+  // ── Success Greens ─────────────────────────────────────────────
+  --color-success:        #0f9d58;
+  --color-success-dark:   #0b8043;
+  --color-success-deeper: #146c2e;
+  --color-success-light:  #b7e1cd;
+
+  // ── Error Reds ─────────────────────────────────────────────────
+  --color-error:        #d50000;
+  --color-error-medium: #db4437;
+  --color-error-dark:   #b3261e;
+  --color-error-light:  #f4c7c3;
+  --color-error-50:     #f9dedc;
+
+  // ── Warning Yellows ────────────────────────────────────────────
+  --color-warning:       #f4b400;
+  --color-warning-dark:  #f09300;
+  --color-warning-light: #fce8b2;
+
+  // ── Text ───────────────────────────────────────────────────────
+  --color-text-primary:   rgba(0, 0, 0, 0.87);
+  --color-text-secondary: rgba(0, 0, 0, 0.54);
+  --color-text-disabled:  rgba(0, 0, 0, 0.38);
+  --color-text-on-dark:   #ffffff;
+  --color-text-dark-1:    #1f1f1f;
+  --color-text-dark-2:    #202124;
+  --color-text-muted:     #5f6368;
+  --color-text-faint:     #9e9e9e;
+
+  // ── Borders ────────────────────────────────────────────────────
+  --color-border:       #e0e0e0;
+  --color-border-dark:  #c4c7c5;
+
+  // ── Backgrounds ────────────────────────────────────────────────
+  --color-bg-white:  #ffffff;
+  --color-bg-faint:  #fafafa;
+  --color-bg-page:   #f0f4f9;
+  --color-bg-card:   #f8fafd;
+
+  // ── Inverse / Dark Mode ────────────────────────────────────────
+  --color-inverse-1: #303030;
+  --color-inverse-2: #131314;
+
+  // ── Spacing ────────────────────────────────────────────────────
+  --spacing-xs:  4px;
+  --spacing-sm:  8px;
+  --spacing-md:  16px;
+  --spacing-lg:  24px;
+  --spacing-xl:  32px;
+  --spacing-2xl: 48px;
+
+  // ── Radius ─────────────────────────────────────────────────────
+  --radius-sm:  4px;
+  --radius-md:  8px;
+  --radius-lg:  12px;
+  --radius-xl:  16px;
+  --radius-pill: 9999px;
+
+  // ── Shadows ────────────────────────────────────────────────────
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.12);
+  --shadow-md:  0 2px 6px rgba(0, 0, 0, 0.15);
+  --shadow-lg:  0 4px 12px rgba(0, 0, 0, 0.15);
+
+  // ── Typography ─────────────────────────────────────────────────
+  --font-family: 'Inter', 'Roboto', sans-serif;
+  --font-size-xs:   11px;
+  --font-size-sm:   13px;
+  --font-size-base: 14px;
+  --font-size-md:   16px;
+  --font-size-lg:   18px;
+  --font-size-xl:   24px;
+  --font-size-2xl:  32px;
+}

@@ -1,0 +1,28 @@
+# ═══════════════════════════════════════════════════════════════════
+# XF Internal Linker V2 — Development-only Dependencies
+#
+# NOT included in the production Docker image.
+# Install locally with: pip install -r requirements-dev.txt
+# ═══════════════════════════════════════════════════════════════════
+
+# Include all production deps
+-r requirements.txt
+
+# ── Testing ──────────────────────────────────────────────────────
+pytest==8.3.4
+pytest-django==4.9.0
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+factory-boy==3.3.1                   # Test data factories
+faker==33.1.0                        # Fake data for tests
+
+# ── Code Quality ─────────────────────────────────────────────────
+ruff==0.8.6                          # Linting + formatting (replaces flake8/black)
+mypy==1.13.0                         # Type checking
+django-stubs==5.1.1                  # Django type stubs for mypy
+djangorestframework-stubs==3.15.1    # DRF type stubs
+
+# ── Development Utilities ────────────────────────────────────────
+ipython==8.31.0                      # Better Django shell
+django-extensions==3.2.3             # Extra management commands
+Werkzeug==3.1.3                      # Used by runserver_plus
