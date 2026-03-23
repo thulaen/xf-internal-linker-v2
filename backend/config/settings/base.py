@@ -24,6 +24,10 @@ environ.Env.read_env(BASE_DIR.parent / ".env")
 SECRET_KEY = env("DJANGO_SECRET_KEY")
 
 DJANGO_APPS = [
+    # unfold must come BEFORE django.contrib.admin to override the admin UI
+    "unfold",
+    "unfold.contrib.filters",
+    "unfold.contrib.forms",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -39,6 +43,7 @@ THIRD_PARTY_APPS = [
     "channels",
     "django_celery_beat",
     "django_celery_results",
+    "django_filters",
 ]
 
 LOCAL_APPS = [
@@ -165,6 +170,98 @@ CELERY_TASK_ROUTES = {
 }
 
 
+# ── Django Unfold Admin ───────────────────────────────────────────
+
+UNFOLD = {
+    "SITE_TITLE": "XF Internal Linker",
+    "SITE_HEADER": "XF Internal Linker V2",
+    "SITE_URL": "/",
+    "SITE_ICON": None,
+    "SHOW_HISTORY": True,
+    "SHOW_VIEW_ON_SITE": False,
+    "STYLES": [],
+    "SCRIPTS": [],
+    "COLORS": {
+        "primary": {
+            "50": "232 240 254",
+            "100": "211 227 253",
+            "200": "194 231 255",
+            "300": "138 180 248",
+            "400": "66 133 244",
+            "500": "26 115 232",
+            "600": "11 87 208",
+            "700": "0 74 119",
+            "800": "0 29 53",
+            "900": "0 20 37",
+            "950": "0 10 20",
+        },
+    },
+    "SIDEBAR": {
+        "show_search": True,
+        "show_all_applications": False,
+        "navigation": [
+            {
+                "title": "Content",
+                "separator": False,
+                "items": [
+                    {"title": "Content Items", "icon": "article", "link": "/admin/content/contentitem/"},
+                    {"title": "Scope Items", "icon": "folder_open", "link": "/admin/content/scopeitem/"},
+                    {"title": "Posts", "icon": "edit_note", "link": "/admin/content/post/"},
+                    {"title": "Sentences", "icon": "format_list_bulleted", "link": "/admin/content/sentence/"},
+                ],
+            },
+            {
+                "title": "Suggestions",
+                "separator": False,
+                "items": [
+                    {"title": "All Suggestions", "icon": "link", "link": "/admin/suggestions/suggestion/"},
+                    {"title": "Pipeline Runs", "icon": "play_circle", "link": "/admin/suggestions/pipelinerun/"},
+                    {"title": "Diagnostics", "icon": "bug_report", "link": "/admin/suggestions/pipelinediagnostic/"},
+                ],
+            },
+            {
+                "title": "Analytics",
+                "separator": False,
+                "items": [
+                    {"title": "Search Metrics", "icon": "search", "link": "/admin/analytics/searchmetric/"},
+                    {"title": "Impact Reports", "icon": "trending_up", "link": "/admin/analytics/impactreport/"},
+                ],
+            },
+            {
+                "title": "Links & Graph",
+                "separator": False,
+                "items": [
+                    {"title": "Existing Links", "icon": "hub", "link": "/admin/graph/existinglink/"},
+                ],
+            },
+            {
+                "title": "Audit",
+                "separator": False,
+                "items": [
+                    {"title": "Audit Trail", "icon": "history", "link": "/admin/audit/auditentry/"},
+                    {"title": "Reviewer Scorecards", "icon": "scorecard", "link": "/admin/audit/reviewerscorecard/"},
+                    {"title": "Error Log", "icon": "error_outline", "link": "/admin/audit/errorlog/"},
+                ],
+            },
+            {
+                "title": "Plugins",
+                "separator": False,
+                "items": [
+                    {"title": "Installed Plugins", "icon": "extension", "link": "/admin/plugins/plugin/"},
+                ],
+            },
+            {
+                "title": "Configuration",
+                "separator": True,
+                "items": [
+                    {"title": "App Settings", "icon": "settings", "link": "/admin/core/appsetting/"},
+                ],
+            },
+        ],
+    },
+}
+
+
 # ── Django REST Framework ─────────────────────────────────────────
 
 REST_FRAMEWORK = {
@@ -178,6 +275,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_FILTER_BACKENDS": [
+        "django_filters.rest_framework.DjangoFilterBackend",
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
