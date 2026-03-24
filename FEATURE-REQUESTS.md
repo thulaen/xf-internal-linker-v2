@@ -1,129 +1,196 @@
 # Feature Requests - XF Internal Linker V2
 
-This file tracks UI/UX feature requests from the developer.
+This file tracks backlog requests and shipped request slices.
 
-## How this file works
+Important:
+- FR IDs are permanent request IDs, not execution-order numbers.
+- Phase numbers are the delivery order and must be cross-referenced explicitly.
+- `FR-016 - Add your next request here` is a template placeholder only. It is not backlog scope and must never be implemented.
 
-| Section | What goes here |
-|---|---|
-| **PENDING** | Requested but not yet built. AI must surface these at every session start. |
-| **IN PROGRESS** | Currently being implemented in the active phase. |
-| **COMPLETED** | Done. AI must check this before implementing anything new to avoid duplication. |
+## Workflow Rules
 
-**Rule:** Keep `AI-CONTEXT.md` for architecture facts. Keep this file for feature wishes.
-
----
+- Every session must read `AI-CONTEXT.md` and this file before coding.
+- Check completed requests before implementing anything new.
+- Verify the repository state before trusting request status text.
+- Update this file and `AI-CONTEXT.md` after finishing a session.
 
 ## COMPLETED
 
-### FR-005 - Link Siloing & Topical Authority Enforcement
+### FR-003 - WordPress Cross-Linking
+**Requested:** 2026-03-24
+**Target phase:** Phase 8
+**Completed phase:** Phase 8
 **Completed:** 2026-03-24
 
-- [x] `SiloGroup` model added and `ScopeItem.silo_group` now uses nullable `SET_NULL` semantics.
-- [x] Silo ranking settings are persisted through `AppSetting` and exposed at `GET/PUT /api/settings/silos/`.
-- [x] Pipeline ranking supports `disabled`, `prefer_same_silo`, and `strict_same_silo`.
-- [x] Strict-mode suppression emits `cross_silo_blocked` diagnostics.
-- [x] Backend CRUD endpoints added for silo groups, plus a safe scope-assignment patch flow.
-- [x] Angular Settings now manages silo groups, scope assignments, and ranking controls.
-- [x] Angular Review now shows host/destination silo labels and supports a same-silo-only filter.
+- WordPress posts/pages now participate in the same suggestion system as XenForo content.
+- `apps/sync/services/wordpress_api.py` provides the read-only posts/pages client with optional Application Password auth.
+- WordPress settings are exposed at `GET/PUT /api/settings/wordpress/` and manual sync is exposed at `POST /api/sync/wordpress/run/`.
+- Manual sync and scheduled sync both follow the existing Celery/Celery Beat pattern.
+- WordPress posts/pages map to `ContentItem(content_type="wp_post"/"wp_page")`.
+- Cross-source existing-link graph refresh now resolves `XF -> WP` and `WP -> XF`.
+- Review/settings APIs and Angular UI now label content source explicitly.
+
+---
+
+### FR-005 - Link Siloing & Topical Authority Enforcement
+**Requested:** 2026-03-24
+**Target phase:** Phase 7
+**Completed phase:** Phase 7
+**Completed:** 2026-03-24
+
+- `SiloGroup` model added and `ScopeItem.silo_group` now uses nullable `SET_NULL` semantics.
+- Silo ranking settings are persisted through `AppSetting` and exposed at `GET/PUT /api/settings/silos/`.
+- Pipeline ranking supports `disabled`, `prefer_same_silo`, and `strict_same_silo`.
+- Strict-mode suppression emits `cross_silo_blocked` diagnostics.
+- Backend CRUD endpoints added for silo groups plus a safe scope-assignment patch flow.
+- Angular Settings manages silo groups, scope assignments, and ranking controls.
+- Angular Review shows host/destination silo labels and supports a same-silo-only filter.
 
 ---
 
 ### FR-004 - Broken Link Detection
+**Requested:** 2026-03-24
 **Completed:** 2026-03-24
 
-- [x] `BrokenLink` model added in `apps/graph/` with UUID PK, source-content FK, URL, HTTP status, redirect URL, timestamps, reviewer status, and notes.
-- [x] Migration added at `backend/apps/graph/migrations/0002_brokenlink.py`.
-- [x] Broken Links admin registered with filters/search and added to the admin sidebar.
-- [x] `scan_broken_links` Celery task added with:
-  - HEAD -> GET fallback
-  - 0.5s request throttle
-  - 10,000 URL safety cap
-  - `update_or_create()` persistence keyed by source content + URL
-  - WebSocket progress updates on `ws/jobs/<job_id>/`
-- [x] `BrokenLinkSerializer` + `BrokenLinkViewSet` added with:
-  - `GET /api/broken-links/`
-  - `PATCH /api/broken-links/{id}/`
-  - `POST /api/broken-links/scan/`
-  - `GET /api/broken-links/export-csv/`
-- [x] Dashboard API now includes `open_broken_links`.
-- [x] Angular `/link-health` page added with live scan progress, summary counts, status/http-status filters, paginated Material table, row actions, CSV export, and empty state.
-- [x] Dashboard warning stat card and sidebar nav badge now surface open broken-link count and link to Link Health.
+- `BrokenLink` model, scanner task, API, CSV export, dashboard surfacing, and Angular `/link-health` page are shipped.
 
 ---
 
 ### FR-002 - Jobs Page: JSONL File Import UI
+**Requested:** 2026-03-24
 **Completed:** 2026-03-24
 
-- Drag-and-drop zone (or click to browse) accepting `.jsonl` files only.
-- Import mode selector: Full / Titles / Quick.
-- "Start Import" button enabled only when a file is selected.
-- Live progress bar + status message via WebSocket (`ws/jobs/<job_id>/`).
-- Green success / red failure result banners.
-- Recent Activity history table (source, mode, status, items synced).
-- Backend: `POST /api/import/upload/` saves file, creates `SyncJob`, dispatches `import_content`.
-- Backend: `GET /api/sync-jobs/` provides import job history.
-- `SyncJob` model + migration added in `apps/sync/`.
-- `SyncService` Angular service added in `frontend/src/app/jobs/`.
+- Drag-and-drop JSONL upload, import-mode selector, live progress, success/failure banners, and sync history are shipped.
 
 ---
 
 ### FR-001 - Angular Frontend: Light Theme Default + Full Theme Customizer
+**Requested:** 2026-03-24
 **Completed:** 2026-03-24
 
-- [x] Light theme default retained.
-- [x] `AppearanceService` loads/saves config from `/api/settings/appearance/` and applies CSS vars live.
-- [x] Backend `AppearanceSettingsView` added at `GET/PUT /api/settings/appearance/`.
-- [x] `ThemeCustomizerComponent` implemented with:
-  - primary/accent/header colors
-  - font size, layout width, sidebar width, density
-  - site name, footer text/toggle/color
-  - logo upload + favicon upload
-  - scroll-to-top toggle
-  - named presets
-- [x] `ScrollToTopComponent` added.
-- [x] App shell wired to appearance settings, including logo/favicon behavior.
-- [x] Backend logo/favicon upload endpoints added.
-
----
+- Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
 
-### FR-003 - WordPress Cross-Linking
-
+### FR-006 - Weighted Link Graph / Reasonable Surfer Scoring
 **Requested:** 2026-03-24
-**Target phase:** Phase 5 (after XenForo sync is stable)
-**Priority:** Medium
+**Target phase:** Phase 9
+**Priority:** High
+**Patent inspiration:** `US7716225B1`
 
-### What's wanted
-Suggest internal links between XenForo threads/resources and WordPress posts/pages.
-A forum thread about a product should be able to link to the WordPress review of that
-product, and vice versa. All suggestions go through the same manual review workflow -
-nothing is applied automatically.
-
-### Specific controls / behaviour
-- WordPress content appears in the same scope/content browser as XenForo content.
-- Suggestions can cross site boundaries (XF -> WP and WP -> XF).
-- Scope selector clearly labels content source (XenForo / WordPress).
-- Import settings page has a WordPress section: base URL + Application Password.
-- Sync can be triggered manually or on a schedule.
-- Public WordPress content requires no credentials; private content uses Application Password.
-
-### Implementation notes for the AI
-- `apps/sync/services/wordpress_api.py` - WP REST API client
-  - `GET /wp-json/wp/v2/posts`
-  - `GET /wp-json/wp/v2/pages`
-  - Basic auth using username + application password
-- WordPress posts/pages map to `ContentItem(content_type="wp_post"/"wp_page")`.
-- Sentence splitting, distillation, and embedding pipeline stays the same.
-- Existing-link graph must include WP -> XF and XF -> WP edges.
-- Add `WORDPRESS_BASE_URL`, `WORDPRESS_USERNAME`, and `WORDPRESS_APP_PASSWORD` to `.env.example`.
+- Preserve the existing `pagerank_score`.
+- Add a separate weighted authority signal based on edge-level prominence/relevance features.
+- Persist edge-level weighting features.
+- Expose diagnostics and tuning so standard vs weighted authority can be compared.
 
 ---
 
-### FR-006 - Add your next request here
+### FR-007 - Link Freshness Authority
+**Requested:** 2026-03-24
+**Target phase:** Phase 10
+**Priority:** Medium
+**Patent inspiration:** `US8407231B2`
 
-Use the template below. Copy it and replace the placeholder text.
+- Track first-seen and last-seen internal-link timing.
+- Add a link-recency/link-growth score separate from engagement velocity.
+- Expose review diagnostics and sorting/filtering for fresh vs stale authority.
+
+---
+
+### FR-008 - Phrase-Based Matching & Anchor Expansion
+**Requested:** 2026-03-24
+**Target phase:** Phase 11
+**Priority:** High
+**Patent inspiration:** `US7536408B2`
+
+- Extract salient phrases from titles, distilled text, and host sentences.
+- Add phrase-level relevance as a separate ranking signal.
+- Expand anchor extraction beyond exact title windows with explainable phrase evidence.
+
+---
+
+### FR-009 - Learned Anchor Vocabulary & Corroboration
+**Requested:** 2026-03-24
+**Target phase:** Phase 12
+**Priority:** Medium
+**Patent inspiration:** `US9208229B2`
+
+- Learn preferred anchor variants per destination from the existing internal-link graph.
+- Surface canonical anchors and alternates in review.
+- Allow reviewers to prefer or disallow anchor variants.
+
+---
+
+### FR-010 - Rare-Term Propagation Across Related Pages
+**Requested:** 2026-03-24
+**Target phase:** Phase 13
+**Priority:** Medium
+**Patent inspiration:** `US20110196861A1`
+
+- Propagate rare, high-signal terms across nearby related pages.
+- Keep propagated evidence bounded, explainable, and separate from original content.
+- Use scope/silo/relationship proximity rules to avoid topic drift.
+
+---
+
+### FR-011 - Field-Aware Relevance Scoring
+**Requested:** 2026-03-24
+**Target phase:** Phase 14
+**Priority:** Medium
+**Patent inspiration:** `US7584221B2`
+
+- Score title, body, scope labels, and learned anchor vocabulary separately.
+- Add bounded field-level weighting and expose diagnostics/tuning.
+
+---
+
+### FR-012 - Click-Distance Structural Prior
+**Requested:** 2026-03-24
+**Target phase:** Phase 15
+**Priority:** Medium
+**Patent inspiration:** `US8082246B2`
+
+- Add a soft structural prior based on click distance / shortest-path depth.
+- Store it separately from authority and expose diagnostics.
+
+---
+
+### FR-013 - Feedback-Driven Explore/Exploit Reranking
+**Requested:** 2026-03-24
+**Target phase:** Phase 16
+**Priority:** Medium
+**Patent inspiration:** `US10102292B2`
+
+- Add a feature-flagged post-ranking reranker using review outcomes and later analytics.
+- Limit exploration to a bounded top-N window and keep it explainable.
+
+---
+
+### FR-014 - Near-Duplicate Destination Clustering
+**Requested:** 2026-03-24
+**Target phase:** Phase 17
+**Priority:** Medium
+**Patent inspiration:** `US7698317B2`
+
+- Cluster near-duplicate destinations with canonical preference, soft suppression, manual override, and confidence-aware behavior.
+- Do not default to cross-source canonicalization.
+
+---
+
+### FR-015 - Final Slate Diversity Reranking
+**Requested:** 2026-03-24
+**Target phase:** Phase 18
+**Priority:** Medium
+**Patent inspiration:** `US20070294225A1`
+
+- Apply a late diversity reranker only after hard constraints and duplicate-family normalization.
+- Stay inside a close-score window and never override hard suppression rules.
+
+## TEMPLATE ONLY
+
+### FR-016 - Add your next request here
+
+Template placeholder only. Not backlog scope.
 
 ```md
 ### FR-00X - Short title
@@ -139,9 +206,7 @@ Use the template below. Copy it and replace the placeholder text.
 [list details]
 
 ### Implementation notes for the AI
-[any technical hints]
+[technical hints]
 ```
 
----
-
-*Last updated: 2026-03-24 (FR-005 completed; FR-003 is next)*
+*Last updated: 2026-03-24 (Phase 8 / FR-003 completed; next real target is Phase 9 / FR-006)*

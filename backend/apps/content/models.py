@@ -54,7 +54,8 @@ class ScopeItem(TimestampedModel):
     SCOPE_TYPE_CHOICES = [
         ("node", "Forum Node"),
         ("resource_category", "Resource Category"),
-        ("wp_category", "WordPress Category"),
+        ("wp_posts", "WordPress Posts"),
+        ("wp_pages", "WordPress Pages"),
     ]
 
     scope_id = models.IntegerField(
@@ -63,7 +64,7 @@ class ScopeItem(TimestampedModel):
     scope_type = models.CharField(
         max_length=30,
         choices=SCOPE_TYPE_CHOICES,
-        help_text="Whether this is a XenForo forum node, resource category, or WP category.",
+        help_text="Whether this is a XenForo forum node, resource category, or WordPress scope.",
     )
     title = models.CharField(
         max_length=500,
@@ -131,6 +132,7 @@ class ContentItem(TimestampedModel):
         ("thread", "Forum Thread"),
         ("resource", "Resource"),
         ("wp_post", "WordPress Post"),
+        ("wp_page", "WordPress Page"),
     ]
 
     DISTILL_METHOD_CHOICES = [
@@ -144,7 +146,7 @@ class ContentItem(TimestampedModel):
     content_type = models.CharField(
         max_length=30,
         choices=CONTENT_TYPE_CHOICES,
-        help_text="Whether this is a forum thread, resource, or WordPress post.",
+        help_text="Whether this is a forum thread, resource, or WordPress content item.",
     )
     title = models.CharField(
         max_length=500,

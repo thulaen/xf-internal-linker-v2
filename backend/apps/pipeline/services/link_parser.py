@@ -1,7 +1,7 @@
-"""Extract internal links from raw BBCode and normalize into graph edges.
+"""Extract internal links from raw content and normalize into graph edges.
 
-Parses [URL=...]...[/URL] tags and bare URLs to find links that point back
-to threads or resources on our own forum.  External links are ignored.
+Parses BBCode links, HTML anchors, and bare URLs to find links that point back
+to indexed internal content. External links are ignored.
 
 Each edge is a (from_content_id, from_content_type) -> (to_content_id, to_content_type)
 relationship, deduplicated per source post.
@@ -21,6 +21,10 @@ _XF_RESOURCE_RE = re.compile(
 )
 _BBCODE_URL_RE = re.compile(
     r"\[URL=([^\]]+)\](.*?)\[/URL\]",
+    re.IGNORECASE | re.DOTALL,
+)
+_HTML_LINK_RE = re.compile(
+    r"<a\b[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)</a>",
     re.IGNORECASE | re.DOTALL,
 )
 _BARE_URL_RE = re.compile(
@@ -61,7 +65,11 @@ def extract_internal_links(
     )
 
     for url, anchor in found_links:
-        target = _resolve_target(url.strip(), normalized_domains)
+        normalized_url = normalize_internal_url(url.strip())
+        if not normalized_url:
+            continue
+
+        target = _resolve_target(normalized_url, normalized_domains)
         if target is None:
             continue
 
@@ -105,7 +113,7 @@ def extract_urls(
     seen: set[str] = set()
 
     for url, _anchor in found_links:
-        normalized_url = url.strip()
+        normalized_url = normalize_internal_url(url.strip())
         if not normalized_url or normalized_url in seen:
             continue
         if normalized_domains is not None:
@@ -146,6 +154,20 @@ def _resolve_target(
     if match:
         return int(match.group(1)), "resource"
 
+    try:
+        from apps.content.models import ContentItem
+
+        target = (
+            ContentItem.objects
+            .filter(url=url)
+            .values_list("content_id", "content_type")
+            .first()
+        )
+        if target:
+            return int(target[0]), str(target[1])
+    except Exception:
+        return None
+
     return None
 
 
@@ -154,6 +176,37 @@ def _find_urls(raw_bbcode: str) -> list[tuple[str, str]]:
         return []
 
     found_links: list[tuple[str, str]] = _BBCODE_URL_RE.findall(raw_bbcode)
+    found_links.extend(
+        (url, _strip_markup(anchor))
+        for url, anchor in _HTML_LINK_RE.findall(raw_bbcode)
+    )
     for url in _BARE_URL_RE.findall(raw_bbcode):
         found_links.append((url, ""))
     return found_links
+
+
+def normalize_internal_url(url: str) -> str:
+    """Canonicalize a live content URL for exact matching across sources."""
+    if not url:
+        return ""
+
+    try:
+        parsed = urlparse(url.strip())
+    except Exception:
+        return ""
+
+    scheme = (parsed.scheme or "").lower()
+    if scheme not in {"http", "https"}:
+        return ""
+
+    netloc = (parsed.netloc or "").lower()
+    path = parsed.path or "/"
+    if path != "/" and path.endswith("/"):
+        path = path.rstrip("/")
+
+    normalized = parsed._replace(scheme=scheme, netloc=netloc, path=path, params="", query="", fragment="")
+    return normalized.geturl()
+
+
+def _strip_markup(value: str) -> str:
+    return re.sub(r"<[^>]+>", "", value or "").strip()

@@ -25,6 +25,8 @@ export interface ScopeItem {
   id: number;
   scope_id: number;
   scope_type: string;
+  scope_type_label: string;
+  source_label: string;
   title: string;
   parent: number | null;
   parent_title: string | null;
@@ -33,6 +35,30 @@ export interface ScopeItem {
   is_enabled: boolean;
   content_count: number;
   display_order: number;
+}
+
+export interface WordPressSettings {
+  base_url: string;
+  username: string;
+  app_password_configured: boolean;
+  sync_enabled: boolean;
+  sync_hour: number;
+  sync_minute: number;
+}
+
+export interface WordPressSettingsUpdate {
+  base_url: string;
+  username: string;
+  sync_enabled: boolean;
+  sync_hour: number;
+  sync_minute: number;
+  app_password?: string;
+}
+
+export interface SyncRunResponse {
+  job_id: string;
+  source: string;
+  mode: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -68,8 +94,18 @@ export class SiloSettingsService {
   }
 
   updateScopeSilo(id: number, siloGroupId: number | null): Observable<ScopeItem> {
-    return this.http.patch<ScopeItem>(`/api/scopes/${id}/`, {
-      silo_group: siloGroupId,
-    });
+    return this.http.patch<ScopeItem>(`/api/scopes/${id}/`, { silo_group: siloGroupId });
+  }
+
+  getWordPressSettings(): Observable<WordPressSettings> {
+    return this.http.get<WordPressSettings>('/api/settings/wordpress/');
+  }
+
+  updateWordPressSettings(payload: WordPressSettingsUpdate): Observable<WordPressSettings> {
+    return this.http.put<WordPressSettings>('/api/settings/wordpress/', payload);
+  }
+
+  runWordPressSync(): Observable<SyncRunResponse> {
+    return this.http.post<SyncRunResponse>('/api/sync/wordpress/run/', {});
   }
 }

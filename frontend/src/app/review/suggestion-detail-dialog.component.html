@@ -36,10 +36,12 @@
           {{ detail.destination_title }}
           <mat-icon class="ext-icon">open_in_new</mat-icon>
         </a>
+        <span class="confidence-badge confidence-none">{{ detail.destination_source_label }}</span>
       </div>
       <div class="field-row">
-        <span class="field-label">Host thread</span>
-        <span>{{ detail.host_sentence }}</span>
+        <span class="field-label">Host</span>
+        <span>{{ detail.host_title }}</span>
+        <span class="confidence-badge confidence-none">{{ detail.host_source_label }}</span>
       </div>
     </section>
 

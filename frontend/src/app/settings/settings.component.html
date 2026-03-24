@@ -7,10 +7,80 @@
 
 @if (loading) {
   <mat-card class="settings-card">
-    <mat-card-content>Loading silo settings...</mat-card-content>
+    <mat-card-content>Loading settings...</mat-card-content>
   </mat-card>
 } @else {
   <div class="settings-grid">
+    <mat-card class="settings-card">
+      <mat-card-header>
+        <mat-card-title>WordPress Sync</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <mat-form-field appearance="outline">
+          <mat-label>Base URL</mat-label>
+          <input matInput [(ngModel)]="wordpress.base_url" placeholder="https://your-wordpress-site.com" />
+        </mat-form-field>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Username</mat-label>
+            <input matInput [(ngModel)]="wordpress.username" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Application Password</mat-label>
+            <input matInput type="password" [(ngModel)]="wordpressPassword" />
+            <mat-hint>
+              @if (wordpress.app_password_configured) {
+                Password saved. Leave blank to keep the current one.
+              } @else {
+                Optional for public content. Required for private posts/pages.
+              }
+            </mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Scheduled sync</mat-label>
+            <mat-select [(ngModel)]="wordpress.sync_enabled">
+              <mat-option [value]="false">Disabled</mat-option>
+              <mat-option [value]="true">Enabled</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>UTC hour</mat-label>
+            <input matInput type="number" min="0" max="23" [(ngModel)]="wordpress.sync_hour" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>UTC minute</mat-label>
+            <input matInput type="number" min="0" max="59" [(ngModel)]="wordpress.sync_minute" />
+          </mat-form-field>
+        </div>
+
+        <p class="hint">
+          Manual sync and scheduled sync both use the existing Celery task flow. Scheduled runs are stored through Celery Beat.
+        </p>
+
+        <div class="button-row">
+          <button mat-flat-button color="primary" [disabled]="savingWordPress" (click)="saveWordPressSettings()">
+            <mat-icon>save</mat-icon>
+            Save WordPress settings
+          </button>
+          <button mat-stroked-button [disabled]="savingWordPress || !wordpress.app_password_configured" (click)="clearWordPressPassword()">
+            <mat-icon>key_off</mat-icon>
+            Clear saved password
+          </button>
+          <button mat-stroked-button color="primary" [disabled]="runningWordPressSync" (click)="runWordPressSync()">
+            <mat-icon>sync</mat-icon>
+            Run sync now
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="settings-card">
       <mat-card-header>
         <mat-card-title>Silo Ranking</mat-card-title>
@@ -119,14 +189,13 @@
           <div class="scope-row">
             <div class="scope-meta">
               <div class="scope-title">{{ scope.title }}</div>
-              <div class="scope-subtitle">{{ scope.scope_type }} · {{ scope.content_count }} items</div>
+              <div class="scope-subtitle">
+                {{ scope.source_label }} · {{ scope.scope_type_label }} · {{ scope.content_count }} items
+              </div>
             </div>
             <mat-form-field appearance="outline">
               <mat-label>Silo group</mat-label>
-              <mat-select
-                [ngModel]="scope.silo_group"
-                (ngModelChange)="updateScope(scope, $event)"
-              >
+              <mat-select [ngModel]="scope.silo_group" (ngModelChange)="updateScope(scope, $event)">
                 <mat-option [value]="null">Unassigned</mat-option>
                 @for (group of siloGroups; track group.id) {
                   <mat-option [value]="group.id">{{ group.name }}</mat-option>

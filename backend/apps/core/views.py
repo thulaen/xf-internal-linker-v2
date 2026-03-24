@@ -14,6 +14,7 @@ GET    /api/dashboard/           → aggregated stats for the dashboard
 import json
 import os
 import uuid
+from urllib.parse import urlparse
 
 from django.conf import settings as django_settings
 from django.http import JsonResponse
@@ -44,6 +45,14 @@ DEFAULT_SILO_SETTINGS = {
     "mode": "disabled",
     "same_silo_boost": 0.0,
     "cross_silo_penalty": 0.0,
+}
+
+DEFAULT_WORDPRESS_SETTINGS = {
+    "base_url": "",
+    "username": "",
+    "sync_enabled": False,
+    "sync_hour": 3,
+    "sync_minute": 0,
 }
 
 # Allowed MIME types for site asset uploads
@@ -108,6 +117,125 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
         "same_silo_boost": same_silo_boost,
         "cross_silo_penalty": cross_silo_penalty,
     }
+
+
+def get_wordpress_settings() -> dict[str, object]:
+    """Load persisted WordPress sync settings with environment fallbacks."""
+    base_url = (_get_app_setting_value("wordpress.base_url", django_settings.WORDPRESS_BASE_URL) or "").strip().rstrip("/")
+    username = (_get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME) or "").strip()
+    app_password = _get_app_setting_value("wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD) or ""
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            return int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    sync_enabled = (_get_app_setting_value("wordpress.sync_enabled") or "").strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "base_url": base_url,
+        "username": username,
+        "app_password_configured": bool(app_password.strip()),
+        "sync_enabled": sync_enabled,
+        "sync_hour": _read_int("wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"]),
+        "sync_minute": _read_int("wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"]),
+    }
+
+
+def get_wordpress_runtime_config() -> dict[str, str]:
+    """Return WordPress connection settings including the stored secret."""
+    return {
+        "base_url": (_get_app_setting_value("wordpress.base_url", django_settings.WORDPRESS_BASE_URL) or "").strip().rstrip("/"),
+        "username": (_get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME) or "").strip(),
+        "app_password": (_get_app_setting_value("wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD) or "").strip(),
+    }
+
+
+def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
+    current = get_wordpress_settings()
+
+    base_url = str(payload.get("base_url", current["base_url"])).strip().rstrip("/")
+    username = str(payload.get("username", current["username"])).strip()
+
+    if base_url:
+        parsed = urlparse(base_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("base_url must be a valid http(s) URL.")
+
+    app_password_provided = "app_password" in payload
+    app_password = None
+    if app_password_provided:
+        app_password = str(payload.get("app_password", "")).strip()
+
+    effective_has_password = bool(current["app_password_configured"])
+    if app_password_provided:
+        effective_has_password = bool(app_password)
+
+    def _coerce_bool(value: object, default: bool) -> bool:
+        if value is None:
+            return default
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _coerce_int(key: str, minimum: int, maximum: int) -> int:
+        raw = payload.get(key, current[key])
+        try:
+            value = int(raw)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+        if value < minimum or value > maximum:
+            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+        return value
+
+    sync_enabled = _coerce_bool(payload.get("sync_enabled"), bool(current["sync_enabled"]))
+    sync_hour = _coerce_int("sync_hour", 0, 23)
+    sync_minute = _coerce_int("sync_minute", 0, 59)
+
+    if username and not effective_has_password:
+        raise ValueError("Application Password is required when a WordPress username is configured.")
+    if effective_has_password and not username:
+        raise ValueError("username is required when an Application Password is configured.")
+    if sync_enabled and not base_url:
+        raise ValueError("base_url is required when scheduled WordPress sync is enabled.")
+
+    return {
+        "base_url": base_url,
+        "username": username,
+        "app_password": app_password,
+        "app_password_provided": app_password_provided,
+        "app_password_configured": effective_has_password,
+        "sync_enabled": sync_enabled,
+        "sync_hour": sync_hour,
+        "sync_minute": sync_minute,
+    }
+
+
+def _sync_wordpress_periodic_task(config: dict[str, object]) -> None:
+    """Keep the Celery Beat schedule aligned with the saved WordPress sync settings."""
+    from django_celery_beat.models import CrontabSchedule, PeriodicTask
+
+    schedule, _ = CrontabSchedule.objects.get_or_create(
+        minute=str(config["sync_minute"]),
+        hour=str(config["sync_hour"]),
+        day_of_week="*",
+        day_of_month="*",
+        month_of_year="*",
+        timezone="UTC",
+    )
+    PeriodicTask.objects.update_or_create(
+        name="wordpress-content-sync",
+        defaults={
+            "task": "pipeline.import_content",
+            "crontab": schedule,
+            "kwargs": json.dumps({"source": "wp", "mode": "full"}),
+            "queue": "pipeline",
+            "enabled": bool(config["sync_enabled"]) and bool(config["base_url"]),
+            "description": "Scheduled WordPress content sync for cross-link indexing.",
+        },
+    )
 
 
 class HealthCheckView(View):
@@ -213,6 +341,125 @@ class SiloSettingsView(APIView):
                 },
             )
         return Response(validated)
+
+
+class WordPressSettingsView(APIView):
+    """
+    GET  /api/settings/wordpress/ - returns saved WordPress sync settings
+    PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
+    """
+
+    def get(self, request):
+        return Response(get_wordpress_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_wordpress_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "wordpress.base_url": {
+                "value": str(validated["base_url"]),
+                "value_type": "str",
+                "description": "Base URL for the read-only WordPress REST API.",
+                "category": "sync",
+                "is_secret": False,
+            },
+            "wordpress.username": {
+                "value": str(validated["username"]),
+                "value_type": "str",
+                "description": "WordPress username used for Application Password authentication.",
+                "category": "api",
+                "is_secret": False,
+            },
+            "wordpress.sync_enabled": {
+                "value": "true" if validated["sync_enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether scheduled WordPress sync is enabled via Celery Beat.",
+                "category": "sync",
+                "is_secret": False,
+            },
+            "wordpress.sync_hour": {
+                "value": str(validated["sync_hour"]),
+                "value_type": "int",
+                "description": "UTC hour for the scheduled WordPress sync.",
+                "category": "sync",
+                "is_secret": False,
+            },
+            "wordpress.sync_minute": {
+                "value": str(validated["sync_minute"]),
+                "value_type": "int",
+                "description": "UTC minute for the scheduled WordPress sync.",
+                "category": "sync",
+                "is_secret": False,
+            },
+        }
+        if validated["app_password_provided"]:
+            rows["wordpress.app_password"] = {
+                "value": str(validated["app_password"] or ""),
+                "value_type": "str",
+                "description": "WordPress Application Password for private-content reads.",
+                "category": "api",
+                "is_secret": True,
+            }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": row["category"],
+                    "description": row["description"],
+                    "is_secret": row["is_secret"],
+                },
+            )
+
+        _sync_wordpress_periodic_task(validated)
+        return Response(get_wordpress_settings())
+
+
+class WordPressSyncRunView(APIView):
+    """POST /api/sync/wordpress/run/ - enqueue a manual WordPress sync job."""
+
+    def post(self, request):
+        from django.utils import timezone
+
+        from apps.pipeline.tasks import import_content
+        from apps.sync.models import SyncJob
+
+        config = get_wordpress_settings()
+        if not config["base_url"]:
+            return Response(
+                {"detail": "Configure a WordPress base URL before starting a sync."},
+                status=400,
+            )
+
+        job = SyncJob.objects.create(
+            source="wp",
+            mode="full",
+            status="pending",
+            message="Queued WordPress sync.",
+            started_at=timezone.now(),
+        )
+
+        import_content.delay(
+            mode="full",
+            source="wp",
+            job_id=str(job.job_id),
+        )
+
+        return Response(
+            {
+                "job_id": str(job.job_id),
+                "source": "wp",
+                "mode": "full",
+            },
+            status=202,
+        )
 
 
 def _save_appearance_key(key: str, value) -> None:

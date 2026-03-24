@@ -38,32 +38,39 @@ class SiloGroupSerializer(serializers.ModelSerializer):
 
 
 class ScopeItemSerializer(serializers.ModelSerializer):
-    """Serializes forum nodes and resource categories."""
+    """Serializes forum nodes, resource categories, and WordPress scopes."""
 
     silo_group_name = serializers.CharField(source="silo_group.name", read_only=True, default="")
     parent_title = serializers.CharField(source="parent.title", read_only=True, default="")
+    source_label = serializers.SerializerMethodField()
+    scope_type_label = serializers.CharField(source="get_scope_type_display", read_only=True)
 
     class Meta:
         model = ScopeItem
         fields = [
-            "id", "scope_id", "scope_type", "title", "parent",
-            "parent_title",
+            "id", "scope_id", "scope_type", "scope_type_label", "source_label",
+            "title", "parent", "parent_title",
             "silo_group", "silo_group_name",
             "is_enabled", "content_count", "display_order",
         ]
         read_only_fields = ["id", "content_count"]
 
+    def get_source_label(self, obj: ScopeItem) -> str:
+        return _scope_source_label(obj.scope_type)
+
 
 class ContentItemListSerializer(serializers.ModelSerializer):
-    """Lightweight serializer for list views — omits heavy fields like distilled_text."""
+    """Lightweight serializer for list views; omits heavy fields like distilled_text."""
 
     scope_title = serializers.CharField(source="scope.title", read_only=True, default="")
+    source_label = serializers.SerializerMethodField()
+    content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
 
     class Meta:
         model = ContentItem
         fields = [
-            "id", "content_id", "content_type", "title", "url",
-            "scope", "scope_title",
+            "id", "content_id", "content_type", "content_type_label", "source_label",
+            "title", "url", "scope", "scope_title",
             "pagerank_score", "velocity_score",
             "view_count", "reply_count",
             "post_date", "is_deleted",
@@ -71,20 +78,25 @@ class ContentItemListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_source_label(self, obj: ContentItem) -> str:
+        return _content_source_label(obj.content_type)
+
 
 class ContentItemDetailSerializer(serializers.ModelSerializer):
-    """Full serializer for detail views — includes distilled_text and embedding status."""
+    """Full serializer for detail views; includes distilled_text and embedding status."""
 
     scope_title = serializers.CharField(source="scope.title", read_only=True, default="")
     has_embedding = serializers.SerializerMethodField()
     has_post = serializers.SerializerMethodField()
     sentence_count = serializers.SerializerMethodField()
+    source_label = serializers.SerializerMethodField()
+    content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
 
     class Meta:
         model = ContentItem
         fields = [
-            "id", "content_id", "content_type", "title", "url",
-            "scope", "scope_title",
+            "id", "content_id", "content_type", "content_type_label", "source_label",
+            "title", "url", "scope", "scope_title",
             "distilled_text", "distill_method", "content_hash",
             "pagerank_score", "velocity_score",
             "view_count", "reply_count", "download_count",
@@ -104,6 +116,9 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
 
     def get_sentence_count(self, obj: ContentItem) -> int:
         return obj.sentences.count()
+
+    def get_source_label(self, obj: ContentItem) -> str:
+        return _content_source_label(obj.content_type)
 
 
 class PostSerializer(serializers.ModelSerializer):
@@ -128,3 +143,15 @@ class SentenceSerializer(serializers.ModelSerializer):
             "text", "char_count", "start_char", "end_char",
         ]
         read_only_fields = fields
+
+
+def _scope_source_label(scope_type: str) -> str:
+    if scope_type.startswith("wp_"):
+        return "WordPress"
+    return "XenForo"
+
+
+def _content_source_label(content_type: str) -> str:
+    if content_type.startswith("wp_"):
+        return "WordPress"
+    return "XenForo"

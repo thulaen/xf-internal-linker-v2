@@ -15,11 +15,15 @@ export interface Suggestion {
   destination: number;
   destination_title: string;
   destination_url: string;
+  destination_content_type: string;
+  destination_source_label: string;
   destination_silo_group: number | null;
   destination_silo_group_name: string;
   host: number;
   host_title: string;
   host_sentence_text: string;
+  host_content_type: string;
+  host_source_label: string;
   host_silo_group: number | null;
   host_silo_group_name: string;
   same_silo: boolean;

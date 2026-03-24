@@ -1,6 +1,6 @@
 /**
  * Analytics component.
- * GSC and GA4 SEO impact reports. Full implementation in Phase 8.
+ * Placeholder for future GSC and GA4 SEO impact reporting work.
  */
 
 import { Component } from '@angular/core';

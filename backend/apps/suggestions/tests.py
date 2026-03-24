@@ -94,3 +94,13 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertTrue(suggestion["same_silo"])
         self.assertEqual(suggestion["destination_silo_group_name"], "Silo A")
         self.assertEqual(suggestion["host_silo_group_name"], "Silo A")
+
+    def test_suggestion_list_exposes_source_labels_for_cross_source_review(self):
+        response = self.client.get("/api/suggestions/")
+
+        self.assertEqual(response.status_code, 200)
+        suggestion = response.json()["results"][0]
+        self.assertEqual(suggestion["destination_source_label"], "XenForo")
+        self.assertEqual(suggestion["host_source_label"], "XenForo")
+        self.assertEqual(suggestion["destination_content_type"], "thread")
+        self.assertEqual(suggestion["host_content_type"], "thread")

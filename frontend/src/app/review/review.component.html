@@ -165,6 +165,7 @@
         <div class="card-destination">
           <mat-icon>arrow_forward</mat-icon>
           <span class="destination-title">{{ s.destination_title }}</span>
+          <span class="silo-pill">{{ s.destination_source_label }}</span>
           @if (s.destination_url) {
             <a
               class="ext-link"
@@ -183,6 +184,7 @@
         <div class="card-host">
           <mat-icon>article</mat-icon>
           <span>{{ s.host_title }}</span>
+          <span class="silo-pill">{{ s.host_source_label }}</span>
         </div>
 
         <div class="silo-row">

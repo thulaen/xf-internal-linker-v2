@@ -1,8 +1,12 @@
 import logging
+from urllib.parse import urlparse
+
+from django.conf import settings
 from django.db import transaction
+
 from apps.content.models import ContentItem
 from apps.graph.models import ExistingLink
-from apps.pipeline.services.link_parser import LinkEdge
+from apps.pipeline.services.link_parser import LinkEdge, extract_internal_links
 
 logger = logging.getLogger(__name__)
 
@@ -62,3 +66,42 @@ def sync_existing_links(content_item: ContentItem, edges: list[LinkEdge]) -> int
             ExistingLink.objects.filter(pk__in=to_delete_ids).delete()
             
     return len(target_keys)
+
+
+def refresh_existing_links() -> int:
+    """Rebuild existing-link edges for all indexed content with stored bodies."""
+    content_items = (
+        ContentItem.objects
+        .select_related("post")
+        .filter(is_deleted=False, post__raw_bbcode__gt="")
+        .order_by("pk")
+    )
+    internal_domains = _internal_domains()
+    refreshed = 0
+
+    for content_item in content_items.iterator(chunk_size=100):
+        post = getattr(content_item, "post", None)
+        if post is None or not post.raw_bbcode:
+            continue
+        edges = extract_internal_links(
+            post.raw_bbcode,
+            content_item.content_id,
+            content_item.content_type,
+            forum_domains=internal_domains,
+        )
+        sync_existing_links(content_item, edges)
+        refreshed += 1
+
+    return refreshed
+
+
+def _internal_domains() -> list[str]:
+    domains: list[str] = []
+    for raw_url in [
+        getattr(settings, "XENFORO_BASE_URL", ""),
+        getattr(settings, "WORDPRESS_BASE_URL", ""),
+    ]:
+        host = urlparse(raw_url).netloc.strip().lower()
+        if host and host not in domains:
+            domains.append(host)
+    return domains

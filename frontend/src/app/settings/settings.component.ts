@@ -14,6 +14,8 @@ import {
   SiloMode,
   SiloSettings,
   SiloSettingsService,
+  WordPressSettings,
+  WordPressSettingsUpdate,
 } from './silo-settings.service';
 
 @Component({
@@ -39,12 +41,25 @@ export class SettingsComponent implements OnInit {
 
   loading = true;
   savingSettings = false;
+  savingWordPress = false;
+  runningWordPressSync = false;
   creatingGroup = false;
+
   settings: SiloSettings = {
     mode: 'disabled',
     same_silo_boost: 0,
     cross_silo_penalty: 0,
   };
+  wordpress: WordPressSettings = {
+    base_url: '',
+    username: '',
+    app_password_configured: false,
+    sync_enabled: false,
+    sync_hour: 3,
+    sync_minute: 0,
+  };
+  wordpressPassword = '';
+
   siloGroups: SiloGroup[] = [];
   scopes: ScopeItem[] = [];
 
@@ -82,7 +97,16 @@ export class SettingsComponent implements OnInit {
     this.siloSvc.getSettings().subscribe({
       next: (settings) => {
         this.settings = settings;
-        this.loadGroupsAndScopes();
+        this.siloSvc.getWordPressSettings().subscribe({
+          next: (wordpress) => {
+            this.wordpress = wordpress;
+            this.loadGroupsAndScopes();
+          },
+          error: () => {
+            this.loading = false;
+            this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+          },
+        });
       },
       error: () => {
         this.loading = false;
@@ -124,6 +148,70 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingSettings = false;
         this.snack.open(error?.error?.detail || 'Failed to save silo settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveWordPressSettings(): void {
+    this.savingWordPress = true;
+    const payload: WordPressSettingsUpdate = {
+      base_url: this.wordpress.base_url.trim(),
+      username: this.wordpress.username.trim(),
+      sync_enabled: this.wordpress.sync_enabled,
+      sync_hour: Number(this.wordpress.sync_hour),
+      sync_minute: Number(this.wordpress.sync_minute),
+    };
+    if (this.wordpressPassword.trim()) {
+      payload.app_password = this.wordpressPassword.trim();
+    }
+
+    this.siloSvc.updateWordPressSettings(payload).subscribe({
+      next: (wordpress) => {
+        this.wordpress = wordpress;
+        this.wordpressPassword = '';
+        this.savingWordPress = false;
+        this.snack.open('WordPress settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingWordPress = false;
+        this.snack.open(error?.error?.detail || 'Failed to save WordPress settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  clearWordPressPassword(): void {
+    this.savingWordPress = true;
+    this.siloSvc.updateWordPressSettings({
+      base_url: this.wordpress.base_url.trim(),
+      username: this.wordpress.username.trim(),
+      sync_enabled: this.wordpress.sync_enabled,
+      sync_hour: Number(this.wordpress.sync_hour),
+      sync_minute: Number(this.wordpress.sync_minute),
+      app_password: '',
+    }).subscribe({
+      next: (wordpress) => {
+        this.wordpress = wordpress;
+        this.wordpressPassword = '';
+        this.savingWordPress = false;
+        this.snack.open('WordPress Application Password cleared', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingWordPress = false;
+        this.snack.open(error?.error?.detail || 'Failed to clear WordPress password', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  runWordPressSync(): void {
+    this.runningWordPressSync = true;
+    this.siloSvc.runWordPressSync().subscribe({
+      next: (response) => {
+        this.runningWordPressSync = false;
+        this.snack.open(`WordPress sync started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+      },
+      error: (error) => {
+        this.runningWordPressSync = false;
+        this.snack.open(error?.error?.detail || 'Failed to start WordPress sync', 'Dismiss', { duration: 4000 });
       },
     });
   }

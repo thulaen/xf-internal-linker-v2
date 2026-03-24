@@ -37,8 +37,8 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             return None
         if obj.duration_seconds < 60:
             return f"{obj.duration_seconds:.1f}s"
-        m, s = divmod(int(obj.duration_seconds), 60)
-        return f"{m}m {s}s"
+        minutes, seconds = divmod(int(obj.duration_seconds), 60)
+        return f"{minutes}m {seconds}s"
 
 
 class SuggestionListSerializer(serializers.ModelSerializer):
@@ -46,6 +46,10 @@ class SuggestionListSerializer(serializers.ModelSerializer):
 
     destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
     host_title = serializers.CharField(source="host.title", read_only=True, default="")
+    destination_content_type = serializers.CharField(source="destination.content_type", read_only=True, default="")
+    destination_source_label = serializers.SerializerMethodField()
+    host_content_type = serializers.CharField(source="host.content_type", read_only=True, default="")
+    host_source_label = serializers.SerializerMethodField()
     destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
     destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
     host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
@@ -57,8 +61,10 @@ class SuggestionListSerializer(serializers.ModelSerializer):
         fields = [
             "suggestion_id", "status", "score_final",
             "destination", "destination_title", "destination_url",
+            "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
             "host", "host_title", "host_sentence_text",
+            "host_content_type", "host_source_label",
             "host_silo_group", "host_silo_group_name", "same_silo",
             "anchor_phrase", "anchor_confidence", "anchor_edited",
             "repeated_anchor",
@@ -66,6 +72,12 @@ class SuggestionListSerializer(serializers.ModelSerializer):
             "created_at",
         ]
         read_only_fields = fields
+
+    def get_destination_source_label(self, obj: Suggestion) -> str:
+        return _content_source_label(getattr(obj.destination, "content_type", ""))
+
+    def get_host_source_label(self, obj: Suggestion) -> str:
+        return _content_source_label(getattr(obj.host, "content_type", ""))
 
     def get_same_silo(self, obj: Suggestion) -> bool:
         destination_scope = getattr(obj.destination, "scope", None)
@@ -80,6 +92,12 @@ class SuggestionListSerializer(serializers.ModelSerializer):
 class SuggestionDetailSerializer(serializers.ModelSerializer):
     """Full serializer for the suggestion review detail view."""
 
+    destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
+    destination_content_type = serializers.CharField(source="destination.content_type", read_only=True, default="")
+    destination_source_label = serializers.SerializerMethodField()
+    host_title = serializers.CharField(source="host.title", read_only=True, default="")
+    host_content_type = serializers.CharField(source="host.content_type", read_only=True, default="")
+    host_source_label = serializers.SerializerMethodField()
     destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
     destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
     host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
@@ -93,9 +111,11 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
             "score_quality", "score_pagerank", "score_velocity",
-            "destination", "destination_title",
+            "destination", "destination_title", "destination_url",
+            "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
-            "host", "host_sentence", "host_sentence_text",
+            "host", "host_title", "host_sentence", "host_sentence_text",
+            "host_content_type", "host_source_label",
             "host_silo_group", "host_silo_group_name", "same_silo",
             "anchor_phrase", "anchor_start", "anchor_end",
             "anchor_confidence", "anchor_edited", "repeated_anchor",
@@ -104,6 +124,28 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "superseded_by", "superseded_at",
             "created_at", "updated_at",
         ]
+        read_only_fields = [
+            "suggestion_id", "pipeline_run",
+            "score_final", "score_semantic", "score_keyword",
+            "score_node_affinity", "score_quality", "score_pagerank", "score_velocity",
+            "destination", "destination_title", "destination_url",
+            "destination_content_type", "destination_source_label",
+            "destination_silo_group", "destination_silo_group_name",
+            "host", "host_title", "host_sentence", "host_sentence_text",
+            "host_content_type", "host_source_label",
+            "host_silo_group", "host_silo_group_name", "same_silo",
+            "anchor_phrase", "anchor_start", "anchor_end", "anchor_confidence",
+            "repeated_anchor",
+            "applied_at", "verified_at", "stale_reason",
+            "superseded_by", "superseded_at",
+            "created_at", "updated_at",
+        ]
+
+    def get_destination_source_label(self, obj: Suggestion) -> str:
+        return _content_source_label(getattr(obj.destination, "content_type", ""))
+
+    def get_host_source_label(self, obj: Suggestion) -> str:
+        return _content_source_label(getattr(obj.host, "content_type", ""))
 
     def get_same_silo(self, obj: Suggestion) -> bool:
         destination_scope = getattr(obj.destination, "scope", None)
@@ -113,18 +155,6 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
             return False
         return destination_scope.silo_group_id == host_scope.silo_group_id
-        read_only_fields = [
-            "suggestion_id", "pipeline_run",
-            "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_pagerank", "score_velocity",
-            "destination", "destination_title",
-            "host", "host_sentence", "host_sentence_text",
-            "anchor_phrase", "anchor_start", "anchor_end", "anchor_confidence",
-            "repeated_anchor",
-            "applied_at", "verified_at", "stale_reason",
-            "superseded_by", "superseded_at",
-            "created_at", "updated_at",
-        ]
 
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):
@@ -157,3 +187,9 @@ class PipelineDiagnosticSerializer(serializers.ModelSerializer):
             "skip_reason", "detail", "created_at",
         ]
         read_only_fields = fields
+
+
+def _content_source_label(content_type: str) -> str:
+    if content_type.startswith("wp_"):
+        return "WordPress"
+    return "XenForo"

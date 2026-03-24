@@ -1,10 +1,13 @@
-"""BBCode cleaning and content hashing for imported post text."""
+"""Text cleaning and content hashing for imported post text."""
 
 from __future__ import annotations
 
 import hashlib
+from html import unescape
 import re
 import string
+
+from django.utils.html import strip_tags
 
 
 _QUOTE_RE = re.compile(
@@ -34,6 +37,17 @@ def clean_bbcode(raw_text: str) -> str:
     text = _obliterate_blocks(text, _QUOTE_RE)
     text = _obliterate_blocks(text, _CODE_RE)
     text = _TAG_RE.sub("", text)
+    text = _MULTI_WS_RE.sub(" ", text).strip()
+    return text
+
+
+def clean_import_text(raw_text: str) -> str:
+    """Normalize imported content from either BBCode or rendered WordPress HTML."""
+    if not raw_text:
+        return ""
+
+    text = clean_bbcode(raw_text)
+    text = unescape(strip_tags(text))
     text = _MULTI_WS_RE.sub(" ", text).strip()
     return text
 
