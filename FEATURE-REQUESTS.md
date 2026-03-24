@@ -234,7 +234,79 @@ this scanner finds existing links that are already broken.
 
 ---
 
-### FR-005 — Add your next request here
+### FR-005 — Link Siloing & Topical Authority Enforcement
+
+**Requested:** 2026-03-24
+**Target phase:** Phase 7 (after Dashboard)
+**Priority:** High — directly improves ranking relevance by keeping links topically tight
+
+### What's wanted
+The suggestion pipeline should understand the **topical structure** of the forum
+(nodes / sub-forums as silos) and prefer links that stay within or reinforce a topic
+cluster, while penalising or blocking cross-silo links that dilute topical authority.
+
+A "Guitar Gear" thread should almost never link to a "Studio Recording" thread even if
+the semantic score is acceptable — unless the user explicitly unlocks cross-silo linking
+for that pair. This mirrors the SEO concept of siloing: pages within a theme cluster
+link tightly to each other and sparingly to unrelated clusters.
+
+### Specific controls / behaviour
+
+**Silo definition**
+- Scopes (XenForo nodes / resource categories) are the natural silo boundaries
+- Each `ScopeItem` gets an optional **Silo Group** label (e.g. "Guitar", "Bass", "Drums")
+- Multiple scopes can belong to the same silo group (e.g. "Guitar Gear" + "Guitar Technique" → silo "Guitar")
+- Silo groups are created and managed in the **Settings → Silos** page
+
+**Pipeline enforcement modes** (per pipeline run, configurable in Settings)
+- `strict` — links only allowed within the same silo group; cross-silo blocked entirely
+- `prefer_same` (default) — same-silo links get a score bonus; cross-silo links allowed but scored lower
+- `off` — existing behaviour, no silo weighting
+
+**Score impact in `prefer_same` mode**
+- Same silo: `score_node_affinity` boosted by configurable multiplier (default ×1.5)
+- Different silo: `score_node_affinity` reduced by configurable penalty (default ×0.5)
+- Completely different silo groups with no known relationship: optional hard cap on `score_final`
+
+**Silo relationship map** (optional)
+- Some silos are "related" (e.g. "Guitar" and "Bass" are both in "String Instruments")
+- Related silos get a softer penalty than completely unrelated ones
+- Defined as a graph: silo → related silos in Settings
+
+**UI controls**
+- Settings → Silos page: create/rename/delete silo groups, assign scopes to groups
+- Silo relationship editor: drag-connect silos that are topically adjacent
+- Per-run override: "Allow cross-silo links for this run" toggle in the pipeline run dialog
+- Suggestion card shows silo of host and destination (e.g. "Guitar → Bass [cross-silo]")
+- Filter suggestions by "Same silo only" in the Review page
+- PipelineDiagnostic reason: `cross_silo_blocked` when strict mode prevents a match
+
+### Implementation notes for the AI
+
+**Backend:**
+- Add `SiloGroup` model to `apps/content/` (or new `apps/silos/`):
+  - `name` CharField, `description` TextField
+  - `related_silos` ManyToManyField(self, symmetrical=True)
+- Add `silo_group` FK (nullable) to `ScopeItem`
+- Silo enforcement logic in `apps/pipeline/services/ranker.py`:
+  - New helper `get_silo_affinity(host_scope, destination_scope, mode)` → float multiplier
+  - Applied to `score_node_affinity` during composite score calculation
+  - `strict` mode: if host/destination in different silos, return 0.0 (filtered out before ranking)
+- `SiloGroup` admin + DRF viewset at `GET/POST/PATCH /api/silos/`
+- `ScopeItem` serializer updated to include `silo_group` (id + name)
+- New `AppSetting` keys: `pipeline.silo_mode` (`strict`|`prefer_same`|`off`), `pipeline.silo_same_boost` (float), `pipeline.silo_cross_penalty` (float)
+- `PipelineDiagnostic.SKIP_REASON_CHOICES` gains `cross_silo_blocked`
+
+**Frontend:**
+- Settings → Silos page: silo group CRUD, scope assignment (drag-and-drop or multi-select)
+- Silo relationship editor: simple matrix or tag-based "related to" UI
+- Suggestion card: small silo label pills under destination/host titles (e.g. `Guitar` → `Bass`)
+- Review page filter: "Same silo only" toggle
+- Pipeline run dialog (future): silo mode override selector
+
+---
+
+### FR-006 — Add your next request here
 
 Use the template below. Copy it and replace the placeholder text.
 
@@ -257,4 +329,4 @@ Use the template below. Copy it and replace the placeholder text.
 
 ---
 
-*Last updated: 2026-03-24 (FR-004 Broken Link Detection added)*
+*Last updated: 2026-03-24 (FR-005 Link Siloing & Topical Authority Enforcement added)*
