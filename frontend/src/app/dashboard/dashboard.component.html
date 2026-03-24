@@ -37,6 +37,20 @@
   <!-- ── Stat cards ────────────────────────────────────────────────── -->
   <div class="stat-grid">
 
+    @if (data.open_broken_links > 0) {
+      <mat-card class="stat-card stat-card-warning" routerLink="/link-health" tabindex="0">
+        <mat-card-content>
+          <div class="stat-icon-wrap warning">
+            <mat-icon>link_off</mat-icon>
+          </div>
+          <div class="stat-body">
+            <div class="stat-value">{{ data.open_broken_links | number }}</div>
+            <div class="stat-label">Open broken links</div>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    }
+
     <mat-card class="stat-card">
       <mat-card-content>
         <div class="stat-icon-wrap pending">

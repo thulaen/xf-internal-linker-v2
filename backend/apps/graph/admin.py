@@ -5,7 +5,7 @@ Graph admin — ExistingLink (the live link graph topology).
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import ExistingLink
+from .models import BrokenLink, ExistingLink
 
 
 @admin.register(ExistingLink)
@@ -29,3 +29,22 @@ class ExistingLinkAdmin(ModelAdmin):
     @admin.display(description="Anchor Text")
     def anchor_preview(self, obj: ExistingLink) -> str:
         return obj.anchor_text[:60] if obj.anchor_text else "—"
+
+
+@admin.register(BrokenLink)
+class BrokenLinkAdmin(ModelAdmin):
+    """Admin for broken-link scan results and review state."""
+
+    list_display = [
+        "source_content",
+        "url",
+        "http_status",
+        "status",
+        "first_detected_at",
+        "last_checked_at",
+    ]
+    list_filter = ["status", "http_status", "first_detected_at", "last_checked_at"]
+    search_fields = ["source_content__title", "url", "notes"]
+    ordering = ["status", "-last_checked_at"]
+    list_per_page = 100
+    readonly_fields = ["broken_link_id", "first_detected_at", "last_checked_at", "created_at", "updated_at"]

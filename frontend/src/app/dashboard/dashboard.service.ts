@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { BehaviorSubject, Observable, tap } from 'rxjs';
 
 export interface SuggestionCounts {
   pending: number;
@@ -40,6 +40,7 @@ export interface LastSync {
 export interface DashboardData {
   suggestion_counts: SuggestionCounts;
   content_count: number;
+  open_broken_links: number;
   last_sync: LastSync | null;
   pipeline_runs: PipelineRunSummary[];
   recent_imports: ImportJobSummary[];
@@ -49,8 +50,29 @@ export interface DashboardData {
 export class DashboardService {
   private http = inject(HttpClient);
   private url = '/api/dashboard/';
+  private dataSubject = new BehaviorSubject<DashboardData | null>(null);
+
+  readonly data$ = this.dataSubject.asObservable();
 
   get(): Observable<DashboardData> {
-    return this.http.get<DashboardData>(this.url);
+    return this.refresh();
+  }
+
+  refresh(): Observable<DashboardData> {
+    return this.http.get<DashboardData>(this.url).pipe(
+      tap((data) => this.dataSubject.next(data)),
+    );
+  }
+
+  updateOpenBrokenLinks(count: number): void {
+    const current = this.dataSubject.value;
+    if (!current) {
+      return;
+    }
+
+    this.dataSubject.next({
+      ...current,
+      open_broken_links: count,
+    });
   }
 }

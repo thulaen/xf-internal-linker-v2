@@ -26,7 +26,12 @@
           matTooltipPosition="right"
         >
           <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
-          <span matListItemTitle>{{ item.label }}</span>
+          <div matListItemTitle class="nav-item-title">
+            <span>{{ item.label }}</span>
+            @if (item.route === '/link-health' && openBrokenLinks > 0) {
+              <span class="nav-badge">{{ openBrokenLinks }}</span>
+            }
+          </div>
         </a>
       }
     </mat-nav-list>

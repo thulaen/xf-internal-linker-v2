@@ -54,7 +54,7 @@ export class DashboardComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.dashSvc.get().subscribe({
+    this.dashSvc.refresh().subscribe({
       next: (d) => { this.data = d; this.loading = false; },
       error: () => {
         this.loading = false;

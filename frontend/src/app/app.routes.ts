@@ -26,6 +26,12 @@ export const routes: Routes = [
     title: 'Review Suggestions — XF Internal Linker',
   },
   {
+    path: 'link-health',
+    loadComponent: () =>
+      import('./link-health/link-health.component').then((m) => m.LinkHealthComponent),
+    title: 'Link Health — XF Internal Linker',
+  },
+  {
     path: 'graph',
     loadComponent: () =>
       import('./graph/graph.component').then((m) => m.GraphComponent),

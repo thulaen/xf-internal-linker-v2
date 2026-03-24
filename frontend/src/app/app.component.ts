@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -8,6 +9,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppearanceService } from './core/services/appearance.service';
+import { DashboardService } from './dashboard/dashboard.service';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
 
@@ -40,8 +42,11 @@ interface NavItem {
 })
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
+  private dashboardSvc = inject(DashboardService);
+  private destroyRef = inject(DestroyRef);
 
   customizerOpen = false;
+  openBrokenLinks = 0;
 
   navItems: NavItem[] = [
     {
@@ -55,6 +60,12 @@ export class AppComponent implements OnInit {
       icon: 'rate_review',
       route: '/review',
       tooltip: 'Review and approve link suggestions',
+    },
+    {
+      label: 'Link Health',
+      icon: 'link_off',
+      route: '/link-health',
+      tooltip: 'Broken link scanner and status tracker',
     },
     {
       label: 'Link Graph',
@@ -84,6 +95,16 @@ export class AppComponent implements OnInit {
 
   ngOnInit(): void {
     this.appearance.load();
+    this.dashboardSvc.data$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((data) => {
+        this.openBrokenLinks = data?.open_broken_links ?? 0;
+      });
+    this.dashboardSvc.refresh().subscribe({
+      error: () => {
+        this.openBrokenLinks = 0;
+      },
+    });
   }
 
   get config() {

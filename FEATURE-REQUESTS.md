@@ -1,4 +1,4 @@
-# Feature Requests — XF Internal Linker V2
+# Feature Requests - XF Internal Linker V2
 
 This file tracks UI/UX feature requests from the developer.
 
@@ -8,87 +8,75 @@ This file tracks UI/UX feature requests from the developer.
 |---|---|
 | **PENDING** | Requested but not yet built. AI must surface these at every session start. |
 | **IN PROGRESS** | Currently being implemented in the active phase. |
-| **COMPLETED** | Done. AI must check this before implementing anything new (avoid duplication). |
+| **COMPLETED** | Done. AI must check this before implementing anything new to avoid duplication. |
 
-**Rule:** Keep AI-CONTEXT.md for architecture facts. Keep this file for feature wishes.
+**Rule:** Keep `AI-CONTEXT.md` for architecture facts. Keep this file for feature wishes.
 
 ---
 
-## ✅ COMPLETED FEATURES
+## COMPLETED
 
-### FR-002 — Jobs Page: JSONL File Import UI
+### FR-004 - Broken Link Detection
 **Completed:** 2026-03-24
 
-- Drag-and-drop zone (or click to browse) accepting `.jsonl` files only
-- Import mode selector: Full / Titles / Quick
-- "Start Import" button enabled only when a file is selected
-- Live progress bar + status message via WebSocket (`ws/jobs/<job_id>/`)
-- Green success / red failure result banners
-- Recent Activity history table (source, mode, status, items synced)
-- Backend: `POST /api/import/upload/` — saves file, creates `SyncJob`, dispatches `import_content` Celery task
-- Backend: `GET /api/sync-jobs/` — `SyncJobViewSet` for history
-- `SyncJob` model + migration in `apps/sync/`
-- `SyncService` Angular service in `frontend/src/app/jobs/`
+- [x] `BrokenLink` model added in `apps/graph/` with UUID PK, source-content FK, URL, HTTP status, redirect URL, timestamps, reviewer status, and notes.
+- [x] Migration added at `backend/apps/graph/migrations/0002_brokenlink.py`.
+- [x] Broken Links admin registered with filters/search and added to the admin sidebar.
+- [x] `scan_broken_links` Celery task added with:
+  - HEAD -> GET fallback
+  - 0.5s request throttle
+  - 10,000 URL safety cap
+  - `update_or_create()` persistence keyed by source content + URL
+  - WebSocket progress updates on `ws/jobs/<job_id>/`
+- [x] `BrokenLinkSerializer` + `BrokenLinkViewSet` added with:
+  - `GET /api/broken-links/`
+  - `PATCH /api/broken-links/{id}/`
+  - `POST /api/broken-links/scan/`
+  - `GET /api/broken-links/export-csv/`
+- [x] Dashboard API now includes `open_broken_links`.
+- [x] Angular `/link-health` page added with live scan progress, summary counts, status/http-status filters, paginated Material table, row actions, CSV export, and empty state.
+- [x] Dashboard warning stat card and sidebar nav badge now surface open broken-link count and link to Link Health.
 
 ---
 
-## ✅ COMPLETED FEATURES
-
-### FR-001 — Angular Frontend: Light Theme Default + Full Theme Customizer
+### FR-002 - Jobs Page: JSONL File Import UI
 **Completed:** 2026-03-24
 
-- [x] Light theme default (already light by default via `gsc-theme.scss`)
-- [x] `AppearanceService` — loads/saves config from `/api/settings/appearance/`, applies CSS vars live
-- [x] Backend `AppearanceSettingsView` — `GET/PUT /api/settings/appearance/`
-- [x] `ThemeCustomizerComponent` — right-side Material drawer with all controls:
-  - Primary color, accent color, header background (light only — dark mode removed by design)
-  - Font size, layout width, sidebar width, density
-  - Site name, footer text/toggle/color
-  - Logo upload (PNG/SVG/WEBP/JPEG ≤ 2 MB) + favicon upload (PNG/SVG/ICO ≤ 2 MB)
-  - Scroll-to-top toggle
-  - Named presets (save / load / delete)
-- [x] `ScrollToTopComponent` — floating FAB, appears after 300px scroll
-- [x] App shell wired: customizer drawer, footer, site name from config; logo shown in sidebar + toolbar when uploaded
-- [x] Backend `LogoUploadView` — `POST/DELETE /api/settings/logo/`
-- [x] Backend `FaviconUploadView` — `POST/DELETE /api/settings/favicon/`
-- [x] Favicon applied to browser tab via `<link rel="icon">` in `applyToDom()`
+- Drag-and-drop zone (or click to browse) accepting `.jsonl` files only.
+- Import mode selector: Full / Titles / Quick.
+- "Start Import" button enabled only when a file is selected.
+- Live progress bar + status message via WebSocket (`ws/jobs/<job_id>/`).
+- Green success / red failure result banners.
+- Recent Activity history table (source, mode, status, items synced).
+- Backend: `POST /api/import/upload/` saves file, creates `SyncJob`, dispatches `import_content`.
+- Backend: `GET /api/sync-jobs/` provides import job history.
+- `SyncJob` model + migration added in `apps/sync/`.
+- `SyncService` Angular service added in `frontend/src/app/jobs/`.
 
 ---
 
----
+### FR-001 - Angular Frontend: Light Theme Default + Full Theme Customizer
+**Completed:** 2026-03-24
 
-## 📋 PENDING FEATURES
-
----
-
-### FR-002 — Jobs Page: JSONL File Import UI
-
-**Requested:** 2026-03-24
-**Target phase:** Phase 3 (content import)
-**Priority:** High — no command-line access; UI is the only import path
-
-### What's wanted
-A clean import card on the Jobs page that lets the user upload a `.jsonl` export file
-from the XenForo server and watch the import progress live — no terminal, no Docker commands.
-
-### Specific controls / behaviour
-- Drag-and-drop zone (or click to browse) accepting `.jsonl` files only
-- Import mode selector: **Full** (body + sentences + embeddings) / **Titles** (metadata only) / **Quick** (IDs + titles)
-- "Start Import" button — enabled only when a file is selected
-- Live progress bar + status message driven by WebSocket (`ws/jobs/<job_id>/`)
-- Clear success state (green) and failure state (red) with message
-- File name and size shown after selection
-
-### Implementation notes for the AI
-- Backend: `POST /api/import/upload/` accepts multipart file + mode param
-- View saves file to `BASE_DIR/data/imports/<uuid>.jsonl`, generates a `job_id`, dispatches `import_content.delay(source="jsonl", ...)`
-- `job_id` returned to Angular so it can subscribe to WebSocket before progress events arrive
-- `import_content` task must accept an optional `job_id` kwarg
-- Angular: standalone component, `HttpClient` for upload, native `WebSocket` for progress
+- [x] Light theme default retained.
+- [x] `AppearanceService` loads/saves config from `/api/settings/appearance/` and applies CSS vars live.
+- [x] Backend `AppearanceSettingsView` added at `GET/PUT /api/settings/appearance/`.
+- [x] `ThemeCustomizerComponent` implemented with:
+  - primary/accent/header colors
+  - font size, layout width, sidebar width, density
+  - site name, footer text/toggle/color
+  - logo upload + favicon upload
+  - scroll-to-top toggle
+  - named presets
+- [x] `ScrollToTopComponent` added.
+- [x] App shell wired to appearance settings, including logo/favicon behavior.
+- [x] Backend logo/favicon upload endpoints added.
 
 ---
 
-### FR-003 — WordPress Cross-Linking
+## PENDING
+
+### FR-003 - WordPress Cross-Linking
 
 **Requested:** 2026-03-24
 **Target phase:** Phase 5 (after XenForo sync is stable)
@@ -97,162 +85,75 @@ from the XenForo server and watch the import progress live — no terminal, no D
 ### What's wanted
 Suggest internal links between XenForo threads/resources and WordPress posts/pages.
 A forum thread about a product should be able to link to the WordPress review of that
-product, and vice versa. All suggestions go through the same manual review workflow —
+product, and vice versa. All suggestions go through the same manual review workflow -
 nothing is applied automatically.
 
 ### Specific controls / behaviour
-- WordPress content appears in the same scope/content browser as XenForo content
-- Suggestions can cross site boundaries (XF → WP and WP → XF)
-- Scope selector in the UI clearly labels content source (XenForo / WordPress)
-- Import settings page has a WordPress section: base URL + Application Password
-- Sync can be triggered manually (UI button) or on a schedule (Celery Beat)
-- Public WordPress content requires no credentials; private content uses Application Password
+- WordPress content appears in the same scope/content browser as XenForo content.
+- Suggestions can cross site boundaries (XF -> WP and WP -> XF).
+- Scope selector clearly labels content source (XenForo / WordPress).
+- Import settings page has a WordPress section: base URL + Application Password.
+- Sync can be triggered manually or on a schedule.
+- Public WordPress content requires no credentials; private content uses Application Password.
 
 ### Implementation notes for the AI
-- `apps/sync/services/wordpress_api.py` — WP REST API client
-  - `GET /wp-json/wp/v2/posts` + `/pages` (paginated)
-  - Auth: `Authorization: Basic base64(username:application_password)` header
-  - No plugin needed — built into WordPress since 5.6
-- WordPress posts/pages map to `ContentItem(content_type="wp_post"/"wp_page")`
-- Sentence splitting, distillation, and embedding pipeline is identical to XenForo
-- ExistingLink graph includes WP → XF and XF → WP edges
-- `WORDPRESS_BASE_URL` + `WORDPRESS_APP_PASSWORD` + `WORDPRESS_USERNAME` added to `.env.example`
-- Pending configuration item 2 in AI-CONTEXT.md should be marked done when this FR is implemented
+- `apps/sync/services/wordpress_api.py` - WP REST API client
+  - `GET /wp-json/wp/v2/posts`
+  - `GET /wp-json/wp/v2/pages`
+  - Basic auth using username + application password
+- WordPress posts/pages map to `ContentItem(content_type="wp_post"/"wp_page")`.
+- Sentence splitting, distillation, and embedding pipeline stays the same.
+- Existing-link graph must include WP -> XF and XF -> WP edges.
+- Add `WORDPRESS_BASE_URL`, `WORDPRESS_USERNAME`, and `WORDPRESS_APP_PASSWORD` to `.env.example`.
 
 ---
 
-### FR-004 — Broken Link Detection
-
-**Requested:** 2026-03-24
-**Target phase:** Phase 6 (alongside or after Dashboard)
-**Priority:** High — directly protects link equity and improves UX
-
-### What's wanted
-The tool should detect when existing internal links in XenForo content are broken —
-pointing to deleted, moved, or restricted threads — and surface these in the UI so
-the user can fix or remove them before they hurt SEO or confuse readers.
-
-This is a complement to the suggestion pipeline: rather than finding new links to add,
-this scanner finds existing links that are already broken.
-
-### Specific controls / behaviour
-- **Scan button** on the Dashboard or a dedicated "Link Health" tab — triggers a background scan
-- **Broken link table** listing every broken link found:
-  - Source thread (where the link lives)
-  - Broken URL (the dead link)
-  - HTTP status code returned (404, 403, 301 redirect, connection error)
-  - Date first detected
-  - Status: Open / Ignored / Fixed
-- **Mark as Fixed** — user confirms they've manually removed/updated the link in the forum
-- **Ignore** — suppress a false positive (e.g. legitimate external redirect)
-- **Filter** by status (Open / Ignored / Fixed) and by HTTP status code
-- **Export** broken link list to CSV
-- Scan can be scheduled (Celery Beat) to run nightly alongside content sync
-- Results persist in the database; re-scanning updates status automatically
-
-### Implementation notes for the AI
-**Backend:**
-- New model `BrokenLink` in `apps/graph/` (or a new `apps/linkhealth/` app):
-  - `source_content` FK → ContentItem
-  - `url` — the dead URL found in the post
-  - `http_status` — integer (0 = connection error)
-  - `first_detected_at`, `last_checked_at`
-  - `status` — `open` | `ignored` | `fixed`
-- Celery task `scan_broken_links`:
-  - Iterates `ExistingLink` records and any raw URLs extracted from `Post.raw_bbcode`
-  - HEAD request first (fall back to GET if HEAD not allowed)
-  - 404 / 410 → broken; 301 → check destination; 403 → flag; timeout → connection error
-  - Rate-limit to avoid hammering the forum (1 req / 0.5s)
-  - Publishes WebSocket progress via `job.progress` channel group
-- DRF endpoint: `GET/PATCH /api/broken-links/` (list + mark fixed/ignored)
-- `POST /api/broken-links/scan/` — dispatch Celery task, return job_id
-**Frontend:**
-- Broken link count badge on Dashboard + sidebar nav indicator when open > 0
-- Table with mat-table: sortable columns, status filter chips, paginator
-- Row actions: Mark Fixed, Ignore, Open source thread (external link)
-- CSV export button (calls `GET /api/broken-links/?format=csv` or client-side)
-- Live progress bar for active scan (WebSocket, same pattern as Jobs page)
-
----
-
-### FR-005 — Link Siloing & Topical Authority Enforcement
+### FR-005 - Link Siloing & Topical Authority Enforcement
 
 **Requested:** 2026-03-24
 **Target phase:** Phase 7 (after Dashboard)
-**Priority:** High — directly improves ranking relevance by keeping links topically tight
+**Priority:** High
 
 ### What's wanted
-The suggestion pipeline should understand the **topical structure** of the forum
+The suggestion pipeline should understand the topical structure of the forum
 (nodes / sub-forums as silos) and prefer links that stay within or reinforce a topic
 cluster, while penalising or blocking cross-silo links that dilute topical authority.
-
-A "Guitar Gear" thread should almost never link to a "Studio Recording" thread even if
-the semantic score is acceptable — unless the user explicitly unlocks cross-silo linking
-for that pair. This mirrors the SEO concept of siloing: pages within a theme cluster
-link tightly to each other and sparingly to unrelated clusters.
 
 ### Specific controls / behaviour
 
 **Silo definition**
-- Scopes (XenForo nodes / resource categories) are the natural silo boundaries
-- Each `ScopeItem` gets an optional **Silo Group** label (e.g. "Guitar", "Bass", "Drums")
-- Multiple scopes can belong to the same silo group (e.g. "Guitar Gear" + "Guitar Technique" → silo "Guitar")
-- Silo groups are created and managed in the **Settings → Silos** page
+- Scopes are the natural silo boundaries.
+- Each `ScopeItem` gets an optional Silo Group label.
+- Multiple scopes can belong to the same silo group.
+- Silo groups are created and managed in Settings -> Silos.
 
-**Pipeline enforcement modes** (per pipeline run, configurable in Settings)
-- `strict` — links only allowed within the same silo group; cross-silo blocked entirely
-- `prefer_same` (default) — same-silo links get a score bonus; cross-silo links allowed but scored lower
-- `off` — existing behaviour, no silo weighting
-
-**Score impact in `prefer_same` mode**
-- Same silo: `score_node_affinity` boosted by configurable multiplier (default ×1.5)
-- Different silo: `score_node_affinity` reduced by configurable penalty (default ×0.5)
-- Completely different silo groups with no known relationship: optional hard cap on `score_final`
-
-**Silo relationship map** (optional)
-- Some silos are "related" (e.g. "Guitar" and "Bass" are both in "String Instruments")
-- Related silos get a softer penalty than completely unrelated ones
-- Defined as a graph: silo → related silos in Settings
+**Pipeline enforcement modes**
+- `strict` - links only allowed within the same silo group.
+- `prefer_same` - same-silo links get a score boost; cross-silo links are penalised.
+- `off` - existing behaviour.
 
 **UI controls**
-- Settings → Silos page: create/rename/delete silo groups, assign scopes to groups
-- Silo relationship editor: drag-connect silos that are topically adjacent
-- Per-run override: "Allow cross-silo links for this run" toggle in the pipeline run dialog
-- Suggestion card shows silo of host and destination (e.g. "Guitar → Bass [cross-silo]")
-- Filter suggestions by "Same silo only" in the Review page
-- PipelineDiagnostic reason: `cross_silo_blocked` when strict mode prevents a match
+- Settings -> Silos page for CRUD + assignments.
+- Silo relationship editor for related silos.
+- Suggestion card shows host silo and destination silo.
+- Review page filter: same-silo only.
+- Pipeline diagnostics include `cross_silo_blocked` when strict mode blocks a match.
 
 ### Implementation notes for the AI
-
-**Backend:**
-- Add `SiloGroup` model to `apps/content/` (or new `apps/silos/`):
-  - `name` CharField, `description` TextField
-  - `related_silos` ManyToManyField(self, symmetrical=True)
-- Add `silo_group` FK (nullable) to `ScopeItem`
-- Silo enforcement logic in `apps/pipeline/services/ranker.py`:
-  - New helper `get_silo_affinity(host_scope, destination_scope, mode)` → float multiplier
-  - Applied to `score_node_affinity` during composite score calculation
-  - `strict` mode: if host/destination in different silos, return 0.0 (filtered out before ranking)
-- `SiloGroup` admin + DRF viewset at `GET/POST/PATCH /api/silos/`
-- `ScopeItem` serializer updated to include `silo_group` (id + name)
-- New `AppSetting` keys: `pipeline.silo_mode` (`strict`|`prefer_same`|`off`), `pipeline.silo_same_boost` (float), `pipeline.silo_cross_penalty` (float)
-- `PipelineDiagnostic.SKIP_REASON_CHOICES` gains `cross_silo_blocked`
-
-**Frontend:**
-- Settings → Silos page: silo group CRUD, scope assignment (drag-and-drop or multi-select)
-- Silo relationship editor: simple matrix or tag-based "related to" UI
-- Suggestion card: small silo label pills under destination/host titles (e.g. `Guitar` → `Bass`)
-- Review page filter: "Same silo only" toggle
-- Pipeline run dialog (future): silo mode override selector
+- Add `SiloGroup` model and a nullable `silo_group` FK on `ScopeItem`.
+- Add silo affinity helper(s) in `apps/pipeline/services/ranker.py`.
+- Add app settings for silo mode / boost / penalty.
+- Add backend API endpoints for silo CRUD and scope assignment.
+- Add frontend settings UI and review-page silo visibility/filtering.
 
 ---
 
-### FR-006 — Add your next request here
+### FR-006 - Add your next request here
 
 Use the template below. Copy it and replace the placeholder text.
 
-```
-### FR-00X — Short title
+```md
+### FR-00X - Short title
 
 **Requested:** YYYY-MM-DD
 **Target phase:** Phase X
@@ -270,4 +171,4 @@ Use the template below. Copy it and replace the placeholder text.
 
 ---
 
-*Last updated: 2026-03-24 (FR-005 Link Siloing & Topical Authority Enforcement added)*
+*Last updated: 2026-03-24 (FR-004 completed; FR-005 is next)*

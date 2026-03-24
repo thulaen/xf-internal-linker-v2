@@ -248,6 +248,7 @@ UNFOLD = {
                 "title": "Links & Graph",
                 "separator": False,
                 "items": [
+                    {"title": "Broken Links", "icon": "link_off", "link": "/admin/graph/brokenlink/"},
                     {"title": "Existing Links", "icon": "hub", "link": "/admin/graph/existinglink/"},
                 ],
             },

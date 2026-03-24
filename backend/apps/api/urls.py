@@ -21,6 +21,7 @@ from apps.core.views import (
     FaviconUploadView,
     LogoUploadView,
 )
+from apps.graph.views import BrokenLinkViewSet
 
 router = DefaultRouter()
 
@@ -33,6 +34,7 @@ router.register(r"suggestions", SuggestionViewSet, basename="suggestion")
 router.register(r"pipeline-runs", PipelineRunViewSet, basename="pipeline-run")
 router.register(r"diagnostics", PipelineDiagnosticViewSet, basename="diagnostic")
 router.register(r"sync-jobs", SyncJobViewSet, basename="sync-job")
+router.register(r"broken-links", BrokenLinkViewSet, basename="broken-link")
 
 urlpatterns = [
     # Health check (from core app)

@@ -1,0 +1,223 @@
+<div class="page-header">
+  <h1 class="page-title">
+    <mat-icon>link_off</mat-icon>
+    Link Health
+  </h1>
+  <div class="header-actions">
+    <button
+      mat-stroked-button
+      [disabled]="loading"
+      (click)="exportCsv()"
+    >
+      <mat-icon>download</mat-icon>
+      Export CSV
+    </button>
+    <button
+      mat-flat-button
+      color="primary"
+      [disabled]="scanning"
+      (click)="startScan()"
+    >
+      @if (scanning) {
+        <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+      } @else {
+        <mat-icon>play_arrow</mat-icon>
+      }
+      Scan Now
+    </button>
+  </div>
+</div>
+
+@if (scanning || progressMessage || errorMessage) {
+  <mat-card class="scan-status-card">
+    <mat-card-content>
+      <div class="scan-status-header">
+        <div>
+          <div class="scan-label">Broken-link scan</div>
+          <div class="scan-message">{{ progressMessage || 'Waiting for progress...' }}</div>
+        </div>
+        @if (jobId) {
+          <code class="job-chip">{{ jobId.slice(0, 8) }}</code>
+        }
+      </div>
+      <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
+      @if (errorMessage) {
+        <div class="scan-error">
+          <mat-icon>error</mat-icon>
+          <span>{{ errorMessage }}</span>
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+}
+
+<div class="summary-row">
+  <div class="summary-card summary-open">
+    <span class="summary-label">Open</span>
+    <strong>{{ summary.open | number }}</strong>
+  </div>
+  <div class="summary-card summary-ignored">
+    <span class="summary-label">Ignored</span>
+    <strong>{{ summary.ignored | number }}</strong>
+  </div>
+  <div class="summary-card summary-fixed">
+    <span class="summary-label">Fixed</span>
+    <strong>{{ summary.fixed | number }}</strong>
+  </div>
+</div>
+
+<div class="filter-bar">
+  <mat-chip-listbox aria-label="Broken link status filter">
+    @for (status of statusOptions; track status.value) {
+      <mat-chip-option
+        [selected]="statusFilter === status.value"
+        (click)="setStatusFilter(status.value)"
+      >
+        {{ status.label }}
+      </mat-chip-option>
+    }
+  </mat-chip-listbox>
+
+  <mat-form-field appearance="outline" class="status-code-field">
+    <mat-label>HTTP status</mat-label>
+    <mat-select [(ngModel)]="httpStatusFilter" (ngModelChange)="onHttpStatusChange()">
+      @for (option of httpStatusOptions; track option.label) {
+        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+@if (loading) {
+  <div class="loading-row">
+    <mat-spinner diameter="40"></mat-spinner>
+  </div>
+}
+
+@if (!loading && brokenLinks.length === 0) {
+  <div class="empty-state">
+    <mat-icon>link_off</mat-icon>
+    <h3>No broken links found</h3>
+    <p>
+      @if (statusFilter !== 'all' || httpStatusFilter !== null) {
+        No records match the current filters.
+      } @else {
+        Run a scan to check live forum URLs and persist any issues for review.
+      }
+    </p>
+    @if (!scanning) {
+      <button mat-flat-button color="primary" (click)="startScan()">
+        <mat-icon>play_arrow</mat-icon>
+        Scan Now
+      </button>
+    }
+  </div>
+}
+
+@if (!loading && brokenLinks.length > 0) {
+  <div class="table-wrapper">
+    <table mat-table [dataSource]="brokenLinks" [trackBy]="trackById" class="broken-links-table">
+      <ng-container matColumnDef="source_thread">
+        <th mat-header-cell *matHeaderCellDef>Source thread</th>
+        <td mat-cell *matCellDef="let link">
+          <div class="source-thread-cell">
+            <span class="source-title">{{ link.source_content_title }}</span>
+            @if (link.source_content_url) {
+              <span class="source-url">{{ link.source_content_url }}</span>
+            }
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="url">
+        <th mat-header-cell *matHeaderCellDef>URL</th>
+        <td mat-cell *matCellDef="let link">
+          <div class="url-cell">
+            <a
+              class="url-link"
+              [href]="link.url"
+              target="_blank"
+              rel="noopener"
+              matTooltip="Open broken URL"
+            >
+              {{ link.url }}
+            </a>
+            @if (link.redirect_url) {
+              <span class="redirect-hint" matTooltip="{{ link.redirect_url }}">
+                Redirects to {{ link.redirect_url }}
+              </span>
+            }
+          </div>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="http_status">
+        <th mat-header-cell *matHeaderCellDef>HTTP status</th>
+        <td mat-cell *matCellDef="let link">
+          <span class="http-status-chip" [class.connection-error]="link.http_status === 0">
+            {{ statusLabel(link.http_status) }}
+          </span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="status">
+        <th mat-header-cell *matHeaderCellDef>Status</th>
+        <td mat-cell *matCellDef="let link">
+          <span class="status-chip status-{{ link.status }}">{{ link.status }}</span>
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="first_detected_at">
+        <th mat-header-cell *matHeaderCellDef>First detected</th>
+        <td mat-cell *matCellDef="let link">
+          {{ link.first_detected_at | date:'mediumDate' }}
+        </td>
+      </ng-container>
+
+      <ng-container matColumnDef="actions">
+        <th mat-header-cell *matHeaderCellDef>Actions</th>
+        <td mat-cell *matCellDef="let link">
+          <div class="action-row">
+            <button
+              mat-button
+              color="primary"
+              [disabled]="link.status === 'fixed'"
+              (click)="markStatus(link, 'fixed')"
+            >
+              <mat-icon>check_circle</mat-icon>
+              Mark Fixed
+            </button>
+            <button
+              mat-button
+              [disabled]="link.status === 'ignored'"
+              (click)="markStatus(link, 'ignored')"
+            >
+              <mat-icon>visibility_off</mat-icon>
+              Ignore
+            </button>
+            <button
+              mat-icon-button
+              [disabled]="!link.source_content_url"
+              matTooltip="Open source thread"
+              (click)="openSourceThread(link.source_content_url)"
+            >
+              <mat-icon>open_in_new</mat-icon>
+            </button>
+          </div>
+        </td>
+      </ng-container>
+
+      <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+      <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+    </table>
+  </div>
+
+  <mat-paginator
+    [length]="totalCount"
+    [pageSize]="pageSize"
+    [pageIndex]="page - 1"
+    [pageSizeOptions]="[25]"
+    (page)="onPageChange($event)"
+    aria-label="Broken link pages"
+  ></mat-paginator>
+}

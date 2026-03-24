@@ -47,13 +47,9 @@ def extract_internal_links(
     forum_domains: list[str] | None = None,
 ) -> list[LinkEdge]:
     """Parse raw BBCode and return deduplicated internal link edges."""
-    if not raw_bbcode:
+    found_links = _find_urls(raw_bbcode)
+    if not found_links:
         return []
-
-    found_links: list[tuple[str, str]] = _BBCODE_URL_RE.findall(raw_bbcode)
-    bare_urls = _BARE_URL_RE.findall(raw_bbcode)
-    for url in bare_urls:
-        found_links.append((url, ""))
 
     seen: set[tuple[int, str]] = set()
     edges: list[LinkEdge] = []
@@ -90,6 +86,42 @@ def extract_internal_links(
     return edges
 
 
+def extract_urls(
+    raw_bbcode: str,
+    allowed_domains: list[str] | set[str] | None = None,
+) -> list[str]:
+    """Return deduplicated URLs from BBCode and bare-text links."""
+    found_links = _find_urls(raw_bbcode)
+    if not found_links:
+        return []
+
+    normalized_domains = (
+        {d.lower().strip() for d in allowed_domains if d.strip()}
+        if allowed_domains
+        else None
+    )
+
+    urls: list[str] = []
+    seen: set[str] = set()
+
+    for url, _anchor in found_links:
+        normalized_url = url.strip()
+        if not normalized_url or normalized_url in seen:
+            continue
+        if normalized_domains is not None:
+            try:
+                host = (urlparse(normalized_url).hostname or "").lower()
+            except Exception:
+                continue
+            if host not in normalized_domains:
+                continue
+
+        seen.add(normalized_url)
+        urls.append(normalized_url)
+
+    return urls
+
+
 def _resolve_target(
     url: str,
     allowed_domains: set[str] | None,
@@ -115,3 +147,13 @@ def _resolve_target(
         return int(match.group(1)), "resource"
 
     return None
+
+
+def _find_urls(raw_bbcode: str) -> list[tuple[str, str]]:
+    if not raw_bbcode:
+        return []
+
+    found_links: list[tuple[str, str]] = _BBCODE_URL_RE.findall(raw_bbcode)
+    for url in _BARE_URL_RE.findall(raw_bbcode):
+        found_links.append((url, ""))
+    return found_links

@@ -228,6 +228,7 @@ class DashboardView(APIView):
         from apps.suggestions.models import Suggestion, PipelineRun
         from apps.content.models import ContentItem
         from apps.sync.models import SyncJob
+        from apps.graph.models import BrokenLink
         from django.db.models import Count
 
         # Suggestion counts by status
@@ -239,6 +240,8 @@ class DashboardView(APIView):
 
         # Total content items
         content_count = ContentItem.objects.count()
+
+        open_broken_links = BrokenLink.objects.filter(status="open").count()
 
         # Last completed sync
         last_sync = (
@@ -290,6 +293,7 @@ class DashboardView(APIView):
                 "total":    sum(suggestion_counts.values()),
             },
             "content_count": content_count,
+            "open_broken_links": open_broken_links,
             "last_sync": last_sync,
             "pipeline_runs": pipeline_runs,
             "recent_imports": recent_imports,

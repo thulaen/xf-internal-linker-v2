@@ -12,8 +12,10 @@ Task routing (configured in base.py):
 import logging
 import time
 import uuid
-from typing import Any, Optional
+from typing import Any
+from urllib.parse import urljoin, urlparse
 
+import requests
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
@@ -169,6 +171,9 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
 
 
 _MAX_PAGES = 500  # Safety cap: stop pagination if API returns bad metadata
+_MAX_BROKEN_LINK_SCAN_URLS = 10_000
+_BROKEN_LINK_SCAN_DELAY_SECONDS = 0.5
+_BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
 
 
 @shared_task(bind=True, name="pipeline.import_content")
@@ -200,7 +205,8 @@ def import_content(
     from apps.pipeline.services.text_cleaner import clean_bbcode, generate_content_hash
     from apps.pipeline.services.sentence_splitter import split_sentence_spans
     from apps.pipeline.services.distiller import distill_body
-    from apps.pipeline.services.link_parser import extract_internal_links, sync_existing_links
+    from apps.pipeline.services.link_parser import extract_internal_links
+    from apps.graph.services.graph_sync import sync_existing_links
     from apps.pipeline.services.embeddings import generate_all_embeddings
 
     job_id = job_id or str(uuid.uuid4())
@@ -227,7 +233,7 @@ def import_content(
     
     updated_pks = []
     
-    def _process_item(item_data: dict, current_scope: ScopeItem) -> Optional[int]:
+    def _process_item(item_data: dict, current_scope: ScopeItem) -> int | None:
         """Process a single item (thread/resource) and return its PK if updated, else None."""
         nonlocal items_synced
         items_synced += 1
@@ -491,6 +497,180 @@ def import_content(
         raise
 
 
+@shared_task(bind=True, name="pipeline.scan_broken_links", queue="default")
+def scan_broken_links(self, job_id: str | None = None) -> dict:
+    """Scan live URLs referenced in content and persist broken-link findings."""
+    from django.conf import settings
+    from apps.content.models import Post
+    from apps.graph.models import BrokenLink, ExistingLink
+    from apps.pipeline.services.link_parser import extract_urls
+
+    job_id = job_id or str(uuid.uuid4())
+    _publish_progress(job_id, "running", 0.0, "Collecting URLs for broken-link scan...")
+
+    allowed_domains: list[str] | None = None
+    if getattr(settings, "XENFORO_BASE_URL", ""):
+        host = urlparse(settings.XENFORO_BASE_URL).netloc.strip().lower()
+        if host:
+            allowed_domains = [host]
+
+    urls_to_scan: dict[tuple[int, str], dict[str, Any]] = {}
+    hit_scan_cap = False
+
+    existing_links = (
+        ExistingLink.objects
+        .select_related("from_content_item", "to_content_item")
+        .filter(from_content_item__is_deleted=False)
+        .exclude(to_content_item__url="")
+        .order_by("from_content_item_id", "to_content_item_id")
+    )
+    for link in existing_links.iterator(chunk_size=250):
+        if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+            hit_scan_cap = True
+            break
+        key = (link.from_content_item_id, link.to_content_item.url)
+        urls_to_scan.setdefault(
+            key,
+            {
+                "source_content": link.from_content_item,
+                "url": link.to_content_item.url,
+            },
+        )
+
+    if not hit_scan_cap:
+        posts = (
+            Post.objects
+            .select_related("content_item")
+            .filter(content_item__is_deleted=False)
+            .exclude(raw_bbcode="")
+            .order_by("content_item_id")
+        )
+        for post in posts.iterator(chunk_size=100):
+            if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+                hit_scan_cap = True
+                break
+            for url in extract_urls(post.raw_bbcode, allowed_domains=allowed_domains):
+                key = (post.content_item_id, url)
+                urls_to_scan.setdefault(
+                    key,
+                    {
+                        "source_content": post.content_item,
+                        "url": url,
+                    },
+                )
+                if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+                    hit_scan_cap = True
+                    break
+
+    total_urls = len(urls_to_scan)
+    if total_urls == 0:
+        _publish_progress(job_id, "completed", 1.0, "No URLs found to scan.")
+        return {"job_id": job_id, "scanned_urls": 0, "flagged_urls": 0, "fixed_urls": 0}
+
+    _publish_progress(
+        job_id,
+        "running",
+        0.02,
+        f"Scanning {total_urls} URL(s) for link health...",
+        total_urls=total_urls,
+        hit_scan_cap=hit_scan_cap,
+    )
+
+    flagged_urls = 0
+    fixed_urls = 0
+
+    with requests.Session() as session:
+        session.headers.update({"User-Agent": "XF Internal Linker V2 Broken Link Scanner"})
+
+        for index, scan_item in enumerate(urls_to_scan.values(), start=1):
+            source_content = scan_item["source_content"]
+            url = scan_item["url"]
+
+            http_status, redirect_url = _probe_link_health(session, url)
+            existing_record = (
+                BrokenLink.objects
+                .filter(source_content=source_content, url=url)
+                .values("status", "notes")
+                .first()
+            )
+
+            issue_detected = (
+                http_status == 0
+                or bool(redirect_url)
+                or http_status >= 400
+            )
+
+            if issue_detected:
+                record_status = BrokenLink.STATUS_OPEN
+                if existing_record and existing_record["status"] == BrokenLink.STATUS_IGNORED:
+                    record_status = BrokenLink.STATUS_IGNORED
+
+                BrokenLink.objects.update_or_create(
+                    source_content=source_content,
+                    url=url,
+                    defaults={
+                        "http_status": http_status,
+                        "redirect_url": redirect_url,
+                        "status": record_status,
+                        "notes": existing_record["notes"] if existing_record else "",
+                    },
+                )
+                flagged_urls += 1
+            elif existing_record:
+                BrokenLink.objects.update_or_create(
+                    source_content=source_content,
+                    url=url,
+                    defaults={
+                        "http_status": http_status,
+                        "redirect_url": "",
+                        "status": BrokenLink.STATUS_FIXED,
+                        "notes": existing_record["notes"],
+                    },
+                )
+                fixed_urls += 1
+
+            _publish_progress(
+                job_id,
+                "running",
+                index / total_urls,
+                f"Checked {index}/{total_urls}: {_status_label(http_status)}",
+                scanned_urls=index,
+                total_urls=total_urls,
+                flagged_urls=flagged_urls,
+                fixed_urls=fixed_urls,
+                current_url=url,
+                hit_scan_cap=hit_scan_cap,
+            )
+
+            if index < total_urls:
+                time.sleep(_BROKEN_LINK_SCAN_DELAY_SECONDS)
+
+    completion_message = (
+        f"Broken link scan complete. {flagged_urls} issue(s) flagged, {fixed_urls} previously flagged link(s) resolved."
+    )
+    if hit_scan_cap:
+        completion_message += f" Scan stopped at the {_MAX_BROKEN_LINK_SCAN_URLS:,} URL safety cap."
+
+    _publish_progress(
+        job_id,
+        "completed",
+        1.0,
+        completion_message,
+        scanned_urls=total_urls,
+        total_urls=total_urls,
+        flagged_urls=flagged_urls,
+        fixed_urls=fixed_urls,
+        hit_scan_cap=hit_scan_cap,
+    )
+    return {
+        "job_id": job_id,
+        "scanned_urls": total_urls,
+        "flagged_urls": flagged_urls,
+        "fixed_urls": fixed_urls,
+        "hit_scan_cap": hit_scan_cap,
+    }
+
+
 @shared_task(bind=True, name="pipeline.verify_suggestions")
 def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     """Check whether applied suggestions are still live via XenForo API.
@@ -563,3 +743,34 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
         logger.exception("Verification job %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc))
         raise
+
+
+def _probe_link_health(session: requests.Session, url: str) -> tuple[int, str]:
+    """Check a URL with HEAD first, then GET when HEAD is not supported."""
+    try:
+        response = session.head(
+            url,
+            allow_redirects=False,
+            timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
+        )
+        if response.status_code in {405, 501}:
+            response = session.get(
+                url,
+                allow_redirects=False,
+                timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
+            )
+    except requests.RequestException:
+        logger.warning("Broken link scan request failed for %s", url, exc_info=True)
+        return 0, ""
+
+    redirect_url = ""
+    if response.status_code in {301, 302, 307, 308}:
+        location = response.headers.get("Location", "").strip()
+        if location:
+            redirect_url = urljoin(url, location)
+
+    return response.status_code, redirect_url
+
+
+def _status_label(http_status: int) -> str:
+    return str(http_status) if http_status else "connection error"
