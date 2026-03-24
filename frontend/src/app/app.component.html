@@ -6,7 +6,11 @@
 
     <!-- Logo / Brand -->
     <div class="sidenav-header">
-      <mat-icon class="brand-icon">link</mat-icon>
+      @if (config.logoUrl) {
+        <img [src]="config.logoUrl" alt="Logo" class="brand-logo-img" />
+      } @else {
+        <mat-icon class="brand-icon">link</mat-icon>
+      }
       <span class="brand-name">{{ siteName }}</span>
       <span class="brand-version">v2</span>
     </div>
@@ -44,6 +48,9 @@
 
     <!-- Top Toolbar -->
     <mat-toolbar class="app-toolbar">
+      @if (config.logoUrl) {
+        <img [src]="config.logoUrl" alt="" class="toolbar-logo-img" aria-hidden="true" />
+      }
       <span>{{ siteName }}</span>
       <span class="toolbar-spacer"></span>
       <button

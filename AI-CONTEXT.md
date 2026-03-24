@@ -253,8 +253,8 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 
 ## Current Phase
 
-**Phase:** 6 — Complete
-**Status:** Dashboard fully built (backend `DashboardView` + Angular `DashboardComponent` + `DashboardService`). Comprehensive refactor/cleanup completed this session. Dark theme intentionally removed — app is light-only. FR-001 Phase 4b (logo/favicon upload) remains the only open item from FR-001. FR-004 (Broken Link Detection) is the next high-priority feature slice.
+**Phase:** 6 — Complete. FR-001 — Complete.
+**Status:** All planned work through Phase 6 is done. FR-001 is fully closed including logo/favicon upload. Next target is FR-004 (Broken Link Detection), which adds a new `BrokenLink` model + `scan_broken_links` Celery task + Angular Link Health table.
 
 ## What Is Complete
 
@@ -322,12 +322,14 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 - [x] `apps/api/urls.py` — appearance endpoint wired
 - [x] `AppSetting.CATEGORY_CHOICES` — added `("appearance", "Appearance")`
 - [x] `gsc-theme.scss` — light-only theme; dark mode vars removed (intentional design decision — app is light-only); `--toolbar-bg`, `--footer-bg`, `--sidenav-width`, `--layout-max-width`, `--color-accent` custom properties present
-- [x] `AppearanceConfig` interface — `theme` field removed (light-only); `DEFAULT_APPEARANCE` backend dict updated to match
-- [x] `AppearanceService` — loads from API on init, applies CSS custom properties, saves on change, supports presets; no longer sets `data-theme` attribute
-- [x] `ThemeCustomizerComponent` — right Material drawer: color pickers, font/layout/density selectors, site identity, footer, scroll-to-top toggle, named presets; theme toggle section removed
+- [x] `AppearanceConfig` interface — `theme` field removed (light-only); `DEFAULT_APPEARANCE` backend dict updated to match; `logoUrl` and `faviconUrl` fields added
+- [x] `AppearanceService` — loads from API on init, applies CSS custom properties, saves on change, supports presets; `uploadLogo()`, `removeLogo()`, `uploadFavicon()`, `removeFavicon()` methods; favicon applied to `<link rel="icon">` in `applyToDom()`
+- [x] `_get_config()` data-layer fix — strips any stale keys (e.g. legacy `theme`) not in `DEFAULT_APPEARANCE` before returning config; new default keys always appear with defaults even if absent from the DB blob
+- [x] `ThemeCustomizerComponent` — right Material drawer: color pickers, font/layout/density selectors, site identity (with logo + favicon upload controls), footer, scroll-to-top toggle, named presets
 - [x] `ScrollToTopComponent` — floating FAB, watches `.page-content` scroll, smooth scroll to top
-- [x] App shell updated: customizer drawer, footer, `siteName` from config, toolbar uses `--toolbar-bg`
-- [ ] Phase 4b: Logo / favicon upload
+- [x] App shell updated: logo shown in sidebar header and toolbar (`<img>`) when `logoUrl` set, falls back to `<mat-icon>link</mat-icon>`
+- [x] `LogoUploadView` — `POST/DELETE /api/settings/logo/` (UUID filename, MIME validation, 2 MB cap, saves to `MEDIA_ROOT/site-assets/logos/`)
+- [x] `FaviconUploadView` — `POST/DELETE /api/settings/favicon/` (same pattern, saves to `MEDIA_ROOT/site-assets/favicons/`)
 
 ### Phase 5 — Review Page
 - [x] `SuggestionListSerializer` — added `destination_url` and `host_title` denormalized fields
@@ -353,8 +355,7 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 
 ## What Is Next
 
-- [ ] Phase 4b — Logo / favicon upload (completes FR-001)
-- [ ] FR-004 — Broken Link Detection (new `BrokenLink` model, `scan_broken_links` Celery task, Angular Link Health table with mark-fixed/ignore/CSV export, count badge on Dashboard)
+- [ ] FR-004 — Broken Link Detection (new `BrokenLink` model in `apps/graph/`, `scan_broken_links` Celery task with HEAD→GET fallback + rate-limiting, `POST /api/broken-links/scan/` + `GET/PATCH /api/broken-links/`, Angular Link Health table with status filter, mark-fixed/ignore row actions, CSV export, live scan progress via WebSocket, broken-link count badge on Dashboard sidebar nav)
 
 ## Migration Notes
 

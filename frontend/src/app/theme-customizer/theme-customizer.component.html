@@ -116,6 +116,86 @@
         (blur)="setSiteName($any($event.target).value)"
       />
     </mat-form-field>
+
+    <!-- Logo -->
+    <div class="asset-row">
+      <span class="asset-label">Logo</span>
+      @if (cfg.logoUrl) {
+        <div class="asset-preview">
+          <img [src]="cfg.logoUrl" alt="Site logo" class="asset-thumb" />
+          <button
+            mat-icon-button
+            class="asset-remove"
+            (click)="removeLogo()"
+            matTooltip="Remove logo"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      } @else {
+        <button
+          mat-stroked-button
+          [disabled]="uploadingLogo"
+          (click)="logoInput.click()"
+          class="asset-upload-btn"
+        >
+          @if (uploadingLogo) {
+            <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+          } @else {
+            <mat-icon>upload</mat-icon>
+          }
+          Upload logo
+        </button>
+        <input
+          #logoInput
+          type="file"
+          accept=".png,.svg,.webp,.jpg,.jpeg"
+          class="hidden-input"
+          (change)="onLogoChange($event)"
+        />
+      }
+    </div>
+    <p class="asset-hint">PNG, SVG, WEBP or JPEG — max 2 MB. Shown in sidebar and toolbar.</p>
+
+    <!-- Favicon -->
+    <div class="asset-row">
+      <span class="asset-label">Favicon</span>
+      @if (cfg.faviconUrl) {
+        <div class="asset-preview">
+          <img [src]="cfg.faviconUrl" alt="Favicon" class="asset-thumb favicon-thumb" />
+          <button
+            mat-icon-button
+            class="asset-remove"
+            (click)="removeFavicon()"
+            matTooltip="Remove favicon"
+          >
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      } @else {
+        <button
+          mat-stroked-button
+          [disabled]="uploadingFavicon"
+          (click)="faviconInput.click()"
+          class="asset-upload-btn"
+        >
+          @if (uploadingFavicon) {
+            <mat-spinner diameter="16" class="btn-spinner"></mat-spinner>
+          } @else {
+            <mat-icon>image</mat-icon>
+          }
+          Upload favicon
+        </button>
+        <input
+          #faviconInput
+          type="file"
+          accept=".png,.svg,.ico"
+          class="hidden-input"
+          (change)="onFaviconChange($event)"
+        />
+      }
+    </div>
+    <p class="asset-hint">PNG, SVG or ICO — max 2 MB. Shown in browser tab.</p>
   </section>
 
   <mat-divider></mat-divider>

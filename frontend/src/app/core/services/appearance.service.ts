@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, catchError, of, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, tap } from 'rxjs';
 
 export interface AppearanceConfig {
   primaryColor: string;
@@ -15,6 +15,10 @@ export interface AppearanceConfig {
   footerText: string;
   showFooter: boolean;
   footerBg: string;
+  /** Absolute URL to the uploaded site logo served from /media/. Empty string = no logo. */
+  logoUrl: string;
+  /** Absolute URL to the uploaded favicon served from /media/. Empty string = no favicon. */
+  faviconUrl: string;
   presets: Array<{ name: string; config: Partial<AppearanceConfig> }>;
 }
 
@@ -31,6 +35,8 @@ export const DEFAULT_CONFIG: AppearanceConfig = {
   footerText: 'XF Internal Linker V2',
   showFooter: true,
   footerBg: '#f8f9fa',
+  logoUrl: '',
+  faviconUrl: '',
   presets: [],
 };
 
@@ -113,6 +119,48 @@ export class AppearanceService {
     this.update({ presets });
   }
 
+  /**
+   * Upload a site logo (PNG / SVG / WEBP / JPEG, max 2 MB).
+   * On success the config's logoUrl is updated automatically.
+   */
+  uploadLogo(file: File): Observable<string> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http
+      .post<{ logo_url: string }>('/api/settings/logo/', form)
+      .pipe(
+        tap((res) => this.update({ logoUrl: res.logo_url })),
+        map((res) => res.logo_url),
+      );
+  }
+
+  /** Remove the site logo and clear logoUrl. */
+  removeLogo(): void {
+    this.http.delete('/api/settings/logo/').pipe(catchError(() => of(null))).subscribe();
+    this.update({ logoUrl: '' });
+  }
+
+  /**
+   * Upload a site favicon (PNG / SVG / ICO, max 2 MB).
+   * On success the config's faviconUrl is updated automatically.
+   */
+  uploadFavicon(file: File): Observable<string> {
+    const form = new FormData();
+    form.append('file', file);
+    return this.http
+      .post<{ favicon_url: string }>('/api/settings/favicon/', form)
+      .pipe(
+        tap((res) => this.update({ faviconUrl: res.favicon_url })),
+        map((res) => res.favicon_url),
+      );
+  }
+
+  /** Remove the site favicon and clear faviconUrl. */
+  removeFavicon(): void {
+    this.http.delete('/api/settings/favicon/').pipe(catchError(() => of(null))).subscribe();
+    this.update({ faviconUrl: '' });
+  }
+
   private applyToDom(cfg: AppearanceConfig): void {
     const root = document.documentElement;
 
@@ -140,6 +188,17 @@ export class AppearanceService {
     // Page title — plain text assignment, no HTML involved
     if (cfg.siteName) {
       document.title = cfg.siteName;
+    }
+
+    // Favicon — find or create the <link rel="icon"> element in <head>
+    if (cfg.faviconUrl) {
+      let link = document.querySelector<HTMLLinkElement>("link[rel~='icon']");
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
+      link.href = cfg.faviconUrl;
     }
   }
 

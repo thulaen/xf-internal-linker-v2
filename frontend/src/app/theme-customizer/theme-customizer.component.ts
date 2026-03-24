@@ -6,8 +6,10 @@ import { MatDividerModule } from '@angular/material/divider';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppearanceService, AppearanceConfig } from '../core/services/appearance.service';
 
@@ -22,8 +24,10 @@ import { AppearanceService, AppearanceConfig } from '../core/services/appearance
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatProgressSpinnerModule,
     MatSelectModule,
     MatSlideToggleModule,
+    MatSnackBarModule,
     MatTooltipModule,
   ],
   templateUrl: './theme-customizer.component.html',
@@ -33,12 +37,62 @@ export class ThemeCustomizerComponent {
   @Output() close = new EventEmitter<void>();
 
   appearance = inject(AppearanceService);
+  private snack = inject(MatSnackBar);
 
   newPresetName = '';
   showSavePreset = false;
+  uploadingLogo = false;
+  uploadingFavicon = false;
 
   get cfg(): AppearanceConfig {
     return this.appearance.config;
+  }
+
+  onLogoChange(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.uploadingLogo = true;
+    this.appearance.uploadLogo(file).subscribe({
+      next: () => {
+        this.uploadingLogo = false;
+        this.snack.open('Logo uploaded', 'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.uploadingLogo = false;
+        const msg = err?.error?.error ?? 'Logo upload failed.';
+        this.snack.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+    // Reset input so the same file can be re-selected after removal
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  removeLogo(): void {
+    this.appearance.removeLogo();
+    this.snack.open('Logo removed', 'Dismiss', { duration: 3000 });
+  }
+
+  onFaviconChange(event: Event): void {
+    const file = (event.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    this.uploadingFavicon = true;
+    this.appearance.uploadFavicon(file).subscribe({
+      next: () => {
+        this.uploadingFavicon = false;
+        this.snack.open('Favicon uploaded', 'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.uploadingFavicon = false;
+        const msg = err?.error?.error ?? 'Favicon upload failed.';
+        this.snack.open(msg, 'Dismiss', { duration: 5000 });
+      },
+    });
+    (event.target as HTMLInputElement).value = '';
+  }
+
+  removeFavicon(): void {
+    this.appearance.removeFavicon();
+    this.snack.open('Favicon removed', 'Dismiss', { duration: 3000 });
   }
 
   setPrimary(color: string): void {

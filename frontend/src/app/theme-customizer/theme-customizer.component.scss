@@ -196,6 +196,83 @@
   margin: 0 0 8px;
 }
 
+// ── Site asset upload ─────────────────────────────────────────────
+
+.asset-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.asset-label {
+  font-size: 13px;
+  color: var(--color-text-dark-2);
+  min-width: 52px;
+}
+
+.asset-upload-btn {
+  font-size: 12px;
+  height: 32px;
+  line-height: 32px;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+    margin-right: 4px;
+  }
+}
+
+.btn-spinner {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+.asset-preview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.asset-thumb {
+  height: 32px;
+  max-width: 80px;
+  object-fit: contain;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-bg-white);
+  padding: 2px;
+}
+
+.favicon-thumb {
+  width: 32px;
+  max-width: 32px;
+}
+
+.asset-remove {
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
+  }
+}
+
+.asset-hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin: 0 0 12px;
+  padding-left: 62px;
+}
+
+.hidden-input {
+  display: none;
+}
+
 // ── Footer ────────────────────────────────────────────────────────
 
 .customizer-footer {

@@ -15,7 +15,12 @@ from apps.suggestions.views import (
     SuggestionViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet
-from apps.core.views import AppearanceSettingsView, DashboardView
+from apps.core.views import (
+    AppearanceSettingsView,
+    DashboardView,
+    FaviconUploadView,
+    LogoUploadView,
+)
 
 router = DefaultRouter()
 
@@ -41,6 +46,10 @@ urlpatterns = [
 
     # Appearance settings — GET returns config, PUT merges updates
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
+
+    # Site identity assets — POST uploads file, DELETE clears URL
+    path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
+    path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),
 
     # Dashboard — aggregated stats
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
