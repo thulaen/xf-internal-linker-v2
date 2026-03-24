@@ -168,6 +168,9 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
         raise
 
 
+_MAX_PAGES = 500  # Safety cap: stop pagination if API returns bad metadata
+
+
 @shared_task(bind=True, name="pipeline.import_content")
 def import_content(
     self,
@@ -338,19 +341,19 @@ def import_content(
 
                 if scope.scope_type == "node":
                     page = 1
-                    while True:
+                    while page <= _MAX_PAGES:
                         resp = client.get_threads(scope.scope_id, page=page)
                         threads = resp.get("threads", [])
                         if not threads:
                             break
-                        
+
                         for thread in threads:
                             thread["content_type"] = "thread"
                             pk = _process_item(thread, scope)
                             if pk:
                                 updated_pks.append(pk)
                                 items_updated += 1
-                        
+
                         # Throttle DB updates for progress
                         if items_synced % 25 == 0:
                             job.items_synced = items_synced
@@ -361,10 +364,12 @@ def import_content(
                         if page >= pagination.get("last_page", 1):
                             break
                         page += 1
+                    else:
+                        logger.warning("Pagination safety cap (%d pages) reached for scope %s", _MAX_PAGES, scope.scope_id)
 
                 elif scope.scope_type == "resource_category":
                     page = 1
-                    while True:
+                    while page <= _MAX_PAGES:
                         resp = client.get_resources(scope.scope_id, page=page)
                         resources = resp.get("resources", [])
                         if not resources:
@@ -415,6 +420,8 @@ def import_content(
                         if page >= pagination.get("last_page", 1):
                             break
                         page += 1
+                    else:
+                        logger.warning("Pagination safety cap (%d pages) reached for scope %s", _MAX_PAGES, scope.scope_id)
 
         # ── Source: JSONL ─────────────────────────────────────────────
         elif source == "jsonl":

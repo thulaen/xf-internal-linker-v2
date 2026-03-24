@@ -294,15 +294,28 @@ export class ReviewComponent implements OnInit {
 
   highlightAnchor(sentence: string, suggestion: Suggestion): SafeHtml {
     const anchor = suggestion.anchor_edited || suggestion.anchor_phrase;
-    if (!anchor || !sentence) {
-      return this.sanitizer.bypassSecurityTrustHtml(sentence ?? '');
+    // HTML-escape raw text before building any markup to prevent XSS from
+    // forum content that may contain HTML tags or event attributes.
+    const safeSentence = this.escapeHtml(sentence ?? '');
+    if (!anchor) {
+      return this.sanitizer.bypassSecurityTrustHtml(safeSentence);
     }
-    const esc = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const highlighted = sentence.replace(
-      new RegExp(`(${esc})`, 'gi'),
-      '<mark>$1</mark>'
+    const safeAnchor = this.escapeHtml(anchor);
+    const reEsc = safeAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const highlighted = safeSentence.replace(
+      new RegExp(`(${reEsc})`, 'gi'),
+      '<mark>$1</mark>',
     );
     return this.sanitizer.bypassSecurityTrustHtml(highlighted);
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   scoreColor(score: number): string {

@@ -1,10 +1,4 @@
-import {
-  Component,
-  HostListener,
-  Input,
-  OnInit,
-  inject,
-} from '@angular/core';
+import { Component, Input, OnDestroy, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -42,26 +36,25 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     }
   `],
 })
-export class ScrollToTopComponent {
-  /** The scrollable container to watch. Defaults to the page-content element. */
+export class ScrollToTopComponent implements OnInit, OnDestroy {
   @Input() scrollTarget: Element | null = null;
 
   visible = false;
 
   private readonly THRESHOLD = 300;
+  // Store the bound reference so addEventListener and removeEventListener
+  // receive the exact same function object.
+  private readonly boundOnScroll = this.onScroll.bind(this);
 
   ngOnInit(): void {
-    // If no explicit target, find the .page-content element
     if (!this.scrollTarget) {
       this.scrollTarget = document.querySelector('.page-content');
     }
-    if (this.scrollTarget) {
-      this.scrollTarget.addEventListener('scroll', this.onScroll.bind(this));
-    }
+    this.scrollTarget?.addEventListener('scroll', this.boundOnScroll);
   }
 
   ngOnDestroy(): void {
-    this.scrollTarget?.removeEventListener('scroll', this.onScroll.bind(this));
+    this.scrollTarget?.removeEventListener('scroll', this.boundOnScroll);
   }
 
   private onScroll(): void {

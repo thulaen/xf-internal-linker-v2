@@ -91,12 +91,22 @@ export class SuggestionDetailDialogComponent implements OnInit {
   }
 
   highlightSentence(sentence: string, anchor: string): string {
-    if (!anchor) return sentence;
-    const esc = anchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return sentence.replace(
-      new RegExp(`(${esc})`, 'gi'),
-      '<mark>$1</mark>'
-    );
+    // HTML-escape raw text first so forum content with tags (e.g. <b>, <img>)
+    // is displayed as literal characters, not rendered markup.
+    const safeSentence = this.escapeHtml(sentence ?? '');
+    if (!anchor) return safeSentence;
+    const safeAnchor = this.escapeHtml(anchor);
+    const reEsc = safeAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    return safeSentence.replace(new RegExp(`(${reEsc})`, 'gi'), '<mark>$1</mark>');
+  }
+
+  private escapeHtml(text: string): string {
+    return text
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
   }
 
   scorePercent(val: number): number {

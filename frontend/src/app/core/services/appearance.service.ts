@@ -118,32 +118,40 @@ export class AppearanceService {
   private applyToDom(cfg: AppearanceConfig): void {
     const root = document.documentElement;
 
-    // Theme (light/dark)
-    root.setAttribute('data-theme', cfg.theme);
+    // Theme (light/dark) — only accept known values
+    if (cfg.theme === 'light' || cfg.theme === 'dark') {
+      root.setAttribute('data-theme', cfg.theme);
+    }
 
-    // Primary color
-    root.style.setProperty('--color-primary', cfg.primaryColor);
-    root.style.setProperty('--color-primary-medium', cfg.primaryColor);
+    // Color properties — validate hex format before applying to prevent
+    // malformed values from producing unexpected CSS output.
+    if (this.isHexColor(cfg.primaryColor)) {
+      root.style.setProperty('--color-primary', cfg.primaryColor);
+      root.style.setProperty('--color-primary-medium', cfg.primaryColor);
+    }
+    if (this.isHexColor(cfg.accentColor)) {
+      root.style.setProperty('--color-accent', cfg.accentColor);
+    }
+    if (this.isHexColor(cfg.headerBg)) {
+      root.style.setProperty('--toolbar-bg', cfg.headerBg);
+    }
+    if (this.isHexColor(cfg.footerBg)) {
+      root.style.setProperty('--footer-bg', cfg.footerBg);
+    }
 
-    // Accent color
-    root.style.setProperty('--color-accent', cfg.accentColor);
-
-    // Toolbar background (header)
-    root.style.setProperty('--toolbar-bg', cfg.headerBg);
-
-    // Footer background
-    root.style.setProperty('--footer-bg', cfg.footerBg);
-
-    // Font size
+    // Enum values resolved through allow-lists — never passed raw
     root.style.setProperty('--font-size-base', FONT_SIZE_MAP[cfg.fontSize] ?? '14px');
-
-    // Layout max-width
     root.style.setProperty('--layout-max-width', LAYOUT_WIDTH_MAP[cfg.layoutWidth] ?? '1280px');
-
-    // Sidebar width
     root.style.setProperty('--sidenav-width', SIDEBAR_WIDTH_MAP[cfg.sidebarWidth] ?? '220px');
 
-    // Page title
-    document.title = cfg.siteName;
+    // Page title — plain text assignment, no HTML involved
+    if (cfg.siteName) {
+      document.title = cfg.siteName;
+    }
+  }
+
+  /** Returns true for 3- and 6-digit hex color strings (e.g. #1a73e8). */
+  private isHexColor(value: string): boolean {
+    return /^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(value ?? '');
   }
 }
