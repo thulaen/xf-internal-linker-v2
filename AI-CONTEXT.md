@@ -4,7 +4,7 @@
 This is the first file every AI must read before doing any work.
 
 Purpose:
-- preserve continuity across Codex, Claude Code, and Google Antigravity
+- preserve continuity across Codex, Claude Code, and Google AI Studio (Gemini)
 - make handoffs reliable when usage limits force tool switching
 - keep architecture stable
 - reduce repeated re-analysis and drift
@@ -119,7 +119,7 @@ Every AI assistant working on this project must:
 ## Current Phase
 
 **Phase:** 6 - Complete. FR-004 - Complete.
-**Status:** All planned work through Phase 6 is now done, including FR-004 Broken Link Detection. The app now persists broken-link findings, exposes scan/list/export APIs, and surfaces Link Health in both the dashboard and sidebar. Next target is FR-005 Link Siloing & Topical Authority Enforcement.
+**Status:** All planned work through Phase 6 is now done, including FR-004 Broken Link Detection. The app now persists broken-link findings, exposes scan/list/export APIs, surfaces Link Health in both the dashboard and sidebar, and now includes committed `__init__.py` package markers for `apps.graph.services` and `apps.sync.services` so Celery late imports resolve correctly. Next target is FR-005 Link Siloing & Topical Authority Enforcement.
 
 ## What Is Complete
 
@@ -168,6 +168,7 @@ Every AI assistant working on this project must:
 ### FR-004 - Broken Link Detection
 - `BrokenLink` model added in `apps/graph/` with UUID PK, source content FK, URL, HTTP status, redirect URL, first/last detection timestamps, reviewer status, and notes.
 - Migration added at `backend/apps/graph/migrations/0002_brokenlink.py`.
+- `backend/apps/graph/services/__init__.py` and `backend/apps/sync/services/__init__.py` are committed so Celery late imports in `backend/apps/pipeline/tasks.py` resolve at worker startup.
 - Broken Links admin registered; admin sidebar now includes a Broken Links entry.
 - `extract_urls()` added to `backend/apps/pipeline/services/link_parser.py` for deduplicated URL extraction from BBCode/bare URLs.
 - `scan_broken_links` Celery task added with HEAD -> GET fallback, 0.5s rate limiting, 10,000 URL safety cap, `update_or_create()` persistence, and WebSocket progress updates on `ws/jobs/<job_id>/`.
