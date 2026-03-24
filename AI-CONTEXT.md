@@ -46,7 +46,7 @@ Phase 8 shipped:
 - cross-source existing-link graph refresh for `XF -> WP` and `WP -> XF`
 - source-aware review/settings labeling so XenForo vs WordPress content is explicit
 - local verification path repaired with Python 3.12 project environment, Django test settings, and Angular 20 build verified under Node.js 22
-- frontend npm audit is clean after the Angular 20 toolchain uplift; frontend `test:ci` still has no spec inputs and remains a coverage gap rather than a new regression
+- frontend npm audit is clean after the Angular 20 toolchain uplift, and frontend `test:ci` now passes via a checked-in smoke test around the HTML-highlighting utility
 
 ## What Is Complete
 

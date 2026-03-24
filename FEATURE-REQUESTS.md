@@ -29,7 +29,7 @@ Important:
 - WordPress posts/pages map to `ContentItem(content_type="wp_post"/"wp_page")`.
 - Cross-source existing-link graph refresh now resolves `XF -> WP` and `WP -> XF`.
 - Review/settings APIs and Angular UI now label content source explicitly.
-- Local verification closure completed: Django Phase 8 test slice passes, Python 3.12 backend environment works, the Angular 20 frontend builds under Node.js 22, and `npm audit` reports zero vulnerabilities.
+- Local verification closure completed: Django Phase 8 test slice passes, Python 3.12 backend environment works, the Angular 20 frontend builds under Node.js 22, `npm audit` reports zero vulnerabilities, and the frontend `test:ci` target now has a checked-in smoke test and passes.
 
 ---
 
