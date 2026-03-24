@@ -12,7 +12,7 @@ Task routing (configured in base.py):
 import logging
 import time
 import uuid
-from typing import Any
+from typing import Any, Optional
 
 from asgiref.sync import async_to_sync
 from celery import shared_task
@@ -169,29 +169,54 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
 
 
 @shared_task(bind=True, name="pipeline.import_content")
-def import_content(self, scope_ids: list[int] | None = None, mode: str = "full", 
-                   source: str = "api", file_path: str | None = None) -> dict:
+def import_content(
+    self,
+    scope_ids: list[int] | None = None,
+    mode: str = "full",
+    source: str = "api",
+    file_path: str | None = None,
+    job_id: str | None = None,
+) -> dict:
     """Import/sync content from XenForo via REST API or JSONL export.
 
     After import, updates PageRank and velocity scores, then re-embeds
     any content whose text changed.
+
+    Args:
+        job_id: Optional pre-generated UUID string. When supplied by the upload
+                view the Angular client can subscribe to the WebSocket channel
+                before the task starts publishing progress events.
     """
-    import uuid
-    import logging
-    import os
+    from django.db import models
     from django.utils import timezone
     from django.conf import settings
-    from apps.content.models import ScopeItem, ContentItem, Post, Sentence
+    from apps.sync.models import SyncJob
+    from apps.content.models import ContentItem, ScopeItem, Post, Sentence
     from apps.sync.services.xenforo_api import XenForoAPIClient
     from apps.sync.services.jsonl_importer import import_from_jsonl
     from apps.pipeline.services.text_cleaner import clean_bbcode, generate_content_hash
     from apps.pipeline.services.sentence_splitter import split_sentence_spans
     from apps.pipeline.services.distiller import distill_body
+    from apps.pipeline.services.link_parser import extract_internal_links, sync_existing_links
     from apps.pipeline.services.embeddings import generate_all_embeddings
-    from apps.pipeline.services.link_parser import extract_internal_links
-    from apps.graph.services.graph_sync import sync_existing_links
 
-    job_id = str(uuid.uuid4())
+    job_id = job_id or str(uuid.uuid4())
+    
+    # Try to find existing SyncJob or create if not exists (e.g. if started from API)
+    job, created = SyncJob.objects.get_or_create(
+        job_id=job_id,
+        defaults={
+            "source": source,
+            "mode": mode,
+            "status": "running",
+            "started_at": timezone.now()
+        }
+    )
+    if not created:
+        job.status = "running"
+        job.started_at = timezone.now()
+        job.save(update_fields=["status", "started_at", "updated_at"])
+
     _publish_progress(job_id, "running", 0.0, f"Starting {mode} content import from {source}...")
 
     items_synced = 0
@@ -233,12 +258,17 @@ def import_content(self, scope_ids: list[int] | None = None, mode: str = "full",
 
         # Check if body sync needed
         # In JSONL source, the body might already be in the data
-        raw_bbcode = item_data.get("message") or item_data.get("post_body")
+        raw_bbcode = (
+            item_data.get("message") or 
+            item_data.get("post_body") or 
+            item_data.get("description") or 
+            item_data.get("tag_line")
+        )
         
         # If no body in data and mode is full, we must fetch it from API if source is API
         if not raw_bbcode and mode == "full" and source == "api":
-            client = XenForoAPIClient()
-            if first_post_id:
+            if c_type == "thread" and first_post_id:
+                client = XenForoAPIClient()
                 post_resp = client.get_post(first_post_id)
                 raw_bbcode = post_resp.get("post", {}).get("message", "")
         
@@ -307,21 +337,84 @@ def import_content(self, scope_ids: list[int] | None = None, mode: str = "full",
                 _publish_progress(job_id, "running", pct, f"Syncing scope: {scope.title}")
 
                 if scope.scope_type == "node":
-                    resp = client.get_threads(scope.scope_id)
-                    for thread in resp.get("threads", []):
-                        thread["content_type"] = "thread"
-                        pk = _process_item(thread, scope)
-                        if pk:
-                            updated_pks.append(pk)
-                            items_updated += 1
+                    page = 1
+                    while True:
+                        resp = client.get_threads(scope.scope_id, page=page)
+                        threads = resp.get("threads", [])
+                        if not threads:
+                            break
+                        
+                        for thread in threads:
+                            thread["content_type"] = "thread"
+                            pk = _process_item(thread, scope)
+                            if pk:
+                                updated_pks.append(pk)
+                                items_updated += 1
+                        
+                        # Throttle DB updates for progress
+                        if items_synced % 25 == 0:
+                            job.items_synced = items_synced
+                            job.items_updated = items_updated
+                            job.save(update_fields=["items_synced", "items_updated", "updated_at"])
+
+                        pagination = resp.get("pagination", {})
+                        if page >= pagination.get("last_page", 1):
+                            break
+                        page += 1
+
                 elif scope.scope_type == "resource_category":
-                    resp = client.get_resources(scope.scope_id)
-                    for res in resp.get("resources", []):
-                        res["content_type"] = "resource"
-                        pk = _process_item(res, scope)
-                        if pk:
-                            updated_pks.append(pk)
-                            items_updated += 1
+                    page = 1
+                    while True:
+                        resp = client.get_resources(scope.scope_id, page=page)
+                        resources = resp.get("resources", [])
+                        if not resources:
+                            break
+
+                        for res in resources:
+                            res["content_type"] = "resource"
+                            pk = _process_item(res, scope)
+                            if pk:
+                                updated_pks.append(pk)
+                                items_updated += 1
+                                
+                                # Fetch and store resource updates as additional Sentences (mode=full only)
+                                if mode == "full":
+                                    try:
+                                        updates_resp = client.get_resource_updates(res.get("resource_id"))
+                                        update_list = updates_resp.get("resource_updates", []) or updates_resp.get("updates", [])
+                                        if update_list:
+                                            content_item = ContentItem.objects.get(pk=pk)
+                                            post = content_item.post
+                                            # Get current max position to append
+                                            max_pos = Sentence.objects.filter(post=post).aggregate(models.Max("position"))["position__max"] or 0
+                                            
+                                            for update in update_list:
+                                                update_body = update.get("message", "")
+                                                if update_body:
+                                                    clean = clean_bbcode(update_body)
+                                                    spans = split_sentence_spans(clean)
+                                                    sentence_objs = []
+                                                    for span in spans:
+                                                        max_pos += 1
+                                                        sentence_objs.append(Sentence(
+                                                            content_item=content_item,
+                                                            post=post,
+                                                            text=span.text,
+                                                            position=max_pos,
+                                                            char_count=len(span.text),
+                                                            start_char=span.start_char,
+                                                            end_char=span.end_char,
+                                                            # updates are usually at the end, so word_position is approximate
+                                                            word_position=post.word_count + 1 
+                                                        ))
+                                                    Sentence.objects.bulk_create(sentence_objs)
+                                    except Exception as e:
+                                        logger.warning("Failed to fetch updates for resource %s: %s", res.get("resource_id"), e)
+                        
+                        pagination = resp.get("pagination", {})
+                        if page >= pagination.get("last_page", 1):
+                            break
+                        page += 1
 
         # ── Source: JSONL ─────────────────────────────────────────────
         elif source == "jsonl":
@@ -345,6 +438,11 @@ def import_content(self, scope_ids: list[int] | None = None, mode: str = "full",
                 if pk:
                     updated_pks.append(pk)
                     items_updated += 1
+                
+                if items_synced % 50 == 0:
+                    job.items_synced = items_synced
+                    job.items_updated = items_updated
+                    job.save(update_fields=["items_synced", "items_updated", "updated_at"])
 
         # Generate embeddings in batch for all items that were changed
         if updated_pks:
@@ -360,6 +458,14 @@ def import_content(self, scope_ids: list[int] | None = None, mode: str = "full",
             import time as _time
             run_velocity(reference_ts=int(_time.time()))
 
+        job.status = "completed"
+        job.progress = 1.0
+        job.completed_at = timezone.now()
+        job.items_synced = items_synced
+        job.items_updated = items_updated
+        job.message = f"Import complete. {items_synced} synced, {items_updated} updated."
+        job.save()
+
         _publish_progress(
             job_id, "completed", 1.0, 
             f"Content import complete ({source}). {items_synced} items synced, {items_updated} updated."
@@ -368,6 +474,12 @@ def import_content(self, scope_ids: list[int] | None = None, mode: str = "full",
 
     except Exception as exc:
         logger.exception("Import job %s failed", job_id)
+        
+        job.status = "failed"
+        job.error_message = str(exc)
+        job.completed_at = timezone.now()
+        job.save()
+
         _publish_progress(job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc))
         raise
 

@@ -173,6 +173,37 @@ Every AI assistant working on this project MUST do all three of the following:
 - Phrase it as: "💡 Improvement idea for FR-XXX: [one sentence]."
 - Only suggest if there is a real, actionable improvement. Don't force it.
 
+### 4. Surface pending configuration actions every session
+- Read the **Pending Configuration** section below at session start.
+- Show any incomplete items as a warning at the top of your first response:
+  ```
+  ⚠️  PENDING CONFIGURATION
+  XF_API_KEY   XenForo API key not yet created — needed for scheduled auto-sync (Option A)
+  ```
+- Once the user confirms an item is done, remove it from the list.
+
+---
+
+## Pending Configuration
+
+These are one-time setup tasks the user must complete. Every AI must surface these
+at session start until they are marked done.
+
+| # | Item | Why needed | Done? |
+|---|---|---|---|
+| 1 | Create XenForo API key and set `XENFORO_API_KEY` + `XENFORO_BASE_URL` in `.env` | Required for scheduled auto-sync (Celery Beat Option A) and `verify_suggestions` task | ✅ Done — key set, nightly sync scheduled at 02:00 UTC |
+| 2 | Create WordPress Application Password and set `WORDPRESS_BASE_URL` + `WORDPRESS_USERNAME` + `WORDPRESS_APP_PASSWORD` in `.env` | Required for FR-003 WordPress cross-linking (logged, target Phase 5) | ❌ |
+
+### WordPress note
+WordPress has a built-in REST API (no plugin needed). For read-only public content it
+requires no credentials. For private/draft content it needs an **Application Password**
+(WordPress → Users → Profile → Application Passwords — built into WP since 5.6).
+
+If WordPress cross-linking is wanted, log it as a feature request and the AI will build:
+- `apps/sync/services/wordpress_api.py` — WP REST API client
+- WordPress ContentItems synced alongside XenForo content
+- Cross-links (XF thread ↔ WP post) surfaced in suggestion pipeline
+
 ---
 
 ## Non-Negotiable Guardrails
@@ -222,8 +253,8 @@ Every AI assistant working on this project MUST do all three of the following:
 
 ## Current Phase
 
-**Phase:** 3 — In Progress
-**Status:** Hardened XenForo API client, optimized batch embeddings, atomic ingestion pipeline, and JSONL import alternative are all live.
+**Phase:** 4 — In Progress
+**Status:** FR-002 (JSONL import UI) complete and committed. Phase 4 FR-001 core is live: dark/light theme, AppearanceService, ThemeCustomizerComponent, ScrollToTopComponent, backend appearance settings endpoint. Logo/favicon upload is the remaining Phase 4b item.
 
 ## What Is Complete
 
@@ -277,21 +308,34 @@ Every AI assistant working on this project MUST do all three of the following:
 ### Phase 3 — XenForo API Client + Content Import
 - [x] XenForo API client: `apps/sync/services/xenforo_api.py` (thread list, resource list, post fetch)
 - [x] JSONL import alternative for offline use (bulk export from XF)
+- [x] V1 → V2 data migration script (SQLite → PostgreSQL, .npy → pgvector)
 - [x] Refined distillation using `distill_body` (top-5 sentences)
 - [x] Auto-trigger vector embeddings after content sync
 - [x] Link graph refresh: automatic extraction and storage of existing internal links
 - [x] Wire `import_content` Celery task to actual API + JSONL (triggers PageRank + velocity after import)
 - [x] Content processing pipeline: BBCode cleaning → sentence splitting → sentence storage
 - [x] Wire `verify_suggestions` task to XenForo API for live link validation
+- [x] Refine resource content sync logic (pagination, body extraction, updates)
+
+### Phase 4 — Angular Frontend Core (FR-001 partial)
+- [x] `apps/core/views.py` — `AppearanceSettingsView` (`GET/PUT /api/settings/appearance/`)
+- [x] `apps/api/urls.py` — appearance endpoint wired
+- [x] `AppSetting.CATEGORY_CHOICES` — added `("appearance", "Appearance")`
+- [x] `gsc-theme.scss` — dark mode vars under `[data-theme="dark"]`, added `--toolbar-bg`, `--footer-bg`, `--sidenav-width`, `--layout-max-width`, `--color-accent`
+- [x] `AppearanceService` — loads from API on init, applies CSS custom properties, saves on change, supports presets
+- [x] `ThemeCustomizerComponent` — right Material drawer: theme toggle, color pickers, font/layout/density selectors, site identity, footer, scroll-to-top toggle, named presets
+- [x] `ScrollToTopComponent` — floating FAB, watches `.page-content` scroll, smooth scroll to top
+- [x] App shell updated: customizer drawer, footer, `siteName` from config, toolbar uses `--toolbar-bg`
+- [ ] Phase 4b: Logo / favicon upload
 
 ## What Is Next
 
-- [ ] V1 → V2 data migration script (SQLite → PostgreSQL, .npy → pgvector)
-- [ ] Refine resource content sync logic
+- [ ] Phase 4b — Logo / favicon upload
+- [ ] Phase 5 — Review page (suggestion review workflow UI)
 
 ## Migration Notes
 
-V1 → V2 migration script needed at Phase 3. The V1 codebase at `../xf-internal-linker/` contains:
+V1 → V2 migration script is now complete. The V1 codebase at `../xf-internal-linker/` contains:
 - 13 SQLite tables (schema version 15)
 - 20 Python service files (6,553 lines)
 - 6 route files (2,459 lines)

@@ -19,6 +19,267 @@
   }
 }
 
-.placeholder-card {
-  max-width: 600px;
+.jobs-layout {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 24px;
+  align-items: start;
+
+  @media (max-width: 1200px) {
+    grid-template-columns: 1fr;
+  }
+}
+
+.import-card, .history-card {
+  height: 100%;
+  
+  mat-card-header {
+    margin-bottom: 20px;
+
+    [mat-card-avatar] {
+      color: var(--color-primary);
+      background: rgba(26, 115, 232, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+    }
+  }
+}
+
+// ── Drop zone ────────────────────────────────────────────────────
+
+.drop-zone {
+  border: 2px dashed var(--color-border, #dadce0);
+  border-radius: 12px;
+  padding: 48px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  margin-bottom: 24px;
+  background: var(--color-surface, #f8f9fa);
+  outline: none;
+
+  &:hover, &:focus {
+    border-color: var(--color-primary);
+    background: rgba(26, 115, 232, 0.04);
+    box-shadow: 0 1px 2px 0 rgba(60,64,67,0.30), 0 1px 3px 1px rgba(60,64,67,0.15);
+  }
+
+  &.drag-over {
+    border-color: var(--color-primary);
+    background: rgba(26, 115, 232, 0.1);
+    transform: scale(1.02);
+  }
+
+  &.has-file {
+    border-style: solid;
+    border-color: var(--color-primary);
+    background: rgba(26, 115, 232, 0.04);
+  }
+}
+
+.drop-icon {
+  font-size: 48px;
+  width: 48px;
+  height: 48px;
+  color: var(--color-text-light, #80868b);
+  margin-bottom: 8px;
+
+  &.file-selected {
+    color: var(--color-primary);
+  }
+}
+
+.drop-primary {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-dark-1);
+  text-align: center;
+}
+
+.drop-secondary {
+  font-size: 13px;
+  color: var(--color-text-light, #80868b);
+}
+
+// ── Mode selector ────────────────────────────────────────────────
+
+.mode-field {
+  width: 100%;
+  margin-bottom: 8px;
+
+  .mode-hint {
+    color: var(--color-text-light, #80868b);
+    font-size: 12px;
+    font-weight: normal;
+  }
+}
+
+// ── Progress ─────────────────────────────────────────────────────
+
+.progress-section {
+  margin: 24px 0;
+
+  .progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 10px;
+  }
+
+  .progress-message {
+    font-size: 14px;
+    color: var(--color-text-dark-2, #3c4043);
+    font-weight: 500;
+  }
+
+  .progress-pct {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-primary);
+  }
+
+  mat-progress-bar {
+    border-radius: 4px;
+    height: 8px;
+  }
+}
+
+// ── History Table ────────────────────────────────────────────────
+
+.history-card {
+  .mat-mdc-card-content {
+    padding: 0;
+  }
+}
+
+.history-table {
+  width: 100%;
+  background: transparent;
+
+  th.mat-mdc-header-cell {
+    font-weight: 600;
+    color: var(--color-text-light);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td.mat-mdc-cell {
+    font-size: 13px;
+    color: var(--color-text-dark-2);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+
+  .source-label {
+    background: #f1f3f4;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #5f6368;
+  }
+
+  // Status Icons
+  .status-completed { color: #137333; }
+  .status-failed { color: #d93025; }
+  .status-running { color: var(--color-primary); animation: spin 2s linear infinite; }
+  .status-pending { color: #f9ab00; }
+}
+
+.empty-history {
+  padding: 64px 24px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  color: var(--color-text-light);
+  
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 12px;
+    opacity: 0.5;
+  }
+  
+  p {
+    margin: 0;
+    font-size: 14px;
+  }
+}
+
+// ── Animations ───────────────────────────────────────────────────
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spinning {
+  animation: spin 2s linear infinite;
+}
+
+// ── Common UI ────────────────────────────────────────────────────
+
+.result-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 8px;
+  padding: 16px;
+  margin: 16px 0;
+
+  mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+  }
+
+  strong {
+    font-size: 14px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  p {
+    font-size: 13px;
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  &.success {
+    background: #e6f4ea;
+    color: #137333;
+  }
+
+  &.failure {
+    background: #fce8e6;
+    color: #c5221f;
+  }
+}
+
+.error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #d93025;
+  font-size: 13px;
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #fdf2f2;
+  border-radius: 4px;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+  }
 }

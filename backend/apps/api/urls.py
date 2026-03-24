@@ -14,6 +14,8 @@ from apps.suggestions.views import (
     PipelineRunViewSet,
     SuggestionViewSet,
 )
+from apps.sync.views import ImportUploadView, SyncJobViewSet
+from apps.core.views import AppearanceSettingsView
 
 router = DefaultRouter()
 
@@ -25,6 +27,7 @@ router.register(r"content", ContentItemViewSet, basename="content")
 router.register(r"suggestions", SuggestionViewSet, basename="suggestion")
 router.register(r"pipeline-runs", PipelineRunViewSet, basename="pipeline-run")
 router.register(r"diagnostics", PipelineDiagnosticViewSet, basename="diagnostic")
+router.register(r"sync-jobs", SyncJobViewSet, basename="sync-job")
 
 urlpatterns = [
     # Health check (from core app)
@@ -32,6 +35,12 @@ urlpatterns = [
 
     # All DRF routed endpoints
     path("", include(router.urls)),
+
+    # Content import — accepts JSONL file upload, starts background job
+    path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+
+    # Appearance settings — GET returns config, PUT merges updates
+    path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
 
     # DRF browsable API login/logout
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),

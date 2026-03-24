@@ -1,13 +1,13 @@
 <!-- XF Internal Linker V2 — Main Application Shell -->
 <mat-sidenav-container class="app-container">
 
-  <!-- ── Sidebar Navigation ─────────────────────────────────── -->
+  <!-- ── Left Sidebar: Navigation ───────────────────────────────── -->
   <mat-sidenav mode="side" opened class="app-sidenav">
 
     <!-- Logo / Brand -->
     <div class="sidenav-header">
       <mat-icon class="brand-icon">link</mat-icon>
-      <span class="brand-name">XF Linker</span>
+      <span class="brand-name">{{ siteName }}</span>
       <span class="brand-version">v2</span>
     </div>
 
@@ -29,14 +29,31 @@
 
   </mat-sidenav>
 
-  <!-- ── Main Content Area ──────────────────────────────────── -->
+  <!-- ── Right Drawer: Theme Customizer ─────────────────────────── -->
+  <mat-sidenav
+    position="end"
+    [(opened)]="customizerOpen"
+    mode="over"
+    class="customizer-drawer"
+  >
+    <app-theme-customizer (close)="customizerOpen = false" />
+  </mat-sidenav>
+
+  <!-- ── Main Content Area ──────────────────────────────────────── -->
   <mat-sidenav-content class="app-content">
 
     <!-- Top Toolbar -->
-    <mat-toolbar class="app-toolbar" color="primary">
-      <span>{{ title }}</span>
+    <mat-toolbar class="app-toolbar">
+      <span>{{ siteName }}</span>
       <span class="toolbar-spacer"></span>
-      <button mat-icon-button matTooltip="Open Django Admin">
+      <button
+        mat-icon-button
+        matTooltip="Customize appearance"
+        (click)="customizerOpen = !customizerOpen"
+      >
+        <mat-icon>palette</mat-icon>
+      </button>
+      <button mat-icon-button matTooltip="Open Django Admin" [attr.onclick]="null">
         <mat-icon>admin_panel_settings</mat-icon>
       </button>
     </mat-toolbar>
@@ -46,6 +63,18 @@
       <router-outlet />
     </main>
 
+    <!-- Footer -->
+    @if (config.showFooter) {
+      <footer class="app-footer">
+        <span>{{ config.footerText }}</span>
+      </footer>
+    }
+
   </mat-sidenav-content>
 
 </mat-sidenav-container>
+
+<!-- Scroll to top (outside sidenav container so it overlays everything) -->
+@if (config.showScrollToTop) {
+  <app-scroll-to-top />
+}

@@ -1,18 +1,15 @@
-/**
- * Root application component for XF Internal Linker V2.
- *
- * Provides the main shell: sidebar navigation + router outlet.
- * Uses Angular Material's sidenav for the navigation drawer.
- */
-
-import { Component } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { CommonModule } from '@angular/common';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { AppearanceService } from './core/services/appearance.service';
+import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
+import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
 
 interface NavItem {
   label: string;
@@ -25,6 +22,7 @@ interface NavItem {
   selector: 'app-root',
   standalone: true,
   imports: [
+    CommonModule,
     RouterOutlet,
     RouterLink,
     RouterLinkActive,
@@ -34,12 +32,16 @@ interface NavItem {
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    ThemeCustomizerComponent,
+    ScrollToTopComponent,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
 })
-export class AppComponent {
-  title = 'XF Internal Linker';
+export class AppComponent implements OnInit {
+  appearance = inject(AppearanceService);
+
+  customizerOpen = false;
 
   navItems: NavItem[] = [
     {
@@ -79,4 +81,16 @@ export class AppComponent {
       tooltip: 'App settings, API keys, and theme',
     },
   ];
+
+  ngOnInit(): void {
+    this.appearance.load();
+  }
+
+  get config() {
+    return this.appearance.config;
+  }
+
+  get siteName(): string {
+    return this.appearance.config.siteName;
+  }
 }

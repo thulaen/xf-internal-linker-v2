@@ -41,6 +41,7 @@ class AppSetting(TimestampedModel):
         ("performance", "Performance"),
         ("api", "API Keys"),
         ("anchor", "Anchor Policy"),
+        ("appearance", "Appearance"),
     ]
 
     VALUE_TYPE_CHOICES = [

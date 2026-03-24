@@ -170,6 +170,22 @@ CELERY_TASK_ROUTES = {
     "apps.content.tasks.*": {"queue": "embeddings"},
 }
 
+# ── Celery Beat — Scheduled Tasks ─────────────────────────────────
+# Nightly auto-sync from XenForo API at 02:00 UTC.
+# Only runs when XENFORO_API_KEY and XENFORO_BASE_URL are configured.
+# Override schedule via Django admin → Periodic Tasks (django-celery-beat).
+
+from celery.schedules import crontab  # noqa: E402
+
+CELERY_BEAT_SCHEDULE = {
+    "nightly-xenforo-sync": {
+        "task": "pipeline.import_content",
+        "schedule": crontab(hour=2, minute=0),
+        "kwargs": {"source": "api", "mode": "full"},
+        "options": {"queue": "pipeline"},
+    },
+}
+
 
 # ── Django Unfold Admin ───────────────────────────────────────────
 
