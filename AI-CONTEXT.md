@@ -328,10 +328,18 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 - [x] App shell updated: customizer drawer, footer, `siteName` from config, toolbar uses `--toolbar-bg`
 - [ ] Phase 4b: Logo / favicon upload
 
+### Phase 5 — Review Page
+- [x] `SuggestionListSerializer` — added `destination_url` and `host_title` denormalized fields
+- [x] `PipelineRunViewSet.start` action — `POST /api/pipeline-runs/start/` creates + dispatches run
+- [x] `SuggestionService` (Angular) — typed interfaces + `list()`, `approve()`, `reject()`, `apply()`, `batchAction()`, `startPipeline()`
+- [x] `ReviewComponent` — status tabs (pending/approved/rejected/applied/all), search, sort, paginator, suggestion cards with inline approve/reject-with-reason, batch selection + batch approve/reject, "Run Pipeline" button
+- [x] `SuggestionDetailDialogComponent` — full score breakdown bars, editable anchor, reviewer notes, rejection reason selector, approve/reject/apply actions, applied/verified timestamps
+- [x] Anchor text highlighted with `<mark>` in both card sentence and detail dialog
+
 ## What Is Next
 
 - [ ] Phase 4b — Logo / favicon upload
-- [ ] Phase 5 — Review page (suggestion review workflow UI)
+- [ ] Phase 6 — Dashboard (counts, recent pipeline runs, quick actions)
 
 ## Migration Notes
 

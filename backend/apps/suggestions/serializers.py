@@ -44,12 +44,15 @@ class PipelineRunSerializer(serializers.ModelSerializer):
 class SuggestionListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for paginated suggestion list views."""
 
+    destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
+    host_title = serializers.CharField(source="host.title", read_only=True, default="")
+
     class Meta:
         model = Suggestion
         fields = [
             "suggestion_id", "status", "score_final",
-            "destination", "destination_title",
-            "host", "host_sentence_text",
+            "destination", "destination_title", "destination_url",
+            "host", "host_title", "host_sentence_text",
             "anchor_phrase", "anchor_confidence", "anchor_edited",
             "repeated_anchor",
             "rejection_reason", "reviewed_at", "is_applied",

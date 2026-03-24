@@ -1,17 +1,261 @@
-<!-- Review Suggestions page — full implementation in a future phase -->
 <div class="page-header">
-  <h1 class="page-title">
-    <mat-icon>rate_review</mat-icon>
-    Review Suggestions
-  </h1>
+  <div class="header-left">
+    <h1 class="page-title">
+      <mat-icon>rate_review</mat-icon>
+      Review Suggestions
+    </h1>
+    @if (totalCount > 0) {
+      <span class="count-badge">{{ totalCount }}</span>
+    }
+  </div>
+  <button
+    mat-flat-button
+    color="primary"
+    [disabled]="startingPipeline"
+    (click)="runPipeline()"
+  >
+    @if (startingPipeline) {
+      <mat-spinner diameter="16"></mat-spinner>
+    } @else {
+      <mat-icon>play_arrow</mat-icon>
+    }
+    Run Pipeline
+  </button>
 </div>
 
-<mat-card class="placeholder-card">
-  <mat-card-content>
-    <div class="empty-state">
-      <mat-icon>rate_review</mat-icon>
-      <h3>Review Suggestions</h3>
-      <p>This section will be fully built in a future phase. The scaffolding is in place and ready.</p>
-    </div>
-  </mat-card-content>
-</mat-card>
+<!-- ── Status tabs ──────────────────────────────────────────────── -->
+<div class="status-tabs">
+  @for (tab of statusTabs; track tab.value) {
+    <button
+      class="status-tab"
+      [class.active]="statusFilter === tab.value"
+      (click)="setStatus(tab.value)"
+    >
+      {{ tab.label }}
+    </button>
+  }
+</div>
+
+<!-- ── Filter bar ───────────────────────────────────────────────── -->
+<div class="filter-bar">
+  <mat-form-field appearance="outline" class="search-field">
+    <mat-icon matPrefix>search</mat-icon>
+    <input
+      matInput
+      placeholder="Search destination, anchor, sentence…"
+      [(ngModel)]="searchQuery"
+      (keydown.enter)="onSearch()"
+    />
+    @if (searchQuery) {
+      <button matSuffix mat-icon-button (click)="clearSearch()">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </mat-form-field>
+
+  <mat-form-field appearance="outline" class="sort-field">
+    <mat-label>Sort by</mat-label>
+    <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
+      @for (opt of sortOptions; track opt.value) {
+        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+      }
+    </mat-select>
+  </mat-form-field>
+</div>
+
+<!-- ── Batch toolbar (visible when items selected) ─────────────── -->
+@if (selectedIds.size > 0) {
+  <div class="batch-bar">
+    <span class="batch-count">{{ selectedIds.size }} selected</span>
+    <button mat-flat-button color="primary" (click)="batchApprove()">
+      <mat-icon>check_circle</mat-icon>
+      Approve All
+    </button>
+    <button mat-button [matMenuTriggerFor]="batchRejectMenu">
+      <mat-icon>cancel</mat-icon>
+      Reject All
+      <mat-icon>arrow_drop_down</mat-icon>
+    </button>
+    <mat-menu #batchRejectMenu>
+      @for (r of rejectionReasons; track r.value) {
+        <button mat-menu-item (click)="batchReject(r.value)">{{ r.label }}</button>
+      }
+    </mat-menu>
+    <button mat-icon-button matTooltip="Clear selection" (click)="selectedIds.clear()">
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
+}
+
+<!-- ── Loading spinner ──────────────────────────────────────────── -->
+@if (loading) {
+  <div class="loading-row">
+    <mat-spinner diameter="36"></mat-spinner>
+  </div>
+}
+
+<!-- ── Empty state ──────────────────────────────────────────────── -->
+@if (!loading && suggestions.length === 0) {
+  <div class="empty-state">
+    <mat-icon>rate_review</mat-icon>
+    <h3>No {{ statusFilter === 'all' ? '' : statusFilter }} suggestions</h3>
+    <p>
+      @if (searchQuery) {
+        No results match "{{ searchQuery }}".
+      } @else if (statusFilter === 'pending') {
+        Run the pipeline to generate suggestions.
+      } @else {
+        Nothing to show here yet.
+      }
+    </p>
+    @if (statusFilter === 'pending' && !searchQuery) {
+      <button mat-flat-button color="primary" (click)="runPipeline()">
+        <mat-icon>play_arrow</mat-icon>
+        Run Pipeline Now
+      </button>
+    }
+  </div>
+}
+
+<!-- ── Suggestion cards ─────────────────────────────────────────── -->
+@if (!loading && suggestions.length > 0) {
+  <!-- Select-all row -->
+  <div class="select-all-row">
+    <mat-checkbox
+      [checked]="allSelected"
+      [indeterminate]="someSelected"
+      (change)="toggleSelectAll()"
+    >
+      Select all on this page
+    </mat-checkbox>
+  </div>
+
+  <div class="cards-list">
+    @for (s of suggestions; track s.suggestion_id) {
+      <div
+        class="suggestion-card"
+        [class.selected]="isSelected(s.suggestion_id)"
+        [class.status-approved]="s.status === 'approved'"
+        [class.status-rejected]="s.status === 'rejected'"
+        [class.status-applied]="s.status === 'applied'"
+        (click)="openDetail(s)"
+      >
+        <!-- Card header row -->
+        <div class="card-header" (click)="$event.stopPropagation()">
+          <mat-checkbox
+            [checked]="isSelected(s.suggestion_id)"
+            (change)="toggleSelect(s.suggestion_id)"
+          ></mat-checkbox>
+          <span class="status-pill status-{{ s.status }}">{{ s.status }}</span>
+          <span class="score-chip score-{{ scoreColor(s.score_final) }}">
+            {{ (s.score_final * 100).toFixed(0) }}
+          </span>
+          @if (s.repeated_anchor) {
+            <mat-icon class="warn-icon" matTooltip="Repeated anchor in another suggestion">warning</mat-icon>
+          }
+          <span class="spacer"></span>
+          <span class="card-date">{{ s.created_at | date:'MMM d' }}</span>
+        </div>
+
+        <!-- Destination -->
+        <div class="card-destination">
+          <mat-icon>arrow_forward</mat-icon>
+          <span class="destination-title">{{ s.destination_title }}</span>
+          @if (s.destination_url) {
+            <a
+              class="ext-link"
+              [href]="s.destination_url"
+              target="_blank"
+              rel="noopener"
+              (click)="$event.stopPropagation()"
+              matTooltip="Open destination"
+            >
+              <mat-icon>open_in_new</mat-icon>
+            </a>
+          }
+        </div>
+
+        <!-- Host thread label -->
+        <div class="card-host">
+          <mat-icon>article</mat-icon>
+          <span>{{ s.host_title }}</span>
+        </div>
+
+        <mat-divider></mat-divider>
+
+        <!-- Insertion sentence -->
+        <p
+          class="card-sentence"
+          [innerHTML]="highlightAnchor(s.host_sentence_text, s)"
+        ></p>
+
+        <!-- Anchor + confidence -->
+        <div class="card-anchor-row">
+          <mat-icon class="anchor-icon">link</mat-icon>
+          <span class="anchor-text">{{ s.anchor_edited || s.anchor_phrase }}</span>
+          <span class="confidence-chip confidence-{{ s.anchor_confidence }}">
+            {{ s.anchor_confidence }}
+          </span>
+        </div>
+
+        @if (s.rejection_reason) {
+          <div class="rejection-reason">
+            <mat-icon>cancel</mat-icon>
+            {{ s.rejection_reason | titlecase }}
+          </div>
+        }
+
+        <!-- Actions row -->
+        <div class="card-actions" (click)="$event.stopPropagation()">
+          @if (s.status === 'pending' || s.status === 'rejected') {
+            <button
+              mat-flat-button
+              color="primary"
+              (click)="quickApprove(s, $event)"
+            >
+              <mat-icon>check_circle</mat-icon>
+              Approve
+            </button>
+          }
+          @if (s.status === 'pending' || s.status === 'approved') {
+            <button
+              mat-button
+              [matMenuTriggerFor]="rejectMenu"
+            >
+              <mat-icon>cancel</mat-icon>
+              Reject
+              <mat-icon>arrow_drop_down</mat-icon>
+            </button>
+            <mat-menu #rejectMenu>
+              @for (r of rejectionReasons; track r.value) {
+                <button mat-menu-item (click)="quickReject(s, r.value, $event)">
+                  {{ r.label }}
+                </button>
+              }
+            </mat-menu>
+          }
+          @if (s.status === 'approved') {
+            <span class="approved-label">
+              <mat-icon>check_circle</mat-icon>
+              Approved — add to forum manually
+            </span>
+          }
+          <span class="spacer"></span>
+          <button mat-icon-button matTooltip="View full details" (click)="openDetail(s)">
+            <mat-icon>open_in_full</mat-icon>
+          </button>
+        </div>
+      </div>
+    }
+  </div>
+
+  <!-- ── Paginator ───────────────────────────────────────────────── -->
+  <mat-paginator
+    [length]="totalCount"
+    [pageSize]="pageSize"
+    [pageIndex]="page - 1"
+    [pageSizeOptions]="[25]"
+    (page)="onPageChange($event)"
+    aria-label="Suggestion pages"
+  ></mat-paginator>
+}

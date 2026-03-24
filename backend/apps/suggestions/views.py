@@ -29,10 +29,11 @@ logger = logging.getLogger(__name__)
 
 class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     """
-    List and retrieve pipeline run history.
+    List and retrieve pipeline run history. Also provides a start action.
 
-    GET /api/pipeline-runs/        — paginated list
-    GET /api/pipeline-runs/{id}/   — full detail with progress
+    GET  /api/pipeline-runs/         — paginated list
+    GET  /api/pipeline-runs/{id}/    — full detail with progress
+    POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
     """
 
     queryset = PipelineRun.objects.order_by("-created_at")
@@ -40,6 +41,23 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
     filterset_fields = ["run_state", "rerun_mode"]
     ordering_fields = ["created_at", "suggestions_created"]
+
+    @action(detail=False, methods=["post"])
+    def start(self, request) -> Response:
+        """Create a new PipelineRun and dispatch it to Celery."""
+        run = PipelineRun.objects.create(
+            rerun_mode=request.data.get("rerun_mode", "skip_pending"),
+            host_scope=request.data.get("host_scope", {}),
+            destination_scope=request.data.get("destination_scope", {}),
+        )
+        from apps.pipeline.tasks import run_pipeline as _task
+        _task.delay(
+            run_id=str(run.run_id),
+            host_scope=run.host_scope,
+            destination_scope=run.destination_scope,
+            rerun_mode=run.rerun_mode,
+        )
+        return Response(PipelineRunSerializer(run).data, status=status.HTTP_201_CREATED)
 
 
 class SuggestionViewSet(viewsets.ModelViewSet):

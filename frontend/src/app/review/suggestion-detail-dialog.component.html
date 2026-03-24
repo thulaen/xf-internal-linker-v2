@@ -1,0 +1,192 @@
+<h2 mat-dialog-title>
+  <mat-icon>link</mat-icon>
+  Suggestion Detail
+</h2>
+
+<mat-dialog-content class="dialog-body">
+
+  @if (loading) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (error) {
+    <div class="error-msg">{{ error }}</div>
+  }
+
+  @if (detail && !loading) {
+
+    <!-- Status + score header -->
+    <div class="detail-header">
+      <span class="status-badge status-{{ detail.status }}">{{ detail.status }}</span>
+      <span class="score-badge">{{ (detail.score_final * 100).toFixed(0) }} / 100</span>
+      @if (detail.repeated_anchor) {
+        <span class="warning-badge" matTooltip="Same anchor used in another active suggestion">
+          <mat-icon>warning</mat-icon> repeated anchor
+        </span>
+      }
+    </div>
+
+    <mat-divider></mat-divider>
+
+    <!-- Destination / host -->
+    <section class="section">
+      <div class="field-row">
+        <span class="field-label">Destination</span>
+        <a class="destination-link" [href]="detail.destination_url || '#'" target="_blank" rel="noopener">
+          {{ detail.destination_title }}
+          <mat-icon class="ext-icon">open_in_new</mat-icon>
+        </a>
+      </div>
+      <div class="field-row">
+        <span class="field-label">Host thread</span>
+        <span>{{ detail.host_sentence }}</span>
+      </div>
+    </section>
+
+    <mat-divider></mat-divider>
+
+    <!-- Host sentence with anchor highlighted -->
+    <section class="section">
+      <p class="section-title">Insertion sentence</p>
+      <blockquote
+        class="host-sentence"
+        [innerHTML]="highlightSentence(detail.host_sentence_text, effectiveAnchor)"
+      ></blockquote>
+    </section>
+
+    <mat-divider></mat-divider>
+
+    <!-- Anchor editor -->
+    <section class="section">
+      <p class="section-title">Anchor text</p>
+      <div class="anchor-row">
+        <mat-form-field appearance="outline" class="anchor-field">
+          <mat-label>Anchor phrase</mat-label>
+          <input matInput [(ngModel)]="anchorEdited" />
+          <mat-hint>Edit the link text that will appear in the post</mat-hint>
+        </mat-form-field>
+        <span class="confidence-badge confidence-{{ detail.anchor_confidence }}">
+          {{ detail.anchor_confidence }}
+        </span>
+      </div>
+      @if (detail.anchor_phrase && detail.anchor_phrase !== anchorEdited) {
+        <p class="original-anchor">Original: <em>{{ detail.anchor_phrase }}</em></p>
+      }
+    </section>
+
+    <mat-divider></mat-divider>
+
+    <!-- Score breakdown -->
+    <section class="section">
+      <p class="section-title">Score breakdown</p>
+      <div class="scores-grid">
+        <div class="score-item">
+          <span class="score-name">Semantic</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_semantic)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_semantic * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Keyword</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_keyword)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_keyword * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Node affinity</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_node_affinity)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_node_affinity * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Quality</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_quality)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_quality * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">PageRank</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_pagerank)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_pagerank * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
+          <span class="score-name">Velocity</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_velocity)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_velocity * 100).toFixed(0) }}</span>
+        </div>
+      </div>
+    </section>
+
+    <mat-divider></mat-divider>
+
+    <!-- Reviewer notes -->
+    <section class="section">
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>Reviewer notes (optional)</mat-label>
+        <textarea matInput [(ngModel)]="reviewerNotes" rows="2"></textarea>
+      </mat-form-field>
+    </section>
+
+    <!-- Rejection reason (shown when rejectionMode) -->
+    @if (rejectionMode) {
+      <section class="section rejection-section">
+        <mat-form-field appearance="outline" class="full-width">
+          <mat-label>Rejection reason</mat-label>
+          <mat-select [(ngModel)]="rejectionReason">
+            @for (r of rejectionReasons; track r.value) {
+              <mat-option [value]="r.value">{{ r.label }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <div class="reject-actions">
+          <button mat-flat-button color="warn" [disabled]="saving" (click)="confirmReject()">
+            <mat-icon>cancel</mat-icon>
+            Confirm Reject
+          </button>
+          <button mat-button (click)="rejectionMode = false">Cancel</button>
+        </div>
+      </section>
+    }
+
+    <!-- Applied / verified timestamps -->
+    @if (detail.applied_at || detail.verified_at || detail.stale_reason) {
+      <mat-divider></mat-divider>
+      <section class="section">
+        @if (detail.applied_at) {
+          <p class="meta-line"><mat-icon>check_circle</mat-icon> Applied {{ detail.applied_at | date:'medium' }}</p>
+        }
+        @if (detail.verified_at) {
+          <p class="meta-line"><mat-icon>verified</mat-icon> Verified {{ detail.verified_at | date:'medium' }}</p>
+        }
+        @if (detail.stale_reason) {
+          <p class="meta-line warn"><mat-icon>warning</mat-icon> Stale: {{ detail.stale_reason }}</p>
+        }
+      </section>
+    }
+
+  }
+
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button (click)="cancel()">Close</button>
+
+  @if (detail?.status === 'approved') {
+    <button mat-stroked-button color="accent" [disabled]="saving" (click)="apply()">
+      <mat-icon>done_all</mat-icon>
+      Mark as Applied
+    </button>
+  }
+
+  @if (detail?.status === 'pending' || detail?.status === 'approved') {
+    @if (!rejectionMode) {
+      <button mat-stroked-button color="warn" [disabled]="saving" (click)="startReject()">
+        <mat-icon>cancel</mat-icon>
+        Reject
+      </button>
+    }
+  }
+
+  @if (detail?.status === 'pending' || detail?.status === 'rejected') {
+    <button mat-flat-button color="primary" [disabled]="saving" (click)="approve()">
+      <mat-icon>check_circle</mat-icon>
+      {{ saving ? 'Saving…' : 'Approve' }}
+    </button>
+  }
+</mat-dialog-actions>
