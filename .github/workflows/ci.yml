@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+
+  # ── 1. Django backend tests ──────────────────────────────────────
+  backend-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run Django tests
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.development
+          SECRET_KEY: ci-fake-secret-key
+          DEBUG: "True"
+          DATABASE_URL: sqlite:///test.db
+          REDIS_URL: redis://localhost:6379/0
+        run: python manage.py test --verbosity=2
+
+  # ── 2. Angular build + unit tests ───────────────────────────────
+  frontend-build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build:prod
+
+      - name: Run unit tests
+        working-directory: frontend
+        run: npm run test:ci
+
+  # ── 3. Validate docker-compose.yml ──────────────────────────────
+  docker-compose-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Validate docker-compose.yml syntax
+        run: docker compose config
