@@ -180,7 +180,61 @@ nothing is applied automatically.
 
 ---
 
-### FR-004 — Add your next request here
+### FR-004 — Broken Link Detection
+
+**Requested:** 2026-03-24
+**Target phase:** Phase 6 (alongside or after Dashboard)
+**Priority:** High — directly protects link equity and improves UX
+
+### What's wanted
+The tool should detect when existing internal links in XenForo content are broken —
+pointing to deleted, moved, or restricted threads — and surface these in the UI so
+the user can fix or remove them before they hurt SEO or confuse readers.
+
+This is a complement to the suggestion pipeline: rather than finding new links to add,
+this scanner finds existing links that are already broken.
+
+### Specific controls / behaviour
+- **Scan button** on the Dashboard or a dedicated "Link Health" tab — triggers a background scan
+- **Broken link table** listing every broken link found:
+  - Source thread (where the link lives)
+  - Broken URL (the dead link)
+  - HTTP status code returned (404, 403, 301 redirect, connection error)
+  - Date first detected
+  - Status: Open / Ignored / Fixed
+- **Mark as Fixed** — user confirms they've manually removed/updated the link in the forum
+- **Ignore** — suppress a false positive (e.g. legitimate external redirect)
+- **Filter** by status (Open / Ignored / Fixed) and by HTTP status code
+- **Export** broken link list to CSV
+- Scan can be scheduled (Celery Beat) to run nightly alongside content sync
+- Results persist in the database; re-scanning updates status automatically
+
+### Implementation notes for the AI
+**Backend:**
+- New model `BrokenLink` in `apps/graph/` (or a new `apps/linkhealth/` app):
+  - `source_content` FK → ContentItem
+  - `url` — the dead URL found in the post
+  - `http_status` — integer (0 = connection error)
+  - `first_detected_at`, `last_checked_at`
+  - `status` — `open` | `ignored` | `fixed`
+- Celery task `scan_broken_links`:
+  - Iterates `ExistingLink` records and any raw URLs extracted from `Post.raw_bbcode`
+  - HEAD request first (fall back to GET if HEAD not allowed)
+  - 404 / 410 → broken; 301 → check destination; 403 → flag; timeout → connection error
+  - Rate-limit to avoid hammering the forum (1 req / 0.5s)
+  - Publishes WebSocket progress via `job.progress` channel group
+- DRF endpoint: `GET/PATCH /api/broken-links/` (list + mark fixed/ignored)
+- `POST /api/broken-links/scan/` — dispatch Celery task, return job_id
+**Frontend:**
+- Broken link count badge on Dashboard + sidebar nav indicator when open > 0
+- Table with mat-table: sortable columns, status filter chips, paginator
+- Row actions: Mark Fixed, Ignore, Open source thread (external link)
+- CSV export button (calls `GET /api/broken-links/?format=csv` or client-side)
+- Live progress bar for active scan (WebSocket, same pattern as Jobs page)
+
+---
+
+### FR-005 — Add your next request here
 
 Use the template below. Copy it and replace the placeholder text.
 
@@ -203,4 +257,4 @@ Use the template below. Copy it and replace the placeholder text.
 
 ---
 
-*Last updated: 2026-03-24 (Phase 5 — Review page complete)*
+*Last updated: 2026-03-24 (FR-004 Broken Link Detection added)*
