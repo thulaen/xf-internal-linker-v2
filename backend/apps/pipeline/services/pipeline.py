@@ -1,0 +1,701 @@
+"""Main suggestion pipeline service.
+
+3-stage retrieval pipeline:
+  Stage 1 — coarse cosine similarity between destination and host-content embeddings
+  Stage 2 — fine-grained sentence-level cosine similarity
+  Stage 3 — composite scoring (semantic + keyword + node affinity + quality)
+
+V2 changes from V1:
+  - Replaces raw SQLite + .npy file artifacts with Django ORM + pgvector VectorField
+  - Replaces Flask mark_job_progress with the channel-layer _publish_progress helper
+  - All data is loaded from PostgreSQL (ContentItem.embedding, Sentence.embedding)
+  - Supports rerun_modes: skip_pending, supersede_pending, full_regenerate
+"""
+
+from __future__ import annotations
+
+import gc
+import logging
+import time
+import uuid
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any, Callable
+
+import numpy as np
+
+from .ranker import (
+    ContentKey,
+    ContentRecord,
+    ExistingLinkKey,
+    ScoredCandidate,
+    SentenceRecord,
+    SentenceSemanticMatch,
+    derive_pagerank_bounds,
+    score_destination_matches,
+    select_final_candidates,
+    tokenize_text,
+)
+from .anchor_extractor import extract_anchor
+
+logger = logging.getLogger(__name__)
+
+STAGE1_TOP_K = 50
+STAGE2_TOP_K = 10
+FALLBACK_CANDIDATES_PER_DESTINATION = 5
+BLOCK_SIZE = 256
+
+DEFAULT_WEIGHTS = {
+    "w_semantic": 0.55,
+    "w_keyword": 0.20,
+    "w_node": 0.10,
+    "w_quality": 0.15,
+}
+
+
+@dataclass
+class PipelineResult:
+    run_id: str
+    items_in_scope: int
+    suggestions_created: int
+    suggestions_skipped: int
+
+
+# ---------------------------------------------------------------------------
+# Public entry point
+# ---------------------------------------------------------------------------
+
+def run_pipeline(
+    run_id: str,
+    *,
+    rerun_mode: str = "skip_pending",
+    destination_scope_ids: set[int] | None = None,
+    host_scope_ids: set[int] | None = None,
+    progress_fn: Callable[[float, str], None] | None = None,
+) -> PipelineResult:
+    """Execute the full 3-stage ML suggestion pipeline.
+
+    Args:
+        run_id: UUID string of the PipelineRun record.
+        rerun_mode: 'skip_pending' | 'supersede_pending' | 'full_regenerate'
+        destination_scope_ids: Restrict destinations to these ScopeItem PKs.
+        host_scope_ids: Restrict hosts to these ScopeItem PKs.
+        progress_fn: Optional callback(progress_0_to_1, message) for live updates.
+    """
+
+    def _progress(pct: float, msg: str) -> None:
+        logger.info("[run=%s] %.0f%% — %s", run_id, pct * 100, msg)
+        if progress_fn:
+            progress_fn(pct, msg)
+
+    started_at = time.monotonic()
+    suggestions_created = 0
+    items_in_scope = 0
+
+    _progress(0.02, "Loading settings and weights...")
+    weights = _load_weights()
+
+    _progress(0.05, "Loading content records...")
+    content_records = _load_content_records(
+        destination_scope_ids=destination_scope_ids,
+        host_scope_ids=host_scope_ids,
+    )
+    if not content_records:
+        _progress(1.0, "No content records found — pipeline complete.")
+        return PipelineResult(
+            run_id=run_id,
+            items_in_scope=0,
+            suggestions_created=0,
+            suggestions_skipped=0,
+        )
+
+    _progress(0.08, "Loading sentence records...")
+    sentence_records, content_to_sentence_ids = _load_sentence_records(
+        set(content_records.keys())
+    )
+
+    _progress(0.12, "Loading existing links...")
+    existing_links = _load_existing_links()
+
+    _progress(0.15, "Applying rerun mode filter...")
+    pending_destinations = _get_pending_destinations(rerun_mode)
+    if rerun_mode == "supersede_pending":
+        _supersede_pending_suggestions(list(content_records.keys()))
+
+    _progress(0.18, "Loading destination embeddings from pgvector...")
+    destination_keys, dest_embeddings = _load_destination_embeddings(
+        content_records,
+        pending_destinations=pending_destinations,
+    )
+    items_in_scope = len(destination_keys)
+
+    if items_in_scope == 0:
+        _progress(1.0, "No destinations to process — pipeline complete.")
+        return PipelineResult(
+            run_id=run_id,
+            items_in_scope=0,
+            suggestions_created=0,
+            suggestions_skipped=0,
+        )
+
+    _progress(0.22, "Loading sentence embeddings from pgvector...")
+    sentence_ids_ordered, sentence_embeddings = _load_sentence_embeddings(
+        set(content_records.keys())
+    )
+
+    if sentence_embeddings.shape[0] == 0:
+        _progress(1.0, "No sentence embeddings available — pipeline complete.")
+        return PipelineResult(
+            run_id=run_id,
+            items_in_scope=items_in_scope,
+            suggestions_created=0,
+            suggestions_skipped=items_in_scope,
+        )
+
+    pagerank_bounds = derive_pagerank_bounds(content_records)
+
+    _progress(0.25, "Stage 1: coarse content-level candidate retrieval...")
+    stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        content_records=content_records,
+        content_to_sentence_ids=content_to_sentence_ids,
+        top_k=STAGE1_TOP_K,
+        block_size=BLOCK_SIZE,
+    )
+
+    _progress(0.50, "Stage 2+3: sentence scoring and ranking...")
+    candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
+    diagnostics: list[tuple[int, str, str, str | None]] = []
+
+    for dest_idx, dest_key in enumerate(destination_keys):
+        destination = content_records[dest_key]
+        host_sentence_ids = stage1_candidates.get(dest_key, [])
+
+        matches = _score_sentences_stage2(
+            destination_embedding=dest_embeddings[dest_idx],
+            sentence_ids=host_sentence_ids,
+            sentence_ids_ordered=sentence_ids_ordered,
+            sentence_embeddings=sentence_embeddings,
+            sentence_records=sentence_records,
+            top_k=STAGE2_TOP_K,
+        )
+
+        if not matches:
+            diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
+            continue
+
+        scored = score_destination_matches(
+            destination,
+            matches,
+            content_records=content_records,
+            sentence_records=sentence_records,
+            existing_links=existing_links,
+            weights=weights,
+            pagerank_bounds=pagerank_bounds,
+        )
+
+        if scored:
+            candidates_by_destination[dest_key] = scored
+        else:
+            diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))
+
+        if dest_idx % 100 == 0 and dest_idx > 0:
+            pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
+            _progress(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
+
+    del dest_embeddings, sentence_embeddings
+    gc.collect()
+
+    _progress(0.87, "Resolving host-reuse and circular-pair filters...")
+    blocked_diagnostics: dict[ContentKey, str] = {}
+    selected_candidates = select_final_candidates(
+        candidates_by_destination,
+        max_host_reuse=_get_max_host_reuse(),
+        blocked_diagnostics=blocked_diagnostics,
+    )
+    for dest_key, reason in blocked_diagnostics.items():
+        diagnostics.append((dest_key[0], dest_key[1], reason, None))
+
+    _progress(0.92, "Persisting suggestions...")
+    suggestions_created = _persist_suggestions(
+        run_id=run_id,
+        selected_candidates=selected_candidates,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        rerun_mode=rerun_mode,
+    )
+
+    _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)
+
+    _progress(1.0, f"Pipeline complete — {suggestions_created} suggestions created.")
+    return PipelineResult(
+        run_id=run_id,
+        items_in_scope=items_in_scope,
+        suggestions_created=suggestions_created,
+        suggestions_skipped=items_in_scope - suggestions_created,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Data loaders
+# ---------------------------------------------------------------------------
+
+def _load_weights() -> dict[str, float]:
+    try:
+        from apps.core.models import AppSetting
+        qs = AppSetting.objects.filter(
+            key__in=["w_semantic", "w_keyword", "w_node", "w_quality"]
+        ).values_list("key", "value")
+        overrides = {k: float(v) for k, v in qs}
+        return {**DEFAULT_WEIGHTS, **overrides}
+    except Exception:
+        return dict(DEFAULT_WEIGHTS)
+
+
+def _get_max_host_reuse() -> int:
+    try:
+        from apps.core.models import AppSetting
+        setting = AppSetting.objects.filter(key="max_host_reuse").first()
+        if setting:
+            return int(setting.value)
+    except Exception:
+        pass
+    return 3
+
+
+def _load_content_records(
+    *,
+    destination_scope_ids: set[int] | None = None,
+    host_scope_ids: set[int] | None = None,
+) -> dict[ContentKey, ContentRecord]:
+    """Load all non-deleted content items with scope hierarchy via Django ORM."""
+    from apps.content.models import ContentItem, Post, ScopeItem
+
+    qs = ContentItem.objects.filter(is_deleted=False).select_related(
+        "scope_item",
+        "scope_item__parent",
+        "scope_item__parent__parent",
+    ).prefetch_related("posts")
+
+    records: dict[ContentKey, ContentRecord] = {}
+    for ci in qs:
+        scope = ci.scope_item
+        parent = scope.parent if scope else None
+        grandparent = parent.parent if parent else None
+
+        primary_post_char_count = 0
+        if ci.content_type == "thread" and ci.xf_post_id:
+            p = ci.posts.filter(xf_post_id=ci.xf_post_id).first()
+            if p:
+                primary_post_char_count = p.char_count or 0
+        elif ci.content_type == "resource" and ci.xf_update_id:
+            p = ci.posts.filter(xf_update_id=ci.xf_update_id).first()
+            if p:
+                primary_post_char_count = p.char_count or 0
+
+        text = _destination_text(ci.title, ci.distilled_text or "")
+        key: ContentKey = (ci.pk, ci.content_type)
+        records[key] = ContentRecord(
+            content_id=ci.pk,
+            content_type=ci.content_type,
+            title=ci.title or "",
+            distilled_text=ci.distilled_text or "",
+            scope_id=scope.pk if scope else 0,
+            scope_type=scope.scope_type if scope else "",
+            parent_id=parent.pk if parent else None,
+            parent_type=parent.scope_type if parent else "",
+            grandparent_id=grandparent.pk if grandparent else None,
+            grandparent_type=grandparent.scope_type if grandparent else "",
+            reply_count=ci.reply_count or 0,
+            pagerank_score=float(ci.pagerank_score or 0.0),
+            primary_post_char_count=primary_post_char_count,
+            tokens=tokenize_text(text),
+        )
+    return records
+
+
+def _load_sentence_records(
+    content_keys: set[ContentKey],
+) -> tuple[dict[int, SentenceRecord], dict[ContentKey, list[int]]]:
+    """Load sentence records for the given content keys."""
+    from apps.content.models import Sentence
+
+    content_pks = {pk for pk, _ in content_keys}
+    qs = Sentence.objects.filter(
+        content_item__pk__in=content_pks,
+        content_item__is_deleted=False,
+        word_position__lte=600,
+    ).values("pk", "content_item__pk", "content_item__content_type", "text", "char_count")
+
+    sentence_records: dict[int, SentenceRecord] = {}
+    content_to_sentence_ids: dict[ContentKey, list[int]] = defaultdict(list)
+
+    for row in qs:
+        sid = row["pk"]
+        ckey: ContentKey = (row["content_item__pk"], row["content_item__content_type"])
+        text = row["text"] or ""
+        record = SentenceRecord(
+            sentence_id=sid,
+            content_id=ckey[0],
+            content_type=ckey[1],
+            text=text,
+            char_count=row["char_count"] or len(text),
+            tokens=tokenize_text(text),
+        )
+        sentence_records[sid] = record
+        content_to_sentence_ids[ckey].append(sid)
+
+    return sentence_records, dict(content_to_sentence_ids)
+
+
+def _load_existing_links() -> set[ExistingLinkKey]:
+    from apps.graph.models import ExistingLink
+
+    qs = ExistingLink.objects.values_list(
+        "from_content_item__pk", "from_content_item__content_type",
+        "to_content_item__pk", "to_content_item__content_type",
+    )
+    return {
+        (
+            (from_pk, from_type),
+            (to_pk, to_type),
+        )
+        for from_pk, from_type, to_pk, to_type in qs
+    }
+
+
+def _get_pending_destinations(rerun_mode: str) -> set[ContentKey]:
+    if rerun_mode != "skip_pending":
+        return set()
+
+    from apps.suggestions.models import Suggestion
+    qs = Suggestion.objects.filter(status="pending").values_list(
+        "destination__pk", "destination__content_type"
+    )
+    return {(pk, ct) for pk, ct in qs}
+
+
+def _supersede_pending_suggestions(destination_keys: list[ContentKey]) -> None:
+    from apps.suggestions.models import Suggestion
+    dest_pks = [pk for pk, _ in destination_keys]
+    Suggestion.objects.filter(
+        destination__pk__in=dest_pks,
+        status="pending",
+    ).update(status="superseded")
+
+
+def _load_destination_embeddings(
+    content_records: dict[ContentKey, ContentRecord],
+    *,
+    pending_destinations: set[ContentKey],
+) -> tuple[tuple[ContentKey, ...], np.ndarray]:
+    """Load L2-normalized destination embeddings from pgvector."""
+    from apps.content.models import ContentItem
+
+    candidate_keys = [
+        key for key in content_records
+        if key not in pending_destinations
+    ]
+    if not candidate_keys:
+        return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+
+    pks = [pk for pk, _ in candidate_keys]
+    qs = ContentItem.objects.filter(
+        pk__in=pks,
+        embedding__isnull=False,
+    ).values_list("pk", "content_type", "embedding")
+
+    found: dict[ContentKey, list[float]] = {}
+    for pk, ct, emb in qs:
+        if emb is not None:
+            found[(pk, ct)] = emb
+
+    valid_keys = [key for key in candidate_keys if key in found]
+    if not valid_keys:
+        return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+
+    matrix = np.array([found[key] for key in valid_keys], dtype=np.float32)
+    return tuple(valid_keys), matrix
+
+
+def _load_sentence_embeddings(
+    content_keys: set[ContentKey],
+) -> tuple[list[int], np.ndarray]:
+    """Load sentence embeddings from pgvector for the given content keys."""
+    from apps.content.models import Sentence
+
+    content_pks = {pk for pk, _ in content_keys}
+    qs = (
+        Sentence.objects
+        .filter(
+            content_item__pk__in=content_pks,
+            content_item__is_deleted=False,
+            word_position__lte=600,
+            embedding__isnull=False,
+        )
+        .order_by("pk")
+        .values_list("pk", "embedding")
+    )
+
+    ids: list[int] = []
+    vectors: list[list[float]] = []
+    for sid, emb in qs:
+        if emb is not None:
+            ids.append(sid)
+            vectors.append(emb)
+
+    if not vectors:
+        return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+
+    return ids, np.array(vectors, dtype=np.float32)
+
+
+# ---------------------------------------------------------------------------
+# Stage 1 — coarse content-level candidate retrieval
+# ---------------------------------------------------------------------------
+
+def _stage1_candidates(
+    *,
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    content_records: dict[ContentKey, ContentRecord],
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    top_k: int,
+    block_size: int,
+) -> dict[ContentKey, list[int]]:
+    """Stage 1: find top-K host content items per destination via cosine similarity.
+
+    Returns a mapping from destination_key -> flat list of candidate sentence IDs
+    (all sentences from the top-K host content items).
+    """
+    # Build a host embedding matrix from content items that have sentence embeddings
+    host_keys = [
+        key for key in content_records
+        if key in content_to_sentence_ids and content_to_sentence_ids[key]
+    ]
+    if not host_keys:
+        return {}
+
+    from apps.content.models import ContentItem
+    host_pks = [pk for pk, _ in host_keys]
+    host_emb_qs = ContentItem.objects.filter(
+        pk__in=host_pks,
+        embedding__isnull=False,
+    ).values_list("pk", "content_type", "embedding")
+
+    host_emb_map: dict[ContentKey, list[float]] = {
+        (pk, ct): emb for pk, ct, emb in host_emb_qs if emb is not None
+    }
+    valid_host_keys = [k for k in host_keys if k in host_emb_map]
+    if not valid_host_keys:
+        return {}
+
+    host_matrix = np.array(
+        [host_emb_map[k] for k in valid_host_keys], dtype=np.float32
+    )
+
+    result: dict[ContentKey, list[int]] = {}
+    n_dest = len(destination_keys)
+
+    for block_start in range(0, n_dest, block_size):
+        block_end = min(block_start + block_size, n_dest)
+        dest_block = dest_embeddings[block_start:block_end]
+        dest_keys_block = destination_keys[block_start:block_end]
+
+        # cosine similarity: dest_block (B, D) @ host_matrix.T (D, H) -> (B, H)
+        sims = dest_block @ host_matrix.T
+
+        for b_idx, dest_key in enumerate(dest_keys_block):
+            row = sims[b_idx]
+            # Get top-K host indices (excluding self)
+            top_indices = np.argpartition(row, -min(top_k, len(valid_host_keys)))[-top_k:]
+            top_indices = top_indices[np.argsort(-row[top_indices])]
+
+            sentence_ids: list[int] = []
+            for h_idx in top_indices:
+                host_key = valid_host_keys[h_idx]
+                if host_key == dest_key:
+                    continue
+                sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Stage 2 — sentence-level scoring
+# ---------------------------------------------------------------------------
+
+def _score_sentences_stage2(
+    *,
+    destination_embedding: np.ndarray,
+    sentence_ids: list[int],
+    sentence_ids_ordered: list[int],
+    sentence_embeddings: np.ndarray,
+    sentence_records: dict[int, SentenceRecord],
+    top_k: int,
+) -> list[SentenceSemanticMatch]:
+    """Stage 2: score candidate sentences by cosine similarity to destination."""
+    if not sentence_ids:
+        return []
+
+    # Build an index from sentence_id to row index in sentence_embeddings
+    id_to_row = {sid: idx for idx, sid in enumerate(sentence_ids_ordered)}
+
+    candidate_rows: list[int] = []
+    candidate_ids: list[int] = []
+    for sid in sentence_ids:
+        row = id_to_row.get(sid)
+        if row is not None:
+            candidate_rows.append(row)
+            candidate_ids.append(sid)
+
+    if not candidate_rows:
+        return []
+
+    candidate_matrix = sentence_embeddings[candidate_rows]
+    scores = candidate_matrix @ destination_embedding  # cosine similarity (normalized)
+
+    # Keep top-K
+    k = min(top_k, len(scores))
+    top_idx = np.argpartition(scores, -k)[-k:]
+    top_idx = top_idx[np.argsort(-scores[top_idx])]
+
+    matches: list[SentenceSemanticMatch] = []
+    for i in top_idx:
+        sid = candidate_ids[i]
+        record = sentence_records.get(sid)
+        if record is None:
+            continue
+        matches.append(SentenceSemanticMatch(
+            host_content_id=record.content_id,
+            host_content_type=record.content_type,
+            sentence_id=sid,
+            score_semantic=float(scores[i]),
+        ))
+
+    return matches
+
+
+# ---------------------------------------------------------------------------
+# Persist suggestions
+# ---------------------------------------------------------------------------
+
+def _persist_suggestions(
+    *,
+    run_id: str,
+    selected_candidates: list[ScoredCandidate],
+    content_records: dict[ContentKey, ContentRecord],
+    sentence_records: dict[int, SentenceRecord],
+    rerun_mode: str,
+) -> int:
+    """Create Suggestion records for the selected candidates.
+
+    For full_regenerate mode, deletes existing pending/superseded suggestions
+    for the same destination before inserting new ones.
+    """
+    from apps.content.models import ContentItem, Sentence
+    from apps.suggestions.models import PipelineRun, Suggestion
+
+    try:
+        run = PipelineRun.objects.get(run_id=run_id)
+    except PipelineRun.DoesNotExist:
+        run = None
+
+    created = 0
+    for candidate in selected_candidates:
+        dest_key = candidate.destination_key
+        dest_record = content_records.get(dest_key)
+        sentence_record = sentence_records.get(candidate.host_sentence_id)
+        if dest_record is None or sentence_record is None:
+            continue
+
+        anchor = extract_anchor(sentence_record.text, dest_record.title)
+
+        try:
+            dest_ci = ContentItem.objects.get(pk=candidate.destination_content_id)
+            host_ci = ContentItem.objects.get(pk=candidate.host_content_id)
+            host_sentence = Sentence.objects.get(pk=candidate.host_sentence_id)
+        except (ContentItem.DoesNotExist, Sentence.DoesNotExist):
+            continue
+
+        if rerun_mode == "full_regenerate":
+            Suggestion.objects.filter(
+                destination=dest_ci,
+                status__in=["pending", "superseded"],
+            ).delete()
+
+        Suggestion.objects.create(
+            pipeline_run=run,
+            destination=dest_ci,
+            host=host_ci,
+            host_sentence=host_sentence,
+            anchor_text=anchor.anchor_phrase or "",
+            anchor_confidence=anchor.anchor_confidence,
+            score_semantic=candidate.score_semantic,
+            score_keyword=candidate.score_keyword,
+            score_node_affinity=candidate.score_node_affinity,
+            score_quality=candidate.score_quality,
+            score_final=candidate.score_final,
+            status="pending",
+        )
+        created += 1
+
+    if run:
+        run.suggestions_created = created
+        run.destinations_processed = len(selected_candidates)
+        run.save(update_fields=["suggestions_created", "destinations_processed", "updated_at"])
+
+    return created
+
+
+def _persist_diagnostics(
+    *,
+    run_id: str,
+    diagnostics: list[tuple[int, str, str, str | None]],
+) -> None:
+    """Persist pipeline diagnostics (why-no-suggestion records)."""
+    from apps.suggestions.models import PipelineDiagnostic, PipelineRun
+    from apps.content.models import ContentItem
+
+    try:
+        run = PipelineRun.objects.get(run_id=run_id)
+    except PipelineRun.DoesNotExist:
+        return
+
+    to_create = []
+    for content_id, content_type, reason, detail in diagnostics:
+        try:
+            ci = ContentItem.objects.get(pk=content_id, content_type=content_type)
+        except ContentItem.DoesNotExist:
+            continue
+        to_create.append(PipelineDiagnostic(
+            pipeline_run=run,
+            content_item=ci,
+            reason=reason,
+            detail=detail or "",
+        ))
+
+    if to_create:
+        PipelineDiagnostic.objects.bulk_create(to_create, ignore_conflicts=True)
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _destination_text(title: str, distilled_text: str) -> str:
+    title_clean = (title or "").strip()
+    distilled_clean = (distilled_text or "").strip()
+    if distilled_clean:
+        return f"{title_clean}\n\n{distilled_clean}".strip()
+    return title_clean
+
+
+try:
+    from .embeddings import EMBEDDING_DIM
+except ImportError:
+    EMBEDDING_DIM = 384

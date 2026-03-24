@@ -56,6 +56,7 @@ LOCAL_APPS = [
     "apps.audit",
     "apps.graph",
     "apps.plugins",
+    "apps.sync",
     "apps.api",
 ]
 

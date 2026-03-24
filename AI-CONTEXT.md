@@ -222,8 +222,8 @@ Every AI assistant working on this project MUST do all three of the following:
 
 ## Current Phase
 
-**Phase:** 1 — Complete
-**Status:** All Django models, admin, migrations, DRF API, and WebSocket consumer built and pushed
+**Phase:** 3 — In Progress
+**Status:** Hardened XenForo API client, optimized batch embeddings, atomic ingestion pipeline, and JSONL import alternative are all live.
 
 ## What Is Complete
 
@@ -263,15 +263,31 @@ Every AI assistant working on this project MUST do all three of the following:
 - [x] **JobProgressConsumer** WebSocket consumer (`ws/jobs/<job_id>/`) — streams Celery progress to Angular
 - [x] **Celery task stubs** — run_pipeline, generate_embeddings, import_content, verify_suggestions (all publish progress via channel layer, ready for Phase 2 ML wiring)
 
+### Phase 2 — ML Services Migration
+- [x] `backend/apps/pipeline/services/` package created
+- [x] Pure-Python utilities copied with updated imports: `spacy_loader.py`, `text_cleaner.py`, `link_parser.py`, `sentence_splitter.py`, `distiller.py`, `anchor_extractor.py`
+- [x] `ranker.py` — all V1 scoring logic + `select_final_candidates`; sqlite3 removed; pure Python
+- [x] `pagerank.py` — Django ORM replaces SQLite; `run_pagerank()` convenience entry point
+- [x] `velocity.py` — Django ORM replaces SQLite/Flask config; `run_velocity()` entry point
+- [x] `embeddings.py` — pgvector VectorField replaces .npy files; `generate_all_embeddings()`; ML_PERFORMANCE_MODE for CPU/GPU switching
+- [x] `pipeline.py` — full 3-stage pipeline using Django ORM + pgvector; progress_fn callback for WebSocket
+- [x] Celery tasks wired to real services: `run_pipeline`, `generate_embeddings`, `import_content` (triggers PageRank + velocity after import)
+- [x] CPU/GPU mode switching via `ML_PERFORMANCE_MODE` env var (BALANCED=CPU, HIGH_PERFORMANCE=GPU)
+
+### Phase 3 — XenForo API Client + Content Import
+- [x] XenForo API client: `apps/sync/services/xenforo_api.py` (thread list, resource list, post fetch)
+- [x] JSONL import alternative for offline use (bulk export from XF)
+- [x] Refined distillation using `distill_body` (top-5 sentences)
+- [x] Auto-trigger vector embeddings after content sync
+- [x] Link graph refresh: automatic extraction and storage of existing internal links
+- [x] Wire `import_content` Celery task to actual API + JSONL (triggers PageRank + velocity after import)
+- [x] Content processing pipeline: BBCode cleaning → sentence splitting → sentence storage
+- [x] Wire `verify_suggestions` task to XenForo API for live link validation
+
 ## What Is Next
 
-### Phase 2 — ML Services Migration
-- [ ] Copy V1 service files (`pipeline.py`, `embeddings.py`, `distiller.py`, `ranker.py`, `anchor_extractor.py`, `sentence_splitter.py`, `link_parser.py`, `sync.py`) into `backend/apps/pipeline/services/`
-- [ ] Replace V1 SQLite queries with Django ORM calls
-- [ ] Wire Celery tasks (run_pipeline, generate_embeddings, import_content) to the real ML services
-- [ ] CPU/GPU mode switching (ML_PERFORMANCE_MODE env var)
-- [ ] Two Celery workers: one CPU-bound (pipeline), one GPU-bound (embeddings)
-- [ ] XenForo API client in `apps/sync/services/xenforo_api.py`
+- [ ] V1 → V2 data migration script (SQLite → PostgreSQL, .npy → pgvector)
+- [ ] Refine resource content sync logic
 
 ## Migration Notes
 
@@ -282,8 +298,9 @@ V1 → V2 migration script needed at Phase 3. The V1 codebase at `../xf-internal
 - 34 test files (485+ tests)
 - .npy embedding files in data/
 
-All V1 ML services (pipeline.py, embeddings.py, distiller.py, ranker.py, etc.) migrate to
-`backend/services/` with Django ORM replacing raw SQLite queries. The stubs are ready.
+All V1 ML services (pipeline.py, embeddings.py, distiller.py, ranker.py, etc.) have been migrated to
+`backend/apps/pipeline/services/` with Django ORM replacing raw SQLite queries and pgvector
+VectorField columns replacing .npy embedding files. The XenForo API client is the next step.
 
 ## Key Decisions Made in Phase 0
 
