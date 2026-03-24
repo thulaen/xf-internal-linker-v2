@@ -61,6 +61,8 @@ class ContentRecord:
     parent_type: str
     grandparent_id: int | None
     grandparent_type: str
+    silo_group_id: int | None
+    silo_group_name: str
     reply_count: int
     pagerank_score: float
     primary_post_char_count: int
@@ -114,6 +116,7 @@ class ScoredCandidate:
     score_keyword: float
     score_node_affinity: float
     score_quality: float
+    score_silo_affinity: float
     score_final: float
 
     @property
@@ -123,6 +126,53 @@ class ScoredCandidate:
     @property
     def host_key(self) -> ContentKey:
         return (self.host_content_id, self.host_content_type)
+
+
+@dataclass(frozen=True, slots=True)
+class SiloSettings:
+    """Persisted controls for silo-aware ranking."""
+
+    mode: str = "disabled"
+    same_silo_boost: float = 0.0
+    cross_silo_penalty: float = 0.0
+
+
+def classify_silo_relationship(destination: ContentRecord, host: ContentRecord) -> str:
+    """Return same, cross, or unassigned for host/destination silo relationship."""
+    if destination.silo_group_id is None or host.silo_group_id is None:
+        return "unassigned"
+    if destination.silo_group_id == host.silo_group_id:
+        return "same"
+    return "cross"
+
+
+def score_silo_affinity(
+    destination: ContentRecord,
+    host: ContentRecord,
+    settings: SiloSettings,
+) -> float:
+    """Calculate the additive silo adjustment for a candidate."""
+    if settings.mode != "prefer_same_silo":
+        return 0.0
+
+    relationship = classify_silo_relationship(destination, host)
+    if relationship == "same":
+        return settings.same_silo_boost
+    if relationship == "cross":
+        return -settings.cross_silo_penalty
+    return 0.0
+
+
+def is_strict_same_silo_blocked(
+    destination: ContentRecord,
+    host: ContentRecord,
+    settings: SiloSettings,
+) -> bool:
+    """Return True when strict mode should reject a cross-silo candidate."""
+    return (
+        settings.mode == "strict_same_silo"
+        and classify_silo_relationship(destination, host) == "cross"
+    )
 
 
 def tokenize_text(text: str) -> frozenset[str]:
@@ -214,6 +264,8 @@ def score_destination_matches(
     existing_links: set[ExistingLinkKey],
     weights: Mapping[str, float],
     pagerank_bounds: tuple[float, float],
+    silo_settings: SiloSettings = SiloSettings(),
+    blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
     min_sentence_chars: int = 30,
     max_sentence_chars: int = 300,
@@ -239,6 +291,11 @@ def score_destination_matches(
         if host_record is None or sentence_record is None:
             continue
 
+        if is_strict_same_silo_blocked(destination, host_record, silo_settings):
+            if blocked_reasons is not None:
+                blocked_reasons.add("cross_silo_blocked")
+            continue
+
         if sentence_record.char_count < min_sentence_chars:
             continue
         if sentence_record.char_count > max_sentence_chars:
@@ -260,11 +317,13 @@ def score_destination_matches(
             pagerank_min,
             pagerank_max,
         )
+        score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
             + float(weights.get("w_keyword", 0.0)) * score_keyword
             + float(weights.get("w_node", 0.0)) * score_node
             + float(weights.get("w_quality", 0.0)) * score_quality
+            + score_silo
         )
 
         ranked.append(
@@ -278,6 +337,7 @@ def score_destination_matches(
                 score_keyword=float(score_keyword),
                 score_node_affinity=float(score_node),
                 score_quality=float(score_quality),
+                score_silo_affinity=float(score_silo),
                 score_final=float(score_final),
             )
         )

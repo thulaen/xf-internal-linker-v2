@@ -93,6 +93,11 @@
   width: 200px;
 }
 
+.filter-bar mat-checkbox {
+  align-self: center;
+  padding: 0 4px;
+}
+
 // ── Batch bar ─────────────────────────────────────────────────────
 
 .batch-bar {
@@ -279,6 +284,28 @@
   margin-bottom: 10px;
 
   mat-icon { font-size: 14px; width: 14px; height: 14px; }
+}
+
+.silo-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.silo-pill {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 3px 10px;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  background: var(--color-bg-faint);
+
+  &.same {
+    border-color: var(--color-success);
+    color: var(--color-success-dark);
+    background: var(--color-success-light);
+  }
 }
 
 // ── Sentence ──────────────────────────────────────────────────────

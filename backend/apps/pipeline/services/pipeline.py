@@ -31,6 +31,7 @@ from .ranker import (
     ScoredCandidate,
     SentenceRecord,
     SentenceSemanticMatch,
+    SiloSettings,
     derive_pagerank_bounds,
     score_destination_matches,
     select_final_candidates,
@@ -94,6 +95,7 @@ def run_pipeline(
 
     _progress(0.02, "Loading settings and weights...")
     weights = _load_weights()
+    silo_settings = _load_silo_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -166,7 +168,7 @@ def run_pipeline(
 
     _progress(0.50, "Stage 2+3: sentence scoring and ranking...")
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
-    diagnostics: list[tuple[int, str, str, str | None]] = []
+    diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
 
     for dest_idx, dest_key in enumerate(destination_keys):
         destination = content_records[dest_key]
@@ -185,6 +187,7 @@ def run_pipeline(
             diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
             continue
 
+        blocked_reasons: set[str] = set()
         scored = score_destination_matches(
             destination,
             matches,
@@ -193,10 +196,23 @@ def run_pipeline(
             existing_links=existing_links,
             weights=weights,
             pagerank_bounds=pagerank_bounds,
+            silo_settings=silo_settings,
+            blocked_reasons=blocked_reasons,
         )
 
         if scored:
             candidates_by_destination[dest_key] = scored
+        elif "cross_silo_blocked" in blocked_reasons:
+            diagnostics.append((
+                dest_key[0],
+                dest_key[1],
+                "cross_silo_blocked",
+                {
+                    "mode": silo_settings.mode,
+                    "destination_silo_group_id": destination.silo_group_id,
+                    "destination_silo_group_name": destination.silo_group_name,
+                },
+            ))
         else:
             diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))
 
@@ -264,35 +280,50 @@ def _get_max_host_reuse() -> int:
     return 3
 
 
+def _load_silo_settings() -> SiloSettings:
+    try:
+        from apps.core.views import get_silo_settings
+
+        config = get_silo_settings()
+        return SiloSettings(
+            mode=str(config.get("mode", "disabled")),
+            same_silo_boost=float(config.get("same_silo_boost", 0.0)),
+            cross_silo_penalty=float(config.get("cross_silo_penalty", 0.0)),
+        )
+    except Exception:
+        return SiloSettings()
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
     host_scope_ids: set[int] | None = None,
 ) -> dict[ContentKey, ContentRecord]:
     """Load all non-deleted content items with scope hierarchy via Django ORM."""
-    from apps.content.models import ContentItem, Post, ScopeItem
+    from apps.content.models import ContentItem
 
     qs = ContentItem.objects.filter(is_deleted=False).select_related(
-        "scope_item",
-        "scope_item__parent",
-        "scope_item__parent__parent",
-    ).prefetch_related("posts")
+        "scope",
+        "scope__parent",
+        "scope__parent__parent",
+        "scope__silo_group",
+        "post",
+    )
+
+    if destination_scope_ids is not None or host_scope_ids is not None:
+        scope_ids = set(destination_scope_ids or set()) | set(host_scope_ids or set())
+        qs = qs.filter(scope_id__in=scope_ids)
 
     records: dict[ContentKey, ContentRecord] = {}
     for ci in qs:
-        scope = ci.scope_item
+        scope = ci.scope
         parent = scope.parent if scope else None
         grandparent = parent.parent if parent else None
+        silo_group = scope.silo_group if scope else None
 
         primary_post_char_count = 0
-        if ci.content_type == "thread" and ci.xf_post_id:
-            p = ci.posts.filter(xf_post_id=ci.xf_post_id).first()
-            if p:
-                primary_post_char_count = p.char_count or 0
-        elif ci.content_type == "resource" and ci.xf_update_id:
-            p = ci.posts.filter(xf_update_id=ci.xf_update_id).first()
-            if p:
-                primary_post_char_count = p.char_count or 0
+        if hasattr(ci, "post") and ci.post:
+            primary_post_char_count = ci.post.char_count or 0
 
         text = _destination_text(ci.title, ci.distilled_text or "")
         key: ContentKey = (ci.pk, ci.content_type)
@@ -307,6 +338,8 @@ def _load_content_records(
             parent_type=parent.scope_type if parent else "",
             grandparent_id=grandparent.pk if grandparent else None,
             grandparent_type=grandparent.scope_type if grandparent else "",
+            silo_group_id=silo_group.pk if silo_group else None,
+            silo_group_name=silo_group.name if silo_group else "",
             reply_count=ci.reply_count or 0,
             pagerank_score=float(ci.pagerank_score or 0.0),
             primary_post_char_count=primary_post_char_count,
@@ -633,12 +666,18 @@ def _persist_suggestions(
             destination=dest_ci,
             host=host_ci,
             host_sentence=host_sentence,
-            anchor_text=anchor.anchor_phrase or "",
+            destination_title=dest_ci.title,
+            host_sentence_text=host_sentence.text,
+            anchor_phrase=anchor.anchor_phrase or "",
+            anchor_start=anchor.anchor_start,
+            anchor_end=anchor.anchor_end,
             anchor_confidence=anchor.anchor_confidence,
             score_semantic=candidate.score_semantic,
             score_keyword=candidate.score_keyword,
             score_node_affinity=candidate.score_node_affinity,
             score_quality=candidate.score_quality,
+            score_pagerank=dest_ci.pagerank_score,
+            score_velocity=dest_ci.velocity_score,
             score_final=candidate.score_final,
             status="pending",
         )
@@ -655,7 +694,7 @@ def _persist_suggestions(
 def _persist_diagnostics(
     *,
     run_id: str,
-    diagnostics: list[tuple[int, str, str, str | None]],
+    diagnostics: list[tuple[int, str, str, dict[str, Any] | None]],
 ) -> None:
     """Persist pipeline diagnostics (why-no-suggestion records)."""
     from apps.suggestions.models import PipelineDiagnostic, PipelineRun
@@ -674,9 +713,9 @@ def _persist_diagnostics(
             continue
         to_create.append(PipelineDiagnostic(
             pipeline_run=run,
-            content_item=ci,
-            reason=reason,
-            detail=detail or "",
+            destination=ci,
+            skip_reason=reason,
+            detail=detail or {},
         ))
 
     if to_create:

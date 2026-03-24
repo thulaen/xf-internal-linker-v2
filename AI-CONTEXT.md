@@ -118,8 +118,8 @@ Every AI assistant working on this project must:
 
 ## Current Phase
 
-**Phase:** 6 - Complete. FR-004 - Complete.
-**Status:** All planned work through Phase 6 is now done, including FR-004 Broken Link Detection. The app now persists broken-link findings, exposes scan/list/export APIs, surfaces Link Health in both the dashboard and sidebar, and now includes committed `__init__.py` package markers for `apps.graph.services` and `apps.sync.services` so Celery late imports resolve correctly. Next target is FR-005 Link Siloing & Topical Authority Enforcement.
+**Phase:** 7 - Complete. FR-005 - Complete.
+**Status:** All planned work through Phase 7 is now done, including FR-005 Link Siloing & Topical Authority Enforcement. The app now supports silo groups on scopes, persisted silo ranking controls, strict/prefer/disabled enforcement modes, cross-silo diagnostics, settings-page silo management, and same-silo review filtering. Next target is FR-003 WordPress Cross-Linking.
 
 ## What Is Complete
 
@@ -177,6 +177,16 @@ Every AI assistant working on this project must:
 - New Angular `/link-health` page added with live scan progress, summary counts, status/http-status filters, paginated Material table, row actions, CSV export, and empty state.
 - Dashboard warning stat card and sidebar badge now surface the open broken-link count and link to Link Health.
 
+### FR-005 - Link Siloing & Topical Authority Enforcement
+- `SiloGroup` model added in `apps/content/` and `ScopeItem.silo_group` now uses a nullable `SET_NULL` foreign key for safe assignment and deletion.
+- Migration added at `backend/apps/content/migrations/0002_silogroup_scopeitem_silo_group.py`.
+- Content admin and API now expose silo groups plus a narrow `PATCH /api/scopes/{id}/` path for updating only `silo_group`.
+- Persisted silo ranking settings added at `GET/PUT /api/settings/silos/` using `AppSetting` keys for mode, same-silo boost, and cross-silo penalty.
+- Pipeline ranking now respects `disabled`, `prefer_same_silo`, and `strict_same_silo`, with `cross_silo_blocked` diagnostics emitted when strict mode rejects otherwise eligible matches.
+- Review API responses now include host/destination silo metadata and support a same-silo filter.
+- Angular Settings now manages silo groups, scope assignments, and ranking controls, and Angular Review now shows silo labels plus a same-silo-only filter.
+- Backend tests added for silo API/settings contracts, `SET_NULL` deletion behavior, ranker behavior across modes, and same-silo review filtering.
+
 ### Refactor / Cleanup
 - Shared `highlight.utils.ts` extracted.
 - `REJECTION_REASONS` exported from `suggestion.service.ts`.
@@ -185,9 +195,9 @@ Every AI assistant working on this project must:
 
 ## What Is Next
 
-- FR-005 - Link Siloing & Topical Authority Enforcement.
-  Backend: silo groups on scopes, relationship map, ranker penalties/bonuses, strict/prefer_same/off modes, diagnostics.
-  Frontend: settings UI for silos, relationship editor, silo labels in review UI, same-silo filtering.
+- FR-003 - WordPress Cross-Linking.
+  Backend: WordPress REST client, content import mapping, cross-site existing-link graph updates, and read-only credentials.
+  Frontend: settings UI for WordPress credentials and sync controls, plus source-aware scope/content labeling.
 
 ## Migration Notes
 

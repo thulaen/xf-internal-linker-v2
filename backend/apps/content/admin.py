@@ -5,7 +5,30 @@ Content admin — ScopeItem, ContentItem, Post, Sentence, ContentMetricSnapshot.
 from django.contrib import admin
 from unfold.admin import ModelAdmin, TabularInline
 
-from .models import ContentItem, ContentMetricSnapshot, Post, Sentence, ScopeItem
+from .models import ContentItem, ContentMetricSnapshot, Post, Sentence, ScopeItem, SiloGroup
+
+
+@admin.register(SiloGroup)
+class SiloGroupAdmin(ModelAdmin):
+    """Admin for topical silo groups."""
+
+    list_display = ["name", "slug", "display_order", "updated_at"]
+    search_fields = ["name", "slug", "description"]
+    readonly_fields = ["created_at", "updated_at"]
+    ordering = ["display_order", "name"]
+
+    fieldsets = (
+        ("Identity", {
+            "fields": ("name", "slug", "description"),
+        }),
+        ("Display", {
+            "fields": ("display_order",),
+        }),
+        ("Timestamps", {
+            "fields": ("created_at", "updated_at"),
+            "classes": ("collapse",),
+        }),
+    )
 
 
 class SentenceInline(TabularInline):
@@ -35,8 +58,8 @@ class PostInline(TabularInline):
 class ScopeItemAdmin(ModelAdmin):
     """Admin for XenForo forum nodes and resource categories."""
 
-    list_display = ["title", "scope_type", "scope_id", "is_enabled", "content_count", "parent"]
-    list_filter = ["scope_type", "is_enabled"]
+    list_display = ["title", "scope_type", "scope_id", "silo_group", "is_enabled", "content_count", "parent"]
+    list_filter = ["scope_type", "is_enabled", "silo_group"]
     search_fields = ["title", "scope_id"]
     readonly_fields = ["created_at", "updated_at"]
     list_editable = ["is_enabled"]
@@ -44,7 +67,7 @@ class ScopeItemAdmin(ModelAdmin):
 
     fieldsets = (
         ("Identity", {
-            "fields": ("scope_id", "scope_type", "title", "parent"),
+            "fields": ("scope_id", "scope_type", "title", "parent", "silo_group"),
         }),
         ("Settings", {
             "fields": ("is_enabled", "display_order", "content_count"),

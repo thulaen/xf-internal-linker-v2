@@ -15,9 +15,14 @@ export interface Suggestion {
   destination: number;
   destination_title: string;
   destination_url: string;
+  destination_silo_group: number | null;
+  destination_silo_group_name: string;
   host: number;
   host_title: string;
   host_sentence_text: string;
+  host_silo_group: number | null;
+  host_silo_group_name: string;
+  same_silo: boolean;
   anchor_phrase: string;
   anchor_edited: string;
   anchor_confidence: AnchorConfidence;
@@ -60,6 +65,7 @@ export interface SuggestionFilters {
   search?: string;
   ordering?: string;
   page?: number;
+  same_silo?: boolean;
 }
 
 export const REJECTION_REASONS = [
@@ -101,6 +107,9 @@ export class SuggestionService {
     }
     if (filters.page && filters.page > 1) {
       params = params.set('page', String(filters.page));
+    }
+    if (filters.same_silo) {
+      params = params.set('same_silo', 'true');
     }
     return this.http.get<PaginatedResult<Suggestion>>(this.base, { params });
   }

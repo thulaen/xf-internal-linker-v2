@@ -9,6 +9,7 @@ The app NEVER writes to XenForo — all changes are to local records only.
 import logging
 from datetime import datetime, timezone
 
+from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
@@ -74,7 +75,16 @@ class SuggestionViewSet(viewsets.ModelViewSet):
 
     queryset = (
         Suggestion.objects
-        .select_related("destination", "host", "host_sentence", "pipeline_run")
+        .select_related(
+            "destination",
+            "destination__scope",
+            "destination__scope__silo_group",
+            "host",
+            "host__scope",
+            "host__scope__silo_group",
+            "host_sentence",
+            "pipeline_run",
+        )
         .order_by("-created_at")
     )
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
@@ -89,6 +99,17 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         if self.action == "retrieve":
             return SuggestionDetailSerializer
         return SuggestionListSerializer
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        same_silo = self.request.query_params.get("same_silo", "").strip().lower()
+        if same_silo in {"1", "true", "yes"}:
+            queryset = queryset.filter(
+                destination__scope__silo_group__isnull=False,
+                host__scope__silo_group__isnull=False,
+                destination__scope__silo_group=F("host__scope__silo_group"),
+            )
+        return queryset
 
     # ── Review actions ────────────────────────────────────────────
 

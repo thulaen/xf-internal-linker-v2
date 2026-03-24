@@ -16,6 +16,19 @@ This file tracks UI/UX feature requests from the developer.
 
 ## COMPLETED
 
+### FR-005 - Link Siloing & Topical Authority Enforcement
+**Completed:** 2026-03-24
+
+- [x] `SiloGroup` model added and `ScopeItem.silo_group` now uses nullable `SET_NULL` semantics.
+- [x] Silo ranking settings are persisted through `AppSetting` and exposed at `GET/PUT /api/settings/silos/`.
+- [x] Pipeline ranking supports `disabled`, `prefer_same_silo`, and `strict_same_silo`.
+- [x] Strict-mode suppression emits `cross_silo_blocked` diagnostics.
+- [x] Backend CRUD endpoints added for silo groups, plus a safe scope-assignment patch flow.
+- [x] Angular Settings now manages silo groups, scope assignments, and ranking controls.
+- [x] Angular Review now shows host/destination silo labels and supports a same-silo-only filter.
+
+---
+
 ### FR-004 - Broken Link Detection
 **Completed:** 2026-03-24
 
@@ -108,46 +121,6 @@ nothing is applied automatically.
 
 ---
 
-### FR-005 - Link Siloing & Topical Authority Enforcement
-
-**Requested:** 2026-03-24
-**Target phase:** Phase 7 (after Dashboard)
-**Priority:** High
-
-### What's wanted
-The suggestion pipeline should understand the topical structure of the forum
-(nodes / sub-forums as silos) and prefer links that stay within or reinforce a topic
-cluster, while penalising or blocking cross-silo links that dilute topical authority.
-
-### Specific controls / behaviour
-
-**Silo definition**
-- Scopes are the natural silo boundaries.
-- Each `ScopeItem` gets an optional Silo Group label.
-- Multiple scopes can belong to the same silo group.
-- Silo groups are created and managed in Settings -> Silos.
-
-**Pipeline enforcement modes**
-- `strict` - links only allowed within the same silo group.
-- `prefer_same` - same-silo links get a score boost; cross-silo links are penalised.
-- `off` - existing behaviour.
-
-**UI controls**
-- Settings -> Silos page for CRUD + assignments.
-- Silo relationship editor for related silos.
-- Suggestion card shows host silo and destination silo.
-- Review page filter: same-silo only.
-- Pipeline diagnostics include `cross_silo_blocked` when strict mode blocks a match.
-
-### Implementation notes for the AI
-- Add `SiloGroup` model and a nullable `silo_group` FK on `ScopeItem`.
-- Add silo affinity helper(s) in `apps/pipeline/services/ranker.py`.
-- Add app settings for silo mode / boost / penalty.
-- Add backend API endpoints for silo CRUD and scope assignment.
-- Add frontend settings UI and review-page silo visibility/filtering.
-
----
-
 ### FR-006 - Add your next request here
 
 Use the template below. Copy it and replace the placeholder text.
@@ -171,4 +144,4 @@ Use the template below. Copy it and replace the placeholder text.
 
 ---
 
-*Last updated: 2026-03-24 (FR-004 completed; FR-005 is next)*
+*Last updated: 2026-03-24 (FR-005 completed; FR-003 is next)*

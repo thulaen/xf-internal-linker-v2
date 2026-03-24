@@ -11,6 +11,40 @@ from pgvector.django import VectorField
 from apps.core.models import TimestampedModel
 
 
+class SiloGroup(TimestampedModel):
+    """A topical silo that can be assigned to one or more scopes."""
+
+    name = models.CharField(
+        max_length=200,
+        unique=True,
+        help_text="Human-readable silo label shown in settings and review UI.",
+    )
+    slug = models.SlugField(
+        max_length=200,
+        unique=True,
+        help_text="Stable machine-friendly identifier for this silo group.",
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional notes describing what belongs in this silo.",
+    )
+    display_order = models.IntegerField(
+        default=0,
+        help_text="Sort order for silo management screens.",
+    )
+
+    class Meta:
+        verbose_name = "Silo Group"
+        verbose_name_plural = "Silo Groups"
+        ordering = ["display_order", "name"]
+        indexes = [
+            models.Index(fields=["display_order", "name"]),
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+
 class ScopeItem(TimestampedModel):
     """
     A XenForo forum node or resource category that groups content.
@@ -43,6 +77,14 @@ class ScopeItem(TimestampedModel):
         related_name="children",
         help_text="Parent scope item (e.g. a sub-forum's parent forum).",
     )
+    silo_group = models.ForeignKey(
+        SiloGroup,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="scope_items",
+        help_text="Optional topical silo assignment used by the ranking pipeline.",
+    )
     is_enabled = models.BooleanField(
         default=True,
         help_text="Only enabled scopes are included in pipeline runs.",
@@ -67,6 +109,7 @@ class ScopeItem(TimestampedModel):
         unique_together = [["scope_id", "scope_type"]]
         indexes = [
             models.Index(fields=["scope_type", "is_enabled"]),
+            models.Index(fields=["silo_group", "is_enabled"]),
         ]
 
     def __str__(self) -> str:

@@ -40,6 +40,12 @@ DEFAULT_APPEARANCE = {
     "presets": [],
 }
 
+DEFAULT_SILO_SETTINGS = {
+    "mode": "disabled",
+    "same_silo_boost": 0.0,
+    "cross_silo_penalty": 0.0,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -47,6 +53,61 @@ _FAVICON_ALLOWED = frozenset({
     "image/x-icon", "image/vnd.microsoft.icon",
 })
 _ASSET_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
+
+
+def _get_app_setting_value(key: str, default: str | None = None) -> str | None:
+    from apps.core.models import AppSetting
+
+    setting = AppSetting.objects.filter(key=key).first()
+    if setting is None:
+        return default
+    return setting.value
+
+
+def get_silo_settings() -> dict[str, float | str]:
+    """Load persisted silo settings with defensive defaults."""
+    mode = _get_app_setting_value("silo.mode", DEFAULT_SILO_SETTINGS["mode"]) or DEFAULT_SILO_SETTINGS["mode"]
+    if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
+        mode = DEFAULT_SILO_SETTINGS["mode"]
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            return float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "mode": mode,
+        "same_silo_boost": _read_float("silo.same_silo_boost", DEFAULT_SILO_SETTINGS["same_silo_boost"]),
+        "cross_silo_penalty": _read_float("silo.cross_silo_penalty", DEFAULT_SILO_SETTINGS["cross_silo_penalty"]),
+    }
+
+
+def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
+    mode = payload.get("mode", DEFAULT_SILO_SETTINGS["mode"])
+    if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
+        raise ValueError("mode must be one of disabled, prefer_same_silo, strict_same_silo.")
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, DEFAULT_SILO_SETTINGS[key])
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+
+    same_silo_boost = _coerce_float("same_silo_boost")
+    cross_silo_penalty = _coerce_float("cross_silo_penalty")
+    if same_silo_boost < 0:
+        raise ValueError("same_silo_boost must be >= 0.")
+    if cross_silo_penalty < 0:
+        raise ValueError("cross_silo_penalty must be >= 0.")
+
+    return {
+        "mode": mode,
+        "same_silo_boost": same_silo_boost,
+        "cross_silo_penalty": cross_silo_penalty,
+    }
 
 
 class HealthCheckView(View):
@@ -103,6 +164,55 @@ class AppearanceSettingsView(APIView):
             },
         )
         return Response(current)
+
+
+class SiloSettingsView(APIView):
+    """
+    GET  /api/settings/silos/ - returns persisted silo-ranking configuration
+    PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
+    """
+
+    def get(self, request):
+        return Response(get_silo_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_silo_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "silo.mode": {
+                "value": validated["mode"],
+                "value_type": "str",
+                "description": "Topical silo enforcement mode for the suggestion pipeline.",
+            },
+            "silo.same_silo_boost": {
+                "value": str(validated["same_silo_boost"]),
+                "value_type": "float",
+                "description": "Score bonus applied to same-silo candidates in prefer_same_silo mode.",
+            },
+            "silo.cross_silo_penalty": {
+                "value": str(validated["cross_silo_penalty"]),
+                "value_type": "float",
+                "description": "Score penalty applied to cross-silo candidates in prefer_same_silo mode.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
 
 
 def _save_appearance_key(key: str, value) -> None:

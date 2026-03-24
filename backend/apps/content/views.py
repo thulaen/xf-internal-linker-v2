@@ -6,20 +6,33 @@ Content is imported via the sync pipeline (Celery tasks).
 """
 
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, viewsets
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
-from .models import ContentItem, ScopeItem, Sentence
+from .models import ContentItem, ScopeItem, Sentence, SiloGroup
 from .serializers import (
     ContentItemDetailSerializer,
     ContentItemListSerializer,
     ScopeItemSerializer,
     SentenceSerializer,
+    SiloGroupSerializer,
 )
 
 
-class ScopeItemViewSet(viewsets.ReadOnlyModelViewSet):
+class SiloGroupViewSet(viewsets.ModelViewSet):
+    """CRUD API for topical silo groups."""
+
+    queryset = SiloGroup.objects.order_by("display_order", "name")
+    serializer_class = SiloGroupSerializer
+    pagination_class = None
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ["name", "slug", "description"]
+    ordering_fields = ["display_order", "name", "updated_at"]
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+
+class ScopeItemViewSet(viewsets.ModelViewSet):
     """
     List and retrieve XenForo forum nodes and resource categories.
 
@@ -28,11 +41,13 @@ class ScopeItemViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/scopes/enabled/  — list only enabled scopes
     """
 
-    queryset = ScopeItem.objects.select_related("parent").order_by("display_order", "title")
+    queryset = ScopeItem.objects.select_related("parent", "silo_group").order_by("display_order", "title")
     serializer_class = ScopeItemSerializer
+    pagination_class = None
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
-    filterset_fields = ["scope_type", "is_enabled"]
+    filterset_fields = ["scope_type", "is_enabled", "silo_group"]
     search_fields = ["title"]
+    http_method_names = ["get", "patch", "head", "options"]
 
     @action(detail=False, methods=["get"])
     def enabled(self, request) -> Response:
@@ -40,6 +55,15 @@ class ScopeItemViewSet(viewsets.ReadOnlyModelViewSet):
         qs = self.get_queryset().filter(is_enabled=True)
         serializer = self.get_serializer(qs, many=True)
         return Response(serializer.data)
+
+    def partial_update(self, request, *args, **kwargs) -> Response:
+        disallowed_keys = set(request.data.keys()) - {"silo_group"}
+        if disallowed_keys:
+            return Response(
+                {"detail": "Only silo_group can be updated from this endpoint."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return super().partial_update(request, *args, **kwargs)
 
 
 class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):

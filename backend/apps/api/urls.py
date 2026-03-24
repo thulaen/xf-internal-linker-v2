@@ -8,7 +8,7 @@ DRF routers wire viewsets from each app into clean URL patterns.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.content.views import ContentItemViewSet, ScopeItemViewSet
+from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupViewSet
 from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
@@ -20,6 +20,7 @@ from apps.core.views import (
     DashboardView,
     FaviconUploadView,
     LogoUploadView,
+    SiloSettingsView,
 )
 from apps.graph.views import BrokenLinkViewSet
 
@@ -27,6 +28,7 @@ router = DefaultRouter()
 
 # Content (read-only)
 router.register(r"scopes", ScopeItemViewSet, basename="scope")
+router.register(r"silo-groups", SiloGroupViewSet, basename="silo-group")
 router.register(r"content", ContentItemViewSet, basename="content")
 
 # Suggestions + pipeline
@@ -48,6 +50,7 @@ urlpatterns = [
 
     # Appearance settings — GET returns config, PUT merges updates
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
+    path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),
 
     # Site identity assets — POST uploads file, DELETE clears URL
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),

@@ -78,6 +78,7 @@ export class ReviewComponent implements OnInit {
   statusFilter = 'pending';
   searchQuery = '';
   sortBy = '-score_final';
+  sameSiloOnly = false;
   page = 1;
   pageSize = 25;
 
@@ -123,6 +124,7 @@ export class ReviewComponent implements OnInit {
       search: this.searchQuery,
       ordering: this.sortBy,
       page: this.page,
+      same_silo: this.sameSiloOnly,
     };
     this.svc.list(filters).subscribe({
       next: (res) => {
@@ -152,6 +154,11 @@ export class ReviewComponent implements OnInit {
   }
 
   onSortChange(): void {
+    this.page = 1;
+    this.load();
+  }
+
+  toggleSameSiloOnly(): void {
     this.page = 1;
     this.load();
   }
@@ -294,6 +301,10 @@ export class ReviewComponent implements OnInit {
     if (score >= 0.75) return 'high';
     if (score >= 0.5)  return 'medium';
     return 'low';
+  }
+
+  siloLabel(name: string): string {
+    return name || 'Unassigned';
   }
 
   trackById(_: number, s: Suggestion): string {

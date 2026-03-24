@@ -370,12 +370,17 @@ class PipelineDiagnostic(models.Model):
 
     SKIP_REASON_CHOICES = [
         ("already_has_pending", "Already has a pending suggestion"),
+        ("no_semantic_matches", "No semantic matches found"),
+        ("all_candidates_filtered", "All candidates filtered out"),
         ("no_host_sentences", "No eligible host sentences found"),
         ("score_too_low", "Best match score below threshold"),
         ("no_embedding", "Destination has no embedding"),
         ("max_links_reached", "Host already has max links"),
         ("anchor_banned", "All candidate anchors are banned"),
         ("short_post", "Post too short to distill"),
+        ("host_reuse_cap", "Host reuse cap reached"),
+        ("circular_suppressed", "Circular candidate suppressed"),
+        ("cross_silo_blocked", "Cross-silo candidate blocked by strict mode"),
         ("other", "Other"),
     ]
 

@@ -46,13 +46,20 @@ class SuggestionListSerializer(serializers.ModelSerializer):
 
     destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
     host_title = serializers.CharField(source="host.title", read_only=True, default="")
+    destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
+    destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
+    host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
+    host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
+    same_silo = serializers.SerializerMethodField()
 
     class Meta:
         model = Suggestion
         fields = [
             "suggestion_id", "status", "score_final",
             "destination", "destination_title", "destination_url",
+            "destination_silo_group", "destination_silo_group_name",
             "host", "host_title", "host_sentence_text",
+            "host_silo_group", "host_silo_group_name", "same_silo",
             "anchor_phrase", "anchor_confidence", "anchor_edited",
             "repeated_anchor",
             "rejection_reason", "reviewed_at", "is_applied",
@@ -60,9 +67,24 @@ class SuggestionListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
+    def get_same_silo(self, obj: Suggestion) -> bool:
+        destination_scope = getattr(obj.destination, "scope", None)
+        host_scope = getattr(obj.host, "scope", None)
+        if destination_scope is None or host_scope is None:
+            return False
+        if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
+            return False
+        return destination_scope.silo_group_id == host_scope.silo_group_id
+
 
 class SuggestionDetailSerializer(serializers.ModelSerializer):
     """Full serializer for the suggestion review detail view."""
+
+    destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
+    destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
+    host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
+    host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
+    same_silo = serializers.SerializerMethodField()
 
     class Meta:
         model = Suggestion
@@ -72,7 +94,9 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "score_semantic", "score_keyword", "score_node_affinity",
             "score_quality", "score_pagerank", "score_velocity",
             "destination", "destination_title",
+            "destination_silo_group", "destination_silo_group_name",
             "host", "host_sentence", "host_sentence_text",
+            "host_silo_group", "host_silo_group_name", "same_silo",
             "anchor_phrase", "anchor_start", "anchor_end",
             "anchor_confidence", "anchor_edited", "repeated_anchor",
             "rejection_reason", "reviewer_notes", "reviewed_at",
@@ -80,6 +104,15 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "superseded_by", "superseded_at",
             "created_at", "updated_at",
         ]
+
+    def get_same_silo(self, obj: Suggestion) -> bool:
+        destination_scope = getattr(obj.destination, "scope", None)
+        host_scope = getattr(obj.host, "scope", None)
+        if destination_scope is None or host_scope is None:
+            return False
+        if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
+            return False
+        return destination_scope.silo_group_id == host_scope.silo_group_id
         read_only_fields = [
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",

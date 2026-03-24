@@ -5,18 +5,50 @@ Serializers convert ContentItem, ScopeItem, Post, and Sentence models
 to/from JSON for the Angular frontend API.
 """
 
+from django.utils.text import slugify
 from rest_framework import serializers
 
-from .models import ContentItem, ContentMetricSnapshot, Post, ScopeItem, Sentence
+from .models import ContentItem, ContentMetricSnapshot, Post, ScopeItem, Sentence, SiloGroup
+
+
+class SiloGroupSerializer(serializers.ModelSerializer):
+    """Serialize silo-group CRUD payloads."""
+
+    scope_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SiloGroup
+        fields = [
+            "id", "name", "slug", "description", "display_order",
+            "scope_count", "created_at", "updated_at",
+        ]
+        read_only_fields = ["id", "scope_count", "created_at", "updated_at"]
+
+    def get_scope_count(self, obj: SiloGroup) -> int:
+        return obj.scope_items.count()
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        name = attrs.get("name") or getattr(self.instance, "name", "")
+        slug = attrs.get("slug") or slugify(name)
+        if not slug:
+            raise serializers.ValidationError({"slug": "Slug is required."})
+        attrs["slug"] = slug
+        return attrs
 
 
 class ScopeItemSerializer(serializers.ModelSerializer):
     """Serializes forum nodes and resource categories."""
 
+    silo_group_name = serializers.CharField(source="silo_group.name", read_only=True, default="")
+    parent_title = serializers.CharField(source="parent.title", read_only=True, default="")
+
     class Meta:
         model = ScopeItem
         fields = [
             "id", "scope_id", "scope_type", "title", "parent",
+            "parent_title",
+            "silo_group", "silo_group_name",
             "is_enabled", "content_count", "display_order",
         ]
         read_only_fields = ["id", "content_count"]

@@ -61,6 +61,10 @@
       }
     </mat-select>
   </mat-form-field>
+
+  <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
+    Same silo only
+  </mat-checkbox>
 </div>
 
 <!-- ── Batch toolbar (visible when items selected) ─────────────── -->
@@ -179,6 +183,15 @@
         <div class="card-host">
           <mat-icon>article</mat-icon>
           <span>{{ s.host_title }}</span>
+        </div>
+
+        <div class="silo-row">
+          <span class="silo-pill" [class.same]="s.same_silo">
+            Destination silo: {{ siloLabel(s.destination_silo_group_name) }}
+          </span>
+          <span class="silo-pill" [class.same]="s.same_silo">
+            Host silo: {{ siloLabel(s.host_silo_group_name) }}
+          </span>
         </div>
 
         <mat-divider></mat-divider>

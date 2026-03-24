@@ -89,7 +89,7 @@ export class AppComponent implements OnInit {
       label: 'Settings',
       icon: 'settings',
       route: '/settings',
-      tooltip: 'App settings, API keys, and theme',
+      tooltip: 'Theme, silo controls, and app settings',
     },
   ];
 

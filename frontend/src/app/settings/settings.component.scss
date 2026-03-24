@@ -1,3 +1,97 @@
-.placeholder-card {
-  max-width: 600px;
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.settings-card {
+  margin-bottom: 16px;
+}
+
+.card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding-top: 12px;
+}
+
+.hint {
+  margin: -6px 0 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.number-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.new-group,
+.group-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  align-items: start;
+}
+
+.group-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.group-row {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  padding: 12px;
+  background: var(--color-bg-faint);
+}
+
+.row-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.scope-table {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.scope-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 260px;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid var(--color-border);
+  padding-bottom: 10px;
+}
+
+.scope-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.scope-title {
+  font-weight: 600;
+  color: var(--color-text-dark-1);
+}
+
+.scope-subtitle {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+@media (max-width: 720px) {
+  .scope-row {
+    grid-template-columns: 1fr;
+  }
 }
