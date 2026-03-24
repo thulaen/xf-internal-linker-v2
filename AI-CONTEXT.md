@@ -37,7 +37,7 @@ Execution order and FR IDs are decoupled.
 
 - Active delivery phase completed this session: Phase 8
 - FR cross-reference: `FR-003 - WordPress Cross-Linking`
-- Status: complete in repo, pending only operator-supplied live credentials/base URLs
+- Status: complete in repo and locally verified; pending only operator-supplied live credentials/base URLs
 
 Phase 8 shipped:
 - read-only WordPress REST client for posts/pages with optional Application Password auth
@@ -45,6 +45,7 @@ Phase 8 shipped:
 - WordPress `wp_post` and `wp_page` content typing plus `wp_posts` / `wp_pages` scopes
 - cross-source existing-link graph refresh for `XF -> WP` and `WP -> XF`
 - source-aware review/settings labeling so XenForo vs WordPress content is explicit
+- local verification path repaired with Python 3.12 project environment, Django test settings, and Angular 19 build verified under Node.js 22
 
 ## What Is Complete
 
@@ -61,6 +62,7 @@ Phase 8 shipped:
 - Phase 7 / `FR-005`: silo groups, persisted silo ranking controls, strict/prefer/disabled silo enforcement, cross-silo diagnostics, same-silo review filtering
 - `FR-004`: broken-link detection model, scanner task, API, dashboard surfacing, Angular link-health page
 - Phase 8 / `FR-003`: WordPress cross-linking and settings/sync experience
+- Phase 8 verification closure: local backend/frontend verification path repaired and passing
 
 ## Execution Ledger
 
@@ -111,6 +113,7 @@ Every implementation session must:
 |---|---|---|
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |
 | WordPress base URL + optional username/app password | live WordPress sync; private content requires Application Password auth | UI/API shipped; operator must supply real values in env/settings |
+| Local runtimes | build/test execution | Python 3.12 and Node.js 22 are now installed locally and working for repo verification |
 
 ## Non-Negotiable Guardrails
 

@@ -88,6 +88,10 @@ export class SettingsComponent implements OnInit {
     },
   ];
 
+  get selectedModeDescription(): string {
+    return this.modeOptions.find((option) => option.value === this.settings.mode)?.description ?? '';
+  }
+
   ngOnInit(): void {
     this.reload();
   }

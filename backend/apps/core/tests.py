@@ -9,6 +9,7 @@ from apps.core.models import AppSetting
 from apps.sync.models import SyncJob
 
 
+@override_settings(WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD="")
 class WordPressSettingsApiTests(APITestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(username="settings-user", password="pass")

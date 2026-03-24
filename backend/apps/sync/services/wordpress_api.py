@@ -13,6 +13,7 @@ from requests.auth import HTTPBasicAuth
 logger = logging.getLogger(__name__)
 
 _PER_PAGE = 100
+_UNSET = object()
 
 
 class WordPressAPIClient:
@@ -20,15 +21,27 @@ class WordPressAPIClient:
 
     def __init__(
         self,
-        base_url: str | None = None,
-        username: str | None = None,
-        app_password: str | None = None,
+        base_url: str | object = _UNSET,
+        username: str | object = _UNSET,
+        app_password: str | object = _UNSET,
     ) -> None:
-        self.base_url = (base_url or getattr(settings, "WORDPRESS_BASE_URL", "")).strip().rstrip("/")
-        self.username = (username if username is not None else getattr(settings, "WORDPRESS_USERNAME", "")).strip()
-        self.app_password = (
-            app_password if app_password is not None else getattr(settings, "WORDPRESS_APP_PASSWORD", "")
-        ).strip()
+        use_settings_fallbacks = (
+            base_url is _UNSET
+            and username is _UNSET
+            and app_password is _UNSET
+        )
+        if use_settings_fallbacks:
+            resolved_base_url = getattr(settings, "WORDPRESS_BASE_URL", "")
+            resolved_username = getattr(settings, "WORDPRESS_USERNAME", "")
+            resolved_app_password = getattr(settings, "WORDPRESS_APP_PASSWORD", "")
+        else:
+            resolved_base_url = "" if base_url is _UNSET else (base_url or "")
+            resolved_username = "" if username is _UNSET else (username or "")
+            resolved_app_password = "" if app_password is _UNSET else (app_password or "")
+
+        self.base_url = str(resolved_base_url).strip().rstrip("/")
+        self.username = str(resolved_username).strip()
+        self.app_password = str(resolved_app_password).strip()
 
         if not self.base_url:
             raise ValueError("WordPress base URL is missing (check WORDPRESS_BASE_URL or saved settings).")

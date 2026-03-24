@@ -20,7 +20,7 @@ channels-redis==4.2.1
 
 # ── Celery (background ML jobs) ───────────────────────────────────
 celery==5.4.0
-django-celery-beat==2.7.0            # Scheduled tasks
+django-celery-beat==2.8.1            # Scheduled tasks; supports Django 5.2
 django-celery-results==2.5.1         # Store task results in DB
 redis==5.2.1                         # Redis Python client
 
