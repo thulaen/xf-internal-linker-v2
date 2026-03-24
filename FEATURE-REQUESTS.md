@@ -1,14 +1,36 @@
 # Feature Requests — XF Internal Linker V2
 
 This file tracks UI/UX feature requests from the developer.
-These are **not yet in a phase** — they get promoted to a phase when the AI
-is ready to implement them.
 
-**Rule:** Keep AI-CONTEXT.md for architecture facts. Keep this file for wishes.
+## How this file works
+
+| Section | What goes here |
+|---|---|
+| **PENDING** | Requested but not yet built. AI must surface these at every session start. |
+| **IN PROGRESS** | Currently being implemented in the active phase. |
+| **COMPLETED** | Done. AI must check this before implementing anything new (avoid duplication). |
+
+**Rule:** Keep AI-CONTEXT.md for architecture facts. Keep this file for feature wishes.
 
 ---
 
-## FR-001 — Angular Frontend: Light Theme Default + Full Theme Customizer
+## ✅ COMPLETED FEATURES
+
+*Nothing completed yet — FRs are promoted here once fully implemented and committed.*
+
+---
+
+## 🔄 IN PROGRESS
+
+*None currently in progress.*
+
+---
+
+## 📋 PENDING FEATURES
+
+---
+
+### FR-001 — Angular Frontend: Light Theme Default + Full Theme Customizer
 
 **Requested:** 2026-03-23
 **Target phase:** Phase 4 (Angular frontend core)
@@ -69,9 +91,28 @@ A sidebar-based customizer lets the user tweak the look without touching code.
 
 ---
 
-## FR-002 — Future requests go here
+---
 
-Add new requests below this line using the same format as FR-001.
+### FR-002 — Add your next request here
+
+Use the template below. Copy it and replace the placeholder text.
+
+```
+### FR-00X — Short title
+
+**Requested:** YYYY-MM-DD
+**Target phase:** Phase X
+**Priority:** High / Medium / Low
+
+### What's wanted
+[describe the feature]
+
+### Specific controls / behaviour
+[list details]
+
+### Implementation notes for the AI
+[any technical hints]
+```
 
 ---
 

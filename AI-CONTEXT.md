@@ -36,6 +36,7 @@ Update rules:
 1. `docs/v2-master-plan.md` — comprehensive specification (source of truth)
 2. `AI-CONTEXT.md` — this file (continuity checkpoint)
 3. `PROMPTS.md` — prompt templates for all AI tools
+4. `FEATURE-REQUESTS.md` — pending and completed UI/UX feature requests
 
 ## Tech Stack
 
@@ -145,6 +146,35 @@ xf-internal-linker-v2/
 └── PROMPTS.md
 ```
 
+## Mandatory AI Behaviors — Read FEATURE-REQUESTS.md Every Session
+
+Every AI assistant working on this project MUST do all three of the following:
+
+### 1. Surface pending feature requests at session start
+- Read `FEATURE-REQUESTS.md` at the start of every session.
+- At the top of your first response, show a short table of all **PENDING** FRs:
+  ```
+  📋 PENDING FEATURE REQUESTS
+  FR-001  Angular theme customizer (light theme, header/footer, logo, scroll-to-top)
+  ```
+- If no FRs are pending, say "No pending feature requests." and continue.
+
+### 2. Check completed features before implementing anything new
+- Before building any new UI feature or setting, scan the **COMPLETED** section
+  of `FEATURE-REQUESTS.md` to check if it was already implemented.
+- If the user asks for something that is already done, say:
+  "This was completed in FR-XXX — here's what was built: [summary]."
+  Do NOT re-implement it silently.
+
+### 3. Periodically suggest improvements (every 3–5 sessions)
+- After completing a phase or feature, scan the **COMPLETED** section and pick
+  1–2 items that could be meaningfully improved (e.g. better UX, missing edge case,
+  performance gain, accessibility issue).
+- Phrase it as: "💡 Improvement idea for FR-XXX: [one sentence]."
+- Only suggest if there is a real, actionable improvement. Don't force it.
+
+---
+
 ## Non-Negotiable Guardrails
 
 ### Product / Workflow
@@ -192,49 +222,56 @@ xf-internal-linker-v2/
 
 ## Current Phase
 
-**Phase:** 0 — Complete
-**Status:** Full project scaffolding created and committed
+**Phase:** 1 — Complete
+**Status:** All Django models, admin, migrations, DRF API, and WebSocket consumer built and pushed
 
 ## What Is Complete
 
+### Phase 0 — Scaffolding
 - [x] V2 Master Plan written (`docs/v2-master-plan.md`)
-- [x] AI-CONTEXT.md initialized and updated
-- [x] PROMPTS.md created
-- [x] Project directory created
+- [x] AI-CONTEXT.md, PROMPTS.md, FEATURE-REQUESTS.md created
 - [x] `docker-compose.yml` — 6 services with health checks
 - [x] `backend/Dockerfile` — Python 3.12-slim, ML deps, spaCy model
 - [x] `nginx/Dockerfile` + `nginx/nginx.conf` — Angular + API + WebSocket proxy
 - [x] Django project structure: config/, all 10 apps/, services/
-- [x] `config/settings/base.py` — full settings (DB, Redis, Celery, DRF, CORS)
+- [x] `config/settings/base.py` — full settings (DB, Redis, Celery, DRF, CORS, Unfold)
 - [x] `config/settings/development.py` + `production.py`
 - [x] `config/celery.py` — named queues: default, pipeline, embeddings
 - [x] `config/asgi.py` — Django Channels + HTTP routing
-- [x] All 10 Django app stubs with apps.py, models.py, admin.py, views.py, urls.py
-- [x] `apps/core/` — TimestampedModel base class + health check view
-- [x] `apps/pipeline/routing.py` — WebSocket URL patterns (ready for Phase 2)
-- [x] `apps/api/urls.py` — root API router (Phase 1 app routes commented in)
-- [x] All 8 ML service stubs in `backend/services/` with full docstrings
-- [x] `backend/requirements.txt` — pinned production deps
-- [x] `backend/requirements-dev.txt` — testing + linting
+- [x] All 10 Django app stubs
+- [x] All 8 ML service stubs in `backend/services/`
+- [x] `backend/requirements.txt` — pinned production deps (incl. django-unfold, django-filter)
 - [x] Angular 19 project: angular.json, package.json, tsconfig files
-- [x] `frontend/src/app/app.config.ts` — standalone bootstrap, interceptors
-- [x] `frontend/src/app/app.routes.ts` — lazy-loaded routes for all 6 pages
-- [x] `frontend/src/app/app.component.*` — Material sidenav shell
-- [x] `frontend/src/styles/gsc-theme.scss` — all GSC colors as CSS custom properties
-- [x] HTTP interceptors: auth.interceptor.ts, error.interceptor.ts
-- [x] All 6 page component stubs (dashboard, review, graph, analytics, jobs, settings)
-- [x] `.env.example` — every env var documented with comments
-- [x] `.gitignore` — complete exclusions for Python, Node, Docker, secrets
+- [x] App shell (sidenav, toolbar, interceptors, lazy routes, GSC theme)
+- [x] `.env.example`, `.gitignore`
+
+### Phase 1 — Django Foundation
+- [x] **Models** — all 16 PostgreSQL models with full field definitions + help_text:
+  - `content`: ScopeItem, ContentItem (pgvector 384-dim), Post, Sentence (pgvector 384-dim), ContentMetricSnapshot
+  - `suggestions`: ScopePreset, PipelineRun, Suggestion, PipelineDiagnostic
+  - `analytics`: SearchMetric, ImpactReport
+  - `audit`: AuditEntry, ReviewerScorecard, ErrorLog
+  - `graph`: ExistingLink
+  - `plugins`: Plugin, PluginSetting
+  - `core`: AppSetting
+- [x] **pgvector** — `VectorExtension()` in `content/migrations/0001_initial.py` (runs before vector columns)
+- [x] **Migrations** — `0001_initial.py` for all 7 apps with correct cross-app FK dependencies
+- [x] **Django Unfold admin** — GSC blue theme, sidebar nav with icons, fieldsets, colour-coded status badges on Suggestion list
+- [x] **DRF serializers** — ContentItem (list + detail), ScopeItem, Post, Sentence, Suggestion (list + detail + review), PipelineRun, PipelineDiagnostic
+- [x] **DRF viewsets** — ContentItemViewSet, ScopeItemViewSet, SuggestionViewSet (approve/reject/apply/batch_action), PipelineRunViewSet, PipelineDiagnosticViewSet
+- [x] **API router** wired in `apps/api/urls.py` (DefaultRouter, all endpoints live at `/api/`)
+- [x] **JobProgressConsumer** WebSocket consumer (`ws/jobs/<job_id>/`) — streams Celery progress to Angular
+- [x] **Celery task stubs** — run_pipeline, generate_embeddings, import_content, verify_suggestions (all publish progress via channel layer, ready for Phase 2 ML wiring)
 
 ## What Is Next
 
-- [ ] Phase 1: PostgreSQL models for all tables (migrated from V1 SQLite schema)
-  - ContentItem with pgvector field for embeddings
-  - Suggestion, PipelineRun, AnchorPolicy models
-  - Django admin with custom branding and GSC theme
-  - DRF serializers and viewsets for core models
-  - Redis + Celery health check endpoints
-  - Django Channels WebSocket consumer (JobProgress)
+### Phase 2 — ML Services Migration
+- [ ] Copy V1 service files (`pipeline.py`, `embeddings.py`, `distiller.py`, `ranker.py`, `anchor_extractor.py`, `sentence_splitter.py`, `link_parser.py`, `sync.py`) into `backend/apps/pipeline/services/`
+- [ ] Replace V1 SQLite queries with Django ORM calls
+- [ ] Wire Celery tasks (run_pipeline, generate_embeddings, import_content) to the real ML services
+- [ ] CPU/GPU mode switching (ML_PERFORMANCE_MODE env var)
+- [ ] Two Celery workers: one CPU-bound (pipeline), one GPU-bound (embeddings)
+- [ ] XenForo API client in `apps/sync/services/xenforo_api.py`
 
 ## Migration Notes
 
