@@ -39,6 +39,13 @@ Execution order and FR IDs are decoupled.
 - FR cross-reference: `FR-003 - WordPress Cross-Linking`
 - Status: complete in repo and locally verified; pending only operator-supplied live credentials/base URLs
 
+## User Communication Preference
+
+- The user is not a developer and prefers plain-English, layman's-terms explanations by default.
+- When explaining blockers, risks, test results, or architecture, lead with the simple version first.
+- Avoid unnecessary jargon; if a technical term matters, define it briefly in the same reply.
+- Keep answers practical and direct; do not assume deep framework or infrastructure knowledge.
+
 Phase 8 shipped:
 - read-only WordPress REST client for posts/pages with optional Application Password auth
 - WordPress settings API and Angular settings UI for base URL, username, password, manual sync, and Celery Beat schedule

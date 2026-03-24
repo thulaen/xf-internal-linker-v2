@@ -24,6 +24,12 @@ Project rules:
 - Update `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` before stopping.
 - Update this file only when workflow guidance has drifted.
 
+User communication rules:
+- Assume the user prefers layman's terms unless they ask for a deep technical explanation.
+- Start explanations with the plain-English version of what happened and why it matters.
+- Minimize jargon; when jargon is necessary, define it immediately in simple language.
+- When reporting verification, make the real-world meaning explicit, for example whether the app works, what is still broken, and what the next step is.
+
 Git rules:
 - Pull only when appropriate and safe.
 - At session end, stage only intended files.
