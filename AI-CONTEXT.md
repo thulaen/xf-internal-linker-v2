@@ -29,8 +29,8 @@ Execution order and FR IDs are decoupled.
 
 ### Frontend
 - Node.js 22 LTS target runtime
-- Angular 19 + Angular Material 19
-- TypeScript 5.7
+- Angular 20 + Angular Material 20
+- TypeScript 5.8
 - SCSS with theme tokens in `frontend/src/styles/gsc-theme.scss`
 
 ## Current Phase
@@ -45,7 +45,8 @@ Phase 8 shipped:
 - WordPress `wp_post` and `wp_page` content typing plus `wp_posts` / `wp_pages` scopes
 - cross-source existing-link graph refresh for `XF -> WP` and `WP -> XF`
 - source-aware review/settings labeling so XenForo vs WordPress content is explicit
-- local verification path repaired with Python 3.12 project environment, Django test settings, and Angular 19 build verified under Node.js 22
+- local verification path repaired with Python 3.12 project environment, Django test settings, and Angular 20 build verified under Node.js 22
+- frontend npm audit is clean after the Angular 20 toolchain uplift; frontend `test:ci` still has no spec inputs and remains a coverage gap rather than a new regression
 
 ## What Is Complete
 
