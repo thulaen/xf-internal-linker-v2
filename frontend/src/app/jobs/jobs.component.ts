@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
@@ -50,6 +50,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   syncJobs: SyncJob[] = [];
   displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'actions'];
 
+  private syncService = inject(SyncService);
   private ws: WebSocket | null = null;
 
   readonly modes = [
@@ -57,8 +58,6 @@ export class JobsComponent implements OnInit, OnDestroy {
     { value: 'titles', label: 'Titles only',   hint: 'Metadata + PageRank / velocity'  },
     { value: 'quick',  label: 'Quick check',   hint: 'IDs and titles only'             },
   ];
-
-  constructor(private syncService: SyncService) {}
 
   ngOnInit(): void {
     this.loadHistory();

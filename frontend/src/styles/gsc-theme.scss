@@ -1,7 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════
 // GSC Color Theme — Google Search Console palette
 // Used as CSS custom properties throughout the app.
-// Dark mode is applied by setting data-theme="dark" on <html>.
 // Dynamic overrides (primary color, font size, etc.) are applied via
 // AppearanceService setting inline styles on <html>.
 // ═══════════════════════════════════════════════════════════════════
@@ -101,40 +100,4 @@
   --font-size-lg:   18px;
   --font-size-xl:   24px;
   --font-size-2xl:  32px;
-}
-
-// ── Dark Theme Overrides ───────────────────────────────────────────
-// Applied when AppearanceService sets data-theme="dark" on <html>.
-
-[data-theme="dark"] {
-  // Backgrounds
-  --color-bg-page:  #121212;
-  --color-bg-white: #1e1e1e;
-  --color-bg-faint: #1a1a1a;
-  --color-bg-card:  #242424;
-  --color-surface:  #2a2a2a;
-
-  // Text
-  --color-text-primary:   rgba(255, 255, 255, 0.87);
-  --color-text-secondary: rgba(255, 255, 255, 0.60);
-  --color-text-disabled:  rgba(255, 255, 255, 0.38);
-  --color-text-dark-1:    #e8eaed;
-  --color-text-dark-2:    #bdc1c6;
-  --color-text-muted:     #9aa0a6;
-  --color-text-faint:     #5f6368;
-  --color-text-light:     #9aa0a6;
-
-  // Borders
-  --color-border:      #3c4043;
-  --color-border-dark: #5f6368;
-
-  // Success / Error light variants (darker in dark mode)
-  --color-success-light: #1e3a2f;
-  --color-error-light:   #3a1a1a;
-  --color-warning-light: #3a2e00;
-
-  // Shadows (stronger contrast on dark bg)
-  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md:  0 2px 6px rgba(0, 0, 0, 0.5);
-  --shadow-lg:  0 4px 12px rgba(0, 0, 0, 0.5);
 }

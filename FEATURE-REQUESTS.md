@@ -38,11 +38,10 @@ This file tracks UI/UX feature requests from the developer.
 **Started:** 2026-03-24
 
 - [x] Light theme default (already light by default via `gsc-theme.scss`)
-- [x] Dark mode via `data-theme="dark"` on `<html>` — full CSS var overrides
 - [x] `AppearanceService` — loads/saves config from `/api/settings/appearance/`, applies CSS vars live
 - [x] Backend `AppearanceSettingsView` — `GET/PUT /api/settings/appearance/`
 - [x] `ThemeCustomizerComponent` — right-side Material drawer with all controls:
-  - Light/Dark toggle, primary color, accent color, header background
+  - Primary color, accent color, header background (dark mode intentionally removed — light only)
   - Font size, layout width, sidebar width, density
   - Site name, footer text/toggle/color
   - Scroll-to-top toggle

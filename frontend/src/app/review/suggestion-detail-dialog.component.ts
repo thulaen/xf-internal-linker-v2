@@ -1,4 +1,4 @@
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -11,7 +11,8 @@ import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { SuggestionService, SuggestionDetail } from './suggestion.service';
+import { SuggestionService, SuggestionDetail, REJECTION_REASONS } from './suggestion.service';
+import { highlightText } from '../core/utils/highlight.utils';
 
 export interface DialogData {
   suggestionId: string;
@@ -21,15 +22,6 @@ export type DialogResult =
   | { action: 'approved' | 'rejected' | 'applied'; suggestion: SuggestionDetail }
   | null;
 
-const REJECTION_REASONS = [
-  { value: 'irrelevant',    label: 'Irrelevant / off-topic' },
-  { value: 'low_quality',  label: 'Low quality match' },
-  { value: 'already_linked', label: 'Already linked' },
-  { value: 'bad_anchor',   label: 'Bad anchor text' },
-  { value: 'wrong_context', label: 'Wrong context' },
-  { value: 'duplicate',    label: 'Duplicate suggestion' },
-  { value: 'other',        label: 'Other' },
-];
 
 @Component({
   selector: 'app-suggestion-detail-dialog',
@@ -63,13 +55,11 @@ export class SuggestionDetailDialogComponent implements OnInit {
   rejectionReason = 'irrelevant';
 
   rejectionMode = false;
-  rejectionReasons = REJECTION_REASONS;
+  readonly rejectionReasons = REJECTION_REASONS;
 
-  constructor(
-    public dialogRef: MatDialogRef<SuggestionDetailDialogComponent, DialogResult>,
-    @Inject(MAT_DIALOG_DATA) public data: DialogData,
-    private svc: SuggestionService,
-  ) {}
+  readonly dialogRef = inject(MatDialogRef) as MatDialogRef<SuggestionDetailDialogComponent, DialogResult>;
+  readonly data: DialogData = inject(MAT_DIALOG_DATA);
+  private svc = inject(SuggestionService);
 
   ngOnInit(): void {
     this.svc.getDetail(this.data.suggestionId).subscribe({
@@ -91,22 +81,7 @@ export class SuggestionDetailDialogComponent implements OnInit {
   }
 
   highlightSentence(sentence: string, anchor: string): string {
-    // HTML-escape raw text first so forum content with tags (e.g. <b>, <img>)
-    // is displayed as literal characters, not rendered markup.
-    const safeSentence = this.escapeHtml(sentence ?? '');
-    if (!anchor) return safeSentence;
-    const safeAnchor = this.escapeHtml(anchor);
-    const reEsc = safeAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    return safeSentence.replace(new RegExp(`(${reEsc})`, 'gi'), '<mark>$1</mark>');
-  }
-
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
+    return highlightText(sentence, anchor);
   }
 
   scorePercent(val: number): number {

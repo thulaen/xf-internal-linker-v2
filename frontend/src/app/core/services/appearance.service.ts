@@ -3,7 +3,6 @@ import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, catchError, of, tap } from 'rxjs';
 
 export interface AppearanceConfig {
-  theme: 'light' | 'dark';
   primaryColor: string;
   accentColor: string;
   fontSize: 'small' | 'medium' | 'large';
@@ -20,7 +19,6 @@ export interface AppearanceConfig {
 }
 
 export const DEFAULT_CONFIG: AppearanceConfig = {
-  theme: 'light',
   primaryColor: '#1a73e8',
   accentColor: '#f4b400',
   fontSize: 'medium',
@@ -117,11 +115,6 @@ export class AppearanceService {
 
   private applyToDom(cfg: AppearanceConfig): void {
     const root = document.documentElement;
-
-    // Theme (light/dark) — only accept known values
-    if (cfg.theme === 'light' || cfg.theme === 'dark') {
-      root.setAttribute('data-theme', cfg.theme);
-    }
 
     // Color properties — validate hex format before applying to prevent
     // malformed values from producing unexpected CSS output.

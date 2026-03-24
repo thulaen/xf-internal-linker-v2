@@ -10,31 +10,6 @@
 
 <div class="customizer-body">
 
-  <!-- ── Theme Mode ─────────────────────────────────────────────── -->
-  <section class="section">
-    <h3 class="section-title">Theme Mode</h3>
-    <div class="theme-toggle-row">
-      <button
-        class="theme-btn"
-        [class.active]="cfg.theme === 'light'"
-        (click)="setTheme('light')"
-      >
-        <mat-icon>light_mode</mat-icon>
-        Light
-      </button>
-      <button
-        class="theme-btn"
-        [class.active]="cfg.theme === 'dark'"
-        (click)="setTheme('dark')"
-      >
-        <mat-icon>dark_mode</mat-icon>
-        Dark
-      </button>
-    </div>
-  </section>
-
-  <mat-divider></mat-divider>
-
   <!-- ── Colors ─────────────────────────────────────────────────── -->
   <section class="section">
     <h3 class="section-title">Colors</h3>

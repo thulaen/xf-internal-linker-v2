@@ -15,7 +15,7 @@ from apps.suggestions.views import (
     SuggestionViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet
-from apps.core.views import AppearanceSettingsView
+from apps.core.views import AppearanceSettingsView, DashboardView
 
 router = DefaultRouter()
 
@@ -41,6 +41,9 @@ urlpatterns = [
 
     # Appearance settings — GET returns config, PUT merges updates
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
+
+    # Dashboard — aggregated stats
+    path("dashboard/", DashboardView.as_view(), name="dashboard"),
 
     # DRF browsable API login/logout
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),

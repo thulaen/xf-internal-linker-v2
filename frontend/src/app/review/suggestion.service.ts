@@ -62,6 +62,16 @@ export interface SuggestionFilters {
   page?: number;
 }
 
+export const REJECTION_REASONS = [
+  { value: 'irrelevant',     label: 'Irrelevant / off-topic' },
+  { value: 'low_quality',   label: 'Low quality match' },
+  { value: 'already_linked', label: 'Already linked' },
+  { value: 'bad_anchor',    label: 'Bad anchor text' },
+  { value: 'wrong_context', label: 'Wrong context' },
+  { value: 'duplicate',     label: 'Duplicate suggestion' },
+  { value: 'other',         label: 'Other' },
+] as const;
+
 export interface PipelineRun {
   run_id: string;
   run_state: string;
@@ -139,11 +149,4 @@ export class SuggestionService {
     });
   }
 
-  getStatusCounts(): Observable<PaginatedResult<Suggestion>> {
-    // Fetch a minimal page just for the count per status;
-    // real counts are obtained by making 3 quick count requests.
-    return this.http.get<PaginatedResult<Suggestion>>(this.base, {
-      params: new HttpParams().set('page_size', '1'),
-    });
-  }
 }

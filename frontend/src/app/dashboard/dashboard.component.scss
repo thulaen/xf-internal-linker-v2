@@ -1,24 +1,229 @@
+.placeholder-card {
+  max-width: 600px;
+}
+
+// ── Header ────────────────────────────────────────────────────────
+
 .page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-bottom: 24px;
 
-  .page-title {
+  .header-actions {
     display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 24px;
-    font-weight: 500;
-    color: var(--color-text-dark-1);
-    margin: 0;
-
-    mat-icon {
-      color: var(--color-primary);
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
-    }
+    gap: 8px;
   }
 }
 
-.placeholder-card {
-  max-width: 600px;
+.btn-spinner {
+  display: inline-block;
+  margin-right: 6px;
+}
+
+// ── Loading ───────────────────────────────────────────────────────
+
+.center-spinner {
+  display: flex;
+  justify-content: center;
+  padding: 80px 0;
+}
+
+// ── Stat cards ────────────────────────────────────────────────────
+
+.stat-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 20px;
+
+  @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 600px)  { grid-template-columns: 1fr; }
+}
+
+.stat-card {
+  mat-card-content {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 20px !important;
+  }
+}
+
+.stat-icon-wrap {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+
+  mat-icon {
+    font-size: 24px;
+    width: 24px;
+    height: 24px;
+  }
+
+  &.pending  { background: var(--color-warning-light); color: var(--color-warning-dark); }
+  &.approved { background: var(--color-success-light); color: var(--color-success-dark); }
+  &.applied  { background: var(--color-blue-100);      color: var(--color-primary-dark); }
+  &.content  { background: var(--color-bg-card);       color: var(--color-text-muted); }
+}
+
+.stat-body {
+  .stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--color-text-dark-1);
+    line-height: 1;
+  }
+
+  .stat-label {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin-top: 4px;
+  }
+}
+
+// ── Sync banner ───────────────────────────────────────────────────
+
+.sync-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--color-blue-50);
+  border: 1px solid var(--color-blue-100);
+  border-radius: var(--radius-md);
+  padding: 10px 16px;
+  font-size: 13px;
+  color: var(--color-text-dark-2);
+  margin-bottom: 20px;
+
+  mat-icon {
+    color: var(--color-primary);
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  &.no-sync {
+    background: var(--color-surface);
+    border-color: var(--color-border);
+
+    mat-icon { color: var(--color-text-muted); }
+  }
+}
+
+// ── Pipeline runs table ───────────────────────────────────────────
+
+.runs-card, .imports-card {
+  margin-bottom: 20px;
+
+  [mat-card-avatar] {
+    color: var(--color-primary);
+    background: var(--color-blue-50);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+  }
+}
+
+.runs-table {
+  width: 100%;
+  background: transparent;
+
+  th.mat-mdc-header-cell {
+    font-weight: 600;
+    font-size: 12px;
+    color: var(--color-text-light);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  td.mat-mdc-cell {
+    font-size: 13px;
+    color: var(--color-text-dark-2);
+    padding-top: 8px;
+    padding-bottom: 8px;
+  }
+}
+
+.run-id {
+  font-family: monospace;
+  background: var(--color-bg-card);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+// ── State chips ───────────────────────────────────────────────────
+
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+
+  .state-icon {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+  }
+
+  &.state-completed { background: var(--color-success-light); color: var(--color-success-darker, #1a7340); }
+  &.state-running   { background: var(--color-blue-100);      color: var(--color-primary-dark); }
+  &.state-failed    { background: var(--color-error-light);   color: var(--color-error-dark); }
+  &.state-queued    { background: var(--color-warning-light); color: var(--color-warning-dark); }
+  &.state-pending   { background: var(--color-warning-light); color: var(--color-warning-dark); }
+}
+
+.spinning {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+// ── Import list ───────────────────────────────────────────────────
+
+.import-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  padding: 8px 12px;
+  border-radius: var(--radius-md);
+  background: var(--color-bg-faint);
+
+  .import-source { font-weight: 600; color: var(--color-text-dark-1); min-width: 80px; }
+  .import-count  { color: var(--color-text-muted); margin-left: auto; }
+  .import-date   { color: var(--color-text-muted); white-space: nowrap; }
+}
+
+.badge {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-text-muted);
 }

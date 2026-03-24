@@ -41,10 +41,6 @@ export class ThemeCustomizerComponent {
     return this.appearance.config;
   }
 
-  setTheme(theme: 'light' | 'dark'): void {
-    this.appearance.update({ theme });
-  }
-
   setPrimary(color: string): void {
     this.appearance.update({ primaryColor: color });
   }

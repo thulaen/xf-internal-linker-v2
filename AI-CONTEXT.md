@@ -253,8 +253,8 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 
 ## Current Phase
 
-**Phase:** 4 — In Progress
-**Status:** FR-002 (JSONL import UI) complete and committed. Phase 4 FR-001 core is live: dark/light theme, AppearanceService, ThemeCustomizerComponent, ScrollToTopComponent, backend appearance settings endpoint. Logo/favicon upload is the remaining Phase 4b item.
+**Phase:** 6 — Complete
+**Status:** Dashboard fully built (backend `DashboardView` + Angular `DashboardComponent` + `DashboardService`). Comprehensive refactor/cleanup completed this session. Dark theme intentionally removed — app is light-only. FR-001 Phase 4b (logo/favicon upload) remains the only open item from FR-001. FR-004 (Broken Link Detection) is the next high-priority feature slice.
 
 ## What Is Complete
 
@@ -321,9 +321,10 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 - [x] `apps/core/views.py` — `AppearanceSettingsView` (`GET/PUT /api/settings/appearance/`)
 - [x] `apps/api/urls.py` — appearance endpoint wired
 - [x] `AppSetting.CATEGORY_CHOICES` — added `("appearance", "Appearance")`
-- [x] `gsc-theme.scss` — dark mode vars under `[data-theme="dark"]`, added `--toolbar-bg`, `--footer-bg`, `--sidenav-width`, `--layout-max-width`, `--color-accent`
-- [x] `AppearanceService` — loads from API on init, applies CSS custom properties, saves on change, supports presets
-- [x] `ThemeCustomizerComponent` — right Material drawer: theme toggle, color pickers, font/layout/density selectors, site identity, footer, scroll-to-top toggle, named presets
+- [x] `gsc-theme.scss` — light-only theme; dark mode vars removed (intentional design decision — app is light-only); `--toolbar-bg`, `--footer-bg`, `--sidenav-width`, `--layout-max-width`, `--color-accent` custom properties present
+- [x] `AppearanceConfig` interface — `theme` field removed (light-only); `DEFAULT_APPEARANCE` backend dict updated to match
+- [x] `AppearanceService` — loads from API on init, applies CSS custom properties, saves on change, supports presets; no longer sets `data-theme` attribute
+- [x] `ThemeCustomizerComponent` — right Material drawer: color pickers, font/layout/density selectors, site identity, footer, scroll-to-top toggle, named presets; theme toggle section removed
 - [x] `ScrollToTopComponent` — floating FAB, watches `.page-content` scroll, smooth scroll to top
 - [x] App shell updated: customizer drawer, footer, `siteName` from config, toolbar uses `--toolbar-bg`
 - [ ] Phase 4b: Logo / favicon upload
@@ -336,10 +337,24 @@ If WordPress cross-linking is wanted, log it as a feature request and the AI wil
 - [x] `SuggestionDetailDialogComponent` — full score breakdown bars, editable anchor, reviewer notes, rejection reason selector, approve/reject/apply actions, applied/verified timestamps
 - [x] Anchor text highlighted with `<mark>` in both card sentence and detail dialog
 
+### Phase 6 — Dashboard (complete)
+- [x] `DashboardView` at `GET /api/dashboard/` — aggregated stats: suggestion counts by status, content count, last sync, last 5 pipeline runs, last 5 import jobs
+- [x] `apps/api/urls.py` — dashboard endpoint wired
+- [x] `DashboardService` (Angular) — typed interfaces (`DashboardData`, `SuggestionCounts`, `PipelineRunSummary`, `ImportJobSummary`, `LastSync`)
+- [x] `DashboardComponent` — stat cards (pending/approved/applied/content), sync banner, pipeline runs table, recent imports list, Run Pipeline + Import Data quick actions
+
+### Refactor/Cleanup (complete — this session)
+- [x] `core/utils/highlight.utils.ts` — shared `escapeHtml()` and `highlightText()` extracted from both review components
+- [x] `REJECTION_REASONS` exported from `suggestion.service.ts`; duplicate local constants removed from `review.component.ts` and `suggestion-detail-dialog.component.ts`
+- [x] Dead `getStatusCounts()` removed from `suggestion.service.ts`
+- [x] `JobsComponent` converted from constructor injection to `inject()` pattern
+- [x] `SuggestionDetailDialogComponent` converted from `@Inject(MAT_DIALOG_DATA)` constructor to `inject()` pattern
+- [x] `.page-header` / `.page-title` CSS extracted to global `styles.scss`; removed from `dashboard.component.scss`, `jobs.component.scss`, `settings.component.scss`
+
 ## What Is Next
 
-- [ ] Phase 4b — Logo / favicon upload
-- [ ] Phase 6 — Dashboard (counts, recent pipeline runs, quick actions)
+- [ ] Phase 4b — Logo / favicon upload (completes FR-001)
+- [ ] FR-004 — Broken Link Detection (new `BrokenLink` model, `scan_broken_links` Celery task, Angular Link Health table with mark-fixed/ignore/CSV export, count badge on Dashboard)
 
 ## Migration Notes
 
