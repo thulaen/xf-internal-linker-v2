@@ -123,10 +123,17 @@ Important:
 **Target phase:** Phase 12
 **Priority:** Medium
 **Patent inspiration:** `US9208229B2`
+**Spec draft:** `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
+**Spec-first pass completed:** 2026-03-25
+**Implementation status:** Pending
 
 - Learn preferred anchor variants per destination from the existing internal-link graph.
 - Surface canonical anchors and alternates in review.
 - Allow reviewers to prefer or disallow anchor variants.
+- Spec-first pass is complete.
+- The new spec keeps FR-009 separate from FR-008 phrase evidence, FR-006 weighted authority, FR-007 freshness, and velocity.
+- The first FR-009 implementation pass is defined as suggestion-level learned-anchor corroboration with neutral fallback and ranking impact off by default.
+- FR-009 is not implemented yet.
 
 ---
 
@@ -616,4 +623,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 11 / FR-008 is now implemented and verified; the next target is Phase 12 / FR-009; backlog still includes learned anchors, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 12 / FR-009 spec-first pass is now complete, FR-009 implementation is still pending, the next target is the narrow FR-009 implementation pass, and backlog still includes learned anchors, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*

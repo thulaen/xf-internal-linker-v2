@@ -35,47 +35,37 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active delivery phase completed this session: Phase 11
-- FR cross-reference: `FR-008 - Phrase-Based Matching & Anchor Expansion`
-- Status: complete in repo and verified against `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+- Active target for this session: Phase 12
+- FR cross-reference: `FR-009 - Learned Anchor Vocabulary & Corroboration`
+- Status: spec-first pass completed this session; implementation is still pending
 
 ## Current Session Note
 
-- Session target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
-- Session mode: final verification and release pass
-- This session was reserved only for the Phase 11 FR-008 final verification and safe release pass using `docs/specs/fr008-phrase-based-matching-anchor-expansion.md` as the source of truth.
-- Scope rule for this session: do not drift into FR-006, FR-007, FR-009, FR-018, FR-019, or FR-020 work.
-- FR-008 spec path: `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+- Session target: Phase 12 / `FR-009 - Learned Anchor Vocabulary & Corroboration`
+- Session mode: spec-first pass only
+- This session is reserved only for the Phase 12 FR-009 spec-first pass, continuity updates, and safe commit/push handling.
+- Scope rule for this session: do not implement FR-009 and do not drift into FR-006, FR-007, FR-008 redesign, FR-011, FR-018, FR-019, or FR-020 work.
+- FR-009 spec path: `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Start-of-session continuity note:
   - `AI-CONTEXT.md` was read first and updated immediately before any other repo reading
-  - the approved FR-008 spec existed before verification started and stayed the source of truth
-  - this session kept phrase relevance separate from FR-006 weighted-link-graph logic, FR-007 link-freshness logic, and velocity inputs
-- What shipped in code for Phase 11:
-  - separate FR-008 phrase matching in `backend/apps/pipeline/services/phrase_matching.py`
-  - expanded anchor selection that uses title and distilled-text phrase evidence, bounded partial matching, neutral fallback behavior, and rollback to the current exact title extractor
-  - `Suggestion.score_phrase_relevance` and `Suggestion.phrase_match_diagnostics` with the FR-008 suggestion migration
-  - separate FR-008 settings API at `GET/PUT /api/settings/phrase-matching/`
-  - FR-008 pipeline snapshot metadata and a separate FR-008 algorithm version stamp
-  - suggestion detail, admin, review, and settings exposure for FR-008 phrase relevance and diagnostics
-  - focused FR-008 backend and frontend tests in the repo
-- Small FR-008-only verification fix made in this session:
-  - tightened distilled-phrase inventory and exact-match scoring so short distilled fragments and loose single-word evidence do not beat the better phrase match during anchor expansion
-  - tightened partial-match corroboration so missing phrase support stays neutral instead of becoming a false-positive weak match
+  - this session is spec-only and implementation is still pending after this early update
+  - the next work after this early update is to inspect repo reality and write the FR-009 spec without widening scope
+- What this session completed:
+  - inspected the required FR-006, FR-007, FR-008, master-plan, review, admin, settings, serializer, and pipeline paths to confirm the real repo boundaries before writing the spec
+  - confirmed the FR-009 spec file was missing and created `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
+  - defined FR-009 as a separate learned-anchor layer that reads existing `ExistingLink.anchor_text`, keeps missing evidence neutral at `0.5`, keeps ranking impact off by default, and avoids new graph/content storage in the first implementation pass
+  - defined review/admin/settings/API expectations for a later FR-009 implementation pass without changing implementation code in this session
 - What was intentionally not changed to keep scope clean:
-  - no `ContentItem` storage or content API/admin changes for FR-008
-  - no FR-008 recalculation task
-  - no FR-006 or FR-007 logic redesign
-  - no velocity integration
-  - no FR-009 learned-anchor behavior
-  - no queue-flow or sync-flow redesign
-- Verification state at session end:
-  - targeted Django FR-008 verification passed under `config.settings.test`
-  - focused backend checks covered phrase extraction, exact/partial matching, neutral fallback behavior, weight-0 ranking parity, FR-006/FR-007/velocity boundary behavior, settings API, serializer/detail exposure, and pipeline snapshotting
-  - Angular focused review test passed for the FR-008 detail dialog
-  - Angular `build` passed for the review and settings wiring
-  - `manage.py makemigrations --check --dry-run` reported `No changes detected`
-  - `git diff --check` reported no whitespace or patch-format errors
-  - Phase 11 / FR-008 is now verified and closed, pending safe commit/push handling in this session
+  - no backend implementation files
+  - no frontend implementation files
+  - no migrations
+  - no FR-008, FR-006, or FR-007 redesign
+  - no reviewer preference/disallow storage design in the first FR-009 implementation pass
+  - no telemetry, alerting, auto-tuning, or later-phase work
+- End-of-session continuity note:
+  - the FR-009 spec-first pass is complete
+  - FR-009 implementation is still pending after this session
+  - the next session should be the narrow FR-009 implementation pass using the new spec as the source of truth
 
 ## User Communication Preference
 
@@ -164,7 +154,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 - Next exact target: Phase 12 / `FR-009 - Learned Anchor Vocabulary & Corroboration`
 - Phase 11 reference: `FR-008` was implemented and verified exactly against `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - FR-009 stays separate from FR-008 because learned anchor corroboration belongs to its own phase
-- Next session type: FR-009 spec/implementation planning or delivery session, depending on continuity state at session start
+- Current continuity state: FR-009 spec-first pass is complete and FR-009 implementation is still pending
+- Next session type: narrow FR-009 implementation pass only
 - Scope reminder: keep FR-009 learned-anchor behavior separate from the shipped FR-008 phrase relevance layer
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
