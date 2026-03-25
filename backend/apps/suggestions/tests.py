@@ -108,19 +108,16 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(suggestion["destination_content_type"], "thread")
         self.assertEqual(suggestion["host_content_type"], "thread")
 
-    def test_suggestion_detail_exposes_weighted_authority_fields(self):
+    def test_suggestion_detail_exposes_march_2026_pagerank_field(self):
         suggestion = Suggestion.objects.first()
-        suggestion.score_pagerank = 0.2
-        suggestion.score_weighted_pagerank = 0.35
-        suggestion.save(update_fields=["score_pagerank", "score_weighted_pagerank", "updated_at"])
+        suggestion.score_march_2026_pagerank = 0.35
+        suggestion.save(update_fields=["score_march_2026_pagerank", "updated_at"])
 
         response = self.client.get(f"/api/suggestions/{suggestion.suggestion_id}/")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["score_pagerank"], 0.2)
-        self.assertEqual(payload["score_weighted_pagerank"], 0.35)
-        self.assertAlmostEqual(payload["score_weighted_pagerank_delta"], 0.15, places=6)
+        self.assertEqual(payload["score_march_2026_pagerank"], 0.35)
 
 
 class PipelineRunWeightedSnapshotTests(APITestCase):

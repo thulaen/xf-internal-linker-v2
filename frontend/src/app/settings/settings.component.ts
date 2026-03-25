@@ -54,7 +54,7 @@ export class SettingsComponent implements OnInit {
     cross_silo_penalty: 0,
   };
   weightedAuthority: WeightedAuthoritySettings = {
-    ranking_weight: 0,
+    ranking_weight: 0.2,
     position_bias: 0.5,
     empty_anchor_factor: 0.6,
     bare_url_factor: 0.35,
@@ -128,7 +128,7 @@ export class SettingsComponent implements OnInit {
           },
           error: () => {
             this.loading = false;
-            this.snack.open('Failed to load weighted authority settings', 'Dismiss', { duration: 4000 });
+            this.snack.open('Failed to load March 2026 PageRank settings', 'Dismiss', { duration: 4000 });
           },
         });
       },
@@ -182,11 +182,11 @@ export class SettingsComponent implements OnInit {
       next: (weightedAuthority) => {
         this.weightedAuthority = weightedAuthority;
         this.savingWeightedAuthority = false;
-        this.snack.open('Weighted authority settings saved', undefined, { duration: 2500 });
+        this.snack.open('March 2026 PageRank settings saved', undefined, { duration: 2500 });
       },
       error: (error) => {
         this.savingWeightedAuthority = false;
-        this.snack.open(error?.error?.detail || 'Failed to save weighted authority settings', 'Dismiss', { duration: 4000 });
+        this.snack.open(error?.error?.detail || 'Failed to save March 2026 PageRank settings', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -196,11 +196,11 @@ export class SettingsComponent implements OnInit {
     this.siloSvc.recalculateWeightedAuthority().subscribe({
       next: (response) => {
         this.recalculatingWeightedAuthority = false;
-        this.snack.open(`Weighted authority recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+        this.snack.open(`March 2026 PageRank recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
       },
       error: (error) => {
         this.recalculatingWeightedAuthority = false;
-        this.snack.open(error?.error?.detail || 'Failed to start weighted authority recalculation', 'Dismiss', { duration: 4000 });
+        this.snack.open(error?.error?.detail || 'Failed to start March 2026 PageRank recalculation', 'Dismiss', { duration: 4000 });
       },
     });
   }

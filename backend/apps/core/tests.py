@@ -121,7 +121,7 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.0,
+                "ranking_weight": 0.2,
                 "position_bias": 0.5,
                 "empty_anchor_factor": 0.6,
                 "bare_url_factor": 0.35,

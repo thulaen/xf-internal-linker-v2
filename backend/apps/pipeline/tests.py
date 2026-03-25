@@ -4,7 +4,6 @@ from django.test import TestCase
 
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
 from apps.graph.models import ExistingLink
-from apps.pipeline.services.pagerank import run_pagerank
 from apps.pipeline.services.pipeline import _persist_diagnostics
 from apps.pipeline.services.ranker import (
     ContentRecord,
@@ -25,7 +24,7 @@ def _content_record(
     *,
     content_id: int,
     silo_group_id: int | None,
-    weighted_pagerank_score: float = 0.0,
+    march_2026_pagerank_score: float = 0.0,
 ) -> ContentRecord:
     return ContentRecord(
         content_id=content_id,
@@ -41,8 +40,7 @@ def _content_record(
         silo_group_id=silo_group_id,
         silo_group_name=f"Silo {silo_group_id}" if silo_group_id else "",
         reply_count=5,
-        pagerank_score=1.0,
-        weighted_pagerank_score=weighted_pagerank_score,
+        march_2026_pagerank_score=march_2026_pagerank_score,
         primary_post_char_count=500,
         tokens=frozenset({"topic", str(content_id)}),
     )
@@ -65,8 +63,7 @@ class SiloRankerTests(TestCase):
             "w_node": 0.10,
             "w_quality": 0.15,
         }
-        self.pagerank_bounds = (0.5, 2.0)
-        self.weighted_pagerank_bounds = (0.1, 2.0)
+        self.march_2026_pagerank_bounds = (0.1, 2.0)
 
     def test_prefer_same_silo_adjusts_scores_but_disabled_preserves_baseline(self):
         same_match = [SentenceSemanticMatch(2, "thread", 20, 0.8)]
@@ -84,8 +81,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="disabled"),
         )[0]
         disabled_cross = score_destination_matches(
@@ -95,8 +91,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="disabled"),
         )[0]
         preferred_same = score_destination_matches(
@@ -106,8 +101,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
         )[0]
         preferred_cross = score_destination_matches(
@@ -117,8 +111,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
         )[0]
 
@@ -145,8 +138,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="strict_same_silo"),
             blocked_reasons=cross_reasons,
         )
@@ -157,8 +149,7 @@ class SiloRankerTests(TestCase):
             sentence_records=self.sentence_records,
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             silo_settings=SiloSettings(mode="strict_same_silo"),
             blocked_reasons=unassigned_reasons,
         )
@@ -203,7 +194,7 @@ class SiloRankerTests(TestCase):
         self.assertEqual(diagnostic.destination_id, destination.pk)
 
     def test_weighted_authority_disabled_preserves_existing_ranker_output(self):
-        destination = _content_record(content_id=10, silo_group_id=None, weighted_pagerank_score=2.0)
+        destination = _content_record(content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0)
         host = _content_record(content_id=20, silo_group_id=None)
         records = {
             destination.key: destination,
@@ -219,8 +210,7 @@ class SiloRankerTests(TestCase):
             },
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=(0.1, 2.0),
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=0.0,
         )[0]
         enabled = score_destination_matches(
@@ -232,15 +222,14 @@ class SiloRankerTests(TestCase):
             },
             existing_links=set(),
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=(0.1, 2.0),
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=0.25,
         )[0]
 
         self.assertAlmostEqual(baseline.score_final + 0.25, enabled.score_final, places=6)
 
     def test_weighted_authority_does_not_override_existing_link_block(self):
-        destination = _content_record(content_id=10, silo_group_id=None, weighted_pagerank_score=2.0)
+        destination = _content_record(content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0)
         host = _content_record(content_id=20, silo_group_id=None)
         records = {
             destination.key: destination,
@@ -256,8 +245,7 @@ class SiloRankerTests(TestCase):
             },
             existing_links={((20, "thread"), (10, "thread"))},
             weights=self.weights,
-            pagerank_bounds=self.pagerank_bounds,
-            weighted_pagerank_bounds=(0.1, 2.0),
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=0.25,
         )
 
@@ -276,7 +264,7 @@ class WeightedAuthorityGraphTests(TestCase):
             scope=self.scope,
         )
 
-    def test_uniform_weight_behavior_matches_standard_pagerank_and_preserves_standard_field(self):
+    def test_uniform_weight_behavior_populates_march_2026_pagerank_score(self):
         a = self._content(1, "A")
         b = self._content(2, "B")
         c = self._content(3, "C")
@@ -318,12 +306,6 @@ class WeightedAuthorityGraphTests(TestCase):
             context_class="contextual",
         )
 
-        run_pagerank()
-        standard_scores = {
-            item.pk: item.pagerank_score
-            for item in ContentItem.objects.order_by("pk")
-        }
-
         diagnostics = run_weighted_pagerank(
             settings_map={
                 "position_bias": 0.0,
@@ -334,21 +316,14 @@ class WeightedAuthorityGraphTests(TestCase):
             }
         )
 
-        weighted_scores = {
-            item.pk: item.weighted_pagerank_score
-            for item in ContentItem.objects.order_by("pk")
-        }
-        refreshed_standard_scores = {
-            item.pk: item.pagerank_score
+        march_2026_scores = {
+            item.pk: item.march_2026_pagerank_score
             for item in ContentItem.objects.order_by("pk")
         }
 
         self.assertEqual(diagnostics["fallback_row_count"], 0)
-        for item_pk, standard_score in standard_scores.items():
-            self.assertAlmostEqual(weighted_scores[item_pk], standard_score, places=6)
-            self.assertAlmostEqual(refreshed_standard_scores[item_pk], standard_score, places=6)
-        self.assertTrue(all(score >= 0.0 for score in weighted_scores.values()))
-        self.assertAlmostEqual(sum(weighted_scores.values()), 1.0, places=6)
+        self.assertTrue(all(score >= 0.0 for score in march_2026_scores.values()))
+        self.assertAlmostEqual(sum(march_2026_scores.values()), 1.0, places=6)
 
     def test_outbound_normalization_boilerplate_downweight_and_contextual_upweight(self):
         probabilities, used_fallback = _normalize_source_edges(

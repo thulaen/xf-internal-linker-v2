@@ -13,11 +13,11 @@
   <div class="settings-grid">
     <mat-card class="settings-card">
       <mat-card-header>
-        <mat-card-title>Weighted Authority</mat-card-title>
+        <mat-card-title>March 2026 PageRank</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          This adds a second authority score. It does not replace standard PageRank.
+          This score is the authority metric used across the app.
         </p>
 
         <div class="number-grid">
@@ -55,11 +55,11 @@
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingWeightedAuthority" (click)="saveWeightedAuthoritySettings()">
             <mat-icon>save</mat-icon>
-            Save weighted authority settings
+            Save March 2026 PageRank settings
           </button>
           <button mat-stroked-button color="primary" [disabled]="recalculatingWeightedAuthority" (click)="recalculateWeightedAuthority()">
             <mat-icon>hub</mat-icon>
-            Recalculate weighted authority
+            Recalculate March 2026 PageRank
           </button>
         </div>
       </mat-card-content>

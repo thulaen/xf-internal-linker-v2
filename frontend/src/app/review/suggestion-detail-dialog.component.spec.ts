@@ -40,9 +40,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_keyword: 0.4,
     score_node_affinity: 0.3,
     score_quality: 0.2,
-    score_pagerank: 0.12,
-    score_weighted_pagerank: 0.18,
-    score_weighted_pagerank_delta: 0.06,
+    score_march_2026_pagerank: 0.18,
     score_velocity: 0.1,
     host_sentence: 10,
     anchor_start: 22,
@@ -55,7 +53,7 @@ describe('SuggestionDetailDialogComponent', () => {
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders PageRank and Weighted Authority side by side', async () => {
+  it('renders March 2026 PageRank', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -77,8 +75,6 @@ describe('SuggestionDetailDialogComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
-    expect(text).toContain('PageRank');
-    expect(text).toContain('Weighted Authority');
-    expect(text).toContain('Weighted minus standard');
+    expect(text).toContain('March 2026 PageRank');
   });
 });

@@ -238,13 +238,10 @@ class Suggestion(TimestampedModel):
         default=0.0,
         help_text="Quality score based on host thread engagement metrics.",
     )
-    score_pagerank = models.FloatField(
+    score_march_2026_pagerank = models.FloatField(
+        "March 2026 PageRank",
         default=0.0,
-        help_text="PageRank authority of the destination (higher = more valuable).",
-    )
-    score_weighted_pagerank = models.FloatField(
-        default=0.0,
-        help_text="Weighted authority of the destination (higher = more editorially prominent).",
+        help_text="March 2026 PageRank of the destination (higher = more editorially prominent).",
     )
     score_velocity = models.FloatField(
         default=0.0,

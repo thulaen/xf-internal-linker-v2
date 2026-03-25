@@ -103,15 +103,13 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
     host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
     host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
     same_silo = serializers.SerializerMethodField()
-    score_weighted_pagerank_delta = serializers.SerializerMethodField()
-
     class Meta:
         model = Suggestion
         fields = [
             "suggestion_id", "pipeline_run",
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
-            "score_quality", "score_pagerank", "score_weighted_pagerank", "score_weighted_pagerank_delta", "score_velocity",
+            "score_quality", "score_march_2026_pagerank", "score_velocity",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -128,7 +126,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_pagerank", "score_weighted_pagerank", "score_weighted_pagerank_delta", "score_velocity",
+            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -156,10 +154,6 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
             return False
         return destination_scope.silo_group_id == host_scope.silo_group_id
-
-    def get_score_weighted_pagerank_delta(self, obj: Suggestion) -> float:
-        return float((obj.score_weighted_pagerank or 0.0) - (obj.score_pagerank or 0.0))
-
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):
     """

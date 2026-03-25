@@ -24,9 +24,9 @@ Important:
 
 - Implemented exactly against `docs/specs/fr006-weighted-link-graph.md`.
 - Existing internal-link extraction now preserves true mixed-syntax order and persists edge-level weighting evidence on `ExistingLink`.
-- `ContentItem.weighted_pagerank_score` stores a separate weighted authority metric. The existing `pagerank_score` remains intact.
+- `ContentItem.march_2026_pagerank_score` stores the authority metric used in the app.
 - Weighted authority has its own settings API, recalculation task, pipeline snapshotting, admin exposure, content API exposure, and review diagnostics.
-- Ranking impact is bounded and opt-in through `weighted_authority.ranking_weight`, which defaults to `0.0`.
+- Ranking impact is bounded through `weighted_authority.ranking_weight`, which defaults to `0.2`.
 - Local verification passed for backend tests, migration drift check, Angular `test:ci`, and Angular build.
 
 ---

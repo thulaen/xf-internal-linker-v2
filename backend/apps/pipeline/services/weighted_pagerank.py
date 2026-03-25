@@ -247,11 +247,11 @@ def calculate_weighted_pagerank(
 
 
 def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
-    """Persist weighted authority back onto content items."""
+    """Persist March 2026 PageRank back onto content items."""
     from apps.content.models import ContentItem
 
-    ContentItem.objects.filter(is_deleted=False).update(weighted_pagerank_score=0.0)
-    ContentItem.objects.filter(is_deleted=True).update(weighted_pagerank_score=0.0)
+    ContentItem.objects.filter(is_deleted=False).update(march_2026_pagerank_score=0.0)
+    ContentItem.objects.filter(is_deleted=True).update(march_2026_pagerank_score=0.0)
 
     updated = 0
     for (pk, content_type), score in scores.items():
@@ -259,9 +259,9 @@ def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
             pk=pk,
             content_type=content_type,
             is_deleted=False,
-        ).update(weighted_pagerank_score=score)
+        ).update(march_2026_pagerank_score=score)
 
-    logger.info("Weighted authority persisted: %d items updated.", updated)
+    logger.info("March 2026 PageRank persisted: %d items updated.", updated)
     return updated
 
 
@@ -272,7 +272,7 @@ def run_weighted_pagerank(
     max_iter: int = 100,
     tolerance: float = 1e-6,
 ) -> dict[str, int | float]:
-    """Load graph, compute weighted authority, persist scores, and return diagnostics."""
+    """Load graph, compute March 2026 PageRank, persist scores, and return diagnostics."""
     graph = load_weighted_graph(settings_map=settings_map)
     scores, diagnostics = calculate_weighted_pagerank(
         graph,

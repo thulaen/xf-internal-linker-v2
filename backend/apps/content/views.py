@@ -75,13 +75,12 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/content/{id}/sentences/ — list sentences for this content item
     """
 
-    queryset = ContentItem.objects.select_related("scope").order_by("-pagerank_score")
+    queryset = ContentItem.objects.select_related("scope").order_by("-march_2026_pagerank_score")
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["content_type", "scope", "is_deleted"]
     search_fields = ["title", "content_id"]
     ordering_fields = [
-        "pagerank_score",
-        "weighted_pagerank_score",
+        "march_2026_pagerank_score",
         "velocity_score",
         "view_count",
         "post_date",

@@ -144,9 +144,9 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
 
 @shared_task(bind=True, name="pipeline.recalculate_weighted_authority")
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
-    """Recompute weighted authority from the stored graph and current settings."""
+    """Recompute March 2026 PageRank from the stored graph and current settings."""
     job_id = job_id or str(uuid.uuid4())
-    _publish_progress(job_id, "running", 0.0, "Starting weighted authority recalculation...")
+    _publish_progress(job_id, "running", 0.0, "Starting March 2026 PageRank recalculation...")
 
     try:
         from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
@@ -156,13 +156,13 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
             job_id,
             "completed",
             1.0,
-            "Weighted authority recalculation complete.",
+            "March 2026 PageRank recalculation complete.",
             **diagnostics,
         )
         return {"job_id": job_id, **diagnostics}
     except Exception as exc:
-        logger.exception("Weighted authority recalculation %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Weighted authority recalculation failed: {exc}", error=str(exc))
+        logger.exception("March 2026 PageRank recalculation %s failed", job_id)
+        _publish_progress(job_id, "failed", 0.0, f"March 2026 PageRank recalculation failed: {exc}", error=str(exc))
         raise
 
 
@@ -567,12 +567,10 @@ def import_content(
             generate_all_embeddings(unique_updated_pks)
 
         if mode in {"titles", "full"}:
-            _publish_progress(job_id, "running", 0.93, "Recalculating PageRank, weighted authority, and velocity...")
-            from apps.pipeline.services.pagerank import run_pagerank
+            _publish_progress(job_id, "running", 0.93, "Recalculating March 2026 PageRank and velocity...")
             from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
             from apps.pipeline.services.velocity import run_velocity
 
-            run_pagerank()
             run_weighted_pagerank()
             run_velocity(reference_ts=int(time.time()))
 

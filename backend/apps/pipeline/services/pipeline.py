@@ -32,8 +32,7 @@ from .ranker import (
     SentenceRecord,
     SentenceSemanticMatch,
     SiloSettings,
-    derive_pagerank_bounds,
-    derive_weighted_pagerank_bounds,
+    derive_march_2026_pagerank_bounds,
     score_destination_matches,
     select_final_candidates,
     tokenize_text,
@@ -156,8 +155,7 @@ def run_pipeline(
             suggestions_skipped=items_in_scope,
         )
 
-    pagerank_bounds = derive_pagerank_bounds(content_records)
-    weighted_pagerank_bounds = derive_weighted_pagerank_bounds(content_records)
+    march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
 
     _progress(0.25, "Stage 1: coarse content-level candidate retrieval...")
     stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(
@@ -198,8 +196,7 @@ def run_pipeline(
             sentence_records=sentence_records,
             existing_links=existing_links,
             weights=weights,
-            pagerank_bounds=pagerank_bounds,
-            weighted_pagerank_bounds=weighted_pagerank_bounds,
+            march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
@@ -305,11 +302,11 @@ def _load_weighted_authority_settings() -> dict[str, float]:
 
         config = get_weighted_authority_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", 0.0)),
+            "ranking_weight": float(config.get("ranking_weight", 0.2)),
         }
     except Exception:
         return {
-            "ranking_weight": 0.0,
+            "ranking_weight": 0.2,
         }
 
 
@@ -360,8 +357,7 @@ def _load_content_records(
             silo_group_id=silo_group.pk if silo_group else None,
             silo_group_name=silo_group.name if silo_group else "",
             reply_count=ci.reply_count or 0,
-            pagerank_score=float(ci.pagerank_score or 0.0),
-            weighted_pagerank_score=float(ci.weighted_pagerank_score or 0.0),
+            march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
             primary_post_char_count=primary_post_char_count,
             tokens=tokenize_text(text),
         )
@@ -696,8 +692,7 @@ def _persist_suggestions(
             score_keyword=candidate.score_keyword,
             score_node_affinity=candidate.score_node_affinity,
             score_quality=candidate.score_quality,
-            score_pagerank=dest_ci.pagerank_score,
-            score_weighted_pagerank=dest_ci.weighted_pagerank_score,
+            score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
             score_velocity=dest_ci.velocity_score,
             score_final=candidate.score_final,
             status="pending",

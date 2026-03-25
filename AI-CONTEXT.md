@@ -58,9 +58,9 @@ Phase 8 shipped:
 
 Phase 9 shipped:
 - ordered mixed-syntax internal-link extraction with persisted weighted-edge evidence on `ExistingLink`
-- separate `weighted_pagerank_score` authority computation path with source-row normalization, bounded weighting, and uniform-row fallback
+- separate `march_2026_pagerank_score` authority computation path with source-row normalization, bounded weighting, and uniform-row fallback
 - separate weighted-authority settings API, recalculation task, pipeline snapshotting, and minimal Angular settings controls
-- review/admin/content diagnostics now show standard `pagerank_score` beside weighted authority instead of replacing it
+- review/admin/content diagnostics now use `march_2026_pagerank_score` as the authority score shown to users
 - spec-derived backend tests and Angular review smoke coverage pass locally
 
 ## What Is Complete
@@ -79,7 +79,7 @@ Phase 9 shipped:
 - `FR-004`: broken-link detection model, scanner task, API, dashboard surfacing, Angular link-health page
 - Phase 8 / `FR-003`: WordPress cross-linking and settings/sync experience
 - Phase 8 verification closure: local backend/frontend verification path repaired and passing
-- Phase 9 / `FR-006`: weighted link graph, separate weighted authority storage, settings, diagnostics, and review exposure implemented from `docs/specs/fr006-weighted-link-graph.md`
+- Phase 9 / `FR-006`: weighted link graph, March 2026 PageRank storage, settings, diagnostics, and review exposure implemented from `docs/specs/fr006-weighted-link-graph.md`
 
 ## Execution Ledger
 
@@ -111,7 +111,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 - Next exact target: Phase 10 / `FR-007 - Link Freshness Authority`
 - Phase 9 reference: `FR-006` was implemented exactly against `docs/specs/fr006-weighted-link-graph.md`
-- Scope reminder: keep freshness authority separate from `pagerank_score`, weighted authority, and engagement velocity
+- Scope reminder: keep freshness authority separate from `march_2026_pagerank_score` and engagement velocity
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases

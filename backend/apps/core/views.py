@@ -57,7 +57,7 @@ DEFAULT_WORDPRESS_SETTINGS = {
 }
 
 DEFAULT_WEIGHTED_AUTHORITY_SETTINGS = {
-    "ranking_weight": 0.0,
+    "ranking_weight": 0.2,
     "position_bias": 0.5,
     "empty_anchor_factor": 0.6,
     "bare_url_factor": 0.35,
@@ -438,7 +438,7 @@ class SiloSettingsView(APIView):
 
 class WeightedAuthoritySettingsView(APIView):
     """
-    GET  /api/settings/weighted-authority/ - returns weighted-authority settings
+    GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
     PUT  /api/settings/weighted-authority/ - validates and persists those settings
     """
 
@@ -456,7 +456,7 @@ class WeightedAuthoritySettingsView(APIView):
         rows = {
             "weighted_authority.ranking_weight": {
                 "value": str(validated["ranking_weight"]),
-                "description": "Ranking weight applied to the normalized weighted authority signal.",
+                "description": "Ranking weight applied to the normalized March 2026 PageRank signal.",
             },
             "weighted_authority.position_bias": {
                 "value": str(validated["position_bias"]),
@@ -495,7 +495,7 @@ class WeightedAuthoritySettingsView(APIView):
 
 
 class WeightedAuthorityRecalculateView(APIView):
-    """POST /api/settings/weighted-authority/recalculate/ - recalculate weighted authority."""
+    """POST /api/settings/weighted-authority/recalculate/ - recalculate March 2026 PageRank."""
 
     def post(self, request):
         from apps.pipeline.tasks import recalculate_weighted_authority
