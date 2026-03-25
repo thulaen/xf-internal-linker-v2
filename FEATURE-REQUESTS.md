@@ -138,10 +138,13 @@ Important:
 **Target phase:** Phase 13
 **Priority:** Medium
 **Patent inspiration:** `US20110196861A1`
+**Spec:** `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
 
 - Propagate rare, high-signal terms across nearby related pages.
 - Keep propagated evidence bounded, explainable, and separate from original content.
 - Use scope/silo/relationship proximity rules to avoid topic drift.
+- Spec-first pass completed on 2026-03-25.
+- Implementation is still pending and should use the new FR-010 spec as the source of truth.
 
 ---
 
@@ -619,4 +622,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 12 / FR-009 learned anchor vocabulary is now complete and verified, the next target is Phase 13 / FR-010, and backlog still includes rare-term propagation, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 12 / FR-009 remains complete and verified, Phase 13 / FR-010 now has a dedicated spec at `docs/specs/fr010-rare-term-propagation-across-related-pages.md`, implementation for FR-010 is still pending, and the later `GA4`, `GSC`, safe auto-tuning, operator-alert, and zero-downtime model-management requests remain untouched; project stays pure Python/Django)*

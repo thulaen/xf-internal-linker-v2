@@ -35,43 +35,41 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for this session: Phase 12
-- FR cross-reference: `FR-009 - Learned Anchor Vocabulary & Corroboration`
-- Status: implementation pass completed and verified this session against the approved FR-009 spec
+- Active target for this session: Phase 13
+- FR cross-reference: `FR-010 - Rare-Term Propagation Across Related Pages`
+- Status: spec-first pass completed this session; implementation is still pending and must stay separate from later phases
 
 ## Current Session Note
 
-- Session target: Phase 12 / `FR-009 - Learned Anchor Vocabulary & Corroboration`
-- Session mode: implementation pass only
-- This session is reserved only for the narrow FR-009 implementation pass, verification, continuity updates, and safe commit/push handling.
-- Scope rule for this session: implement only the approved FR-009 slice and do not drift into FR-006, FR-007, FR-008 redesign, FR-011, FR-018, FR-019, or FR-020 work.
-- FR-009 spec path: `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
+- Session target: Phase 13 / `FR-010 - Rare-Term Propagation Across Related Pages`
+- Session mode: spec-first pass only
+- This session is reserved only for the narrow FR-010 spec pass, continuity cleanup, truthful backlog updates, lightweight verification, and safe commit/push handling.
+- Scope rule for this session: create only the approved FR-010 spec slice and do not drift into FR-010 implementation, FR-011, FR-018, FR-019, or FR-020 work.
+- FR-010 spec path: `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
 - Start-of-session continuity note:
-  - `AI-CONTEXT.md` was read first and updated immediately before any other repo reading
-  - this session is the Phase 12 / FR-009 implementation pass
-  - the next work after this early update is to inspect the required files, confirm boundaries, and implement only the approved FR-009 slice
+  - `AI-CONTEXT.md` was read first
+  - the top continuity section still talked like the active session was the old Phase 12 / FR-009 implementation pass
+  - repo inspection confirmed that Phase 13 / FR-010 is the real next target, no FR-010 spec file existed yet, and no FR-010 implementation exists in backend or frontend code
+  - because the required FR-010 spec was missing, this session stayed spec-first only
 - Carry-forward note from the previous session:
-  - the FR-009 spec-first pass is complete
-  - FR-009 implementation was still pending before this session started
-  - this session uses the approved FR-009 spec as the source of truth
+  - the FR-009 implementation pass is complete and verified
+  - the execution ledger already pointed to Phase 13 / FR-010 as the next queued target
+  - patent-derived phases require a dedicated spec pass before any implementation pass
 - What this session completed:
-  - added a separate FR-009 learned-anchor service that builds destination anchor families from inbound `ExistingLink.anchor_text`, filters generic noise anchors, dedupes support per source page, keeps missing or thin evidence neutral at `0.5`, and never mixes learned-anchor evidence into FR-008 phrase math
-  - added separate `Suggestion.score_learned_anchor_corroboration` and `Suggestion.learned_anchor_diagnostics` storage plus separate ranker wiring gated by `learned_anchor.ranking_weight`, which defaults to `0.0`
-  - added FR-009 settings API, pipeline-run snapshot wiring, algorithm version metadata, suggestion detail/admin exposure, Angular review detail exposure, and Angular settings controls
-  - kept FR-009 separate from FR-006 weighted authority, FR-007 freshness, and velocity inputs
+  - cleaned the stale continuity wording so the active session no longer pretends FR-009 is still in progress
+  - added the missing FR-010 spec at `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
+  - updated backlog/context docs so they now say FR-010 has a spec and is still pending implementation
 - What was intentionally not changed to keep scope clean:
-  - no FR-008 phrase redesign
-  - no FR-006 authority redesign
-  - no FR-007 freshness redesign
-  - no velocity-based learned-anchor inputs
-  - no reviewer prefer/disallow persistence layer
-  - no telemetry, alerting, auto-tuning, or later-phase work
+  - no FR-010 backend implementation
+  - no FR-010 frontend implementation
+  - no FR-011 field-aware scoring
+  - no later-phase telemetry, alerts, auto-tuning, or runtime work
+  - no unrelated repo cleanup
 - Verification completed this session:
-  - targeted Django FR-009/backend tests passed under `config.settings.test`
-  - Angular `test:ci` passed
-  - Angular `build` passed
-  - `manage.py makemigrations --check --dry-run` reported no changes detected
-  - the FR-009 ranking weight remained default-off and the targeted tests verified neutral and zero-weight behavior
+  - confirmed Phase 13 / FR-010 is the next exact target in the ledger and backlog
+  - confirmed no FR-010 spec file existed before this session
+  - confirmed no FR-010 implementation exists in `backend/` or `frontend/`
+  - confirmed the diff for this session is limited to intended continuity/spec docs
 
 ## User Communication Preference
 
@@ -151,7 +149,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 10 | FR-007 | Complete | Link Freshness Authority |
 | 11 | FR-008 | Complete | Phrase-Based Matching & Anchor Expansion |
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
-| 13 | FR-010 | Queued | Rare-Term Propagation Across Related Pages |
+| 13 | FR-010 | Queued | Spec-first pass completed; implementation pending |
 | 14 | FR-011 | Queued | Field-Aware Relevance Scoring |
 | 15 | FR-012 | Queued | Click-Distance Structural Prior |
 | 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
@@ -168,8 +166,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 - Next exact target: Phase 13 / `FR-010 - Rare-Term Propagation Across Related Pages`
 - Phase 12 reference: `FR-009` was implemented and verified exactly against `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - FR-009 shipped as a separate learned-anchor layer and stayed separate from FR-008 phrase relevance, FR-006 weighted authority, FR-007 freshness, and velocity
-- Current continuity state: FR-009 is complete after this session
-- Next session type: narrow FR-010 implementation pass only
+- Current continuity state: the FR-010 spec now exists, but FR-010 implementation is still pending
+- Next session type: narrow FR-010 implementation pass only, using the new FR-010 spec as the source of truth
 - Scope reminder: keep the shipped FR-009 learned-anchor layer separate from later FR-011 field-aware scoring work
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
