@@ -41,22 +41,24 @@ Execution order and FR IDs are decoupled.
 
 ## Current Session Note
 
-- Session target: Phase 10 / `FR-007 - Link Freshness Authority`
-- Session mode: implementation pass completed
-- This session implemented the Phase 10 FR-007 production slice against `docs/specs/fr007-link-freshness-authority.md`.
-- Scope rule was kept: only `FR-007 - Link Freshness Authority` was implemented.
-- FR-007 spec path: `docs/specs/fr007-link-freshness-authority.md`
-- Verified shipped items:
-  - separate `LinkFreshnessEdge` history storage and migrations
-  - safe first-seen / last-seen / disappeared tracking with non-body disappearance protection
-  - separate `link_freshness_score` computation, persistence, settings API, and recalculation task
-  - bounded ranker integration with default `ranking_weight = 0.0`
-  - content/admin/review/settings exposure plus FR-007 backend/frontend tests
-- Verification completed:
-  - Django FR-007 backend test slice passed under `config.settings.test`
-  - Django migration drift check passed with no pending model changes
-  - Angular `test:ci` passed
-  - Angular `build` passed
+- Session target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
+- Session mode: spec-first pass complete
+- This session was reserved only for the Phase 11 FR-008 spec pass at `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`.
+- Scope rule for this session: do not drift into FR-006, FR-007, FR-009, FR-018, FR-019, or FR-020 work.
+- FR-008 spec path: `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+- Status right now: FR-008 spec-first pass completed and ready for a later implementation session.
+- What was completed in this session:
+  - `AI-CONTEXT.md` was read first and updated immediately before any other repo reading
+  - required docs and code paths were inspected before writing the spec
+  - the missing FR-008 spec file was created at the required path
+  - `FEATURE-REQUESTS.md` was updated to show the FR-008 spec-first pass is complete and implementation is still pending
+  - verification confirmed the FR-008 spec file exists, is detailed, and no production code was changed
+- What was intentionally not completed:
+  - no FR-008 backend code
+  - no FR-008 frontend code
+  - no FR-008 migrations
+  - no serializer, view, task, sync-flow, queue-flow, or ranker implementation changes
+  - no FR-009, FR-018, FR-019, or FR-020 work
 
 ## User Communication Preference
 
@@ -143,6 +145,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 - Next exact target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
 - Phase 10 reference: `FR-007` was implemented exactly against `docs/specs/fr007-link-freshness-authority.md`
+- FR-008 spec reference: `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+- Next session type: implementation pass for FR-008 only
 - Scope reminder: keep phrase relevance separate from FR-006 weighted-edge authority and FR-007 link-history freshness
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 

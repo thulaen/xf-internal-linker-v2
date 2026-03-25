@@ -108,10 +108,15 @@ Important:
 **Target phase:** Phase 11
 **Priority:** High
 **Patent inspiration:** `US7536408B2`
+**Spec-first pass completed:** 2026-03-25
+**Spec:** `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+**Implementation status:** Ready for a later implementation session. Not implemented yet.
 
 - Extract salient phrases from titles, distilled text, and host sentences.
 - Add phrase-level relevance as a separate ranking signal.
 - Expand anchor extraction beyond exact title windows with explainable phrase evidence.
+- The spec-first pass keeps FR-008 separate from FR-006 weighted authority, FR-007 link freshness, `velocity`, and FR-009 learned-anchor work.
+- The spec keeps missing phrase evidence neutral, keeps ranking impact off by default, and keeps storage narrow to suggestion-level fields only.
 
 ---
 
@@ -613,4 +618,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 10 / FR-007 completed against `docs/specs/fr007-link-freshness-authority.md`; next real target is Phase 11 / FR-008; backlog still includes `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 10 / FR-007 remains the last implemented phase; the Phase 11 / FR-008 spec-first pass is now complete at `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`; the next session should be the FR-008 implementation pass; backlog still includes `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
