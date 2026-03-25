@@ -1,0 +1,97 @@
+param(
+    [string]$PythonExe = "",
+    [switch]$RecreateVenv
+)
+
+$ErrorActionPreference = "Stop"
+
+$repoRoot = Split-Path -Parent $PSScriptRoot
+$venvDir = Join-Path $repoRoot ".venv"
+$venvCfg = Join-Path $venvDir "pyvenv.cfg"
+$requirements = @(
+    (Join-Path $repoRoot "backend\requirements.txt"),
+    (Join-Path $repoRoot "backend\requirements-dev.txt")
+)
+
+function Get-PythonCandidate {
+    param([string]$RequestedPath)
+
+    $candidates = @()
+
+    if ($RequestedPath) {
+        $candidates += $RequestedPath
+    }
+
+    $candidates += @(
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python312\python.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Python\Python313\python.exe"),
+        "py -3.12",
+        "py -3.13",
+        "python"
+    )
+
+    foreach ($candidate in $candidates | Select-Object -Unique) {
+        try {
+            if ($candidate -like "* *" -and -not (Test-Path $candidate)) {
+                $null = & cmd.exe /c "$candidate --version" 2>$null
+            } else {
+                $null = & $candidate --version 2>$null
+            }
+
+            return $candidate
+        } catch {
+            continue
+        }
+    }
+
+    throw "No working Python interpreter found. Pass -PythonExe or install Python 3.12+."
+}
+
+function Read-VenvHome {
+    param([string]$ConfigPath)
+
+    if (-not (Test-Path $ConfigPath)) {
+        return $null
+    }
+
+    $homeLine = Get-Content $ConfigPath | Where-Object { $_ -like "home = *" } | Select-Object -First 1
+    if (-not $homeLine) {
+        return $null
+    }
+
+    return $homeLine.Substring(7).Trim()
+}
+
+$brokenVenv = $false
+$venvHome = Read-VenvHome -ConfigPath $venvCfg
+if ($venvHome -and -not (Test-Path (Join-Path $venvHome "python.exe"))) {
+    $brokenVenv = $true
+}
+
+if ($RecreateVenv -or $brokenVenv -or -not (Test-Path $venvCfg)) {
+    if (Test-Path $venvDir) {
+        Remove-Item -Recurse -Force $venvDir
+    }
+
+    $python = Get-PythonCandidate -RequestedPath $PythonExe
+    Write-Host "Creating virtual environment with $python"
+
+    if ($python -like "* *" -and -not (Test-Path $python)) {
+        & cmd.exe /c "$python -m venv `"$venvDir`""
+    } else {
+        & $python -m venv $venvDir
+    }
+}
+
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+if (-not (Test-Path $venvPython)) {
+    throw "Virtual environment was not created correctly: $venvPython not found."
+}
+
+& $venvPython -m pip install --upgrade pip
+foreach ($requirement in $requirements) {
+    & $venvPython -m pip install -r $requirement
+}
+
+Write-Host "Backend environment is ready."
+Write-Host "Interpreter: $venvPython"

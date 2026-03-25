@@ -22,7 +22,7 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "multi-qa-MiniLM-L6-cos-v1"
+DEFAULT_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 EMBEDDING_DIM = 384
 
 _model_cache: dict[str, Any] = {}
@@ -59,6 +59,13 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     elapsed = time.monotonic() - start
     logger.info("Model loaded in %.2fs.", elapsed)
     _model_cache[model_name] = model
+    if device == "cpu":
+        try:
+            import torch
+
+            torch.set_num_threads(4)
+        except Exception:
+            pass
     return model
 
 

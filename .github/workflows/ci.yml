@@ -24,6 +24,13 @@ jobs:
           pip install -r backend/requirements.txt
           pip install -r backend/requirements-dev.txt
 
+      - name: Check Django migrations
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.ci
+          DJANGO_SECRET_KEY: ci-fake-secret-key
+        run: python manage.py makemigrations --check --dry-run
+
       - name: Run Django tests
         working-directory: backend
         env:

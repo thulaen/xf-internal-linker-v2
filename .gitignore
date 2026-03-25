@@ -18,6 +18,8 @@ env/
 local_settings.py
 db.sqlite3
 db.sqlite3-journal
+backend/test.sqlite3
+backend/test.sqlite3-journal
 media/
 
 # Backend data (runtime artifacts)

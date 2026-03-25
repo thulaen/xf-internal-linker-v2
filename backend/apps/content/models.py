@@ -194,7 +194,7 @@ class ContentItem(TimestampedModel):
         help_text="Recency/engagement velocity score. Higher = trending recently.",
     )
 
-    # pgvector embedding (384 dims = all-MiniLM-L6-v2 / multi-qa-MiniLM-L6-cos-v1)
+    # pgvector embedding (384 dims = BAAI/bge-small-en-v1.5 and similar small models)
     embedding = VectorField(
         dimensions=384,
         null=True,

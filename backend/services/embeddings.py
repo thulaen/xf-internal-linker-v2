@@ -8,7 +8,7 @@ V1 source: ../xf-internal-linker/services/embeddings.py
 
 # TODO Phase 2: migrate from V1 embeddings.py
 # Key V1 behavior to preserve:
-# - Uses sentence-transformers (all-MiniLM-L6-v2 by default)
+# - Uses sentence-transformers (BAAI/bge-small-en-v1.5 by default)
 # - Batch processing with configurable batch size
 # - CPU mode by default, optional GPU via ML_PERFORMANCE_MODE=HIGH_PERFORMANCE
 # - Stores vectors in PostgreSQL via pgvector (replacing .npy files)

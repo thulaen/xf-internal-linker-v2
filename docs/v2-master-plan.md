@@ -191,7 +191,7 @@ A local-first application that suggests highly contextual internal links for Xen
 | Background Jobs | Celery 5.x | Production-grade task queue with retries, rate limiting, scheduling |
 | Job Scheduler | Celery Beat | Periodic tasks (auto-resync, GSC sync, stale checks) |
 | WebSockets | Django Channels 4.x + Daphne | Real-time job progress, live previews, stale alerts |
-| Embeddings | sentence-transformers (multi-qa-MiniLM-L6-cos-v1) | Same model as V1, proven quality |
+| Embeddings | sentence-transformers (BAAI/bge-small-en-v1.5) | Strong 384-dim model that still fits laptop-friendly RAM limits |
 | NLP | spaCy en_core_web_sm | Sentence splitting, entity recognition, noun chunks |
 | GPU | PyTorch with CUDA support | Same as V1, auto-detection |
 | API Framework | Django REST Framework | Serializers, viewsets, pagination, filtering, throttling |

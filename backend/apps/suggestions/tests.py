@@ -5,6 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
+from apps.pipeline.services.algorithm_versions import WEIGHTED_AUTHORITY_VERSION
 from apps.suggestions.models import PipelineRun, Suggestion
 
 
@@ -149,4 +150,21 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertIn("weighted_authority", run.config_snapshot)
         self.assertEqual(run.config_snapshot["weighted_authority"]["ranking_weight"], 0.2)
         self.assertEqual(run.config_snapshot["weighted_authority"]["position_bias"], 0.4)
+        self.assertIn("algorithm_versions", run.config_snapshot)
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["weighted_authority"],
+            WEIGHTED_AUTHORITY_VERSION,
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_date"],
+            "2026-03-25",
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_month"],
+            "March",
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_year"],
+            2026,
+        )
         delay_mock.assert_called_once()

@@ -106,6 +106,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Queued | Final Slate Diversity Reranking |
+| 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
+| 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
+| 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
+| 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
+| 23 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry |
 
 ## What Is Next
 
@@ -121,8 +126,16 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 - Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
 - The spec must include a source summary, a math-fidelity note, a full implementation spec, and a test plan. Use `docs/specs/fr006-weighted-link-graph.md` as the quality model.
 - FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features — the boundary is intentional.
-- FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features — the boundary is intentional.
+- FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features � the boundary is intentional.
+- FR-016 to FR-020 also require a spec/design pass before implementation because they change telemetry schemas, attribution logic, alerting behavior, and model-promotion/runtime safety. Those phases must define neutral fallbacks, rollback paths, and regression gates before any code lands.
 - All other patent-inspired phases follow the same two-pass pattern: spec first, implement second, each in its own session.
+- FR-018 must also include adaptive-change alerts, immutable history/audit rows, exact timestamped "why weights changed" summaries, and a timeline view before implementation is considered complete.
+- FR-019 owns generic operator alerts: model-download reminders, job-complete/failure notifications, bell sounds, desktop notifications, urgent trend warnings, and persisted error-linked alerts.
+- FR-020 owns runtime model lifecycle: download, warmup, hot swap, drain, rollback, and zero-downtime model/backfill cutovers. Do not bury that work inside `FR-018`.
+- Early user-requested spec drafts exist for:
+  - `FR-016` at `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
+  - `FR-019` at `docs/specs/fr019-operator-alerts-notification-center.md`
+- These do not change the active implementation target.
 
 ## Session Workflow
 

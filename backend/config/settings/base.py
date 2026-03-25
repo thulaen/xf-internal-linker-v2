@@ -162,7 +162,7 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=2)
+CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=4)
 
 # Task routing to named queues
 CELERY_TASK_ROUTES = {
@@ -353,7 +353,7 @@ WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 # ── ML / AI Settings ─────────────────────────────────────────────
 
 ML_PERFORMANCE_MODE = env("ML_PERFORMANCE_MODE", default="BALANCED")
-EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="all-MiniLM-L6-v2")
+EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="BAAI/bge-small-en-v1.5")
 EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
 SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 
