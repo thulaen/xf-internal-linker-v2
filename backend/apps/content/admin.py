@@ -92,6 +92,7 @@ class ContentItemAdmin(ModelAdmin):
 
     list_display = [
         "title", "content_type", "scope", "pagerank_score",
+        "weighted_pagerank_score",
         "velocity_score", "view_count", "reply_count", "post_date",
         "is_deleted",
     ]
@@ -99,7 +100,7 @@ class ContentItemAdmin(ModelAdmin):
     search_fields = ["title", "content_id"]
     readonly_fields = [
         "content_id", "content_type", "content_hash",
-        "pagerank_score", "velocity_score",
+        "pagerank_score", "weighted_pagerank_score", "velocity_score",
         "created_at", "updated_at", "fetched_at",
     ]
     list_per_page = 50
@@ -115,7 +116,7 @@ class ContentItemAdmin(ModelAdmin):
             "classes": ("collapse",),
         }),
         ("Scores", {
-            "fields": ("pagerank_score", "velocity_score"),
+            "fields": ("pagerank_score", "weighted_pagerank_score", "velocity_score"),
             "classes": ("collapse",),
         }),
         ("Engagement", {

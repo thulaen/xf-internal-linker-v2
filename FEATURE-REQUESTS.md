@@ -16,6 +16,21 @@ Important:
 
 ## COMPLETED
 
+### FR-006 - Weighted Link Graph / Reasonable Surfer Scoring
+**Requested:** 2026-03-24
+**Target phase:** Phase 9
+**Completed phase:** Phase 9
+**Completed:** 2026-03-25
+
+- Implemented exactly against `docs/specs/fr006-weighted-link-graph.md`.
+- Existing internal-link extraction now preserves true mixed-syntax order and persists edge-level weighting evidence on `ExistingLink`.
+- `ContentItem.weighted_pagerank_score` stores a separate weighted authority metric. The existing `pagerank_score` remains intact.
+- Weighted authority has its own settings API, recalculation task, pipeline snapshotting, admin exposure, content API exposure, and review diagnostics.
+- Ranking impact is bounded and opt-in through `weighted_authority.ranking_weight`, which defaults to `0.0`.
+- Local verification passed for backend tests, migration drift check, Angular `test:ci`, and Angular build.
+
+---
+
 ### FR-003 - WordPress Cross-Linking
 **Requested:** 2026-03-24
 **Target phase:** Phase 8
@@ -72,19 +87,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-006 - Weighted Link Graph / Reasonable Surfer Scoring
-**Requested:** 2026-03-24
-**Target phase:** Phase 9
-**Priority:** High
-**Patent inspiration:** `US7716225B1`
-
-- Preserve the existing `pagerank_score`.
-- Add a separate weighted authority signal based on edge-level prominence/relevance features.
-- Persist edge-level weighting features.
-- Expose diagnostics and tuning so standard vs weighted authority can be compared.
-
----
 
 ### FR-007 - Link Freshness Authority
 **Requested:** 2026-03-24
@@ -210,4 +212,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-24 (Phase 8 / FR-003 completed, locally verified, and frontend audit-clean; next real target remains Phase 9 / FR-006)*
+*Last updated: 2026-03-25 (Phase 9 / FR-006 completed against `docs/specs/fr006-weighted-link-graph.md`; next real target is Phase 10 / FR-007)*

@@ -1,6 +1,10 @@
+import math
+
 from django.test import TestCase
 
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.graph.models import ExistingLink
+from apps.pipeline.services.pagerank import run_pagerank
 from apps.pipeline.services.pipeline import _persist_diagnostics
 from apps.pipeline.services.ranker import (
     ContentRecord,
@@ -9,10 +13,20 @@ from apps.pipeline.services.ranker import (
     SiloSettings,
     score_destination_matches,
 )
+from apps.pipeline.services.weighted_pagerank import (
+    _WeightedEdge,
+    _normalize_source_edges,
+    run_weighted_pagerank,
+)
 from apps.suggestions.models import PipelineDiagnostic, PipelineRun
 
 
-def _content_record(*, content_id: int, silo_group_id: int | None) -> ContentRecord:
+def _content_record(
+    *,
+    content_id: int,
+    silo_group_id: int | None,
+    weighted_pagerank_score: float = 0.0,
+) -> ContentRecord:
     return ContentRecord(
         content_id=content_id,
         content_type="thread",
@@ -28,6 +42,7 @@ def _content_record(*, content_id: int, silo_group_id: int | None) -> ContentRec
         silo_group_name=f"Silo {silo_group_id}" if silo_group_id else "",
         reply_count=5,
         pagerank_score=1.0,
+        weighted_pagerank_score=weighted_pagerank_score,
         primary_post_char_count=500,
         tokens=frozenset({"topic", str(content_id)}),
     )
@@ -51,6 +66,7 @@ class SiloRankerTests(TestCase):
             "w_quality": 0.15,
         }
         self.pagerank_bounds = (0.5, 2.0)
+        self.weighted_pagerank_bounds = (0.1, 2.0)
 
     def test_prefer_same_silo_adjusts_scores_but_disabled_preserves_baseline(self):
         same_match = [SentenceSemanticMatch(2, "thread", 20, 0.8)]
@@ -69,6 +85,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="disabled"),
         )[0]
         disabled_cross = score_destination_matches(
@@ -79,6 +96,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="disabled"),
         )[0]
         preferred_same = score_destination_matches(
@@ -89,6 +107,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
         )[0]
         preferred_cross = score_destination_matches(
@@ -99,6 +118,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
         )[0]
 
@@ -126,6 +146,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="strict_same_silo"),
             blocked_reasons=cross_reasons,
         )
@@ -137,6 +158,7 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=self.weighted_pagerank_bounds,
             silo_settings=SiloSettings(mode="strict_same_silo"),
             blocked_reasons=unassigned_reasons,
         )
@@ -179,3 +201,256 @@ class SiloRankerTests(TestCase):
         self.assertEqual(diagnostic.skip_reason, "cross_silo_blocked")
         self.assertEqual(diagnostic.detail["mode"], "strict_same_silo")
         self.assertEqual(diagnostic.destination_id, destination.pk)
+
+    def test_weighted_authority_disabled_preserves_existing_ranker_output(self):
+        destination = _content_record(content_id=10, silo_group_id=None, weighted_pagerank_score=2.0)
+        host = _content_record(content_id=20, silo_group_id=None)
+        records = {
+            destination.key: destination,
+            host.key: host,
+        }
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records=records,
+            sentence_records=self.sentence_records | {
+                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            },
+            existing_links=set(),
+            weights=self.weights,
+            pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=(0.1, 2.0),
+            weighted_authority_ranking_weight=0.0,
+        )[0]
+        enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records=records,
+            sentence_records=self.sentence_records | {
+                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            },
+            existing_links=set(),
+            weights=self.weights,
+            pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=(0.1, 2.0),
+            weighted_authority_ranking_weight=0.25,
+        )[0]
+
+        self.assertAlmostEqual(baseline.score_final + 0.25, enabled.score_final, places=6)
+
+    def test_weighted_authority_does_not_override_existing_link_block(self):
+        destination = _content_record(content_id=10, silo_group_id=None, weighted_pagerank_score=2.0)
+        host = _content_record(content_id=20, silo_group_id=None)
+        records = {
+            destination.key: destination,
+            host.key: host,
+        }
+
+        result = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records=records,
+            sentence_records={
+                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            },
+            existing_links={((20, "thread"), (10, "thread"))},
+            weights=self.weights,
+            pagerank_bounds=self.pagerank_bounds,
+            weighted_pagerank_bounds=(0.1, 2.0),
+            weighted_authority_ranking_weight=0.25,
+        )
+
+        self.assertEqual(result, [])
+
+
+class WeightedAuthorityGraphTests(TestCase):
+    def setUp(self):
+        self.scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+
+    def _content(self, content_id: int, title: str) -> ContentItem:
+        return ContentItem.objects.create(
+            content_id=content_id,
+            content_type="thread",
+            title=title,
+            scope=self.scope,
+        )
+
+    def test_uniform_weight_behavior_matches_standard_pagerank_and_preserves_standard_field(self):
+        a = self._content(1, "A")
+        b = self._content(2, "B")
+        c = self._content(3, "C")
+
+        ExistingLink.objects.create(
+            from_content_item=a,
+            to_content_item=b,
+            anchor_text="B",
+            extraction_method="html_anchor",
+            link_ordinal=0,
+            source_internal_link_count=2,
+            context_class="contextual",
+        )
+        ExistingLink.objects.create(
+            from_content_item=a,
+            to_content_item=c,
+            anchor_text="C",
+            extraction_method="html_anchor",
+            link_ordinal=1,
+            source_internal_link_count=2,
+            context_class="contextual",
+        )
+        ExistingLink.objects.create(
+            from_content_item=b,
+            to_content_item=c,
+            anchor_text="C",
+            extraction_method="html_anchor",
+            link_ordinal=0,
+            source_internal_link_count=1,
+            context_class="contextual",
+        )
+        ExistingLink.objects.create(
+            from_content_item=c,
+            to_content_item=a,
+            anchor_text="A",
+            extraction_method="html_anchor",
+            link_ordinal=0,
+            source_internal_link_count=1,
+            context_class="contextual",
+        )
+
+        run_pagerank()
+        standard_scores = {
+            item.pk: item.pagerank_score
+            for item in ContentItem.objects.order_by("pk")
+        }
+
+        diagnostics = run_weighted_pagerank(
+            settings_map={
+                "position_bias": 0.0,
+                "empty_anchor_factor": 1.0,
+                "bare_url_factor": 1.0,
+                "weak_context_factor": 1.0,
+                "isolated_context_factor": 1.0,
+            }
+        )
+
+        weighted_scores = {
+            item.pk: item.weighted_pagerank_score
+            for item in ContentItem.objects.order_by("pk")
+        }
+        refreshed_standard_scores = {
+            item.pk: item.pagerank_score
+            for item in ContentItem.objects.order_by("pk")
+        }
+
+        self.assertEqual(diagnostics["fallback_row_count"], 0)
+        for item_pk, standard_score in standard_scores.items():
+            self.assertAlmostEqual(weighted_scores[item_pk], standard_score, places=6)
+            self.assertAlmostEqual(refreshed_standard_scores[item_pk], standard_score, places=6)
+        self.assertTrue(all(score >= 0.0 for score in weighted_scores.values()))
+        self.assertAlmostEqual(sum(weighted_scores.values()), 1.0, places=6)
+
+    def test_outbound_normalization_boilerplate_downweight_and_contextual_upweight(self):
+        probabilities, used_fallback = _normalize_source_edges(
+            [
+                _WeightedEdge(
+                    source_index=0,
+                    target_index=1,
+                    anchor_text="Editorial link",
+                    extraction_method="html_anchor",
+                    link_ordinal=0,
+                    source_internal_link_count=2,
+                    context_class="contextual",
+                    pk=1,
+                ),
+                _WeightedEdge(
+                    source_index=0,
+                    target_index=2,
+                    anchor_text="",
+                    extraction_method="bare_url",
+                    link_ordinal=1,
+                    source_internal_link_count=2,
+                    context_class="isolated",
+                    pk=2,
+                ),
+            ],
+            settings_map={
+                "position_bias": 0.5,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+
+        self.assertFalse(used_fallback)
+        self.assertGreater(probabilities[0], probabilities[1])
+        self.assertAlmostEqual(sum(probabilities), 1.0, places=6)
+
+    def test_monotonicity_improving_context_increases_edge_probability(self):
+        baseline_probabilities, _ = _normalize_source_edges(
+            [
+                _WeightedEdge(0, 1, "A", "html_anchor", 0, 2, "weak_context", 1),
+                _WeightedEdge(0, 2, "B", "html_anchor", 1, 2, "contextual", 2),
+            ],
+            settings_map={
+                "position_bias": 0.0,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+        improved_probabilities, _ = _normalize_source_edges(
+            [
+                _WeightedEdge(0, 1, "A", "html_anchor", 0, 2, "contextual", 1),
+                _WeightedEdge(0, 2, "B", "html_anchor", 1, 2, "contextual", 2),
+            ],
+            settings_map={
+                "position_bias": 0.0,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+
+        self.assertGreater(improved_probabilities[0], baseline_probabilities[0])
+
+    def test_missing_feature_rows_fallback_to_neutral_uniform_behavior(self):
+        probabilities, used_fallback = _normalize_source_edges(
+            [
+                _WeightedEdge(0, 1, "First", "", None, None, "", 1),
+                _WeightedEdge(0, 2, "Second", "", None, None, "", 2),
+            ],
+            settings_map={
+                "position_bias": 0.5,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+
+        self.assertFalse(used_fallback)
+        self.assertAlmostEqual(probabilities[0], 0.5, places=6)
+        self.assertAlmostEqual(probabilities[1], 0.5, places=6)
+
+    def test_nonfinite_rows_fallback_to_uniform_probabilities(self):
+        probabilities, used_fallback = _normalize_source_edges(
+            [
+                _WeightedEdge(0, 1, "First", "html_anchor", 0, 2, "contextual", 1),
+                _WeightedEdge(0, 2, "Second", "html_anchor", 1, 2, "contextual", 2),
+            ],
+            settings_map={
+                "position_bias": math.inf,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+
+        self.assertTrue(used_fallback)
+        self.assertAlmostEqual(probabilities[0], 0.5, places=6)
+        self.assertAlmostEqual(probabilities[1], 0.5, places=6)

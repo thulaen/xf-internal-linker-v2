@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 
-from apps.content.models import ScopeItem, SiloGroup
+from apps.content.models import ContentItem, ScopeItem, SiloGroup
 
 
 class SiloApiTests(APITestCase):
@@ -99,3 +99,29 @@ class SiloApiTests(APITestCase):
             format="json",
         )
         self.assertEqual(invalid.status_code, 400)
+
+
+class ContentWeightedAuthorityApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="content-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_content_endpoints_expose_weighted_pagerank_score(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        content = ContentItem.objects.create(
+            content_id=123,
+            content_type="thread",
+            title="Weighted Destination",
+            scope=scope,
+            pagerank_score=0.125,
+            weighted_pagerank_score=0.25,
+        )
+
+        list_response = self.client.get("/api/content/")
+        detail_response = self.client.get(f"/api/content/{content.pk}/")
+
+        self.assertEqual(list_response.status_code, 200)
+        self.assertEqual(detail_response.status_code, 200)
+        self.assertEqual(list_response.json()["results"][0]["weighted_pagerank_score"], 0.25)
+        self.assertEqual(detail_response.json()["weighted_pagerank_score"], 0.25)
+        self.assertEqual(detail_response.json()["pagerank_score"], 0.125)

@@ -188,6 +188,14 @@ h2[mat-dialog-title] {
 .score-name {
   font-size: 12px;
   color: var(--color-text-muted);
+  display: block;
+}
+
+.score-note {
+  display: block;
+  font-size: 11px;
+  color: var(--color-text-muted);
+  margin-top: 2px;
 }
 
 .score-val {

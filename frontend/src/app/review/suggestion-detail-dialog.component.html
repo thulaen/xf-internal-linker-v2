@@ -108,6 +108,17 @@
           <span class="score-val">{{ (detail.score_pagerank * 100).toFixed(0) }}</span>
         </div>
         <div class="score-item">
+          <span class="score-name">
+            Weighted Authority
+            <span class="score-note">
+              Weighted minus standard:
+              {{ detail.score_weighted_pagerank_delta >= 0 ? '+' : '' }}{{ detail.score_weighted_pagerank_delta | number:'1.4-4' }}
+            </span>
+          </span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_weighted_pagerank)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_weighted_pagerank * 100).toFixed(0) }}</span>
+        </div>
+        <div class="score-item">
           <span class="score-name">Velocity</span>
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_velocity)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_velocity * 100).toFixed(0) }}</span>

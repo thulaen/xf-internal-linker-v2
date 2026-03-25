@@ -1,8 +1,11 @@
+from unittest.mock import patch
+
 from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 
+from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
-from apps.suggestions.models import Suggestion
+from apps.suggestions.models import PipelineRun, Suggestion
 
 
 class SuggestionSiloApiTests(APITestCase):
@@ -104,3 +107,49 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(suggestion["host_source_label"], "XenForo")
         self.assertEqual(suggestion["destination_content_type"], "thread")
         self.assertEqual(suggestion["host_content_type"], "thread")
+
+    def test_suggestion_detail_exposes_weighted_authority_fields(self):
+        suggestion = Suggestion.objects.first()
+        suggestion.score_pagerank = 0.2
+        suggestion.score_weighted_pagerank = 0.35
+        suggestion.save(update_fields=["score_pagerank", "score_weighted_pagerank", "updated_at"])
+
+        response = self.client.get(f"/api/suggestions/{suggestion.suggestion_id}/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["score_pagerank"], 0.2)
+        self.assertEqual(payload["score_weighted_pagerank"], 0.35)
+        self.assertAlmostEqual(payload["score_weighted_pagerank_delta"], 0.15, places=6)
+
+
+class PipelineRunWeightedSnapshotTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="pipeline-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    @patch("apps.pipeline.tasks.run_pipeline.delay")
+    def test_start_pipeline_persists_weighted_authority_snapshot(self, delay_mock):
+        AppSetting.objects.create(
+            key="weighted_authority.ranking_weight",
+            value="0.2",
+            value_type="float",
+            category="ml",
+            description="Ranking weight",
+        )
+        AppSetting.objects.create(
+            key="weighted_authority.position_bias",
+            value="0.4",
+            value_type="float",
+            category="ml",
+            description="Position bias",
+        )
+
+        response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
+
+        self.assertEqual(response.status_code, 201)
+        run = PipelineRun.objects.get(run_id=response.json()["run_id"])
+        self.assertIn("weighted_authority", run.config_snapshot)
+        self.assertEqual(run.config_snapshot["weighted_authority"]["ranking_weight"], 0.2)
+        self.assertEqual(run.config_snapshot["weighted_authority"]["position_bias"], 0.4)
+        delay_mock.assert_called_once()

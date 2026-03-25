@@ -107,3 +107,68 @@ class WordPressSettingsDefaultsTests(APITestCase):
                 "sync_minute": 0,
             },
         )
+
+
+class WeightedAuthoritySettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="weighted-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_weighted_authority_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/weighted-authority/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "ranking_weight": 0.0,
+                "position_bias": 0.5,
+                "empty_anchor_factor": 0.6,
+                "bare_url_factor": 0.35,
+                "weak_context_factor": 0.75,
+                "isolated_context_factor": 0.45,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/weighted-authority/",
+            {
+                "ranking_weight": 0.2,
+                "position_bias": 0.25,
+                "empty_anchor_factor": 0.7,
+                "bare_url_factor": 0.4,
+                "weak_context_factor": 0.8,
+                "isolated_context_factor": 0.5,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["ranking_weight"], 0.2)
+        self.assertEqual(AppSetting.objects.get(key="weighted_authority.ranking_weight").value, "0.2")
+        self.assertEqual(AppSetting.objects.get(key="weighted_authority.position_bias").value, "0.25")
+
+    def test_weighted_authority_validation_rejects_bad_bounds(self):
+        response = self.client.put(
+            "/api/settings/weighted-authority/",
+            {
+                "ranking_weight": 0.3,
+                "position_bias": 0.25,
+                "empty_anchor_factor": 0.7,
+                "bare_url_factor": 0.4,
+                "weak_context_factor": 0.4,
+                "isolated_context_factor": 0.5,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ranking_weight", response.json()["detail"])
+
+    @patch("apps.pipeline.tasks.recalculate_weighted_authority.delay")
+    def test_weighted_authority_recalculate_endpoint_returns_job(self, delay_mock):
+        response = self.client.post("/api/settings/weighted-authority/recalculate/", {}, format="json")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertIn("job_id", response.json())
+        delay_mock.assert_called_once()

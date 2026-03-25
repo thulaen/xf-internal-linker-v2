@@ -22,6 +22,18 @@ class ExistingLink(models.Model):
     Used by the D3.js link graph to show the current link topology.
     """
 
+    EXTRACTION_METHOD_CHOICES = [
+        ("bbcode_anchor", "BBCode Anchor"),
+        ("html_anchor", "HTML Anchor"),
+        ("bare_url", "Bare URL"),
+    ]
+
+    CONTEXT_CLASS_CHOICES = [
+        ("contextual", "Contextual"),
+        ("weak_context", "Weak Context"),
+        ("isolated", "Isolated"),
+    ]
+
     from_content_item = models.ForeignKey(
         "content.ContentItem",
         on_delete=models.CASCADE,
@@ -39,6 +51,30 @@ class ExistingLink(models.Model):
         blank=True,
         help_text="The anchor text used for this link on the live forum.",
     )
+    extraction_method = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        choices=EXTRACTION_METHOD_CHOICES,
+        help_text="How this link was extracted from the source body.",
+    )
+    link_ordinal = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Zero-based order of this internal link within the source body.",
+    )
+    source_internal_link_count = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Total resolved internal links on the source item after destination deduplication.",
+    )
+    context_class = models.CharField(
+        max_length=30,
+        blank=True,
+        default="",
+        choices=CONTEXT_CLASS_CHOICES,
+        help_text="Whether the link appears in contextual prose, weak context, or isolated markup.",
+    )
     discovered_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When this link was first detected during a sync.",
@@ -51,6 +87,7 @@ class ExistingLink(models.Model):
         indexes = [
             models.Index(fields=["to_content_item"]),
             models.Index(fields=["from_content_item"]),
+            models.Index(fields=["from_content_item", "link_ordinal"]),
         ]
 
     def __str__(self) -> str:

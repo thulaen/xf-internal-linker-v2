@@ -79,7 +79,14 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
     filterset_fields = ["content_type", "scope", "is_deleted"]
     search_fields = ["title", "content_id"]
-    ordering_fields = ["pagerank_score", "velocity_score", "view_count", "post_date", "created_at"]
+    ordering_fields = [
+        "pagerank_score",
+        "weighted_pagerank_score",
+        "velocity_score",
+        "view_count",
+        "post_date",
+        "created_at",
+    ]
 
     def get_serializer_class(self):
         if self.action == "retrieve" or self.action == "sentences":

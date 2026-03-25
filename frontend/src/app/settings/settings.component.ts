@@ -14,6 +14,7 @@ import {
   SiloMode,
   SiloSettings,
   SiloSettingsService,
+  WeightedAuthoritySettings,
   WordPressSettings,
   WordPressSettingsUpdate,
 } from './silo-settings.service';
@@ -41,7 +42,9 @@ export class SettingsComponent implements OnInit {
 
   loading = true;
   savingSettings = false;
+  savingWeightedAuthority = false;
   savingWordPress = false;
+  recalculatingWeightedAuthority = false;
   runningWordPressSync = false;
   creatingGroup = false;
 
@@ -49,6 +52,14 @@ export class SettingsComponent implements OnInit {
     mode: 'disabled',
     same_silo_boost: 0,
     cross_silo_penalty: 0,
+  };
+  weightedAuthority: WeightedAuthoritySettings = {
+    ranking_weight: 0,
+    position_bias: 0.5,
+    empty_anchor_factor: 0.6,
+    bare_url_factor: 0.35,
+    weak_context_factor: 0.75,
+    isolated_context_factor: 0.45,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -101,14 +112,23 @@ export class SettingsComponent implements OnInit {
     this.siloSvc.getSettings().subscribe({
       next: (settings) => {
         this.settings = settings;
-        this.siloSvc.getWordPressSettings().subscribe({
-          next: (wordpress) => {
-            this.wordpress = wordpress;
-            this.loadGroupsAndScopes();
+        this.siloSvc.getWeightedAuthoritySettings().subscribe({
+          next: (weightedAuthority) => {
+            this.weightedAuthority = weightedAuthority;
+            this.siloSvc.getWordPressSettings().subscribe({
+              next: (wordpress) => {
+                this.wordpress = wordpress;
+                this.loadGroupsAndScopes();
+              },
+              error: () => {
+                this.loading = false;
+                this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+              },
+            });
           },
           error: () => {
             this.loading = false;
-            this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+            this.snack.open('Failed to load weighted authority settings', 'Dismiss', { duration: 4000 });
           },
         });
       },
@@ -152,6 +172,35 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingSettings = false;
         this.snack.open(error?.error?.detail || 'Failed to save silo settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveWeightedAuthoritySettings(): void {
+    this.savingWeightedAuthority = true;
+    this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority).subscribe({
+      next: (weightedAuthority) => {
+        this.weightedAuthority = weightedAuthority;
+        this.savingWeightedAuthority = false;
+        this.snack.open('Weighted authority settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingWeightedAuthority = false;
+        this.snack.open(error?.error?.detail || 'Failed to save weighted authority settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  recalculateWeightedAuthority(): void {
+    this.recalculatingWeightedAuthority = true;
+    this.siloSvc.recalculateWeightedAuthority().subscribe({
+      next: (response) => {
+        this.recalculatingWeightedAuthority = false;
+        this.snack.open(`Weighted authority recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+      },
+      error: (error) => {
+        this.recalculatingWeightedAuthority = false;
+        this.snack.open(error?.error?.detail || 'Failed to start weighted authority recalculation', 'Dismiss', { duration: 4000 });
       },
     });
   }

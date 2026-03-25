@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 from urllib.parse import urlparse
 
 from django.conf import settings
@@ -13,58 +14,106 @@ logger = logging.getLogger(__name__)
 def sync_existing_links(content_item: ContentItem, edges: list[LinkEdge]) -> int:
     """
     Update ExistingLink records for a single host ContentItem.
-    
-    Reconciles the parsed LinkEdge list with the database, adding new links
-    and removing ones that no longer exist in the raw BBCode.
-    
+
+    Reconciles the parsed LinkEdge list with the database, adding new links,
+    updating retained links in place, and removing ones that no longer exist
+    in the raw source content.
+
     Returns:
         Number of links currently active for this item.
     """
     with transaction.atomic():
-        # Get current links from this host
-        existing_qs = ExistingLink.objects.filter(from_content_item=content_item).select_related("to_content_item")
-        
-        # Build a map of existing links to aid reconciliation
-        # Key: (to_content_id, to_content_type, anchor_text)
-        current_map = {
-            (el.to_content_item.content_id, el.to_content_item.content_type, el.anchor_text): el
-            for el in existing_qs
-        }
-        
-        target_keys = set()
-        new_links = []
-        
+        existing_qs = (
+            ExistingLink.objects
+            .filter(from_content_item=content_item)
+            .select_related("to_content_item")
+            .order_by("pk")
+        )
+
+        current_map: dict[tuple[int, str], list[ExistingLink]] = defaultdict(list)
+        for existing_link in existing_qs:
+            current_map[
+                (existing_link.to_content_item.content_id, existing_link.to_content_item.content_type)
+            ].append(existing_link)
+
+        destination_ids_by_type: dict[str, set[int]] = defaultdict(set)
         for edge in edges:
-            key = (edge.to_content_id, edge.to_content_type, edge.anchor_text)
+            destination_ids_by_type[edge.to_content_type].add(edge.to_content_id)
+
+        destination_map: dict[tuple[int, str], ContentItem] = {}
+        for content_type, content_ids in destination_ids_by_type.items():
+            for destination in ContentItem.objects.filter(
+                content_type=content_type,
+                content_id__in=content_ids,
+            ):
+                destination_map[(destination.content_id, destination.content_type)] = destination
+
+        target_keys: set[tuple[int, str]] = set()
+        new_links: list[ExistingLink] = []
+        updated_links: list[ExistingLink] = []
+        duplicate_ids_to_delete: list[int] = []
+
+        for edge in edges:
+            key = (edge.to_content_id, edge.to_content_type)
             target_keys.add(key)
-            
-            if key not in current_map:
-                # Find the destination ContentItem
-                try:
-                    to_item = ContentItem.objects.get(
-                        content_id=edge.to_content_id,
-                        content_type=edge.to_content_type
-                    )
-                    new_links.append(ExistingLink(
-                        from_content_item=content_item,
-                        to_content_item=to_item,
-                        anchor_text=edge.anchor_text
-                    ))
-                except ContentItem.DoesNotExist:
-                    # Skip links to items we haven't indexed yet
-                    continue
-        
-        # Bulk create new links
+
+            current_links = current_map.get(key, [])
+            if current_links:
+                primary = current_links[0]
+                duplicate_ids_to_delete.extend(link.pk for link in current_links[1:])
+                changed = False
+                for field_name in [
+                    "anchor_text",
+                    "extraction_method",
+                    "link_ordinal",
+                    "source_internal_link_count",
+                    "context_class",
+                ]:
+                    value = getattr(edge, field_name)
+                    if getattr(primary, field_name) != value:
+                        setattr(primary, field_name, value)
+                        changed = True
+                if changed:
+                    updated_links.append(primary)
+                continue
+
+            to_item = destination_map.get(key)
+            if to_item is None:
+                continue
+            new_links.append(ExistingLink(
+                from_content_item=content_item,
+                to_content_item=to_item,
+                anchor_text=edge.anchor_text,
+                extraction_method=edge.extraction_method,
+                link_ordinal=edge.link_ordinal,
+                source_internal_link_count=edge.source_internal_link_count,
+                context_class=edge.context_class,
+            ))
+
         if new_links:
-            ExistingLink.objects.bulk_create(new_links, ignore_conflicts=True)
-            
-        # Delete links that are no longer present
-        to_delete_ids = [
-            el.pk for key, el in current_map.items() if key not in target_keys
-        ]
+            ExistingLink.objects.bulk_create(new_links)
+
+        if updated_links:
+            ExistingLink.objects.bulk_update(
+                updated_links,
+                [
+                    "anchor_text",
+                    "extraction_method",
+                    "link_ordinal",
+                    "source_internal_link_count",
+                    "context_class",
+                ],
+            )
+
+        to_delete_ids = list(duplicate_ids_to_delete)
+        for key, current_links in current_map.items():
+            if key in target_keys:
+                continue
+            to_delete_ids.extend(link.pk for link in current_links)
+
         if to_delete_ids:
             ExistingLink.objects.filter(pk__in=to_delete_ids).delete()
-            
+
     return len(target_keys)
 
 

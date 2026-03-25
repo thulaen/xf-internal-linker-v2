@@ -35,9 +35,9 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active delivery phase completed this session: Phase 8
-- FR cross-reference: `FR-003 - WordPress Cross-Linking`
-- Status: complete in repo and locally verified; pending only operator-supplied live credentials/base URLs
+- Active delivery phase completed this session: Phase 9
+- FR cross-reference: `FR-006 - Weighted Link Graph / Reasonable Surfer Scoring`
+- Status: complete in repo and locally verified against `docs/specs/fr006-weighted-link-graph.md`
 
 ## User Communication Preference
 
@@ -56,6 +56,13 @@ Phase 8 shipped:
 - local verification path repaired with Python 3.12 project environment, Django test settings, and Angular 20 build verified under Node.js 22
 - frontend npm audit is clean after the Angular 20 toolchain uplift, and frontend `test:ci` now passes via a checked-in smoke test around the HTML-highlighting utility
 
+Phase 9 shipped:
+- ordered mixed-syntax internal-link extraction with persisted weighted-edge evidence on `ExistingLink`
+- separate `weighted_pagerank_score` authority computation path with source-row normalization, bounded weighting, and uniform-row fallback
+- separate weighted-authority settings API, recalculation task, pipeline snapshotting, and minimal Angular settings controls
+- review/admin/content diagnostics now show standard `pagerank_score` beside weighted authority instead of replacing it
+- spec-derived backend tests and Angular review smoke coverage pass locally
+
 ## What Is Complete
 
 ### Platform and Core Flow
@@ -72,6 +79,7 @@ Phase 8 shipped:
 - `FR-004`: broken-link detection model, scanner task, API, dashboard surfacing, Angular link-health page
 - Phase 8 / `FR-003`: WordPress cross-linking and settings/sync experience
 - Phase 8 verification closure: local backend/frontend verification path repaired and passing
+- Phase 9 / `FR-006`: weighted link graph, separate weighted authority storage, settings, diagnostics, and review exposure implemented from `docs/specs/fr006-weighted-link-graph.md`
 
 ## Execution Ledger
 
@@ -88,8 +96,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 6 | n/a | Complete | Dashboard |
 | 7 | FR-005 | Complete | Link siloing and topical authority enforcement |
 | 8 | FR-003 | Complete | WordPress cross-linking |
-| 9 | FR-006 | Next | Weighted Link Graph / Reasonable Surfer Scoring |
-| 10 | FR-007 | Queued | Link Freshness Authority |
+| 9 | FR-006 | Complete | Weighted Link Graph / Reasonable Surfer Scoring |
+| 10 | FR-007 | Next | Link Freshness Authority |
 | 11 | FR-008 | Queued | Phrase-Based Matching & Anchor Expansion |
 | 12 | FR-009 | Queued | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Queued | Rare-Term Propagation Across Related Pages |
@@ -101,9 +109,20 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 9 / `FR-006 - Weighted Link Graph / Reasonable Surfer Scoring`
-- Scope reminder: add weighted authority as a separate signal without replacing `pagerank_score`
+- Next exact target: Phase 10 / `FR-007 - Link Freshness Authority`
+- Phase 9 reference: `FR-006` was implemented exactly against `docs/specs/fr006-weighted-link-graph.md`
+- Scope reminder: keep freshness authority separate from `pagerank_score`, weighted authority, and engagement velocity
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
+
+## Spec Standards for Patent-Derived Phases
+
+Every phase that introduces new math or a patent-derived signal requires a dedicated spec pass before any implementation pass.
+
+- Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
+- The spec must include a source summary, a math-fidelity note, a full implementation spec, and a test plan. Use `docs/specs/fr006-weighted-link-graph.md` as the quality model.
+- FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features — the boundary is intentional.
+- FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features — the boundary is intentional.
+- All other patent-inspired phases follow the same two-pass pattern: spec first, implement second, each in its own session.
 
 ## Session Workflow
 

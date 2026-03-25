@@ -22,13 +22,13 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             "suggestions_created", "destinations_processed", "destinations_skipped",
             "duration_seconds", "duration_display",
             "error_message", "celery_task_id",
-            "host_scope", "destination_scope",
+            "host_scope", "destination_scope", "config_snapshot",
             "created_at", "updated_at",
         ]
         read_only_fields = [
             "run_id", "run_state", "suggestions_created",
             "destinations_processed", "destinations_skipped",
-            "duration_seconds", "celery_task_id", "error_message",
+            "duration_seconds", "celery_task_id", "error_message", "config_snapshot",
             "created_at", "updated_at",
         ]
 
@@ -103,6 +103,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
     host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
     host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
     same_silo = serializers.SerializerMethodField()
+    score_weighted_pagerank_delta = serializers.SerializerMethodField()
 
     class Meta:
         model = Suggestion
@@ -110,7 +111,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "suggestion_id", "pipeline_run",
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
-            "score_quality", "score_pagerank", "score_velocity",
+            "score_quality", "score_pagerank", "score_weighted_pagerank", "score_weighted_pagerank_delta", "score_velocity",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -127,7 +128,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_pagerank", "score_velocity",
+            "score_node_affinity", "score_quality", "score_pagerank", "score_weighted_pagerank", "score_weighted_pagerank_delta", "score_velocity",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -155,6 +156,9 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
             return False
         return destination_scope.silo_group_id == host_scope.silo_group_id
+
+    def get_score_weighted_pagerank_delta(self, obj: Suggestion) -> float:
+        return float((obj.score_weighted_pagerank or 0.0) - (obj.score_pagerank or 0.0))
 
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):

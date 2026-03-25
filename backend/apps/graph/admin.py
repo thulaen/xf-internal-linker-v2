@@ -12,11 +12,30 @@ from .models import BrokenLink, ExistingLink
 class ExistingLinkAdmin(ModelAdmin):
     """Admin for links that already exist on the live forum."""
 
-    list_display = ["from_content_item", "to_content_item", "anchor_preview", "discovered_at"]
+    list_display = [
+        "from_content_item",
+        "to_content_item",
+        "anchor_preview",
+        "extraction_method",
+        "link_ordinal",
+        "source_internal_link_count",
+        "context_class",
+        "discovered_at",
+    ]
+    list_filter = ["extraction_method", "context_class", "discovered_at"]
     search_fields = [
         "from_content_item__title", "to_content_item__title", "anchor_text",
     ]
-    readonly_fields = ["from_content_item", "to_content_item", "anchor_text", "discovered_at"]
+    readonly_fields = [
+        "from_content_item",
+        "to_content_item",
+        "anchor_text",
+        "extraction_method",
+        "link_ordinal",
+        "source_internal_link_count",
+        "context_class",
+        "discovered_at",
+    ]
     ordering = ["-discovered_at"]
     list_per_page = 100
 

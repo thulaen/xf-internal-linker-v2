@@ -15,6 +15,8 @@ from apps.core.views import (
     FaviconUploadView,
     LogoUploadView,
     SiloSettingsView,
+    WeightedAuthorityRecalculateView,
+    WeightedAuthoritySettingsView,
     WordPressSettingsView,
     WordPressSyncRunView,
 )
@@ -46,6 +48,8 @@ urlpatterns = [
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
     path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),
+    path("settings/weighted-authority/", WeightedAuthoritySettingsView.as_view(), name="weighted-authority-settings"),
+    path("settings/weighted-authority/recalculate/", WeightedAuthorityRecalculateView.as_view(), name="weighted-authority-recalculate"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),

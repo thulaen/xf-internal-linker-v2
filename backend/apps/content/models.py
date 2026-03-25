@@ -187,6 +187,11 @@ class ContentItem(TimestampedModel):
         db_index=True,
         help_text="PageRank authority score (higher = more linked-to). Recalculated after each sync.",
     )
+    weighted_pagerank_score = models.FloatField(
+        default=0.0,
+        db_index=True,
+        help_text="Weighted authority score based on edge prominence and context. Separate from standard PageRank.",
+    )
     velocity_score = models.FloatField(
         default=0.0,
         db_index=True,
@@ -252,6 +257,7 @@ class ContentItem(TimestampedModel):
         unique_together = [["content_id", "content_type"]]
         indexes = [
             models.Index(fields=["content_type", "pagerank_score"]),
+            models.Index(fields=["content_type", "weighted_pagerank_score"]),
             models.Index(fields=["content_type", "velocity_score"]),
             models.Index(fields=["is_deleted"]),
         ]

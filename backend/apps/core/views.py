@@ -12,6 +12,7 @@ GET    /api/dashboard/           → aggregated stats for the dashboard
 """
 
 import json
+import math
 import os
 import uuid
 from urllib.parse import urlparse
@@ -53,6 +54,15 @@ DEFAULT_WORDPRESS_SETTINGS = {
     "sync_enabled": False,
     "sync_hour": 3,
     "sync_minute": 0,
+}
+
+DEFAULT_WEIGHTED_AUTHORITY_SETTINGS = {
+    "ranking_weight": 0.0,
+    "position_bias": 0.5,
+    "empty_anchor_factor": 0.6,
+    "bare_url_factor": 0.35,
+    "weak_context_factor": 0.75,
+    "isolated_context_factor": 0.45,
 }
 
 # Allowed MIME types for site asset uploads
@@ -153,6 +163,40 @@ def get_wordpress_runtime_config() -> dict[str, str]:
     }
 
 
+def get_weighted_authority_settings() -> dict[str, float]:
+    """Load persisted weighted-authority settings with defensive defaults."""
+    settings = _read_weighted_authority_settings()
+    try:
+        return _validate_weighted_authority_settings(
+            settings,
+            current=dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS)
+
+
+def _read_weighted_authority_settings() -> dict[str, float]:
+    """Read weighted-authority settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    return {
+        "ranking_weight": _read_float("weighted_authority.ranking_weight", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["ranking_weight"]),
+        "position_bias": _read_float("weighted_authority.position_bias", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["position_bias"]),
+        "empty_anchor_factor": _read_float("weighted_authority.empty_anchor_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["empty_anchor_factor"]),
+        "bare_url_factor": _read_float("weighted_authority.bare_url_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["bare_url_factor"]),
+        "weak_context_factor": _read_float("weighted_authority.weak_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["weak_context_factor"]),
+        "isolated_context_factor": _read_float("weighted_authority.isolated_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["isolated_context_factor"]),
+    }
+
+
 def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
     current = get_wordpress_settings()
 
@@ -211,6 +255,55 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
         "sync_hour": sync_hour,
         "sync_minute": sync_minute,
     }
+
+
+def _validate_weighted_authority_settings(
+    payload: dict,
+    *,
+    current: dict[str, float] | None = None,
+) -> dict[str, float]:
+    current = current or _read_weighted_authority_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "position_bias": _coerce_float("position_bias"),
+        "empty_anchor_factor": _coerce_float("empty_anchor_factor"),
+        "bare_url_factor": _coerce_float("bare_url_factor"),
+        "weak_context_factor": _coerce_float("weak_context_factor"),
+        "isolated_context_factor": _coerce_float("isolated_context_factor"),
+    }
+
+    bounds = {
+        "ranking_weight": (0.0, 0.25),
+        "position_bias": (0.0, 1.0),
+        "empty_anchor_factor": (0.1, 1.0),
+        "bare_url_factor": (0.1, 1.0),
+        "weak_context_factor": (0.1, 1.0),
+        "isolated_context_factor": (0.1, 1.0),
+    }
+    for key, (minimum, maximum) in bounds.items():
+        value = validated[key]
+        if value < minimum or value > maximum:
+            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+
+    if validated["isolated_context_factor"] > validated["weak_context_factor"]:
+        raise ValueError("isolated_context_factor must be <= weak_context_factor.")
+    if validated["weak_context_factor"] > 1.0:
+        raise ValueError("weak_context_factor must be <= 1.0.")
+    if validated["bare_url_factor"] > 1.0:
+        raise ValueError("bare_url_factor must be <= 1.0.")
+
+    return validated
 
 
 def _sync_wordpress_periodic_task(config: dict[str, object]) -> None:
@@ -341,6 +434,75 @@ class SiloSettingsView(APIView):
                 },
             )
         return Response(validated)
+
+
+class WeightedAuthoritySettingsView(APIView):
+    """
+    GET  /api/settings/weighted-authority/ - returns weighted-authority settings
+    PUT  /api/settings/weighted-authority/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_weighted_authority_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_weighted_authority_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "weighted_authority.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "description": "Ranking weight applied to the normalized weighted authority signal.",
+            },
+            "weighted_authority.position_bias": {
+                "value": str(validated["position_bias"]),
+                "description": "How much later links are down-weighted within a source page.",
+            },
+            "weighted_authority.empty_anchor_factor": {
+                "value": str(validated["empty_anchor_factor"]),
+                "description": "Multiplier applied when a non-bare link has blank anchor text.",
+            },
+            "weighted_authority.bare_url_factor": {
+                "value": str(validated["bare_url_factor"]),
+                "description": "Multiplier applied to naked URL links.",
+            },
+            "weighted_authority.weak_context_factor": {
+                "value": str(validated["weak_context_factor"]),
+                "description": "Multiplier applied to links with prose on only one side.",
+            },
+            "weighted_authority.isolated_context_factor": {
+                "value": str(validated["isolated_context_factor"]),
+                "description": "Multiplier applied to isolated or list-like links.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": "float",
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class WeightedAuthorityRecalculateView(APIView):
+    """POST /api/settings/weighted-authority/recalculate/ - recalculate weighted authority."""
+
+    def post(self, request):
+        from apps.pipeline.tasks import recalculate_weighted_authority
+
+        job_id = str(uuid.uuid4())
+        recalculate_weighted_authority.delay(job_id=job_id)
+        return Response({"job_id": job_id}, status=202)
 
 
 class WordPressSettingsView(APIView):

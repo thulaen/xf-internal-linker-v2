@@ -55,6 +55,15 @@ export interface WordPressSettingsUpdate {
   app_password?: string;
 }
 
+export interface WeightedAuthoritySettings {
+  ranking_weight: number;
+  position_bias: number;
+  empty_anchor_factor: number;
+  bare_url_factor: number;
+  weak_context_factor: number;
+  isolated_context_factor: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -99,6 +108,18 @@ export class SiloSettingsService {
 
   getWordPressSettings(): Observable<WordPressSettings> {
     return this.http.get<WordPressSettings>('/api/settings/wordpress/');
+  }
+
+  getWeightedAuthoritySettings(): Observable<WeightedAuthoritySettings> {
+    return this.http.get<WeightedAuthoritySettings>('/api/settings/weighted-authority/');
+  }
+
+  updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
+    return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
+  }
+
+  recalculateWeightedAuthority(): Observable<{ job_id: string }> {
+    return this.http.post<{ job_id: string }>('/api/settings/weighted-authority/recalculate/', {});
   }
 
   updateWordPressSettings(payload: WordPressSettingsUpdate): Observable<WordPressSettings> {

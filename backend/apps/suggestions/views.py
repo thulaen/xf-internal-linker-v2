@@ -46,10 +46,15 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["post"])
     def start(self, request) -> Response:
         """Create a new PipelineRun and dispatch it to Celery."""
+        from apps.core.views import get_weighted_authority_settings
+
         run = PipelineRun.objects.create(
             rerun_mode=request.data.get("rerun_mode", "skip_pending"),
             host_scope=request.data.get("host_scope", {}),
             destination_scope=request.data.get("destination_scope", {}),
+            config_snapshot={
+                "weighted_authority": get_weighted_authority_settings(),
+            },
         )
         from apps.pipeline.tasks import run_pipeline as _task
         _task.delay(

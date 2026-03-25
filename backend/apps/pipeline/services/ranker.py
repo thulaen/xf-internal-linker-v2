@@ -65,6 +65,7 @@ class ContentRecord:
     silo_group_name: str
     reply_count: int
     pagerank_score: float
+    weighted_pagerank_score: float
     primary_post_char_count: int
     tokens: frozenset[str]
 
@@ -231,16 +232,25 @@ def log_minmax_normalize_pagerank(
     pagerank_max: float,
 ) -> float:
     """Logarithmic min-max normalization for PageRank-based quality override."""
-    if pagerank_min == pagerank_max:
+    return log_minmax_normalize_score(pagerank_score, pagerank_min, pagerank_max)
+
+
+def log_minmax_normalize_score(
+    score: float,
+    score_min: float,
+    score_max: float,
+) -> float:
+    """Logarithmic min-max normalization for positive authority-like scores."""
+    if score_min == score_max:
         return 0.0
 
     epsilon = 1e-9
-    min_log = math.log(pagerank_min + epsilon)
-    max_log = math.log(pagerank_max + epsilon)
+    min_log = math.log(score_min + epsilon)
+    max_log = math.log(score_max + epsilon)
     if min_log == max_log:
         return 0.0
 
-    score_log = math.log(pagerank_score + epsilon)
+    score_log = math.log(score + epsilon)
     normalized = (score_log - min_log) / (max_log - min_log)
     return max(0.0, min(1.0, normalized))
 
@@ -255,6 +265,16 @@ def derive_pagerank_bounds(
     return (min(scores), max(scores))
 
 
+def derive_weighted_pagerank_bounds(
+    content_records: Mapping[ContentKey, ContentRecord],
+) -> tuple[float, float]:
+    """Return the global min/max weighted authority scores."""
+    if not content_records:
+        return (0.0, 0.0)
+    scores = [record.weighted_pagerank_score for record in content_records.values()]
+    return (min(scores), max(scores))
+
+
 def score_destination_matches(
     destination: ContentRecord,
     sentence_matches: list[SentenceSemanticMatch],
@@ -264,6 +284,8 @@ def score_destination_matches(
     existing_links: set[ExistingLinkKey],
     weights: Mapping[str, float],
     pagerank_bounds: tuple[float, float],
+    weighted_pagerank_bounds: tuple[float, float] = (0.0, 0.0),
+    weighted_authority_ranking_weight: float = 0.0,
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -273,6 +295,7 @@ def score_destination_matches(
 ) -> list[ScoredCandidate]:
     """Apply composite scoring plus local anti-junk filters for one destination."""
     pagerank_min, pagerank_max = pagerank_bounds
+    weighted_pagerank_min, weighted_pagerank_max = weighted_pagerank_bounds
     ranked: list[ScoredCandidate] = []
 
     for match in sentence_matches:
@@ -317,12 +340,22 @@ def score_destination_matches(
             pagerank_min,
             pagerank_max,
         )
+        score_weighted_authority_component = (
+            log_minmax_normalize_score(
+                destination.weighted_pagerank_score,
+                weighted_pagerank_min,
+                weighted_pagerank_max,
+            )
+            if weighted_authority_ranking_weight > 0.0
+            else 0.0
+        )
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
             + float(weights.get("w_keyword", 0.0)) * score_keyword
             + float(weights.get("w_node", 0.0)) * score_node
             + float(weights.get("w_quality", 0.0)) * score_quality
+            + float(weighted_authority_ranking_weight) * score_weighted_authority_component
             + score_silo
         )
 

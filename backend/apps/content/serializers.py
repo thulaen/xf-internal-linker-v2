@@ -71,7 +71,7 @@ class ContentItemListSerializer(serializers.ModelSerializer):
         fields = [
             "id", "content_id", "content_type", "content_type_label", "source_label",
             "title", "url", "scope", "scope_title",
-            "pagerank_score", "velocity_score",
+            "pagerank_score", "weighted_pagerank_score", "velocity_score",
             "view_count", "reply_count",
             "post_date", "is_deleted",
             "created_at", "updated_at",
@@ -98,7 +98,7 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
             "id", "content_id", "content_type", "content_type_label", "source_label",
             "title", "url", "scope", "scope_title",
             "distilled_text", "distill_method", "content_hash",
-            "pagerank_score", "velocity_score",
+            "pagerank_score", "weighted_pagerank_score", "velocity_score",
             "view_count", "reply_count", "download_count",
             "post_date", "last_post_date",
             "xf_post_id", "xf_update_id",

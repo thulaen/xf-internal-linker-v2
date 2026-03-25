@@ -45,6 +45,8 @@ export interface SuggestionDetail extends Suggestion {
   score_node_affinity: number;
   score_quality: number;
   score_pagerank: number;
+  score_weighted_pagerank: number;
+  score_weighted_pagerank_delta: number;
   score_velocity: number;
   host_sentence: number;
   anchor_start: number | null;
