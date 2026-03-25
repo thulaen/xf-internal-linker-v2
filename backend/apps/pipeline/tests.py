@@ -7,6 +7,11 @@ from django.utils import timezone
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
 from apps.core.models import AppSetting
 from apps.graph.models import ExistingLink
+from apps.pipeline.services.learned_anchor import (
+    LearnedAnchorInputRow,
+    LearnedAnchorSettings,
+    evaluate_learned_anchor_corroboration,
+)
 from apps.pipeline.services.link_freshness import (
     LinkFreshnessPeerRow,
     LinkFreshnessSettings,
@@ -567,6 +572,57 @@ class PhraseMatchingServiceTests(TestCase):
         self.assertEqual(result.anchor_phrase, "internal linking guide")
 
 
+class LearnedAnchorServiceTests(TestCase):
+    def test_exact_family_and_host_canonical_states_are_explainable(self):
+        rows = [
+            LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+            LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
+            LearnedAnchorInputRow(source_content_id=3, anchor_text="Internal Linking Guides"),
+            LearnedAnchorInputRow(source_content_id=4, anchor_text="click here"),
+        ]
+
+        exact = evaluate_learned_anchor_corroboration(
+            candidate_anchor_text="Internal Linking Guide",
+            host_sentence_text="This internal linking guide helps editors.",
+            inbound_anchor_rows=rows,
+            settings=LearnedAnchorSettings(),
+        )
+        family = evaluate_learned_anchor_corroboration(
+            candidate_anchor_text="Internal Linking",
+            host_sentence_text="This internal linking helps editors.",
+            inbound_anchor_rows=rows,
+            settings=LearnedAnchorSettings(),
+        )
+        host_contains = evaluate_learned_anchor_corroboration(
+            candidate_anchor_text="Editor workflow",
+            host_sentence_text="This internal linking guide helps editors.",
+            inbound_anchor_rows=rows,
+            settings=LearnedAnchorSettings(),
+        )
+
+        self.assertGreater(exact.score_learned_anchor_corroboration, 0.5)
+        self.assertEqual(exact.learned_anchor_diagnostics["learned_anchor_state"], "exact_variant_match")
+        self.assertEqual(exact.learned_anchor_diagnostics["usable_inbound_anchor_sources"], 3)
+        self.assertGreater(family.score_learned_anchor_corroboration, 0.5)
+        self.assertEqual(family.learned_anchor_diagnostics["learned_anchor_state"], "family_match")
+        self.assertEqual(host_contains.score_learned_anchor_corroboration, 0.5)
+        self.assertEqual(host_contains.learned_anchor_diagnostics["learned_anchor_state"], "host_contains_canonical_variant")
+        self.assertEqual(host_contains.learned_anchor_diagnostics["recommended_canonical_anchor"], "Internal Linking Guide")
+
+    def test_thin_history_stays_neutral(self):
+        result = evaluate_learned_anchor_corroboration(
+            candidate_anchor_text="Internal Linking Guide",
+            host_sentence_text="This internal linking guide helps editors.",
+            inbound_anchor_rows=[
+                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+            ],
+            settings=LearnedAnchorSettings(minimum_anchor_sources=2),
+        )
+
+        self.assertEqual(result.score_learned_anchor_corroboration, 0.5)
+        self.assertEqual(result.learned_anchor_diagnostics["learned_anchor_state"], "neutral_below_min_sources")
+
+
 class PhraseRankerIntegrationTests(TestCase):
     def setUp(self):
         self.destination = _content_record(content_id=101, silo_group_id=None)
@@ -736,6 +792,194 @@ class PhraseRankerIntegrationTests(TestCase):
 
         self.assertAlmostEqual(result_a.score_phrase_relevance, result_b.score_phrase_relevance, places=6)
         self.assertEqual(result_a.anchor_phrase, result_b.anchor_phrase)
+
+
+class LearnedAnchorRankerIntegrationTests(TestCase):
+    def setUp(self):
+        self.destination = _content_record(content_id=301, silo_group_id=None)
+        self.host = _content_record(content_id=302, silo_group_id=None)
+        self.weights = {
+            "w_semantic": 0.55,
+            "w_keyword": 0.20,
+            "w_node": 0.10,
+            "w_quality": 0.15,
+        }
+        self.bounds = (0.1, 2.0)
+        self.learned_rows = {
+            self.destination.key: [
+                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(source_content_id=3, anchor_text="Internal Linking Guides"),
+            ]
+        }
+
+    def test_learned_anchor_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(self):
+        destination = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Linking Guide",
+            distilled_text="Internal linking guide notes for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=self.destination.march_2026_pagerank_score,
+            link_freshness_score=self.destination.link_freshness_score,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"internal", "linking", "guide"}),
+        )
+        records = {destination.key: destination, self.host.key: self.host}
+        sentence_records = {
+            40: SentenceRecord(
+                40,
+                self.host.content_id,
+                self.host.content_type,
+                "The internal linking guide gives editors a safe anchor pattern.",
+                80,
+                frozenset({"internal", "linking", "guide", "editors", "anchor"}),
+            )
+        }
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(self.host.content_id, self.host.content_type, 40, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            learned_anchor_settings=LearnedAnchorSettings(ranking_weight=0.0),
+        )[0]
+        enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(self.host.content_id, self.host.content_type, 40, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            learned_anchor_settings=LearnedAnchorSettings(ranking_weight=0.1),
+        )[0]
+
+        self.assertGreater(baseline.score_learned_anchor_corroboration, 0.5)
+        self.assertAlmostEqual(
+            enabled.score_final,
+            baseline.score_final + 0.1 * (2 * (baseline.score_learned_anchor_corroboration - 0.5)),
+            places=6,
+        )
+
+    def test_learned_anchor_signal_ignores_authority_freshness_and_velocity_inputs(self):
+        destination_a = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Linking Guide",
+            distilled_text="Internal linking guide notes for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=0.1,
+            link_freshness_score=0.2,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"internal", "linking", "guide"}),
+        )
+        destination_b = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Linking Guide",
+            distilled_text="Internal linking guide notes for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=2.0,
+            link_freshness_score=0.9,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"internal", "linking", "guide"}),
+        )
+        host = ContentRecord(
+            content_id=self.host.content_id,
+            content_type=self.host.content_type,
+            title=self.host.title,
+            distilled_text=self.host.distilled_text,
+            scope_id=self.host.scope_id,
+            scope_type=self.host.scope_type,
+            parent_id=self.host.parent_id,
+            parent_type=self.host.parent_type,
+            grandparent_id=self.host.grandparent_id,
+            grandparent_type=self.host.grandparent_type,
+            silo_group_id=self.host.silo_group_id,
+            silo_group_name=self.host.silo_group_name,
+            reply_count=99,
+            march_2026_pagerank_score=1.8,
+            link_freshness_score=self.host.link_freshness_score,
+            primary_post_char_count=900,
+            tokens=self.host.tokens,
+        )
+        sentence_records = {
+            41: SentenceRecord(
+                41,
+                host.content_id,
+                host.content_type,
+                "The internal linking guide gives editors a safe anchor pattern.",
+                80,
+                frozenset({"internal", "linking", "guide", "editors", "anchor"}),
+            )
+        }
+
+        result_a = score_destination_matches(
+            destination_a,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 41, 0.8)],
+            content_records={destination_a.key: destination_a, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            weighted_authority_ranking_weight=0.25,
+            link_freshness_ranking_weight=0.15,
+            learned_anchor_settings=LearnedAnchorSettings(ranking_weight=0.0),
+        )[0]
+        result_b = score_destination_matches(
+            destination_b,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 41, 0.8)],
+            content_records={destination_b.key: destination_b, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            weighted_authority_ranking_weight=0.25,
+            link_freshness_ranking_weight=0.15,
+            learned_anchor_settings=LearnedAnchorSettings(ranking_weight=0.0),
+        )[0]
+
+        self.assertAlmostEqual(
+            result_a.score_learned_anchor_corroboration,
+            result_b.score_learned_anchor_corroboration,
+            places=6,
+        )
+        self.assertEqual(
+            result_a.learned_anchor_diagnostics["matched_family_canonical"],
+            result_b.learned_anchor_diagnostics["matched_family_canonical"],
+        )
 
 
 class WeightedAuthorityGraphTests(TestCase):

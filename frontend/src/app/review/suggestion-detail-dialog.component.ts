@@ -156,6 +156,56 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return 'Neutral / not enough link history';
   }
 
+  learnedAnchorSummary(): string {
+    const diagnostics = this.detail?.learned_anchor_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means the site does not have enough clean anchor history yet.';
+    }
+    if (diagnostics.learned_anchor_state === 'exact_variant_match' || diagnostics.learned_anchor_state === 'family_match') {
+      return 'Corroborated means the chosen anchor looks like wording the site already uses for this destination.';
+    }
+    if (diagnostics.learned_anchor_state === 'host_contains_canonical_variant') {
+      return 'The sentence already contains a learned site pattern, but this version only reports it and does not auto-swap the anchor.';
+    }
+    return 'Neutral means the site does not have enough clean anchor history yet.';
+  }
+
+  learnedAnchorStateLabel(): string {
+    const state = this.detail?.learned_anchor_diagnostics?.learned_anchor_state ?? 'neutral_no_learned_anchor_data';
+    if (state === 'exact_variant_match') {
+      return 'Exact learned-anchor match';
+    }
+    if (state === 'family_match') {
+      return 'Learned-anchor family match';
+    }
+    if (state === 'host_contains_canonical_variant') {
+      return 'Sentence contains a learned canonical anchor';
+    }
+    if (state === 'neutral_no_anchor_candidate') {
+      return 'Neutral / no anchor candidate';
+    }
+    if (state === 'neutral_below_min_sources') {
+      return 'Neutral / not enough clean anchor sources';
+    }
+    if (state === 'neutral_processing_error') {
+      return 'Neutral / learned-anchor processing error';
+    }
+    return 'Neutral / no useful learned-anchor evidence';
+  }
+
+  learnedAnchorFamiliesSummary(): string {
+    const families = this.detail?.learned_anchor_diagnostics?.top_learned_families ?? [];
+    return families
+      .slice(0, 3)
+      .map((family) => {
+        const alternates = family.alternate_variants.length
+          ? ` (alts: ${family.alternate_variants.slice(0, 3).join(', ')})`
+          : '';
+        return `${family.canonical_anchor}${alternates}`;
+      })
+      .join(' - ');
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

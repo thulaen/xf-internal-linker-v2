@@ -297,3 +297,55 @@ class PhraseMatchingSettingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("ranking_weight", response.json()["detail"])
+
+
+class LearnedAnchorSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="learned-anchor-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_learned_anchor_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/learned-anchor/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "ranking_weight": 0.0,
+                "minimum_anchor_sources": 2,
+                "minimum_family_support_share": 0.15,
+                "enable_noise_filter": True,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/learned-anchor/",
+            {
+                "ranking_weight": 0.04,
+                "minimum_anchor_sources": 3,
+                "minimum_family_support_share": 0.2,
+                "enable_noise_filter": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["ranking_weight"], 0.04)
+        self.assertEqual(AppSetting.objects.get(key="learned_anchor.ranking_weight").value, "0.04")
+        self.assertEqual(AppSetting.objects.get(key="learned_anchor.minimum_anchor_sources").value, "3")
+        self.assertEqual(AppSetting.objects.get(key="learned_anchor.ranking_weight").category, "anchor")
+
+    def test_learned_anchor_validation_rejects_bad_bounds(self):
+        response = self.client.put(
+            "/api/settings/learned-anchor/",
+            {
+                "ranking_weight": 0.2,
+                "minimum_anchor_sources": 0,
+                "minimum_family_support_share": 0.9,
+                "enable_noise_filter": True,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ranking_weight", response.json()["detail"])

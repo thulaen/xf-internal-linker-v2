@@ -16,6 +16,21 @@ Important:
 
 ## COMPLETED
 
+### FR-009 - Learned Anchor Vocabulary & Corroboration
+**Requested:** 2026-03-24
+**Target phase:** Phase 12
+**Completed phase:** Phase 12
+**Completed:** 2026-03-25
+
+- Implemented exactly against `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`.
+- `backend/apps/pipeline/services/learned_anchor.py` now builds bounded learned anchor families from inbound `ExistingLink.anchor_text`, filters generic noise anchors, dedupes support per source page, and keeps missing or thin evidence neutral at `0.5`.
+- `Suggestion.score_learned_anchor_corroboration` and `Suggestion.learned_anchor_diagnostics` store the separate FR-009 learned-anchor signal and explainable corroboration state.
+- Learned Anchors have their own settings API at `GET/PUT /api/settings/learned-anchor/`, their own algorithm version stamp, and pipeline-run snapshot wiring.
+- Suggestion detail, suggestion admin, Angular review detail, and Angular settings now expose the intended FR-009 fields and controls.
+- Local verification passed for the targeted Django FR-009 test slice under `config.settings.test`, SQLite migration drift check, Angular `test:ci`, and Angular build.
+
+---
+
 ### FR-008 - Phrase-Based Matching & Anchor Expansion
 **Requested:** 2026-03-24
 **Target phase:** Phase 11
@@ -117,25 +132,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-009 - Learned Anchor Vocabulary & Corroboration
-**Requested:** 2026-03-24
-**Target phase:** Phase 12
-**Priority:** Medium
-**Patent inspiration:** `US9208229B2`
-**Spec draft:** `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
-**Spec-first pass completed:** 2026-03-25
-**Implementation status:** Pending
-
-- Learn preferred anchor variants per destination from the existing internal-link graph.
-- Surface canonical anchors and alternates in review.
-- Allow reviewers to prefer or disallow anchor variants.
-- Spec-first pass is complete.
-- The new spec keeps FR-009 separate from FR-008 phrase evidence, FR-006 weighted authority, FR-007 freshness, and velocity.
-- The first FR-009 implementation pass is defined as suggestion-level learned-anchor corroboration with neutral fallback and ranking impact off by default.
-- FR-009 is not implemented yet.
-
----
 
 ### FR-010 - Rare-Term Propagation Across Related Pages
 **Requested:** 2026-03-24
@@ -623,4 +619,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 12 / FR-009 spec-first pass is now complete, FR-009 implementation is still pending, the next target is the narrow FR-009 implementation pass, and backlog still includes learned anchors, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 12 / FR-009 learned anchor vocabulary is now complete and verified, the next target is Phase 13 / FR-010, and backlog still includes rare-term propagation, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*

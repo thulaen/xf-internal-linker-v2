@@ -5,7 +5,11 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
-from apps.pipeline.services.algorithm_versions import PHRASE_MATCHING_VERSION, WEIGHTED_AUTHORITY_VERSION
+from apps.pipeline.services.algorithm_versions import (
+    LEARNED_ANCHOR_VERSION,
+    PHRASE_MATCHING_VERSION,
+    WEIGHTED_AUTHORITY_VERSION,
+)
 from apps.graph.models import LinkFreshnessEdge
 from apps.suggestions.models import PipelineRun, Suggestion
 
@@ -115,6 +119,7 @@ class SuggestionSiloApiTests(APITestCase):
         suggestion.score_march_2026_pagerank = 0.35
         suggestion.score_link_freshness = 0.72
         suggestion.score_phrase_relevance = 0.83
+        suggestion.score_learned_anchor_corroboration = 0.91
         suggestion.phrase_match_diagnostics = {
             "score_phrase_relevance": 0.83,
             "phrase_match_state": "computed_exact_title",
@@ -128,12 +133,37 @@ class SuggestionSiloApiTests(APITestCase):
             "context_corroborating_hits": 1,
             "destination_phrase_count": 6,
         }
+        suggestion.learned_anchor_diagnostics = {
+            "score_learned_anchor_corroboration": 0.91,
+            "learned_anchor_state": "exact_variant_match",
+            "candidate_anchor_text": "same",
+            "candidate_anchor_normalized": "same",
+            "matched_family_canonical": "Same",
+            "matched_variant_display": "Same",
+            "family_support_share": 1.0,
+            "variant_support_share": 1.0,
+            "supporting_source_count": 2,
+            "usable_inbound_anchor_sources": 2,
+            "learned_family_count": 1,
+            "top_learned_families": [
+                {
+                    "canonical_anchor": "Same",
+                    "support_share": 1.0,
+                    "supporting_source_count": 2,
+                    "alternate_variants": [],
+                }
+            ],
+            "host_contains_canonical_variant": False,
+            "recommended_canonical_anchor": "Same",
+        }
         suggestion.save(
             update_fields=[
                 "score_march_2026_pagerank",
                 "score_link_freshness",
                 "score_phrase_relevance",
+                "score_learned_anchor_corroboration",
                 "phrase_match_diagnostics",
+                "learned_anchor_diagnostics",
                 "updated_at",
             ]
         )
@@ -152,8 +182,11 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(payload["score_march_2026_pagerank"], 0.35)
         self.assertEqual(payload["score_link_freshness"], 0.72)
         self.assertEqual(payload["score_phrase_relevance"], 0.83)
+        self.assertEqual(payload["score_learned_anchor_corroboration"], 0.91)
         self.assertIn("phrase_match_diagnostics", payload)
+        self.assertIn("learned_anchor_diagnostics", payload)
         self.assertEqual(payload["phrase_match_diagnostics"]["phrase_match_state"], "computed_exact_title")
+        self.assertEqual(payload["learned_anchor_diagnostics"]["learned_anchor_state"], "exact_variant_match")
         self.assertIn("link_freshness_diagnostics", payload)
         self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
 
@@ -186,6 +219,13 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             category="anchor",
             description="Context window",
         )
+        AppSetting.objects.create(
+            key="learned_anchor.minimum_anchor_sources",
+            value="4",
+            value_type="int",
+            category="anchor",
+            description="Minimum anchor sources",
+        )
 
         response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
 
@@ -213,8 +253,14 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         )
         self.assertIn("phrase_matching", run.config_snapshot)
         self.assertEqual(run.config_snapshot["phrase_matching"]["context_window_tokens"], 10)
+        self.assertIn("learned_anchor", run.config_snapshot)
+        self.assertEqual(run.config_snapshot["learned_anchor"]["minimum_anchor_sources"], 4)
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["phrase_matching"],
             PHRASE_MATCHING_VERSION,
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["learned_anchor"],
+            LEARNED_ANCHOR_VERSION,
         )
         delay_mock.assert_called_once()

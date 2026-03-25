@@ -177,6 +177,49 @@
 
     <mat-card class="settings-card">
       <mat-card-header>
+        <mat-card-title>Learned Anchors</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          Learned anchors come from existing live internal links only. Ranking impact is off by default until you set a small non-zero weight.
+        </p>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Ranking weight</mat-label>
+            <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="learnedAnchor.ranking_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Min anchor sources</mat-label>
+            <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="learnedAnchor.minimum_anchor_sources" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Min family support share</mat-label>
+            <input matInput type="number" min="0.05" max="0.5" step="0.05" [(ngModel)]="learnedAnchor.minimum_family_support_share" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Noise filter</mat-label>
+            <mat-select [(ngModel)]="learnedAnchor.enable_noise_filter">
+              <mat-option [value]="true">Enabled</mat-option>
+              <mat-option [value]="false">Disabled</mat-option>
+            </mat-select>
+          </mat-form-field>
+        </div>
+
+        <div class="button-row">
+          <button mat-flat-button color="primary" [disabled]="savingLearnedAnchor" (click)="saveLearnedAnchorSettings()">
+            <mat-icon>save</mat-icon>
+            Save learned anchor settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card">
+      <mat-card-header>
         <mat-card-title>WordPress Sync</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">

@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
 from .ranker import (
     ContentKey,
     ContentRecord,
@@ -99,6 +100,7 @@ def run_pipeline(
     weighted_authority_settings = _load_weighted_authority_settings()
     link_freshness_settings = _load_link_freshness_settings()
     phrase_matching_settings = _load_phrase_matching_settings()
+    learned_anchor_settings = _load_learned_anchor_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -121,6 +123,7 @@ def run_pipeline(
 
     _progress(0.12, "Loading existing links...")
     existing_links = _load_existing_links()
+    learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
 
     _progress(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
@@ -197,11 +200,13 @@ def run_pipeline(
             content_records=content_records,
             sentence_records=sentence_records,
             existing_links=existing_links,
+            learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
             weights=weights,
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
             link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
             phrase_matching_settings=phrase_matching_settings,
+            learned_anchor_settings=learned_anchor_settings,
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -343,6 +348,21 @@ def _load_phrase_matching_settings() -> PhraseMatchingSettings:
         return PhraseMatchingSettings()
 
 
+def _load_learned_anchor_settings() -> LearnedAnchorSettings:
+    try:
+        from apps.core.views import get_learned_anchor_settings
+
+        config = get_learned_anchor_settings()
+        return LearnedAnchorSettings(
+            ranking_weight=float(config.get("ranking_weight", 0.0)),
+            minimum_anchor_sources=int(config.get("minimum_anchor_sources", 2)),
+            minimum_family_support_share=float(config.get("minimum_family_support_share", 0.15)),
+            enable_noise_filter=bool(config.get("enable_noise_filter", True)),
+        )
+    except Exception:
+        return LearnedAnchorSettings()
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
@@ -446,6 +466,29 @@ def _load_existing_links() -> set[ExistingLinkKey]:
         )
         for from_pk, from_type, to_pk, to_type in qs
     }
+
+
+def _load_learned_anchor_rows_by_destination() -> dict[ContentKey, list[LearnedAnchorInputRow]]:
+    from apps.graph.models import ExistingLink
+
+    rows_by_destination: dict[ContentKey, list[LearnedAnchorInputRow]] = defaultdict(list)
+    for row in ExistingLink.objects.values(
+        "to_content_item__pk",
+        "to_content_item__content_type",
+        "from_content_item_id",
+        "anchor_text",
+    ):
+        destination_key: ContentKey = (
+            row["to_content_item__pk"],
+            row["to_content_item__content_type"],
+        )
+        rows_by_destination[destination_key].append(
+            LearnedAnchorInputRow(
+                source_content_id=int(row["from_content_item_id"]),
+                anchor_text=row["anchor_text"] or "",
+            )
+        )
+    return dict(rows_by_destination)
 
 
 def _get_pending_destinations(rerun_mode: str) -> set[ContentKey]:
@@ -728,7 +771,9 @@ def _persist_suggestions(
             score_velocity=dest_ci.velocity_score,
             score_link_freshness=dest_ci.link_freshness_score,
             score_phrase_relevance=candidate.score_phrase_relevance,
+            score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
+            learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
             score_final=candidate.score_final,
             status="pending",
         )

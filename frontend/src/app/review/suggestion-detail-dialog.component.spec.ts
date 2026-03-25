@@ -44,6 +44,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_velocity: 0.1,
     score_link_freshness: 0.5,
     score_phrase_relevance: 0.82,
+    score_learned_anchor_corroboration: 0.91,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -65,6 +66,29 @@ describe('SuggestionDetailDialogComponent', () => {
       context_corroborating_hits: 1,
       destination_phrase_count: 5,
     },
+    learned_anchor_diagnostics: {
+      score_learned_anchor_corroboration: 0.91,
+      learned_anchor_state: 'exact_variant_match',
+      candidate_anchor_text: 'Destination',
+      candidate_anchor_normalized: 'destination',
+      matched_family_canonical: 'Destination',
+      matched_variant_display: 'Destination',
+      family_support_share: 1,
+      variant_support_share: 1,
+      supporting_source_count: 3,
+      usable_inbound_anchor_sources: 3,
+      learned_family_count: 1,
+      top_learned_families: [
+        {
+          canonical_anchor: 'Destination',
+          support_share: 1,
+          supporting_source_count: 3,
+          alternate_variants: [],
+        },
+      ],
+      host_contains_canonical_variant: false,
+      recommended_canonical_anchor: 'Destination',
+    },
     link_freshness_diagnostics: {
       link_freshness_score: 0.5,
       freshness_bucket: 'neutral',
@@ -84,7 +108,7 @@ describe('SuggestionDetailDialogComponent', () => {
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders March 2026 PageRank, Link Freshness, and Phrase Relevance', async () => {
+  it('renders March 2026 PageRank, Link Freshness, Phrase Relevance, and Learned Anchor Corroboration', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -109,5 +133,6 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('March 2026 PageRank');
     expect(text).toContain('Link Freshness');
     expect(text).toContain('Phrase Relevance');
+    expect(text).toContain('Learned Anchor Corroboration');
   });
 });

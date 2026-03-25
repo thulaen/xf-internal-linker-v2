@@ -83,6 +83,13 @@ DEFAULT_PHRASE_MATCHING_SETTINGS = {
     "context_window_tokens": 8,
 }
 
+DEFAULT_LEARNED_ANCHOR_SETTINGS = {
+    "ranking_weight": 0.0,
+    "minimum_anchor_sources": 2,
+    "minimum_family_support_share": 0.15,
+    "enable_noise_filter": True,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -217,6 +224,18 @@ def get_phrase_matching_settings() -> dict[str, float | int | bool]:
         return dict(DEFAULT_PHRASE_MATCHING_SETTINGS)
 
 
+def get_learned_anchor_settings() -> dict[str, float | int | bool]:
+    """Load persisted learned-anchor settings with defensive defaults."""
+    settings = _read_learned_anchor_settings()
+    try:
+        return _validate_learned_anchor_settings(
+            settings,
+            current=dict(DEFAULT_LEARNED_ANCHOR_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_LEARNED_ANCHOR_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -304,6 +323,41 @@ def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
         "enable_anchor_expansion": _read_bool("phrase_matching.enable_anchor_expansion", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"]),
         "enable_partial_matching": _read_bool("phrase_matching.enable_partial_matching", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"]),
         "context_window_tokens": _read_int("phrase_matching.context_window_tokens", DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"]),
+    }
+
+
+def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
+    """Read learned-anchor settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "ranking_weight": _read_float("learned_anchor.ranking_weight", DEFAULT_LEARNED_ANCHOR_SETTINGS["ranking_weight"]),
+        "minimum_anchor_sources": _read_int("learned_anchor.minimum_anchor_sources", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_anchor_sources"]),
+        "minimum_family_support_share": _read_float("learned_anchor.minimum_family_support_share", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_family_support_share"]),
+        "enable_noise_filter": _read_bool("learned_anchor.enable_noise_filter", DEFAULT_LEARNED_ANCHOR_SETTINGS["enable_noise_filter"]),
     }
 
 
@@ -520,6 +574,53 @@ def _validate_phrase_matching_settings(
         raise ValueError("ranking_weight must be between 0.0 and 0.10.")
     if validated["context_window_tokens"] < 4 or validated["context_window_tokens"] > 12:
         raise ValueError("context_window_tokens must be between 4 and 12.")
+
+    return validated
+
+
+def _validate_learned_anchor_settings(
+    payload: dict,
+    *,
+    current: dict[str, float | int | bool] | None = None,
+) -> dict[str, float | int | bool]:
+    current = current or _read_learned_anchor_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    def _coerce_int(key: str) -> int:
+        value = payload.get(key, current[key])
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+
+    def _coerce_bool(key: str) -> bool:
+        value = payload.get(key, current[key])
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "minimum_anchor_sources": _coerce_int("minimum_anchor_sources"),
+        "minimum_family_support_share": _coerce_float("minimum_family_support_share"),
+        "enable_noise_filter": _coerce_bool("enable_noise_filter"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
+        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
+    if validated["minimum_anchor_sources"] < 1 or validated["minimum_anchor_sources"] > 10:
+        raise ValueError("minimum_anchor_sources must be between 1 and 10.")
+    if validated["minimum_family_support_share"] < 0.05 or validated["minimum_family_support_share"] > 0.50:
+        raise ValueError("minimum_family_support_share must be between 0.05 and 0.50.")
 
     return validated
 
@@ -845,6 +946,60 @@ class PhraseMatchingSettingsView(APIView):
                 "value": str(validated["context_window_tokens"]),
                 "value_type": "int",
                 "description": "Same-sentence token window used for FR-008 local corroboration.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "anchor",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class LearnedAnchorSettingsView(APIView):
+    """
+    GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
+    PUT  /api/settings/learned-anchor/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_learned_anchor_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_learned_anchor_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "learned_anchor.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Ranking weight applied to the positive-only FR-009 learned-anchor corroboration component.",
+            },
+            "learned_anchor.minimum_anchor_sources": {
+                "value": str(validated["minimum_anchor_sources"]),
+                "value_type": "int",
+                "description": "Minimum usable inbound anchor sources required before learned anchors stop being neutral.",
+            },
+            "learned_anchor.minimum_family_support_share": {
+                "value": str(validated["minimum_family_support_share"]),
+                "value_type": "float",
+                "description": "Minimum support share a learned anchor family needs before it can corroborate the chosen anchor.",
+            },
+            "learned_anchor.enable_noise_filter": {
+                "value": "true" if validated["enable_noise_filter"] else "false",
+                "value_type": "bool",
+                "description": "Whether generic live anchor text like click here is filtered out before learned-anchor grouping.",
             },
         }
 

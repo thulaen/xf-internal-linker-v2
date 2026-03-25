@@ -15,7 +15,6 @@
 
   @if (detail && !loading) {
 
-    <!-- Status + score header -->
     <div class="detail-header">
       <span class="status-badge status-{{ detail.status }}">{{ detail.status }}</span>
       <span class="score-badge">{{ (detail.score_final * 100).toFixed(0) }} / 100</span>
@@ -28,7 +27,6 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Destination / host -->
     <section class="section">
       <div class="field-row">
         <span class="field-label">Destination</span>
@@ -47,7 +45,6 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Host sentence with anchor highlighted -->
     <section class="section">
       <p class="section-title">Insertion sentence</p>
       <blockquote
@@ -58,7 +55,6 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Anchor editor -->
     <section class="section">
       <p class="section-title">Anchor text</p>
       <div class="anchor-row">
@@ -78,7 +74,6 @@
 
     <mat-divider></mat-divider>
 
-    <!-- Score breakdown -->
     <section class="section">
       <p class="section-title">Score breakdown</p>
       <div class="scores-grid">
@@ -122,6 +117,11 @@
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_phrase_relevance)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_phrase_relevance * 100).toFixed(0) }}</span>
         </div>
+        <div class="score-item">
+          <span class="score-name">Learned Anchor Corroboration</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_learned_anchor_corroboration)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_learned_anchor_corroboration * 100).toFixed(0) }}</span>
+        </div>
       </div>
 
       @if (detail.phrase_match_diagnostics) {
@@ -134,9 +134,9 @@
         </p>
         <p class="meta-line">
           {{ detail.phrase_match_diagnostics.selected_match_type | titlecase }}
-          Â· {{ detail.phrase_match_diagnostics.selected_phrase_source | titlecase }}
-          Â· {{ detail.phrase_match_diagnostics.destination_phrase_count }} destination phrases
-          Â· {{ detail.phrase_match_diagnostics.context_corroborating_hits }} local support hits
+          - {{ detail.phrase_match_diagnostics.selected_phrase_source | titlecase }}
+          - {{ detail.phrase_match_diagnostics.destination_phrase_count }} destination phrases
+          - {{ detail.phrase_match_diagnostics.context_corroborating_hits }} local support hits
         </p>
       }
 
@@ -150,17 +150,42 @@
         </p>
         <p class="meta-line">
           {{ detail.link_freshness_diagnostics.freshness_bucket | titlecase }}
-          · {{ detail.link_freshness_diagnostics.total_peer_count }} peer links
-          · {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new
-          · {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new
-          · {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent lost
+          - {{ detail.link_freshness_diagnostics.total_peer_count }} peer links
+          - {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new
+          - {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new
+          - {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent lost
         </p>
+      }
+
+      @if (detail.learned_anchor_diagnostics) {
+        <p class="meta-line">
+          <mat-icon>history_edu</mat-icon>
+          {{ learnedAnchorStateLabel() }}.
+        </p>
+        <p class="meta-line">
+          {{ learnedAnchorSummary() }}
+        </p>
+        <p class="meta-line">
+          {{ detail.learned_anchor_diagnostics.usable_inbound_anchor_sources }} clean anchor sources
+          - {{ detail.learned_anchor_diagnostics.learned_family_count }} learned families
+          @if (detail.learned_anchor_diagnostics.matched_family_canonical) {
+            - Canonical: {{ detail.learned_anchor_diagnostics.matched_family_canonical }}
+          }
+          @if (detail.learned_anchor_diagnostics.recommended_canonical_anchor
+            && detail.learned_anchor_diagnostics.recommended_canonical_anchor !== detail.learned_anchor_diagnostics.matched_family_canonical) {
+            - Recommended: {{ detail.learned_anchor_diagnostics.recommended_canonical_anchor }}
+          }
+        </p>
+        @if (detail.learned_anchor_diagnostics.top_learned_families.length) {
+          <p class="meta-line">
+            Top learned anchors: {{ learnedAnchorFamiliesSummary() }}
+          </p>
+        }
       }
     </section>
 
     <mat-divider></mat-divider>
 
-    <!-- Reviewer notes -->
     <section class="section">
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Reviewer notes (optional)</mat-label>
@@ -168,7 +193,6 @@
       </mat-form-field>
     </section>
 
-    <!-- Rejection reason (shown when rejectionMode) -->
     @if (rejectionMode) {
       <section class="section rejection-section">
         <mat-form-field appearance="outline" class="full-width">
@@ -189,7 +213,6 @@
       </section>
     }
 
-    <!-- Applied / verified timestamps -->
     @if (detail.applied_at || detail.verified_at || detail.stale_reason) {
       <mat-divider></mat-divider>
       <section class="section">
@@ -231,7 +254,7 @@
   @if (detail?.status === 'pending' || detail?.status === 'rejected') {
     <button mat-flat-button color="primary" [disabled]="saving" (click)="approve()">
       <mat-icon>check_circle</mat-icon>
-      {{ saving ? 'Saving…' : 'Approve' }}
+      {{ saving ? 'Saving...' : 'Approve' }}
     </button>
   }
 </mat-dialog-actions>

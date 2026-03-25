@@ -82,6 +82,13 @@ export interface PhraseMatchingSettings {
   context_window_tokens: number;
 }
 
+export interface LearnedAnchorSettings {
+  ranking_weight: number;
+  minimum_anchor_sources: number;
+  minimum_family_support_share: number;
+  enable_noise_filter: boolean;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -140,6 +147,10 @@ export class SiloSettingsService {
     return this.http.get<PhraseMatchingSettings>('/api/settings/phrase-matching/');
   }
 
+  getLearnedAnchorSettings(): Observable<LearnedAnchorSettings> {
+    return this.http.get<LearnedAnchorSettings>('/api/settings/learned-anchor/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -154,6 +165,10 @@ export class SiloSettingsService {
 
   updatePhraseMatchingSettings(payload: PhraseMatchingSettings): Observable<PhraseMatchingSettings> {
     return this.http.put<PhraseMatchingSettings>('/api/settings/phrase-matching/', payload);
+  }
+
+  updateLearnedAnchorSettings(payload: LearnedAnchorSettings): Observable<LearnedAnchorSettings> {
+    return this.http.put<LearnedAnchorSettings>('/api/settings/learned-anchor/', payload);
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {

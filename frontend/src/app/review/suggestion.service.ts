@@ -48,6 +48,7 @@ export interface SuggestionDetail extends Suggestion {
   score_velocity: number;
   score_link_freshness: number;
   score_phrase_relevance: number;
+  score_learned_anchor_corroboration: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -57,6 +58,7 @@ export interface SuggestionDetail extends Suggestion {
   superseded_by: string | null;
   superseded_at: string | null;
   phrase_match_diagnostics: PhraseMatchDiagnostics;
+  learned_anchor_diagnostics: LearnedAnchorDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
   updated_at: string;
 }
@@ -98,6 +100,36 @@ export interface LinkFreshnessDiagnostics {
   recent_window_days: number;
   newest_peer_percent: number;
   min_peer_count: number;
+}
+
+export interface LearnedAnchorDiagnostics {
+  score_learned_anchor_corroboration: number;
+  learned_anchor_state:
+    | 'exact_variant_match'
+    | 'family_match'
+    | 'host_contains_canonical_variant'
+    | 'neutral_no_anchor_candidate'
+    | 'neutral_no_learned_anchor_data'
+    | 'neutral_below_min_sources'
+    | 'neutral_no_family_match'
+    | 'neutral_processing_error';
+  candidate_anchor_text: string | null;
+  candidate_anchor_normalized: string | null;
+  matched_family_canonical: string | null;
+  matched_variant_display: string | null;
+  family_support_share: number;
+  variant_support_share: number;
+  supporting_source_count: number;
+  usable_inbound_anchor_sources: number;
+  learned_family_count: number;
+  top_learned_families: Array<{
+    canonical_anchor: string;
+    support_share: number;
+    supporting_source_count: number;
+    alternate_variants: string[];
+  }>;
+  host_contains_canonical_variant: boolean;
+  recommended_canonical_anchor: string | null;
 }
 
 export interface PaginatedResult<T> {

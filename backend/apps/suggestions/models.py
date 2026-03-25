@@ -255,6 +255,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-008 phrase relevance score for this destination/host sentence pair. 0.5 means neutral.",
     )
+    score_learned_anchor_corroboration = models.FloatField(
+        default=0.5,
+        help_text="FR-009 learned-anchor corroboration score for this destination/host sentence pair. 0.5 means neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -296,6 +300,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-008 phrase-match details for review and debugging.",
+    )
+    learned_anchor_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-009 learned-anchor diagnostics for review and debugging.",
     )
 
     # Review state

@@ -104,8 +104,9 @@ class SuggestionAdmin(ModelAdmin):
     readonly_fields = [
         "suggestion_id", "pipeline_run", "destination", "host", "host_sentence",
         "score_semantic", "score_keyword", "score_node_affinity", "score_quality",
-        "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_phrase_relevance", "score_final",
-        "phrase_match_diagnostics",
+        "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_phrase_relevance",
+        "score_learned_anchor_corroboration", "score_final",
+        "phrase_match_diagnostics", "learned_anchor_diagnostics",
         "repeated_anchor", "superseded_by", "superseded_at",
         "created_at", "updated_at",
     ]
@@ -128,11 +129,16 @@ class SuggestionAdmin(ModelAdmin):
         }),
         ("Score Breakdown", {
             "fields": ("score_semantic", "score_keyword", "score_node_affinity",
-                       "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_phrase_relevance", "score_final"),
+                       "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
+                       "score_phrase_relevance", "score_learned_anchor_corroboration", "score_final"),
             "classes": ("collapse",),
         }),
         ("Phrase Matching", {
             "fields": ("phrase_match_diagnostics",),
+            "classes": ("collapse",),
+        }),
+        ("Learned Anchor", {
+            "fields": ("learned_anchor_diagnostics",),
             "classes": ("collapse",),
         }),
         ("Review", {

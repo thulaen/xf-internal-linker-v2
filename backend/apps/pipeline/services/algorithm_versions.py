@@ -33,3 +33,8 @@ PHRASE_MATCHING_VERSION = build_algorithm_version_metadata(
     algorithm_key="phrase_matching_anchor_expansion",
     version_date=date(2026, 3, 25),
 )
+
+LEARNED_ANCHOR_VERSION = build_algorithm_version_metadata(
+    algorithm_key="learned_anchor_vocabulary_corroboration",
+    version_date=date(2026, 3, 25),
+)

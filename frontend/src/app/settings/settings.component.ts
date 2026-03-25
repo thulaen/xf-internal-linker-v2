@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
+  LearnedAnchorSettings,
   PhraseMatchingSettings,
   ScopeItem,
   SiloGroup,
@@ -47,6 +48,7 @@ export class SettingsComponent implements OnInit {
   savingWeightedAuthority = false;
   savingLinkFreshness = false;
   savingPhraseMatching = false;
+  savingLearnedAnchor = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -81,6 +83,12 @@ export class SettingsComponent implements OnInit {
     enable_anchor_expansion: true,
     enable_partial_matching: true,
     context_window_tokens: 8,
+  };
+  learnedAnchor: LearnedAnchorSettings = {
+    ranking_weight: 0,
+    minimum_anchor_sources: 2,
+    minimum_family_support_share: 0.15,
+    enable_noise_filter: true,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -142,14 +150,23 @@ export class SettingsComponent implements OnInit {
                 this.siloSvc.getPhraseMatchingSettings().subscribe({
                   next: (phraseMatching) => {
                     this.phraseMatching = phraseMatching;
-                    this.siloSvc.getWordPressSettings().subscribe({
-                      next: (wordpress) => {
-                        this.wordpress = wordpress;
-                        this.loadGroupsAndScopes();
+                    this.siloSvc.getLearnedAnchorSettings().subscribe({
+                      next: (learnedAnchor) => {
+                        this.learnedAnchor = learnedAnchor;
+                        this.siloSvc.getWordPressSettings().subscribe({
+                          next: (wordpress) => {
+                            this.wordpress = wordpress;
+                            this.loadGroupsAndScopes();
+                          },
+                          error: () => {
+                            this.loading = false;
+                            this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                          },
+                        });
                       },
                       error: () => {
                         this.loading = false;
-                        this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                        this.snack.open('Failed to load learned anchor settings', 'Dismiss', { duration: 4000 });
                       },
                     });
                   },
@@ -189,6 +206,21 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingPhraseMatching = false;
         this.snack.open(error?.error?.detail || 'Failed to save phrase matching settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveLearnedAnchorSettings(): void {
+    this.savingLearnedAnchor = true;
+    this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor).subscribe({
+      next: (learnedAnchor) => {
+        this.learnedAnchor = learnedAnchor;
+        this.savingLearnedAnchor = false;
+        this.snack.open('Learned anchor settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingLearnedAnchor = false;
+        this.snack.open(error?.error?.detail || 'Failed to save learned anchor settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

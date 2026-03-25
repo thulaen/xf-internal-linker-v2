@@ -12,6 +12,11 @@ import heapq
 import math
 from typing import Mapping, TypeAlias
 
+from .learned_anchor import (
+    LearnedAnchorInputRow,
+    LearnedAnchorSettings,
+    evaluate_learned_anchor_corroboration,
+)
 from .link_freshness import score_link_freshness_component
 from .phrase_matching import PhraseMatchingSettings, evaluate_phrase_match
 from .text_tokens import tokenize_text
@@ -92,12 +97,14 @@ class ScoredCandidate:
     score_quality: float
     score_silo_affinity: float
     score_phrase_relevance: float
+    score_learned_anchor_corroboration: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
     anchor_end: int | None
     anchor_confidence: str
     phrase_match_diagnostics: dict[str, object]
+    learned_anchor_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -245,11 +252,13 @@ def score_destination_matches(
     content_records: Mapping[ContentKey, ContentRecord],
     sentence_records: Mapping[int, SentenceRecord],
     existing_links: set[ExistingLinkKey],
+    learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]] | None = None,
     weights: Mapping[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
+    learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -259,6 +268,7 @@ def score_destination_matches(
 ) -> list[ScoredCandidate]:
     """Apply composite scoring plus local anti-junk filters for one destination."""
     march_2026_pagerank_min, march_2026_pagerank_max = march_2026_pagerank_bounds
+    learned_anchor_rows_by_destination = learned_anchor_rows_by_destination or {}
     ranked: list[ScoredCandidate] = []
 
     for match in sentence_matches:
@@ -303,6 +313,12 @@ def score_destination_matches(
             destination_distilled_text=destination.distilled_text,
             settings=phrase_matching_settings,
         )
+        learned_anchor_match = evaluate_learned_anchor_corroboration(
+            candidate_anchor_text=phrase_match.anchor_phrase,
+            host_sentence_text=sentence_record.text,
+            inbound_anchor_rows=learned_anchor_rows_by_destination.get(destination.key, []),
+            settings=learned_anchor_settings,
+        )
         score_node = score_node_affinity(destination, host_record)
         score_quality = log_minmax_normalize_march_2026_pagerank(
             host_record.march_2026_pagerank_score,
@@ -324,6 +340,7 @@ def score_destination_matches(
             else 0.0
         )
         score_phrase_relevance = phrase_match.score_phrase_component
+        score_learned_anchor = learned_anchor_match.learned_anchor_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
@@ -333,6 +350,7 @@ def score_destination_matches(
             + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
             + float(link_freshness_ranking_weight) * score_link_freshness
             + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
+            + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
             + score_silo
         )
 
@@ -349,12 +367,14 @@ def score_destination_matches(
                 score_quality=float(score_quality),
                 score_silo_affinity=float(score_silo),
                 score_phrase_relevance=float(phrase_match.score_phrase_relevance),
+                score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
                 anchor_end=phrase_match.anchor_end,
                 anchor_confidence=phrase_match.anchor_confidence,
                 phrase_match_diagnostics=phrase_match.phrase_match_diagnostics,
+                learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
             )
         )
 
