@@ -44,6 +44,20 @@ PASSWORD_HASHERS = [
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
 
+# Keep expected 4xx validation responses from cluttering test output while still
+# surfacing actual server-side failures.
+LOGGING = {
+    **LOGGING,  # noqa: F405
+    "loggers": {
+        **LOGGING["loggers"],  # noqa: F405
+        "django.request": {
+            "handlers": ["console"],
+            "level": "ERROR",
+            "propagate": False,
+        },
+    },
+}
+
 
 class _DisableMigrations(dict):
     def __contains__(self, item):

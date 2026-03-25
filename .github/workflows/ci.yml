@@ -27,11 +27,8 @@ jobs:
       - name: Run Django tests
         working-directory: backend
         env:
-          DJANGO_SETTINGS_MODULE: config.settings.development
-          SECRET_KEY: ci-fake-secret-key
-          DEBUG: "True"
-          DATABASE_URL: sqlite:///test.db
-          REDIS_URL: redis://localhost:6379/0
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: ci-fake-secret-key
         run: python manage.py test --verbosity=2
 
   # ── 2. Angular build + unit tests ───────────────────────────────
@@ -62,6 +59,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - name: Prepare compose env file
+        run: cp .env.example .env
 
       - name: Validate docker-compose.yml syntax
         run: docker compose config
