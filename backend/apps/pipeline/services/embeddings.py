@@ -22,8 +22,8 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "BAAI/bge-small-en-v1.5"
-EMBEDDING_DIM = 384
+DEFAULT_MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
+EMBEDDING_DIM = 768
 
 _model_cache: dict[str, Any] = {}
 
@@ -55,7 +55,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     device = _resolve_device()
     logger.info("Loading embedding model '%s' on device='%s'...", model_name, device)
     start = time.monotonic()
-    model = SentenceTransformer(model_name, device=device)
+    model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
     elapsed = time.monotonic() - start
     logger.info("Model loaded in %.2fs.", elapsed)
     _model_cache[model_name] = model
@@ -150,6 +150,8 @@ def generate_content_item_embeddings(
     if not texts:
         return {"embedded": 0, "skipped": len(items)}
 
+    texts = ["search_document: " + t for t in texts]
+
     logger.info("Embedding %d content items...", len(texts))
     start = time.monotonic()
     raw_vectors = model.encode(
@@ -215,6 +217,8 @@ def generate_sentence_embeddings(
 
     if not texts:
         return {"embedded": 0, "skipped": len(sentences)}
+
+    texts = ["search_document: " + t for t in texts]
 
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()

@@ -869,4 +869,4 @@ def _destination_text(title: str, distilled_text: str) -> str:
 try:
     from .embeddings import EMBEDDING_DIM
 except ImportError:
-    EMBEDDING_DIM = 384
+    EMBEDDING_DIM = 768

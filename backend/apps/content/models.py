@@ -2,7 +2,7 @@
 Content models — XenForo threads, resources, posts, and sentences.
 
 ContentItem is the core entity: anything that can be a link destination or host.
-pgvector VectorField stores 384-dimension embeddings for semantic similarity search.
+pgvector VectorField stores 768-dimension embeddings for semantic similarity search.
 """
 
 from django.db import models
@@ -124,8 +124,8 @@ class ContentItem(TimestampedModel):
     Each ContentItem can be both a DESTINATION (the page being linked to)
     and a HOST (the page that will contain a new link in one of its sentences).
 
-    The embedding column stores a 384-dimension vector from the sentence-transformers
-    model, used for cosine similarity search via pgvector.
+    The embedding column stores a 768-dimension vector from the
+    nomic-ai/nomic-embed-text-v1.5 model, used for cosine similarity search via pgvector.
     """
 
     CONTENT_TYPE_CHOICES = [
@@ -199,12 +199,12 @@ class ContentItem(TimestampedModel):
         help_text="Link Freshness score based only on inbound link-history timing. 0.5 = neutral.",
     )
 
-    # pgvector embedding (384 dims = BAAI/bge-small-en-v1.5 and similar small models)
+    # pgvector embedding (768 dims = nomic-ai/nomic-embed-text-v1.5)
     embedding = VectorField(
-        dimensions=384,
+        dimensions=768,
         null=True,
         blank=True,
-        help_text="384-dimension sentence embedding for semantic similarity search via pgvector.",
+        help_text="768-dimension sentence embedding for semantic similarity search via pgvector.",
     )
 
     # Engagement metrics (mirrored from XenForo)
@@ -327,7 +327,7 @@ class Sentence(models.Model):
 
     Each sentence can be a candidate HOST for a link insertion.
     The pipeline scans only sentences within the first 600 words (word_position <= 600).
-    The embedding column stores a 384-dimension vector for per-sentence similarity.
+    The embedding column stores a 768-dimension vector for per-sentence similarity.
     """
 
     content_item = models.ForeignKey(
@@ -363,12 +363,12 @@ class Sentence(models.Model):
                   "Sentences with word_position > 600 are excluded from host scanning.",
     )
 
-    # pgvector per-sentence embedding
+    # pgvector per-sentence embedding (768 dims = nomic-ai/nomic-embed-text-v1.5)
     embedding = VectorField(
-        dimensions=384,
+        dimensions=768,
         null=True,
         blank=True,
-        help_text="384-dimension sentence embedding. Used in stage-2 similarity ranking.",
+        help_text="768-dimension sentence embedding. Used in stage-2 similarity ranking.",
     )
 
     class Meta:
