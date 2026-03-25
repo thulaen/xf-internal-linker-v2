@@ -26,7 +26,9 @@ Project rules:
 
 User communication rules:
 - Assume the user prefers layman's terms unless they ask for a deep technical explanation.
+- Default to: "AI should talk to me in plain English and explain things like I'm five."
 - Start explanations with the plain-English version of what happened and why it matters.
+- Explain the simple version first, using short sentences, concrete examples, and everyday words.
 - Minimize jargon; when jargon is necessary, define it immediately in simple language.
 - When reporting verification, make the real-world meaning explicit, for example whether the app works, what is still broken, and what the next step is.
 

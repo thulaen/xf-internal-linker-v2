@@ -42,6 +42,7 @@ Execution order and FR IDs are decoupled.
 ## User Communication Preference
 
 - The user is not a developer and prefers plain-English, layman's-terms explanations by default.
+- Default communication rule: AI should talk to the user in plain English and explain things like they are five.
 - When explaining blockers, risks, test results, or architecture, lead with the simple version first.
 - Avoid unnecessary jargon; if a technical term matters, define it briefly in the same reply.
 - Keep answers practical and direct; do not assume deep framework or infrastructure knowledge.
