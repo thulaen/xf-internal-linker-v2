@@ -7,6 +7,8 @@ The SuggestionReviewSerializer supports partial updates for approve/reject actio
 
 from rest_framework import serializers
 
+from apps.pipeline.services.link_freshness import get_destination_link_freshness_diagnostics
+
 from .models import PipelineDiagnostic, PipelineRun, Suggestion
 
 
@@ -103,13 +105,15 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
     host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
     host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
     same_silo = serializers.SerializerMethodField()
+    link_freshness_diagnostics = serializers.SerializerMethodField()
+
     class Meta:
         model = Suggestion
         fields = [
             "suggestion_id", "pipeline_run",
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
-            "score_quality", "score_march_2026_pagerank", "score_velocity",
+            "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -121,12 +125,13 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "rejection_reason", "reviewer_notes", "reviewed_at",
             "is_applied", "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
+            "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
         read_only_fields = [
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity",
+            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -137,6 +142,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "repeated_anchor",
             "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
+            "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
 
@@ -154,6 +160,9 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
             return False
         return destination_scope.silo_group_id == host_scope.silo_group_id
+
+    def get_link_freshness_diagnostics(self, obj: Suggestion) -> dict[str, object]:
+        return get_destination_link_freshness_diagnostics(obj.destination_id).as_dict()
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):
     """

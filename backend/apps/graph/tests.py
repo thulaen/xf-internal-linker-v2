@@ -1,7 +1,10 @@
+from datetime import timedelta
+
 from django.test import TestCase, override_settings
+from django.utils import timezone
 
 from apps.content.models import ContentItem, Post, ScopeItem
-from apps.graph.models import ExistingLink
+from apps.graph.models import ExistingLink, LinkFreshnessEdge
 from apps.graph.services.graph_sync import refresh_existing_links, sync_existing_links
 from apps.pipeline.services.link_parser import LinkEdge, extract_internal_links
 
@@ -145,3 +148,91 @@ class CrossSourceExistingLinkTests(TestCase):
         self.assertEqual(existing.link_ordinal, 2)
         self.assertEqual(existing.source_internal_link_count, 4)
         self.assertEqual(existing.context_class, "weak_context")
+
+    def test_sync_existing_links_tracks_first_seen_last_seen_and_reactivation(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        source = ContentItem.objects.create(content_id=101, content_type="thread", title="Source", scope=scope)
+        destination = ContentItem.objects.create(content_id=202, content_type="thread", title="Destination", scope=scope)
+
+        first_seen_at = timezone.now() - timedelta(days=10)
+        sync_existing_links(
+            source,
+            [
+                LinkEdge(
+                    from_content_id=101,
+                    from_content_type="thread",
+                    to_content_id=202,
+                    to_content_type="thread",
+                    anchor_text="Destination",
+                    extraction_method="html_anchor",
+                    link_ordinal=0,
+                    source_internal_link_count=1,
+                    context_class="contextual",
+                )
+            ],
+            tracked_at=first_seen_at,
+        )
+
+        edge = LinkFreshnessEdge.objects.get(from_content_item=source, to_content_item=destination)
+        self.assertEqual(edge.first_seen_at, first_seen_at)
+        self.assertEqual(edge.last_seen_at, first_seen_at)
+        self.assertTrue(edge.is_active)
+
+        disappeared_at = timezone.now() - timedelta(days=3)
+        sync_existing_links(source, [], tracked_at=disappeared_at)
+
+        edge.refresh_from_db()
+        self.assertFalse(edge.is_active)
+        self.assertEqual(edge.last_disappeared_at, disappeared_at)
+
+        reappeared_at = timezone.now()
+        sync_existing_links(
+            source,
+            [
+                LinkEdge(
+                    from_content_id=101,
+                    from_content_type="thread",
+                    to_content_id=202,
+                    to_content_type="thread",
+                    anchor_text="Destination again",
+                    extraction_method="bbcode_anchor",
+                    link_ordinal=0,
+                    source_internal_link_count=1,
+                    context_class="contextual",
+                )
+            ],
+            tracked_at=reappeared_at,
+        )
+
+        edge.refresh_from_db()
+        self.assertTrue(edge.is_active)
+        self.assertEqual(edge.first_seen_at, first_seen_at)
+        self.assertEqual(edge.last_seen_at, reappeared_at)
+
+    def test_non_body_sync_does_not_delete_existing_links_or_mark_disappearances(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        source = ContentItem.objects.create(content_id=101, content_type="thread", title="Source", scope=scope)
+        destination = ContentItem.objects.create(content_id=202, content_type="thread", title="Destination", scope=scope)
+        ExistingLink.objects.create(
+            from_content_item=source,
+            to_content_item=destination,
+            anchor_text="Destination",
+            extraction_method="html_anchor",
+            link_ordinal=0,
+            source_internal_link_count=1,
+            context_class="contextual",
+        )
+        history_row = LinkFreshnessEdge.objects.create(
+            from_content_item=source,
+            to_content_item=destination,
+            first_seen_at=timezone.now() - timedelta(days=20),
+            last_seen_at=timezone.now() - timedelta(days=1),
+            is_active=True,
+        )
+
+        sync_existing_links(source, [], allow_disappearance=False, tracked_at=timezone.now())
+
+        self.assertTrue(ExistingLink.objects.filter(from_content_item=source, to_content_item=destination).exists())
+        history_row.refresh_from_db()
+        self.assertTrue(history_row.is_active)
+        self.assertIsNone(history_row.last_disappeared_at)

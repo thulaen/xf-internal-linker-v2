@@ -37,6 +37,7 @@ class AppSetting(TimestampedModel):
     CATEGORY_CHOICES = [
         ("general", "General"),
         ("ml", "ML / AI"),
+        ("link_freshness", "Link Freshness"),
         ("sync", "Sync"),
         ("performance", "Performance"),
         ("api", "API Keys"),

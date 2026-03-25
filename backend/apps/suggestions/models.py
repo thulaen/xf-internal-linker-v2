@@ -247,6 +247,10 @@ class Suggestion(TimestampedModel):
         default=0.0,
         help_text="Velocity/recency bonus for trending destinations.",
     )
+    score_link_freshness = models.FloatField(
+        default=0.5,
+        help_text="Link Freshness score of the destination. 0.5 means neutral or not enough history.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,

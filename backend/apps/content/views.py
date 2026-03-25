@@ -82,10 +82,22 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
     ordering_fields = [
         "march_2026_pagerank_score",
         "velocity_score",
+        "link_freshness_score",
         "view_count",
         "post_date",
         "created_at",
     ]
+
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        freshness_bucket = self.request.query_params.get("freshness_bucket", "").strip().lower()
+        if freshness_bucket == "fresh":
+            queryset = queryset.filter(link_freshness_score__gte=0.60)
+        elif freshness_bucket == "neutral":
+            queryset = queryset.filter(link_freshness_score__gt=0.40, link_freshness_score__lt=0.60)
+        elif freshness_bucket == "stale":
+            queryset = queryset.filter(link_freshness_score__lte=0.40)
+        return queryset
 
     def get_serializer_class(self):
         if self.action == "retrieve" or self.action == "sentences":

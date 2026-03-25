@@ -42,6 +42,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_quality: 0.2,
     score_march_2026_pagerank: 0.18,
     score_velocity: 0.1,
+    score_link_freshness: 0.5,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -50,10 +51,26 @@ describe('SuggestionDetailDialogComponent', () => {
     stale_reason: '',
     superseded_by: null,
     superseded_at: null,
+    link_freshness_diagnostics: {
+      link_freshness_score: 0.5,
+      freshness_bucket: 'neutral',
+      freshness_data_state: 'neutral_thin_history',
+      total_peer_count: 1,
+      active_peer_count: 1,
+      recent_new_peer_count: 1,
+      previous_new_peer_count: 0,
+      recent_lost_peer_count: 0,
+      recent_share: 1,
+      growth_delta: 1,
+      cohort_freshness: 0,
+      recent_window_days: 30,
+      newest_peer_percent: 0.25,
+      min_peer_count: 3,
+    },
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders March 2026 PageRank', async () => {
+  it('renders March 2026 PageRank and Link Freshness', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -76,5 +93,6 @@ describe('SuggestionDetailDialogComponent', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('March 2026 PageRank');
+    expect(text).toContain('Link Freshness');
   });
 });

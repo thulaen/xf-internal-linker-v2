@@ -112,7 +112,29 @@
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_velocity)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_velocity * 100).toFixed(0) }}</span>
         </div>
+        <div class="score-item">
+          <span class="score-name">Link Freshness</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_link_freshness)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_link_freshness * 100).toFixed(0) }}</span>
+        </div>
       </div>
+
+      @if (detail.link_freshness_diagnostics) {
+        <p class="meta-line">
+          <mat-icon>schedule</mat-icon>
+          {{ linkFreshnessStateLabel() }}.
+        </p>
+        <p class="meta-line">
+          {{ linkFreshnessSummary() }}
+        </p>
+        <p class="meta-line">
+          {{ detail.link_freshness_diagnostics.freshness_bucket | titlecase }}
+          · {{ detail.link_freshness_diagnostics.total_peer_count }} peer links
+          · {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new
+          · {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new
+          · {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent lost
+        </p>
+      }
     </section>
 
     <mat-divider></mat-divider>

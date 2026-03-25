@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.pipeline.services.algorithm_versions import WEIGHTED_AUTHORITY_VERSION
+from apps.graph.models import LinkFreshnessEdge
 from apps.suggestions.models import PipelineRun, Suggestion
 
 
@@ -112,13 +113,24 @@ class SuggestionSiloApiTests(APITestCase):
     def test_suggestion_detail_exposes_march_2026_pagerank_field(self):
         suggestion = Suggestion.objects.first()
         suggestion.score_march_2026_pagerank = 0.35
-        suggestion.save(update_fields=["score_march_2026_pagerank", "updated_at"])
+        suggestion.score_link_freshness = 0.72
+        suggestion.save(update_fields=["score_march_2026_pagerank", "score_link_freshness", "updated_at"])
+        LinkFreshnessEdge.objects.create(
+            from_content_item=suggestion.host,
+            to_content_item=suggestion.destination,
+            first_seen_at=suggestion.created_at,
+            last_seen_at=suggestion.created_at,
+            is_active=True,
+        )
 
         response = self.client.get(f"/api/suggestions/{suggestion.suggestion_id}/")
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["score_march_2026_pagerank"], 0.35)
+        self.assertEqual(payload["score_link_freshness"], 0.72)
+        self.assertIn("link_freshness_diagnostics", payload)
+        self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
 
 
 class PipelineRunWeightedSnapshotTests(APITestCase):

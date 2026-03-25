@@ -94,6 +94,56 @@ class ExistingLink(models.Model):
         return f"{self.from_content_item} → {self.to_content_item} ('{self.anchor_text[:40]}')"
 
 
+class LinkFreshnessEdge(models.Model):
+    """History row for one unique source-to-destination internal-link relationship."""
+
+    from_content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="freshness_outgoing_links",
+        help_text="The source content item that linked to the destination.",
+    )
+    to_content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="freshness_incoming_links",
+        help_text="The destination content item that received the inbound link.",
+    )
+    first_seen_at = models.DateTimeField(
+        help_text="When this source-to-destination link was first seen during a safe body parse.",
+    )
+    last_seen_at = models.DateTimeField(
+        help_text="When this source-to-destination link was last confirmed during a safe body parse.",
+    )
+    last_disappeared_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="When this link was last confirmed missing during a safe body parse.",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="True when this source-to-destination link is currently active.",
+    )
+
+    class Meta:
+        verbose_name = "Link Freshness Edge"
+        verbose_name_plural = "Link Freshness Edges"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["from_content_item", "to_content_item"],
+                name="graph_unique_link_freshness_edge",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["to_content_item", "is_active"]),
+            models.Index(fields=["to_content_item", "first_seen_at"]),
+            models.Index(fields=["to_content_item", "last_disappeared_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.from_content_item} -> {self.to_content_item} [active={self.is_active}]"
+
+
 class BrokenLink(TimestampedModel):
     """A URL detected in a content item that needs link-health review."""
 

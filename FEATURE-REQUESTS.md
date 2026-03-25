@@ -16,6 +16,21 @@ Important:
 
 ## COMPLETED
 
+### FR-007 - Link Freshness Authority
+**Requested:** 2026-03-24
+**Target phase:** Phase 10
+**Completed phase:** Phase 10
+**Completed:** 2026-03-25
+
+- Implemented exactly against `docs/specs/fr007-link-freshness-authority.md`.
+- `apps/graph/models.py` now stores separate `LinkFreshnessEdge` history rows for unique `source -> destination` peer links.
+- Sync now tracks `first_seen_at`, `last_seen_at`, reactivation, and safe disappearance state without letting non-body paths create disappearance events.
+- `ContentItem.link_freshness_score` and `Suggestion.score_link_freshness` store the bounded FR-007 score, with neutral fallback at `0.5`.
+- Link Freshness has its own settings API, recalculation task, ranker weight, content filtering/ordering support, admin exposure, and review diagnostics.
+- Local verification passed for the Django FR-007 test slice, migration drift check, Angular `test:ci`, and Angular build.
+
+---
+
 ### FR-006 - Weighted Link Graph / Reasonable Surfer Scoring
 **Requested:** 2026-03-24
 **Target phase:** Phase 9
@@ -87,19 +102,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-007 - Link Freshness Authority
-**Requested:** 2026-03-24
-**Target phase:** Phase 10
-**Priority:** Medium
-**Patent inspiration:** `US8407231B2`
-**Spec draft:** `docs/specs/fr007-link-freshness-authority.md`
-
-- Track first-seen and last-seen internal-link timing.
-- Add a link-recency/link-growth score separate from engagement velocity.
-- Expose review diagnostics and sorting/filtering for fresh vs stale authority.
-
----
 
 ### FR-008 - Phrase-Based Matching & Anchor Expansion
 **Requested:** 2026-03-24
@@ -611,4 +613,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 9 / FR-006 completed against `docs/specs/fr006-weighted-link-graph.md`; backlog extended with `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; next real target is Phase 10 / FR-007; C# worker ideas removed — project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 10 / FR-007 completed against `docs/specs/fr007-link-freshness-authority.md`; next real target is Phase 11 / FR-008; backlog still includes `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*

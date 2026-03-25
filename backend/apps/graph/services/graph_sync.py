@@ -4,14 +4,22 @@ from urllib.parse import urlparse
 
 from django.conf import settings
 from django.db import transaction
+from django.utils import timezone
 
 from apps.content.models import ContentItem
-from apps.graph.models import ExistingLink
+from apps.graph.models import ExistingLink, LinkFreshnessEdge
 from apps.pipeline.services.link_parser import LinkEdge, extract_internal_links
 
 logger = logging.getLogger(__name__)
 
-def sync_existing_links(content_item: ContentItem, edges: list[LinkEdge]) -> int:
+
+def sync_existing_links(
+    content_item: ContentItem,
+    edges: list[LinkEdge],
+    *,
+    allow_disappearance: bool = True,
+    tracked_at=None,
+) -> int:
     """
     Update ExistingLink records for a single host ContentItem.
 
@@ -19,9 +27,15 @@ def sync_existing_links(content_item: ContentItem, edges: list[LinkEdge]) -> int
     updating retained links in place, and removing ones that no longer exist
     in the raw source content.
 
+    Args:
+        allow_disappearance: When False, missing edges do not create disappearance
+            events. This is used for non-body sync paths.
+        tracked_at: Optional timestamp used for first_seen/last_seen updates.
+
     Returns:
         Number of links currently active for this item.
     """
+    tracked_at = tracked_at or timezone.now()
     with transaction.atomic():
         existing_qs = (
             ExistingLink.objects
@@ -106,18 +120,27 @@ def sync_existing_links(content_item: ContentItem, edges: list[LinkEdge]) -> int
             )
 
         to_delete_ids = list(duplicate_ids_to_delete)
-        for key, current_links in current_map.items():
-            if key in target_keys:
-                continue
-            to_delete_ids.extend(link.pk for link in current_links)
+        if allow_disappearance:
+            for key, current_links in current_map.items():
+                if key in target_keys:
+                    continue
+                to_delete_ids.extend(link.pk for link in current_links)
 
         if to_delete_ids:
             ExistingLink.objects.filter(pk__in=to_delete_ids).delete()
 
+        _sync_link_freshness_edges(
+            content_item=content_item,
+            edges=edges,
+            destination_map=destination_map,
+            allow_disappearance=allow_disappearance,
+            tracked_at=tracked_at,
+        )
+
     return len(target_keys)
 
 
-def refresh_existing_links() -> int:
+def refresh_existing_links(*, tracked_at=None) -> int:
     """Rebuild existing-link edges for all indexed content with stored bodies."""
     content_items = (
         ContentItem.objects
@@ -127,6 +150,7 @@ def refresh_existing_links() -> int:
     )
     internal_domains = _internal_domains()
     refreshed = 0
+    tracked_at = tracked_at or timezone.now()
 
     for content_item in content_items.iterator(chunk_size=100):
         post = getattr(content_item, "post", None)
@@ -138,10 +162,93 @@ def refresh_existing_links() -> int:
             content_item.content_type,
             forum_domains=internal_domains,
         )
-        sync_existing_links(content_item, edges)
+        sync_existing_links(
+            content_item,
+            edges,
+            allow_disappearance=True,
+            tracked_at=tracked_at,
+        )
         refreshed += 1
 
     return refreshed
+
+
+def _sync_link_freshness_edges(
+    *,
+    content_item: ContentItem,
+    edges: list[LinkEdge],
+    destination_map: dict[tuple[int, str], ContentItem],
+    allow_disappearance: bool,
+    tracked_at,
+) -> None:
+    history_qs = (
+        LinkFreshnessEdge.objects
+        .filter(from_content_item=content_item)
+        .select_related("to_content_item")
+        .order_by("pk")
+    )
+    history_map = {
+        (row.to_content_item.content_id, row.to_content_item.content_type): row
+        for row in history_qs
+    }
+
+    to_create: list[LinkFreshnessEdge] = []
+    to_update: list[LinkFreshnessEdge] = []
+    target_keys: set[tuple[int, str]] = set()
+
+    for edge in edges:
+        key = (edge.to_content_id, edge.to_content_type)
+        target_keys.add(key)
+        destination = destination_map.get(key)
+        if destination is None:
+            continue
+
+        history_row = history_map.get(key)
+        if history_row is None:
+            to_create.append(
+                LinkFreshnessEdge(
+                    from_content_item=content_item,
+                    to_content_item=destination,
+                    first_seen_at=tracked_at,
+                    last_seen_at=tracked_at,
+                    is_active=True,
+                )
+            )
+            continue
+
+        changed = False
+        if history_row.first_seen_at is None:
+            history_row.first_seen_at = tracked_at
+            changed = True
+        if history_row.last_seen_at != tracked_at:
+            history_row.last_seen_at = tracked_at
+            changed = True
+        if not history_row.is_active:
+            history_row.is_active = True
+            changed = True
+        if changed:
+            to_update.append(history_row)
+
+    if allow_disappearance:
+        for key, history_row in history_map.items():
+            if key in target_keys or not history_row.is_active:
+                continue
+            history_row.is_active = False
+            history_row.last_disappeared_at = tracked_at
+            to_update.append(history_row)
+
+    if to_create:
+        LinkFreshnessEdge.objects.bulk_create(to_create)
+
+    if to_update:
+        deduped_updates: dict[int, LinkFreshnessEdge] = {}
+        for row in to_update:
+            if row.pk is not None:
+                deduped_updates[row.pk] = row
+        LinkFreshnessEdge.objects.bulk_update(
+            list(deduped_updates.values()),
+            ["first_seen_at", "last_seen_at", "last_disappeared_at", "is_active"],
+        )
 
 
 def _internal_domains() -> list[str]:

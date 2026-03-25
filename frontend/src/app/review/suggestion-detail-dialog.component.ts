@@ -88,6 +88,34 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return Math.round(val * 100);
   }
 
+  linkFreshnessSummary(): string {
+    const diagnostics = this.detail?.link_freshness_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means there is not enough link history yet.';
+    }
+    if (diagnostics.freshness_bucket === 'fresh') {
+      return 'Fresh means this destination has newer or growing inbound links.';
+    }
+    if (diagnostics.freshness_bucket === 'stale') {
+      return 'Stale means newer inbound-link growth has cooled off or links have recently disappeared.';
+    }
+    return 'Neutral means there is not enough link history yet.';
+  }
+
+  linkFreshnessStateLabel(): string {
+    const state = this.detail?.link_freshness_diagnostics?.freshness_data_state ?? 'neutral_missing_history';
+    if (state === 'computed') {
+      return 'Computed from stored link history';
+    }
+    if (state === 'neutral_thin_history') {
+      return 'Neutral / not enough link history';
+    }
+    if (state === 'neutral_invalid_history') {
+      return 'Neutral / invalid link history';
+    }
+    return 'Neutral / not enough link history';
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

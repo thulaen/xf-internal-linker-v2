@@ -35,17 +35,28 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active delivery phase completed this session: Phase 9
-- FR cross-reference: `FR-006 - Weighted Link Graph / Reasonable Surfer Scoring`
-- Status: complete in repo and locally verified against `docs/specs/fr006-weighted-link-graph.md`
+- Active delivery phase completed this session: Phase 10
+- FR cross-reference: `FR-007 - Link Freshness Authority`
+- Status: complete in repo and locally verified against `docs/specs/fr007-link-freshness-authority.md`
 
 ## Current Session Note
 
 - Session target: Phase 10 / `FR-007 - Link Freshness Authority`
-- Session mode: spec-first pass only
-- This session updates context and the FR-007 spec before any implementation session.
+- Session mode: implementation pass completed
+- This session implemented the Phase 10 FR-007 production slice against `docs/specs/fr007-link-freshness-authority.md`.
+- Scope rule was kept: only `FR-007 - Link Freshness Authority` was implemented.
 - FR-007 spec path: `docs/specs/fr007-link-freshness-authority.md`
-- Do not implement FR-007 production code in this session unless repo rules are updated to explicitly allow it.
+- Verified shipped items:
+  - separate `LinkFreshnessEdge` history storage and migrations
+  - safe first-seen / last-seen / disappeared tracking with non-body disappearance protection
+  - separate `link_freshness_score` computation, persistence, settings API, and recalculation task
+  - bounded ranker integration with default `ranking_weight = 0.0`
+  - content/admin/review/settings exposure plus FR-007 backend/frontend tests
+- Verification completed:
+  - Django FR-007 backend test slice passed under `config.settings.test`
+  - Django migration drift check passed with no pending model changes
+  - Angular `test:ci` passed
+  - Angular `build` passed
 
 ## User Communication Preference
 
@@ -71,6 +82,13 @@ Phase 9 shipped:
 - review/admin/content diagnostics now use `march_2026_pagerank_score` as the authority score shown to users
 - spec-derived backend tests and Angular review smoke coverage pass locally
 
+Phase 10 shipped:
+- separate `LinkFreshnessEdge` history rows keyed by `source -> destination`, with `first_seen_at`, `last_seen_at`, `last_disappeared_at`, and `is_active`
+- safe sync behavior that updates history during body-parse paths, reactivates returning links, and does not mark disappearances on non-body paths
+- separate `ContentItem.link_freshness_score` and `Suggestion.score_link_freshness` storage with neutral fallback at `0.5`
+- separate Link Freshness settings API, recalculation task, bounded ranker hook, and review/admin/content diagnostics
+- FR-007 verification passed for backend tests, migration drift, Angular `test:ci`, and Angular build
+
 ## What Is Complete
 
 ### Platform and Core Flow
@@ -88,6 +106,7 @@ Phase 9 shipped:
 - Phase 8 / `FR-003`: WordPress cross-linking and settings/sync experience
 - Phase 8 verification closure: local backend/frontend verification path repaired and passing
 - Phase 9 / `FR-006`: weighted link graph, March 2026 PageRank storage, settings, diagnostics, and review exposure implemented from `docs/specs/fr006-weighted-link-graph.md`
+- Phase 10 / `FR-007`: separate link-history freshness storage, scoring, settings, ranker integration, diagnostics, and review exposure implemented from `docs/specs/fr007-link-freshness-authority.md`
 
 ## Execution Ledger
 
@@ -105,8 +124,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 7 | FR-005 | Complete | Link siloing and topical authority enforcement |
 | 8 | FR-003 | Complete | WordPress cross-linking |
 | 9 | FR-006 | Complete | Weighted Link Graph / Reasonable Surfer Scoring |
-| 10 | FR-007 | Next | Link Freshness Authority |
-| 11 | FR-008 | Queued | Phrase-Based Matching & Anchor Expansion |
+| 10 | FR-007 | Complete | Link Freshness Authority |
+| 11 | FR-008 | Next | Phrase-Based Matching & Anchor Expansion |
 | 12 | FR-009 | Queued | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Queued | Rare-Term Propagation Across Related Pages |
 | 14 | FR-011 | Queued | Field-Aware Relevance Scoring |
@@ -122,9 +141,9 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 10 / `FR-007 - Link Freshness Authority`
-- Phase 9 reference: `FR-006` was implemented exactly against `docs/specs/fr006-weighted-link-graph.md`
-- Scope reminder: keep freshness authority separate from `march_2026_pagerank_score` and engagement velocity
+- Next exact target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
+- Phase 10 reference: `FR-007` was implemented exactly against `docs/specs/fr007-link-freshness-authority.md`
+- Scope reminder: keep phrase relevance separate from FR-006 weighted-edge authority and FR-007 link-history freshness
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases

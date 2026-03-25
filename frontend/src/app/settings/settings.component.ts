@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
   ScopeItem,
   SiloGroup,
+  LinkFreshnessSettings,
   SiloMode,
   SiloSettings,
   SiloSettingsService,
@@ -43,8 +44,10 @@ export class SettingsComponent implements OnInit {
   loading = true;
   savingSettings = false;
   savingWeightedAuthority = false;
+  savingLinkFreshness = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
+  recalculatingLinkFreshness = false;
   runningWordPressSync = false;
   creatingGroup = false;
 
@@ -60,6 +63,16 @@ export class SettingsComponent implements OnInit {
     bare_url_factor: 0.35,
     weak_context_factor: 0.75,
     isolated_context_factor: 0.45,
+  };
+  linkFreshness: LinkFreshnessSettings = {
+    ranking_weight: 0,
+    recent_window_days: 30,
+    newest_peer_percent: 0.25,
+    min_peer_count: 3,
+    w_recent: 0.35,
+    w_growth: 0.35,
+    w_cohort: 0.2,
+    w_loss: 0.1,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -115,14 +128,23 @@ export class SettingsComponent implements OnInit {
         this.siloSvc.getWeightedAuthoritySettings().subscribe({
           next: (weightedAuthority) => {
             this.weightedAuthority = weightedAuthority;
-            this.siloSvc.getWordPressSettings().subscribe({
-              next: (wordpress) => {
-                this.wordpress = wordpress;
-                this.loadGroupsAndScopes();
+            this.siloSvc.getLinkFreshnessSettings().subscribe({
+              next: (linkFreshness) => {
+                this.linkFreshness = linkFreshness;
+                this.siloSvc.getWordPressSettings().subscribe({
+                  next: (wordpress) => {
+                    this.wordpress = wordpress;
+                    this.loadGroupsAndScopes();
+                  },
+                  error: () => {
+                    this.loading = false;
+                    this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                  },
+                });
               },
               error: () => {
                 this.loading = false;
-                this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                this.snack.open('Failed to load Link Freshness settings', 'Dismiss', { duration: 4000 });
               },
             });
           },
@@ -135,6 +157,21 @@ export class SettingsComponent implements OnInit {
       error: () => {
         this.loading = false;
         this.snack.open('Failed to load silo settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveLinkFreshnessSettings(): void {
+    this.savingLinkFreshness = true;
+    this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness).subscribe({
+      next: (linkFreshness) => {
+        this.linkFreshness = linkFreshness;
+        this.savingLinkFreshness = false;
+        this.snack.open('Link Freshness settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingLinkFreshness = false;
+        this.snack.open(error?.error?.detail || 'Failed to save Link Freshness settings', 'Dismiss', { duration: 4000 });
       },
     });
   }
@@ -201,6 +238,20 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.recalculatingWeightedAuthority = false;
         this.snack.open(error?.error?.detail || 'Failed to start March 2026 PageRank recalculation', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  recalculateLinkFreshness(): void {
+    this.recalculatingLinkFreshness = true;
+    this.siloSvc.recalculateLinkFreshness().subscribe({
+      next: (response) => {
+        this.recalculatingLinkFreshness = false;
+        this.snack.open(`Link Freshness recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+      },
+      error: (error) => {
+        this.recalculatingLinkFreshness = false;
+        this.snack.open(error?.error?.detail || 'Failed to start Link Freshness recalculation', 'Dismiss', { duration: 4000 });
       },
     });
   }

@@ -97,6 +97,7 @@ def run_pipeline(
     weights = _load_weights()
     silo_settings = _load_silo_settings()
     weighted_authority_settings = _load_weighted_authority_settings()
+    link_freshness_settings = _load_link_freshness_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -198,6 +199,7 @@ def run_pipeline(
             weights=weights,
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
+            link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -310,6 +312,20 @@ def _load_weighted_authority_settings() -> dict[str, float]:
         }
 
 
+def _load_link_freshness_settings() -> dict[str, float]:
+    try:
+        from apps.core.views import get_link_freshness_settings
+
+        config = get_link_freshness_settings()
+        return {
+            "ranking_weight": float(config.get("ranking_weight", 0.0)),
+        }
+    except Exception:
+        return {
+            "ranking_weight": 0.0,
+        }
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
@@ -358,6 +374,7 @@ def _load_content_records(
             silo_group_name=silo_group.name if silo_group else "",
             reply_count=ci.reply_count or 0,
             march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
+            link_freshness_score=float(ci.link_freshness_score or 0.5),
             primary_post_char_count=primary_post_char_count,
             tokens=tokenize_text(text),
         )
@@ -694,6 +711,7 @@ def _persist_suggestions(
             score_quality=candidate.score_quality,
             score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
             score_velocity=dest_ci.velocity_score,
+            score_link_freshness=dest_ci.link_freshness_score,
             score_final=candidate.score_final,
             status="pending",
         )

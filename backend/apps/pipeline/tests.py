@@ -1,9 +1,18 @@
 import math
+from datetime import timedelta
 
 from django.test import TestCase
+from django.utils import timezone
 
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.core.models import AppSetting
 from apps.graph.models import ExistingLink
+from apps.pipeline.services.link_freshness import (
+    LinkFreshnessPeerRow,
+    LinkFreshnessSettings,
+    calculate_link_freshness,
+    run_link_freshness,
+)
 from apps.pipeline.services.pipeline import _persist_diagnostics
 from apps.pipeline.services.ranker import (
     ContentRecord,
@@ -25,6 +34,7 @@ def _content_record(
     content_id: int,
     silo_group_id: int | None,
     march_2026_pagerank_score: float = 0.0,
+    link_freshness_score: float = 0.5,
 ) -> ContentRecord:
     return ContentRecord(
         content_id=content_id,
@@ -41,6 +51,7 @@ def _content_record(
         silo_group_name=f"Silo {silo_group_id}" if silo_group_id else "",
         reply_count=5,
         march_2026_pagerank_score=march_2026_pagerank_score,
+        link_freshness_score=link_freshness_score,
         primary_post_char_count=500,
         tokens=frozenset({"topic", str(content_id)}),
     )
@@ -250,6 +261,198 @@ class SiloRankerTests(TestCase):
         )
 
         self.assertEqual(result, [])
+
+    def test_link_freshness_weight_zero_and_neutral_score_have_no_effect(self):
+        destination = _content_record(content_id=10, silo_group_id=None, link_freshness_score=0.5)
+        fresh_destination = _content_record(content_id=10, silo_group_id=None, link_freshness_score=0.8)
+        host = _content_record(content_id=20, silo_group_id=None)
+        records = {
+            destination.key: destination,
+            host.key: host,
+        }
+        sentence_records = {
+            20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+        }
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
+            link_freshness_ranking_weight=0.0,
+        )[0]
+        neutral_enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
+            link_freshness_ranking_weight=0.15,
+        )[0]
+        fresh_enabled = score_destination_matches(
+            fresh_destination,
+            [SentenceSemanticMatch(20, "thread", 20, 0.8)],
+            content_records={
+                fresh_destination.key: fresh_destination,
+                host.key: host,
+            },
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
+            link_freshness_ranking_weight=0.15,
+        )[0]
+
+        self.assertAlmostEqual(baseline.score_final, neutral_enabled.score_final, places=6)
+        self.assertGreater(fresh_enabled.score_final, baseline.score_final)
+
+
+class LinkFreshnessServiceTests(TestCase):
+    def test_neutral_fallbacks_and_growth_behavior(self):
+        now = timezone.now()
+        settings = LinkFreshnessSettings()
+
+        missing = calculate_link_freshness([], reference_time=now, settings=settings)
+        self.assertEqual(missing.link_freshness_score, 0.5)
+        self.assertEqual(missing.freshness_data_state, "neutral_missing_history")
+
+        thin = calculate_link_freshness(
+            [
+                LinkFreshnessPeerRow(
+                    first_seen_at=now - timedelta(days=90),
+                    last_seen_at=now - timedelta(days=1),
+                    last_disappeared_at=None,
+                    is_active=True,
+                ),
+                LinkFreshnessPeerRow(
+                    first_seen_at=now - timedelta(days=60),
+                    last_seen_at=now - timedelta(days=1),
+                    last_disappeared_at=None,
+                    is_active=True,
+                ),
+            ],
+            reference_time=now,
+            settings=settings,
+        )
+        self.assertEqual(thin.link_freshness_score, 0.5)
+        self.assertEqual(thin.freshness_data_state, "neutral_thin_history")
+
+        growing = calculate_link_freshness(
+            [
+                LinkFreshnessPeerRow(now - timedelta(days=75), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=65), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=15), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=10), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=5), now - timedelta(days=1), None, True),
+            ],
+            reference_time=now,
+            settings=settings,
+        )
+        cooling = calculate_link_freshness(
+            [
+                LinkFreshnessPeerRow(now - timedelta(days=90), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=55), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=50), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=45), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(now - timedelta(days=5), now - timedelta(days=1), None, True),
+            ],
+            reference_time=now,
+            settings=settings,
+        )
+
+        self.assertGreater(growing.link_freshness_score, 0.5)
+        self.assertLess(cooling.link_freshness_score, 0.5)
+
+    def test_recent_disappearances_reduce_score_and_recalc_does_not_touch_pagerank(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        destination = ContentItem.objects.create(
+            content_id=1,
+            content_type="thread",
+            title="Destination",
+            scope=scope,
+            march_2026_pagerank_score=0.77,
+        )
+        sources = [
+            ContentItem.objects.create(content_id=index + 2, content_type="thread", title=f"Source {index}", scope=scope)
+            for index in range(4)
+        ]
+        now = timezone.now()
+        from apps.graph.models import LinkFreshnessEdge
+
+        for index, source in enumerate(sources):
+            LinkFreshnessEdge.objects.create(
+                from_content_item=source,
+                to_content_item=destination,
+                first_seen_at=now - timedelta(days=70 - (index * 5)),
+                last_seen_at=now - timedelta(days=1),
+                is_active=True,
+            )
+
+        baseline = run_link_freshness(reference_time=now)
+        destination.refresh_from_db()
+        baseline_score = destination.link_freshness_score
+
+        LinkFreshnessEdge.objects.filter(from_content_item=sources[0]).update(
+            is_active=False,
+            last_disappeared_at=now - timedelta(days=2),
+        )
+        LinkFreshnessEdge.objects.filter(from_content_item=sources[1]).update(
+            is_active=False,
+            last_disappeared_at=now - timedelta(days=3),
+        )
+
+        diagnostics = run_link_freshness(reference_time=now)
+        destination.refresh_from_db()
+
+        self.assertIn("computed_count", baseline)
+        self.assertIn("computed_count", diagnostics)
+        self.assertLess(destination.link_freshness_score, baseline_score)
+        self.assertAlmostEqual(destination.march_2026_pagerank_score, 0.77, places=6)
+
+    def test_link_freshness_ignores_weighted_authority_and_velocity_settings(self):
+        scope = ScopeItem.objects.create(scope_id=9, scope_type="node", title="Forum")
+        destination = ContentItem.objects.create(content_id=90, content_type="thread", title="Destination", scope=scope)
+        source_a = ContentItem.objects.create(content_id=91, content_type="thread", title="Source A", scope=scope)
+        source_b = ContentItem.objects.create(content_id=92, content_type="thread", title="Source B", scope=scope)
+        source_c = ContentItem.objects.create(content_id=93, content_type="thread", title="Source C", scope=scope)
+        now = timezone.now()
+        from apps.graph.models import LinkFreshnessEdge
+
+        LinkFreshnessEdge.objects.bulk_create(
+            [
+                LinkFreshnessEdge(from_content_item=source_a, to_content_item=destination, first_seen_at=now - timedelta(days=80), last_seen_at=now - timedelta(days=1), is_active=True),
+                LinkFreshnessEdge(from_content_item=source_b, to_content_item=destination, first_seen_at=now - timedelta(days=50), last_seen_at=now - timedelta(days=1), is_active=True),
+                LinkFreshnessEdge(from_content_item=source_c, to_content_item=destination, first_seen_at=now - timedelta(days=10), last_seen_at=now - timedelta(days=1), is_active=True),
+            ]
+        )
+
+        run_link_freshness(reference_time=now)
+        destination.refresh_from_db()
+        baseline = destination.link_freshness_score
+
+        AppSetting.objects.create(
+            key="weighted_authority.position_bias",
+            value="0.9",
+            value_type="float",
+            category="ml",
+            description="Unrelated weighted authority setting",
+        )
+        AppSetting.objects.create(
+            key="vel_recency_half_life_days",
+            value="99",
+            value_type="float",
+            category="ml",
+            description="Unrelated velocity setting",
+        )
+
+        run_link_freshness(reference_time=now)
+        destination.refresh_from_db()
+        self.assertAlmostEqual(destination.link_freshness_score, baseline, places=6)
 
 
 class WeightedAuthorityGraphTests(TestCase):

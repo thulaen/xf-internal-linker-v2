@@ -193,6 +193,11 @@ class ContentItem(TimestampedModel):
         db_index=True,
         help_text="Recency/engagement velocity score. Higher = trending recently.",
     )
+    link_freshness_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text="Link Freshness score based only on inbound link-history timing. 0.5 = neutral.",
+    )
 
     # pgvector embedding (384 dims = BAAI/bge-small-en-v1.5 and similar small models)
     embedding = VectorField(
@@ -254,6 +259,7 @@ class ContentItem(TimestampedModel):
         indexes = [
             models.Index(fields=["content_type", "march_2026_pagerank_score"]),
             models.Index(fields=["content_type", "velocity_score"]),
+            models.Index(fields=["content_type", "link_freshness_score"]),
             models.Index(fields=["is_deleted"]),
         ]
 

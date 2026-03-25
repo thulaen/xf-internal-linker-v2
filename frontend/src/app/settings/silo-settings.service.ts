@@ -64,6 +64,17 @@ export interface WeightedAuthoritySettings {
   isolated_context_factor: number;
 }
 
+export interface LinkFreshnessSettings {
+  ranking_weight: number;
+  recent_window_days: number;
+  newest_peer_percent: number;
+  min_peer_count: number;
+  w_recent: number;
+  w_growth: number;
+  w_cohort: number;
+  w_loss: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -114,12 +125,24 @@ export class SiloSettingsService {
     return this.http.get<WeightedAuthoritySettings>('/api/settings/weighted-authority/');
   }
 
+  getLinkFreshnessSettings(): Observable<LinkFreshnessSettings> {
+    return this.http.get<LinkFreshnessSettings>('/api/settings/link-freshness/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
 
   recalculateWeightedAuthority(): Observable<{ job_id: string }> {
     return this.http.post<{ job_id: string }>('/api/settings/weighted-authority/recalculate/', {});
+  }
+
+  updateLinkFreshnessSettings(payload: LinkFreshnessSettings): Observable<LinkFreshnessSettings> {
+    return this.http.put<LinkFreshnessSettings>('/api/settings/link-freshness/', payload);
+  }
+
+  recalculateLinkFreshness(): Observable<{ job_id: string }> {
+    return this.http.post<{ job_id: string }>('/api/settings/link-freshness/recalculate/', {});
   }
 
   updateWordPressSettings(payload: WordPressSettingsUpdate): Observable<WordPressSettings> {

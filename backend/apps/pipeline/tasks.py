@@ -166,6 +166,30 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
         raise
 
 
+@shared_task(bind=True, name="pipeline.recalculate_link_freshness")
+def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
+    """Recompute Link Freshness from the stored link-history rows and current settings."""
+    job_id = job_id or str(uuid.uuid4())
+    _publish_progress(job_id, "running", 0.0, "Starting Link Freshness recalculation...")
+
+    try:
+        from apps.pipeline.services.link_freshness import run_link_freshness
+
+        diagnostics = run_link_freshness()
+        _publish_progress(
+            job_id,
+            "completed",
+            1.0,
+            "Link Freshness recalculation complete.",
+            **diagnostics,
+        )
+        return {"job_id": job_id, **diagnostics}
+    except Exception as exc:
+        logger.exception("Link Freshness recalculation %s failed", job_id)
+        _publish_progress(job_id, "failed", 0.0, f"Link Freshness recalculation failed: {exc}", error=str(exc))
+        raise
+
+
 @shared_task(bind=True, name="pipeline.import_content")
 def import_content(
     self,
@@ -368,6 +392,18 @@ def import_content(
         clean_text = clean_import_text(raw_body)
         new_hash = generate_content_hash(title, clean_text)
         if content_item.content_hash == new_hash:
+            if mode == "full":
+                edges = extract_internal_links(
+                    raw_body,
+                    int(c_id),
+                    c_type,
+                    forum_domains=_configured_domains(),
+                )
+                sync_existing_links(
+                    content_item,
+                    edges,
+                    allow_disappearance=True,
+                )
             return None
 
         with transaction.atomic():
@@ -407,7 +443,11 @@ def import_content(
                 c_type,
                 forum_domains=_configured_domains(),
             )
-            sync_existing_links(content_item, edges)
+            sync_existing_links(
+                content_item,
+                edges,
+                allow_disappearance=(mode == "full"),
+            )
 
         return content_item.pk
 

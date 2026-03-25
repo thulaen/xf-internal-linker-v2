@@ -9,6 +9,7 @@ from django.utils.text import slugify
 from rest_framework import serializers
 
 from .models import ContentItem, ContentMetricSnapshot, Post, ScopeItem, Sentence, SiloGroup
+from apps.pipeline.services.link_freshness import classify_freshness_bucket
 
 
 class SiloGroupSerializer(serializers.ModelSerializer):
@@ -65,13 +66,14 @@ class ContentItemListSerializer(serializers.ModelSerializer):
     scope_title = serializers.CharField(source="scope.title", read_only=True, default="")
     source_label = serializers.SerializerMethodField()
     content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
+    freshness_bucket = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentItem
         fields = [
             "id", "content_id", "content_type", "content_type_label", "source_label",
             "title", "url", "scope", "scope_title",
-            "march_2026_pagerank_score", "velocity_score",
+            "march_2026_pagerank_score", "velocity_score", "link_freshness_score", "freshness_bucket",
             "view_count", "reply_count",
             "post_date", "is_deleted",
             "created_at", "updated_at",
@@ -80,6 +82,9 @@ class ContentItemListSerializer(serializers.ModelSerializer):
 
     def get_source_label(self, obj: ContentItem) -> str:
         return _content_source_label(obj.content_type)
+
+    def get_freshness_bucket(self, obj: ContentItem) -> str:
+        return classify_freshness_bucket(float(obj.link_freshness_score or 0.5))
 
 
 class ContentItemDetailSerializer(serializers.ModelSerializer):
@@ -91,6 +96,7 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
     sentence_count = serializers.SerializerMethodField()
     source_label = serializers.SerializerMethodField()
     content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
+    freshness_bucket = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentItem
@@ -98,7 +104,7 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
             "id", "content_id", "content_type", "content_type_label", "source_label",
             "title", "url", "scope", "scope_title",
             "distilled_text", "distill_method", "content_hash",
-            "march_2026_pagerank_score", "velocity_score",
+            "march_2026_pagerank_score", "velocity_score", "link_freshness_score", "freshness_bucket",
             "view_count", "reply_count", "download_count",
             "post_date", "last_post_date",
             "xf_post_id", "xf_update_id",
@@ -119,6 +125,9 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
 
     def get_source_label(self, obj: ContentItem) -> str:
         return _content_source_label(obj.content_type)
+
+    def get_freshness_bucket(self, obj: ContentItem) -> str:
+        return classify_freshness_bucket(float(obj.link_freshness_score or 0.5))
 
 
 class PostSerializer(serializers.ModelSerializer):

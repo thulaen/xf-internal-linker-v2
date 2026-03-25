@@ -13,6 +13,8 @@ import math
 import re
 from typing import Mapping, TypeAlias
 
+from .link_freshness import score_link_freshness_component
+
 
 ContentKey: TypeAlias = tuple[int, str]
 ExistingLinkKey: TypeAlias = tuple[ContentKey, ContentKey]
@@ -65,6 +67,7 @@ class ContentRecord:
     silo_group_name: str
     reply_count: int
     march_2026_pagerank_score: float
+    link_freshness_score: float
     primary_post_char_count: int
     tokens: frozenset[str]
 
@@ -278,6 +281,7 @@ def score_destination_matches(
     weights: Mapping[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
+    link_freshness_ranking_weight: float = 0.0,
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -340,6 +344,11 @@ def score_destination_matches(
             if weighted_authority_ranking_weight > 0.0
             else 0.0
         )
+        score_link_freshness = (
+            score_link_freshness_component(destination.link_freshness_score)
+            if link_freshness_ranking_weight > 0.0
+            else 0.0
+        )
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
@@ -347,6 +356,7 @@ def score_destination_matches(
             + float(weights.get("w_node", 0.0)) * score_node
             + float(weights.get("w_quality", 0.0)) * score_quality
             + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
+            + float(link_freshness_ranking_weight) * score_link_freshness
             + score_silo
         )
 

@@ -92,14 +92,14 @@ class ContentItemAdmin(ModelAdmin):
 
     list_display = [
         "title", "content_type", "scope", "march_2026_pagerank_score",
-        "velocity_score", "view_count", "reply_count", "post_date",
+        "velocity_score", "link_freshness_score", "view_count", "reply_count", "post_date",
         "is_deleted",
     ]
     list_filter = ["content_type", "is_deleted", "scope__scope_type", "scope"]
     search_fields = ["title", "content_id"]
     readonly_fields = [
         "content_id", "content_type", "content_hash",
-        "march_2026_pagerank_score", "velocity_score",
+        "march_2026_pagerank_score", "velocity_score", "link_freshness_score",
         "created_at", "updated_at", "fetched_at",
     ]
     list_per_page = 50
@@ -115,7 +115,7 @@ class ContentItemAdmin(ModelAdmin):
             "classes": ("collapse",),
         }),
         ("Scores", {
-            "fields": ("march_2026_pagerank_score", "velocity_score"),
+            "fields": ("march_2026_pagerank_score", "velocity_score", "link_freshness_score"),
             "classes": ("collapse",),
         }),
         ("Engagement", {

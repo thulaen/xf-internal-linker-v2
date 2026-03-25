@@ -46,6 +46,7 @@ export interface SuggestionDetail extends Suggestion {
   score_quality: number;
   score_march_2026_pagerank: number;
   score_velocity: number;
+  score_link_freshness: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -54,7 +55,25 @@ export interface SuggestionDetail extends Suggestion {
   stale_reason: string;
   superseded_by: string | null;
   superseded_at: string | null;
+  link_freshness_diagnostics: LinkFreshnessDiagnostics;
   updated_at: string;
+}
+
+export interface LinkFreshnessDiagnostics {
+  link_freshness_score: number;
+  freshness_bucket: 'fresh' | 'neutral' | 'stale';
+  freshness_data_state: 'computed' | 'neutral_missing_history' | 'neutral_thin_history' | 'neutral_invalid_history';
+  total_peer_count: number;
+  active_peer_count: number;
+  recent_new_peer_count: number;
+  previous_new_peer_count: number;
+  recent_lost_peer_count: number;
+  recent_share: number;
+  growth_delta: number;
+  cohort_freshness: number;
+  recent_window_days: number;
+  newest_peer_percent: number;
+  min_peer_count: number;
 }
 
 export interface PaginatedResult<T> {

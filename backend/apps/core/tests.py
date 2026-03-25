@@ -172,3 +172,75 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 202)
         self.assertIn("job_id", response.json())
         delay_mock.assert_called_once()
+
+
+class LinkFreshnessSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="freshness-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_link_freshness_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/link-freshness/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "ranking_weight": 0.0,
+                "recent_window_days": 30,
+                "newest_peer_percent": 0.25,
+                "min_peer_count": 3,
+                "w_recent": 0.35,
+                "w_growth": 0.35,
+                "w_cohort": 0.2,
+                "w_loss": 0.1,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/link-freshness/",
+            {
+                "ranking_weight": 0.1,
+                "recent_window_days": 45,
+                "newest_peer_percent": 0.3,
+                "min_peer_count": 4,
+                "w_recent": 0.30,
+                "w_growth": 0.30,
+                "w_cohort": 0.25,
+                "w_loss": 0.15,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["ranking_weight"], 0.1)
+        self.assertEqual(AppSetting.objects.get(key="link_freshness.ranking_weight").value, "0.1")
+        self.assertEqual(AppSetting.objects.get(key="link_freshness.recent_window_days").value, "45")
+        self.assertEqual(AppSetting.objects.get(key="link_freshness.ranking_weight").category, "link_freshness")
+
+    def test_link_freshness_validation_rejects_bad_weights(self):
+        response = self.client.put(
+            "/api/settings/link-freshness/",
+            {
+                "ranking_weight": 0.1,
+                "recent_window_days": 30,
+                "newest_peer_percent": 0.25,
+                "min_peer_count": 3,
+                "w_recent": 0.2,
+                "w_growth": 0.2,
+                "w_cohort": 0.2,
+                "w_loss": 0.2,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("must equal 1.0", response.json()["detail"])
+
+    @patch("apps.pipeline.tasks.recalculate_link_freshness.delay")
+    def test_link_freshness_recalculate_endpoint_returns_job(self, delay_mock):
+        response = self.client.post("/api/settings/link-freshness/recalculate/", {}, format="json")
+
+        self.assertEqual(response.status_code, 202)
+        self.assertIn("job_id", response.json())
+        delay_mock.assert_called_once()

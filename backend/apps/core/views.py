@@ -65,6 +65,17 @@ DEFAULT_WEIGHTED_AUTHORITY_SETTINGS = {
     "isolated_context_factor": 0.45,
 }
 
+DEFAULT_LINK_FRESHNESS_SETTINGS = {
+    "ranking_weight": 0.0,
+    "recent_window_days": 30,
+    "newest_peer_percent": 0.25,
+    "min_peer_count": 3,
+    "w_recent": 0.35,
+    "w_growth": 0.35,
+    "w_cohort": 0.20,
+    "w_loss": 0.10,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -175,6 +186,18 @@ def get_weighted_authority_settings() -> dict[str, float]:
         return dict(DEFAULT_WEIGHTED_AUTHORITY_SETTINGS)
 
 
+def get_link_freshness_settings() -> dict[str, float | int]:
+    """Load persisted link-freshness settings with defensive defaults."""
+    settings = _read_link_freshness_settings()
+    try:
+        return _validate_link_freshness_settings(
+            settings,
+            current=dict(DEFAULT_LINK_FRESHNESS_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_LINK_FRESHNESS_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -194,6 +217,39 @@ def _read_weighted_authority_settings() -> dict[str, float]:
         "bare_url_factor": _read_float("weighted_authority.bare_url_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["bare_url_factor"]),
         "weak_context_factor": _read_float("weighted_authority.weak_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["weak_context_factor"]),
         "isolated_context_factor": _read_float("weighted_authority.isolated_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["isolated_context_factor"]),
+    }
+
+
+def _read_link_freshness_settings() -> dict[str, float | int]:
+    """Read link-freshness settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        return value
+
+    return {
+        "ranking_weight": _read_float("link_freshness.ranking_weight", DEFAULT_LINK_FRESHNESS_SETTINGS["ranking_weight"]),
+        "recent_window_days": _read_int("link_freshness.recent_window_days", DEFAULT_LINK_FRESHNESS_SETTINGS["recent_window_days"]),
+        "newest_peer_percent": _read_float("link_freshness.newest_peer_percent", DEFAULT_LINK_FRESHNESS_SETTINGS["newest_peer_percent"]),
+        "min_peer_count": _read_int("link_freshness.min_peer_count", DEFAULT_LINK_FRESHNESS_SETTINGS["min_peer_count"]),
+        "w_recent": _read_float("link_freshness.w_recent", DEFAULT_LINK_FRESHNESS_SETTINGS["w_recent"]),
+        "w_growth": _read_float("link_freshness.w_growth", DEFAULT_LINK_FRESHNESS_SETTINGS["w_growth"]),
+        "w_cohort": _read_float("link_freshness.w_cohort", DEFAULT_LINK_FRESHNESS_SETTINGS["w_cohort"]),
+        "w_loss": _read_float("link_freshness.w_loss", DEFAULT_LINK_FRESHNESS_SETTINGS["w_loss"]),
     }
 
 
@@ -302,6 +358,69 @@ def _validate_weighted_authority_settings(
         raise ValueError("weak_context_factor must be <= 1.0.")
     if validated["bare_url_factor"] > 1.0:
         raise ValueError("bare_url_factor must be <= 1.0.")
+
+    return validated
+
+
+def _validate_link_freshness_settings(
+    payload: dict,
+    *,
+    current: dict[str, float | int] | None = None,
+) -> dict[str, float | int]:
+    current = current or _read_link_freshness_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    def _coerce_int(key: str) -> int:
+        value = payload.get(key, current[key])
+        try:
+            coerced = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+        return coerced
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "recent_window_days": _coerce_int("recent_window_days"),
+        "newest_peer_percent": _coerce_float("newest_peer_percent"),
+        "min_peer_count": _coerce_int("min_peer_count"),
+        "w_recent": _coerce_float("w_recent"),
+        "w_growth": _coerce_float("w_growth"),
+        "w_cohort": _coerce_float("w_cohort"),
+        "w_loss": _coerce_float("w_loss"),
+    }
+
+    bounds = {
+        "ranking_weight": (0.0, 0.15),
+        "recent_window_days": (7, 90),
+        "newest_peer_percent": (0.10, 0.50),
+        "min_peer_count": (1, 20),
+        "w_recent": (0.0, 1.0),
+        "w_growth": (0.0, 1.0),
+        "w_cohort": (0.0, 1.0),
+        "w_loss": (0.0, 1.0),
+    }
+    for key, (minimum, maximum) in bounds.items():
+        value = validated[key]
+        if value < minimum or value > maximum:
+            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+
+    weight_total = (
+        float(validated["w_recent"])
+        + float(validated["w_growth"])
+        + float(validated["w_cohort"])
+        + float(validated["w_loss"])
+    )
+    if not math.isclose(weight_total, 1.0, rel_tol=0.0, abs_tol=1e-6):
+        raise ValueError("w_recent + w_growth + w_cohort + w_loss must equal 1.0.")
 
     return validated
 
@@ -502,6 +621,91 @@ class WeightedAuthorityRecalculateView(APIView):
 
         job_id = str(uuid.uuid4())
         recalculate_weighted_authority.delay(job_id=job_id)
+        return Response({"job_id": job_id}, status=202)
+
+
+class LinkFreshnessSettingsView(APIView):
+    """
+    GET  /api/settings/link-freshness/ - returns Link Freshness settings
+    PUT  /api/settings/link-freshness/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_link_freshness_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_link_freshness_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "link_freshness.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Ranking weight applied to the centered Link Freshness component.",
+            },
+            "link_freshness.recent_window_days": {
+                "value": str(validated["recent_window_days"]),
+                "value_type": "int",
+                "description": "Day window used to compare recent link growth vs. the prior window.",
+            },
+            "link_freshness.newest_peer_percent": {
+                "value": str(validated["newest_peer_percent"]),
+                "value_type": "float",
+                "description": "Share of newest inbound peers used for cohort freshness.",
+            },
+            "link_freshness.min_peer_count": {
+                "value": str(validated["min_peer_count"]),
+                "value_type": "int",
+                "description": "Minimum inbound peer history rows required before Link Freshness stops being neutral.",
+            },
+            "link_freshness.w_recent": {
+                "value": str(validated["w_recent"]),
+                "value_type": "float",
+                "description": "Weight for the recent-new-links share component.",
+            },
+            "link_freshness.w_growth": {
+                "value": str(validated["w_growth"]),
+                "value_type": "float",
+                "description": "Weight for the recent-vs-previous growth delta component.",
+            },
+            "link_freshness.w_cohort": {
+                "value": str(validated["w_cohort"]),
+                "value_type": "float",
+                "description": "Weight for the newest-cohort freshness component.",
+            },
+            "link_freshness.w_loss": {
+                "value": str(validated["w_loss"]),
+                "value_type": "float",
+                "description": "Weight for recent inbound-link disappearance pressure.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "link_freshness",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class LinkFreshnessRecalculateView(APIView):
+    """POST /api/settings/link-freshness/recalculate/ - recalculate Link Freshness."""
+
+    def post(self, request):
+        from apps.pipeline.tasks import recalculate_link_freshness
+
+        job_id = str(uuid.uuid4())
+        recalculate_link_freshness.delay(job_id=job_id)
         return Response({"job_id": job_id}, status=202)
 
 
