@@ -23,6 +23,11 @@ from apps.pipeline.services.phrase_matching import (
     _build_destination_phrase_inventory,
     evaluate_phrase_match,
 )
+from apps.pipeline.services.rare_term_propagation import (
+    RareTermPropagationSettings,
+    build_rare_term_profiles,
+    evaluate_rare_term_propagation,
+)
 from apps.pipeline.services.pipeline import _persist_diagnostics
 from apps.pipeline.services.ranker import (
     ContentRecord,
@@ -979,6 +984,431 @@ class LearnedAnchorRankerIntegrationTests(TestCase):
         self.assertEqual(
             result_a.learned_anchor_diagnostics["matched_family_canonical"],
             result_b.learned_anchor_diagnostics["matched_family_canonical"],
+        )
+
+
+class RareTermPropagationServiceTests(TestCase):
+    def _record(
+        self,
+        *,
+        content_id: int,
+        scope_id: int,
+        parent_id: int | None,
+        grandparent_id: int | None,
+        silo_group_id: int | None,
+        tokens: frozenset[str],
+    ) -> ContentRecord:
+        return ContentRecord(
+            content_id=content_id,
+            content_type="thread",
+            title=f"Item {content_id}",
+            distilled_text="Topic body",
+            scope_id=scope_id,
+            scope_type="node",
+            parent_id=parent_id,
+            parent_type="category" if parent_id is not None else "",
+            grandparent_id=grandparent_id,
+            grandparent_type="category" if grandparent_id is not None else "",
+            silo_group_id=silo_group_id,
+            silo_group_name=f"Silo {silo_group_id}" if silo_group_id else "",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=tokens,
+        )
+
+    def test_related_page_boundaries_and_rare_term_thresholds(self):
+        destination = self._record(
+            content_id=1,
+            scope_id=10,
+            parent_id=100,
+            grandparent_id=1000,
+            silo_group_id=1,
+            tokens=frozenset({"guide", "topic"}),
+        )
+        same_scope = self._record(
+            content_id=2,
+            scope_id=10,
+            parent_id=101,
+            grandparent_id=1001,
+            silo_group_id=1,
+            tokens=frozenset({"guide", "xenforo", "plugin"}),
+        )
+        same_parent_one_shared = self._record(
+            content_id=3,
+            scope_id=11,
+            parent_id=100,
+            grandparent_id=1002,
+            silo_group_id=1,
+            tokens=frozenset({"guide", "solr"}),
+        )
+        same_parent_two_shared = self._record(
+            content_id=4,
+            scope_id=12,
+            parent_id=100,
+            grandparent_id=1003,
+            silo_group_id=1,
+            tokens=frozenset({"guide", "topic", "xenforo", "plugin"}),
+        )
+        same_grandparent_two_shared = self._record(
+            content_id=5,
+            scope_id=13,
+            parent_id=102,
+            grandparent_id=1000,
+            silo_group_id=1,
+            tokens=frozenset({"guide", "topic", "plugin"}),
+        )
+        cross_silo = self._record(
+            content_id=6,
+            scope_id=10,
+            parent_id=100,
+            grandparent_id=1000,
+            silo_group_id=9,
+            tokens=frozenset({"guide", "topic", "xenforo"}),
+        )
+        plugin_extra_a = self._record(
+            content_id=7,
+            scope_id=20,
+            parent_id=200,
+            grandparent_id=2000,
+            silo_group_id=None,
+            tokens=frozenset({"plugin", "alpha"}),
+        )
+        plugin_extra_b = self._record(
+            content_id=8,
+            scope_id=21,
+            parent_id=201,
+            grandparent_id=2001,
+            silo_group_id=None,
+            tokens=frozenset({"plugin", "beta"}),
+        )
+
+        profiles = build_rare_term_profiles(
+            {
+                record.key: record
+                for record in [
+                    destination,
+                    same_scope,
+                    same_parent_one_shared,
+                    same_parent_two_shared,
+                    same_grandparent_two_shared,
+                    cross_silo,
+                    plugin_extra_a,
+                    plugin_extra_b,
+                ]
+            },
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+
+        profile = profiles[destination.key]
+        self.assertEqual(profile.eligible_related_page_count, 3)
+        self.assertEqual(
+            [row.content_id for row in profile.related_page_summary],
+            [2, 4, 5],
+        )
+        self.assertEqual(
+            [term.term for term in profile.propagated_terms],
+            ["xenforo"],
+        )
+
+    def test_duplicate_counting_and_destination_separation_stay_safe(self):
+        destination = self._record(
+            content_id=20,
+            scope_id=30,
+            parent_id=300,
+            grandparent_id=3000,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "topic", "xenforo"}),
+        )
+        donor_a = self._record(
+            content_id=21,
+            scope_id=30,
+            parent_id=301,
+            grandparent_id=3001,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "xenforo", "solr"}),
+        )
+        donor_b = self._record(
+            content_id=22,
+            scope_id=30,
+            parent_id=302,
+            grandparent_id=3002,
+            silo_group_id=None,
+            tokens=frozenset({"topic", "xenforo", "solr"}),
+        )
+
+        profiles = build_rare_term_profiles(
+            {record.key: record for record in [destination, donor_a, donor_b]},
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+        profile = profiles[destination.key]
+        self.assertEqual(profile.profile_state, "neutral_no_rare_terms")
+        self.assertEqual(profile.propagated_terms, ())
+
+        thin_destination = self._record(
+            content_id=23,
+            scope_id=31,
+            parent_id=310,
+            grandparent_id=3100,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "topic"}),
+        )
+        thin_donor = self._record(
+            content_id=24,
+            scope_id=31,
+            parent_id=311,
+            grandparent_id=3101,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "xenforo"}),
+        )
+        thin_profiles = build_rare_term_profiles(
+            {record.key: record for record in [thin_destination, thin_donor]},
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+        thin_result = evaluate_rare_term_propagation(
+            destination=thin_destination,
+            host_sentence_tokens=frozenset({"xenforo"}),
+            profiles=thin_profiles,
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+        self.assertEqual(thin_result.score_rare_term_propagation, 0.5)
+        self.assertEqual(thin_result.rare_term_state, "neutral_below_min_support")
+
+        supported_destination = self._record(
+            content_id=25,
+            scope_id=32,
+            parent_id=320,
+            grandparent_id=3200,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "topic"}),
+        )
+        supported_donor_a = self._record(
+            content_id=26,
+            scope_id=32,
+            parent_id=321,
+            grandparent_id=3201,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "xenforo"}),
+        )
+        supported_donor_b = self._record(
+            content_id=27,
+            scope_id=32,
+            parent_id=322,
+            grandparent_id=3202,
+            silo_group_id=None,
+            tokens=frozenset({"topic", "xenforo"}),
+        )
+        supported_profiles = build_rare_term_profiles(
+            {
+                record.key: record
+                for record in [supported_destination, supported_donor_a, supported_donor_b]
+            },
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+        supported_result = evaluate_rare_term_propagation(
+            destination=supported_destination,
+            host_sentence_tokens=frozenset({"xenforo"}),
+            profiles=supported_profiles,
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+        self.assertGreater(supported_result.score_rare_term_propagation, 0.5)
+        self.assertEqual(len(supported_result.rare_term_diagnostics["matched_propagated_terms"]), 1)
+        self.assertEqual(
+            supported_result.rare_term_diagnostics["matched_propagated_terms"][0]["supporting_related_pages"],
+            2,
+        )
+
+    def test_disabled_feature_stays_neutral(self):
+        destination = self._record(
+            content_id=40,
+            scope_id=40,
+            parent_id=400,
+            grandparent_id=4000,
+            silo_group_id=None,
+            tokens=frozenset({"guide", "topic"}),
+        )
+
+        result = evaluate_rare_term_propagation(
+            destination=destination,
+            host_sentence_tokens=frozenset({"xenforo"}),
+            profiles={},
+            settings=RareTermPropagationSettings(enabled=False),
+        )
+
+        self.assertEqual(result.score_rare_term_propagation, 0.5)
+        self.assertEqual(result.rare_term_state, "neutral_feature_disabled")
+        self.assertEqual(result.rare_term_diagnostics, {})
+
+
+class RareTermRankerIntegrationTests(TestCase):
+    def setUp(self):
+        self.destination = _content_record(content_id=401, silo_group_id=None)
+        self.host = _content_record(content_id=402, silo_group_id=None)
+        self.weights = {
+            "w_semantic": 0.55,
+            "w_keyword": 0.20,
+            "w_node": 0.10,
+            "w_quality": 0.15,
+        }
+        self.bounds = (0.1, 2.0)
+
+    def test_rare_term_weight_zero_is_a_ranking_no_op(self):
+        destination = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Link Guide",
+            distilled_text="Internal link guide for editors.",
+            scope_id=500,
+            scope_type="node",
+            parent_id=900,
+            parent_type="category",
+            grandparent_id=1200,
+            grandparent_type="category",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=frozenset({"guide", "internal", "link"}),
+        )
+        donor_a = ContentRecord(
+            content_id=403,
+            content_type="thread",
+            title="XenForo linking notes",
+            distilled_text="Guide xenforo notes.",
+            scope_id=500,
+            scope_type="node",
+            parent_id=901,
+            parent_type="category",
+            grandparent_id=1201,
+            grandparent_type="category",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=frozenset({"guide", "xenforo"}),
+        )
+        donor_b = ContentRecord(
+            content_id=404,
+            content_type="thread",
+            title="Topic xenforo setup",
+            distilled_text="Link xenforo setup.",
+            scope_id=500,
+            scope_type="node",
+            parent_id=902,
+            parent_type="category",
+            grandparent_id=1202,
+            grandparent_type="category",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=frozenset({"link", "xenforo"}),
+        )
+        host = ContentRecord(
+            content_id=self.host.content_id,
+            content_type=self.host.content_type,
+            title=self.host.title,
+            distilled_text=self.host.distilled_text,
+            scope_id=self.host.scope_id,
+            scope_type=self.host.scope_type,
+            parent_id=self.host.parent_id,
+            parent_type=self.host.parent_type,
+            grandparent_id=self.host.grandparent_id,
+            grandparent_type=self.host.grandparent_type,
+            silo_group_id=self.host.silo_group_id,
+            silo_group_name=self.host.silo_group_name,
+            reply_count=99,
+            march_2026_pagerank_score=1.8,
+            link_freshness_score=self.host.link_freshness_score,
+            primary_post_char_count=900,
+            tokens=frozenset({"guide", "link", "xenforo"}),
+        )
+        sentence_records = {
+            50: SentenceRecord(
+                50,
+                host.content_id,
+                host.content_type,
+                "This xenforo xenforo guide helps editors manage internal links.",
+                80,
+                frozenset({"guide", "link", "xenforo", "editors", "internal"}),
+            )
+        }
+        rare_term_profiles = build_rare_term_profiles(
+            {
+                record.key: record
+                for record in [destination, donor_a, donor_b]
+            },
+            settings=RareTermPropagationSettings(
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 50, 0.8)],
+            content_records={destination.key: destination, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            rare_term_profiles=rare_term_profiles,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            rare_term_settings=RareTermPropagationSettings(
+                ranking_weight=0.0,
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )[0]
+        enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 50, 0.8)],
+            content_records={destination.key: destination, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            rare_term_profiles=rare_term_profiles,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            rare_term_settings=RareTermPropagationSettings(
+                ranking_weight=0.05,
+                max_document_frequency=3,
+                minimum_supporting_related_pages=2,
+            ),
+        )[0]
+
+        self.assertGreater(baseline.score_rare_term_propagation, 0.5)
+        self.assertEqual(
+            len(baseline.rare_term_diagnostics["matched_propagated_terms"]),
+            1,
+        )
+        self.assertAlmostEqual(
+            enabled.score_final,
+            baseline.score_final + 0.05 * (2 * (baseline.score_rare_term_propagation - 0.5)),
+            places=6,
         )
 
 

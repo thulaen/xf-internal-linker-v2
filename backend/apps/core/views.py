@@ -90,6 +90,13 @@ DEFAULT_LEARNED_ANCHOR_SETTINGS = {
     "enable_noise_filter": True,
 }
 
+DEFAULT_RARE_TERM_PROPAGATION_SETTINGS = {
+    "enabled": True,
+    "ranking_weight": 0.0,
+    "max_document_frequency": 3,
+    "minimum_supporting_related_pages": 2,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -236,6 +243,18 @@ def get_learned_anchor_settings() -> dict[str, float | int | bool]:
         return dict(DEFAULT_LEARNED_ANCHOR_SETTINGS)
 
 
+def get_rare_term_propagation_settings() -> dict[str, float | int | bool]:
+    """Load persisted FR-010 rare-term settings with defensive defaults."""
+    settings = _read_rare_term_propagation_settings()
+    try:
+        return _validate_rare_term_propagation_settings(
+            settings,
+            current=dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -358,6 +377,44 @@ def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
         "minimum_anchor_sources": _read_int("learned_anchor.minimum_anchor_sources", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_anchor_sources"]),
         "minimum_family_support_share": _read_float("learned_anchor.minimum_family_support_share", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_family_support_share"]),
         "enable_noise_filter": _read_bool("learned_anchor.enable_noise_filter", DEFAULT_LEARNED_ANCHOR_SETTINGS["enable_noise_filter"]),
+    }
+
+
+def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
+    """Read FR-010 rare-term settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _read_bool("rare_term_propagation.enabled", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["enabled"]),
+        "ranking_weight": _read_float("rare_term_propagation.ranking_weight", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["ranking_weight"]),
+        "max_document_frequency": _read_int("rare_term_propagation.max_document_frequency", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["max_document_frequency"]),
+        "minimum_supporting_related_pages": _read_int(
+            "rare_term_propagation.minimum_supporting_related_pages",
+            DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["minimum_supporting_related_pages"],
+        ),
     }
 
 
@@ -621,6 +678,53 @@ def _validate_learned_anchor_settings(
         raise ValueError("minimum_anchor_sources must be between 1 and 10.")
     if validated["minimum_family_support_share"] < 0.05 or validated["minimum_family_support_share"] > 0.50:
         raise ValueError("minimum_family_support_share must be between 0.05 and 0.50.")
+
+    return validated
+
+
+def _validate_rare_term_propagation_settings(
+    payload: dict,
+    *,
+    current: dict[str, float | int | bool] | None = None,
+) -> dict[str, float | int | bool]:
+    current = current or _read_rare_term_propagation_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    def _coerce_int(key: str) -> int:
+        value = payload.get(key, current[key])
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+
+    def _coerce_bool(key: str) -> bool:
+        value = payload.get(key, current[key])
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    validated = {
+        "enabled": _coerce_bool("enabled"),
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "max_document_frequency": _coerce_int("max_document_frequency"),
+        "minimum_supporting_related_pages": _coerce_int("minimum_supporting_related_pages"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
+        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
+    if validated["max_document_frequency"] < 1 or validated["max_document_frequency"] > 10:
+        raise ValueError("max_document_frequency must be between 1 and 10.")
+    if validated["minimum_supporting_related_pages"] < 1 or validated["minimum_supporting_related_pages"] > 5:
+        raise ValueError("minimum_supporting_related_pages must be between 1 and 5.")
 
     return validated
 
@@ -1010,6 +1114,60 @@ class LearnedAnchorSettingsView(APIView):
                     "value": row["value"],
                     "value_type": row["value_type"],
                     "category": "anchor",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class RareTermPropagationSettingsView(APIView):
+    """
+    GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
+    PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_rare_term_propagation_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_rare_term_propagation_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "rare_term_propagation.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-010 rare-term propagation profiles are built during suggestion scoring.",
+            },
+            "rare_term_propagation.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Ranking weight applied to the positive-only FR-010 rare-term propagation component.",
+            },
+            "rare_term_propagation.max_document_frequency": {
+                "value": str(validated["max_document_frequency"]),
+                "value_type": "int",
+                "description": "Highest site-wide document frequency a token can have and still count as a propagated rare term.",
+            },
+            "rare_term_propagation.minimum_supporting_related_pages": {
+                "value": str(validated["minimum_supporting_related_pages"]),
+                "value_type": "int",
+                "description": "Minimum number of eligible related pages that must support a propagated rare term before it stops being neutral.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
                     "description": row["description"],
                     "is_secret": False,
                 },

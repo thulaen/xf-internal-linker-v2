@@ -259,6 +259,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-009 learned-anchor corroboration score for this destination/host sentence pair. 0.5 means neutral.",
     )
+    score_rare_term_propagation = models.FloatField(
+        default=0.5,
+        help_text="FR-010 rare-term propagation score for this destination/host sentence pair. 0.5 means neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -305,6 +309,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-009 learned-anchor diagnostics for review and debugging.",
+    )
+    rare_term_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-010 rare-term propagation diagnostics for review and debugging.",
     )
 
     # Review state

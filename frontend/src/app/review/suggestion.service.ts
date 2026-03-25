@@ -49,6 +49,7 @@ export interface SuggestionDetail extends Suggestion {
   score_link_freshness: number;
   score_phrase_relevance: number;
   score_learned_anchor_corroboration: number;
+  score_rare_term_propagation: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -59,6 +60,7 @@ export interface SuggestionDetail extends Suggestion {
   superseded_at: string | null;
   phrase_match_diagnostics: PhraseMatchDiagnostics;
   learned_anchor_diagnostics: LearnedAnchorDiagnostics;
+  rare_term_diagnostics: RareTermDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
   updated_at: string;
 }
@@ -130,6 +132,39 @@ export interface LearnedAnchorDiagnostics {
   }>;
   host_contains_canonical_variant: boolean;
   recommended_canonical_anchor: string | null;
+}
+
+export interface RareTermDiagnostics {
+  score_rare_term_propagation?: number;
+  rare_term_state?:
+    | 'computed_match'
+    | 'neutral_feature_disabled'
+    | 'neutral_no_eligible_related_pages'
+    | 'neutral_no_rare_terms'
+    | 'neutral_below_min_support'
+    | 'neutral_no_host_match'
+    | 'neutral_processing_error';
+  original_destination_terms?: string[];
+  propagated_term_candidates?: RareTermEvidence[];
+  matched_propagated_terms?: RareTermEvidence[];
+  top_propagated_terms?: RareTermEvidence[];
+  eligible_related_page_count?: number;
+  related_page_summary?: Array<{
+    content_id: number;
+    relationship_tier: 'same_scope' | 'same_parent' | 'same_grandparent';
+    shared_original_token_count: number;
+  }>;
+  max_document_frequency?: number;
+  minimum_supporting_related_pages?: number;
+}
+
+export interface RareTermEvidence {
+  term: string;
+  document_frequency: number;
+  supporting_related_pages: number;
+  supporting_relationship_weights: number[];
+  average_relationship_weight: number;
+  term_evidence: number;
 }
 
 export interface PaginatedResult<T> {

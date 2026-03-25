@@ -19,6 +19,11 @@ from .learned_anchor import (
 )
 from .link_freshness import score_link_freshness_component
 from .phrase_matching import PhraseMatchingSettings, evaluate_phrase_match
+from .rare_term_propagation import (
+    RareTermProfile,
+    RareTermPropagationSettings,
+    evaluate_rare_term_propagation,
+)
 from .text_tokens import tokenize_text
 
 
@@ -98,6 +103,7 @@ class ScoredCandidate:
     score_silo_affinity: float
     score_phrase_relevance: float
     score_learned_anchor_corroboration: float
+    score_rare_term_propagation: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -105,6 +111,7 @@ class ScoredCandidate:
     anchor_confidence: str
     phrase_match_diagnostics: dict[str, object]
     learned_anchor_diagnostics: dict[str, object]
+    rare_term_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -253,12 +260,14 @@ def score_destination_matches(
     sentence_records: Mapping[int, SentenceRecord],
     existing_links: set[ExistingLinkKey],
     learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]] | None = None,
+    rare_term_profiles: Mapping[ContentKey, RareTermProfile] | None = None,
     weights: Mapping[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
+    rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -269,6 +278,7 @@ def score_destination_matches(
     """Apply composite scoring plus local anti-junk filters for one destination."""
     march_2026_pagerank_min, march_2026_pagerank_max = march_2026_pagerank_bounds
     learned_anchor_rows_by_destination = learned_anchor_rows_by_destination or {}
+    rare_term_profiles = rare_term_profiles or {}
     ranked: list[ScoredCandidate] = []
 
     for match in sentence_matches:
@@ -319,6 +329,12 @@ def score_destination_matches(
             inbound_anchor_rows=learned_anchor_rows_by_destination.get(destination.key, []),
             settings=learned_anchor_settings,
         )
+        rare_term_match = evaluate_rare_term_propagation(
+            destination=destination,
+            host_sentence_tokens=sentence_record.tokens,
+            profiles=rare_term_profiles,
+            settings=rare_term_settings,
+        )
         score_node = score_node_affinity(destination, host_record)
         score_quality = log_minmax_normalize_march_2026_pagerank(
             host_record.march_2026_pagerank_score,
@@ -341,6 +357,7 @@ def score_destination_matches(
         )
         score_phrase_relevance = phrase_match.score_phrase_component
         score_learned_anchor = learned_anchor_match.learned_anchor_component
+        score_rare_term = rare_term_match.rare_term_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
@@ -351,6 +368,7 @@ def score_destination_matches(
             + float(link_freshness_ranking_weight) * score_link_freshness
             + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
             + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
+            + float(rare_term_settings.ranking_weight) * score_rare_term
             + score_silo
         )
 
@@ -368,6 +386,7 @@ def score_destination_matches(
                 score_silo_affinity=float(score_silo),
                 score_phrase_relevance=float(phrase_match.score_phrase_relevance),
                 score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
+                score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
@@ -375,6 +394,7 @@ def score_destination_matches(
                 anchor_confidence=phrase_match.anchor_confidence,
                 phrase_match_diagnostics=phrase_match.phrase_match_diagnostics,
                 learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
+                rare_term_diagnostics=rare_term_match.rare_term_diagnostics,
             )
         )
 

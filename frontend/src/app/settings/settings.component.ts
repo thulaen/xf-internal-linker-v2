@@ -11,6 +11,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
   LearnedAnchorSettings,
   PhraseMatchingSettings,
+  RareTermPropagationSettings,
   ScopeItem,
   SiloGroup,
   LinkFreshnessSettings,
@@ -49,6 +50,7 @@ export class SettingsComponent implements OnInit {
   savingLinkFreshness = false;
   savingPhraseMatching = false;
   savingLearnedAnchor = false;
+  savingRareTermPropagation = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -89,6 +91,12 @@ export class SettingsComponent implements OnInit {
     minimum_anchor_sources: 2,
     minimum_family_support_share: 0.15,
     enable_noise_filter: true,
+  };
+  rareTermPropagation: RareTermPropagationSettings = {
+    enabled: true,
+    ranking_weight: 0,
+    max_document_frequency: 3,
+    minimum_supporting_related_pages: 2,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -153,14 +161,23 @@ export class SettingsComponent implements OnInit {
                     this.siloSvc.getLearnedAnchorSettings().subscribe({
                       next: (learnedAnchor) => {
                         this.learnedAnchor = learnedAnchor;
-                        this.siloSvc.getWordPressSettings().subscribe({
-                          next: (wordpress) => {
-                            this.wordpress = wordpress;
-                            this.loadGroupsAndScopes();
+                        this.siloSvc.getRareTermPropagationSettings().subscribe({
+                          next: (rareTermPropagation) => {
+                            this.rareTermPropagation = rareTermPropagation;
+                            this.siloSvc.getWordPressSettings().subscribe({
+                              next: (wordpress) => {
+                                this.wordpress = wordpress;
+                                this.loadGroupsAndScopes();
+                              },
+                              error: () => {
+                                this.loading = false;
+                                this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                              },
+                            });
                           },
                           error: () => {
                             this.loading = false;
-                            this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                            this.snack.open('Failed to load rare-term propagation settings', 'Dismiss', { duration: 4000 });
                           },
                         });
                       },
@@ -221,6 +238,21 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingLearnedAnchor = false;
         this.snack.open(error?.error?.detail || 'Failed to save learned anchor settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveRareTermPropagationSettings(): void {
+    this.savingRareTermPropagation = true;
+    this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation).subscribe({
+      next: (rareTermPropagation) => {
+        this.rareTermPropagation = rareTermPropagation;
+        this.savingRareTermPropagation = false;
+        this.snack.open('Rare-term propagation settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingRareTermPropagation = false;
+        this.snack.open(error?.error?.detail || 'Failed to save rare-term propagation settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

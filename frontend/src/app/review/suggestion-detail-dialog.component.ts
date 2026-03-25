@@ -206,6 +206,60 @@ export class SuggestionDetailDialogComponent implements OnInit {
       .join(' - ');
   }
 
+  hasRareTermDiagnostics(): boolean {
+    return !!this.detail?.rare_term_diagnostics?.rare_term_state;
+  }
+
+  rareTermSummary(): string {
+    const state = this.detail?.rare_term_diagnostics?.rare_term_state;
+    if (state === 'computed_match') {
+      return 'Rare-term propagation means this sentence uses a rare word that nearby related pages use for this topic.';
+    }
+    if (state === 'neutral_feature_disabled') {
+      return 'Rare-term propagation is turned off, so this score stays neutral.';
+    }
+    return 'Neutral means there was not enough safe related-page evidence to borrow terms.';
+  }
+
+  rareTermStateLabel(): string {
+    const state = this.detail?.rare_term_diagnostics?.rare_term_state ?? 'neutral_no_eligible_related_pages';
+    if (state === 'computed_match') {
+      return 'Matched a safely borrowed rare term';
+    }
+    if (state === 'neutral_feature_disabled') {
+      return 'Neutral / feature turned off';
+    }
+    if (state === 'neutral_no_eligible_related_pages') {
+      return 'Neutral / no safe related pages';
+    }
+    if (state === 'neutral_no_rare_terms') {
+      return 'Neutral / no usable borrowed terms';
+    }
+    if (state === 'neutral_below_min_support') {
+      return 'Neutral / not enough related-page support';
+    }
+    if (state === 'neutral_processing_error') {
+      return 'Neutral / rare-term processing error';
+    }
+    return 'Neutral / no host match';
+  }
+
+  rareTermMatchedTermsSummary(): string {
+    const matches = this.detail?.rare_term_diagnostics?.matched_propagated_terms ?? [];
+    return matches
+      .slice(0, 2)
+      .map((match) => `${match.term} (${match.supporting_related_pages} pages)`)
+      .join(' - ');
+  }
+
+  rareTermTopTermsSummary(): string {
+    const terms = this.detail?.rare_term_diagnostics?.top_propagated_terms ?? [];
+    return terms
+      .slice(0, 3)
+      .map((term) => term.term)
+      .join(' - ');
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

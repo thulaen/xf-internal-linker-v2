@@ -89,6 +89,13 @@ export interface LearnedAnchorSettings {
   enable_noise_filter: boolean;
 }
 
+export interface RareTermPropagationSettings {
+  enabled: boolean;
+  ranking_weight: number;
+  max_document_frequency: number;
+  minimum_supporting_related_pages: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -151,6 +158,10 @@ export class SiloSettingsService {
     return this.http.get<LearnedAnchorSettings>('/api/settings/learned-anchor/');
   }
 
+  getRareTermPropagationSettings(): Observable<RareTermPropagationSettings> {
+    return this.http.get<RareTermPropagationSettings>('/api/settings/rare-term-propagation/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -169,6 +180,10 @@ export class SiloSettingsService {
 
   updateLearnedAnchorSettings(payload: LearnedAnchorSettings): Observable<LearnedAnchorSettings> {
     return this.http.put<LearnedAnchorSettings>('/api/settings/learned-anchor/', payload);
+  }
+
+  updateRareTermPropagationSettings(payload: RareTermPropagationSettings): Observable<RareTermPropagationSettings> {
+    return this.http.put<RareTermPropagationSettings>('/api/settings/rare-term-propagation/', payload);
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {

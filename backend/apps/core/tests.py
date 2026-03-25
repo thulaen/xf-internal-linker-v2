@@ -349,3 +349,60 @@ class LearnedAnchorSettingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("ranking_weight", response.json()["detail"])
+
+
+class RareTermPropagationSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="rare-term-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_rare_term_propagation_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/rare-term-propagation/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "enabled": True,
+                "ranking_weight": 0.0,
+                "max_document_frequency": 3,
+                "minimum_supporting_related_pages": 2,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/rare-term-propagation/",
+            {
+                "enabled": False,
+                "ranking_weight": 0.04,
+                "max_document_frequency": 5,
+                "minimum_supporting_related_pages": 3,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertFalse(update_response.json()["enabled"])
+        self.assertEqual(update_response.json()["ranking_weight"], 0.04)
+        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.enabled").value, "false")
+        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.max_document_frequency").value, "5")
+        self.assertEqual(
+            AppSetting.objects.get(key="rare_term_propagation.minimum_supporting_related_pages").value,
+            "3",
+        )
+        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.ranking_weight").category, "ml")
+
+    def test_rare_term_propagation_validation_rejects_bad_bounds(self):
+        response = self.client.put(
+            "/api/settings/rare-term-propagation/",
+            {
+                "enabled": True,
+                "ranking_weight": 0.2,
+                "max_document_frequency": 0,
+                "minimum_supporting_related_pages": 6,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ranking_weight", response.json()["detail"])

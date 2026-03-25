@@ -35,41 +35,47 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for this session: Phase 13
-- FR cross-reference: `FR-010 - Rare-Term Propagation Across Related Pages`
-- Status: spec-first pass completed this session; implementation is still pending and must stay separate from later phases
+- Active target for the next session: Phase 14
+- FR cross-reference: `FR-011 - Field-Aware Relevance Scoring`
+- Status: Phase 13 / FR-010 is now complete and verified for its approved scope; keep FR-011 separate from FR-010 evidence
 
 ## Current Session Note
 
 - Session target: Phase 13 / `FR-010 - Rare-Term Propagation Across Related Pages`
-- Session mode: spec-first pass only
-- This session is reserved only for the narrow FR-010 spec pass, continuity cleanup, truthful backlog updates, lightweight verification, and safe commit/push handling.
-- Scope rule for this session: create only the approved FR-010 spec slice and do not drift into FR-010 implementation, FR-011, FR-018, FR-019, or FR-020 work.
+- Session mode: finish-and-verify implementation pass
+- This session finished the approved FR-010 slice, updated continuity docs truthfully, and kept later phases untouched.
+- Scope rule for this session: implement only FR-010 and do not drift into FR-011, FR-018, FR-019, or FR-020 work.
 - FR-010 spec path: `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
 - Start-of-session continuity note:
   - `AI-CONTEXT.md` was read first
-  - the top continuity section still talked like the active session was the old Phase 12 / FR-009 implementation pass
-  - repo inspection confirmed that Phase 13 / FR-010 is the real next target, no FR-010 spec file existed yet, and no FR-010 implementation exists in backend or frontend code
-  - because the required FR-010 spec was missing, this session stayed spec-first only
+  - repo inspection confirmed that Phase 13 / FR-010 is still the exact active target
+  - the approved FR-010 spec exists at `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
+  - repo inspection confirmed there was already a partial uncommitted FR-010 backend implementation that needed audit before any new edits
 - Carry-forward note from the previous session:
   - the FR-009 implementation pass is complete and verified
   - the execution ledger already pointed to Phase 13 / FR-010 as the next queued target
-  - patent-derived phases require a dedicated spec pass before any implementation pass
+  - patent-derived phases require a dedicated spec pass before any implementation pass, and the FR-010 spec pass was completed before this code session
 - What this session completed:
-  - cleaned the stale continuity wording so the active session no longer pretends FR-009 is still in progress
-  - added the missing FR-010 spec at `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
-  - updated backlog/context docs so they now say FR-010 has a spec and is still pending implementation
+  - added `backend/apps/pipeline/services/rare_term_propagation.py` for separate FR-010 rare-term profile building and suggestion-time scoring
+  - added separate `Suggestion.score_rare_term_propagation` storage and separate `Suggestion.rare_term_diagnostics` storage
+  - wired FR-010 into the backend ranker, pipeline, settings API, pipeline-run snapshot, serializers, admin exposure, and algorithm version metadata
+  - added the missing Angular FR-010 review exposure in the suggestion detail dialog and the missing Angular FR-010 settings card
+  - tightened the backend disabled-mode behavior so a disabled FR-010 feature stays neutral and skips FR-010 diagnostics as the spec requires
+  - added targeted backend and frontend tests for rare-term propagation rules, settings exposure, serializer exposure, snapshot coverage, and review/settings rendering
 - What was intentionally not changed to keep scope clean:
-  - no FR-010 backend implementation
-  - no FR-010 frontend implementation
   - no FR-011 field-aware scoring
   - no later-phase telemetry, alerts, auto-tuning, or runtime work
+  - no phrase propagation, no hidden mixing into original text, embeddings, FR-008, or FR-009
   - no unrelated repo cleanup
 - Verification completed this session:
   - confirmed Phase 13 / FR-010 is the next exact target in the ledger and backlog
-  - confirmed no FR-010 spec file existed before this session
-  - confirmed no FR-010 implementation exists in `backend/` or `frontend/`
-  - confirmed the diff for this session is limited to intended continuity/spec docs
+  - confirmed the approved FR-010 spec file exists and is the source of truth used for the implementation slice
+  - `git diff --check` passed
+  - targeted Django FR-010 tests passed under `config.settings.test` by using the installed Python 3.12.10 path plus the project's `.venv\Lib\site-packages`
+  - Django migration drift check passed with `makemigrations --check --dry-run`
+  - targeted Angular FR-010 review/settings specs passed under Chrome Headless by using the installed Node path
+  - Angular build passed
+  - confirmed the diff for this session is limited to the intended FR-010 code/docs slice
 
 ## User Communication Preference
 
@@ -149,7 +155,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 10 | FR-007 | Complete | Link Freshness Authority |
 | 11 | FR-008 | Complete | Phrase-Based Matching & Anchor Expansion |
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
-| 13 | FR-010 | Queued | Spec-first pass completed; implementation pending |
+| 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
 | 14 | FR-011 | Queued | Field-Aware Relevance Scoring |
 | 15 | FR-012 | Queued | Click-Distance Structural Prior |
 | 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
@@ -163,12 +169,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 13 / `FR-010 - Rare-Term Propagation Across Related Pages`
-- Phase 12 reference: `FR-009` was implemented and verified exactly against `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
-- FR-009 shipped as a separate learned-anchor layer and stayed separate from FR-008 phrase relevance, FR-006 weighted authority, FR-007 freshness, and velocity
-- Current continuity state: the FR-010 spec now exists, but FR-010 implementation is still pending
-- Next session type: narrow FR-010 implementation pass only, using the new FR-010 spec as the source of truth
-- Scope reminder: keep the shipped FR-009 learned-anchor layer separate from later FR-011 field-aware scoring work
+- Next exact target: Phase 14 / `FR-011 - Field-Aware Relevance Scoring`
+- Phase 13 reference: `FR-010` shipped as a separate rare-term propagation layer and must stay separate from original destination text, FR-008 phrase matching, and FR-009 learned anchors
+- Current continuity state: Phase 13 is complete for the approved FR-010 scope
+- Next session type: dedicated FR-011 spec-to-implementation pass only after reading the FR-011 rules and keeping the FR-010 separation guardrails intact
+- Scope reminder: do not hide FR-010 propagated evidence inside title/body/embedding/phrase/learned-anchor logic while working on FR-011
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases
@@ -206,7 +211,7 @@ Every implementation session must:
 |---|---|---|
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |
 | WordPress base URL + optional username/app password | live WordPress sync; private content requires Application Password auth | UI/API shipped; operator must supply real values in env/settings |
-| Local runtimes | build/test execution | Python 3.12 and Node.js 22 are now installed locally and working for repo verification |
+| Local runtimes | build/test execution | Direct installed Python 3.12.10 and direct Node paths work for verification; the usual `py`/`python` launcher aliases and `.venv` launcher still need cleanup if a future session wants the shorter commands |
 
 ## Non-Negotiable Guardrails
 

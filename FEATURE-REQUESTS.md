@@ -16,6 +16,21 @@ Important:
 
 ## COMPLETED
 
+### FR-010 - Rare-Term Propagation Across Related Pages
+**Requested:** 2026-03-24
+**Target phase:** Phase 13
+**Completed phase:** Phase 13
+**Completed:** 2026-03-25
+
+- Implemented exactly against `docs/specs/fr010-rare-term-propagation-across-related-pages.md`.
+- `backend/apps/pipeline/services/rare_term_propagation.py` now builds bounded related-page rare-term profiles, keeps propagated evidence separate from original destination evidence, and leaves disabled, weak, or missing propagation neutral at `0.5`.
+- `Suggestion.score_rare_term_propagation` and `Suggestion.rare_term_diagnostics` store the separate FR-010 score and explainable diagnostics without mixing borrowed terms into original text, embeddings, FR-008 phrase inventory, or FR-009 learned-anchor evidence.
+- Rare-Term Propagation has its own settings API at `GET/PUT /api/settings/rare-term-propagation/`, its own algorithm version stamp, and pipeline-run snapshot wiring.
+- Suggestion detail, suggestion admin, Angular review detail, and Angular settings now expose the intended FR-010 fields and controls.
+- Local verification passed for the targeted Django FR-010 test slice under `config.settings.test`, SQLite migration drift check, focused Angular FR-010 specs, and Angular build.
+
+---
+
 ### FR-009 - Learned Anchor Vocabulary & Corroboration
 **Requested:** 2026-03-24
 **Target phase:** Phase 12
@@ -132,21 +147,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-010 - Rare-Term Propagation Across Related Pages
-**Requested:** 2026-03-24
-**Target phase:** Phase 13
-**Priority:** Medium
-**Patent inspiration:** `US20110196861A1`
-**Spec:** `docs/specs/fr010-rare-term-propagation-across-related-pages.md`
-
-- Propagate rare, high-signal terms across nearby related pages.
-- Keep propagated evidence bounded, explainable, and separate from original content.
-- Use scope/silo/relationship proximity rules to avoid topic drift.
-- Spec-first pass completed on 2026-03-25.
-- Implementation is still pending and should use the new FR-010 spec as the source of truth.
-
----
 
 ### FR-011 - Field-Aware Relevance Scoring
 **Requested:** 2026-03-24
@@ -622,4 +622,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 12 / FR-009 remains complete and verified, Phase 13 / FR-010 now has a dedicated spec at `docs/specs/fr010-rare-term-propagation-across-related-pages.md`, implementation for FR-010 is still pending, and the later `GA4`, `GSC`, safe auto-tuning, operator-alert, and zero-downtime model-management requests remain untouched; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 13 / FR-010 is now complete and verified for its approved scope, including separate backend scoring, settings/snapshot wiring, Angular review/settings exposure, targeted Django verification, migration drift check, focused Angular specs, and Angular build; the next exact target is Phase 14 / FR-011, and the later `GA4`, `GSC`, safe auto-tuning, operator-alert, and zero-downtime model-management requests remain untouched.)*

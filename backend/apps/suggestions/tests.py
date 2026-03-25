@@ -8,6 +8,7 @@ from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGrou
 from apps.pipeline.services.algorithm_versions import (
     LEARNED_ANCHOR_VERSION,
     PHRASE_MATCHING_VERSION,
+    RARE_TERM_PROPAGATION_VERSION,
     WEIGHTED_AUTHORITY_VERSION,
 )
 from apps.graph.models import LinkFreshnessEdge
@@ -120,6 +121,7 @@ class SuggestionSiloApiTests(APITestCase):
         suggestion.score_link_freshness = 0.72
         suggestion.score_phrase_relevance = 0.83
         suggestion.score_learned_anchor_corroboration = 0.91
+        suggestion.score_rare_term_propagation = 0.88
         suggestion.phrase_match_diagnostics = {
             "score_phrase_relevance": 0.83,
             "phrase_match_state": "computed_exact_title",
@@ -156,14 +158,61 @@ class SuggestionSiloApiTests(APITestCase):
             "host_contains_canonical_variant": False,
             "recommended_canonical_anchor": "Same",
         }
+        suggestion.rare_term_diagnostics = {
+            "score_rare_term_propagation": 0.88,
+            "rare_term_state": "computed_match",
+            "original_destination_terms": ["guide", "internal", "linking"],
+            "propagated_term_candidates": [
+                {
+                    "term": "xenforo",
+                    "document_frequency": 2,
+                    "supporting_related_pages": 2,
+                    "supporting_relationship_weights": [1.0, 0.75],
+                    "average_relationship_weight": 0.875,
+                    "term_evidence": 0.76,
+                }
+            ],
+            "matched_propagated_terms": [
+                {
+                    "term": "xenforo",
+                    "document_frequency": 2,
+                    "supporting_related_pages": 2,
+                    "supporting_relationship_weights": [1.0, 0.75],
+                    "average_relationship_weight": 0.875,
+                    "term_evidence": 0.76,
+                }
+            ],
+            "top_propagated_terms": [
+                {
+                    "term": "xenforo",
+                    "document_frequency": 2,
+                    "supporting_related_pages": 2,
+                    "supporting_relationship_weights": [1.0, 0.75],
+                    "average_relationship_weight": 0.875,
+                    "term_evidence": 0.76,
+                }
+            ],
+            "eligible_related_page_count": 2,
+            "related_page_summary": [
+                {
+                    "content_id": 201,
+                    "relationship_tier": "same_scope",
+                    "shared_original_token_count": 2,
+                }
+            ],
+            "max_document_frequency": 3,
+            "minimum_supporting_related_pages": 2,
+        }
         suggestion.save(
             update_fields=[
                 "score_march_2026_pagerank",
                 "score_link_freshness",
                 "score_phrase_relevance",
                 "score_learned_anchor_corroboration",
+                "score_rare_term_propagation",
                 "phrase_match_diagnostics",
                 "learned_anchor_diagnostics",
+                "rare_term_diagnostics",
                 "updated_at",
             ]
         )
@@ -183,10 +232,13 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(payload["score_link_freshness"], 0.72)
         self.assertEqual(payload["score_phrase_relevance"], 0.83)
         self.assertEqual(payload["score_learned_anchor_corroboration"], 0.91)
+        self.assertEqual(payload["score_rare_term_propagation"], 0.88)
         self.assertIn("phrase_match_diagnostics", payload)
         self.assertIn("learned_anchor_diagnostics", payload)
+        self.assertIn("rare_term_diagnostics", payload)
         self.assertEqual(payload["phrase_match_diagnostics"]["phrase_match_state"], "computed_exact_title")
         self.assertEqual(payload["learned_anchor_diagnostics"]["learned_anchor_state"], "exact_variant_match")
+        self.assertEqual(payload["rare_term_diagnostics"]["rare_term_state"], "computed_match")
         self.assertIn("link_freshness_diagnostics", payload)
         self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
 
@@ -226,6 +278,13 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             category="anchor",
             description="Minimum anchor sources",
         )
+        AppSetting.objects.create(
+            key="rare_term_propagation.max_document_frequency",
+            value="5",
+            value_type="int",
+            category="ml",
+            description="Rare-term max document frequency",
+        )
 
         response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
 
@@ -255,6 +314,8 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertEqual(run.config_snapshot["phrase_matching"]["context_window_tokens"], 10)
         self.assertIn("learned_anchor", run.config_snapshot)
         self.assertEqual(run.config_snapshot["learned_anchor"]["minimum_anchor_sources"], 4)
+        self.assertIn("rare_term_propagation", run.config_snapshot)
+        self.assertEqual(run.config_snapshot["rare_term_propagation"]["max_document_frequency"], 5)
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["phrase_matching"],
             PHRASE_MATCHING_VERSION,
@@ -262,5 +323,9 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["learned_anchor"],
             LEARNED_ANCHOR_VERSION,
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["rare_term_propagation"],
+            RARE_TERM_PROPAGATION_VERSION,
         )
         delay_mock.assert_called_once()

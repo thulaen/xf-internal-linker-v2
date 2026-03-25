@@ -4,10 +4,9 @@
 
 Simple version first.
 
-- Active target confirmed: `Phase 13 / FR-010 - Rare-Term Propagation Across Related Pages` is the next exact target in `AI-CONTEXT.md` and `FEATURE-REQUESTS.md`.
-- Spec-first confirmed: this session is creating the missing FR-010 spec only. It is not the implementation session.
-- Repo confirmed: `docs/specs/fr010-rare-term-propagation-across-related-pages.md` did not exist before this pass.
-- Repo confirmed: there is no FR-010 implementation in `backend/` or `frontend/` today.
+- Active target confirmed: when the FR-010 implementation pass began, `Phase 13 / FR-010 - Rare-Term Propagation Across Related Pages` was the next exact target in `AI-CONTEXT.md` and `FEATURE-REQUESTS.md`.
+- Spec status confirmed: this file is the approved FR-010 source of truth for behavior and guardrails.
+- Repo confirmed: FR-010 now has implementation coverage in backend code plus review/settings exposure in the frontend.
 - Repo confirmed: the live pipeline already has separate FR-006 weighted authority, FR-007 link freshness, FR-008 phrase relevance, and FR-009 learned-anchor corroboration paths.
 
 ## Current Repo Map
@@ -39,13 +38,13 @@ Simple version first.
 - `backend/apps/core/views.py`
   - already exposes per-feature settings endpoints and validation logic.
 - `frontend/src/app/settings/silo-settings.service.ts`
-  - already loads and saves separate settings cards for FR-006 to FR-009.
+  - now loads and saves separate settings cards for FR-006 to FR-010.
 
 ### Important repo fact for FR-010
 
 - There is no current place where propagated terms are stored on `ContentItem`.
-- There is no current FR-010 score field on `Suggestion`.
-- There is no FR-010 diagnostics object or settings surface yet.
+- FR-010 uses separate `Suggestion.score_rare_term_propagation` and `Suggestion.rare_term_diagnostics` fields.
+- FR-010 has its own settings surface and review exposure, but the propagation signal still stays suggestion-time only.
 
 ## Plain-English Summary
 

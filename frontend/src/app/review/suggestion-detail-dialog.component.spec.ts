@@ -45,6 +45,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_link_freshness: 0.5,
     score_phrase_relevance: 0.82,
     score_learned_anchor_corroboration: 0.91,
+    score_rare_term_propagation: 0.88,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -89,6 +90,51 @@ describe('SuggestionDetailDialogComponent', () => {
       host_contains_canonical_variant: false,
       recommended_canonical_anchor: 'Destination',
     },
+    rare_term_diagnostics: {
+      score_rare_term_propagation: 0.88,
+      rare_term_state: 'computed_match',
+      original_destination_terms: ['guide', 'internal', 'links'],
+      propagated_term_candidates: [
+        {
+          term: 'xenforo',
+          document_frequency: 2,
+          supporting_related_pages: 2,
+          supporting_relationship_weights: [1, 0.75],
+          average_relationship_weight: 0.875,
+          term_evidence: 0.76,
+        },
+      ],
+      matched_propagated_terms: [
+        {
+          term: 'xenforo',
+          document_frequency: 2,
+          supporting_related_pages: 2,
+          supporting_relationship_weights: [1, 0.75],
+          average_relationship_weight: 0.875,
+          term_evidence: 0.76,
+        },
+      ],
+      top_propagated_terms: [
+        {
+          term: 'xenforo',
+          document_frequency: 2,
+          supporting_related_pages: 2,
+          supporting_relationship_weights: [1, 0.75],
+          average_relationship_weight: 0.875,
+          term_evidence: 0.76,
+        },
+      ],
+      eligible_related_page_count: 2,
+      related_page_summary: [
+        {
+          content_id: 3,
+          relationship_tier: 'same_scope',
+          shared_original_token_count: 2,
+        },
+      ],
+      max_document_frequency: 3,
+      minimum_supporting_related_pages: 2,
+    },
     link_freshness_diagnostics: {
       link_freshness_score: 0.5,
       freshness_bucket: 'neutral',
@@ -108,7 +154,7 @@ describe('SuggestionDetailDialogComponent', () => {
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders March 2026 PageRank, Link Freshness, Phrase Relevance, and Learned Anchor Corroboration', async () => {
+  it('renders March 2026 PageRank, Link Freshness, Phrase Relevance, Learned Anchor Corroboration, and Rare-Term Propagation', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -134,5 +180,7 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('Link Freshness');
     expect(text).toContain('Phrase Relevance');
     expect(text).toContain('Learned Anchor Corroboration');
+    expect(text).toContain('Rare-Term Propagation');
+    expect(text).toContain('Matched borrowed terms: xenforo (2 pages)');
   });
 });

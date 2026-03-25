@@ -39,6 +39,10 @@ from .ranker import (
     tokenize_text,
 )
 from .phrase_matching import PhraseMatchingSettings
+from .rare_term_propagation import (
+    RareTermPropagationSettings,
+    build_rare_term_profiles,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -101,6 +105,7 @@ def run_pipeline(
     link_freshness_settings = _load_link_freshness_settings()
     phrase_matching_settings = _load_phrase_matching_settings()
     learned_anchor_settings = _load_learned_anchor_settings()
+    rare_term_settings = _load_rare_term_propagation_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -124,6 +129,18 @@ def run_pipeline(
     _progress(0.12, "Loading existing links...")
     existing_links = _load_existing_links()
     learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
+    rare_term_profiles = {}
+    if rare_term_settings.enabled:
+        _progress(0.14, "Building rare-term propagation profiles...")
+        rare_term_source_records = (
+            content_records
+            if destination_scope_ids is None and host_scope_ids is None
+            else _load_content_records()
+        )
+        rare_term_profiles = build_rare_term_profiles(
+            rare_term_source_records,
+            settings=rare_term_settings,
+        )
 
     _progress(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
@@ -201,12 +218,14 @@ def run_pipeline(
             sentence_records=sentence_records,
             existing_links=existing_links,
             learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+            rare_term_profiles=rare_term_profiles,
             weights=weights,
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
             link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
             phrase_matching_settings=phrase_matching_settings,
             learned_anchor_settings=learned_anchor_settings,
+            rare_term_settings=rare_term_settings,
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -361,6 +380,21 @@ def _load_learned_anchor_settings() -> LearnedAnchorSettings:
         )
     except Exception:
         return LearnedAnchorSettings()
+
+
+def _load_rare_term_propagation_settings() -> RareTermPropagationSettings:
+    try:
+        from apps.core.views import get_rare_term_propagation_settings
+
+        config = get_rare_term_propagation_settings()
+        return RareTermPropagationSettings(
+            enabled=bool(config.get("enabled", True)),
+            ranking_weight=float(config.get("ranking_weight", 0.0)),
+            max_document_frequency=int(config.get("max_document_frequency", 3)),
+            minimum_supporting_related_pages=int(config.get("minimum_supporting_related_pages", 2)),
+        )
+    except Exception:
+        return RareTermPropagationSettings()
 
 
 def _load_content_records(
@@ -772,8 +806,10 @@ def _persist_suggestions(
             score_link_freshness=dest_ci.link_freshness_score,
             score_phrase_relevance=candidate.score_phrase_relevance,
             score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
+            score_rare_term_propagation=candidate.score_rare_term_propagation,
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
+            rare_term_diagnostics=candidate.rare_term_diagnostics,
             score_final=candidate.score_final,
             status="pending",
         )

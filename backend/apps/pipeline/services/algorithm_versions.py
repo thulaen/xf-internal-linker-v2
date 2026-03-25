@@ -38,3 +38,8 @@ LEARNED_ANCHOR_VERSION = build_algorithm_version_metadata(
     algorithm_key="learned_anchor_vocabulary_corroboration",
     version_date=date(2026, 3, 25),
 )
+
+RARE_TERM_PROPAGATION_VERSION = build_algorithm_version_metadata(
+    algorithm_key="rare_term_propagation_related_pages",
+    version_date=date(2026, 3, 25),
+)
