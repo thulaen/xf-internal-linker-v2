@@ -76,6 +76,13 @@ DEFAULT_LINK_FRESHNESS_SETTINGS = {
     "w_loss": 0.10,
 }
 
+DEFAULT_PHRASE_MATCHING_SETTINGS = {
+    "ranking_weight": 0.0,
+    "enable_anchor_expansion": True,
+    "enable_partial_matching": True,
+    "context_window_tokens": 8,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -198,6 +205,18 @@ def get_link_freshness_settings() -> dict[str, float | int]:
         return dict(DEFAULT_LINK_FRESHNESS_SETTINGS)
 
 
+def get_phrase_matching_settings() -> dict[str, float | int | bool]:
+    """Load persisted phrase-matching settings with defensive defaults."""
+    settings = _read_phrase_matching_settings()
+    try:
+        return _validate_phrase_matching_settings(
+            settings,
+            current=dict(DEFAULT_PHRASE_MATCHING_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_PHRASE_MATCHING_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -250,6 +269,41 @@ def _read_link_freshness_settings() -> dict[str, float | int]:
         "w_growth": _read_float("link_freshness.w_growth", DEFAULT_LINK_FRESHNESS_SETTINGS["w_growth"]),
         "w_cohort": _read_float("link_freshness.w_cohort", DEFAULT_LINK_FRESHNESS_SETTINGS["w_cohort"]),
         "w_loss": _read_float("link_freshness.w_loss", DEFAULT_LINK_FRESHNESS_SETTINGS["w_loss"]),
+    }
+
+
+def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
+    """Read phrase-matching settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "ranking_weight": _read_float("phrase_matching.ranking_weight", DEFAULT_PHRASE_MATCHING_SETTINGS["ranking_weight"]),
+        "enable_anchor_expansion": _read_bool("phrase_matching.enable_anchor_expansion", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"]),
+        "enable_partial_matching": _read_bool("phrase_matching.enable_partial_matching", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"]),
+        "context_window_tokens": _read_int("phrase_matching.context_window_tokens", DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"]),
     }
 
 
@@ -421,6 +475,51 @@ def _validate_link_freshness_settings(
     )
     if not math.isclose(weight_total, 1.0, rel_tol=0.0, abs_tol=1e-6):
         raise ValueError("w_recent + w_growth + w_cohort + w_loss must equal 1.0.")
+
+    return validated
+
+
+def _validate_phrase_matching_settings(
+    payload: dict,
+    *,
+    current: dict[str, float | int | bool] | None = None,
+) -> dict[str, float | int | bool]:
+    current = current or _read_phrase_matching_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    def _coerce_int(key: str) -> int:
+        value = payload.get(key, current[key])
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be an integer.") from exc
+
+    def _coerce_bool(key: str) -> bool:
+        value = payload.get(key, current[key])
+        if isinstance(value, bool):
+            return value
+        return str(value).strip().lower() in {"1", "true", "yes", "on"}
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "enable_anchor_expansion": _coerce_bool("enable_anchor_expansion"),
+        "enable_partial_matching": _coerce_bool("enable_partial_matching"),
+        "context_window_tokens": _coerce_int("context_window_tokens"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
+        raise ValueError("ranking_weight must be between 0.0 and 0.10.")
+    if validated["context_window_tokens"] < 4 or validated["context_window_tokens"] > 12:
+        raise ValueError("context_window_tokens must be between 4 and 12.")
 
     return validated
 
@@ -707,6 +806,60 @@ class LinkFreshnessRecalculateView(APIView):
         job_id = str(uuid.uuid4())
         recalculate_link_freshness.delay(job_id=job_id)
         return Response({"job_id": job_id}, status=202)
+
+
+class PhraseMatchingSettingsView(APIView):
+    """
+    GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
+    PUT  /api/settings/phrase-matching/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_phrase_matching_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_phrase_matching_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "phrase_matching.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Ranking weight applied to the centered FR-008 phrase relevance component.",
+            },
+            "phrase_matching.enable_anchor_expansion": {
+                "value": "true" if validated["enable_anchor_expansion"] else "false",
+                "value_type": "bool",
+                "description": "Whether anchor extraction can expand beyond the current exact title fallback.",
+            },
+            "phrase_matching.enable_partial_matching": {
+                "value": "true" if validated["enable_partial_matching"] else "false",
+                "value_type": "bool",
+                "description": "Whether bounded partial phrase matches are allowed when local context supports them.",
+            },
+            "phrase_matching.context_window_tokens": {
+                "value": str(validated["context_window_tokens"]),
+                "value_type": "int",
+                "description": "Same-sentence token window used for FR-008 local corroboration.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "anchor",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
 
 
 class WordPressSettingsView(APIView):

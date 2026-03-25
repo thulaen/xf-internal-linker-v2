@@ -131,6 +131,52 @@
 
     <mat-card class="settings-card">
       <mat-card-header>
+        <mat-card-title>Phrase Matching</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          Anchor expansion can use destination phrases from the title and distilled text. Ranking impact is off by default until you set a small non-zero weight.
+        </p>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Ranking weight</mat-label>
+            <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="phraseMatching.ranking_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Anchor expansion</mat-label>
+            <mat-select [(ngModel)]="phraseMatching.enable_anchor_expansion">
+              <mat-option [value]="true">Enabled</mat-option>
+              <mat-option [value]="false">Disabled</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Partial matching</mat-label>
+            <mat-select [(ngModel)]="phraseMatching.enable_partial_matching">
+              <mat-option [value]="true">Enabled</mat-option>
+              <mat-option [value]="false">Disabled</mat-option>
+            </mat-select>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Context window tokens</mat-label>
+            <input matInput type="number" min="4" max="12" step="1" [(ngModel)]="phraseMatching.context_window_tokens" />
+          </mat-form-field>
+        </div>
+
+        <div class="button-row">
+          <button mat-flat-button color="primary" [disabled]="savingPhraseMatching" (click)="savePhraseMatchingSettings()">
+            <mat-icon>save</mat-icon>
+            Save phrase matching settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card">
+      <mat-card-header>
         <mat-card-title>WordPress Sync</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">

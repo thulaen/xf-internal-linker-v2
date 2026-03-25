@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
-from apps.pipeline.services.algorithm_versions import WEIGHTED_AUTHORITY_VERSION
+from apps.pipeline.services.algorithm_versions import PHRASE_MATCHING_VERSION, WEIGHTED_AUTHORITY_VERSION
 from apps.graph.models import LinkFreshnessEdge
 from apps.suggestions.models import PipelineRun, Suggestion
 
@@ -114,7 +114,29 @@ class SuggestionSiloApiTests(APITestCase):
         suggestion = Suggestion.objects.first()
         suggestion.score_march_2026_pagerank = 0.35
         suggestion.score_link_freshness = 0.72
-        suggestion.save(update_fields=["score_march_2026_pagerank", "score_link_freshness", "updated_at"])
+        suggestion.score_phrase_relevance = 0.83
+        suggestion.phrase_match_diagnostics = {
+            "score_phrase_relevance": 0.83,
+            "phrase_match_state": "computed_exact_title",
+            "selected_anchor_text": "same",
+            "selected_anchor_start": 0,
+            "selected_anchor_end": 4,
+            "selected_match_type": "exact",
+            "selected_phrase_source": "title",
+            "selected_token_count": 1,
+            "context_window_tokens": 8,
+            "context_corroborating_hits": 1,
+            "destination_phrase_count": 6,
+        }
+        suggestion.save(
+            update_fields=[
+                "score_march_2026_pagerank",
+                "score_link_freshness",
+                "score_phrase_relevance",
+                "phrase_match_diagnostics",
+                "updated_at",
+            ]
+        )
         LinkFreshnessEdge.objects.create(
             from_content_item=suggestion.host,
             to_content_item=suggestion.destination,
@@ -129,6 +151,9 @@ class SuggestionSiloApiTests(APITestCase):
         payload = response.json()
         self.assertEqual(payload["score_march_2026_pagerank"], 0.35)
         self.assertEqual(payload["score_link_freshness"], 0.72)
+        self.assertEqual(payload["score_phrase_relevance"], 0.83)
+        self.assertIn("phrase_match_diagnostics", payload)
+        self.assertEqual(payload["phrase_match_diagnostics"]["phrase_match_state"], "computed_exact_title")
         self.assertIn("link_freshness_diagnostics", payload)
         self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
 
@@ -154,6 +179,13 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             category="ml",
             description="Position bias",
         )
+        AppSetting.objects.create(
+            key="phrase_matching.context_window_tokens",
+            value="10",
+            value_type="int",
+            category="anchor",
+            description="Context window",
+        )
 
         response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
 
@@ -178,5 +210,11 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_year"],
             2026,
+        )
+        self.assertIn("phrase_matching", run.config_snapshot)
+        self.assertEqual(run.config_snapshot["phrase_matching"]["context_window_tokens"], 10)
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["phrase_matching"],
+            PHRASE_MATCHING_VERSION,
         )
         delay_mock.assert_called_once()

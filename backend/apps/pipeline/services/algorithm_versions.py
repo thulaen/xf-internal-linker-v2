@@ -28,3 +28,8 @@ WEIGHTED_AUTHORITY_VERSION = build_algorithm_version_metadata(
     algorithm_key="weighted_authority_pagerank",
     version_date=date(2026, 3, 25),
 )
+
+PHRASE_MATCHING_VERSION = build_algorithm_version_metadata(
+    algorithm_key="phrase_matching_anchor_expansion",
+    version_date=date(2026, 3, 25),
+)

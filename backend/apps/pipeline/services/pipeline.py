@@ -37,7 +37,7 @@ from .ranker import (
     select_final_candidates,
     tokenize_text,
 )
-from .anchor_extractor import extract_anchor
+from .phrase_matching import PhraseMatchingSettings
 
 logger = logging.getLogger(__name__)
 
@@ -98,6 +98,7 @@ def run_pipeline(
     silo_settings = _load_silo_settings()
     weighted_authority_settings = _load_weighted_authority_settings()
     link_freshness_settings = _load_link_freshness_settings()
+    phrase_matching_settings = _load_phrase_matching_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -200,6 +201,7 @@ def run_pipeline(
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
             link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
+            phrase_matching_settings=phrase_matching_settings,
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -324,6 +326,21 @@ def _load_link_freshness_settings() -> dict[str, float]:
         return {
             "ranking_weight": 0.0,
         }
+
+
+def _load_phrase_matching_settings() -> PhraseMatchingSettings:
+    try:
+        from apps.core.views import get_phrase_matching_settings
+
+        config = get_phrase_matching_settings()
+        return PhraseMatchingSettings(
+            ranking_weight=float(config.get("ranking_weight", 0.0)),
+            enable_anchor_expansion=bool(config.get("enable_anchor_expansion", True)),
+            enable_partial_matching=bool(config.get("enable_partial_matching", True)),
+            context_window_tokens=int(config.get("context_window_tokens", 8)),
+        )
+    except Exception:
+        return PhraseMatchingSettings()
 
 
 def _load_content_records(
@@ -679,8 +696,6 @@ def _persist_suggestions(
         if dest_record is None or sentence_record is None:
             continue
 
-        anchor = extract_anchor(sentence_record.text, dest_record.title)
-
         try:
             dest_ci = ContentItem.objects.get(pk=candidate.destination_content_id)
             host_ci = ContentItem.objects.get(pk=candidate.host_content_id)
@@ -701,10 +716,10 @@ def _persist_suggestions(
             host_sentence=host_sentence,
             destination_title=dest_ci.title,
             host_sentence_text=host_sentence.text,
-            anchor_phrase=anchor.anchor_phrase or "",
-            anchor_start=anchor.anchor_start,
-            anchor_end=anchor.anchor_end,
-            anchor_confidence=anchor.anchor_confidence,
+            anchor_phrase=candidate.anchor_phrase,
+            anchor_start=candidate.anchor_start,
+            anchor_end=candidate.anchor_end,
+            anchor_confidence=candidate.anchor_confidence,
             score_semantic=candidate.score_semantic,
             score_keyword=candidate.score_keyword,
             score_node_affinity=candidate.score_node_affinity,
@@ -712,6 +727,8 @@ def _persist_suggestions(
             score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
             score_velocity=dest_ci.velocity_score,
             score_link_freshness=dest_ci.link_freshness_score,
+            score_phrase_relevance=candidate.score_phrase_relevance,
+            phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             score_final=candidate.score_final,
             status="pending",
         )

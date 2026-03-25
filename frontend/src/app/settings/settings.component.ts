@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
+  PhraseMatchingSettings,
   ScopeItem,
   SiloGroup,
   LinkFreshnessSettings,
@@ -45,6 +46,7 @@ export class SettingsComponent implements OnInit {
   savingSettings = false;
   savingWeightedAuthority = false;
   savingLinkFreshness = false;
+  savingPhraseMatching = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -73,6 +75,12 @@ export class SettingsComponent implements OnInit {
     w_growth: 0.35,
     w_cohort: 0.2,
     w_loss: 0.1,
+  };
+  phraseMatching: PhraseMatchingSettings = {
+    ranking_weight: 0,
+    enable_anchor_expansion: true,
+    enable_partial_matching: true,
+    context_window_tokens: 8,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -131,14 +139,23 @@ export class SettingsComponent implements OnInit {
             this.siloSvc.getLinkFreshnessSettings().subscribe({
               next: (linkFreshness) => {
                 this.linkFreshness = linkFreshness;
-                this.siloSvc.getWordPressSettings().subscribe({
-                  next: (wordpress) => {
-                    this.wordpress = wordpress;
-                    this.loadGroupsAndScopes();
+                this.siloSvc.getPhraseMatchingSettings().subscribe({
+                  next: (phraseMatching) => {
+                    this.phraseMatching = phraseMatching;
+                    this.siloSvc.getWordPressSettings().subscribe({
+                      next: (wordpress) => {
+                        this.wordpress = wordpress;
+                        this.loadGroupsAndScopes();
+                      },
+                      error: () => {
+                        this.loading = false;
+                        this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                      },
+                    });
                   },
                   error: () => {
                     this.loading = false;
-                    this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                    this.snack.open('Failed to load phrase matching settings', 'Dismiss', { duration: 4000 });
                   },
                 });
               },
@@ -157,6 +174,21 @@ export class SettingsComponent implements OnInit {
       error: () => {
         this.loading = false;
         this.snack.open('Failed to load silo settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  savePhraseMatchingSettings(): void {
+    this.savingPhraseMatching = true;
+    this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching).subscribe({
+      next: (phraseMatching) => {
+        this.phraseMatching = phraseMatching;
+        this.savingPhraseMatching = false;
+        this.snack.open('Phrase matching settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingPhraseMatching = false;
+        this.snack.open(error?.error?.detail || 'Failed to save phrase matching settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

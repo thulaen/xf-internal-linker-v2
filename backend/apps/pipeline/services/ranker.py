@@ -10,44 +10,15 @@ from collections import Counter
 from dataclasses import dataclass
 import heapq
 import math
-import re
 from typing import Mapping, TypeAlias
 
 from .link_freshness import score_link_freshness_component
+from .phrase_matching import PhraseMatchingSettings, evaluate_phrase_match
+from .text_tokens import tokenize_text
 
 
 ContentKey: TypeAlias = tuple[int, str]
 ExistingLinkKey: TypeAlias = tuple[ContentKey, ContentKey]
-
-TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
-STANDARD_ENGLISH_STOPWORDS = frozenset(
-    {
-        "a", "about", "above", "after", "again", "against", "all", "am", "an",
-        "and", "any", "are", "aren't", "as", "at", "be", "because", "been",
-        "before", "being", "below", "between", "both", "but", "by", "can't",
-        "cannot", "could", "couldn't", "did", "didn't", "do", "does",
-        "doesn't", "doing", "don't", "down", "during", "each", "few", "for",
-        "from", "further", "had", "hadn't", "has", "hasn't", "have",
-        "haven't", "having", "he", "he'd", "he'll", "he's", "her", "here",
-        "here's", "hers", "herself", "him", "himself", "his", "how", "how's",
-        "i", "i'd", "i'll", "i'm", "i've", "if", "in", "into", "is", "isn't",
-        "it", "it's", "its", "itself", "let's", "me", "more", "most",
-        "mustn't", "my", "myself", "no", "nor", "not", "of", "off", "on",
-        "once", "only", "or", "other", "ought", "our", "ours", "ourselves",
-        "out", "over", "own", "same", "shan't", "she", "she'd", "she'll",
-        "she's", "should", "shouldn't", "so", "some", "such", "than", "that",
-        "that's", "the", "their", "theirs", "them", "themselves", "then",
-        "there", "there's", "these", "they", "they'd", "they'll", "they're",
-        "they've", "this", "those", "through", "to", "too", "under", "until",
-        "up", "very", "was", "wasn't", "we", "we'd", "we'll", "we're",
-        "we've", "were", "weren't", "what", "what's", "when", "when's",
-        "where", "where's", "which", "while", "who", "who's", "whom", "why",
-        "why's", "with", "won't", "would", "wouldn't", "you", "you'd",
-        "you'll", "you're", "you've", "your", "yours", "yourself",
-        "yourselves",
-    }
-)
-
 
 @dataclass(frozen=True, slots=True)
 class ContentRecord:
@@ -120,7 +91,13 @@ class ScoredCandidate:
     score_node_affinity: float
     score_quality: float
     score_silo_affinity: float
+    score_phrase_relevance: float
     score_final: float
+    anchor_phrase: str
+    anchor_start: int | None
+    anchor_end: int | None
+    anchor_confidence: str
+    phrase_match_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -176,16 +153,6 @@ def is_strict_same_silo_blocked(
         settings.mode == "strict_same_silo"
         and classify_silo_relationship(destination, host) == "cross"
     )
-
-
-def tokenize_text(text: str) -> frozenset[str]:
-    """Tokenize text for Jaccard scoring, excluding standard English stopwords."""
-    tokens = {
-        token.lower()
-        for token in TOKEN_RE.findall(text)
-        if token and token.lower() not in STANDARD_ENGLISH_STOPWORDS
-    }
-    return frozenset(tokens)
 
 
 def keyword_jaccard_similarity(
@@ -282,6 +249,7 @@ def score_destination_matches(
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
+    phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -329,6 +297,12 @@ def score_destination_matches(
             destination.tokens,
             sentence_record.tokens,
         )
+        phrase_match = evaluate_phrase_match(
+            host_sentence_text=sentence_record.text,
+            destination_title=destination.title,
+            destination_distilled_text=destination.distilled_text,
+            settings=phrase_matching_settings,
+        )
         score_node = score_node_affinity(destination, host_record)
         score_quality = log_minmax_normalize_march_2026_pagerank(
             host_record.march_2026_pagerank_score,
@@ -349,6 +323,7 @@ def score_destination_matches(
             if link_freshness_ranking_weight > 0.0
             else 0.0
         )
+        score_phrase_relevance = phrase_match.score_phrase_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
@@ -357,6 +332,7 @@ def score_destination_matches(
             + float(weights.get("w_quality", 0.0)) * score_quality
             + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
             + float(link_freshness_ranking_weight) * score_link_freshness
+            + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
             + score_silo
         )
 
@@ -372,7 +348,13 @@ def score_destination_matches(
                 score_node_affinity=float(score_node),
                 score_quality=float(score_quality),
                 score_silo_affinity=float(score_silo),
+                score_phrase_relevance=float(phrase_match.score_phrase_relevance),
                 score_final=float(score_final),
+                anchor_phrase=phrase_match.anchor_phrase or "",
+                anchor_start=phrase_match.anchor_start,
+                anchor_end=phrase_match.anchor_end,
+                anchor_confidence=phrase_match.anchor_confidence,
+                phrase_match_diagnostics=phrase_match.phrase_match_diagnostics,
             )
         )
 

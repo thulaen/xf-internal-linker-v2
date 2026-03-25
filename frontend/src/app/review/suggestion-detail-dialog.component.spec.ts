@@ -43,6 +43,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_march_2026_pagerank: 0.18,
     score_velocity: 0.1,
     score_link_freshness: 0.5,
+    score_phrase_relevance: 0.82,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -51,6 +52,19 @@ describe('SuggestionDetailDialogComponent', () => {
     stale_reason: '',
     superseded_by: null,
     superseded_at: null,
+    phrase_match_diagnostics: {
+      score_phrase_relevance: 0.82,
+      phrase_match_state: 'computed_exact_title',
+      selected_anchor_text: 'Destination',
+      selected_anchor_start: 22,
+      selected_anchor_end: 33,
+      selected_match_type: 'exact',
+      selected_phrase_source: 'title',
+      selected_token_count: 1,
+      context_window_tokens: 8,
+      context_corroborating_hits: 1,
+      destination_phrase_count: 5,
+    },
     link_freshness_diagnostics: {
       link_freshness_score: 0.5,
       freshness_bucket: 'neutral',
@@ -70,7 +84,7 @@ describe('SuggestionDetailDialogComponent', () => {
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders March 2026 PageRank and Link Freshness', async () => {
+  it('renders March 2026 PageRank, Link Freshness, and Phrase Relevance', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -94,5 +108,6 @@ describe('SuggestionDetailDialogComponent', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('March 2026 PageRank');
     expect(text).toContain('Link Freshness');
+    expect(text).toContain('Phrase Relevance');
   });
 });

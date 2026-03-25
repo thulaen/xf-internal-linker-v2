@@ -47,6 +47,7 @@ export interface SuggestionDetail extends Suggestion {
   score_march_2026_pagerank: number;
   score_velocity: number;
   score_link_freshness: number;
+  score_phrase_relevance: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -55,8 +56,31 @@ export interface SuggestionDetail extends Suggestion {
   stale_reason: string;
   superseded_by: string | null;
   superseded_at: string | null;
+  phrase_match_diagnostics: PhraseMatchDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
   updated_at: string;
+}
+
+export interface PhraseMatchDiagnostics {
+  score_phrase_relevance: number;
+  phrase_match_state:
+    | 'computed_exact_title'
+    | 'computed_exact_distilled'
+    | 'computed_partial_title'
+    | 'computed_partial_distilled'
+    | 'neutral_no_destination_phrases'
+    | 'neutral_no_host_match'
+    | 'neutral_partial_below_threshold'
+    | 'fallback_current_extractor';
+  selected_anchor_text: string | null;
+  selected_anchor_start: number | null;
+  selected_anchor_end: number | null;
+  selected_match_type: 'exact' | 'partial' | 'none';
+  selected_phrase_source: 'title' | 'distilled' | 'fallback' | 'none';
+  selected_token_count: number;
+  context_window_tokens: number;
+  context_corroborating_hits: number;
+  destination_phrase_count: number;
 }
 
 export interface LinkFreshnessDiagnostics {

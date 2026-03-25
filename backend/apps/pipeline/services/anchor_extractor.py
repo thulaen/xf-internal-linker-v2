@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .ranker import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
 
 
 @dataclass(frozen=True, slots=True)

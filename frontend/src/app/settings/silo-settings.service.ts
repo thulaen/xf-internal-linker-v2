@@ -75,6 +75,13 @@ export interface LinkFreshnessSettings {
   w_loss: number;
 }
 
+export interface PhraseMatchingSettings {
+  ranking_weight: number;
+  enable_anchor_expansion: boolean;
+  enable_partial_matching: boolean;
+  context_window_tokens: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -129,6 +136,10 @@ export class SiloSettingsService {
     return this.http.get<LinkFreshnessSettings>('/api/settings/link-freshness/');
   }
 
+  getPhraseMatchingSettings(): Observable<PhraseMatchingSettings> {
+    return this.http.get<PhraseMatchingSettings>('/api/settings/phrase-matching/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -139,6 +150,10 @@ export class SiloSettingsService {
 
   updateLinkFreshnessSettings(payload: LinkFreshnessSettings): Observable<LinkFreshnessSettings> {
     return this.http.put<LinkFreshnessSettings>('/api/settings/link-freshness/', payload);
+  }
+
+  updatePhraseMatchingSettings(payload: PhraseMatchingSettings): Observable<PhraseMatchingSettings> {
+    return this.http.put<PhraseMatchingSettings>('/api/settings/phrase-matching/', payload);
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {

@@ -244,3 +244,56 @@ class LinkFreshnessSettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 202)
         self.assertIn("job_id", response.json())
         delay_mock.assert_called_once()
+
+
+class PhraseMatchingSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="phrase-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_phrase_matching_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/phrase-matching/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "ranking_weight": 0.0,
+                "enable_anchor_expansion": True,
+                "enable_partial_matching": True,
+                "context_window_tokens": 8,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/phrase-matching/",
+            {
+                "ranking_weight": 0.05,
+                "enable_anchor_expansion": False,
+                "enable_partial_matching": False,
+                "context_window_tokens": 10,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["ranking_weight"], 0.05)
+        self.assertFalse(update_response.json()["enable_anchor_expansion"])
+        self.assertEqual(AppSetting.objects.get(key="phrase_matching.ranking_weight").value, "0.05")
+        self.assertEqual(AppSetting.objects.get(key="phrase_matching.context_window_tokens").value, "10")
+        self.assertEqual(AppSetting.objects.get(key="phrase_matching.ranking_weight").category, "anchor")
+
+    def test_phrase_matching_validation_rejects_bad_bounds(self):
+        response = self.client.put(
+            "/api/settings/phrase-matching/",
+            {
+                "ranking_weight": 0.2,
+                "enable_anchor_expansion": True,
+                "enable_partial_matching": True,
+                "context_window_tokens": 20,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ranking_weight", response.json()["detail"])

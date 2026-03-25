@@ -46,8 +46,8 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     @action(detail=False, methods=["post"])
     def start(self, request) -> Response:
         """Create a new PipelineRun and dispatch it to Celery."""
-        from apps.core.views import get_weighted_authority_settings
-        from apps.pipeline.services.algorithm_versions import WEIGHTED_AUTHORITY_VERSION
+        from apps.core.views import get_phrase_matching_settings, get_weighted_authority_settings
+        from apps.pipeline.services.algorithm_versions import PHRASE_MATCHING_VERSION, WEIGHTED_AUTHORITY_VERSION
 
         run = PipelineRun.objects.create(
             rerun_mode=request.data.get("rerun_mode", "skip_pending"),
@@ -55,8 +55,10 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
             destination_scope=request.data.get("destination_scope", {}),
             config_snapshot={
                 "weighted_authority": get_weighted_authority_settings(),
+                "phrase_matching": get_phrase_matching_settings(),
                 "algorithm_versions": {
                     "weighted_authority": WEIGHTED_AUTHORITY_VERSION,
+                    "phrase_matching": PHRASE_MATCHING_VERSION,
                 },
             },
         )

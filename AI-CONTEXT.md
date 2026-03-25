@@ -35,30 +35,47 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active delivery phase completed this session: Phase 10
-- FR cross-reference: `FR-007 - Link Freshness Authority`
-- Status: complete in repo and locally verified against `docs/specs/fr007-link-freshness-authority.md`
+- Active delivery phase completed this session: Phase 11
+- FR cross-reference: `FR-008 - Phrase-Based Matching & Anchor Expansion`
+- Status: complete in repo and verified against `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 
 ## Current Session Note
 
 - Session target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
-- Session mode: spec-first pass complete
-- This session was reserved only for the Phase 11 FR-008 spec pass at `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`.
+- Session mode: final verification and release pass
+- This session was reserved only for the Phase 11 FR-008 final verification and safe release pass using `docs/specs/fr008-phrase-based-matching-anchor-expansion.md` as the source of truth.
 - Scope rule for this session: do not drift into FR-006, FR-007, FR-009, FR-018, FR-019, or FR-020 work.
 - FR-008 spec path: `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
-- Status right now: FR-008 spec-first pass completed and ready for a later implementation session.
-- What was completed in this session:
+- Start-of-session continuity note:
   - `AI-CONTEXT.md` was read first and updated immediately before any other repo reading
-  - required docs and code paths were inspected before writing the spec
-  - the missing FR-008 spec file was created at the required path
-  - `FEATURE-REQUESTS.md` was updated to show the FR-008 spec-first pass is complete and implementation is still pending
-  - verification confirmed the FR-008 spec file exists, is detailed, and no production code was changed
-- What was intentionally not completed:
-  - no FR-008 backend code
-  - no FR-008 frontend code
-  - no FR-008 migrations
-  - no serializer, view, task, sync-flow, queue-flow, or ranker implementation changes
-  - no FR-009, FR-018, FR-019, or FR-020 work
+  - the approved FR-008 spec existed before verification started and stayed the source of truth
+  - this session kept phrase relevance separate from FR-006 weighted-link-graph logic, FR-007 link-freshness logic, and velocity inputs
+- What shipped in code for Phase 11:
+  - separate FR-008 phrase matching in `backend/apps/pipeline/services/phrase_matching.py`
+  - expanded anchor selection that uses title and distilled-text phrase evidence, bounded partial matching, neutral fallback behavior, and rollback to the current exact title extractor
+  - `Suggestion.score_phrase_relevance` and `Suggestion.phrase_match_diagnostics` with the FR-008 suggestion migration
+  - separate FR-008 settings API at `GET/PUT /api/settings/phrase-matching/`
+  - FR-008 pipeline snapshot metadata and a separate FR-008 algorithm version stamp
+  - suggestion detail, admin, review, and settings exposure for FR-008 phrase relevance and diagnostics
+  - focused FR-008 backend and frontend tests in the repo
+- Small FR-008-only verification fix made in this session:
+  - tightened distilled-phrase inventory and exact-match scoring so short distilled fragments and loose single-word evidence do not beat the better phrase match during anchor expansion
+  - tightened partial-match corroboration so missing phrase support stays neutral instead of becoming a false-positive weak match
+- What was intentionally not changed to keep scope clean:
+  - no `ContentItem` storage or content API/admin changes for FR-008
+  - no FR-008 recalculation task
+  - no FR-006 or FR-007 logic redesign
+  - no velocity integration
+  - no FR-009 learned-anchor behavior
+  - no queue-flow or sync-flow redesign
+- Verification state at session end:
+  - targeted Django FR-008 verification passed under `config.settings.test`
+  - focused backend checks covered phrase extraction, exact/partial matching, neutral fallback behavior, weight-0 ranking parity, FR-006/FR-007/velocity boundary behavior, settings API, serializer/detail exposure, and pipeline snapshotting
+  - Angular focused review test passed for the FR-008 detail dialog
+  - Angular `build` passed for the review and settings wiring
+  - `manage.py makemigrations --check --dry-run` reported `No changes detected`
+  - `git diff --check` reported no whitespace or patch-format errors
+  - Phase 11 / FR-008 is now verified and closed, pending safe commit/push handling in this session
 
 ## User Communication Preference
 
@@ -109,6 +126,7 @@ Phase 10 shipped:
 - Phase 8 verification closure: local backend/frontend verification path repaired and passing
 - Phase 9 / `FR-006`: weighted link graph, March 2026 PageRank storage, settings, diagnostics, and review exposure implemented from `docs/specs/fr006-weighted-link-graph.md`
 - Phase 10 / `FR-007`: separate link-history freshness storage, scoring, settings, ranker integration, diagnostics, and review exposure implemented from `docs/specs/fr007-link-freshness-authority.md`
+- Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 
 ## Execution Ledger
 
@@ -127,8 +145,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 8 | FR-003 | Complete | WordPress cross-linking |
 | 9 | FR-006 | Complete | Weighted Link Graph / Reasonable Surfer Scoring |
 | 10 | FR-007 | Complete | Link Freshness Authority |
-| 11 | FR-008 | Next | Phrase-Based Matching & Anchor Expansion |
-| 12 | FR-009 | Queued | Learned Anchor Vocabulary & Corroboration |
+| 11 | FR-008 | Complete | Phrase-Based Matching & Anchor Expansion |
+| 12 | FR-009 | Next | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Queued | Rare-Term Propagation Across Related Pages |
 | 14 | FR-011 | Queued | Field-Aware Relevance Scoring |
 | 15 | FR-012 | Queued | Click-Distance Structural Prior |
@@ -143,11 +161,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 11 / `FR-008 - Phrase-Based Matching & Anchor Expansion`
-- Phase 10 reference: `FR-007` was implemented exactly against `docs/specs/fr007-link-freshness-authority.md`
-- FR-008 spec reference: `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
-- Next session type: implementation pass for FR-008 only
-- Scope reminder: keep phrase relevance separate from FR-006 weighted-edge authority and FR-007 link-history freshness
+- Next exact target: Phase 12 / `FR-009 - Learned Anchor Vocabulary & Corroboration`
+- Phase 11 reference: `FR-008` was implemented and verified exactly against `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
+- FR-009 stays separate from FR-008 because learned anchor corroboration belongs to its own phase
+- Next session type: FR-009 spec/implementation planning or delivery session, depending on continuity state at session start
+- Scope reminder: keep FR-009 learned-anchor behavior separate from the shipped FR-008 phrase relevance layer
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases

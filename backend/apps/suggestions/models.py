@@ -251,6 +251,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="Link Freshness score of the destination. 0.5 means neutral or not enough history.",
     )
+    score_phrase_relevance = models.FloatField(
+        default=0.5,
+        help_text="FR-008 phrase relevance score for this destination/host sentence pair. 0.5 means neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -287,6 +291,11 @@ class Suggestion(TimestampedModel):
     repeated_anchor = models.BooleanField(
         default=False,
         help_text="True if this anchor is already used in another active suggestion for this destination.",
+    )
+    phrase_match_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-008 phrase-match details for review and debugging.",
     )
 
     # Review state

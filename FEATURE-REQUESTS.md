@@ -16,6 +16,21 @@ Important:
 
 ## COMPLETED
 
+### FR-008 - Phrase-Based Matching & Anchor Expansion
+**Requested:** 2026-03-24
+**Target phase:** Phase 11
+**Completed phase:** Phase 11
+**Completed:** 2026-03-25
+
+- Implemented exactly against `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`.
+- `backend/apps/pipeline/services/phrase_matching.py` now builds a bounded destination phrase inventory from title plus distilled text, matches exact and bounded partial phrase evidence, and falls back safely to the current exact-title extractor.
+- `Suggestion.score_phrase_relevance` and `Suggestion.phrase_match_diagnostics` store the separate FR-008 phrase signal and explainable phrase-match state.
+- Phrase Matching has its own settings API at `GET/PUT /api/settings/phrase-matching/`, its own algorithm version stamp, and pipeline-run snapshot wiring.
+- Suggestion detail, suggestion admin, Angular review detail, and Angular settings now expose the intended FR-008 fields and controls.
+- Local verification passed for the targeted Django FR-008 test slice, SQLite migration drift check, focused Angular review test, and Angular build.
+
+---
+
 ### FR-007 - Link Freshness Authority
 **Requested:** 2026-03-24
 **Target phase:** Phase 10
@@ -102,23 +117,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-008 - Phrase-Based Matching & Anchor Expansion
-**Requested:** 2026-03-24
-**Target phase:** Phase 11
-**Priority:** High
-**Patent inspiration:** `US7536408B2`
-**Spec-first pass completed:** 2026-03-25
-**Spec:** `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
-**Implementation status:** Ready for a later implementation session. Not implemented yet.
-
-- Extract salient phrases from titles, distilled text, and host sentences.
-- Add phrase-level relevance as a separate ranking signal.
-- Expand anchor extraction beyond exact title windows with explainable phrase evidence.
-- The spec-first pass keeps FR-008 separate from FR-006 weighted authority, FR-007 link freshness, `velocity`, and FR-009 learned-anchor work.
-- The spec keeps missing phrase evidence neutral, keeps ranking impact off by default, and keeps storage narrow to suggestion-level fields only.
-
----
 
 ### FR-009 - Learned Anchor Vocabulary & Corroboration
 **Requested:** 2026-03-24
@@ -618,4 +616,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 10 / FR-007 remains the last implemented phase; the Phase 11 / FR-008 spec-first pass is now complete at `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`; the next session should be the FR-008 implementation pass; backlog still includes `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*
+*Last updated: 2026-03-25 (Phase 11 / FR-008 is now implemented and verified; the next target is Phase 12 / FR-009; backlog still includes learned anchors, `GA4`, `GSC`, safe auto-tuning, operator alerts, and zero-downtime model-management requests; project stays pure Python/Django)*

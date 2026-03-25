@@ -13,6 +13,11 @@ from apps.pipeline.services.link_freshness import (
     calculate_link_freshness,
     run_link_freshness,
 )
+from apps.pipeline.services.phrase_matching import (
+    PhraseMatchingSettings,
+    _build_destination_phrase_inventory,
+    evaluate_phrase_match,
+)
 from apps.pipeline.services.pipeline import _persist_diagnostics
 from apps.pipeline.services.ranker import (
     ContentRecord,
@@ -453,6 +458,284 @@ class LinkFreshnessServiceTests(TestCase):
         run_link_freshness(reference_time=now)
         destination.refresh_from_db()
         self.assertAlmostEqual(destination.link_freshness_score, baseline, places=6)
+
+
+class PhraseMatchingServiceTests(TestCase):
+    def test_destination_phrase_inventory_is_bounded_and_prefers_complete_phrases(self):
+        phrases = _build_destination_phrase_inventory(
+            destination_title="Internal Linking Guide",
+            destination_distilled_text=(
+                "Helpful examples for editors. "
+                "Phrase block one. Phrase block two. Phrase block three. Phrase block four. "
+                "Phrase block five. Phrase block six. Phrase block seven. Phrase block eight. "
+                "Phrase block nine. Phrase block ten. Phrase block eleven. Phrase block twelve."
+            ),
+        )
+
+        token_lists = [phrase.tokens for phrase in phrases]
+        self.assertLessEqual(len(phrases), 24)
+        self.assertIn(("internal", "linking", "guide"), token_lists)
+        self.assertNotIn(("internal", "linking"), token_lists)
+
+    def test_exact_title_and_distilled_phrase_matching(self):
+        exact_title = evaluate_phrase_match(
+            host_sentence_text="This sentence explains the internal linking guide clearly.",
+            destination_title="Internal Linking Guide",
+            destination_distilled_text="Helpful overview text.",
+            settings=PhraseMatchingSettings(),
+        )
+        exact_distilled = evaluate_phrase_match(
+            host_sentence_text="The article walks through anchor expansion rules step by step.",
+            destination_title="Internal Linking",
+            destination_distilled_text="Anchor expansion rules for safer internal links.",
+            settings=PhraseMatchingSettings(),
+        )
+
+        self.assertGreater(exact_title.score_phrase_relevance, 0.5)
+        self.assertEqual(exact_title.anchor_confidence, "strong")
+        self.assertEqual(
+            exact_title.phrase_match_diagnostics["phrase_match_state"],
+            "computed_exact_title",
+        )
+        self.assertGreater(exact_distilled.score_phrase_relevance, 0.5)
+        self.assertEqual(exact_distilled.anchor_phrase, "anchor expansion rules")
+        self.assertEqual(
+            exact_distilled.phrase_match_diagnostics["phrase_match_state"],
+            "computed_exact_distilled",
+        )
+
+    def test_partial_match_needs_local_corroboration(self):
+        accepted = evaluate_phrase_match(
+            host_sentence_text="The anchor expansion workflow keeps rules nearby for editors.",
+            destination_title="Editorial Linking",
+            destination_distilled_text="Anchor expansion rules for editors.",
+            settings=PhraseMatchingSettings(),
+        )
+        neutral = evaluate_phrase_match(
+            host_sentence_text="The anchor expansion workflow helps editors every day.",
+            destination_title="Editorial Linking",
+            destination_distilled_text="Anchor expansion rules for editors.",
+            settings=PhraseMatchingSettings(),
+        )
+
+        self.assertGreater(accepted.score_phrase_relevance, 0.5)
+        self.assertEqual(accepted.anchor_confidence, "weak")
+        self.assertEqual(
+            accepted.phrase_match_diagnostics["phrase_match_state"],
+            "computed_partial_distilled",
+        )
+        self.assertEqual(neutral.score_phrase_relevance, 0.5)
+        self.assertEqual(neutral.anchor_confidence, "none")
+        self.assertEqual(
+            neutral.phrase_match_diagnostics["phrase_match_state"],
+            "neutral_partial_below_threshold",
+        )
+
+    def test_neutral_fallback_and_anchor_expansion_rollback(self):
+        no_phrases = evaluate_phrase_match(
+            host_sentence_text="Tiny words only.",
+            destination_title="A An The",
+            destination_distilled_text="Of To In",
+            settings=PhraseMatchingSettings(),
+        )
+        fallback = evaluate_phrase_match(
+            host_sentence_text="This guide covers synthesizers in detail.",
+            destination_title="Synthesizers",
+            destination_distilled_text="Extra supporting text.",
+            settings=PhraseMatchingSettings(enable_anchor_expansion=False),
+        )
+
+        self.assertEqual(no_phrases.score_phrase_relevance, 0.5)
+        self.assertEqual(
+            no_phrases.phrase_match_diagnostics["phrase_match_state"],
+            "neutral_no_destination_phrases",
+        )
+        self.assertEqual(fallback.anchor_phrase, "synthesizers")
+        self.assertEqual(
+            fallback.phrase_match_diagnostics["phrase_match_state"],
+            "fallback_current_extractor",
+        )
+
+    def test_longer_complete_phrase_wins(self):
+        result = evaluate_phrase_match(
+            host_sentence_text="This internal linking guide explains the full workflow.",
+            destination_title="Internal Linking Guide",
+            destination_distilled_text="Helpful notes.",
+            settings=PhraseMatchingSettings(),
+        )
+
+        self.assertEqual(result.anchor_phrase, "internal linking guide")
+
+
+class PhraseRankerIntegrationTests(TestCase):
+    def setUp(self):
+        self.destination = _content_record(content_id=101, silo_group_id=None)
+        self.host = _content_record(content_id=202, silo_group_id=None)
+        self.weights = {
+            "w_semantic": 0.55,
+            "w_keyword": 0.20,
+            "w_node": 0.10,
+            "w_quality": 0.15,
+        }
+        self.bounds = (0.1, 2.0)
+
+    def test_phrase_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(self):
+        destination = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Linking Guide",
+            distilled_text="Anchor expansion tips for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=self.destination.march_2026_pagerank_score,
+            link_freshness_score=self.destination.link_freshness_score,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"internal", "linking", "guide"}),
+        )
+        host = self.host
+        records = {destination.key: destination, host.key: host}
+        sentence_records = {
+            20: SentenceRecord(
+                20,
+                host.content_id,
+                host.content_type,
+                "The internal linking guide gives anchor expansion tips.",
+                80,
+                frozenset({"internal", "linking", "guide", "anchor", "expansion"}),
+            )
+        }
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 20, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            phrase_matching_settings=PhraseMatchingSettings(ranking_weight=0.0),
+        )[0]
+        enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 20, 0.8)],
+            content_records=records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            phrase_matching_settings=PhraseMatchingSettings(ranking_weight=0.1),
+        )[0]
+
+        self.assertGreater(baseline.score_phrase_relevance, 0.5)
+        self.assertAlmostEqual(
+            enabled.score_final,
+            baseline.score_final + 0.1 * (2 * (baseline.score_phrase_relevance - 0.5)),
+            places=6,
+        )
+
+    def test_phrase_signal_ignores_weighted_authority_freshness_and_velocity_inputs(self):
+        destination_a = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Anchor Expansion Rules",
+            distilled_text="Anchor expansion rules for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=0.1,
+            link_freshness_score=0.2,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"anchor", "expansion", "rules"}),
+        )
+        destination_b = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Anchor Expansion Rules",
+            distilled_text="Anchor expansion rules for editors.",
+            scope_id=self.destination.scope_id,
+            scope_type=self.destination.scope_type,
+            parent_id=self.destination.parent_id,
+            parent_type=self.destination.parent_type,
+            grandparent_id=self.destination.grandparent_id,
+            grandparent_type=self.destination.grandparent_type,
+            silo_group_id=self.destination.silo_group_id,
+            silo_group_name=self.destination.silo_group_name,
+            reply_count=self.destination.reply_count,
+            march_2026_pagerank_score=2.0,
+            link_freshness_score=0.9,
+            primary_post_char_count=self.destination.primary_post_char_count,
+            tokens=frozenset({"anchor", "expansion", "rules"}),
+        )
+        host = ContentRecord(
+            content_id=self.host.content_id,
+            content_type=self.host.content_type,
+            title=self.host.title,
+            distilled_text=self.host.distilled_text,
+            scope_id=self.host.scope_id,
+            scope_type=self.host.scope_type,
+            parent_id=self.host.parent_id,
+            parent_type=self.host.parent_type,
+            grandparent_id=self.host.grandparent_id,
+            grandparent_type=self.host.grandparent_type,
+            silo_group_id=self.host.silo_group_id,
+            silo_group_name=self.host.silo_group_name,
+            reply_count=99,
+            march_2026_pagerank_score=1.8,
+            link_freshness_score=self.host.link_freshness_score,
+            primary_post_char_count=900,
+            tokens=self.host.tokens,
+        )
+        sentence_records = {
+            30: SentenceRecord(
+                30,
+                host.content_id,
+                host.content_type,
+                "The anchor expansion rules help editors write natural links.",
+                80,
+                frozenset({"anchor", "expansion", "rules", "editors"}),
+            )
+        }
+
+        result_a = score_destination_matches(
+            destination_a,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 30, 0.8)],
+            content_records={destination_a.key: destination_a, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            weighted_authority_ranking_weight=0.25,
+            link_freshness_ranking_weight=0.15,
+            phrase_matching_settings=PhraseMatchingSettings(ranking_weight=0.0),
+        )[0]
+        result_b = score_destination_matches(
+            destination_b,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 30, 0.8)],
+            content_records={destination_b.key: destination_b, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            weighted_authority_ranking_weight=0.25,
+            link_freshness_ranking_weight=0.15,
+            phrase_matching_settings=PhraseMatchingSettings(ranking_weight=0.0),
+        )[0]
+
+        self.assertAlmostEqual(result_a.score_phrase_relevance, result_b.score_phrase_relevance, places=6)
+        self.assertEqual(result_a.anchor_phrase, result_b.anchor_phrase)
 
 
 class WeightedAuthorityGraphTests(TestCase):

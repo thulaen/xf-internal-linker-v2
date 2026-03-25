@@ -88,6 +88,46 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return Math.round(val * 100);
   }
 
+  phraseSummary(): string {
+    const diagnostics = this.detail?.phrase_match_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means the sentence did not provide useful phrase evidence.';
+    }
+    if (diagnostics.selected_match_type === 'partial') {
+      return 'Partial means the sentence matched part of the destination phrase and nearby words supported it.';
+    }
+    if (diagnostics.selected_match_type === 'exact') {
+      return 'Phrase relevance means the host sentence contains a destination phrase or a close local phrase match.';
+    }
+    return 'Neutral means the sentence did not provide useful phrase evidence.';
+  }
+
+  phraseStateLabel(): string {
+    const state = this.detail?.phrase_match_diagnostics?.phrase_match_state ?? 'neutral_no_host_match';
+    if (state === 'computed_exact_title') {
+      return 'Exact title phrase';
+    }
+    if (state === 'computed_exact_distilled') {
+      return 'Exact distilled-text phrase';
+    }
+    if (state === 'computed_partial_title') {
+      return 'Partial title phrase';
+    }
+    if (state === 'computed_partial_distilled') {
+      return 'Partial distilled-text phrase';
+    }
+    if (state === 'fallback_current_extractor') {
+      return 'Fallback to current exact-title extractor';
+    }
+    if (state === 'neutral_no_destination_phrases') {
+      return 'Neutral / no usable destination phrases';
+    }
+    if (state === 'neutral_partial_below_threshold') {
+      return 'Neutral / partial phrase below threshold';
+    }
+    return 'Neutral / no useful phrase match';
+  }
+
   linkFreshnessSummary(): string {
     const diagnostics = this.detail?.link_freshness_diagnostics;
     if (!diagnostics) {

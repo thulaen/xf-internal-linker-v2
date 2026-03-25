@@ -114,6 +114,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
             "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
+            "score_phrase_relevance",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -125,6 +126,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "rejection_reason", "reviewer_notes", "reviewed_at",
             "is_applied", "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
+            "phrase_match_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
@@ -132,6 +134,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",
             "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
+            "score_phrase_relevance",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -142,6 +145,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "repeated_anchor",
             "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
+            "phrase_match_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
