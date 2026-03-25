@@ -93,6 +93,7 @@ Important:
 **Target phase:** Phase 10
 **Priority:** Medium
 **Patent inspiration:** `US8407231B2`
+**Spec draft:** `docs/specs/fr007-link-freshness-authority.md`
 
 - Track first-seen and last-seen internal-link timing.
 - Add a link-recency/link-growth score separate from engagement velocity.

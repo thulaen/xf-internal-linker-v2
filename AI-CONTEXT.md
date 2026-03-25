@@ -39,6 +39,14 @@ Execution order and FR IDs are decoupled.
 - FR cross-reference: `FR-006 - Weighted Link Graph / Reasonable Surfer Scoring`
 - Status: complete in repo and locally verified against `docs/specs/fr006-weighted-link-graph.md`
 
+## Current Session Note
+
+- Session target: Phase 10 / `FR-007 - Link Freshness Authority`
+- Session mode: spec-first pass only
+- This session updates context and the FR-007 spec before any implementation session.
+- FR-007 spec path: `docs/specs/fr007-link-freshness-authority.md`
+- Do not implement FR-007 production code in this session unless repo rules are updated to explicitly allow it.
+
 ## User Communication Preference
 
 - The user is not a developer and prefers plain-English, layman's-terms explanations by default.
@@ -125,8 +133,8 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 
 - Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
 - The spec must include a source summary, a math-fidelity note, a full implementation spec, and a test plan. Use `docs/specs/fr006-weighted-link-graph.md` as the quality model.
-- FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features â€” the boundary is intentional.
-- FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features — the boundary is intentional.
+- FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features - the boundary is intentional.
+- FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features - the boundary is intentional.
 - FR-016 to FR-020 also require a spec/design pass before implementation because they change telemetry schemas, attribution logic, alerting behavior, and model-promotion/runtime safety. Those phases must define neutral fallbacks, rollback paths, and regression gates before any code lands.
 - All other patent-inspired phases follow the same two-pass pattern: spec first, implement second, each in its own session.
 - FR-018 must also include adaptive-change alerts, immutable history/audit rows, exact timestamped "why weights changed" summaries, and a timeline view before implementation is considered complete.
