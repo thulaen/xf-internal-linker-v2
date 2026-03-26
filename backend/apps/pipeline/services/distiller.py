@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import math
 import re
+from .spacy_loader import get_spacy_nlp
 
 MAX_DISTILLED_SENTENCES = 5
 ENTITY_BOOST = 0.4
@@ -28,7 +29,7 @@ _INTENT_WORDS = re.compile(
     re.IGNORECASE,
 )
 
-from .spacy_loader import get_spacy_nlp
+
 
 
 def distill_body(sentences: list[str], max_sentences: int = MAX_DISTILLED_SENTENCES) -> str:

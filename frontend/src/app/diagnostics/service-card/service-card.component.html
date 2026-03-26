@@ -1,0 +1,29 @@
+<div class="service-card" [ngClass]="getStatusClass()">
+  <div class="card-header">
+    <span class="material-icons status-icon">{{ getStatusIcon() }}</span>
+    <h3 class="service-name">{{ service.service_name | titlecase }}</h3>
+    <span class="status-badge">{{ formatState(service.state) | titlecase }}</span>
+  </div>
+  
+  <div class="card-body">
+    <p class="explanation">{{ service.explanation }}</p>
+    
+    <div class="timestamp-group">
+      <div class="timestamp">
+        <label>Last Check:</label>
+        <span>{{ service.last_check | date:'shortTime' }}</span>
+      </div>
+      <div class="timestamp" *ngIf="service.last_failure">
+        <label>Last Failure:</label>
+        <span class="text-error">{{ service.last_failure | date:'shortTime' }}</span>
+      </div>
+    </div>
+  </div>
+  
+  <div class="card-footer" *ngIf="service.state !== 'healthy'">
+    <div class="next-step">
+      <label>Next Step:</label>
+      <p>{{ service.next_action_step }}</p>
+    </div>
+  </div>
+</div>

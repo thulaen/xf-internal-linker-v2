@@ -1,7 +1,7 @@
 import json
 import logging
 import os
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Dict, Generator
 from django.conf import settings
 
 logger = logging.getLogger(__name__)

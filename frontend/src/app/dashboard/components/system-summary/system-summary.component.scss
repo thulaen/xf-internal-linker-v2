@@ -1,0 +1,93 @@
+.system-summary-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+
+  .title-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #1e293b;
+    .material-icons { font-size: 20px; color: #64748b; }
+    h3 { margin: 0; font-size: 0.9375rem; font-weight: 700; }
+  }
+
+  .btn-detail {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #3b82f6;
+    text-decoration: none;
+    text-transform: uppercase;
+    &:hover { text-decoration: underline; }
+  }
+}
+
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+.status-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  opacity: 0.5;
+
+  &.active { opacity: 1; background: #f1f5f9; }
+
+  .count { font-size: 1.25rem; font-weight: 800; color: #1e293b; }
+  .label { font-size: 0.6875rem; font-weight: 700; color: #64748b; text-transform: uppercase; }
+
+  &.failed.active { background: #fee2e2; .count { color: #dc2626; } }
+  &.degraded.active { background: #fef3c7; .count { color: #d97706; } }
+}
+
+.urgent-issues {
+  label {
+    display: block;
+    font-size: 0.6875rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    color: #94a3b8;
+    margin-bottom: 8px;
+  }
+
+  .issue-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+
+    li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.8125rem;
+      color: #dc2626;
+      font-weight: 600;
+
+      .material-icons { font-size: 16px; }
+      .issue-text {
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+    }
+  }
+}

@@ -13,7 +13,6 @@ GET    /api/dashboard/           → aggregated stats for the dashboard
 
 import json
 import math
-import os
 import uuid
 from urllib.parse import urlparse
 
@@ -103,6 +102,10 @@ DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
     "body_field_weight": 0.30,
     "scope_field_weight": 0.15,
     "learned_anchor_field_weight": 0.15,
+}
+
+DEFAULT_GA4_GSC_SETTINGS = {
+    "ranking_weight": 0.05,
 }
 
 # Allowed MIME types for site asset uploads
@@ -273,6 +276,18 @@ def get_field_aware_relevance_settings() -> dict[str, float]:
         )
     except ValueError:
         return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
+
+
+def get_ga4_gsc_settings() -> dict[str, float]:
+    """Load persisted GA4/GSC settings with defensive defaults."""
+    settings = _read_ga4_gsc_settings()
+    try:
+        return _validate_ga4_gsc_settings(
+            settings,
+            current=dict(DEFAULT_GA4_GSC_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_GA4_GSC_SETTINGS)
 
 
 def _read_weighted_authority_settings() -> dict[str, float]:
@@ -472,6 +487,23 @@ def _read_field_aware_relevance_settings() -> dict[str, float]:
             "field_aware_relevance.learned_anchor_field_weight",
             DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["learned_anchor_field_weight"],
         ),
+    }
+
+
+def _read_ga4_gsc_settings() -> dict[str, float]:
+    """Read GA4/GSC settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    return {
+        "ranking_weight": _read_float("ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]),
     }
 
 
@@ -827,6 +859,33 @@ def _validate_field_aware_relevance_settings(
 
     if not math.isclose(field_weight_sum, 1.0, abs_tol=1e-6):
         raise ValueError("title/body/scope/learned-anchor field weights must sum to 1.0.")
+
+    return validated
+
+
+def _validate_ga4_gsc_settings(
+    payload: dict,
+    *,
+    current: dict[str, float] | None = None,
+) -> dict[str, float]:
+    current = current or _read_ga4_gsc_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
+        raise ValueError("ranking_weight must be between 0.0 and 1.0.")
 
     return validated
 
@@ -1319,6 +1378,45 @@ class FieldAwareRelevanceSettingsView(APIView):
                 "value": str(validated["learned_anchor_field_weight"]),
                 "value_type": "float",
                 "description": "Share of FR-011 field-aware relevance assigned to learned-anchor vocabulary matches.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class GA4GSCSettingsView(APIView):
+    """
+    GET  /api/settings/ga4-gsc/ - returns GA4/GSC placeholder settings
+    PUT  /api/settings/ga4-gsc/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_ga4_gsc_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_ga4_gsc_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "ga4_gsc.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Neutral future-facing ranking weight for GA4/GSC scores.",
             },
         }
 

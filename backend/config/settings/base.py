@@ -58,6 +58,7 @@ LOCAL_APPS = [
     "apps.plugins",
     "apps.sync",
     "apps.api",
+    "apps.diagnostics",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

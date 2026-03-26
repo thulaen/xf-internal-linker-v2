@@ -54,6 +54,7 @@ def _content_record(
     silo_group_id: int | None,
     march_2026_pagerank_score: float = 0.0,
     link_freshness_score: float = 0.5,
+    content_value_score: float = 0.0,
 ) -> ContentRecord:
     return ContentRecord(
         content_id=content_id,
@@ -71,6 +72,7 @@ def _content_record(
         reply_count=5,
         march_2026_pagerank_score=march_2026_pagerank_score,
         link_freshness_score=link_freshness_score,
+        content_value_score=content_value_score,
         primary_post_char_count=500,
         tokens=frozenset({"topic", str(content_id)}),
     )

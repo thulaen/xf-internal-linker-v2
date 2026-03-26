@@ -9,7 +9,7 @@ from .base import *  # noqa: F401, F403
 
 DEBUG = False
 
-SECRET_KEY = SECRET_KEY or "test-secret-key"
+SECRET_KEY = locals().get("SECRET_KEY", "test-secret-key")
 
 ALLOWED_HOSTS = ["testserver", "localhost", "127.0.0.1"]
 

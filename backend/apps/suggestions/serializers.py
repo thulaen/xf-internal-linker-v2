@@ -113,7 +113,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "suggestion_id", "pipeline_run",
             "status", "score_final",
             "score_semantic", "score_keyword", "score_node_affinity",
-            "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
+            "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
             "score_field_aware_relevance",
             "destination", "destination_title", "destination_url",
@@ -135,7 +135,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
         read_only_fields = [
             "suggestion_id", "pipeline_run",
             "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
+            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
             "score_field_aware_relevance",
             "destination", "destination_title", "destination_url",

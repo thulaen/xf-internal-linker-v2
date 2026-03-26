@@ -129,6 +129,24 @@ services:
     depends_on:
       - backend
 
+  # ─────────────────────────────────────────────
+  # Angular Frontend (Development) — Port 4200
+  # Live reload enabled via volume mapping
+  # ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: xf_linker_frontend
+    restart: unless-stopped
+    ports:
+      - "4200:4200"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    depends_on:
+      - backend
+
   http-worker-api:
     build:
       context: ./services/http-worker

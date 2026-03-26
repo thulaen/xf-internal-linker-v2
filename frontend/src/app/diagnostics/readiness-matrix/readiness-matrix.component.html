@@ -1,0 +1,37 @@
+<div class="matrix-container">
+  <div class="section-header">
+    <span class="material-icons info-icon">grid_view</span>
+    <h3>Feature Readiness Matrix</h3>
+    <span class="phase-badge">Phase 24</span>
+  </div>
+
+  <div class="matrix-table-wrapper">
+    <table class="matrix-table">
+      <thead>
+        <tr>
+          <th>Feature ID</th>
+          <th>Name</th>
+          <th>Status</th>
+          <th>Progress</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let f of features" [ngClass]="getStatusClass(f.status)">
+          <td class="feature-id"><code>{{ f.id }}</code></td>
+          <td class="feature-name">{{ f.name }}</td>
+          <td class="feature-status">
+            <div class="status-pill">
+              <span class="material-icons status-icon">{{ getStatusIcon(f.status) }}</span>
+              <span>{{ getStatusLabel(f.status) }}</span>
+            </div>
+          </td>
+          <td class="feature-progress">
+            <div class="progress-bar">
+              <div class="progress-fill" [style.width]="f.status === 'verified' ? '100%' : (f.status === 'implemented' ? '80%' : (f.status === 'implementing' ? '40%' : '5%'))"></div>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>

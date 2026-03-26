@@ -1,0 +1,104 @@
+.service-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+  border-left: 6px solid #e2e8f0;
+  transition: transform 0.2s, box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+  }
+
+  &.status-healthy { border-left-color: #10b981; }
+  &.status-degraded { border-left-color: #f59e0b; }
+  &.status-failed { border-left-color: #ef4444; }
+  &.status-disabled { border-left-color: #94a3b8; }
+  &.status-planned_only { border-left-color: #3b82f6; border-left-style: dashed; }
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  .status-icon {
+    font-size: 24px;
+  }
+
+  .service-name {
+    margin: 0;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: #1e293b;
+    flex: 1;
+  }
+
+  .status-badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    background: #f1f5f9;
+    color: #475569;
+  }
+}
+
+.status-healthy .status-icon { color: #10b981; }
+.status-degraded .status-icon { color: #f59e0b; }
+.status-failed .status-icon { color: #ef4444; }
+
+.explanation {
+  margin: 0;
+  font-size: 0.9375rem;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.timestamp-group {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 0.8125rem;
+  color: #94a3b8;
+
+  label {
+    font-weight: 600;
+    margin-right: 4px;
+    color: #64748b;
+  }
+}
+
+.text-error {
+  color: #ef4444;
+}
+
+.card-footer {
+  margin-top: auto;
+  padding-top: 16px;
+  border-top: 1px solid #f1f5f9;
+
+  .next-step {
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.025em;
+      color: #64748b;
+      margin-bottom: 4px;
+    }
+
+    p {
+      margin: 0;
+      font-size: 0.875rem;
+      color: #1e293b;
+      font-weight: 500;
+    }
+  }
+}

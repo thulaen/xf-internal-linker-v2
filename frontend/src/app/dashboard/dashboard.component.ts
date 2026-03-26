@@ -15,6 +15,7 @@ import {
   PipelineRunSummary,
 } from './dashboard.service';
 import { SuggestionService } from '../review/suggestion.service';
+import { SystemSummaryComponent } from './components/system-summary/system-summary.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -30,6 +31,7 @@ import { SuggestionService } from '../review/suggestion.service';
     MatSnackBarModule,
     MatTableModule,
     MatTooltipModule,
+    SystemSummaryComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

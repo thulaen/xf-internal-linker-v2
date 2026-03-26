@@ -8,7 +8,6 @@ suggestion was applied to measure real SEO impact.
 
 from django.db import models
 
-from apps.core.models import TimestampedModel
 
 
 class SearchMetric(models.Model):

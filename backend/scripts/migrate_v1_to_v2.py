@@ -5,8 +5,6 @@ import django
 import json
 import numpy as np
 from pathlib import Path
-from datetime import datetime
-from typing import Optional, Dict, Tuple
 
 # Setup Django
 BASE_DIR = Path(__file__).resolve().parents[1]
@@ -15,7 +13,6 @@ os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.local")
 django.setup()
 
 from django.db import transaction
-from django.utils import timezone
 from apps.content.models import ScopeItem, ContentItem, Post, Sentence
 from apps.graph.models import ExistingLink
 from apps.suggestions.models import Suggestion

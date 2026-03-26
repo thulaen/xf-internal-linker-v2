@@ -28,7 +28,6 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     evaluate_rare_term_propagation,
 )
-from .text_tokens import tokenize_text
 
 
 ContentKey: TypeAlias = tuple[int, str]
@@ -55,6 +54,7 @@ class ContentRecord:
     link_freshness_score: float
     primary_post_char_count: int
     tokens: frozenset[str]
+    content_value_score: float = 0.0
     scope_title: str = ""
     parent_scope_title: str = ""
     grandparent_scope_title: str = ""
@@ -112,6 +112,7 @@ class ScoredCandidate:
     score_learned_anchor_corroboration: float
     score_rare_term_propagation: float
     score_field_aware_relevance: float
+    score_ga4_gsc: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -274,6 +275,7 @@ def score_destination_matches(
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
+    ga4_gsc_ranking_weight: float = 0.0,
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
     rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
@@ -372,6 +374,11 @@ def score_destination_matches(
             if link_freshness_ranking_weight > 0.0
             else 0.0
         )
+        score_ga4_gsc = (
+            float(destination.content_value_score)
+            if ga4_gsc_ranking_weight > 0.0
+            else 0.0
+        )
         score_phrase_relevance = phrase_match.score_phrase_component
         score_learned_anchor = learned_anchor_match.learned_anchor_component
         score_rare_term = rare_term_match.rare_term_component
@@ -388,6 +395,7 @@ def score_destination_matches(
             + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
             + float(rare_term_settings.ranking_weight) * score_rare_term
             + float(field_aware_settings.ranking_weight) * score_field_aware
+            + float(ga4_gsc_ranking_weight) * score_ga4_gsc
             + score_silo
         )
 
@@ -407,6 +415,7 @@ def score_destination_matches(
                 score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
                 score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
                 score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
+                score_ga4_gsc=float(score_ga4_gsc),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,

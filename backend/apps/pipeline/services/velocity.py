@@ -170,8 +170,7 @@ def load_and_calculate(
     settings: VelocitySettings | None = None,
 ) -> dict[NodeKey, float]:
     """Load all content items and compute velocity scores via Django ORM."""
-    from apps.content.models import ContentItem, ContentMetricSnapshot, Post
-    from apps.graph.models import ExistingLink
+    from apps.content.models import ContentItem
 
     if settings is None:
         settings = load_velocity_settings()
@@ -366,16 +365,6 @@ def _load_primary_clean_text_lens() -> dict[NodeKey, int]:
             content_item=OuterRef("pk"),
             content_type="thread",
             xf_post_id=OuterRef("xf_post_id"),
-        )
-        .annotate(len=Length("clean_text"))
-        .values("len")[:1]
-    )
-    resource_post_len = (
-        Post.objects
-        .filter(
-            content_item=OuterRef("pk"),
-            content_type="resource",
-            xf_update_id=OuterRef("xf_update_id"),
         )
         .annotate(len=Length("clean_text"))
         .values("len")[:1]

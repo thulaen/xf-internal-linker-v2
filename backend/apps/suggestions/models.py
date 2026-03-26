@@ -267,6 +267,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-011 field-aware relevance score for this destination/host sentence pair. 0.5 means neutral.",
     )
+    score_ga4_gsc = models.FloatField(
+        default=0.5,
+        help_text="Stores the destination content-value score at suggestion-scoring time. 0.5 = neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,

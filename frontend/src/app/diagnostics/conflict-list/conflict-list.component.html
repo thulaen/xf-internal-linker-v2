@@ -1,0 +1,45 @@
+<div class="conflict-container">
+  <div class="section-header">
+    <span class="material-icons info-icon">error_outline</span>
+    <h3>Conflicts & Repo Drift</h3>
+    <span class="count-badge" *ngIf="conflicts.length">{{ conflicts.length }}</span>
+  </div>
+
+  <div class="empty-state" *ngIf="conflicts.length === 0">
+    <span class="material-icons">check_circle</span>
+    <p>No conflicts or repository drift detected.</p>
+  </div>
+
+  <div class="conflict-list" *ngIf="conflicts.length > 0">
+    <div class="conflict-item" *ngFor="let c of conflicts" [ngClass]="getSeverityClass(c.severity)">
+      <div class="conflict-header">
+        <span class="material-icons type-icon">{{ getConflictIcon(c.conflict_type) }}</span>
+        <div class="title-meta">
+          <h4 class="conflict-title">{{ c.title }}</h4>
+          <span class="location"><code>{{ c.location }}</code></span>
+        </div>
+        <span class="severity-badge">{{ c.severity | titlecase }}</span>
+      </div>
+
+      <div class="conflict-body">
+        <p class="description">{{ c.description }}</p>
+        
+        <div class="why-section">
+          <label>Why:</label>
+          <p>{{ c.why }}</p>
+        </div>
+
+        <div class="next-section">
+          <label>Next Step:</label>
+          <p>{{ c.next_step }}</p>
+        </div>
+      </div>
+
+      <div class="conflict-footer" *ngIf="!c.resolved">
+        <button class="btn-resolve" (click)="resolve.emit(c.id)">
+          Mark as Resolved
+        </button>
+      </div>
+    </div>
+  </div>
+</div>

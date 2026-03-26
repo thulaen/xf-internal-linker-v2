@@ -1,0 +1,12 @@
+default:
+  db:
+    host: !expr Sys.getenv("DB_HOST", "localhost")
+    port: !expr as.integer(Sys.getenv("DB_PORT", "5432"))
+    dbname: !expr Sys.getenv("DB_NAME", "xf_linker")
+    user: !expr Sys.getenv("DB_USER", "xf_linker_user")
+    password: !expr Sys.getenv("DB_PASS", "changeme")
+  
+  settings:
+    dry_run: !expr as.logical(Sys.getenv("DRY_RUN", "TRUE"))
+    min_impressions: !expr as.integer(Sys.getenv("MIN_IMPRESSIONS", "10"))
+    min_clicks: !expr as.integer(Sys.getenv("MIN_CLICKS", "1"))

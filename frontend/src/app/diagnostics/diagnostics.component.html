@@ -1,0 +1,65 @@
+<div class="diagnostics-page">
+  <header class="page-header">
+    <div class="title-section">
+      <h1>System Diagnostics & Health</h1>
+      <p class="subtitle">Real-time status of the whole machine and service stack</p>
+    </div>
+    
+    <div class="actions">
+      <button class="btn-refresh" [disabled]="refreshing" (click)="refreshAll()">
+        <span class="material-icons" [class.spinning]="refreshing">refresh</span>
+        {{ refreshing ? 'Checking...' : 'Run New Check' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="loading-overlay" *ngIf="loading">
+    <div class="spinner"></div>
+    <p>Performing deep-stack analysis...</p>
+  </div>
+
+  <ng-container *ngIf="!loading">
+    <!-- Resource Metrics Bar -->
+    <section class="metrics-bar" *ngIf="resources">
+      <div class="metric-item">
+        <label>CPU Usage</label>
+        <div class="metric-value">
+          <span class="value">{{ resources.cpu_percent === 'unavailable' ? 'N/A' : resources.cpu_percent + '%' }}</span>
+          <div class="mini-progress"><div class="fill" [style.width]="resources.cpu_percent + '%'"></div></div>
+        </div>
+      </div>
+      <div class="metric-item">
+        <label>RAM Usage</label>
+        <div class="metric-value">
+          <span class="value">{{ resources.ram_usage_mb === 'unavailable' ? 'N/A' : (resources.ram_usage_mb | number:'1.0-0') + ' MB' }}</span>
+        </div>
+      </div>
+      <div class="metric-item">
+        <label>Disk Space</label>
+        <div class="metric-value">
+          <span class="value">{{ resources.disk_usage_percent === 'unavailable' ? 'N/A' : resources.disk_usage_percent + '%' }}</span>
+          <div class="mini-progress"><div class="fill" [style.width]="resources.disk_usage_percent + '%'"></div></div>
+        </div>
+      </div>
+    </section>
+
+    <div class="main-grid">
+      <!-- Left Column: Services -->
+      <div class="grid-column">
+        <section class="services-section">
+          <h2>Core Runtime & Services</h2>
+          <div class="services-grid">
+            <app-service-card *ngFor="let s of services" [service]="s"></app-service-card>
+          </div>
+        </section>
+      </div>
+
+      <!-- Right Column: Conflicts & Readiness -->
+      <div class="grid-column side-content">
+        <app-conflict-list [conflicts]="conflicts" (resolve)="onResolveConflict($event)"></app-conflict-list>
+        
+        <app-readiness-matrix [features]="features"></app-readiness-matrix>
+      </div>
+    </div>
+  </ng-container>
+</div>

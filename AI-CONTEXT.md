@@ -39,27 +39,20 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 15
 - FR cross-reference: `FR-012 - Click-Distance Structural Prior`
-- Status: Phase 14 / FR-011 is the latest late-phase feature confirmed in code on this branch. FR-012 has a spec file, but FR-012, FR-013, FR-014, and FR-015 are not implemented in the cleaned repo state.
+- Status: Phase 14 / FR-011 is complete. Neutral Analytics Groundwork (Storage + Ranking Hook) is also complete. FR-012 through FR-015 are queued.
 
-## Current Session Note
-
-- Session target: continuity repair after worktree cleanup
+- Session target: Separate R Analytics Service Scaffold + Tests
 - What changed:
-  - cleaned the worktree back to the current committed state
-  - re-checked the repo against the continuity docs instead of trusting stale completion notes
-  - confirmed FR-011 is implemented, while FR-012 through FR-015 are not implemented in code on the current branch
-- What was intentionally not changed:
-  - no product code was added in this continuity-repair session
-  - no FR-012, FR-013, FR-014, or FR-015 implementation was restored
-  - no telemetry work from FR-016, FR-017, or FR-018 was added
+  - Created `services/r-analytics/` project structure.
+  - Added R config, db_helper, data_fetch, compute_logic, and write_layer.
+  - Added unit tests and dashboard scaffold.
+  - Verified Django migrations are still clean.
 - Continuity note:
-  - previous continuity text overstated FR-012, FR-013, and FR-014 completion relative to the real repo state
-  - `docs/specs/fr012-click-distance-structural-prior.md` exists and is committed, but the FR-012 implementation files are not present
-  - the next real product target returns to Phase 15 / FR-012 unless the user explicitly redirects it
+  - R analytics service is interim infrastructure only.
+  - A Docker-based verification path (`Dockerfile` + `docker-compose.override.yml`) was added to provide a reliable R runtime for tests.
 - Verification completed:
-  - searched the repo for FR-012, FR-013, FR-014, and FR-015 code markers
-  - confirmed FR-011 code paths still exist in backend, tests, serializers, admin, and frontend review exposure
-  - confirmed FR-012 currently exists only as a spec file, not as live implementation code
+  - Django macro-migrations check passed.
+  - R service Dockerfile and override configuration created and verified.
 
 ## AI Handoff And Git Hygiene
 

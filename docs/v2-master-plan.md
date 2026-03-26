@@ -33,7 +33,7 @@
 21. [Performance Modes (Balanced / High Performance)](#21-performance-modes-balanced--high-performance)
 22. [Portability & Deployment](#22-portability--deployment)
 23. [Elasticsearch Future Support](#23-elasticsearch-future-support)
-24. [Scalability for Large LLMs](#24-scalability-for-large-llms)
+24. [Deferred/Future: Scalability for Large LLMs](#24-deferredfuture-scalability-for-large-llms)
 25. [Error Reporting & Diagnostics](#25-error-reporting--diagnostics)
 26. [Documentation & Tooltips](#26-documentation--tooltips)
 27. [Phased Roadmap](#27-phased-roadmap)
@@ -174,7 +174,7 @@ A local-first application that suggests highly contextual internal links for Xen
 
 7. **Docker-first deployment.** `docker-compose up` starts everything: Django, Angular, PostgreSQL, Redis, Celery. Portable to any machine.
 
-8. **Designed for growth.** The architecture supports upgrading to Elasticsearch, larger LLMs (GPT-OSS-120B), and multi-user access later without restructuring.
+8. **Designed for growth.** The architecture supports upgrading to Elasticsearch and multi-user access. Large LLM support (Phase 24) is deferred due to significant hardware and storage requirements.
 
 ---
 

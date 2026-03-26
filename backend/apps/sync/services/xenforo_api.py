@@ -1,7 +1,7 @@
 import logging
 import requests
 from django.conf import settings
-from typing import Dict, List, Any, Optional
+from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 

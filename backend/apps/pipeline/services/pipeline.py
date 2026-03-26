@@ -16,8 +16,6 @@ from __future__ import annotations
 
 import gc
 import logging
-import time
-import uuid
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
@@ -37,8 +35,8 @@ from .ranker import (
     derive_march_2026_pagerank_bounds,
     score_destination_matches,
     select_final_candidates,
-    tokenize_text,
 )
+from .text_tokens import tokenize_text
 from .phrase_matching import PhraseMatchingSettings
 from .rare_term_propagation import (
     RareTermPropagationSettings,
@@ -95,7 +93,6 @@ def run_pipeline(
         if progress_fn:
             progress_fn(pct, msg)
 
-    started_at = time.monotonic()
     suggestions_created = 0
     items_in_scope = 0
 
@@ -108,6 +105,7 @@ def run_pipeline(
     learned_anchor_settings = _load_learned_anchor_settings()
     rare_term_settings = _load_rare_term_propagation_settings()
     field_aware_settings = _load_field_aware_relevance_settings()
+    ga4_gsc_settings = _load_ga4_gsc_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -229,6 +227,7 @@ def run_pipeline(
             learned_anchor_settings=learned_anchor_settings,
             rare_term_settings=rare_term_settings,
             field_aware_settings=field_aware_settings,
+            ga4_gsc_ranking_weight=ga4_gsc_settings["ranking_weight"],
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -416,6 +415,20 @@ def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
         return FieldAwareRelevanceSettings()
 
 
+def _load_ga4_gsc_settings() -> dict[str, float]:
+    try:
+        from apps.core.views import get_ga4_gsc_settings
+
+        config = get_ga4_gsc_settings()
+        return {
+            "ranking_weight": float(config.get("ranking_weight", 0.05)),
+        }
+    except Exception:
+        return {
+            "ranking_weight": 0.05,
+        }
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
@@ -465,6 +478,7 @@ def _load_content_records(
             reply_count=ci.reply_count or 0,
             march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
             link_freshness_score=float(ci.link_freshness_score or 0.5),
+            content_value_score=float(ci.content_value_score or 0.5),
             primary_post_char_count=primary_post_char_count,
             tokens=tokenize_text(text),
             scope_title=scope.title if scope else "",
@@ -830,6 +844,7 @@ def _persist_suggestions(
             score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
             score_rare_term_propagation=candidate.score_rare_term_propagation,
             score_field_aware_relevance=candidate.score_field_aware_relevance,
+            score_ga4_gsc=candidate.score_ga4_gsc,
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
             rare_term_diagnostics=candidate.rare_term_diagnostics,

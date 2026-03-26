@@ -198,6 +198,11 @@ class ContentItem(TimestampedModel):
         db_index=True,
         help_text="Link Freshness score based only on inbound link-history timing. 0.5 = neutral.",
     )
+    content_value_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
+    )
 
     # pgvector embedding (768 dims = nomic-ai/nomic-embed-text-v1.5)
     embedding = VectorField(
@@ -260,6 +265,7 @@ class ContentItem(TimestampedModel):
             models.Index(fields=["content_type", "march_2026_pagerank_score"]),
             models.Index(fields=["content_type", "velocity_score"]),
             models.Index(fields=["content_type", "link_freshness_score"]),
+            models.Index(fields=["content_type", "content_value_score"]),
             models.Index(fields=["is_deleted"]),
         ]
 
