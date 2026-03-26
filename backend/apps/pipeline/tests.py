@@ -7,6 +7,10 @@ from django.utils import timezone
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
 from apps.core.models import AppSetting
 from apps.graph.models import ExistingLink
+from apps.pipeline.services.field_aware_relevance import (
+    FieldAwareRelevanceSettings,
+    evaluate_field_aware_relevance,
+)
 from apps.pipeline.services.learned_anchor import (
     LearnedAnchorInputRow,
     LearnedAnchorSettings,
@@ -1408,6 +1412,163 @@ class RareTermRankerIntegrationTests(TestCase):
         self.assertAlmostEqual(
             enabled.score_final,
             baseline.score_final + 0.05 * (2 * (baseline.score_rare_term_propagation - 0.5)),
+            places=6,
+        )
+
+
+class FieldAwareRelevanceServiceTests(TestCase):
+    def test_field_aware_relevance_matches_title_body_and_scope_separately(self):
+        destination = ContentRecord(
+            content_id=501,
+            content_type="thread",
+            title="Internal Linking Guide",
+            distilled_text="Safe editor workflow for internal links.",
+            scope_id=10,
+            scope_type="node",
+            parent_id=100,
+            parent_type="category",
+            grandparent_id=1000,
+            grandparent_type="category",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=frozenset({"internal", "linking", "guide"}),
+            scope_title="Guides",
+            parent_scope_title="SEO",
+            grandparent_scope_title="Marketing",
+        )
+
+        result = evaluate_field_aware_relevance(
+            destination=destination,
+            host_sentence_text="This internal linking guide helps editor workflow inside the SEO guides area.",
+            inbound_anchor_rows=[
+                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
+            ],
+            settings=FieldAwareRelevanceSettings(),
+        )
+
+        self.assertGreater(result.score_field_aware_relevance, 0.5)
+        self.assertEqual(result.field_aware_state, "computed_match")
+        self.assertGreater(result.field_aware_diagnostics["field_scores"]["title"]["score"], 0.0)
+        self.assertGreater(result.field_aware_diagnostics["field_scores"]["body"]["score"], 0.0)
+        self.assertGreater(result.field_aware_diagnostics["field_scores"]["scope"]["score"], 0.0)
+
+    def test_field_aware_relevance_stays_neutral_without_matches(self):
+        destination = _content_record(content_id=502, silo_group_id=None)
+
+        result = evaluate_field_aware_relevance(
+            destination=destination,
+            host_sentence_text="Completely unrelated sentence about oranges and bicycles.",
+            inbound_anchor_rows=[],
+            settings=FieldAwareRelevanceSettings(),
+        )
+
+        self.assertEqual(result.score_field_aware_relevance, 0.5)
+        self.assertEqual(result.field_aware_state, "neutral_no_field_matches")
+
+
+class FieldAwareRankerIntegrationTests(TestCase):
+    def setUp(self):
+        self.destination = _content_record(content_id=601, silo_group_id=None)
+        self.host = _content_record(content_id=602, silo_group_id=None)
+        self.weights = {
+            "w_semantic": 0.55,
+            "w_keyword": 0.20,
+            "w_node": 0.10,
+            "w_quality": 0.15,
+        }
+        self.bounds = (0.1, 2.0)
+        self.learned_rows = {
+            self.destination.key: [
+                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(source_content_id=2, anchor_text="Guide"),
+            ]
+        }
+
+    def test_field_aware_weight_zero_is_a_ranking_no_op(self):
+        destination = ContentRecord(
+            content_id=self.destination.content_id,
+            content_type=self.destination.content_type,
+            title="Internal Linking Guide",
+            distilled_text="Internal link guide for editors.",
+            scope_id=500,
+            scope_type="node",
+            parent_id=900,
+            parent_type="category",
+            grandparent_id=1200,
+            grandparent_type="category",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=5,
+            march_2026_pagerank_score=0.2,
+            link_freshness_score=0.5,
+            primary_post_char_count=500,
+            tokens=frozenset({"guide", "internal", "link"}),
+            scope_title="Guides",
+            parent_scope_title="SEO",
+            grandparent_scope_title="Marketing",
+        )
+        host = ContentRecord(
+            content_id=self.host.content_id,
+            content_type=self.host.content_type,
+            title=self.host.title,
+            distilled_text=self.host.distilled_text,
+            scope_id=self.host.scope_id,
+            scope_type=self.host.scope_type,
+            parent_id=self.host.parent_id,
+            parent_type=self.host.parent_type,
+            grandparent_id=self.host.grandparent_id,
+            grandparent_type=self.host.grandparent_type,
+            silo_group_id=self.host.silo_group_id,
+            silo_group_name=self.host.silo_group_name,
+            reply_count=99,
+            march_2026_pagerank_score=1.8,
+            link_freshness_score=self.host.link_freshness_score,
+            primary_post_char_count=900,
+            tokens=frozenset({"guide", "link", "seo", "internal"}),
+        )
+        sentence_records = {
+            60: SentenceRecord(
+                60,
+                host.content_id,
+                host.content_type,
+                "This internal linking guide helps SEO editors improve internal links.",
+                80,
+                frozenset({"internal", "linking", "guide", "seo", "editors", "links"}),
+            )
+        }
+
+        baseline = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 60, 0.8)],
+            content_records={destination.key: destination, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            field_aware_settings=FieldAwareRelevanceSettings(ranking_weight=0.0),
+        )[0]
+        enabled = score_destination_matches(
+            destination,
+            [SentenceSemanticMatch(host.content_id, host.content_type, 60, 0.8)],
+            content_records={destination.key: destination, host.key: host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            learned_anchor_rows_by_destination=self.learned_rows,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            field_aware_settings=FieldAwareRelevanceSettings(ranking_weight=0.05),
+        )[0]
+
+        self.assertGreater(baseline.score_field_aware_relevance, 0.5)
+        self.assertAlmostEqual(
+            enabled.score_final,
+            baseline.score_final + 0.05 * (2 * (baseline.score_field_aware_relevance - 0.5)),
             places=6,
         )
 

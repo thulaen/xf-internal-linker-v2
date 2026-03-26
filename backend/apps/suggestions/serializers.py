@@ -115,6 +115,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "score_semantic", "score_keyword", "score_node_affinity",
             "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
+            "score_field_aware_relevance",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -127,6 +128,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "is_applied", "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
             "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
+            "field_aware_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
@@ -135,6 +137,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "score_final", "score_semantic", "score_keyword",
             "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
+            "score_field_aware_relevance",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -146,6 +149,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "applied_at", "verified_at", "stale_reason",
             "superseded_by", "superseded_at",
             "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
+            "field_aware_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]

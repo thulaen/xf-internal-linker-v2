@@ -127,6 +127,11 @@
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_rare_term_propagation)" color="primary"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_rare_term_propagation * 100).toFixed(0) }}</span>
         </div>
+        <div class="score-item">
+          <span class="score-name">Field-Aware Relevance</span>
+          <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_field_aware_relevance)" color="primary"></mat-progress-bar>
+          <span class="score-val">{{ (detail.score_field_aware_relevance * 100).toFixed(0) }}</span>
+        </div>
       </div>
 
       @if (detail.phrase_match_diagnostics) {
@@ -211,6 +216,42 @@
         } @else if ((detail.rare_term_diagnostics.top_propagated_terms?.length ?? 0) > 0) {
           <p class="meta-line">
             Top borrowed terms: {{ rareTermTopTermsSummary() }}
+          </p>
+        }
+      }
+
+      @if (detail.field_aware_diagnostics) {
+        <p class="meta-line">
+          <mat-icon>dashboard_customize</mat-icon>
+          {{ fieldAwareStateLabel() }}.
+        </p>
+        <p class="meta-line">
+          {{ fieldAwareSummary() }}
+        </p>
+        <p class="meta-line">
+          {{ detail.field_aware_diagnostics.matched_field_count }} matched fields
+          @if (fieldAwareMatchedFieldsSummary()) {
+            - {{ fieldAwareMatchedFieldsSummary() }}
+          }
+        </p>
+        @if (fieldAwareTopTerms('title')) {
+          <p class="meta-line">
+            Top title terms: {{ fieldAwareTopTerms('title') }}
+          </p>
+        }
+        @if (fieldAwareTopTerms('body')) {
+          <p class="meta-line">
+            Top body terms: {{ fieldAwareTopTerms('body') }}
+          </p>
+        }
+        @if (fieldAwareTopTerms('scope')) {
+          <p class="meta-line">
+            Top scope terms: {{ fieldAwareTopTerms('scope') }}
+          </p>
+        }
+        @if (fieldAwareTopTerms('learned_anchor')) {
+          <p class="meta-line">
+            Top learned-anchor terms: {{ fieldAwareTopTerms('learned_anchor') }}
           </p>
         }
       }

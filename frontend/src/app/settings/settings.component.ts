@@ -9,6 +9,7 @@ import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
+  FieldAwareRelevanceSettings,
   LearnedAnchorSettings,
   PhraseMatchingSettings,
   RareTermPropagationSettings,
@@ -51,6 +52,7 @@ export class SettingsComponent implements OnInit {
   savingPhraseMatching = false;
   savingLearnedAnchor = false;
   savingRareTermPropagation = false;
+  savingFieldAwareRelevance = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -97,6 +99,13 @@ export class SettingsComponent implements OnInit {
     ranking_weight: 0,
     max_document_frequency: 3,
     minimum_supporting_related_pages: 2,
+  };
+  fieldAwareRelevance: FieldAwareRelevanceSettings = {
+    ranking_weight: 0,
+    title_field_weight: 0.4,
+    body_field_weight: 0.3,
+    scope_field_weight: 0.15,
+    learned_anchor_field_weight: 0.15,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -164,14 +173,23 @@ export class SettingsComponent implements OnInit {
                         this.siloSvc.getRareTermPropagationSettings().subscribe({
                           next: (rareTermPropagation) => {
                             this.rareTermPropagation = rareTermPropagation;
-                            this.siloSvc.getWordPressSettings().subscribe({
-                              next: (wordpress) => {
-                                this.wordpress = wordpress;
-                                this.loadGroupsAndScopes();
+                            this.siloSvc.getFieldAwareRelevanceSettings().subscribe({
+                              next: (fieldAwareRelevance) => {
+                                this.fieldAwareRelevance = fieldAwareRelevance;
+                                this.siloSvc.getWordPressSettings().subscribe({
+                                  next: (wordpress) => {
+                                    this.wordpress = wordpress;
+                                    this.loadGroupsAndScopes();
+                                  },
+                                  error: () => {
+                                    this.loading = false;
+                                    this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                                  },
+                                });
                               },
                               error: () => {
                                 this.loading = false;
-                                this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
+                                this.snack.open('Failed to load field-aware relevance settings', 'Dismiss', { duration: 4000 });
                               },
                             });
                           },
@@ -253,6 +271,21 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingRareTermPropagation = false;
         this.snack.open(error?.error?.detail || 'Failed to save rare-term propagation settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveFieldAwareRelevanceSettings(): void {
+    this.savingFieldAwareRelevance = true;
+    this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance).subscribe({
+      next: (fieldAwareRelevance) => {
+        this.fieldAwareRelevance = fieldAwareRelevance;
+        this.savingFieldAwareRelevance = false;
+        this.snack.open('Field-aware relevance settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingFieldAwareRelevance = false;
+        this.snack.open(error?.error?.detail || 'Failed to save field-aware relevance settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

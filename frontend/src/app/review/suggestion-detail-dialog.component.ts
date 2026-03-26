@@ -260,6 +260,68 @@ export class SuggestionDetailDialogComponent implements OnInit {
       .join(' - ');
   }
 
+  fieldAwareSummary(): string {
+    const diagnostics = this.detail?.field_aware_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means the sentence did not line up with the destination fields in a useful way.';
+    }
+    if (diagnostics.field_aware_state === 'computed_match') {
+      return 'Field-aware relevance checks where the sentence lines up with the destination title, body, scope labels, and learned anchor wording.';
+    }
+    if (diagnostics.field_aware_state === 'neutral_no_destination_terms') {
+      return 'Neutral means the destination did not have enough usable field text.';
+    }
+    if (diagnostics.field_aware_state === 'neutral_no_host_terms') {
+      return 'Neutral means the host sentence did not have enough useful words.';
+    }
+    if (diagnostics.field_aware_state === 'neutral_processing_error') {
+      return 'Neutral means the field-aware scorer hit a processing error.';
+    }
+    return 'Neutral means the sentence did not line up with the destination fields in a useful way.';
+  }
+
+  fieldAwareStateLabel(): string {
+    const state = this.detail?.field_aware_diagnostics?.field_aware_state ?? 'neutral_no_field_matches';
+    if (state === 'computed_match') {
+      return 'Matched destination fields';
+    }
+    if (state === 'neutral_no_destination_terms') {
+      return 'Neutral / no usable destination field text';
+    }
+    if (state === 'neutral_no_host_terms') {
+      return 'Neutral / no useful host terms';
+    }
+    if (state === 'neutral_processing_error') {
+      return 'Neutral / field-aware processing error';
+    }
+    return 'Neutral / no useful field matches';
+  }
+
+  fieldAwareMatchedFieldsSummary(): string {
+    const diagnostics = this.detail?.field_aware_diagnostics;
+    if (!diagnostics) {
+      return '';
+    }
+    const labels: Array<[keyof typeof diagnostics.field_scores, string]> = [
+      ['title', 'title'],
+      ['body', 'body'],
+      ['scope', 'scope'],
+      ['learned_anchor', 'learned anchors'],
+    ];
+    return labels
+      .filter(([key]) => (diagnostics.field_scores[key]?.score ?? 0) > 0)
+      .map(([key, label]) => `${label} ${(diagnostics.field_scores[key].score * 100).toFixed(0)}`)
+      .join(' - ');
+  }
+
+  fieldAwareTopTerms(fieldName: 'title' | 'body' | 'scope' | 'learned_anchor'): string {
+    const terms = this.detail?.field_aware_diagnostics?.field_scores?.[fieldName]?.matched_terms ?? [];
+    return terms
+      .slice(0, 3)
+      .map((term) => term.token)
+      .join(' - ');
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

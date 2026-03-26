@@ -24,6 +24,7 @@ from typing import Any, Callable
 
 import numpy as np
 
+from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
 from .ranker import (
     ContentKey,
@@ -106,6 +107,7 @@ def run_pipeline(
     phrase_matching_settings = _load_phrase_matching_settings()
     learned_anchor_settings = _load_learned_anchor_settings()
     rare_term_settings = _load_rare_term_propagation_settings()
+    field_aware_settings = _load_field_aware_relevance_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -226,6 +228,7 @@ def run_pipeline(
             phrase_matching_settings=phrase_matching_settings,
             learned_anchor_settings=learned_anchor_settings,
             rare_term_settings=rare_term_settings,
+            field_aware_settings=field_aware_settings,
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -397,6 +400,22 @@ def _load_rare_term_propagation_settings() -> RareTermPropagationSettings:
         return RareTermPropagationSettings()
 
 
+def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
+    try:
+        from apps.core.views import get_field_aware_relevance_settings
+
+        config = get_field_aware_relevance_settings()
+        return FieldAwareRelevanceSettings(
+            ranking_weight=float(config.get("ranking_weight", 0.0)),
+            title_field_weight=float(config.get("title_field_weight", 0.4)),
+            body_field_weight=float(config.get("body_field_weight", 0.3)),
+            scope_field_weight=float(config.get("scope_field_weight", 0.15)),
+            learned_anchor_field_weight=float(config.get("learned_anchor_field_weight", 0.15)),
+        )
+    except Exception:
+        return FieldAwareRelevanceSettings()
+
+
 def _load_content_records(
     *,
     destination_scope_ids: set[int] | None = None,
@@ -448,6 +467,9 @@ def _load_content_records(
             link_freshness_score=float(ci.link_freshness_score or 0.5),
             primary_post_char_count=primary_post_char_count,
             tokens=tokenize_text(text),
+            scope_title=scope.title if scope else "",
+            parent_scope_title=parent.title if parent else "",
+            grandparent_scope_title=grandparent.title if grandparent else "",
         )
     return records
 
@@ -807,9 +829,11 @@ def _persist_suggestions(
             score_phrase_relevance=candidate.score_phrase_relevance,
             score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
             score_rare_term_propagation=candidate.score_rare_term_propagation,
+            score_field_aware_relevance=candidate.score_field_aware_relevance,
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
             rare_term_diagnostics=candidate.rare_term_diagnostics,
+            field_aware_diagnostics=candidate.field_aware_diagnostics,
             score_final=candidate.score_final,
             status="pending",
         )

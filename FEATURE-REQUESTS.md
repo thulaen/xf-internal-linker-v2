@@ -23,6 +23,24 @@ Important:
 
 ## COMPLETED
 
+### FR-011 - Field-Aware Relevance Scoring
+**Requested:** 2026-03-24
+**Target phase:** Phase 14
+**Completed phase:** Phase 14
+**Priority:** Medium
+**Patent inspiration:** `US7584221B2`
+**Spec draft:** `docs/specs/fr011-field-aware-relevance-scoring.md`
+**Completed:** 2026-03-26
+
+- Implemented exactly against `docs/specs/fr011-field-aware-relevance-scoring.md`.
+- `backend/apps/pipeline/services/field_aware_relevance.py` now scores destination title, body, scope labels, and learned-anchor vocabulary as separate bounded field signals.
+- `Suggestion.score_field_aware_relevance` and `Suggestion.field_aware_diagnostics` store the separate FR-011 score and explainable diagnostics.
+- Field-Aware Relevance has its own settings API at `GET/PUT /api/settings/field-aware-relevance/`, its own algorithm version stamp, and pipeline-run snapshot wiring.
+- Suggestion detail, suggestion admin, Angular review detail, and Angular settings now expose the intended FR-011 fields and controls.
+- Local verification passed for the targeted Django test slice, syntax check, migration drift check, and `git diff --check`; Angular unit checks were not runnable in this session because Node/npm was unavailable on the host PATH.
+
+---
+
 ### FR-010 - Rare-Term Propagation Across Related Pages
 **Requested:** 2026-03-24
 **Target phase:** Phase 13
@@ -154,17 +172,6 @@ Important:
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
 ## PENDING
-
-### FR-011 - Field-Aware Relevance Scoring
-**Requested:** 2026-03-24
-**Target phase:** Phase 14
-**Priority:** Medium
-**Patent inspiration:** `US7584221B2`
-
-- Score title, body, scope labels, and learned anchor vocabulary separately.
-- Add bounded field-level weighting and expose diagnostics/tuning.
-
----
 
 ### FR-012 - Click-Distance Structural Prior
 **Requested:** 2026-03-24
@@ -629,4 +636,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-26 (Phase 13 / FR-010 remains complete and verified for its approved scope, the one-off `HttpWorker` helper microservice was added as supporting infrastructure only for HTTP-heavy helper tasks, Django remains the main app and source of truth, the queued product phases were not replaced, and the next exact roadmap target is still Phase 14 / FR-011.)*
+*Last updated: 2026-03-26 (Phase 14 / FR-011 is now implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`, the one-off `HttpWorker` helper microservice remains supporting infrastructure only, Django remains the main app and source of truth, the queued roadmap phases were not replaced, and the next exact roadmap target is now Phase 15 / FR-012.)*

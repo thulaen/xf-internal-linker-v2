@@ -46,6 +46,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_phrase_relevance: 0.82,
     score_learned_anchor_corroboration: 0.91,
     score_rare_term_propagation: 0.88,
+    score_field_aware_relevance: 0.86,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -135,6 +136,29 @@ describe('SuggestionDetailDialogComponent', () => {
       max_document_frequency: 3,
       minimum_supporting_related_pages: 2,
     },
+    field_aware_diagnostics: {
+      score_field_aware_relevance: 0.86,
+      field_aware_state: 'computed_match',
+      field_weights: {
+        title: 0.4,
+        body: 0.3,
+        scope: 0.15,
+        learned_anchor: 0.15,
+      },
+      field_lengths: {
+        title: 2,
+        body: 4,
+        scope: 1,
+        learned_anchor: 1,
+      },
+      matched_field_count: 3,
+      field_scores: {
+        title: { score: 0.8, matched_terms: [{ token: 'destination', field_tf: 1, host_tf: 1, field_presence_count: 2, idf: 0.5, token_score: 0.6 }] },
+        body: { score: 0.7, matched_terms: [{ token: 'guide', field_tf: 1, host_tf: 1, field_presence_count: 1, idf: 0.9, token_score: 0.8 }] },
+        scope: { score: 0.6, matched_terms: [{ token: 'forum', field_tf: 1, host_tf: 1, field_presence_count: 1, idf: 0.9, token_score: 0.7 }] },
+        learned_anchor: { score: 0.0, matched_terms: [] },
+      },
+    },
     link_freshness_diagnostics: {
       link_freshness_score: 0.5,
       freshness_bucket: 'neutral',
@@ -154,7 +178,7 @@ describe('SuggestionDetailDialogComponent', () => {
     updated_at: '2026-03-25T00:00:00Z',
   };
 
-  it('renders March 2026 PageRank, Link Freshness, Phrase Relevance, Learned Anchor Corroboration, and Rare-Term Propagation', async () => {
+  it('renders March 2026 PageRank, Link Freshness, Phrase Relevance, Learned Anchor Corroboration, Rare-Term Propagation, and Field-Aware Relevance', async () => {
     await TestBed.configureTestingModule({
       imports: [SuggestionDetailDialogComponent, NoopAnimationsModule],
       providers: [
@@ -181,6 +205,8 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('Phrase Relevance');
     expect(text).toContain('Learned Anchor Corroboration');
     expect(text).toContain('Rare-Term Propagation');
+    expect(text).toContain('Field-Aware Relevance');
     expect(text).toContain('Matched borrowed terms: xenforo (2 pages)');
+    expect(text).toContain('Top title terms: destination');
   });
 });

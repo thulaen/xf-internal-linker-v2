@@ -96,6 +96,14 @@ export interface RareTermPropagationSettings {
   minimum_supporting_related_pages: number;
 }
 
+export interface FieldAwareRelevanceSettings {
+  ranking_weight: number;
+  title_field_weight: number;
+  body_field_weight: number;
+  scope_field_weight: number;
+  learned_anchor_field_weight: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -162,6 +170,10 @@ export class SiloSettingsService {
     return this.http.get<RareTermPropagationSettings>('/api/settings/rare-term-propagation/');
   }
 
+  getFieldAwareRelevanceSettings(): Observable<FieldAwareRelevanceSettings> {
+    return this.http.get<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -184,6 +196,10 @@ export class SiloSettingsService {
 
   updateRareTermPropagationSettings(payload: RareTermPropagationSettings): Observable<RareTermPropagationSettings> {
     return this.http.put<RareTermPropagationSettings>('/api/settings/rare-term-propagation/', payload);
+  }
+
+  updateFieldAwareRelevanceSettings(payload: FieldAwareRelevanceSettings): Observable<FieldAwareRelevanceSettings> {
+    return this.http.put<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/', payload);
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {

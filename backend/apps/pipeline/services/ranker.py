@@ -12,6 +12,10 @@ import heapq
 import math
 from typing import Mapping, TypeAlias
 
+from .field_aware_relevance import (
+    FieldAwareRelevanceSettings,
+    evaluate_field_aware_relevance,
+)
 from .learned_anchor import (
     LearnedAnchorInputRow,
     LearnedAnchorSettings,
@@ -51,6 +55,9 @@ class ContentRecord:
     link_freshness_score: float
     primary_post_char_count: int
     tokens: frozenset[str]
+    scope_title: str = ""
+    parent_scope_title: str = ""
+    grandparent_scope_title: str = ""
 
     @property
     def key(self) -> ContentKey:
@@ -104,6 +111,7 @@ class ScoredCandidate:
     score_phrase_relevance: float
     score_learned_anchor_corroboration: float
     score_rare_term_propagation: float
+    score_field_aware_relevance: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -112,6 +120,7 @@ class ScoredCandidate:
     phrase_match_diagnostics: dict[str, object]
     learned_anchor_diagnostics: dict[str, object]
     rare_term_diagnostics: dict[str, object]
+    field_aware_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -268,6 +277,7 @@ def score_destination_matches(
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
     rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
+    field_aware_settings: FieldAwareRelevanceSettings = FieldAwareRelevanceSettings(),
     silo_settings: SiloSettings = SiloSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
@@ -280,6 +290,7 @@ def score_destination_matches(
     learned_anchor_rows_by_destination = learned_anchor_rows_by_destination or {}
     rare_term_profiles = rare_term_profiles or {}
     ranked: list[ScoredCandidate] = []
+    destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(destination.key, [])
 
     for match in sentence_matches:
         if match.score_semantic < min_semantic_score:
@@ -326,7 +337,7 @@ def score_destination_matches(
         learned_anchor_match = evaluate_learned_anchor_corroboration(
             candidate_anchor_text=phrase_match.anchor_phrase,
             host_sentence_text=sentence_record.text,
-            inbound_anchor_rows=learned_anchor_rows_by_destination.get(destination.key, []),
+            inbound_anchor_rows=destination_learned_anchor_rows,
             settings=learned_anchor_settings,
         )
         rare_term_match = evaluate_rare_term_propagation(
@@ -334,6 +345,12 @@ def score_destination_matches(
             host_sentence_tokens=sentence_record.tokens,
             profiles=rare_term_profiles,
             settings=rare_term_settings,
+        )
+        field_aware_match = evaluate_field_aware_relevance(
+            destination=destination,
+            host_sentence_text=sentence_record.text,
+            inbound_anchor_rows=destination_learned_anchor_rows,
+            settings=field_aware_settings,
         )
         score_node = score_node_affinity(destination, host_record)
         score_quality = log_minmax_normalize_march_2026_pagerank(
@@ -358,6 +375,7 @@ def score_destination_matches(
         score_phrase_relevance = phrase_match.score_phrase_component
         score_learned_anchor = learned_anchor_match.learned_anchor_component
         score_rare_term = rare_term_match.rare_term_component
+        score_field_aware = field_aware_match.field_aware_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         score_final = (
             float(weights.get("w_semantic", 0.0)) * match.score_semantic
@@ -369,6 +387,7 @@ def score_destination_matches(
             + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
             + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
             + float(rare_term_settings.ranking_weight) * score_rare_term
+            + float(field_aware_settings.ranking_weight) * score_field_aware
             + score_silo
         )
 
@@ -387,6 +406,7 @@ def score_destination_matches(
                 score_phrase_relevance=float(phrase_match.score_phrase_relevance),
                 score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
                 score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
+                score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
@@ -395,6 +415,7 @@ def score_destination_matches(
                 phrase_match_diagnostics=phrase_match.phrase_match_diagnostics,
                 learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
                 rare_term_diagnostics=rare_term_match.rare_term_diagnostics,
+                field_aware_diagnostics=field_aware_match.field_aware_diagnostics,
             )
         )
 

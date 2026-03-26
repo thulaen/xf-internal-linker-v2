@@ -47,12 +47,14 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     def start(self, request) -> Response:
         """Create a new PipelineRun and dispatch it to Celery."""
         from apps.core.views import (
+            get_field_aware_relevance_settings,
             get_learned_anchor_settings,
             get_phrase_matching_settings,
             get_rare_term_propagation_settings,
             get_weighted_authority_settings,
         )
         from apps.pipeline.services.algorithm_versions import (
+            FIELD_AWARE_RELEVANCE_VERSION,
             LEARNED_ANCHOR_VERSION,
             PHRASE_MATCHING_VERSION,
             RARE_TERM_PROPAGATION_VERSION,
@@ -68,11 +70,13 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
                 "phrase_matching": get_phrase_matching_settings(),
                 "learned_anchor": get_learned_anchor_settings(),
                 "rare_term_propagation": get_rare_term_propagation_settings(),
+                "field_aware_relevance": get_field_aware_relevance_settings(),
                 "algorithm_versions": {
                     "weighted_authority": WEIGHTED_AUTHORITY_VERSION,
                     "phrase_matching": PHRASE_MATCHING_VERSION,
                     "learned_anchor": LEARNED_ANCHOR_VERSION,
                     "rare_term_propagation": RARE_TERM_PROPAGATION_VERSION,
+                    "field_aware_relevance": FIELD_AWARE_RELEVANCE_VERSION,
                 },
             },
         )

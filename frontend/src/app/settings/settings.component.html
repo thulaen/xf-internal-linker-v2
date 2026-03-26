@@ -333,6 +333,51 @@
 
     <mat-card class="settings-card">
       <mat-card-header>
+        <mat-card-title>Field-Aware Relevance</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          This score checks whether the host sentence lines up with the destination title, body text, scope labels, and learned anchor wording. Ranking impact stays off until you set a small non-zero weight.
+        </p>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline">
+            <mat-label>Ranking weight</mat-label>
+            <input matInput type="number" min="0" max="0.15" step="0.01" [(ngModel)]="fieldAwareRelevance.ranking_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Title field weight</mat-label>
+            <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.title_field_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Body field weight</mat-label>
+            <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.body_field_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Scope field weight</mat-label>
+            <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.scope_field_weight" />
+          </mat-form-field>
+
+          <mat-form-field appearance="outline">
+            <mat-label>Learned-anchor field weight</mat-label>
+            <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.learned_anchor_field_weight" />
+          </mat-form-field>
+        </div>
+
+        <div class="button-row">
+          <button mat-flat-button color="primary" [disabled]="savingFieldAwareRelevance" (click)="saveFieldAwareRelevanceSettings()">
+            <mat-icon>save</mat-icon>
+            Save field-aware relevance settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card">
+      <mat-card-header>
         <mat-card-title>Silo Ranking</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">

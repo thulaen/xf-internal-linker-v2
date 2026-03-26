@@ -12,6 +12,7 @@ from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupVi
 from apps.core.views import (
     AppearanceSettingsView,
     DashboardView,
+    FieldAwareRelevanceSettingsView,
     FaviconUploadView,
     LearnedAnchorSettingsView,
     LinkFreshnessRecalculateView,
@@ -60,6 +61,7 @@ urlpatterns = [
     path("settings/phrase-matching/", PhraseMatchingSettingsView.as_view(), name="phrase-matching-settings"),
     path("settings/learned-anchor/", LearnedAnchorSettingsView.as_view(), name="learned-anchor-settings"),
     path("settings/rare-term-propagation/", RareTermPropagationSettingsView.as_view(), name="rare-term-propagation-settings"),
+    path("settings/field-aware-relevance/", FieldAwareRelevanceSettingsView.as_view(), name="field-aware-relevance-settings"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),

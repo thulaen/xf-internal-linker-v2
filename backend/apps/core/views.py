@@ -97,6 +97,14 @@ DEFAULT_RARE_TERM_PROPAGATION_SETTINGS = {
     "minimum_supporting_related_pages": 2,
 }
 
+DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
+    "ranking_weight": 0.0,
+    "title_field_weight": 0.40,
+    "body_field_weight": 0.30,
+    "scope_field_weight": 0.15,
+    "learned_anchor_field_weight": 0.15,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -253,6 +261,18 @@ def get_rare_term_propagation_settings() -> dict[str, float | int | bool]:
         )
     except ValueError:
         return dict(DEFAULT_RARE_TERM_PROPAGATION_SETTINGS)
+
+
+def get_field_aware_relevance_settings() -> dict[str, float]:
+    """Load persisted FR-011 field-aware settings with defensive defaults."""
+    settings = _read_field_aware_relevance_settings()
+    try:
+        return _validate_field_aware_relevance_settings(
+            settings,
+            current=dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
 
 
 def _read_weighted_authority_settings() -> dict[str, float]:
@@ -414,6 +434,43 @@ def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
         "minimum_supporting_related_pages": _read_int(
             "rare_term_propagation.minimum_supporting_related_pages",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["minimum_supporting_related_pages"],
+        ),
+    }
+
+
+def _read_field_aware_relevance_settings() -> dict[str, float]:
+    """Read FR-011 field-aware settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    return {
+        "ranking_weight": _read_float(
+            "field_aware_relevance.ranking_weight",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["ranking_weight"],
+        ),
+        "title_field_weight": _read_float(
+            "field_aware_relevance.title_field_weight",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["title_field_weight"],
+        ),
+        "body_field_weight": _read_float(
+            "field_aware_relevance.body_field_weight",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["body_field_weight"],
+        ),
+        "scope_field_weight": _read_float(
+            "field_aware_relevance.scope_field_weight",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["scope_field_weight"],
+        ),
+        "learned_anchor_field_weight": _read_float(
+            "field_aware_relevance.learned_anchor_field_weight",
+            DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["learned_anchor_field_weight"],
         ),
     }
 
@@ -725,6 +782,51 @@ def _validate_rare_term_propagation_settings(
         raise ValueError("max_document_frequency must be between 1 and 10.")
     if validated["minimum_supporting_related_pages"] < 1 or validated["minimum_supporting_related_pages"] > 5:
         raise ValueError("minimum_supporting_related_pages must be between 1 and 5.")
+
+    return validated
+
+
+def _validate_field_aware_relevance_settings(
+    payload: dict,
+    *,
+    current: dict[str, float] | None = None,
+) -> dict[str, float]:
+    current = current or _read_field_aware_relevance_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    validated = {
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "title_field_weight": _coerce_float("title_field_weight"),
+        "body_field_weight": _coerce_float("body_field_weight"),
+        "scope_field_weight": _coerce_float("scope_field_weight"),
+        "learned_anchor_field_weight": _coerce_float("learned_anchor_field_weight"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.15:
+        raise ValueError("ranking_weight must be between 0.0 and 0.15.")
+
+    field_weight_sum = 0.0
+    for key in (
+        "title_field_weight",
+        "body_field_weight",
+        "scope_field_weight",
+        "learned_anchor_field_weight",
+    ):
+        if validated[key] < 0.0 or validated[key] > 1.0:
+            raise ValueError(f"{key} must be between 0.0 and 1.0.")
+        field_weight_sum += validated[key]
+
+    if not math.isclose(field_weight_sum, 1.0, abs_tol=1e-6):
+        raise ValueError("title/body/scope/learned-anchor field weights must sum to 1.0.")
 
     return validated
 
@@ -1158,6 +1260,65 @@ class RareTermPropagationSettingsView(APIView):
                 "value": str(validated["minimum_supporting_related_pages"]),
                 "value_type": "int",
                 "description": "Minimum number of eligible related pages that must support a propagated rare term before it stops being neutral.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class FieldAwareRelevanceSettingsView(APIView):
+    """
+    GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
+    PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_field_aware_relevance_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        try:
+            validated = _validate_field_aware_relevance_settings(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "field_aware_relevance.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Ranking weight applied to the centered FR-011 field-aware relevance component.",
+            },
+            "field_aware_relevance.title_field_weight": {
+                "value": str(validated["title_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to destination title matches.",
+            },
+            "field_aware_relevance.body_field_weight": {
+                "value": str(validated["body_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to destination body-text matches.",
+            },
+            "field_aware_relevance.scope_field_weight": {
+                "value": str(validated["scope_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to scope-label matches.",
+            },
+            "field_aware_relevance.learned_anchor_field_weight": {
+                "value": str(validated["learned_anchor_field_weight"]),
+                "value_type": "float",
+                "description": "Share of FR-011 field-aware relevance assigned to learned-anchor vocabulary matches.",
             },
         }
 

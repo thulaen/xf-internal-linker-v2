@@ -105,8 +105,8 @@ class SuggestionAdmin(ModelAdmin):
         "suggestion_id", "pipeline_run", "destination", "host", "host_sentence",
         "score_semantic", "score_keyword", "score_node_affinity", "score_quality",
         "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_phrase_relevance",
-        "score_learned_anchor_corroboration", "score_rare_term_propagation", "score_final",
-        "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
+        "score_learned_anchor_corroboration", "score_rare_term_propagation", "score_field_aware_relevance", "score_final",
+        "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics", "field_aware_diagnostics",
         "repeated_anchor", "superseded_by", "superseded_at",
         "created_at", "updated_at",
     ]
@@ -131,7 +131,7 @@ class SuggestionAdmin(ModelAdmin):
                 "fields": ("score_semantic", "score_keyword", "score_node_affinity",
                        "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness",
                        "score_phrase_relevance", "score_learned_anchor_corroboration",
-                       "score_rare_term_propagation", "score_final"),
+                       "score_rare_term_propagation", "score_field_aware_relevance", "score_final"),
             "classes": ("collapse",),
         }),
         ("Phrase Matching", {
@@ -144,6 +144,10 @@ class SuggestionAdmin(ModelAdmin):
         }),
         ("Rare-Term Propagation", {
             "fields": ("rare_term_diagnostics",),
+            "classes": ("collapse",),
+        }),
+        ("Field-Aware Relevance", {
+            "fields": ("field_aware_diagnostics",),
             "classes": ("collapse",),
         }),
         ("Review", {

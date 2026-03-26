@@ -50,6 +50,13 @@ describe('SettingsComponent', () => {
               max_document_frequency: 3,
               minimum_supporting_related_pages: 2,
             }),
+            getFieldAwareRelevanceSettings: () => of({
+              ranking_weight: 0,
+              title_field_weight: 0.4,
+              body_field_weight: 0.3,
+              scope_field_weight: 0.15,
+              learned_anchor_field_weight: 0.15,
+            }),
             getWordPressSettings: () => of({
               base_url: '',
               username: '',
@@ -72,5 +79,7 @@ describe('SettingsComponent', () => {
     expect(text).toContain('Rare-Term Propagation');
     expect(text).toContain('Save rare-term propagation settings');
     expect(text).toContain('borrowed words stay separate from the destination\'s own text');
+    expect(text).toContain('Field-Aware Relevance');
+    expect(text).toContain('Save field-aware relevance settings');
   });
 });

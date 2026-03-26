@@ -406,3 +406,73 @@ class RareTermPropagationSettingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("ranking_weight", response.json()["detail"])
+
+
+class FieldAwareRelevanceSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="field-aware-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_field_aware_relevance_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/field-aware-relevance/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(
+            default_response.json(),
+            {
+                "ranking_weight": 0.0,
+                "title_field_weight": 0.4,
+                "body_field_weight": 0.3,
+                "scope_field_weight": 0.15,
+                "learned_anchor_field_weight": 0.15,
+            },
+        )
+
+        update_response = self.client.put(
+            "/api/settings/field-aware-relevance/",
+            {
+                "ranking_weight": 0.05,
+                "title_field_weight": 0.35,
+                "body_field_weight": 0.35,
+                "scope_field_weight": 0.15,
+                "learned_anchor_field_weight": 0.15,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        self.assertEqual(update_response.json()["ranking_weight"], 0.05)
+        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.ranking_weight").value, "0.05")
+        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.body_field_weight").value, "0.35")
+        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.ranking_weight").category, "ml")
+
+    def test_field_aware_relevance_validation_rejects_bad_weights(self):
+        response = self.client.put(
+            "/api/settings/field-aware-relevance/",
+            {
+                "ranking_weight": 0.2,
+                "title_field_weight": 0.4,
+                "body_field_weight": 0.3,
+                "scope_field_weight": 0.15,
+                "learned_anchor_field_weight": 0.15,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("ranking_weight", response.json()["detail"])
+
+        response = self.client.put(
+            "/api/settings/field-aware-relevance/",
+            {
+                "ranking_weight": 0.05,
+                "title_field_weight": 0.4,
+                "body_field_weight": 0.3,
+                "scope_field_weight": 0.2,
+                "learned_anchor_field_weight": 0.2,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("must sum to 1.0", response.json()["detail"])

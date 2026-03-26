@@ -37,34 +37,34 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for the next session: Phase 14
-- FR cross-reference: `FR-011 - Field-Aware Relevance Scoring`
-- Status: Phase 13 / FR-010 is now complete and verified for its approved scope; keep FR-011 separate from FR-010 evidence
+- Active target for the next session: Phase 15
+- FR cross-reference: `FR-012 - Click-Distance Structural Prior`
+- Status: Phase 14 / FR-011 is now implemented and verified for its approved scope; keep FR-012 separate from FR-011, FR-010, FR-009, and FR-008 evidence
 
 ## Current Session Note
 
-- Session target: one-off HttpWorker helper infrastructure exception
+- Session target: FR-011 implementation with sanity checks
 - What changed:
-  - a new `.NET 8` helper microservice was added under `services/http-worker/`
-  - the helper service is named `HttpWorker`
-  - it supports only four HTTP-heavy helper capabilities: BrokenLinkChecker, UrlFetcher, HealthChecker, and SitemapCrawler
-  - it exposes sync REST endpoints plus a narrow Redis queue worker path for those helper jobs only
-  - a thin optional Django adapter was added at `backend/apps/graph/services/http_worker_client.py`
-  - `docker-compose.yml` now includes `http-worker-api` and `http-worker-queue`
+  - implemented FR-011 from `docs/specs/fr011-field-aware-relevance-scoring.md`
+  - added separate `Suggestion.score_field_aware_relevance` and `Suggestion.field_aware_diagnostics`
+  - added separate field-aware settings API, pipeline snapshot wiring, algorithm version metadata, review exposure, and admin exposure
+  - added separate backend scoring logic for title, body, scope labels, and learned-anchor vocabulary with bounded weighting
 - What was intentionally not changed:
-  - no FR phase implementation work
-  - no Django model writes from C#
-  - no PostgreSQL access from C#
-  - no migrations
-  - no serializer, view, admin, ranking, GA4, or GSC business logic moved into C#
-  - no Angular changes
-  - no replacement of Django/Celery as the main app architecture
+  - no FR-012 implementation
+  - no replacement of FR-008 phrase scoring
+  - no replacement of FR-009 learned-anchor corroboration
+  - no replacement of FR-010 rare-term propagation
+  - no business logic moved outside Django
 - Continuity note:
-  - HttpWorker is supporting infrastructure only for HTTP-heavy helper work
-  - Django remains the source of truth for persistence and product rules
-  - this session exception does not replace the queued product phases or the normal phase/spec workflow
+  - FR-011 is now complete as a separate scoring layer
+  - the HttpWorker helper addition from the prior session remains supporting infrastructure only and does not change the phase roadmap
+  - the next code session should start Phase 15 / FR-012
 - Verification completed:
-  - required build, test, compose, import, and staging checks were run for the approved scope
+  - direct Python 3.12 syntax check passed for the affected backend files
+  - targeted Django tests passed with Docker-exposed Postgres and Redis overrides
+  - migration drift check passed with `makemigrations --check --dry-run`
+  - `git diff --check` passed
+  - frontend unit tests could not be run in this session because Node/npm was not available on the host PATH
 
 ## User Communication Preference
 
@@ -124,6 +124,7 @@ Phase 12 shipped:
 - Phase 10 / `FR-007`: separate link-history freshness storage, scoring, settings, ranker integration, diagnostics, and review exposure implemented from `docs/specs/fr007-link-freshness-authority.md`
 - Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
+- Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
 
 ## Execution Ledger
 
@@ -145,7 +146,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 11 | FR-008 | Complete | Phrase-Based Matching & Anchor Expansion |
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
-| 14 | FR-011 | Queued | Field-Aware Relevance Scoring |
+| 14 | FR-011 | Complete | Field-aware relevance shipped with separate backend scoring, settings/snapshot wiring, migration, review/admin exposure, and targeted verification |
 | 15 | FR-012 | Queued | Click-Distance Structural Prior |
 | 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
@@ -158,11 +159,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 14 / `FR-011 - Field-Aware Relevance Scoring`
-- Phase 13 reference: `FR-010` shipped as a separate rare-term propagation layer and must stay separate from original destination text, FR-008 phrase matching, and FR-009 learned anchors
-- Current continuity state: Phase 13 is complete for the approved FR-010 scope; the HttpWorker helper addition is separate supporting infrastructure only
-- Next session type: dedicated FR-011 spec-to-implementation pass only after reading the FR-011 rules and keeping the FR-010 separation guardrails intact
-- Scope reminder: do not hide FR-010 propagated evidence inside title/body/embedding/phrase/learned-anchor logic while working on FR-011
+- Next exact target: Phase 15 / `FR-012 - Click-Distance Structural Prior`
+- Phase 14 reference: `FR-011` shipped as a separate field-aware relevance layer and must stay separate from FR-008 phrase matching, FR-009 learned anchors, and FR-010 rare-term propagation
+- Current continuity state: Phase 14 is complete for the approved FR-011 scope; the HttpWorker helper addition is separate supporting infrastructure only
+- Next session type: dedicated FR-012 spec pass first, then implementation in a later session
+- Scope reminder: do not hide FR-011 field evidence inside phrase/learned-anchor/rare-term logic while working on FR-012
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases

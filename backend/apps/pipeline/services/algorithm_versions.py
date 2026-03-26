@@ -43,3 +43,8 @@ RARE_TERM_PROPAGATION_VERSION = build_algorithm_version_metadata(
     algorithm_key="rare_term_propagation_related_pages",
     version_date=date(2026, 3, 25),
 )
+
+FIELD_AWARE_RELEVANCE_VERSION = build_algorithm_version_metadata(
+    algorithm_key="field_aware_relevance_scoring",
+    version_date=date(2026, 3, 26),
+)

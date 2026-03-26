@@ -50,6 +50,7 @@ export interface SuggestionDetail extends Suggestion {
   score_phrase_relevance: number;
   score_learned_anchor_corroboration: number;
   score_rare_term_propagation: number;
+  score_field_aware_relevance: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -61,6 +62,7 @@ export interface SuggestionDetail extends Suggestion {
   phrase_match_diagnostics: PhraseMatchDiagnostics;
   learned_anchor_diagnostics: LearnedAnchorDiagnostics;
   rare_term_diagnostics: RareTermDiagnostics;
+  field_aware_diagnostics: FieldAwareDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
   updated_at: string;
 }
@@ -165,6 +167,47 @@ export interface RareTermEvidence {
   supporting_relationship_weights: number[];
   average_relationship_weight: number;
   term_evidence: number;
+}
+
+export interface FieldAwareDiagnostics {
+  score_field_aware_relevance: number;
+  field_aware_state:
+    | 'computed_match'
+    | 'neutral_no_destination_terms'
+    | 'neutral_no_host_terms'
+    | 'neutral_no_field_matches'
+    | 'neutral_processing_error';
+  field_weights: {
+    title: number;
+    body: number;
+    scope: number;
+    learned_anchor: number;
+  };
+  field_lengths: {
+    title: number;
+    body: number;
+    scope: number;
+    learned_anchor: number;
+  };
+  matched_field_count: number;
+  field_scores: {
+    title: FieldAwareFieldDetail;
+    body: FieldAwareFieldDetail;
+    scope: FieldAwareFieldDetail;
+    learned_anchor: FieldAwareFieldDetail;
+  };
+}
+
+export interface FieldAwareFieldDetail {
+  score: number;
+  matched_terms: Array<{
+    token: string;
+    field_tf: number;
+    host_tf: number;
+    field_presence_count: number;
+    idf: number;
+    token_score: number;
+  }>;
 }
 
 export interface PaginatedResult<T> {

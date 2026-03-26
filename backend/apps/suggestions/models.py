@@ -263,6 +263,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-010 rare-term propagation score for this destination/host sentence pair. 0.5 means neutral.",
     )
+    score_field_aware_relevance = models.FloatField(
+        default=0.5,
+        help_text="FR-011 field-aware relevance score for this destination/host sentence pair. 0.5 means neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -314,6 +318,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-010 rare-term propagation diagnostics for review and debugging.",
+    )
+    field_aware_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-011 field-aware relevance diagnostics for review and debugging.",
     )
 
     # Review state

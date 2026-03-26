@@ -6,6 +6,7 @@ from rest_framework.test import APITestCase
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.pipeline.services.algorithm_versions import (
+    FIELD_AWARE_RELEVANCE_VERSION,
     LEARNED_ANCHOR_VERSION,
     PHRASE_MATCHING_VERSION,
     RARE_TERM_PROPAGATION_VERSION,
@@ -122,6 +123,7 @@ class SuggestionSiloApiTests(APITestCase):
         suggestion.score_phrase_relevance = 0.83
         suggestion.score_learned_anchor_corroboration = 0.91
         suggestion.score_rare_term_propagation = 0.88
+        suggestion.score_field_aware_relevance = 0.86
         suggestion.phrase_match_diagnostics = {
             "score_phrase_relevance": 0.83,
             "phrase_match_state": "computed_exact_title",
@@ -203,6 +205,29 @@ class SuggestionSiloApiTests(APITestCase):
             "max_document_frequency": 3,
             "minimum_supporting_related_pages": 2,
         }
+        suggestion.field_aware_diagnostics = {
+            "score_field_aware_relevance": 0.86,
+            "field_aware_state": "computed_match",
+            "field_weights": {
+                "title": 0.4,
+                "body": 0.3,
+                "scope": 0.15,
+                "learned_anchor": 0.15,
+            },
+            "field_lengths": {
+                "title": 2,
+                "body": 4,
+                "scope": 1,
+                "learned_anchor": 1,
+            },
+            "matched_field_count": 3,
+            "field_scores": {
+                "title": {"score": 0.8, "matched_terms": [{"token": "same"}]},
+                "body": {"score": 0.7, "matched_terms": [{"token": "guide"}]},
+                "scope": {"score": 0.6, "matched_terms": [{"token": "a"}]},
+                "learned_anchor": {"score": 0.0, "matched_terms": []},
+            },
+        }
         suggestion.save(
             update_fields=[
                 "score_march_2026_pagerank",
@@ -210,9 +235,11 @@ class SuggestionSiloApiTests(APITestCase):
                 "score_phrase_relevance",
                 "score_learned_anchor_corroboration",
                 "score_rare_term_propagation",
+                "score_field_aware_relevance",
                 "phrase_match_diagnostics",
                 "learned_anchor_diagnostics",
                 "rare_term_diagnostics",
+                "field_aware_diagnostics",
                 "updated_at",
             ]
         )
@@ -233,12 +260,15 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(payload["score_phrase_relevance"], 0.83)
         self.assertEqual(payload["score_learned_anchor_corroboration"], 0.91)
         self.assertEqual(payload["score_rare_term_propagation"], 0.88)
+        self.assertEqual(payload["score_field_aware_relevance"], 0.86)
         self.assertIn("phrase_match_diagnostics", payload)
         self.assertIn("learned_anchor_diagnostics", payload)
         self.assertIn("rare_term_diagnostics", payload)
+        self.assertIn("field_aware_diagnostics", payload)
         self.assertEqual(payload["phrase_match_diagnostics"]["phrase_match_state"], "computed_exact_title")
         self.assertEqual(payload["learned_anchor_diagnostics"]["learned_anchor_state"], "exact_variant_match")
         self.assertEqual(payload["rare_term_diagnostics"]["rare_term_state"], "computed_match")
+        self.assertEqual(payload["field_aware_diagnostics"]["field_aware_state"], "computed_match")
         self.assertIn("link_freshness_diagnostics", payload)
         self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
 
@@ -285,6 +315,20 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             category="ml",
             description="Rare-term max document frequency",
         )
+        AppSetting.objects.create(
+            key="field_aware_relevance.title_field_weight",
+            value="0.5",
+            value_type="float",
+            category="ml",
+            description="Field-aware title weight",
+        )
+        AppSetting.objects.create(
+            key="field_aware_relevance.body_field_weight",
+            value="0.2",
+            value_type="float",
+            category="ml",
+            description="Field-aware body weight",
+        )
 
         response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
 
@@ -316,6 +360,8 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertEqual(run.config_snapshot["learned_anchor"]["minimum_anchor_sources"], 4)
         self.assertIn("rare_term_propagation", run.config_snapshot)
         self.assertEqual(run.config_snapshot["rare_term_propagation"]["max_document_frequency"], 5)
+        self.assertIn("field_aware_relevance", run.config_snapshot)
+        self.assertEqual(run.config_snapshot["field_aware_relevance"]["title_field_weight"], 0.5)
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["phrase_matching"],
             PHRASE_MATCHING_VERSION,
@@ -327,5 +373,9 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["rare_term_propagation"],
             RARE_TERM_PROPAGATION_VERSION,
+        )
+        self.assertEqual(
+            run.config_snapshot["algorithm_versions"]["field_aware_relevance"],
+            FIELD_AWARE_RELEVANCE_VERSION,
         )
         delay_mock.assert_called_once()
