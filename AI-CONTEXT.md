@@ -37,34 +37,55 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for the next session: Phase 15
-- FR cross-reference: `FR-012 - Click-Distance Structural Prior`
-- Status: Phase 14 / FR-011 is now implemented and verified for its approved scope; keep FR-012 separate from FR-011, FR-010, FR-009, and FR-008 evidence
+- Active target for the next session: Phase 18
+- FR cross-reference: `FR-015 - Final Slate Diversity Reranking`
+- Status: Phase 17 / FR-014 (Near-Duplicate Clustering) is now implemented for its backend scope (SimHash fingerprinting, clustering tasks, and ranker suppression); keep FR-015 separate from FR-014, FR-013, FR-012, FR-011, FR-010, FR-009, and FR-008 evidence
 
 ## Current Session Note
 
-- Session target: FR-011 implementation with sanity checks
+- Session target: FR-013 frontend exposure and closure sanity checks
 - What changed:
-  - implemented FR-011 from `docs/specs/fr011-field-aware-relevance-scoring.md`
-  - added separate `Suggestion.score_field_aware_relevance` and `Suggestion.field_aware_diagnostics`
-  - added separate field-aware settings API, pipeline snapshot wiring, algorithm version metadata, review exposure, and admin exposure
-  - added separate backend scoring logic for title, body, scope labels, and learned-anchor vocabulary with bounded weighting
+  - added Angular settings exposure for FR-013 through `frontend/src/app/settings/` with a separate Feedback Rerank settings card and save flow
+  - added Angular review-detail exposure for `score_feedback_rerank`, `feedback_bucket_key`, and `feedback_rerank_diagnostics`
+  - added focused Angular spec coverage for the FR-013 settings card and review-detail diagnostics text
 - What was intentionally not changed:
-  - no FR-012 implementation
+  - no use of `GA4` or `GSC` as FR-013 reward input yet
+  - no replacement of FR-011 field-aware relevance
   - no replacement of FR-008 phrase scoring
   - no replacement of FR-009 learned-anchor corroboration
   - no replacement of FR-010 rare-term propagation
   - no business logic moved outside Django
+  - no new telemetry schema work from FR-016, FR-017, or FR-018
 - Continuity note:
-  - FR-011 is now complete as a separate scoring layer
-  - the HttpWorker helper addition from the prior session remains supporting infrastructure only and does not change the phase roadmap
-  - the next code session should start Phase 15 / FR-012
+  - FR-013 can now be treated as implemented for its intended repo scope because backend wiring, settings exposure, and review-detail exposure all exist on the active branch
+  - frontend unit tests could not be executed in this session because `node` and `npm` were unavailable on the host PATH even though `frontend/node_modules` exists
+  - keep FR-014 separate from FR-013, FR-012, FR-011, FR-010, FR-009, FR-008, FR-016, FR-017, and FR-018
 - Verification completed:
-  - direct Python 3.12 syntax check passed for the affected backend files
-  - targeted Django tests passed with Docker-exposed Postgres and Redis overrides
-  - migration drift check passed with `makemigrations --check --dry-run`
-  - `git diff --check` passed
-  - frontend unit tests could not be run in this session because Node/npm was not available on the host PATH
+  - repo sanity check confirmed the FR-013 backend fields and endpoints already exist and match the Angular wiring added here
+  - Angular test commands could not run because `npm` and `node` were not available on PATH in this session
+
+## AI Handoff And Git Hygiene
+
+Simple version:
+Different AIs must leave the repo either clean or clearly explained.
+Do not leave mystery changes behind.
+
+- Every AI session must start with `git status --short` and read the result before editing anything.
+- If the worktree is dirty, do not assume the changes are yours.
+- Do not delete, overwrite, or reformat unrelated dirty files just to make the tree clean.
+- If the dirty files are unrelated, leave them alone and stage only the files for your own slice.
+- If the dirty files overlap with the files you need, stop and reconcile carefully before editing. If ownership is unclear, say so plainly.
+- Preferred end state for each session: a clean working tree after a narrow commit and push.
+- If a clean working tree is not possible, the AI must leave a clear handoff note in `AI-CONTEXT.md` under `Current Session Note` describing:
+  - which AI/tool made the session changes, for example `Codex`, `Claude`, or `Antigravity`
+  - the exact files intentionally changed
+  - whether the changes were committed and pushed
+  - what remains uncommitted and why
+- Do not claim a session is complete if the intended files are still uncommitted without explanation.
+- Never use `git add -A` in a dirty tree.
+- Stage only the intended files for the current slice.
+- If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base.
+- If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 
 ## User Communication Preference
 
@@ -125,6 +146,7 @@ Phase 12 shipped:
 - Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
+- Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, recalculation, diagnostics, review exposure, content exposure, and snapshot wiring implemented from `docs/specs/fr012-click-distance-structural-prior.md`
 
 ## Execution Ledger
 
@@ -147,9 +169,9 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
 | 14 | FR-011 | Complete | Field-aware relevance shipped with separate backend scoring, settings/snapshot wiring, migration, review/admin exposure, and targeted verification |
-| 15 | FR-012 | Queued | Click-Distance Structural Prior |
-| 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
-| 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
+| 15 | FR-012 | Complete | Click-Distance Structural Prior |
+| 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
+| 17 | FR-014 | Complete | Near-Duplicate Destination Clustering (Backend) |
 | 18 | FR-015 | Queued | Final Slate Diversity Reranking |
 | 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
@@ -159,11 +181,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 15 / `FR-012 - Click-Distance Structural Prior`
-- Phase 14 reference: `FR-011` shipped as a separate field-aware relevance layer and must stay separate from FR-008 phrase matching, FR-009 learned anchors, and FR-010 rare-term propagation
-- Current continuity state: Phase 14 is complete for the approved FR-011 scope; the HttpWorker helper addition is separate supporting infrastructure only
-- Next session type: dedicated FR-012 spec pass first, then implementation in a later session
-- Scope reminder: do not hide FR-011 field evidence inside phrase/learned-anchor/rare-term logic while working on FR-012
+- Next exact target: Phase 18 / `FR-015 - Final Slate Diversity Reranking`
+- Phase 17 reference: `FR-014` shipped as a backend-complete layer for near-duplicate clustering and must stay separate from FR-015, FR-013, FR-012, FR-011, FR-010, FR-009, and FR-008
+- Current continuity state: `FR-013` spec, backend wiring, settings exposure, and review-detail exposure now exist on the active branch
+- Next session type: start Phase 18 / FR-015 spec-and-repo reconciliation before implementation work
+- Scope reminder: do not hide FR-013 feedback evidence inside FR-014 duplicate clustering or earlier scoring layers
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases
@@ -180,6 +202,7 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 - FR-019 owns generic operator alerts: model-download reminders, job-complete/failure notifications, bell sounds, desktop notifications, urgent trend warnings, and persisted error-linked alerts.
 - FR-020 owns runtime model lifecycle: download, warmup, hot swap, drain, rollback, and zero-downtime model/backfill cutovers. Do not bury that work inside `FR-018`.
 - Early user-requested spec drafts exist for:
+  - `FR-013` at `docs/specs/fr013-feedback-driven-explore-exploit-reranking.md`
   - `FR-016` at `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
   - `FR-019` at `docs/specs/fr019-operator-alerts-notification-center.md`
 - These do not change the active implementation target.
@@ -189,11 +212,41 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 Every implementation session must:
 
 1. Read `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` before coding.
-2. Inspect the repository and reconcile docs against actual code before trusting the docs.
-3. Implement exactly one active phase unless the repo already proves that phase is complete before work starts.
-4. Update `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` at session end.
-5. Update `PROMPTS.md` only when workflow guidance drifts from reality.
-6. Stage only intended files; never stage `tmp/`, `backend/scripts/`, or unrelated changes.
+2. Run `git status --short` before coding and treat a dirty worktree as shared state, not as disposable clutter.
+3. Inspect the repository and reconcile docs against actual code before trusting the docs.
+4. Implement exactly one active phase unless the repo already proves that phase is complete before work starts.
+5. Update `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` at session end.
+6. Update `PROMPTS.md` only when workflow guidance drifts from reality.
+7. Stage only intended files; never stage `tmp/`, `backend/scripts/`, or unrelated changes.
+8. Prefer ending the session with a clean worktree through a narrow commit and push when safe.
+
+## Workflow Guardrails Future AIs Must Follow
+
+Simple version first.
+
+Do not just write code and stop.
+This repo expects the docs, checks, and git workflow to move together.
+
+- If the active phase is patent-derived or math-heavy, check whether `docs/specs/fr0XX-<slug>.md` already exists before coding.
+- If the spec file is missing, add the spec file in the same overall delivery flow unless the user explicitly asked for spec-only or code-only work.
+- When implementing an FR that already has a spec, implement against that spec and keep the code boundary aligned with it.
+- Before claiming a phase is done, make sure the matching spec doc exists and that `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` still point at the right next phase.
+- Always do sanity checks after code changes, not just before commit.
+- Prefer the repo's SQLite test settings for quick verification:
+  - `backend\\manage.py test ... --settings=config.settings.test`
+  - `backend\\manage.py makemigrations --check --dry-run --settings=config.settings.test`
+- If normal Python launcher aliases are broken, the repo `.venv` interpreter may still work even when `py` or `python` does not.
+- If frontend checks cannot run because `node` is missing on PATH, say that plainly and do not pretend frontend verification happened.
+- Commit and push only after the verification you could actually run is reported clearly.
+- When you push code for a phase, prefer also pushing any missing continuity/doc updates that explain the workflow to the next AI.
+
+## FR Spec Parity Rule
+
+For FR-006 and later feature phases, spec parity is part of the workflow.
+
+- A shipped or in-progress feature phase should have a matching `docs/specs/` file unless the roadmap explicitly says the spec is still only a draft elsewhere.
+- Do not leave the repo in a state where a new FR implementation exists but the matching spec doc is still missing.
+- If you discover that an earlier session implemented code but forgot the matching spec doc, fix that gap before calling the phase workflow clean.
 
 ## Pending Configuration
 
@@ -232,5 +285,8 @@ Every implementation session must:
 
 ### Git / Collaboration
 - One narrow slice per AI session
+- Start every session with `git status --short`
+- Prefer ending every safe session with a clean worktree
+- If the tree stays dirty, leave a clear handoff note naming the AI/tool and the exact files changed
 - Commit/push only when verified as far as the environment allows
 - Never force-push, rewrite history, or commit secrets

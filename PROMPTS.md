@@ -33,9 +33,14 @@ User communication rules:
 - When reporting verification, make the real-world meaning explicit, for example whether the app works, what is still broken, and what the next step is.
 
 Git rules:
+- Start every session with `git status --short`.
+- Treat a dirty worktree as shared state.
+- Prefer ending each safe session with a clean worktree after a narrow commit and push.
+- If you cannot leave the tree clean, add a short handoff note to `AI-CONTEXT.md` that names the AI/tool, the files changed, commit status, and what remains dirty.
 - Pull only when appropriate and safe.
 - At session end, stage only intended files.
 - Never stage `tmp/`, `backend/scripts/`, or unrelated changes.
+- Never use `git add -A` in a dirty tree.
 - Commit with a descriptive message when the slice is verified as far as the environment allows.
 - Push automatically only when safe.
 
@@ -66,6 +71,9 @@ Do not start coding until I confirm, unless I explicitly say to proceed.
 ```text
 Read AI-CONTEXT.md and FEATURE-REQUESTS.md first, then inspect the repo.
 
+Before coding, run `git status --short` and say whether the worktree is clean or dirty.
+If dirty, name the files you expect to touch and confirm you will not sweep unrelated changes into your commit.
+
 Implement exactly one active phase only.
 
 Before coding:
@@ -86,6 +94,7 @@ At the end:
 - name the next exact phase and FR ID
 - update AI-CONTEXT.md and FEATURE-REQUESTS.md
 - if workflow guidance drifted, update PROMPTS.md too
+- leave a handoff note in AI-CONTEXT.md if the worktree is still dirty
 - if Git is safe, stage intended files, commit, and push
 ```
 
@@ -93,6 +102,8 @@ At the end:
 
 ```text
 Read AI-CONTEXT.md and FEATURE-REQUESTS.md first, inspect the repo, and resume from the latest completed phase.
+
+Run `git status --short` before planning and report whether the worktree is clean or dirty.
 
 Then report:
 1. current phase and FR cross-reference
@@ -115,6 +126,7 @@ Before ending the session:
 4. summarize exactly what changed
 5. summarize verification performed
 6. name the next exact phase and FR ID
-7. if Git is safe, stage intended files, commit, and push
-8. if Git is not safe, explain why
+7. if the worktree is still dirty, leave a short handoff note naming the AI/tool, intended files, commit status, and remaining dirty files
+8. if Git is safe, stage intended files, commit, and push
+9. if Git is not safe, explain why
 ```
