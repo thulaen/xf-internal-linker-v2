@@ -37,32 +37,29 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for the next session: Phase 18
-- FR cross-reference: `FR-015 - Final Slate Diversity Reranking`
-- Status: Phase 17 / FR-014 (Near-Duplicate Clustering) is now implemented for its backend scope (SimHash fingerprinting, clustering tasks, and ranker suppression); keep FR-015 separate from FR-014, FR-013, FR-012, FR-011, FR-010, FR-009, and FR-008 evidence
+- Active target for the next session: Phase 15
+- FR cross-reference: `FR-012 - Click-Distance Structural Prior`
+- Status: Phase 14 / FR-011 is the latest late-phase feature confirmed in code on this branch. FR-012 has a spec file, but FR-012, FR-013, FR-014, and FR-015 are not implemented in the cleaned repo state.
 
 ## Current Session Note
 
-- Session target: FR-013 frontend exposure and closure sanity checks
+- Session target: continuity repair after worktree cleanup
 - What changed:
-  - added Angular settings exposure for FR-013 through `frontend/src/app/settings/` with a separate Feedback Rerank settings card and save flow
-  - added Angular review-detail exposure for `score_feedback_rerank`, `feedback_bucket_key`, and `feedback_rerank_diagnostics`
-  - added focused Angular spec coverage for the FR-013 settings card and review-detail diagnostics text
+  - cleaned the worktree back to the current committed state
+  - re-checked the repo against the continuity docs instead of trusting stale completion notes
+  - confirmed FR-011 is implemented, while FR-012 through FR-015 are not implemented in code on the current branch
 - What was intentionally not changed:
-  - no use of `GA4` or `GSC` as FR-013 reward input yet
-  - no replacement of FR-011 field-aware relevance
-  - no replacement of FR-008 phrase scoring
-  - no replacement of FR-009 learned-anchor corroboration
-  - no replacement of FR-010 rare-term propagation
-  - no business logic moved outside Django
-  - no new telemetry schema work from FR-016, FR-017, or FR-018
+  - no product code was added in this continuity-repair session
+  - no FR-012, FR-013, FR-014, or FR-015 implementation was restored
+  - no telemetry work from FR-016, FR-017, or FR-018 was added
 - Continuity note:
-  - FR-013 can now be treated as implemented for its intended repo scope because backend wiring, settings exposure, and review-detail exposure all exist on the active branch
-  - frontend unit tests could not be executed in this session because `node` and `npm` were unavailable on the host PATH even though `frontend/node_modules` exists
-  - keep FR-014 separate from FR-013, FR-012, FR-011, FR-010, FR-009, FR-008, FR-016, FR-017, and FR-018
+  - previous continuity text overstated FR-012, FR-013, and FR-014 completion relative to the real repo state
+  - `docs/specs/fr012-click-distance-structural-prior.md` exists and is committed, but the FR-012 implementation files are not present
+  - the next real product target returns to Phase 15 / FR-012 unless the user explicitly redirects it
 - Verification completed:
-  - repo sanity check confirmed the FR-013 backend fields and endpoints already exist and match the Angular wiring added here
-  - Angular test commands could not run because `npm` and `node` were not available on PATH in this session
+  - searched the repo for FR-012, FR-013, FR-014, and FR-015 code markers
+  - confirmed FR-011 code paths still exist in backend, tests, serializers, admin, and frontend review exposure
+  - confirmed FR-012 currently exists only as a spec file, not as live implementation code
 
 ## AI Handoff And Git Hygiene
 
@@ -146,7 +143,6 @@ Phase 12 shipped:
 - Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
-- Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, recalculation, diagnostics, review exposure, content exposure, and snapshot wiring implemented from `docs/specs/fr012-click-distance-structural-prior.md`
 
 ## Execution Ledger
 
@@ -169,9 +165,9 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
 | 14 | FR-011 | Complete | Field-aware relevance shipped with separate backend scoring, settings/snapshot wiring, migration, review/admin exposure, and targeted verification |
-| 15 | FR-012 | Complete | Click-Distance Structural Prior |
-| 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
-| 17 | FR-014 | Complete | Near-Duplicate Destination Clustering (Backend) |
+| 15 | FR-012 | Queued | Click-Distance Structural Prior |
+| 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
+| 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Queued | Final Slate Diversity Reranking |
 | 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
@@ -181,11 +177,11 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 18 / `FR-015 - Final Slate Diversity Reranking`
-- Phase 17 reference: `FR-014` shipped as a backend-complete layer for near-duplicate clustering and must stay separate from FR-015, FR-013, FR-012, FR-011, FR-010, FR-009, and FR-008
-- Current continuity state: `FR-013` spec, backend wiring, settings exposure, and review-detail exposure now exist on the active branch
-- Next session type: start Phase 18 / FR-015 spec-and-repo reconciliation before implementation work
-- Scope reminder: do not hide FR-013 feedback evidence inside FR-014 duplicate clustering or earlier scoring layers
+- Next exact target: Phase 15 / `FR-012 - Click-Distance Structural Prior`
+- Phase 14 reference: `FR-011` shipped as a separate field-aware relevance layer and must stay separate from FR-012, FR-013, FR-014, and FR-015
+- Current continuity state: FR-012 has a committed spec at `docs/specs/fr012-click-distance-structural-prior.md`, but FR-012 implementation is still absent in code on this branch
+- Next session type: implement FR-012 against the existing spec after a fresh repo sanity check
+- Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
 ## Spec Standards for Patent-Derived Phases
@@ -202,7 +198,6 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 - FR-019 owns generic operator alerts: model-download reminders, job-complete/failure notifications, bell sounds, desktop notifications, urgent trend warnings, and persisted error-linked alerts.
 - FR-020 owns runtime model lifecycle: download, warmup, hot swap, drain, rollback, and zero-downtime model/backfill cutovers. Do not bury that work inside `FR-018`.
 - Early user-requested spec drafts exist for:
-  - `FR-013` at `docs/specs/fr013-feedback-driven-explore-exploit-reranking.md`
   - `FR-016` at `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
   - `FR-019` at `docs/specs/fr019-operator-alerts-notification-center.md`
 - These do not change the active implementation target.

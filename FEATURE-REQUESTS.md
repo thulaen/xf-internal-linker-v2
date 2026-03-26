@@ -19,7 +19,7 @@ Important:
 - 2026-03-26: a one-off supporting infrastructure exception added the `.NET 8` `HttpWorker` helper microservice under `services/http-worker/`.
 - `HttpWorker` is only for HTTP-heavy helper work: BrokenLinkChecker, UrlFetcher, HealthChecker, and SitemapCrawler.
 - `HttpWorker` does not replace Django as the main app, does not take over DB writes or product business logic, and does not replace Celery across the repo.
-- Normal pending phase work continues after this helper addition. The queued product phases, including Phase 14 / `FR-011`, are still the roadmap source of truth.
+- Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 15 / `FR-012`.
 
 ## COMPLETED
 
@@ -636,4 +636,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-26 (Phase 14 / FR-011 is now implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`, the one-off `HttpWorker` helper microservice remains supporting infrastructure only, Django remains the main app and source of truth, the queued roadmap phases were not replaced, and the next exact roadmap target is now Phase 15 / FR-012.)*
+*Last updated: 2026-03-26 (Repo state reconciled after worktree cleanup: Phase 14 / FR-011 is the latest late-phase feature confirmed in code, `docs/specs/fr012-click-distance-structural-prior.md` exists as the next-phase spec, FR-012 through FR-015 remain queued, the one-off `HttpWorker` helper microservice remains supporting infrastructure only, Django remains the main app and source of truth, and the next exact roadmap target is Phase 15 / FR-012.)*
