@@ -14,6 +14,13 @@ Important:
 - Verify the repository state before trusting request status text.
 - Update this file and `AI-CONTEXT.md` after finishing a session.
 
+## Infrastructure Notes
+
+- 2026-03-26: a one-off supporting infrastructure exception added the `.NET 8` `HttpWorker` helper microservice under `services/http-worker/`.
+- `HttpWorker` is only for HTTP-heavy helper work: BrokenLinkChecker, UrlFetcher, HealthChecker, and SitemapCrawler.
+- `HttpWorker` does not replace Django as the main app, does not take over DB writes or product business logic, and does not replace Celery across the repo.
+- Normal pending phase work continues after this helper addition. The queued product phases, including Phase 14 / `FR-011`, are still the roadmap source of truth.
+
 ## COMPLETED
 
 ### FR-010 - Rare-Term Propagation Across Related Pages
@@ -622,4 +629,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-25 (Phase 13 / FR-010 is now complete and verified for its approved scope, including separate backend scoring, settings/snapshot wiring, Angular review/settings exposure, targeted Django verification, migration drift check, focused Angular specs, and Angular build; the next exact target is Phase 14 / FR-011, and the later `GA4`, `GSC`, safe auto-tuning, operator-alert, and zero-downtime model-management requests remain untouched.)*
+*Last updated: 2026-03-26 (Phase 13 / FR-010 remains complete and verified for its approved scope, the one-off `HttpWorker` helper microservice was added as supporting infrastructure only for HTTP-heavy helper tasks, Django remains the main app and source of truth, the queued product phases were not replaced, and the next exact roadmap target is still Phase 14 / FR-011.)*

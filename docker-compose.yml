@@ -129,6 +129,50 @@ services:
     depends_on:
       - backend
 
+  http-worker-api:
+    build:
+      context: ./services/http-worker
+      dockerfile: Dockerfile
+    container_name: xf_linker_http_worker_api
+    restart: unless-stopped
+    environment:
+      SERVICE_MODE: api
+      HttpWorker__Redis__ConnectionString: redis:6379
+      HttpWorker__Redis__JobQueueKey: http_worker:jobs
+      HttpWorker__Redis__ResultTtlSeconds: 3600
+      HttpWorker__Redis__DeadLetterTtlSeconds: 86400
+      HttpWorker__Http__DefaultTimeoutSeconds: 30
+      HttpWorker__Http__MaxConcurrency: 100
+      HttpWorker__Http__MaxBodyBytes: 5242880
+      HttpWorker__Http__MaxRedirectHops: 3
+      HttpWorker__SchemaVersion: v1
+    ports:
+      - "8081:8080"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  http-worker-queue:
+    build:
+      context: ./services/http-worker
+      dockerfile: Dockerfile
+    container_name: xf_linker_http_worker_queue
+    restart: unless-stopped
+    environment:
+      SERVICE_MODE: worker
+      HttpWorker__Redis__ConnectionString: redis:6379
+      HttpWorker__Redis__JobQueueKey: http_worker:jobs
+      HttpWorker__Redis__ResultTtlSeconds: 3600
+      HttpWorker__Redis__DeadLetterTtlSeconds: 86400
+      HttpWorker__Http__DefaultTimeoutSeconds: 30
+      HttpWorker__Http__MaxConcurrency: 100
+      HttpWorker__Http__MaxBodyBytes: 5242880
+      HttpWorker__Http__MaxRedirectHops: 3
+      HttpWorker__SchemaVersion: v1
+    depends_on:
+      redis:
+        condition: service_healthy
+
 volumes:
   pgdata:
     driver: local
