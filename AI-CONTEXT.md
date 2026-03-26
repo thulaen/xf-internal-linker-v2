@@ -35,6 +35,11 @@ Execution order and FR IDs are decoupled.
 - TypeScript 5.8
 - SCSS with theme tokens in `frontend/src/styles/gsc-theme.scss`
 
+### Services
+- **C# HTTP Worker** (`services/http-worker/`): .NET 9 worker for distributed link scanning, URL fetching, and sitemap processing.
+- **R Analytics Service** (`services/r-analytics/`): R-based infrastructure for content value scoring and mathematical weight-tuning groundwork.
+
+
 ## Current Phase
 
 - Active target for the next session: Phase 15
@@ -136,6 +141,8 @@ Phase 12 shipped:
 - Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
+- **Neutral Analytics Groundwork**: Created interim R analytics service scaffold and dashboard to support future `FR-018` auto-tuning.
+- **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
 
 ## Execution Ledger
 
