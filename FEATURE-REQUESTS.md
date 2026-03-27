@@ -171,13 +171,20 @@ Important:
 
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
-### FR-012 - Click-Distance Structural Prior
-**Requested:** 2026-03-24
-**Completed:** 2026-03-27
-
-- Add a soft structural prior based on click distance / shortest-path depth.
-- Store it separately from authority and expose diagnostics.
 - Shipped separate Click-Distance service, recalculation task, and suggestion-level scoring.
+ 
+ ---
+ 
+-### FR-013 - Feedback-Driven Explore/Exploit Reranking
+-**Requested:** 2024-03-24
++### FR-013 - Feedback-Driven Explore/Exploit Reranking
++**Requested:** 2026-03-24
++**Completed:** 2026-03-27
++
++- Added post-ranking Explore/Exploit reranker using Bayesian-smoothed approval rates and UCB1 exploration.
++- Integrated with pipeline scoring loop and exposed explainable diagnostics in the review UI.
++
++---
 
 
 <br>
@@ -186,17 +193,6 @@ Important:
 
 ## PENDING
 
-
-### FR-013 - Feedback-Driven Explore/Exploit Reranking
-**Requested:** 2026-03-24
-**Target phase:** Phase 16
-**Priority:** Medium
-**Patent inspiration:** `US10102292B2`
-
-- Add a feature-flagged post-ranking reranker using review outcomes and later analytics.
-- Limit exploration to a bounded top-N window and keep it explainable.
-
----
 
 ### FR-014 - Near-Duplicate Destination Clustering
 **Requested:** 2026-03-24
@@ -640,4 +636,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-27 (Phase 15 / FR-012 is complete. Next target: Phase 16 / FR-013.)*
+*Last updated: 2026-03-27 (Phase 16 / FR-013 is complete. Next target: Phase 17 / FR-014.)*

@@ -275,6 +275,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-012 click-distance structural prior score. 1.0 = shallowest. 0.5 = neutral.",
     )
+    score_explore_exploit = models.FloatField(
+        default=0.5,
+        help_text="FR-013 feedback-driven explore/exploit reranking score. 0.5 = neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -336,6 +340,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-012 click-distance context for review and debugging.",
+    )
+    explore_exploit_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-013 explore/exploit details for review and debugging.",
     )
 
     # Review state

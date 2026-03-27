@@ -31,6 +31,7 @@ except ImportError:
     HAS_CPP_EXT = False
 
 from .click_distance import ClickDistanceSettings, ClickDistanceService
+from .feedback_rerank import FeedbackRerankSettings, FeedbackRerankService
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
 from .ranker import (
@@ -116,6 +117,12 @@ def run_pipeline(
     field_aware_settings = _load_field_aware_relevance_settings()
     ga4_gsc_settings = _load_ga4_gsc_settings()
     click_distance_settings = _load_click_distance_settings()
+    feedback_rerank_settings = _load_feedback_rerank_settings()
+
+    _progress(0.04, "Initializing feedback reranker...")
+    feedback_rerank_service = FeedbackRerankService(feedback_rerank_settings)
+    if feedback_rerank_settings.enabled:
+        feedback_rerank_service.load_historical_stats()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -244,6 +251,17 @@ def run_pipeline(
         )
 
         if scored:
+            if feedback_rerank_settings.enabled:
+                scored = feedback_rerank_service.rerank_candidates(
+                    scored,
+                    host_scope_id_map={
+                        c.host_content_id: content_records[(c.host_content_id, c.host_content_type)].scope_id
+                        for c in scored
+                    },
+                    destination_scope_id_map={
+                        destination.id: destination.scope_id
+                    }
+                )
             candidates_by_destination[dest_key] = scored
         elif "cross_silo_blocked" in blocked_reasons:
             diagnostics.append((
@@ -454,6 +472,20 @@ def _load_click_distance_settings() -> dict[str, float]:
         return {
             "ranking_weight": 0.0,
         }
+
+
+def _load_feedback_rerank_settings() -> FeedbackRerankSettings:
+    """Load feedback-driven explore/exploit settings from the DB."""
+    try:
+        from apps.core.views import get_feedback_rerank_settings
+        raw = get_feedback_rerank_settings()
+        return FeedbackRerankSettings(
+            enabled=raw["enabled"],
+            ranking_weight=raw["ranking_weight"],
+            exploration_rate=raw["exploration_rate"],
+        )
+    except Exception:
+        return FeedbackRerankSettings()
 
 
 def _load_content_records(

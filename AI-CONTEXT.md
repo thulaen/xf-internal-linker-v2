@@ -44,9 +44,9 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for the next session: Phase 16
-- FR cross-reference: `FR-013 - Feedback-Driven Explore/Exploit Reranking`
-- Status: Phase 15 / FR-012 is complete. FR-013 through FR-015 are queued.
+- Active target for the next session: Phase 17
+- FR cross-reference: `FR-014 - Local Diversity and Cluster Suppression`
+- Status: Phase 16 / FR-013 is complete. Phase 17 is the next target.
 
 - Session target: Separate R Analytics Service Scaffold + Tests
 - What changed:

@@ -121,6 +121,7 @@ class ScoredCandidate:
     score_field_aware_relevance: float
     score_ga4_gsc: float
     score_click_distance: float
+    score_explore_exploit: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -131,6 +132,7 @@ class ScoredCandidate:
     rare_term_diagnostics: dict[str, object]
     field_aware_diagnostics: dict[str, object]
     click_distance_diagnostics: dict[str, object]
+    explore_exploit_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:

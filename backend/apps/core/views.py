@@ -115,6 +115,12 @@ DEFAULT_CLICK_DISTANCE_SETTINGS = {
     "b_ud": 0.25,
 }
 
+DEFAULT_FEEDBACK_RERANK_SETTINGS = {
+    "enabled": False,
+    "ranking_weight": 0.2,
+    "exploration_rate": 1.0,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -309,6 +315,18 @@ def get_click_distance_settings() -> dict[str, float]:
         return dict(DEFAULT_CLICK_DISTANCE_SETTINGS)
 
 
+def get_feedback_rerank_settings() -> dict[str, float | bool]:
+    """Load persisted feedback-driven explore/exploit settings with defensive defaults."""
+    settings = _read_feedback_rerank_settings()
+    try:
+        return _validate_feedback_rerank_settings(
+            settings,
+            current=dict(DEFAULT_FEEDBACK_RERANK_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_FEEDBACK_RERANK_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -430,6 +448,31 @@ def _read_click_distance_settings() -> dict[str, float]:
         "k_cd": _read_float("click_distance.k_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["k_cd"]),
         "b_cd": _read_float("click_distance.b_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]),
         "b_ud": _read_float("click_distance.b_ud", DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]),
+    }
+
+
+def _read_feedback_rerank_settings() -> dict[str, float | bool]:
+    """Read feedback-driven explore/exploit settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return raw.lower() == "true"
+
+    return {
+        "enabled": _read_bool("explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"]),
+        "ranking_weight": _read_float("explore_exploit.ranking_weight", DEFAULT_FEEDBACK_RERANK_SETTINGS["ranking_weight"]),
+        "exploration_rate": _read_float("explore_exploit.exploration_rate", DEFAULT_FEEDBACK_RERANK_SETTINGS["exploration_rate"]),
     }
 
 
@@ -965,6 +1008,44 @@ def _validate_ga4_gsc_settings(
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
         raise ValueError("ranking_weight must be between 0.0 and 1.0.")
+
+    return validated
+
+
+def _validate_feedback_rerank_settings(
+    payload: dict,
+    *,
+    current: dict[str, float | bool] | None = None,
+) -> dict[str, float | bool]:
+    """Validate and clamp feedback-driven explore/exploit settings."""
+    current = current or _read_feedback_rerank_settings()
+
+    def _coerce_float(key: str) -> float:
+        value = payload.get(key, current[key])
+        try:
+            coerced = float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric.") from exc
+        if not math.isfinite(coerced):
+            raise ValueError(f"{key} must be finite.")
+        return coerced
+
+    def _coerce_bool(key: str) -> bool:
+        value = payload.get(key, current[key])
+        if isinstance(value, str):
+            return value.lower() in {"1", "true", "yes", "on"}
+        return bool(value)
+
+    validated = {
+        "enabled": _coerce_bool("enabled"),
+        "ranking_weight": _coerce_float("ranking_weight"),
+        "exploration_rate": _coerce_float("exploration_rate"),
+    }
+
+    if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.5:
+        raise ValueError("ranking_weight must be between 0.0 and 0.5.")
+    if validated["exploration_rate"] < 0.1 or validated["exploration_rate"] > 2.0:
+        raise ValueError("exploration_rate must be between 0.1 and 2.0.")
 
     return validated
 
@@ -1893,3 +1974,54 @@ class ClickDistanceRecalculateView(APIView):
             "status": "queued",
             "job_id": task.id
         })
+
+
+class FeedbackRerankSettingsView(APIView):
+    """
+    GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
+    PUT  /api/settings/explore-exploit/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_feedback_rerank_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+        
+        current = get_feedback_rerank_settings()
+        try:
+            validated = _validate_feedback_rerank_settings(request.data, current=current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        rows = {
+            "explore_exploit.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether feedback-driven explore/exploit reranking is active.",
+            },
+            "explore_exploit.ranking_weight": {
+                "value": str(validated["ranking_weight"]),
+                "value_type": "float",
+                "description": "Multiplier weight for the feedback-driven score component.",
+            },
+            "explore_exploit.exploration_rate": {
+                "value": str(validated["exploration_rate"]),
+                "value_type": "float",
+                "description": "k factor for the UCB1 exploration boost.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+
+        return Response(validated)

@@ -10,6 +10,10 @@ from apps.pipeline.services.click_distance import (
     ClickDistanceService,
     ClickDistanceSettings,
 )
+from apps.pipeline.services.feedback_rerank import (
+    FeedbackRerankService,
+    FeedbackRerankSettings,
+)
 from apps.core.models import AppSetting
 from apps.graph.models import ExistingLink
 from apps.pipeline.services.field_aware_relevance import (
@@ -1888,4 +1892,82 @@ class ClickDistanceRankerIntegrationTests(TestCase):
         # deep: 2 * (0.3 - 0.5) = -0.4 penalty
         self.assertGreater(shallow_result.score_final, deep_result.score_final)
         self.assertAlmostEqual(shallow_result.score_click_distance, 0.9)
+        self.assertAlmostEqual(shallow_result.score_click_distance, 0.9)
         self.assertAlmostEqual(deep_result.score_click_distance, 0.3)
+
+
+class FeedbackRerankServiceTests(TestCase):
+    def setUp(self):
+        self.settings = FeedbackRerankSettings(
+            enabled=True,
+            ranking_weight=0.2,
+            exploration_rate=1.0,
+            alpha_prior=1.0,
+            beta_prior=1.0
+        )
+        self.service = FeedbackRerankService(self.settings)
+
+    def test_bayesian_smoothing_exploit_score(self):
+        # 0/0 -> (0+1)/(0+1+1) = 0.5
+        factor, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertEqual(diags["score_exploit"], 0.5)
+        
+        # 10/10 -> (10+1)/(10+2) = 11/12 = 0.9167
+        self.service._pair_stats[(1, 1)] = {"total": 10, "successes": 10}
+        self.service._global_total_samples = 10
+        factor, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertAlmostEqual(diags["score_exploit"], 0.9167, places=4)
+
+        # 0/10 -> (0+1)/(10+2) = 1/12 = 0.0833
+        self.service._pair_stats[(1, 1)] = {"total": 10, "successes": 0}
+        factor, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertAlmostEqual(diags["score_exploit"], 0.0833, places=4)
+
+    def test_ucb1_explore_boost(self):
+        # Global=100, Pair=0 -> sqrt(ln(101)/1) = 2.14k
+        self.service._global_total_samples = 100
+        factor, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertGreater(diags["score_explore"], 2.0)
+
+        # Global=100, Pair=100 -> sqrt(ln(101)/101) = 0.21k
+        self.service._pair_stats[(1, 1)] = {"total": 100, "successes": 50}
+        factor, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertLess(diags["score_explore"], 0.3)
+
+    def test_rerank_candidates_integration(self):
+        from apps.pipeline.services.ranker import ScoredCandidate
+        
+        # Mock global stats: a lot of data for (1,1) with 100% success
+        self.service._pair_stats[(1, 1)] = {"total": 100, "successes": 100}
+        self.service._global_total_samples = 100
+        
+        candidates = [
+            ScoredCandidate(
+                destination_content_id=1, destination_content_type="thread",
+                host_content_id=2, host_content_type="thread",
+                host_sentence_id=1,
+                score_semantic=0.8, score_keyword=0.2, score_node_affinity=0.1,
+                score_quality=0.5, score_silo_affinity=0.0,
+                score_phrase_relevance=0.5, score_learned_anchor_corroboration=0.5,
+                score_rare_term_propagation=0.5, score_field_aware_relevance=0.5,
+                score_ga4_gsc=0.5, score_click_distance=0.5,
+                score_explore_exploit=0.0, # Will be updated
+                score_final=1.0,
+                anchor_phrase="test", anchor_start=0, anchor_end=4, anchor_confidence="strong",
+                phrase_match_diagnostics={}, learned_anchor_diagnostics={},
+                rare_term_diagnostics={}, field_aware_diagnostics={},
+                click_distance_diagnostics={}, explore_exploit_diagnostics={}
+            )
+        ]
+        
+        # host_id=2 maps to scope=1, dest_id=1 maps to scope=1
+        reranked = self.service.rerank_candidates(
+            candidates,
+            host_scope_id_map={2: 1},
+            destination_scope_id_map={1: 1}
+        )
+        
+        # Factor should be > 1.0 because of high success rate
+        self.assertGreater(reranked[0].score_final, 1.0)
+        self.assertGreater(reranked[0].score_explore_exploit, 1.0)
+        self.assertIn("score_exploit", reranked[0].explore_exploit_diagnostics)
