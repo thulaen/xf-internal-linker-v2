@@ -191,7 +191,7 @@ A local-first application that suggests highly contextual internal links for Xen
 | Background Jobs | Celery 5.x | Production-grade task queue with retries, rate limiting, scheduling |
 | Job Scheduler | Celery Beat | Periodic tasks (auto-resync, GSC sync, stale checks) |
 | WebSockets | Django Channels 4.x + Daphne | Real-time job progress, live previews, stale alerts |
-| Embeddings | sentence-transformers (BAAI/bge-small-en-v1.5) | Strong 384-dim model that still fits laptop-friendly RAM limits |
+| Embeddings | sentence-transformers (BAAI/bge-m3) | 1024-dim dense vectors, balanced (CPU) and high-performance (GPU/CUDA) modes |
 | NLP | spaCy en_core_web_sm | Sentence splitting, entity recognition, noun chunks |
 | GPU | PyTorch with CUDA support | Same as V1, auto-detection |
 | API Framework | Django REST Framework | Serializers, viewsets, pagination, filtering, throttling |
@@ -420,7 +420,7 @@ xf-internal-linker-v2/
 │       │   │   │   │   ├── suggestion-detail/
 │       │   │   │   │   ├── filter-bar/
 │       │   │   │   │   ├── batch-actions/
-│       │   │   │   │   └── focus-mode/         # Zen review mode
+│       │   │   │   │   ├── focus-mode/         # Zen review mode
 │       │   │   │   └── services/
 │       │   │   │       └── dashboard.service.ts
 │       │   │   │
@@ -450,7 +450,7 @@ xf-internal-linker-v2/
 │       │   │   │       ├── gsc-overview/        # Search performance
 │       │   │   │       ├── ga4-overview/         # Traffic analytics
 │       │   │   │       ├── top-performers/
-│       │   │   │       └── underperformers/
+│       │   │   │       ├── underperformers/
 │       │   │   │
 │       │   │   ├── link-graph/
 │       │   │   │   ├── link-graph.component.ts
@@ -590,7 +590,7 @@ class ContentItem(models.Model):
     velocity_score = models.FloatField(default=0.0, db_index=True)
 
     # pgvector embedding column
-    embedding = VectorField(dimensions=384, null=True)
+    embedding = VectorField(dimensions=1024, null=True)
 
     # Metadata
     view_count = models.IntegerField(default=0)
@@ -606,7 +606,7 @@ class ContentItem(models.Model):
             models.Index(fields=['content_type', 'pagerank_score']),
             models.Index(fields=['content_type', 'velocity_score']),
             # pgvector index for similarity search
-            # CREATE INDEX ON content_items USING ivfflat (embedding vector_cosine_ops)
+            # CREATE INDEX ON content_items USING hnsw (embedding vector_cosine_ops)
         ]
 
 
@@ -629,10 +629,10 @@ class Sentence(models.Model):
     char_count = models.IntegerField()
     start_char = models.IntegerField()        # Character offset in clean_text
     end_char = models.IntegerField()
-    word_position = models.IntegerField(default=0)  # Word offset for 600-word window
+    word_position = models.IntegerField(default=0)  # Word offset for configurable host scan window
 
     # pgvector embedding
-    embedding = VectorField(dimensions=384, null=True)
+    embedding = VectorField(dimensions=1024, null=True)
 
     class Meta:
         indexes = [
@@ -1127,7 +1127,7 @@ The main view where you spend most of your time:
 │  │                                                                    │
 │  │  DESTINATION                                                       │
 │  │  ══════════                                                        │
-│  │  "How to Set Up a Home Recording Studio"                          │
+│  E  "How to Set Up a Home Recording Studio"                          │
 │  │  Forum > Music Production > Guides                                │
 │  │  👁️ 2,340 views  💬 18 replies  📊 PageRank: 0.034               │
 │  │                                                                    │
@@ -1800,30 +1800,31 @@ Timeline:
 
 ---
 
-## 20. Contextual Linking Strategy (600-Word Window)
+## 20. Contextual Linking Strategy (Configurable Host Scan Window)
 
-### Rule: First 600 Words Only
+### Rule: Host Scan Word Limit
 
 ```python
 # apps/pipeline/services/pipeline.py
 
-MAX_HOST_WORDS = 600  # Only scan first 600 words for link insertion
+MAX_HOST_WORDS = settings.HOST_SCAN_WORD_LIMIT  # Configurable limit (default 1,200, max 2,000)
 
 def get_eligible_sentences(content_item: ContentItem) -> QuerySet:
-    """Return sentences within the first 600 words only."""
+    """Return sentences within the host scan word limit."""
     return content_item.sentences.filter(
         word_position__lte=MAX_HOST_WORDS
     ).order_by('position')
 ```
 
-### Why 600 Words?
+### Why This Word Limit?
 
 | Reason | Explanation |
 |---|---|
-| **Reader attention** | Most readers engage with the first half of a post. Links placed later get fewer clicks |
-| **SEO value** | Google weights content near the top of the page more heavily |
-| **Context quality** | Opening paragraphs set the topic; later paragraphs drift into tangents |
-| **Prevents deep-post spam** | Stops the tool from suggesting links in post signatures or closing remarks |
+| **Reader attention** | Most readers engage with the first half of a post. Links placed later get fewer clicks. |
+| **SEO value** | Google weights content near the top of the page more heavily. |
+| **Context quality** | Opening paragraphs set the topic; later paragraphs drift into tangents. |
+| **Prevents deep-post spam** | Stops the tool from suggesting links in post signatures or closing remarks. |
+| **Configurability** | Allows adjusting the window (default 1,200, max 2,000) based on specific content needs. |
 
 ### Maximum 3 Links Per Thread
 
@@ -1886,6 +1887,11 @@ Toggle in the sidebar or settings page. The switch:
 2. Sends a WebSocket notification to all connected clients
 3. Next pipeline/embedding job uses the new device
 4. Does NOT interrupt a running job (applies to next job)
+
+### Performance Mode Specifications
+
+- **BALANCED**: CPU inference, batch_size=32, bge-m3 loads to CPU, no NVIDIA runtime required.
+- **HIGH_PERFORMANCE**: CUDA inference if RTX 3050 or better detected, batch_size=128, requires nvidia-container-toolkit on host.
 
 ---
 
@@ -2185,6 +2191,7 @@ class Command(BaseCommand):
 | **23** | 600-Word Window & Anchor Policy | 1 session | Phase 4 |
 | **24** | Redirect/404 Monitor | 1 session | Phase 12 |
 | **25** | Elasticsearch Plugin | 2-3 sessions | Phase 16 |
+| **26** | BGE-M3 upgrade + word-window + autovacuum + Arrow/Bitmap/C++ performance layer | 1 session | Phase 4 |
 
 ### Phase 0: Project Bootstrap
 
@@ -2520,7 +2527,7 @@ All V1 prompts from `PROMPTS.md` remain valid with these changes:
 
 ### ML / Ranking
 - Destination representation: title + distilled body text.
-- Host selection: sentence-level body text within first 600 words.
+- Host selection: sentence-level body text within host scan word window.
 - Hybrid scoring: semantic + keyword + node affinity + quality + PageRank + velocity.
 - Anchor policy engine enforces quality anchors (no generic, no spam).
 - pgvector is source of truth for embeddings. .npy files are caches.
