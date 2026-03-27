@@ -79,7 +79,7 @@ Do not leave mystery changes behind.
 - Do not claim a session is complete if the intended files are still uncommitted without explanation.
 - Never use `git add -A` in a dirty tree.
 - Stage only the intended files for the current slice.
-- If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base.
+- If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 
 ## User Communication Preference
