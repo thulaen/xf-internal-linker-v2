@@ -31,8 +31,10 @@ body {
 
 // Global GSC Background Enforcements
 // The main page body background should be #f0f4f9 (Red arrows)
+mat-sidenav-container,
 mat-sidenav-content,
 .mat-sidenav-content,
+.app-container,
 .app-main-content {
   background-color: #f0f4f9 !important;
 }
@@ -43,7 +45,7 @@ mat-sidenav.app-sidenav,
 .app-sidenav {
   background-color: #f0f4f9 !important;
   color: var(--color-text-primary) !important;
-  border-right: 1px solid var(--color-border) !important;
+  border-right: none !important; // Removed border
 }
 
 // Elevated surfaces (cards, inputs, filters) should be White (Green arrows)
@@ -67,12 +69,11 @@ mat-sidenav.app-sidenav,
 .mat-flat-button.mat-primary,
 .status-tab.active,
 .btn-gsc-primary {
-  background-color: #c2e7ff !important; // GSC Active/Primary Surface
-  color: var(--color-dark-blue) !important; // Dark Blue text on light blue
+  background-color: #0b57d0 !important; // GSC Primary Blue
+  color: #ffffff !important; // White text on dark blue
   font-weight: 500 !important;
   border-radius: var(--radius-pill) !important; // Rounded pill shape
   box-shadow: none !important;
-  border: 1px solid rgba(0, 0, 0, 0.05) !important;
 
   mat-icon {
     color: var(--color-dark-blue) !important;
@@ -84,7 +85,7 @@ mat-sidenav.app-sidenav,
 .review-controls-surface,
 .link-health-controls-surface {
   padding: 16px 24px 0 24px !important;
-  margin: -24px -32px 20px -32px !important; // Offset the main content padding (24 32)
+  margin: 0 -32px 20px -32px !important; // Removed negative top margin to create space
   border-bottom: 1px solid var(--color-border) !important;
   display: flex !important;
   align-items: center !important;
@@ -199,7 +200,7 @@ mat-toolbar.app-toolbar,
 .app-toolbar {
   background-color: #ffffff !important;
   color: var(--color-text-primary) !important;
-  border-bottom: 1px solid var(--color-border) !important;
+  border-bottom: none !important; // Removed border
   box-shadow: none !important;
 }
 
