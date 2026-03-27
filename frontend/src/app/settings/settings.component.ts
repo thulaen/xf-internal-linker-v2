@@ -23,6 +23,7 @@ import {
   WeightedAuthoritySettings,
   WordPressSettings,
   WordPressSettingsUpdate,
+  FeedbackRerankSettings,
 } from './silo-settings.service';
 
 @Component({
@@ -55,6 +56,7 @@ export class SettingsComponent implements OnInit {
   savingRareTermPropagation = false;
   savingFieldAwareRelevance = false;
   savingClickDistance = false;
+  savingFeedbackRerank = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -115,6 +117,11 @@ export class SettingsComponent implements OnInit {
     k_cd: 1.5,
     b_cd: 0.1,
     b_ud: 0.1,
+  };
+  feedbackRerank: FeedbackRerankSettings = {
+    enabled: false,
+    ranking_weight: 0.2,
+    exploration_rate: 1.0,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -191,7 +198,16 @@ export class SettingsComponent implements OnInit {
                                     this.siloSvc.getClickDistanceSettings().subscribe({
                                       next: (clickDistance) => {
                                         this.clickDistance = clickDistance;
-                                        this.loadGroupsAndScopes();
+                                        this.siloSvc.getFeedbackRerankSettings().subscribe({
+                                          next: (feedbackRerank) => {
+                                            this.feedbackRerank = feedbackRerank;
+                                            this.loadGroupsAndScopes();
+                                          },
+                                          error: () => {
+                                            this.loading = false;
+                                            this.snack.open('Failed to load feedback rerank settings', 'Dismiss', { duration: 4000 });
+                                          },
+                                        });
                                       },
                                       error: () => {
                                         this.loading = false;
@@ -334,6 +350,21 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingClickDistance = false;
         this.snack.open(error?.error?.detail || 'Failed to save click distance settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveFeedbackRerankSettings(): void {
+    this.savingFeedbackRerank = true;
+    this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank).subscribe({
+      next: (feedbackRerank) => {
+        this.feedbackRerank = feedbackRerank;
+        this.savingFeedbackRerank = false;
+        this.snack.open('Explore/Exploit reranking settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingFeedbackRerank = false;
+        this.snack.open(error?.error?.detail || 'Failed to save explore/exploit settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

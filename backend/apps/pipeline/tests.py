@@ -1951,12 +1951,15 @@ class FeedbackRerankServiceTests(TestCase):
                 score_phrase_relevance=0.5, score_learned_anchor_corroboration=0.5,
                 score_rare_term_propagation=0.5, score_field_aware_relevance=0.5,
                 score_ga4_gsc=0.5, score_click_distance=0.5,
-                score_explore_exploit=0.0, # Will be updated
+                score_explore_exploit=0.0,
+                score_cluster_suppression=0.0, # Added missing field
                 score_final=1.0,
                 anchor_phrase="test", anchor_start=0, anchor_end=4, anchor_confidence="strong",
                 phrase_match_diagnostics={}, learned_anchor_diagnostics={},
                 rare_term_diagnostics={}, field_aware_diagnostics={},
-                click_distance_diagnostics={}, explore_exploit_diagnostics={}
+                cluster_diagnostics={}, # Added missing field
+                explore_exploit_diagnostics={},
+                click_distance_diagnostics={}
             )
         ]
         

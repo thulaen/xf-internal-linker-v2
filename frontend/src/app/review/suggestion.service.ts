@@ -66,6 +66,10 @@ export interface SuggestionDetail extends Suggestion {
   field_aware_diagnostics: FieldAwareDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
   click_distance_diagnostics: ClickDistanceDiagnostics;
+  score_cluster_suppression: number;
+  cluster_diagnostics: ClusterDiagnostics;
+  score_explore_exploit: number;
+  explore_exploit_diagnostics: FeedbackRerankDiagnostics;
   updated_at: string;
 }
 
@@ -227,6 +231,38 @@ export interface ClickDistanceDiagnostics {
   k_cd: number;
   b_cd: number;
   b_ud: number;
+}
+
+export interface ClusterDiagnostics {
+  score_cluster_suppression: number;
+  clustering_state:
+    | 'suppressed_non_canonical'
+    | 'boosted_canonical'
+    | 'neutral_no_cluster'
+    | 'neutral_clustering_disabled'
+    | 'neutral_processing_error';
+  cluster_id: number | null;
+  is_canonical: boolean;
+  member_count: number;
+  canonical_title: string | null;
+  similarity_threshold: number;
+  suppression_penalty: number;
+}
+
+export interface FeedbackRerankDiagnostics {
+  score_explore_exploit: number;
+  rerank_state:
+    | 'computed_applied'
+    | 'neutral_no_historical_data'
+    | 'neutral_feature_disabled'
+    | 'neutral_processing_error';
+  exploit_score: number;
+  explore_score: number;
+  successes: number;
+  total_attempts: number;
+  global_attempts: number;
+  ranking_weight: number;
+  exploration_rate: number;
 }
 
 export interface PaginatedResult<T> {

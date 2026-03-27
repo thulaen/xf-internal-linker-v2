@@ -12,6 +12,9 @@ from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupVi
 from apps.core.views import (
     AppearanceSettingsView,
     DashboardView,
+    ClusteringSettingsView,
+    ClusteringRecalculateView,
+    FieldAwareRelevanceSettingsView,
     FieldAwareRelevanceSettingsView,
     ClickDistanceSettingsView,
     ClickDistanceRecalculateView,
@@ -70,6 +73,8 @@ urlpatterns = [
     path("settings/explore-exploit/", FeedbackRerankSettingsView.as_view(), name="explore-exploit-settings"),
     path("settings/click-distance/", ClickDistanceSettingsView.as_view(), name="settings-click-distance"),
     path("settings/click-distance/recalculate/", ClickDistanceRecalculateView.as_view(), name="settings-click-distance-recalculate"),
+    path("settings/clustering/", ClusteringSettingsView.as_view(), name="clustering-settings"),
+    path("settings/clustering/recalculate/", ClusteringRecalculateView.as_view(), name="clustering-recalculate"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),

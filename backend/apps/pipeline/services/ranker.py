@@ -65,6 +65,8 @@ class ContentRecord:
     scope_title: str = ""
     parent_scope_title: str = ""
     grandparent_scope_title: str = ""
+    cluster_id: int | None = None
+    is_canonical: bool = False
 
     @property
     def key(self) -> ContentKey:
@@ -122,6 +124,7 @@ class ScoredCandidate:
     score_ga4_gsc: float
     score_click_distance: float
     score_explore_exploit: float
+    score_cluster_suppression: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -131,8 +134,9 @@ class ScoredCandidate:
     learned_anchor_diagnostics: dict[str, object]
     rare_term_diagnostics: dict[str, object]
     field_aware_diagnostics: dict[str, object]
-    click_distance_diagnostics: dict[str, object]
+    cluster_diagnostics: dict[str, object]
     explore_exploit_diagnostics: dict[str, object]
+    click_distance_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -141,6 +145,13 @@ class ScoredCandidate:
     @property
     def host_key(self) -> ContentKey:
         return (self.host_content_id, self.host_content_type)
+
+
+@dataclass(frozen=True, slots=True)
+class ClusteringSettings:
+    enabled: bool = False
+    similarity_threshold: float = 0.04
+    suppression_penalty: float = 0.5
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +304,7 @@ def score_destination_matches(
     rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
     field_aware_settings: FieldAwareRelevanceSettings = FieldAwareRelevanceSettings(),
     silo_settings: SiloSettings = SiloSettings(),
+    clustering_settings: ClusteringSettings = ClusteringSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
     min_sentence_chars: int = 30,
@@ -439,6 +451,26 @@ def score_destination_matches(
                 + score_silo
             )
 
+        # FR-014 Clustering Suppression
+        score_cluster_suppression = 0.0
+        cluster_diagnostics = {}
+        if clustering_settings.enabled and destination.cluster_id:
+            if not destination.is_canonical:
+                # Soft suppression
+                score_cluster_suppression = -clustering_settings.suppression_penalty
+                score_final += score_cluster_suppression
+                cluster_diagnostics = {
+                    "cluster_id": destination.cluster_id,
+                    "is_canonical": False,
+                    "penalty": clustering_settings.suppression_penalty
+                }
+            else:
+                cluster_diagnostics = {
+                    "cluster_id": destination.cluster_id,
+                    "is_canonical": True,
+                    "penalty": 0.0
+                }
+
         ranked.append(
             ScoredCandidate(
                 destination_content_id=destination.content_id,
@@ -457,6 +489,8 @@ def score_destination_matches(
                 score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
                 score_ga4_gsc=float(score_ga4_gsc),
                 score_click_distance=float(score_click_distance),
+                score_explore_exploit=0.0, # Will be updated by feedback reranker later
+                score_cluster_suppression=float(score_cluster_suppression),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
@@ -466,6 +500,8 @@ def score_destination_matches(
                 learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
                 rare_term_diagnostics=rare_term_match.rare_term_diagnostics,
                 field_aware_diagnostics=field_aware_match.field_aware_diagnostics,
+                cluster_diagnostics=cluster_diagnostics,
+                explore_exploit_diagnostics={},
                 click_distance_diagnostics={
                     "click_distance_score": round(score_click_distance, 4),
                     "click_distance_ranking_weight": click_distance_ranking_weight,

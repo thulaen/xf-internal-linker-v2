@@ -121,6 +121,12 @@ DEFAULT_FEEDBACK_RERANK_SETTINGS = {
     "exploration_rate": 1.0,
 }
 
+DEFAULT_CLUSTERING_SETTINGS = {
+    "enabled": False,
+    "similarity_threshold": 0.04,
+    "suppression_penalty": 20.0,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -610,6 +616,28 @@ def _read_field_aware_relevance_settings() -> dict[str, float]:
             DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS["learned_anchor_field_weight"],
         ),
     }
+
+
+def _validate_clustering_settings(payload: dict, current: dict) -> dict[str, float | bool]:
+    """Validate and clamp near-duplicate clustering settings."""
+
+    def _get_float(key: str) -> float:
+        val = payload.get(key, current.get(key))
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return float(current.get(key, 0.0))
+
+    enabled = bool(payload.get("enabled", current.get("enabled")))
+    similarity_threshold = max(0.01, min(0.20, _get_float("similarity_threshold")))
+    suppression_penalty = max(0.0, min(100.0, _get_float("suppression_penalty")))
+
+    return {
+        "enabled": enabled,
+        "similarity_threshold": similarity_threshold,
+        "suppression_penalty": suppression_penalty,
+    }
+
 
 
 def _read_ga4_gsc_settings() -> dict[str, float]:
@@ -2025,3 +2053,64 @@ class FeedbackRerankSettingsView(APIView):
             )
 
         return Response(validated)
+
+
+class ClusteringSettingsView(APIView):
+    """
+    GET  /api/settings/clustering/ - returns FR-014 clustering configuration
+    PUT  /api/settings/clustering/ - validates and persists clustering configuration
+    """
+
+    def get(self, request):
+        return Response(get_clustering_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        current = get_clustering_settings()
+        try:
+            validated = _validate_clustering_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        rows = {
+            "clustering.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether to cluster near-duplicate destinations and suppress non-canonicals.",
+            },
+            "clustering.similarity_threshold": {
+                "value": str(validated["similarity_threshold"]),
+                "value_type": "float",
+                "description": "Cosine distance threshold for near-duplicate grouping (lower = stricter).",
+            },
+            "clustering.suppression_penalty": {
+                "value": str(validated["suppression_penalty"]),
+                "value_type": "float",
+                "description": "Fixed score penalty applied to non-canonical cluster members.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class ClusteringRecalculateView(APIView):
+    """POST /api/settings/clustering/recalculate/ - run batch clustering pass."""
+
+    def post(self, request):
+        from apps.pipeline.tasks import run_clustering_pass
+
+        job_id = str(uuid.uuid4())
+        run_clustering_pass.delay(job_id=job_id)
+        return Response({"job_id": job_id}, status=202)

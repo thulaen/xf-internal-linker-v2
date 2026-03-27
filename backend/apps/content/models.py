@@ -117,6 +117,33 @@ class ScopeItem(TimestampedModel):
         return f"{self.title} [{self.scope_type}:{self.scope_id}]"
 
 
+class ContentCluster(TimestampedModel):
+    """
+    Groups near-duplicate ContentItems (e.g. thread vs archive page).
+    FR-014 implementation for canonicalization and suppression.
+    """
+
+    canonical_item = models.ForeignKey(
+        "ContentItem",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="canonical_for_cluster",
+        help_text="The preferred version of content in this cluster.",
+    )
+    is_manually_fixed = models.BooleanField(
+        default=False,
+        help_text="If True, auto-clustering will not override this cluster's members or canonical item.",
+    )
+
+    class Meta:
+        verbose_name = "Content Cluster"
+        verbose_name_plural = "Content Clusters"
+
+    def __str__(self) -> str:
+        return f"Cluster {self.pk} (Canonical: {self.canonical_item_id or 'None'})"
+
+
 class ContentItem(TimestampedModel):
     """
     A single piece of indexable content: a XenForo thread, resource, or WordPress post.
@@ -207,6 +234,21 @@ class ContentItem(TimestampedModel):
         default=0.5,
         db_index=True,
         help_text="Soft structural prior based on click distance and URL depth. 1.0 = shallow/prominent, 0.5 = neutral.",
+    )
+
+    # FR-014 near-duplicate clustering
+    cluster = models.ForeignKey(
+        ContentCluster,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="members",
+        help_text="The cluster this item belongs to. Used to suppress near-duplicates.",
+    )
+    is_canonical = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Whether this is the preferred version for linking within its cluster.",
     )
 
     # pgvector embedding (1024 dims = BAAI/bge-m3)

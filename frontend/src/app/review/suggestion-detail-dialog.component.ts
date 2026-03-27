@@ -356,6 +356,62 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return 'Neutral / no structural prior data';
   }
 
+  clusteringSummary(): string {
+    const diagnostics = this.detail?.cluster_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means no clustering data is available for this destination.';
+    }
+    const state = diagnostics.clustering_state;
+    if (state === 'suppressed_non_canonical') {
+      return `This is a near-duplicate of "${diagnostics.canonical_title}". It is suppressed (-${diagnostics.suppression_penalty} points) to favor the canonical version.`;
+    }
+    if (state === 'boosted_canonical') {
+      const others = diagnostics.member_count - 1;
+      return `This is the canonical representative for a cluster of ${diagnostics.member_count} similar items. ${others} duplicate(s) were suppressed.`;
+    }
+    return 'Neutral means this item is unique or clustering was not applied.';
+  }
+
+  clusteringStateLabel(): string {
+    const state = this.detail?.cluster_diagnostics?.clustering_state ?? 'neutral_no_cluster';
+    switch (state) {
+      case 'suppressed_non_canonical': return 'Suppressed Duplicate';
+      case 'boosted_canonical': return 'Canonical Representative';
+      case 'neutral_no_cluster': return 'Unique Result';
+      case 'neutral_clustering_disabled': return 'Clustering Disabled';
+      case 'neutral_processing_error': return 'Clustering Error';
+      default: return 'Unique Result';
+    }
+  }
+
+  feedbackRerankSummary(): string {
+    const diagnostics = this.detail?.explore_exploit_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means no historical feedback data was used for this suggestion.';
+    }
+    const state = diagnostics.rerank_state;
+    if (state === 'computed_applied') {
+      const exploitIdx = (diagnostics.exploit_score * 100).toFixed(0);
+      const exploreIdx = (diagnostics.explore_score * 100).toFixed(0);
+      return `Reranked using historical performance. Success rate (Bayesian): ${exploitIdx}%. Exploration bonus (UCB1): +${exploreIdx}%. Based on ${diagnostics.total_attempts} attempts.`;
+    }
+    if (state === 'neutral_feature_disabled') {
+       return 'Feedback-driven reranking is currently disabled in settings.';
+    }
+    return 'Neutral means no historical feedback data was used for this suggestion.';
+  }
+
+  feedbackRerankStateLabel(): string {
+    const state = this.detail?.explore_exploit_diagnostics?.rerank_state ?? 'neutral_no_historical_data';
+    switch (state) {
+      case 'computed_applied': return 'Feedback-driven optimization applied';
+      case 'neutral_no_historical_data': return 'Neutral / no historical data for this pair';
+      case 'neutral_feature_disabled': return 'Neutral / feature disabled';
+      case 'neutral_processing_error': return 'Neutral / processing error';
+      default: return 'Neutral / no historical data';
+    }
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

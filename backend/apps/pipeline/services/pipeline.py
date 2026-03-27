@@ -42,6 +42,7 @@ from .ranker import (
     SentenceRecord,
     SentenceSemanticMatch,
     SiloSettings,
+    ClusteringSettings,
     derive_march_2026_pagerank_bounds,
     score_destination_matches,
     select_final_candidates,
@@ -118,6 +119,7 @@ def run_pipeline(
     ga4_gsc_settings = _load_ga4_gsc_settings()
     click_distance_settings = _load_click_distance_settings()
     feedback_rerank_settings = _load_feedback_rerank_settings()
+    clustering_settings = _load_clustering_settings()
 
     _progress(0.04, "Initializing feedback reranker...")
     feedback_rerank_service = FeedbackRerankService(feedback_rerank_settings)
@@ -544,6 +546,8 @@ def _load_content_records(
             scope_title=scope.title if scope else "",
             parent_scope_title=parent.title if parent else "",
             grandparent_scope_title=grandparent.title if grandparent else "",
+            cluster_id=ci.cluster_id,
+            is_canonical=ci.is_canonical,
         )
     return records
 
@@ -925,10 +929,12 @@ def _persist_suggestions(
             score_rare_term_propagation=candidate.score_rare_term_propagation,
             score_field_aware_relevance=candidate.score_field_aware_relevance,
             score_ga4_gsc=candidate.score_ga4_gsc,
+            score_cluster_suppression=candidate.score_cluster_suppression,
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
             rare_term_diagnostics=candidate.rare_term_diagnostics,
             field_aware_diagnostics=candidate.field_aware_diagnostics,
+            cluster_diagnostics=candidate.cluster_diagnostics,
             score_final=candidate.score_final,
             status="pending",
         )
@@ -983,6 +989,20 @@ def _destination_text(title: str, distilled_text: str) -> str:
     if distilled_clean:
         return f"{title_clean}\n\n{distilled_clean}".strip()
     return title_clean
+
+
+def _load_clustering_settings() -> ClusteringSettings:
+    """Load near-duplicate clustering settings from the DB."""
+    try:
+        from apps.core.views import get_clustering_settings
+        raw = get_clustering_settings()
+        return ClusteringSettings(
+            enabled=raw["enabled"],
+            similarity_threshold=raw["similarity_threshold"],
+            suppression_penalty=raw["suppression_penalty"],
+        )
+    except Exception:
+        return ClusteringSettings()
 
 
 try:

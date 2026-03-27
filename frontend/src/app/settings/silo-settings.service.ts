@@ -111,6 +111,12 @@ export interface ClickDistanceSettings {
   b_ud: number;
 }
 
+export interface FeedbackRerankSettings {
+  enabled: boolean;
+  ranking_weight: number;
+  exploration_rate: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -185,6 +191,10 @@ export class SiloSettingsService {
     return this.http.get<ClickDistanceSettings>('/api/settings/click-distance/');
   }
 
+  getFeedbackRerankSettings(): Observable<FeedbackRerankSettings> {
+    return this.http.get<FeedbackRerankSettings>('/api/settings/explore-exploit/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -215,6 +225,10 @@ export class SiloSettingsService {
 
   updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {
     return this.http.put<ClickDistanceSettings>('/api/settings/click-distance/', payload);
+  }
+
+  updateFeedbackRerankSettings(payload: FeedbackRerankSettings): Observable<FeedbackRerankSettings> {
+    return this.http.put<FeedbackRerankSettings>('/api/settings/explore-exploit/', payload);
   }
 
   recalculateClickDistance(): Observable<{ job_id: string }> {

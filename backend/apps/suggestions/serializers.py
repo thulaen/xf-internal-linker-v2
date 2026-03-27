@@ -116,6 +116,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
             "score_field_aware_relevance", "score_click_distance", "score_explore_exploit",
+            "score_cluster_suppression",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -129,7 +130,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "superseded_by", "superseded_at",
             "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
             "field_aware_diagnostics", "click_distance_diagnostics",
-            "explore_exploit_diagnostics",
+            "explore_exploit_diagnostics", "cluster_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]
@@ -139,6 +140,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
             "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
             "score_field_aware_relevance", "score_click_distance", "score_explore_exploit",
+            "score_cluster_suppression",
             "destination", "destination_title", "destination_url",
             "destination_content_type", "destination_source_label",
             "destination_silo_group", "destination_silo_group_name",
@@ -151,7 +153,7 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "superseded_by", "superseded_at",
             "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
             "field_aware_diagnostics", "click_distance_diagnostics",
-            "explore_exploit_diagnostics",
+            "explore_exploit_diagnostics", "cluster_diagnostics",
             "link_freshness_diagnostics",
             "created_at", "updated_at",
         ]

@@ -892,3 +892,39 @@ def _probe_link_health(session: requests.Session, url: str) -> tuple[int, str]:
 
 def _status_label(http_status: int) -> str:
     return str(http_status) if http_status else "connection error"
+
+
+@shared_task(name="pipeline.run_clustering_pass")
+def run_clustering_pass(job_id: str | None = None) -> dict:
+    """Run a batch clustering pass over all ContentItems with embeddings."""
+    from apps.content.models import ContentItem
+    from apps.content.services.clustering import ClusteringService
+
+    if not job_id:
+        job_id = f"clustering_{int(time.time())}"
+
+    logger.info("Starting batch clustering pass [%s]", job_id)
+    _publish_progress(job_id, "running", 0.0, "Starting batch clustering pass...")
+
+    # Filter items that have embeddings
+    items = ContentItem.objects.filter(embedding__isnull=False).only("id", "embedding", "cluster_id")
+    total = items.count()
+
+    if total == 0:
+        _publish_progress(job_id, "completed", 1.0, "No items with embeddings found.")
+        return {"status": "skipped", "message": "No items with embeddings."}
+
+    service = ClusteringService()
+    processed = 0
+
+    for item in items:
+        service.update_item_cluster(item.id)
+        processed += 1
+        if processed % 50 == 0:
+            pct = processed / total
+            _publish_progress(job_id, "running", pct, f"Clustered {processed}/{total} items...")
+
+    logger.info("Batch clustering pass [%s] complete. Processed %d items.", job_id, processed)
+    _publish_progress(job_id, "completed", 1.0, f"Clustering complete. Processed {processed} items.")
+
+    return {"status": "completed", "processed": processed}

@@ -279,6 +279,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-013 feedback-driven explore/exploit reranking score. 0.5 = neutral.",
     )
+    score_cluster_suppression = models.FloatField(
+        default=0.0,
+        help_text="FR-014 near-duplicate clustering suppression score. Negative values indicate suppression.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -345,6 +349,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-013 explore/exploit details for review and debugging.",
+    )
+    cluster_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-014 near-duplicate clustering details for review and debugging.",
     )
 
     # Review state
