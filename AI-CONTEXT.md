@@ -28,12 +28,14 @@ Execution order and FR IDs are decoupled.
 - Django Channels 4.2 + Daphne
 - Embedding fallback/default code target: `nomic-ai/nomic-embed-text-v1.5` with 768 dimensions
 - Existing `ML_PERFORMANCE_MODE` behavior still supports CPU-safe and GPU-capable execution
+- Roadmap libraries: `google-api-python-client`, `pandas`, `statsmodels`, `networkx`
 
 ### Frontend
 - Node.js 22 LTS target runtime
 - Angular 20 + Angular Material 20
 - TypeScript 5.8
 - SCSS with theme tokens in `frontend/src/styles/gsc-theme.scss`
+- Roadmap libraries: `ngx-monaco-editor-v2`, `three`, `ngx-charts`
 
 ### Services
 - **C# HTTP Worker** (`services/http-worker/`): .NET 9 worker for distributed link scanning, URL fetching, and sitemap processing.

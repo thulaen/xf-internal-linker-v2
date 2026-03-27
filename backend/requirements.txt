@@ -36,6 +36,14 @@ sentence-transformers==3.3.1         # Semantic embeddings
 spacy==3.8.3                         # NLP / sentence splitting
 scikit-learn==1.5.2                  # PageRank, scoring utilities
 transformers==4.47.1                 # HuggingFace (sentence-transformers dep)
+networkx==3.4.2                      # Graph algorithms (FR-012)
+
+# ── Analytics & Google APIs ──────────────────────────────────────
+google-api-python-client==2.155.0    # GSC/GA4 API (FR-016, FR-017)
+google-auth-oauthlib==1.2.1          # Google OAuth (FR-016, FR-017)
+google-auth-httplib2==0.2.0          # Google Auth transport
+pandas==2.2.3                        # Data aggregation (FR-016, FR-018)
+statsmodels==0.14.4                  # Statistical modeling (FR-018)
 
 # ── Utilities ────────────────────────────────────────────────────
 Pillow==11.1.0                       # Image handling
