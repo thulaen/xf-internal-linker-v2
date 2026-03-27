@@ -4,7 +4,7 @@
   "description": "XF Internal Linker V2 - Angular 20 frontend",
   "scripts": {
     "ng": "ng",
-    "start": "ng serve --host 0.0.0.0 --port 4200",
+    "start": "ng serve --host 0.0.0.0 --port 4200 --poll 1000",
     "build": "ng build",
     "build:prod": "ng build --configuration=production",
     "watch": "ng build --watch --configuration=development",

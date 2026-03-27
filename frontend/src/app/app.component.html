@@ -4,15 +4,17 @@
   <!-- ── Left Sidebar: Navigation ───────────────────────────────── -->
   <mat-sidenav mode="side" opened class="app-sidenav">
 
-    <!-- Logo / Brand -->
-    <div class="sidenav-header">
+    <!-- Logo / Brand (Mimicking GSC Property Selector) -->
+    <div class="sidenav-header" [matTooltip]="siteName" matTooltipPosition="right">
       @if (config.logoUrl) {
         <img [src]="config.logoUrl" alt="Logo" class="brand-logo-img" />
       } @else {
         <mat-icon class="brand-icon">link</mat-icon>
       }
-      <span class="brand-name">{{ siteName }}</span>
-      <span class="brand-version">v2</span>
+      <div class="brand-info">
+        <span class="brand-name">{{ siteName }}</span>
+        <span class="brand-version">{{ siteName.includes('.') ? siteName : 'Property' }}</span>
+      </div>
     </div>
 
     <!-- Navigation Links -->

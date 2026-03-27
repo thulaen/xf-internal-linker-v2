@@ -29,19 +29,194 @@ body {
   font-family: var(--font-family) !important;
 }
 
-// Make cards use the GSC white/faint background
-.mat-mdc-card {
-  background: var(--color-bg-white) !important;
-  border: 1px solid var(--color-border);
-  box-shadow: var(--shadow-sm) !important;
-  border-radius: var(--radius-lg) !important;
-  color: var(--color-text-primary) !important;
+// Global GSC Background Enforcements
+// The main page body background should be #f0f4f9 (Red arrows)
+mat-sidenav-content,
+.mat-sidenav-content,
+.app-main-content {
+  background-color: #f0f4f9 !important;
 }
 
-// Consistent chip colors
-.mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; }
-.mat-mdc-chip.status-approved { background: var(--color-success-light) !important; }
-.mat-mdc-chip.status-rejected { background: var(--color-error-light) !important; }
+// Sidebar background #f0f4f9
+mat-sidenav.app-sidenav,
+.mat-drawer.app-sidenav,
+.app-sidenav {
+  background-color: #f0f4f9 !important;
+  color: var(--color-text-primary) !important;
+  border-right: 1px solid var(--color-border) !important;
+}
+
+// Elevated surfaces (cards, inputs, filters) should be White (Green arrows)
+.mat-mdc-card,
+.mat-mdc-form-field-focus-indicator,
+.mat-mdc-text-field-wrapper,
+.search-container,
+.filter-bar,
+.review-header-card,
+.review-header,
+.page-header,
+.review-controls-surface,
+.filter-actions,
+.mat-mdc-tab-header {
+  background-color: #ffffff !important;
+}
+
+// ── GSC Styled Buttons ──────────────────────────────────────────
+.mat-mdc-flat-button.mat-primary,
+.mat-mdc-raised-button.mat-primary,
+.mat-flat-button.mat-primary,
+.status-tab.active,
+.btn-gsc-primary {
+  background-color: #c2e7ff !important; // GSC Active/Primary Surface
+  color: var(--color-dark-blue) !important; // Dark Blue text on light blue
+  font-weight: 500 !important;
+  border-radius: var(--radius-pill) !important; // Rounded pill shape
+  box-shadow: none !important;
+  border: 1px solid rgba(0, 0, 0, 0.05) !important;
+
+  mat-icon {
+    color: var(--color-dark-blue) !important;
+  }
+}
+
+// Global page header adjustment to sit on white surface
+.page-header,
+.review-controls-surface,
+.link-health-controls-surface {
+  padding: 16px 24px 0 24px !important;
+  margin: -24px -32px 20px -32px !important; // Offset the main content padding (24 32)
+  border-bottom: 1px solid var(--color-border) !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+}
+
+.review-controls-surface,
+.link-health-controls-surface {
+  padding-bottom: 0 !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  
+  .page-header { 
+    margin: 0 !important; 
+    padding: 0 !important; 
+    border-bottom: none !important;
+    margin-bottom: 16px !important;
+  }
+  .status-tabs { margin-bottom: 0 !important; border-bottom: none !important; }
+  .filter-bar { padding: 12px 0 16px 0 !important; }
+}
+
+.link-health-controls-surface {
+  .summary-row {
+    margin-bottom: 24px !important;
+    max-width: 900px !important; // Fibonacci-like narrowness for focus
+    margin-left: 0 !important;
+    margin-right: auto !important;
+  }
+
+  .summary-card {
+    background-color: #ffffff !important;
+    border: 1px solid var(--color-border) !important;
+    border-top: 4px solid var(--color-border) !important;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
+    padding: 16px !important;
+    transition: transform 0.2s !important;
+
+    &:hover { transform: translateY(-2px); box-shadow: var(--shadow-md) !important; }
+
+    strong { color: var(--color-text-primary) !important; font-size: 28px !important; }
+    .summary-label { font-weight: 500 !important; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+
+    &.summary-open { border-top-color: #d93025 !important; } // GSC Red
+    &.summary-ignored { border-top-color: #f9ab00 !important; } // GSC Yellow/Amber
+    &.summary-fixed { border-top-color: #1e8e3e !important; } // GSC Green
+  }
+
+  .filter-bar { padding: 12px 0 16px 0 !important; margin-bottom: 0 !important; }
+}
+
+// Ensure the tab links also feel GSC-like
+.mat-mdc-tab-link {
+  font-weight: 500 !important;
+  color: var(--color-text-secondary) !important;
+  &.mat-mdc-tab-disabled {
+    opacity: 0.38;
+  }
+}
+
+// Empty State "Fibonacci" style centering
+.empty-state {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 400px !important; // Give it room to breathe
+  padding-top: 10vh !important; // Offset from top for "natural" balance
+  color: var(--color-text-secondary) !important;
+
+  mat-icon {
+    font-size: 72px !important;
+    width: 72px !important;
+    height: 72px !important;
+    margin-bottom: 24px !important;
+    opacity: 0.2 !important;
+  }
+
+  h3 {
+    font-size: 22px !important;
+    font-weight: 400 !important;
+    margin-bottom: 8px !important;
+  }
+
+  p {
+    font-size: 14px !important;
+    margin-bottom: 32px !important;
+    max-width: 400px !important;
+  }
+
+  // Centered primary action button
+  button {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding: 12px 24px !important;
+    height: auto !important;
+    line-height: normal !important;
+
+    mat-icon {
+      font-size: 20px !important;
+      width: 20px !important;
+      height: 20px !important;
+      margin: 0 8px 0 0 !important; // Space between icon and text
+      opacity: 1 !important;
+    }
+  }
+}
+
+// Toolbar background white
+mat-toolbar.app-toolbar,
+.app-toolbar {
+  background-color: #ffffff !important;
+  color: var(--color-text-primary) !important;
+  border-bottom: 1px solid var(--color-border) !important;
+  box-shadow: none !important;
+}
+
+// Make cards use the GSC white background and subtle border
+.mat-mdc-card {
+  background: var(--color-bg-white) !important;
+  border: 1px solid var(--color-border) !important;
+  box-shadow: none !important;
+  border-radius: 8px !important;
+  color: var(--color-text-primary) !important;
+  margin-bottom: 24px;
+}
+
+// Consistent chip colors matching GSC semantic colors
+.mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; color: var(--color-warning-dark) !important; }
+.mat-mdc-chip.status-approved { background: var(--color-success-light) !important; color: var(--color-success-deeper) !important; }
+.mat-mdc-chip.status-rejected { background: var(--color-error-50) !important; color: var(--color-error-dark) !important; }
 
 // ── Utility Classes ───────────────────────────────────────────────
 .text-primary   { color: var(--color-primary) !important; }

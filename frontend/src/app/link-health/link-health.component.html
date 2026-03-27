@@ -51,41 +51,43 @@
   </mat-card>
 }
 
-<div class="summary-row">
-  <div class="summary-card summary-open">
-    <span class="summary-label">Open</span>
-    <strong>{{ summary.open | number }}</strong>
+<div class="link-health-controls-surface">
+  <div class="summary-row">
+    <div class="summary-card summary-open">
+      <span class="summary-label">Open</span>
+      <strong>{{ summary.open | number }}</strong>
+    </div>
+    <div class="summary-card summary-ignored">
+      <span class="summary-label">Ignored</span>
+      <strong>{{ summary.ignored | number }}</strong>
+    </div>
+    <div class="summary-card summary-fixed">
+      <span class="summary-label">Fixed</span>
+      <strong>{{ summary.fixed | number }}</strong>
+    </div>
   </div>
-  <div class="summary-card summary-ignored">
-    <span class="summary-label">Ignored</span>
-    <strong>{{ summary.ignored | number }}</strong>
-  </div>
-  <div class="summary-card summary-fixed">
-    <span class="summary-label">Fixed</span>
-    <strong>{{ summary.fixed | number }}</strong>
-  </div>
-</div>
 
-<div class="filter-bar">
-  <mat-chip-listbox aria-label="Broken link status filter">
-    @for (status of statusOptions; track status.value) {
-      <mat-chip-option
-        [selected]="statusFilter === status.value"
-        (click)="setStatusFilter(status.value)"
-      >
-        {{ status.label }}
-      </mat-chip-option>
-    }
-  </mat-chip-listbox>
-
-  <mat-form-field appearance="outline" class="status-code-field">
-    <mat-label>HTTP status</mat-label>
-    <mat-select [(ngModel)]="httpStatusFilter" (ngModelChange)="onHttpStatusChange()">
-      @for (option of httpStatusOptions; track option.label) {
-        <mat-option [value]="option.value">{{ option.label }}</mat-option>
+  <div class="filter-bar">
+    <mat-chip-listbox aria-label="Broken link status filter">
+      @for (status of statusOptions; track status.value) {
+        <mat-chip-option
+          [selected]="statusFilter === status.value"
+          (click)="setStatusFilter(status.value)"
+        >
+          {{ status.label }}
+        </mat-chip-option>
       }
-    </mat-select>
-  </mat-form-field>
+    </mat-chip-listbox>
+
+    <mat-form-field appearance="outline" class="status-code-field">
+      <mat-label>HTTP status</mat-label>
+      <mat-select [(ngModel)]="httpStatusFilter" (ngModelChange)="onHttpStatusChange()">
+        @for (option of httpStatusOptions; track option.label) {
+          <mat-option [value]="option.value">{{ option.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
 </div>
 
 @if (loading) {

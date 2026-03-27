@@ -139,6 +139,8 @@ services:
       dockerfile: Dockerfile
     container_name: xf_linker_frontend
     restart: unless-stopped
+    environment:
+      - CHOKIDAR_USEPOLLING=1
     ports:
       - "4200:4200"
     volumes:

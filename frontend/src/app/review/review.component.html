@@ -1,70 +1,72 @@
-<div class="page-header">
-  <div class="header-left">
-    <h1 class="page-title">
-      <mat-icon>rate_review</mat-icon>
-      Review Suggestions
-    </h1>
-    @if (totalCount > 0) {
-      <span class="count-badge">{{ totalCount }}</span>
-    }
-  </div>
-  <button
-    mat-flat-button
-    color="primary"
-    [disabled]="startingPipeline"
-    (click)="runPipeline()"
-  >
-    @if (startingPipeline) {
-      <mat-spinner diameter="16"></mat-spinner>
-    } @else {
-      <mat-icon>play_arrow</mat-icon>
-    }
-    Run Pipeline
-  </button>
-</div>
-
-<!-- ── Status tabs ──────────────────────────────────────────────── -->
-<div class="status-tabs">
-  @for (tab of statusTabs; track tab.value) {
+<div class="review-controls-surface">
+  <div class="page-header">
+    <div class="header-left">
+      <h1 class="page-title">
+        <mat-icon>rate_review</mat-icon>
+        Review Suggestions
+      </h1>
+      @if (totalCount > 0) {
+        <span class="count-badge">{{ totalCount }}</span>
+      }
+    </div>
     <button
-      class="status-tab"
-      [class.active]="statusFilter === tab.value"
-      (click)="setStatus(tab.value)"
+      mat-flat-button
+      color="primary"
+      [disabled]="startingPipeline"
+      (click)="runPipeline()"
     >
-      {{ tab.label }}
+      @if (startingPipeline) {
+        <mat-spinner diameter="16"></mat-spinner>
+      } @else {
+        <mat-icon>play_arrow</mat-icon>
+      }
+      Run Pipeline
     </button>
-  }
-</div>
+  </div>
 
-<!-- ── Filter bar ───────────────────────────────────────────────── -->
-<div class="filter-bar">
-  <mat-form-field appearance="outline" class="search-field">
-    <mat-icon matPrefix>search</mat-icon>
-    <input
-      matInput
-      placeholder="Search destination, anchor, sentence…"
-      [(ngModel)]="searchQuery"
-      (keydown.enter)="onSearch()"
-    />
-    @if (searchQuery) {
-      <button matSuffix mat-icon-button (click)="clearSearch()">
-        <mat-icon>close</mat-icon>
+  <!-- ── Status tabs ──────────────────────────────────────────────── -->
+  <div class="status-tabs">
+    @for (tab of statusTabs; track tab.value) {
+      <button
+        class="status-tab"
+        [class.active]="statusFilter === tab.value"
+        (click)="setStatus(tab.value)"
+      >
+        {{ tab.label }}
       </button>
     }
-  </mat-form-field>
+  </div>
 
-  <mat-form-field appearance="outline" class="sort-field">
-    <mat-label>Sort by</mat-label>
-    <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
-      @for (opt of sortOptions; track opt.value) {
-        <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+  <!-- ── Filter bar ───────────────────────────────────────────────── -->
+  <div class="filter-bar">
+    <mat-form-field appearance="outline" class="search-field">
+      <mat-icon matPrefix>search</mat-icon>
+      <input
+        matInput
+        placeholder="Search..."
+        [(ngModel)]="searchQuery"
+        (keydown.enter)="onSearch()"
+      />
+      @if (searchQuery) {
+        <button matSuffix mat-icon-button (click)="clearSearch()">
+          <mat-icon>close</mat-icon>
+        </button>
       }
-    </mat-select>
-  </mat-form-field>
+    </mat-form-field>
 
-  <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
-    Same silo only
-  </mat-checkbox>
+    <mat-form-field appearance="outline" class="sort-field">
+      <mat-label>Sort by</mat-label>
+      <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
+        @for (opt of sortOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
+      Same silo only
+    </mat-checkbox>
+  </div>
 </div>
 
 <!-- ── Batch toolbar (visible when items selected) ─────────────── -->
