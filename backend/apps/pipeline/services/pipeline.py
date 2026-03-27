@@ -15,6 +15,11 @@ V2 changes from V1:
 from __future__ import annotations
 
 import gc
+import logging
+from collections import defaultdict
+from dataclasses import dataclass
+from typing import Any, Callable
+
 import numpy as np
 import pyarrow as pa
 import pyroaring as pr

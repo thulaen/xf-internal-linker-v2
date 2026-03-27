@@ -1,10 +1,15 @@
 import math
+from dataclasses import replace
 from datetime import timedelta
 
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.pipeline.services.click_distance import (
+    ClickDistanceService,
+    ClickDistanceSettings,
+)
 from apps.core.models import AppSetting
 from apps.graph.models import ExistingLink
 from apps.pipeline.services.field_aware_relevance import (
@@ -1752,3 +1757,135 @@ class WeightedAuthorityGraphTests(TestCase):
         self.assertTrue(used_fallback)
         self.assertAlmostEqual(probabilities[0], 0.5, places=6)
         self.assertAlmostEqual(probabilities[1], 0.5, places=6)
+
+
+class ClickDistanceServiceTests(TestCase):
+    def test_url_depth_calculation(self):
+        service = ClickDistanceService()
+        self.assertEqual(service.calculate_url_depth("https://example.com/"), 0)
+        self.assertEqual(service.calculate_url_depth("https://example.com/item/"), 1)
+        self.assertEqual(service.calculate_url_depth("https://example.com/path/to/item"), 3)
+        self.assertEqual(service.calculate_url_depth(""), 0)
+
+    def test_scope_depth_map_building(self):
+        root = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Root")
+        child = ScopeItem.objects.create(scope_id=2, scope_type="node", title="Child", parent=root)
+        grandchild = ScopeItem.objects.create(scope_id=3, scope_type="node", title="Grandchild", parent=child)
+        standalone = ScopeItem.objects.create(scope_id=4, scope_type="node", title="Standalone")
+
+        service = ClickDistanceService()
+        depth_map = service.build_scope_depth_map()
+
+        self.assertEqual(depth_map[root.id], 0)
+        self.assertEqual(depth_map[child.id], 1)
+        self.assertEqual(depth_map[grandchild.id], 2)
+        self.assertEqual(depth_map[standalone.id], 0)
+
+    def test_score_calculation_logic(self):
+        # Default settings: k_cd=4.0, b_cd=0.75, b_ud=0.25
+        settings = ClickDistanceSettings(ranking_weight=0.1, k_cd=4.0, b_cd=0.75, b_ud=0.25)
+        service = ClickDistanceService(settings=settings)
+
+        # root: depth 0, url 0 -> blended 0.75 / 1.0 = 0.75
+        # score = 4 / (4 + 0.75) = 0.842
+        score, state, diags = service.calculate_score(scope_depth=0, url_depth=0)
+        self.assertEqual(state, "computed")
+        self.assertAlmostEqual(score, 0.842105, places=6)
+
+        # deep: depth 4, url 4 -> blended (0.75*5 + 0.25*4) = 4.75
+        # score = 4 / (4 + 4.75) = 0.45714...
+        score2, _, _ = service.calculate_score(scope_depth=4, url_depth=4)
+        self.assertLess(score2, score)
+        self.assertAlmostEqual(score2, 0.457143, places=6)
+
+    def test_recalculate_all_updates_content_items(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        ContentItem.objects.create(content_id=1, content_type="thread", title="P1", scope=scope, url="https://x.com/1")
+        ContentItem.objects.create(content_id=2, content_type="thread", title="P2", scope=scope, url="https://x.com/a/b")
+
+        service = ClickDistanceService()
+        service.recalculate_all()
+
+        p1 = ContentItem.objects.get(content_id=1)
+        p2 = ContentItem.objects.get(content_id=2)
+        self.assertGreater(p1.click_distance_score, 0.5)
+        self.assertGreater(p1.click_distance_score, p2.click_distance_score)
+
+
+class ClickDistanceRankerIntegrationTests(TestCase):
+    def setUp(self):
+        self.destination = _content_record(content_id=10, silo_group_id=None)
+        # destination has click_distance_score (the field on ContentItem)
+        # In ranker, it's passed via ContentRecord
+        self.host = _content_record(content_id=20, silo_group_id=None)
+        self.records = {self.destination.key: self.destination, self.host.key: self.host}
+        self.weights = {"w_semantic": 0.5, "w_keyword": 0.5, "w_node": 0, "w_quality": 0}
+        self.bounds = (0.1, 2.0)
+
+    def test_click_distance_weight_zero_has_no_effect(self):
+        dest_neutral = _content_record(content_id=10, silo_group_id=None)
+        # click_distance_score defaults to 0.0 in _content_record but 0.5 means neutral in ranker
+        
+        matches = [SentenceSemanticMatch(20, "thread", 20, 0.8)]
+        sentence_records = {20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())}
+
+        baseline = score_destination_matches(
+            dest_neutral,
+            matches,
+            content_records=self.records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            click_distance_ranking_weight=0.0,
+        )[0]
+        
+        enabled = score_destination_matches(
+            dest_neutral,
+            matches,
+            content_records=self.records,
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            click_distance_ranking_weight=0.2,
+        )[0]
+
+        self.assertAlmostEqual(baseline.score_final, enabled.score_final, places=6)
+
+    def test_click_distance_score_boosts_final_score(self):
+        # Use dataclasses.replace instead of __dict__ for slotted dataclasses
+        dest_shallow = replace(self.destination, click_distance_score=0.9)
+        dest_deep = replace(self.destination, click_distance_score=0.3)
+        
+        matches = [SentenceSemanticMatch(20, "thread", 20, 0.8)]
+        sentence_records = {20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())}
+        
+        shallow_result = score_destination_matches(
+            dest_shallow,
+            matches,
+            content_records={dest_shallow.key: dest_shallow, self.host.key: self.host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            click_distance_ranking_weight=0.2,
+        )[0]
+        
+        deep_result = score_destination_matches(
+            dest_deep,
+            matches,
+            content_records={dest_deep.key: dest_deep, self.host.key: self.host},
+            sentence_records=sentence_records,
+            existing_links=set(),
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            click_distance_ranking_weight=0.2,
+        )[0]
+
+        # score factor = 2 * (score - 0.5)
+        # shallow: 2 * (0.9 - 0.5) = 0.8 bonus
+        # deep: 2 * (0.3 - 0.5) = -0.4 penalty
+        self.assertGreater(shallow_result.score_final, deep_result.score_final)
+        self.assertAlmostEqual(shallow_result.score_click_distance, 0.9)
+        self.assertAlmostEqual(deep_result.score_click_distance, 0.3)

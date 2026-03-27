@@ -44,9 +44,9 @@ Execution order and FR IDs are decoupled.
 
 ## Current Phase
 
-- Active target for the next session: Phase 15
-- FR cross-reference: `FR-012 - Click-Distance Structural Prior`
-- Status: Phase 14 / FR-011 is complete. Neutral Analytics Groundwork (Storage + Ranking Hook) is also complete. FR-012 through FR-015 are queued.
+- Active target for the next session: Phase 16
+- FR cross-reference: `FR-013 - Feedback-Driven Explore/Exploit Reranking`
+- Status: Phase 15 / FR-012 is complete. FR-013 through FR-015 are queued.
 
 - Session target: Separate R Analytics Service Scaffold + Tests
 - What changed:
@@ -143,6 +143,7 @@ Phase 12 shipped:
 - Phase 11 / `FR-008`: separate phrase relevance scoring, bounded phrase matching, anchor expansion, settings, diagnostics, and review exposure implemented from `docs/specs/fr008-phrase-based-matching-anchor-expansion.md`
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
+- Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, diagnostics, review exposure, and recalculation task implemented from `docs/specs/fr012-click-distance-structural-prior.md`
 - **Neutral Analytics Groundwork**: Created interim R analytics service scaffold and dashboard to support future `FR-018` auto-tuning.
 - **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
 
@@ -167,7 +168,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 12 | FR-009 | Complete | Learned Anchor Vocabulary & Corroboration |
 | 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
 | 14 | FR-011 | Complete | Field-aware relevance shipped with separate backend scoring, settings/snapshot wiring, migration, review/admin exposure, and targeted verification |
-| 15 | FR-012 | Queued | Click-Distance Structural Prior |
+| 15 | FR-012 | Complete | Click-Distance Structural Prior shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and unit verification |
 | 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Queued | Final Slate Diversity Reranking |
@@ -179,10 +180,10 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 ## What Is Next
 
-- Next exact target: Phase 15 / `FR-012 - Click-Distance Structural Prior`
-- Phase 14 reference: `FR-011` shipped as a separate field-aware relevance layer and must stay separate from FR-012, FR-013, FR-014, and FR-015
-- Current continuity state: FR-012 has a committed spec at `docs/specs/fr012-click-distance-structural-prior.md`, but FR-012 implementation is still absent in code on this branch
-- Next session type: implement FR-012 against the existing spec after a fresh repo sanity check
+- Next exact target: Phase 16 / `FR-013 - Feedback-Driven Explore/Exploit Reranking`
+- Phase 15 reference: `FR-012` shipped as a separate structural prior layer and stays separate from FR-011, FR-013, FR-014, and FR-015
+- Current continuity state: FR-012 is complete and verified against its spec.
+- Next session type: implement FR-013 against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 

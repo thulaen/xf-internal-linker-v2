@@ -171,18 +171,21 @@ Important:
 
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
-## PENDING
-
 ### FR-012 - Click-Distance Structural Prior
 **Requested:** 2026-03-24
-**Target phase:** Phase 15
-**Priority:** Medium
-**Patent inspiration:** `US8082246B2`
+**Completed:** 2026-03-27
 
 - Add a soft structural prior based on click distance / shortest-path depth.
 - Store it separately from authority and expose diagnostics.
+- Shipped separate Click-Distance service, recalculation task, and suggestion-level scoring.
+
+
+<br>
 
 ---
+
+## PENDING
+
 
 ### FR-013 - Feedback-Driven Explore/Exploit Reranking
 **Requested:** 2026-03-24
@@ -637,4 +640,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-26 (Neutral Analytics Groundwork: Phase 14.5 / Storage + Ranking Hook complete. R Analytics Service Scaffold: Phase 14.6 complete. Active target Phase 15 / FR-012.)*
+*Last updated: 2026-03-27 (Phase 15 / FR-012 is complete. Next target: Phase 16 / FR-013.)*
