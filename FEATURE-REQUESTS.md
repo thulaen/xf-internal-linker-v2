@@ -547,6 +547,7 @@ Important:
 **Requested:** 2026-03-25
 **Target phase:** Phase 23
 **Priority:** High
+**Status:** **Postponed / Resource-Contingent** (Requires more than 16GB RAM for heavy local models like Ollama/vLLM)
 
 ### What's wanted
 - Make model switching easy and safe as the machine gets stronger over time.

@@ -173,7 +173,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
-| 23 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry |
+| 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
 ## What Is Next
 
@@ -252,6 +252,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |
 | WordPress base URL + optional username/app password | live WordPress sync; private content requires Application Password auth | UI/API shipped; operator must supply real values in env/settings |
 | Local runtimes | build/test execution | Direct installed Python 3.12.10 and direct Node paths work for verification; the usual `py`/`python` launcher aliases and `.venv` launcher still need cleanup if a future session wants the shorter commands |
+| **Storage & RAM** | Performance guardrails | **Postponed Ollama/vLLM** (FR-020) due to 16GB RAM / 40GB Disk constraints. Current stack (Nomic embed-text-v1.5) is safe for 74k items (~2-3GB storage). |
 
 ## Non-Negotiable Guardrails
 
