@@ -2,7 +2,7 @@
 Content models — XenForo threads, resources, posts, and sentences.
 
 ContentItem is the core entity: anything that can be a link destination or host.
-pgvector VectorField stores 768-dimension embeddings for semantic similarity search.
+pgvector VectorField stores 1024-dimension embeddings for semantic similarity search.
 """
 
 from django.db import models
@@ -124,8 +124,8 @@ class ContentItem(TimestampedModel):
     Each ContentItem can be both a DESTINATION (the page being linked to)
     and a HOST (the page that will contain a new link in one of its sentences).
 
-    The embedding column stores a 768-dimension vector from the
-    nomic-ai/nomic-embed-text-v1.5 model, used for cosine similarity search via pgvector.
+    The embedding column stores a 1024-dimension vector from the
+    BAAI/bge-m3 model, used for cosine similarity search via pgvector.
     """
 
     CONTENT_TYPE_CHOICES = [
@@ -204,12 +204,12 @@ class ContentItem(TimestampedModel):
         help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
     )
 
-    # pgvector embedding (768 dims = nomic-ai/nomic-embed-text-v1.5)
+    # pgvector embedding (1024 dims = BAAI/bge-m3)
     embedding = VectorField(
-        dimensions=768,
+        dimensions=1024,
         null=True,
         blank=True,
-        help_text="768-dimension sentence embedding for semantic similarity search via pgvector.",
+        help_text="1024-dimension sentence embedding for semantic similarity search via pgvector.",
     )
 
     # Engagement metrics (mirrored from XenForo)
@@ -301,7 +301,7 @@ class Post(TimestampedModel):
     )
     word_count = models.IntegerField(
         default=0,
-        help_text="Word count of clean_text. Pipeline scans first 600 words only.",
+        help_text="Word count of clean_text. Pipeline scans first HOST_SCAN_WORD_LIMIT words only.",
     )
     xf_post_id = models.IntegerField(
         null=True,
@@ -332,8 +332,8 @@ class Sentence(models.Model):
     A single sentence extracted from a Post's clean_text via spaCy.
 
     Each sentence can be a candidate HOST for a link insertion.
-    The pipeline scans only sentences within the first 600 words (word_position <= 600).
-    The embedding column stores a 768-dimension vector for per-sentence similarity.
+    The pipeline scans only sentences within the HOST_SCAN_WORD_LIMIT.
+    The embedding column stores a 1024-dimension vector for per-sentence similarity.
     """
 
     content_item = models.ForeignKey(
@@ -366,15 +366,15 @@ class Sentence(models.Model):
     word_position = models.IntegerField(
         default=0,
         help_text="Word offset of the sentence start in the post. "
-                  "Sentences with word_position > 600 are excluded from host scanning.",
+                  "Sentences with word_position > HOST_SCAN_WORD_LIMIT are excluded from host scanning.",
     )
 
-    # pgvector per-sentence embedding (768 dims = nomic-ai/nomic-embed-text-v1.5)
+    # pgvector per-sentence embedding (1024 dims = BAAI/bge-m3)
     embedding = VectorField(
-        dimensions=768,
+        dimensions=1024,
         null=True,
         blank=True,
-        help_text="768-dimension sentence embedding. Used in stage-2 similarity ranking.",
+        help_text="1024-dimension sentence embedding. Used in stage-2 similarity ranking.",
     )
 
     class Meta:

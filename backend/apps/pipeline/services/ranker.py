@@ -11,6 +11,12 @@ from dataclasses import dataclass
 import heapq
 import math
 from typing import Mapping, TypeAlias
+ 
+try:
+    from extensions import scoring
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
 
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
@@ -384,20 +390,45 @@ def score_destination_matches(
         score_rare_term = rare_term_match.rare_term_component
         score_field_aware = field_aware_match.field_aware_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
-        score_final = (
-            float(weights.get("w_semantic", 0.0)) * match.score_semantic
-            + float(weights.get("w_keyword", 0.0)) * score_keyword
-            + float(weights.get("w_node", 0.0)) * score_node
-            + float(weights.get("w_quality", 0.0)) * score_quality
-            + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
-            + float(link_freshness_ranking_weight) * score_link_freshness
-            + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
-            + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
-            + float(rare_term_settings.ranking_weight) * score_rare_term
-            + float(field_aware_settings.ranking_weight) * score_field_aware
-            + float(ga4_gsc_ranking_weight) * score_ga4_gsc
-            + score_silo
-        )
+        if HAS_CPP_EXT:
+            c = scoring.Candidate(
+                match.score_semantic,
+                score_keyword,
+                score_node,
+                score_quality,
+                score_march_2026_pagerank_component,
+                score_link_freshness,
+                ga4_gsc_ranking_weight * score_ga4_gsc # This is a bit awkward with individual weights
+            )
+            # The parallel scoring is better suited for larger batches, but we integrate it here as requested.
+            score_final = scoring.calculate_composite_scores(
+                [c],
+                float(weights.get("w_semantic", 0.0)),
+                float(weights.get("w_keyword", 0.0)),
+                float(weights.get("w_node", 0.0)),
+                float(weights.get("w_quality", 0.0)),
+                float(weighted_authority_ranking_weight),
+                float(link_freshness_ranking_weight),
+                1.0 # weight for GA4 is already multiplied
+            )[0] + score_silo + (float(phrase_matching_settings.ranking_weight) * score_phrase_relevance) + \
+                 (float(learned_anchor_settings.ranking_weight) * score_learned_anchor) + \
+                 (float(rare_term_settings.ranking_weight) * score_rare_term) + \
+                 (float(field_aware_settings.ranking_weight) * score_field_aware)
+        else:
+            score_final = (
+                float(weights.get("w_semantic", 0.0)) * match.score_semantic
+                + float(weights.get("w_keyword", 0.0)) * score_keyword
+                + float(weights.get("w_node", 0.0)) * score_node
+                + float(weights.get("w_quality", 0.0)) * score_quality
+                + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
+                + float(link_freshness_ranking_weight) * score_link_freshness
+                + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
+                + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
+                + float(rare_term_settings.ranking_weight) * score_rare_term
+                + float(field_aware_settings.ranking_weight) * score_field_aware
+                + float(ga4_gsc_ranking_weight) * score_ga4_gsc
+                + score_silo
+            )
 
         ranked.append(
             ScoredCandidate(

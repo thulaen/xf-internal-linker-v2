@@ -15,12 +15,15 @@ V2 changes from V1:
 from __future__ import annotations
 
 import gc
-import logging
-from collections import defaultdict
-from dataclasses import dataclass
-from typing import Any, Callable
-
 import numpy as np
+import pyarrow as pa
+import pyroaring as pr
+ 
+try:
+    from extensions import inv_index, strpool
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
 
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
@@ -490,34 +493,58 @@ def _load_content_records(
 
 def _load_sentence_records(
     content_keys: set[ContentKey],
-) -> tuple[dict[int, SentenceRecord], dict[ContentKey, list[int]]]:
-    """Load sentence records for the given content keys."""
+) -> tuple[dict[int, SentenceRecord], dict[ContentKey, pr.BitMap]]:
+    """Load sentence records for the given content keys using PyArrow for speed."""
     from apps.content.models import Sentence
+    from django.db import connection
 
-    content_pks = {pk for pk, _ in content_keys}
-    qs = Sentence.objects.filter(
-        content_item__pk__in=content_pks,
-        content_item__is_deleted=False,
-        word_position__lte=600,
-    ).values("pk", "content_item__pk", "content_item__content_type", "text", "char_count")
+    content_pks = [pk for pk, _ in content_keys]
+    
+    # Use raw SQL + fetchall for maximum speed, then wrap in Arrow
+    query = """
+        SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count
+        FROM content_sentence s
+        JOIN content_contentitem ci ON s.content_item_id = ci.id
+        WHERE s.content_item_id = ANY(%s)
+          AND ci.is_deleted = FALSE
+          AND s.word_position <= %s
+    """
+    
+    with connection.cursor() as cursor:
+        cursor.execute(query, [content_pks, settings.HOST_SCAN_WORD_LIMIT])
+        rows = cursor.fetchall()
+
+    if not rows:
+        return {}, {}
+
+    # Convert to Arrow Table for metadata handling
+    names = ["id", "content_id", "content_type", "text", "char_count"]
+    table = pa.Table.from_batches([pa.RecordBatch.from_arrays(
+        [pa.array([r[i] for r in rows]) for i in range(len(names))],
+        names=names
+    )])
 
     sentence_records: dict[int, SentenceRecord] = {}
-    content_to_sentence_ids: dict[ContentKey, list[int]] = defaultdict(list)
+    content_to_sentence_ids: dict[ContentKey, pr.BitMap] = defaultdict(pr.BitMap)
 
-    for row in qs:
-        sid = row["pk"]
-        ckey: ContentKey = (row["content_item__pk"], row["content_item__content_type"])
-        text = row["text"] or ""
+    for i in range(table.num_rows):
+        sid = table["id"][i].as_py()
+        cid = table["content_id"][i].as_py()
+        ctype = table["content_type"][i].as_py()
+        text = table["text"][i].as_py() or ""
+        char_count = table["char_count"][i].as_py() or len(text)
+        
+        ckey: ContentKey = (cid, ctype)
         record = SentenceRecord(
             sentence_id=sid,
-            content_id=ckey[0],
-            content_type=ckey[1],
+            content_id=cid,
+            content_type=ctype,
             text=text,
-            char_count=row["char_count"] or len(text),
+            char_count=char_count,
             tokens=tokenize_text(text),
         )
         sentence_records[sid] = record
-        content_to_sentence_ids[ckey].append(sid)
+        content_to_sentence_ids[ckey].add(sid)
 
     return sentence_records, dict(content_to_sentence_ids)
 
@@ -618,33 +645,29 @@ def _load_destination_embeddings(
 def _load_sentence_embeddings(
     content_keys: set[ContentKey],
 ) -> tuple[list[int], np.ndarray]:
-    """Load sentence embeddings from pgvector for the given content keys."""
+    """Load sentence embeddings from pgvector using PyArrow for speed."""
     from apps.content.models import Sentence
+    from django.db import connection
 
-    content_pks = {pk for pk, _ in content_keys}
-    qs = (
-        Sentence.objects
-        .filter(
-            content_item__pk__in=content_pks,
-            content_item__is_deleted=False,
-            word_position__lte=600,
-            embedding__isnull=False,
-        )
-        .order_by("pk")
-        .values_list("pk", "embedding")
-    )
+    content_pks = [pk for pk, _ in content_keys]
+    query = """
+        SELECT id, embedding
+        FROM content_sentence
+        WHERE content_item_id = ANY(%s)
+          AND word_position <= %s
+          AND embedding IS NOT NULL
+        ORDER BY id
+    """
+    with connection.cursor() as cursor:
+        cursor.execute(query, [content_pks, settings.HOST_SCAN_WORD_LIMIT])
+        rows = cursor.fetchall()
 
-    ids: list[int] = []
-    vectors: list[list[float]] = []
-    for sid, emb in qs:
-        if emb is not None:
-            ids.append(sid)
-            vectors.append(emb)
-
-    if not vectors:
+    if not rows:
         return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
 
-    return ids, np.array(vectors, dtype=np.float32)
+    ids = [r[0] for r in rows]
+    vectors = np.array([r[1] for r in rows], dtype=np.float32)
+    return ids, vectors
 
 
 # ---------------------------------------------------------------------------
@@ -908,4 +931,4 @@ def _destination_text(title: str, distilled_text: str) -> str:
 try:
     from .embeddings import EMBEDDING_DIM
 except ImportError:
-    EMBEDDING_DIM = 768
+    EMBEDDING_DIM = 1024

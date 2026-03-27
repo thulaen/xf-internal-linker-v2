@@ -17,6 +17,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libssl-dev \
     git \
     curl \
+    libtbb-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -31,6 +32,9 @@ RUN python -m spacy download en_core_web_sm
 
 # Copy application code
 COPY . .
+ 
+# Build C++ extensions
+RUN cd extensions && python setup.py build_ext --inplace
 
 # Create non-root user for security
 RUN addgroup --system django && adduser --system --ingroup django django

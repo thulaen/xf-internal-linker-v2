@@ -51,3 +51,8 @@ paramiko==3.5.0                      # SSH sync
 django-redis==5.4.0                  # Django cache backend for Redis
 whitenoise==6.8.2                    # Static file serving in production
 requests==2.32.3                     # HTTP client (XenForo/WP API calls)
+ 
+# ── Performance Layer ─────────────────────────────────────────────
+pyarrow==17.0.0
+pyroaring==0.4.9
+pybind11==2.13.6

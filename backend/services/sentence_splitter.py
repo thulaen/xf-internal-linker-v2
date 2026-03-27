@@ -2,7 +2,7 @@
 Sentence splitter service — spaCy-based sentence segmentation.
 
 Splits host thread content into sentences for per-sentence embedding.
-Only processes the FIRST 600 WORDS (non-negotiable product rule).
+Only processes the FIRST words up to settings.HOST_SCAN_WORD_LIMIT (non-negotiable product rule).
 
 Migrated from V1 with minimal changes in Phase 2.
 V1 source: ../xf-internal-linker/services/sentence_splitter.py
@@ -19,13 +19,13 @@ from django.conf import settings
 
 def split_sentences(text: str) -> list[str]:
     """
-    Split text into sentences using spaCy, truncating at 600 words.
+    Split text into sentences using spaCy, truncating at settings.HOST_SCAN_WORD_LIMIT words.
 
     Args:
         text: Clean text content (BBCode/HTML already stripped).
 
     Returns:
-        List of sentence strings from the first 600 words only.
+        List of sentence strings from the first settings.HOST_SCAN_WORD_LIMIT words only.
 
     Raises:
         NotImplementedError: Until Phase 2 migration is complete.
@@ -39,12 +39,12 @@ def truncate_to_word_limit(text: str, limit: int | None = None) -> str:
 
     Args:
         text: Input text.
-        limit: Word count limit. Defaults to settings.HOST_SCAN_WORD_LIMIT (600).
+        limit: Word count limit. Defaults to settings.HOST_SCAN_WORD_LIMIT.
 
     Returns:
         Truncated text string.
     """
-    word_limit = limit or getattr(settings, "HOST_SCAN_WORD_LIMIT", 600)
+    word_limit = limit or getattr(settings, "HOST_SCAN_WORD_LIMIT", 1200)
     words = text.split()
     if len(words) <= word_limit:
         return text

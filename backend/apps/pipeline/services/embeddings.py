@@ -19,11 +19,18 @@ from datetime import datetime, timezone
 from typing import Any
 
 import numpy as np
+from django.conf import settings
+ 
+try:
+    from extensions import l2norm
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_MODEL_NAME = "nomic-ai/nomic-embed-text-v1.5"
-EMBEDDING_DIM = 768
+DEFAULT_MODEL_NAME = "BAAI/bge-m3"
+EMBEDDING_DIM = 1024
 
 _model_cache: dict[str, Any] = {}
 
@@ -94,9 +101,16 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
     """Row-wise L2 normalization. Zero-row arrays pass through unchanged."""
     if arr.shape[0] == 0:
         return arr
-    norms = np.linalg.norm(arr, axis=1, keepdims=True)
-    norms = np.maximum(norms, 1e-12)
-    return (arr / norms).astype(np.float32)
+ 
+    if HAS_CPP_EXT:
+        # In-place C++ normalization (fast)
+        l2norm.normalize_l2_batch(arr)
+        return arr.astype(np.float32)
+    else:
+        # Numpy fallback
+        norms = np.linalg.norm(arr, axis=1, keepdims=True)
+        norms = np.maximum(norms, 1e-12)
+        return (arr / norms).astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -150,7 +164,7 @@ def generate_content_item_embeddings(
     if not texts:
         return {"embedded": 0, "skipped": len(items)}
 
-    texts = ["search_document: " + t for t in texts]
+    texts = [t for t in texts]
 
     logger.info("Embedding %d content items...", len(texts))
     start = time.monotonic()
@@ -179,8 +193,8 @@ def generate_sentence_embeddings(
 ) -> dict[str, int]:
     """Generate and store embeddings for Sentence.embedding (host sentence embeddings).
 
-    Only sentences within the first 600 words of their host post are embedded,
-    matching the ML guardrail (only scan first 600 words for link insertion).
+    Only sentences within the HOST_SCAN_WORD_LIMIT window are embedded,
+    matching the ML guardrail.
 
     Args:
         content_item_ids: Limit to sentences belonging to these ContentItem PKs.
@@ -201,8 +215,8 @@ def generate_sentence_embeddings(
     if content_item_ids is not None:
         qs = qs.filter(content_item__pk__in=content_item_ids)
 
-    # Only embed sentences within the first 600-word window
-    qs = qs.filter(word_position__lte=600).values_list("pk", "text")
+    # Only embed sentences within the HOST_SCAN_WORD_LIMIT window
+    qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list("pk", "text")
 
     sentences = list(qs)
     if not sentences:
@@ -218,7 +232,7 @@ def generate_sentence_embeddings(
     if not texts:
         return {"embedded": 0, "skipped": len(sentences)}
 
-    texts = ["search_document: " + t for t in texts]
+    texts = list(texts)
 
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()

@@ -51,6 +51,13 @@ services:
     container_name: xf_linker_backend
     restart: unless-stopped
     env_file: .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
     volumes:
@@ -79,6 +86,13 @@ services:
     container_name: xf_linker_celery_worker
     restart: unless-stopped
     env_file: .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
     volumes:
