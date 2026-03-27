@@ -25,8 +25,8 @@ h2[mat-dialog-title] {
 .detail-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 16px 0 12px;
+  gap: 8px; // Fibonacci-like
+  padding: 21px 0 13px; // Fibonacci values
   flex-wrap: wrap;
 }
 
@@ -73,7 +73,7 @@ h2[mat-dialog-title] {
 // ── Sections ─────────────────────────────────────────────────────
 
 .section {
-  padding: 14px 0 6px;
+  padding: 21px 0 8px; // Fibonacci values
 }
 
 .section-title {
@@ -122,7 +122,7 @@ h2[mat-dialog-title] {
 
 .host-sentence {
   margin: 0;
-  padding: 12px 16px;
+  padding: 13px 21px; // Fibonacci values
   background: var(--color-bg-faint);
   border-left: 3px solid var(--color-primary);
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0;

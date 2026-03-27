@@ -47,8 +47,8 @@
 
 .status-tabs {
   display: flex;
-  gap: 4px;
-  margin-bottom: 24px; // Increased margin
+  gap: 8px;
+  margin-bottom: 34px; // Fibonacci
   padding-bottom: 0;
 }
 
@@ -78,8 +78,8 @@
 
 .filter-bar {
   display: flex;
-  gap: 12px;
-  margin-bottom: 12px;
+  gap: 21px; // Fibonacci
+  margin-bottom: 34px; // Fibonacci
   flex-wrap: wrap;
 }
 

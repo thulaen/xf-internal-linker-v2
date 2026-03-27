@@ -59,8 +59,8 @@
 .summary-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 21px; // Fibonacci
+  margin-bottom: 34px; // Fibonacci
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -73,7 +73,7 @@
   gap: 6px;
   padding: 16px 18px;
   border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
+  border: none !important; // Removed border
   background: var(--color-surface);
 
   strong {
@@ -107,9 +107,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: 21px; // Fibonacci
   flex-wrap: wrap;
-  margin-bottom: 20px;
+  margin-bottom: 34px; // Fibonacci
 }
 
 .status-code-field {
@@ -129,7 +129,7 @@
   gap: 12px;
   text-align: center;
   padding: 56px 24px;
-  border: 1px dashed var(--color-border);
+  border: none !important; // Removed dashed border
   border-radius: var(--radius-lg);
   background: var(--color-surface);
 

@@ -96,3 +96,6 @@ secrets/
 # Angular build cache
 frontend/.angular/
 frontend/out-tsc/
+
+# Backend static files (build artifacts)
+backend/static/

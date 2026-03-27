@@ -9,8 +9,8 @@
   align-items: center;
   justify-content: space-between;
   flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 13px; // Fibonacci
+  margin-bottom: 34px; // Fibonacci
 
   .header-actions {
     display: flex;
@@ -36,8 +36,8 @@
 .stat-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 20px;
+  gap: 21px; // Fibonacci
+  margin-bottom: 34px; // Fibonacci
 
   @media (max-width: 1100px) { grid-template-columns: repeat(2, 1fr); }
   @media (max-width: 600px)  { grid-template-columns: 1fr; }
@@ -46,7 +46,7 @@
 .stat-card {
   &.stat-card-warning {
     cursor: pointer;
-    border: 1px solid var(--color-warning);
+    border: none !important; // Removed border
 
     &:hover {
       border-color: var(--color-warning-dark);
@@ -56,8 +56,8 @@
   mat-card-content {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 20px !important;
+    gap: 21px; // Fibonacci
+    padding: 21px !important; // Fibonacci
   }
 }
 
@@ -103,14 +103,14 @@
 .sync-banner {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px; // Fibonacci-like
   background: var(--color-blue-50);
-  border: 1px solid var(--color-blue-100);
+  border: none !important; // Removed border
   border-radius: var(--radius-md);
-  padding: 10px 16px;
+  padding: 13px 21px; // Fibonacci
   font-size: 13px;
   color: var(--color-text-dark-2);
-  margin-bottom: 20px;
+  margin-bottom: 34px; // Fibonacci
 
   mat-icon {
     color: var(--color-primary);
@@ -131,7 +131,7 @@
 // ── Pipeline runs table ───────────────────────────────────────────
 
 .runs-card, .imports-card {
-  margin-bottom: 20px;
+  margin-bottom: 34px; // Fibonacci
 
   [mat-card-avatar] {
     color: var(--color-primary);

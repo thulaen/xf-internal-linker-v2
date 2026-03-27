@@ -33,7 +33,7 @@ DEFAULT_APPEARANCE = {
     "headerBg": "#ffffff",
     "siteName": "XF Internal Linker",
     "showScrollToTop": True,
-    "footerText": "XF Internal Linker",
+    "footerText": "XF Internal Linker V2",
     "showFooter": True,
     "footerBg": "#fafafa",
     "logoUrl": "",

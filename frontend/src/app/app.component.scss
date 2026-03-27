@@ -7,7 +7,7 @@
 }
 
 .app-sidenav {
-  width: var(--sidenav-width, 256px) !important;
+  width: 233px !important; // Fibonacci number
   background-color: var(--color-bg-alt-1) !important; // GSC Sidebar Background (#f0f4f9)
   border-right: none !important;
   transition: width 0.2s ease;
@@ -212,9 +212,7 @@
 .page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px 32px;
-  max-width: 1440px; // Increased from 1280px for "fairly wide" look
-  margin: 0 auto;
+  padding: 34px 55px; // Fibonacci values
   width: 100%;
   background: transparent;
 }
