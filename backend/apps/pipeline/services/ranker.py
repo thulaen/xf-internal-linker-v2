@@ -61,6 +61,7 @@ class ContentRecord:
     primary_post_char_count: int
     tokens: frozenset[str]
     content_value_score: float = 0.0
+    click_distance_score: float = 0.5
     scope_title: str = ""
     parent_scope_title: str = ""
     grandparent_scope_title: str = ""
@@ -119,6 +120,7 @@ class ScoredCandidate:
     score_rare_term_propagation: float
     score_field_aware_relevance: float
     score_ga4_gsc: float
+    score_click_distance: float
     score_final: float
     anchor_phrase: str
     anchor_start: int | None
@@ -128,6 +130,7 @@ class ScoredCandidate:
     learned_anchor_diagnostics: dict[str, object]
     rare_term_diagnostics: dict[str, object]
     field_aware_diagnostics: dict[str, object]
+    click_distance_diagnostics: dict[str, object]
 
     @property
     def destination_key(self) -> ContentKey:
@@ -282,6 +285,7 @@ def score_destination_matches(
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
     ga4_gsc_ranking_weight: float = 0.0,
+    click_distance_ranking_weight: float = 0.0,
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
     rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
@@ -389,6 +393,8 @@ def score_destination_matches(
         score_learned_anchor = learned_anchor_match.learned_anchor_component
         score_rare_term = rare_term_match.rare_term_component
         score_field_aware = field_aware_match.field_aware_component
+        score_click_distance = destination.click_distance_score
+        score_click_distance_component = 2 * (score_click_distance - 0.5)
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         if HAS_CPP_EXT:
             c = scoring.Candidate(
@@ -427,6 +433,7 @@ def score_destination_matches(
                 + float(rare_term_settings.ranking_weight) * score_rare_term
                 + float(field_aware_settings.ranking_weight) * score_field_aware
                 + float(ga4_gsc_ranking_weight) * score_ga4_gsc
+                + float(click_distance_ranking_weight) * score_click_distance_component
                 + score_silo
             )
 
@@ -447,6 +454,7 @@ def score_destination_matches(
                 score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
                 score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
                 score_ga4_gsc=float(score_ga4_gsc),
+                score_click_distance=float(score_click_distance),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
@@ -456,6 +464,11 @@ def score_destination_matches(
                 learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
                 rare_term_diagnostics=rare_term_match.rare_term_diagnostics,
                 field_aware_diagnostics=field_aware_match.field_aware_diagnostics,
+                click_distance_diagnostics={
+                    "click_distance_score": round(score_click_distance, 4),
+                    "click_distance_ranking_weight": click_distance_ranking_weight,
+                    "score_component": round(score_click_distance_component, 4),
+                },
             )
         )
 

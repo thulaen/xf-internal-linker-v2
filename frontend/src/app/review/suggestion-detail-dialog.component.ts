@@ -322,6 +322,40 @@ export class SuggestionDetailDialogComponent implements OnInit {
       .join(' - ');
   }
 
+  clickDistanceSummary(): string {
+    const diagnostics = this.detail?.click_distance_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means no structural depth data is available for this destination.';
+    }
+    if (diagnostics.click_distance_state === 'computed') {
+      const parts = [];
+      if (diagnostics.click_distance > 0) parts.push(`Click distance: ${diagnostics.click_distance}`);
+      if (diagnostics.url_depth > 0) parts.push(`URL depth: ${diagnostics.url_depth}`);
+      return `Prioritizes structurally shallower pages. ${parts.join(', ')}. Combined depth score: ${diagnostics.combined_depth.toFixed(2)}.`;
+    }
+    return 'Neutral means no structural depth data is available for this destination.';
+  }
+
+  clickDistanceStateLabel(): string {
+    const state = this.detail?.click_distance_diagnostics?.click_distance_state ?? 'neutral_missing_tree';
+    if (state === 'computed') {
+      return 'Computed structural depth';
+    }
+    if (state === 'neutral_missing_tree') {
+      return 'Neutral / missing scope tree';
+    }
+    if (state === 'neutral_root_path') {
+      return 'Neutral / root path (homepage)';
+    }
+    if (state === 'neutral_no_depth') {
+      return 'Neutral / no depth detected';
+    }
+    if (state === 'neutral_processing_error') {
+      return 'Neutral / structural prior error';
+    }
+    return 'Neutral / no structural prior data';
+  }
+
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;

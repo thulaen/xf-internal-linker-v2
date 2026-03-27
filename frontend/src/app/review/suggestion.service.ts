@@ -51,6 +51,7 @@ export interface SuggestionDetail extends Suggestion {
   score_learned_anchor_corroboration: number;
   score_rare_term_propagation: number;
   score_field_aware_relevance: number;
+  score_click_distance: number;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -64,6 +65,7 @@ export interface SuggestionDetail extends Suggestion {
   rare_term_diagnostics: RareTermDiagnostics;
   field_aware_diagnostics: FieldAwareDiagnostics;
   link_freshness_diagnostics: LinkFreshnessDiagnostics;
+  click_distance_diagnostics: ClickDistanceDiagnostics;
   updated_at: string;
 }
 
@@ -208,6 +210,23 @@ export interface FieldAwareFieldDetail {
     idf: number;
     token_score: number;
   }>;
+}
+
+export interface ClickDistanceDiagnostics {
+  click_distance_score: number;
+  click_distance_state:
+    | 'computed'
+    | 'neutral_missing_tree'
+    | 'neutral_root_path'
+    | 'neutral_no_depth'
+    | 'neutral_processing_error';
+  source_url: string;
+  click_distance: number;
+  url_depth: number;
+  combined_depth: number;
+  k_cd: number;
+  b_cd: number;
+  b_ud: number;
 }
 
 export interface PaginatedResult<T> {

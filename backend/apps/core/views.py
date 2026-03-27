@@ -108,6 +108,13 @@ DEFAULT_GA4_GSC_SETTINGS = {
     "ranking_weight": 0.05,
 }
 
+DEFAULT_CLICK_DISTANCE_SETTINGS = {
+    "ranking_weight": 0.0,
+    "k_cd": 4.0,
+    "b_cd": 0.75,
+    "b_ud": 0.25,
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -290,6 +297,18 @@ def get_ga4_gsc_settings() -> dict[str, float]:
         return dict(DEFAULT_GA4_GSC_SETTINGS)
 
 
+def get_click_distance_settings() -> dict[str, float]:
+    """Load persisted FR-012 click-distance settings with defensive defaults."""
+    settings = _read_click_distance_settings()
+    try:
+        return _validate_click_distance_settings(
+            settings,
+            current=dict(DEFAULT_CLICK_DISTANCE_SETTINGS),
+        )
+    except ValueError:
+        return dict(DEFAULT_CLICK_DISTANCE_SETTINGS)
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
@@ -377,6 +396,66 @@ def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
         "enable_anchor_expansion": _read_bool("phrase_matching.enable_anchor_expansion", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"]),
         "enable_partial_matching": _read_bool("phrase_matching.enable_partial_matching", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"]),
         "context_window_tokens": _read_int("phrase_matching.context_window_tokens", DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"]),
+    }
+
+
+def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
+    """Read learned-anchor settings from AppSetting without applying bounds."""
+
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+
+def _read_click_distance_settings() -> dict[str, float]:
+    """Read click-distance settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    return {
+        "ranking_weight": _read_float("click_distance.ranking_weight", DEFAULT_CLICK_DISTANCE_SETTINGS["ranking_weight"]),
+        "k_cd": _read_float("click_distance.k_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["k_cd"]),
+        "b_cd": _read_float("click_distance.b_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]),
+        "b_ud": _read_float("click_distance.b_ud", DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]),
+    }
+
+
+def _validate_click_distance_settings(payload: dict, current: dict) -> dict[str, float]:
+    """Validate and clamp click-distance settings."""
+    def _get_float(key: str) -> float:
+        val = payload.get(key, current.get(key))
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return float(current.get(key, 0.0))
+
+    ranking_weight = max(0.0, min(0.10, _get_float("ranking_weight")))
+    k_cd = max(0.5, min(12.0, _get_float("k_cd")))
+    b_cd = max(0.0, min(1.0, _get_float("b_cd")))
+    b_ud = max(0.0, min(1.0, _get_float("b_ud")))
+
+    if b_cd + b_ud <= 0:
+        b_cd = DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]
+        b_ud = DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]
+
+    return {
+        "ranking_weight": ranking_weight,
+        "k_cd": k_cd,
+        "b_cd": b_cd,
+        "b_ud": b_ud,
     }
 
 
@@ -1745,4 +1824,72 @@ class DashboardView(APIView):
             "last_sync": last_sync,
             "pipeline_runs": pipeline_runs,
             "recent_imports": recent_imports,
+        })
+
+
+class GA4GSCSettingsView(APIView):
+    """
+    GET /api/settings/ga4-gsc/
+    PUT /api/settings/ga4-gsc/
+    """
+    def get(self, request):
+        return Response(get_ga4_gsc_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+        current = get_ga4_gsc_settings()
+        try:
+            # We reuse common logic or simple direct clamping
+            val = float(request.data.get("ranking_weight", current["ranking_weight"]))
+            ranking_weight = max(0.0, min(0.3, val))
+            validated = {"ranking_weight": ranking_weight}
+        except (TypeError, ValueError):
+            return Response({"error": "ranking_weight must be numeric"}, status=400)
+
+        AppSetting.objects.update_or_create(
+            key="ga4_gsc.ranking_weight",
+            defaults={"value": str(validated["ranking_weight"])}
+        )
+        return Response(validated)
+
+
+class ClickDistanceSettingsView(APIView):
+    """
+    GET /api/settings/click-distance/
+    PUT /api/settings/click-distance/
+    """
+
+    def get(self, request):
+        return Response(get_click_distance_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+        
+        current = get_click_distance_settings()
+        try:
+            validated = _validate_click_distance_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        for key, value in validated.items():
+            AppSetting.objects.update_or_create(
+                key=f"click_distance.{key}",
+                defaults={"value": str(value)}
+            )
+
+        return Response(validated)
+
+
+class ClickDistanceRecalculateView(APIView):
+    """
+    POST /api/settings/click-distance/recalculate/
+    """
+    def post(self, request):
+        """Trigger bulk recalculation of click distance scores."""
+        from apps.pipeline.tasks import recalculate_click_distance_task
+        
+        task = recalculate_click_distance_task.delay()
+        return Response({
+            "status": "queued",
+            "job_id": task.id
         })

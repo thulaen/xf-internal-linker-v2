@@ -25,6 +25,7 @@ try:
 except ImportError:
     HAS_CPP_EXT = False
 
+from .click_distance import ClickDistanceSettings, ClickDistanceService
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
 from .ranker import (
@@ -109,6 +110,7 @@ def run_pipeline(
     rare_term_settings = _load_rare_term_propagation_settings()
     field_aware_settings = _load_field_aware_relevance_settings()
     ga4_gsc_settings = _load_ga4_gsc_settings()
+    click_distance_settings = _load_click_distance_settings()
 
     _progress(0.05, "Loading content records...")
     content_records = _load_content_records(
@@ -231,6 +233,7 @@ def run_pipeline(
             rare_term_settings=rare_term_settings,
             field_aware_settings=field_aware_settings,
             ga4_gsc_ranking_weight=ga4_gsc_settings["ranking_weight"],
+            click_distance_ranking_weight=click_distance_settings["ranking_weight"],
             silo_settings=silo_settings,
             blocked_reasons=blocked_reasons,
         )
@@ -427,8 +430,24 @@ def _load_ga4_gsc_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.05)),
         }
     except Exception:
+        config_snapshot["algorithm_versions"]["rare_term_propagation"] = "v1"
+        config_snapshot["algorithm_versions"]["click_distance"] = "v1"
         return {
             "ranking_weight": 0.05,
+        }
+
+
+def _load_click_distance_settings() -> dict[str, float]:
+    try:
+        from apps.core.views import get_click_distance_settings
+
+        config = get_click_distance_settings()
+        return {
+            "ranking_weight": float(config.get("ranking_weight", 0.0)),
+        }
+    except Exception:
+        return {
+            "ranking_weight": 0.0,
         }
 
 
@@ -482,6 +501,7 @@ def _load_content_records(
             march_2026_pagerank_score=float(ci.march_2026_pagerank_score or 0.0),
             link_freshness_score=float(ci.link_freshness_score or 0.5),
             content_value_score=float(ci.content_value_score or 0.5),
+            click_distance_score=float(ci.click_distance_score or 0.5),
             primary_post_char_count=primary_post_char_count,
             tokens=tokenize_text(text),
             scope_title=scope.title if scope else "",

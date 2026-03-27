@@ -104,6 +104,13 @@ export interface FieldAwareRelevanceSettings {
   learned_anchor_field_weight: number;
 }
 
+export interface ClickDistanceSettings {
+  ranking_weight: number;
+  k_cd: number;
+  b_cd: number;
+  b_ud: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -174,6 +181,10 @@ export class SiloSettingsService {
     return this.http.get<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/');
   }
 
+  getClickDistanceSettings(): Observable<ClickDistanceSettings> {
+    return this.http.get<ClickDistanceSettings>('/api/settings/click-distance/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -200,6 +211,14 @@ export class SiloSettingsService {
 
   updateFieldAwareRelevanceSettings(payload: FieldAwareRelevanceSettings): Observable<FieldAwareRelevanceSettings> {
     return this.http.put<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/', payload);
+  }
+
+  updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {
+    return this.http.put<ClickDistanceSettings>('/api/settings/click-distance/', payload);
+  }
+
+  recalculateClickDistance(): Observable<{ job_id: string }> {
+    return this.http.post<{ job_id: string }>('/api/settings/click-distance/recalculate/', {});
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {

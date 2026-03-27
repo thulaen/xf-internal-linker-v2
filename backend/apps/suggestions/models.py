@@ -271,6 +271,10 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="Stores the destination content-value score at suggestion-scoring time. 0.5 = neutral.",
     )
+    score_click_distance = models.FloatField(
+        default=0.5,
+        help_text="FR-012 click-distance structural prior score. 1.0 = shallowest. 0.5 = neutral.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -327,6 +331,11 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-011 field-aware relevance diagnostics for review and debugging.",
+    )
+    click_distance_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-012 click-distance context for review and debugging.",
     )
 
     # Review state

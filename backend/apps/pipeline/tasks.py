@@ -841,8 +841,34 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
         _publish_progress(job_id, "completed", 1.0, f"Verification complete. {verified} verified, {stale} stale.")
         return {"verified": verified, "stale": stale, "job_id": job_id}
     except Exception as exc:
-        logger.exception("Verification job %s failed", job_id)
+        logger.exception("Verification %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc))
+        raise
+
+
+@shared_task(bind=True, name="pipeline.recalculate_click_distance")
+def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
+    """Recompute Phase 15 Click-Distance scores for all active ContentItems."""
+    job_id = job_id or str(uuid.uuid4())
+    _publish_progress(job_id, "running", 0.0, "Starting Click-Distance structural prior recalculation...")
+
+    try:
+        from apps.pipeline.services.click_distance import ClickDistanceService
+        
+        service = ClickDistanceService()
+        diagnostics = service.recalculate_all()
+        
+        _publish_progress(
+            job_id,
+            "completed",
+            1.0,
+            "Click-Distance recalculation complete.",
+            **diagnostics,
+        )
+        return {"job_id": job_id, **diagnostics}
+    except Exception as exc:
+        logger.exception("Click-Distance recalculation %s failed", job_id)
+        _publish_progress(job_id, "failed", 0.0, f"Click-Distance recalculation failed: {exc}", error=str(exc))
         raise
 
 

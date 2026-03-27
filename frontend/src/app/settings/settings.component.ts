@@ -10,6 +10,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import {
   FieldAwareRelevanceSettings,
+  ClickDistanceSettings,
   LearnedAnchorSettings,
   PhraseMatchingSettings,
   RareTermPropagationSettings,
@@ -53,9 +54,11 @@ export class SettingsComponent implements OnInit {
   savingLearnedAnchor = false;
   savingRareTermPropagation = false;
   savingFieldAwareRelevance = false;
+  savingClickDistance = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
+  recalculatingClickDistance = false;
   runningWordPressSync = false;
   creatingGroup = false;
 
@@ -106,6 +109,12 @@ export class SettingsComponent implements OnInit {
     body_field_weight: 0.3,
     scope_field_weight: 0.15,
     learned_anchor_field_weight: 0.15,
+  };
+  clickDistance: ClickDistanceSettings = {
+    ranking_weight: 0,
+    k_cd: 1.5,
+    b_cd: 0.1,
+    b_ud: 0.1,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -179,7 +188,16 @@ export class SettingsComponent implements OnInit {
                                 this.siloSvc.getWordPressSettings().subscribe({
                                   next: (wordpress) => {
                                     this.wordpress = wordpress;
-                                    this.loadGroupsAndScopes();
+                                    this.siloSvc.getClickDistanceSettings().subscribe({
+                                      next: (clickDistance) => {
+                                        this.clickDistance = clickDistance;
+                                        this.loadGroupsAndScopes();
+                                      },
+                                      error: () => {
+                                        this.loading = false;
+                                        this.snack.open('Failed to load click distance settings', 'Dismiss', { duration: 4000 });
+                                      },
+                                    });
                                   },
                                   error: () => {
                                     this.loading = false;
@@ -301,6 +319,35 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingLinkFreshness = false;
         this.snack.open(error?.error?.detail || 'Failed to save Link Freshness settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveClickDistanceSettings(): void {
+    this.savingClickDistance = true;
+    this.siloSvc.updateClickDistanceSettings(this.clickDistance).subscribe({
+      next: (clickDistance) => {
+        this.clickDistance = clickDistance;
+        this.savingClickDistance = false;
+        this.snack.open('Click distance settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingClickDistance = false;
+        this.snack.open(error?.error?.detail || 'Failed to save click distance settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  recalculateClickDistance(): void {
+    this.recalculatingClickDistance = true;
+    this.siloSvc.recalculateClickDistance().subscribe({
+      next: (response) => {
+        this.recalculatingClickDistance = false;
+        this.snack.open(`Click distance recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+      },
+      error: (error) => {
+        this.recalculatingClickDistance = false;
+        this.snack.open(error?.error?.detail || 'Failed to start click distance recalculation', 'Dismiss', { duration: 4000 });
       },
     });
   }

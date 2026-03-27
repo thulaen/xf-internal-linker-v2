@@ -203,6 +203,11 @@ class ContentItem(TimestampedModel):
         db_index=True,
         help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
     )
+    click_distance_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text="Soft structural prior based on click distance and URL depth. 1.0 = shallow/prominent, 0.5 = neutral.",
+    )
 
     # pgvector embedding (1024 dims = BAAI/bge-m3)
     embedding = VectorField(
@@ -266,6 +271,7 @@ class ContentItem(TimestampedModel):
             models.Index(fields=["content_type", "velocity_score"]),
             models.Index(fields=["content_type", "link_freshness_score"]),
             models.Index(fields=["content_type", "content_value_score"]),
+            models.Index(fields=["content_type", "click_distance_score"]),
             models.Index(fields=["is_deleted"]),
         ]
 
