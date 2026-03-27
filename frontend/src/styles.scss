@@ -84,8 +84,8 @@ mat-sidenav.app-sidenav,
 .page-header,
 .review-controls-surface,
 .link-health-controls-surface {
-  padding: 34px 55px 0 55px !important; // Fibonacci
-  margin: 0 -55px 34px -55px !important; // Offset the 55px padding
+  padding: 40px 64px 0 64px !important; // Standardized spacing
+  margin: 0 -64px 40px -64px !important; // Offset the 64px padding
   border-bottom: none !important;
   display: flex !important;
   align-items: center !important;
@@ -110,8 +110,8 @@ mat-sidenav.app-sidenav,
 
 .link-health-controls-surface {
   .summary-row {
-    margin-bottom: 24px !important;
-    max-width: 900px !important; // Fibonacci-like narrowness for focus
+    margin-bottom: 34px !important; // Fibonacci
+    max-width: none !important; // Removed 900px restriction for focus
     margin-left: 0 !important;
     margin-right: auto !important;
   }

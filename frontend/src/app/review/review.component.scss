@@ -48,7 +48,7 @@
 .status-tabs {
   display: flex;
   gap: 8px;
-  margin-bottom: 34px; // Fibonacci
+  margin-bottom: 48px; // Fibonacci-like expansion
   padding-bottom: 0;
 }
 
@@ -78,8 +78,8 @@
 
 .filter-bar {
   display: flex;
-  gap: 21px; // Fibonacci
-  margin-bottom: 34px; // Fibonacci
+  gap: 34px; // Fibonacci
+  margin-bottom: 48px; // Fibonacci-like expansion
   flex-wrap: wrap;
 }
 
@@ -160,14 +160,14 @@
 .cards-list {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 24px; // Fibonacci
 }
 
 .suggestion-card {
   background: var(--color-bg-white);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 24px 32px;
   cursor: pointer;
   transition: box-shadow 0.15s, border-color 0.15s;
 

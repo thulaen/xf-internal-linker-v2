@@ -59,8 +59,8 @@
 .summary-row {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 21px; // Fibonacci
-  margin-bottom: 34px; // Fibonacci
+  gap: 34px; // Fibonacci
+  margin-bottom: 48px; // Fibonacci-like expansion
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -71,7 +71,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  padding: 16px 18px;
+  padding: 24px 32px;
   border-radius: var(--radius-lg);
   border: none !important; // Removed border
   background: var(--color-surface);
@@ -107,9 +107,9 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 21px; // Fibonacci
+  gap: 34px; // Fibonacci
   flex-wrap: wrap;
-  margin-bottom: 34px; // Fibonacci
+  margin-bottom: 48px; // Fibonacci-like expansion
 }
 
 .status-code-field {
