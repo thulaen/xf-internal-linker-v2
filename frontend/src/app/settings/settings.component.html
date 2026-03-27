@@ -21,34 +21,52 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.ranking_weight, 'weightedAuthority.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.25" step="0.01" [(ngModel)]="weightedAuthority.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.position_bias, 'weightedAuthority.position_bias')">
             <mat-label>Position bias</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="weightedAuthority.position_bias" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.position_bias')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.empty_anchor_factor, 'weightedAuthority.empty_anchor_factor')">
             <mat-label>Empty anchor factor</mat-label>
             <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.empty_anchor_factor" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.empty_anchor_factor')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.bare_url_factor, 'weightedAuthority.bare_url_factor')">
             <mat-label>Bare URL factor</mat-label>
             <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.bare_url_factor" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.bare_url_factor')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.weak_context_factor, 'weightedAuthority.weak_context_factor')">
             <mat-label>Weak context factor</mat-label>
             <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.weak_context_factor" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.weak_context_factor')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.isolated_context_factor, 'weightedAuthority.isolated_context_factor')">
             <mat-label>Isolated context factor</mat-label>
             <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.isolated_context_factor" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.isolated_context_factor')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -75,44 +93,68 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.ranking_weight, 'linkFreshness.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.15" step="0.01" [(ngModel)]="linkFreshness.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.recent_window_days, 'linkFreshness.recent_window_days')">
             <mat-label>Recent window days</mat-label>
             <input matInput type="number" min="7" max="90" step="1" [(ngModel)]="linkFreshness.recent_window_days" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.recent_window_days')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.newest_peer_percent, 'linkFreshness.newest_peer_percent')">
             <mat-label>Newest peer percent</mat-label>
             <input matInput type="number" min="0.1" max="0.5" step="0.05" [(ngModel)]="linkFreshness.newest_peer_percent" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.newest_peer_percent')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.min_peer_count, 'linkFreshness.min_peer_count')">
             <mat-label>Min peer count</mat-label>
             <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="linkFreshness.min_peer_count" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.min_peer_count')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Recent weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="linkFreshness.w_recent" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_recent')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Growth weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="linkFreshness.w_growth" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_growth')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Cohort weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="linkFreshness.w_cohort" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_cohort')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Loss weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="linkFreshness.w_loss" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_loss')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -139,9 +181,12 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(phraseMatching.ranking_weight, 'phraseMatching.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="phraseMatching.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -150,6 +195,9 @@
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.enable_anchor_expansion')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -158,11 +206,17 @@
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.enable_partial_matching')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(phraseMatching.context_window_tokens, 'phraseMatching.context_window_tokens')">
             <mat-label>Context window tokens</mat-label>
             <input matInput type="number" min="4" max="12" step="1" [(ngModel)]="phraseMatching.context_window_tokens" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.context_window_tokens')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -185,19 +239,28 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.ranking_weight, 'learnedAnchor.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="learnedAnchor.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.minimum_anchor_sources, 'learnedAnchor.minimum_anchor_sources')">
             <mat-label>Min anchor sources</mat-label>
             <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="learnedAnchor.minimum_anchor_sources" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_anchor_sources')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.minimum_family_support_share, 'learnedAnchor.minimum_family_support_share')">
             <mat-label>Min family support share</mat-label>
             <input matInput type="number" min="0.05" max="0.5" step="0.05" [(ngModel)]="learnedAnchor.minimum_family_support_share" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_family_support_share')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -206,6 +269,9 @@
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.enable_noise_filter')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -234,21 +300,33 @@
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.enabled')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(rareTermPropagation.ranking_weight, 'rareTermPropagation.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="rareTermPropagation.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(rareTermPropagation.max_document_frequency, 'rareTermPropagation.max_document_frequency')">
             <mat-label>Max document frequency</mat-label>
             <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="rareTermPropagation.max_document_frequency" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.max_document_frequency')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Min supporting related pages</mat-label>
             <input matInput type="number" min="1" max="5" step="1" [(ngModel)]="rareTermPropagation.minimum_supporting_related_pages" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.minimum_supporting_related_pages')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -341,29 +419,44 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(fieldAwareRelevance.ranking_weight, 'fieldAwareRelevance.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.15" step="0.01" [(ngModel)]="fieldAwareRelevance.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Title field weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.title_field_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.title_field_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Body field weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.body_field_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.body_field_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Scope field weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.scope_field_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.scope_field_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Learned-anchor field weight</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.learned_anchor_field_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.learned_anchor_field_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -386,24 +479,36 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.ranking_weight, 'clickDistance.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="0.2" step="0.01" [(ngModel)]="clickDistance.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.k_cd, 'clickDistance.k_cd')">
             <mat-label>Depth sensitivity (k_cd)</mat-label>
             <input matInput type="number" min="0.5" max="5.0" step="0.1" [(ngModel)]="clickDistance.k_cd" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.k_cd')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.b_cd, 'clickDistance.b_cd')">
             <mat-label>Click-distance bias (b_cd)</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="clickDistance.b_cd" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.b_cd')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.b_ud, 'clickDistance.b_ud')">
             <mat-label>URL-depth bias (b_ud)</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="clickDistance.b_ud" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.b_ud')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -432,6 +537,9 @@
               <mat-option [value]="option.value">{{ option.label }}</mat-option>
             }
           </mat-select>
+          <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.mode')" matTooltipClass="setting-tooltip">
+            <mat-icon>info_outline</mat-icon>
+          </button>
         </mat-form-field>
 
         <p class="hint">
@@ -439,14 +547,20 @@
         </p>
 
         <div class="number-grid">
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(settings.same_silo_boost, 'silo.same_silo_boost')">
             <mat-label>Same-silo boost</mat-label>
             <input matInput type="number" min="0" step="0.05" [(ngModel)]="settings.same_silo_boost" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.same_silo_boost')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(settings.cross_silo_penalty, 'silo.cross_silo_penalty')">
             <mat-label>Cross-silo penalty</mat-label>
             <input matInput type="number" min="0" step="0.05" [(ngModel)]="settings.cross_silo_penalty" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.cross_silo_penalty')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 
@@ -467,20 +581,27 @@
         </p>
 
         <div class="number-grid">
-          <div class="checkbox-row" style="margin-bottom: 20px;">
+          <div class="checkbox-row">
             <mat-checkbox [(ngModel)]="feedbackRerank.enabled">Enable feedback-driven reranking</mat-checkbox>
+            <button mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.enabled')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </div>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(feedbackRerank.ranking_weight, 'feedbackRerank.ranking_weight')">
             <mat-label>Ranking weight</mat-label>
             <input matInput type="number" min="0" max="1.0" step="0.05" [(ngModel)]="feedbackRerank.ranking_weight" />
-            <mat-hint>Strength of the feedback influence on the final score.</mat-hint>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
 
-          <mat-form-field appearance="outline">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(feedbackRerank.exploration_rate, 'feedbackRerank.exploration_rate')">
             <mat-label>Exploration rate (k)</mat-label>
             <input matInput type="number" min="0" max="10.0" step="0.1" [(ngModel)]="feedbackRerank.exploration_rate" />
-            <mat-hint>Higher values favor exploring pairs with little historical data.</mat-hint>
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.exploration_rate')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
           </mat-form-field>
         </div>
 

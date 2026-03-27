@@ -22,6 +22,40 @@
   font-size: 13px;
 }
 
+// Extreme-value warning — amber outline on the form field
+.field-warn {
+  .mdc-notched-outline__leading,
+  .mdc-notched-outline__notch,
+  .mdc-notched-outline__trailing {
+    border-color: #f9ab00 !important;
+  }
+  .mdc-floating-label,
+  .mat-mdc-floating-label {
+    color: #b06e00 !important;
+  }
+}
+
+.info-btn {
+  width: 28px !important;
+  height: 28px !important;
+  line-height: 28px !important;
+  padding: 0 !important;
+
+  mat-icon {
+    font-size: 17px !important;
+    width: 17px !important;
+    height: 17px !important;
+    color: var(--color-text-muted);
+  }
+}
+
+.checkbox-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 20px;
+}
+
 .number-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
