@@ -29,7 +29,7 @@
 17. [Link Graph Visualization](#17-link-graph-visualization)
 18. [Anchor Policy Engine](#18-anchor-policy-engine)
 19. [Audit Trail & Reviewer Scorecards](#19-audit-trail--reviewer-scorecards)
-20. [Contextual Linking Strategy (600-Word Window)](#20-contextual-linking-strategy-600-word-window)
+20. [Contextual Linking Strategy (Configurable Host Scan Window)](#20-contextual-linking-strategy-configurable-host-scan-window)
 21. [Performance Modes (Balanced / High Performance)](#21-performance-modes-balanced--high-performance)
 22. [Portability & Deployment](#22-portability--deployment)
 23. [Elasticsearch Future Support](#23-elasticsearch-future-support)
@@ -2188,10 +2188,10 @@ class Command(BaseCommand):
 | **20** | Docker & Deployment | 1-2 sessions | Phase 9 |
 | **21** | Documentation & Polish | 2-3 sessions | Phase 20 |
 | **22** | SEO Gap Analysis | 1-2 sessions | Phase 14 |
-| **23** | 600-Word Window & Anchor Policy | 1 session | Phase 4 |
+| **23** | Configurable Host Scan Window & Anchor Policy | 1 session | Phase 4 |
 | **24** | Redirect/404 Monitor | 1 session | Phase 12 |
 | **25** | Elasticsearch Plugin | 2-3 sessions | Phase 16 |
-| **26** | BGE-M3 upgrade + word-window + autovacuum + Arrow/Bitmap/C++ performance layer | 1 session | Phase 4 |
+| **26** | BGE-M3 upgrade + word-window + autovacuum + Arrow/Bitmap/C++ performance layer | 1 session | Current Phase |
 
 ### Phase 0: Project Bootstrap
 
@@ -2274,14 +2274,14 @@ class Command(BaseCommand):
 - [ ] ORM queries replace raw SQLite queries
 - [ ] pgvector similarity search replaces .npy bulk loading (for single lookups)
 - [ ] .npy cache generation for bulk pipeline operations
-- [ ] 600-word window enforcement in sentence filtering
+- [ ] HOST_SCAN_WORD_LIMIT word window enforcement in sentence filtering
 - [ ] Max 3 links per host enforcement
 - [ ] Unit tests for all migrated services
 
 **Verification:**
 - [ ] Pipeline can generate suggestions from migrated data
 - [ ] Scores match V1 output (within floating-point tolerance)
-- [ ] 600-word window correctly limits host sentences
+- [ ] HOST_SCAN_WORD_LIMIT word window correctly limits host sentences
 - [ ] 3-link cap enforced
 
 ### Phase 5: Celery & Background Jobs
