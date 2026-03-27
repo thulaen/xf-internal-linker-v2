@@ -184,9 +184,9 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
-## Spec Standards for Patent-Derived Phases
+## Spec Standards for All Feature Phases
 
-Every phase that introduces new math or a patent-derived signal requires a dedicated spec pass before any implementation pass.
+Every phase that introduces new functionality or a feature request (FR) requires a dedicated spec pass before any implementation pass.
 
 - **Mandatory Web Research**: Before writing a spec or code for a feature request, the AI MUST search the web (including patent databases, academic papers, and official documentation) to find the most accurate math and algorithms. This ensures the implementation is based on a "source of truth" and is not "half-baked."
 - Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
@@ -194,7 +194,7 @@ Every phase that introduces new math or a patent-derived signal requires a dedic
 - FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features - the boundary is intentional.
 - FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features - the boundary is intentional.
 - FR-016 to FR-020 also require a spec/design pass before implementation because they change telemetry schemas, attribution logic, alerting behavior, and model-promotion/runtime safety. Those phases must define neutral fallbacks, rollback paths, and regression gates before any code lands.
-- All other patent-inspired phases follow the same two-pass pattern: spec first, implement second, each in its own session.
+- All feature requests follow the same two-pass pattern: spec first, implement second, each in its own session.
 
 - FR-018 must also include adaptive-change alerts, immutable history/audit rows, exact timestamped "why weights changed" summaries, and a timeline view before implementation is considered complete.
 - FR-019 owns generic operator alerts: model-download reminders, job-complete/failure notifications, bell sounds, desktop notifications, urgent trend warnings, and persisted error-linked alerts.
@@ -224,8 +224,8 @@ Simple version first.
 Do not just write code and stop.
 This repo expects the docs, checks, and git workflow to move together.
 
-- If the active phase is patent-derived or math-heavy, check whether `docs/specs/fr0XX-<slug>.md` already exists before coding.
-- If the spec file is missing, add the spec file in the same overall delivery flow unless the user explicitly asked for spec-only or code-only work.
+- Before starting any code for a feature request, check whether `docs/specs/fr0XX-<slug>.md` already exists.
+- If the spec file is missing, add the spec file first and ensure it is based on online research of the actual math or source of truth.
 - When implementing an FR that already has a spec, implement against that spec and keep the code boundary aligned with it.
 - Before claiming a phase is done, make sure the matching spec doc exists and that `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` still point at the right next phase.
 - Always do sanity checks after code changes, not just before commit.
