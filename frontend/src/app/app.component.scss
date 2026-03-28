@@ -212,10 +212,10 @@
 .page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 40px 32px; // Reduced horizontal padding to 32px
+  padding: 24px; // Uniform padding of 24px on all sides
   width: 100%;
-  max-width: var(--layout-max-width, 1280px);
-  margin: 0; // Removed margin: 0 auto to prevent center floating
+  max-width: var(--layout-max-width, 100%); // Allow full width expansion
+  margin: 0; 
   background: transparent;
 }
 

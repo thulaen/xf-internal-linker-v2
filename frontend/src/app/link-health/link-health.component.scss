@@ -1,7 +1,25 @@
 .header-actions {
   display: flex;
-  gap: 8px;
+  gap: 16px; // Standardized gap
   flex-wrap: wrap;
+  align-items: center;
+
+  // GSC Styled Button Actions
+  button[mat-stroked-button] {
+    background-color: #ffffff !important;
+    border: 1px solid #dadce0 !important;
+    color: #3c4043 !important;
+    border-radius: 4px !important; // Google-style subtly rounded
+    font-weight: 500;
+  }
+
+  button[mat-flat-button][color="primary"] {
+    background-color: #1a73e8 !important; // Google Blue
+    color: #ffffff !important;
+    border-radius: 4px !important;
+    font-weight: 500;
+    box-shadow: none !important;
+  }
 }
 
 .btn-spinner {
@@ -58,10 +76,12 @@
 
 .summary-row {
   display: grid;
-  // Use specific widths to prevent unnecessary stretching while remaining responsive
-  grid-template-columns: repeat(auto-fit, minmax(180px, 240px));
-  gap: 24px; // Consistent layout gap
+  // Divide space equally into 3 columns
+  grid-template-columns: repeat(3, 1fr);
+  gap: 24px;
+  margin-top: 24px; // Separate clearly from header
   margin-bottom: 48px;
+  width: 100%;
 
   @media (max-width: 700px) {
     grid-template-columns: 1fr;
@@ -71,16 +91,23 @@
 .summary-card {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 24px 32px;
-  border-radius: var(--radius-lg);
-  border: none !important; // Removed border
-  background: var(--color-surface);
+  gap: 8px;
+  padding: 20px 24px;
+  border-radius: 8px;
+  border: 1px solid #dadce0 !important; // Thin light gray border
+  background: #ffffff !important;
+  transition: all 0.2s ease;
+  box-shadow: none;
+
+  &:hover {
+    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28); // Subtle GSC hover effect
+    transform: translateY(-1px);
+  }
 
   strong {
-    font-size: 30px;
-    line-height: 1;
-    color: var(--color-text-dark-1);
+    font-size: 28px;
+    line-height: 1.2;
+    color: var(--color-text-primary);
   }
 }
 
