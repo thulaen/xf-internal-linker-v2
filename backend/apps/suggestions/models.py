@@ -355,6 +355,16 @@ class Suggestion(TimestampedModel):
         blank=True,
         help_text="Explainable FR-014 near-duplicate clustering details for review and debugging.",
     )
+    score_slate_diversity = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="FR-015 MMR diversity score for this suggestion's slot in the host slate. Null when diversity reranking is disabled.",
+    )
+    slate_diversity_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-015 MMR slot selection details for review and debugging.",
+    )
 
     # Review state
     status = models.CharField(

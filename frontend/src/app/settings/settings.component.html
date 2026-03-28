@@ -663,6 +663,58 @@
 
     <mat-card class="settings-card">
       <mat-card-header>
+        <mat-card-title>Slate Diversity Reranking</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          Ensures the final 3 link suggestions for each host thread cover different topics,
+          using Maximal Marginal Relevance (MMR) to balance relevance and variety.
+        </p>
+
+        <div class="number-grid">
+          <div class="checkbox-row">
+            <mat-checkbox [(ngModel)]="slateDiversity.enabled">Enable slate diversity reranking</mat-checkbox>
+            <button mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.enabled')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+          </div>
+
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.diversity_lambda, 'slateDiversity.diversity_lambda')">
+            <mat-label>Relevance / Diversity balance (lambda)</mat-label>
+            <input matInput type="number" min="0" max="1.0" step="0.05" [(ngModel)]="slateDiversity.diversity_lambda" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.diversity_lambda')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.score_window, 'slateDiversity.score_window')">
+            <mat-label>Score window</mat-label>
+            <input matInput type="number" min="0.05" max="1.0" step="0.05" [(ngModel)]="slateDiversity.score_window" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.score_window')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.similarity_cap, 'slateDiversity.similarity_cap')">
+            <mat-label>Redundancy flag threshold</mat-label>
+            <input matInput type="number" min="0.70" max="0.99" step="0.01" [(ngModel)]="slateDiversity.similarity_cap" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.similarity_cap')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+          </mat-form-field>
+        </div>
+
+        <div class="button-row" style="margin-top: 20px;">
+          <button mat-flat-button color="primary" [disabled]="savingSlate" (click)="saveSlateDiversitySettings()">
+            <mat-icon>save</mat-icon>
+            Save slate diversity settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card">
+      <mat-card-header>
         <mat-card-title>Silo Groups</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">

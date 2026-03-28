@@ -128,6 +128,14 @@ DEFAULT_CLUSTERING_SETTINGS = {
     "suppression_penalty": 20.0,
 }
 
+DEFAULT_SLATE_DIVERSITY_SETTINGS = {
+    "enabled": True,
+    "diversity_lambda": 0.7,
+    "score_window": 0.30,
+    "similarity_cap": 0.90,
+    "algorithm_version": "fr015-v1",
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -480,6 +488,65 @@ def _read_feedback_rerank_settings() -> dict[str, float | bool]:
         "enabled": _read_bool("explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"]),
         "ranking_weight": _read_float("explore_exploit.ranking_weight", DEFAULT_FEEDBACK_RERANK_SETTINGS["ranking_weight"]),
         "exploration_rate": _read_float("explore_exploit.exploration_rate", DEFAULT_FEEDBACK_RERANK_SETTINGS["exploration_rate"]),
+    }
+
+
+def _read_slate_diversity_settings() -> dict:
+    """Read FR-015 slate diversity settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _read_bool("slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"]),
+        "diversity_lambda": _read_float("slate_diversity.diversity_lambda", DEFAULT_SLATE_DIVERSITY_SETTINGS["diversity_lambda"]),
+        "score_window": _read_float("slate_diversity.score_window", DEFAULT_SLATE_DIVERSITY_SETTINGS["score_window"]),
+        "similarity_cap": _read_float("slate_diversity.similarity_cap", DEFAULT_SLATE_DIVERSITY_SETTINGS["similarity_cap"]),
+        "algorithm_version": DEFAULT_SLATE_DIVERSITY_SETTINGS["algorithm_version"],
+    }
+
+
+def get_slate_diversity_settings() -> dict:
+    """Return current FR-015 slate diversity settings with defaults applied."""
+    try:
+        return _read_slate_diversity_settings()
+    except Exception:
+        return dict(DEFAULT_SLATE_DIVERSITY_SETTINGS)
+
+
+def _validate_slate_diversity_settings(payload: dict, current: dict) -> dict:
+    """Validate and clamp slate diversity settings."""
+    def _get_float(key: str) -> float:
+        val = payload.get(key, current.get(key))
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return float(current.get(key, DEFAULT_SLATE_DIVERSITY_SETTINGS[key]))
+
+    def _get_bool(key: str) -> bool:
+        val = payload.get(key, current.get(key))
+        if isinstance(val, bool):
+            return val
+        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _get_bool("enabled"),
+        "diversity_lambda": max(0.0, min(1.0, _get_float("diversity_lambda"))),
+        "score_window": max(0.05, min(1.0, _get_float("score_window"))),
+        "similarity_cap": max(0.70, min(0.99, _get_float("similarity_cap"))),
+        "algorithm_version": DEFAULT_SLATE_DIVERSITY_SETTINGS["algorithm_version"],
     }
 
 
@@ -2117,3 +2184,59 @@ class ClusteringRecalculateView(APIView):
         job_id = str(uuid.uuid4())
         run_clustering_pass.delay(job_id=job_id)
         return Response({"job_id": job_id}, status=202)
+
+
+class SlateDiversitySettingsView(APIView):
+    """
+    GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
+    PUT  /api/settings/slate-diversity/ - validates and persists those settings
+    """
+
+    def get(self, request):
+        return Response(get_slate_diversity_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        current = get_slate_diversity_settings()
+        try:
+            validated = _validate_slate_diversity_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        rows = {
+            "slate_diversity.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-015 MMR slate diversity reranking is active.",
+            },
+            "slate_diversity.diversity_lambda": {
+                "value": str(validated["diversity_lambda"]),
+                "value_type": "float",
+                "description": "MMR lambda: 1.0 = pure relevance, 0.0 = pure diversity.",
+            },
+            "slate_diversity.score_window": {
+                "value": str(validated["score_window"]),
+                "value_type": "float",
+                "description": "Max score gap from top candidate for MMR eligibility.",
+            },
+            "slate_diversity.similarity_cap": {
+                "value": str(validated["similarity_cap"]),
+                "value_type": "float",
+                "description": "Cosine similarity above which two destinations are flagged as redundant.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+
+        return Response(validated)

@@ -7,7 +7,7 @@ by the pipeline service which passes pre-built records into these functions.
 from __future__ import annotations
 
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import heapq
 import math
 from typing import Mapping, TypeAlias
@@ -137,6 +137,8 @@ class ScoredCandidate:
     cluster_diagnostics: dict[str, object]
     explore_exploit_diagnostics: dict[str, object]
     click_distance_diagnostics: dict[str, object]
+    score_slate_diversity: float | None = field(default=None)
+    slate_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
 
     @property
     def destination_key(self) -> ContentKey:

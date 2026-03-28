@@ -32,6 +32,7 @@ except ImportError:
 
 from .click_distance import ClickDistanceSettings, ClickDistanceService
 from .feedback_rerank import FeedbackRerankSettings, FeedbackRerankService
+from .slate_diversity import SlateDiversitySettings, apply_slate_diversity
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorInputRow, LearnedAnchorSettings
 from .ranker import (
@@ -120,6 +121,8 @@ def run_pipeline(
     click_distance_settings = _load_click_distance_settings()
     feedback_rerank_settings = _load_feedback_rerank_settings()
     clustering_settings = _load_clustering_settings()
+    slate_diversity_settings = _load_slate_diversity_settings()
+    max_host_reuse = _get_max_host_reuse()
 
     _progress(0.04, "Initializing feedback reranker...")
     feedback_rerank_service = FeedbackRerankService(feedback_rerank_settings)
@@ -284,18 +287,33 @@ def run_pipeline(
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
             _progress(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
 
+    # Build embedding lookup before freeing the numpy arrays (used by FR-015)
+    embedding_lookup: dict[int, np.ndarray] = {
+        dest_key[0]: dest_embeddings[i]
+        for i, dest_key in enumerate(destination_keys)
+    }
+
     del dest_embeddings, sentence_embeddings
     gc.collect()
 
-    _progress(0.87, "Resolving host-reuse and circular-pair filters...")
-    blocked_diagnostics: dict[ContentKey, str] = {}
-    selected_candidates = select_final_candidates(
-        candidates_by_destination,
-        max_host_reuse=_get_max_host_reuse(),
-        blocked_diagnostics=blocked_diagnostics,
-    )
-    for dest_key, reason in blocked_diagnostics.items():
-        diagnostics.append((dest_key[0], dest_key[1], reason, None))
+    if slate_diversity_settings.enabled:
+        _progress(0.87, "FR-015: applying slate diversity reranking...")
+        selected_candidates = apply_slate_diversity(
+            candidates_by_destination=candidates_by_destination,
+            embedding_lookup=embedding_lookup,
+            settings=slate_diversity_settings,
+            max_per_host=max_host_reuse,
+        )
+    else:
+        _progress(0.87, "Resolving host-reuse and circular-pair filters...")
+        blocked_diagnostics: dict[ContentKey, str] = {}
+        selected_candidates = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=max_host_reuse,
+            blocked_diagnostics=blocked_diagnostics,
+        )
+        for dest_key, reason in blocked_diagnostics.items():
+            diagnostics.append((dest_key[0], dest_key[1], reason, None))
 
     _progress(0.92, "Persisting suggestions...")
     suggestions_created = _persist_suggestions(
@@ -931,6 +949,8 @@ def _persist_suggestions(
             score_field_aware_relevance=candidate.score_field_aware_relevance,
             score_ga4_gsc=candidate.score_ga4_gsc,
             score_cluster_suppression=candidate.score_cluster_suppression,
+            score_slate_diversity=candidate.score_slate_diversity,
+            slate_diversity_diagnostics=candidate.slate_diversity_diagnostics or {},
             phrase_match_diagnostics=candidate.phrase_match_diagnostics,
             learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
             rare_term_diagnostics=candidate.rare_term_diagnostics,
@@ -1004,6 +1024,21 @@ def _load_clustering_settings() -> ClusteringSettings:
         )
     except Exception:
         return ClusteringSettings()
+
+
+def _load_slate_diversity_settings() -> SlateDiversitySettings:
+    """Load FR-015 slate diversity settings from the DB."""
+    try:
+        from apps.core.views import get_slate_diversity_settings
+        raw = get_slate_diversity_settings()
+        return SlateDiversitySettings(
+            enabled=raw["enabled"],
+            diversity_lambda=raw["diversity_lambda"],
+            score_window=raw["score_window"],
+            similarity_cap=raw["similarity_cap"],
+        )
+    except Exception:
+        return SlateDiversitySettings()
 
 
 try:

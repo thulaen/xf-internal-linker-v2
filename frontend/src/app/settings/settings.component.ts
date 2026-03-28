@@ -27,6 +27,7 @@ import {
   WordPressSettingsUpdate,
   FeedbackRerankSettings,
   ClusteringSettings,
+  SlateDiversitySettings,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -356,6 +357,35 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Set to 1.0 to almost always hide duplicates. Set to 0.1 to just slightly demote them.',
     range: '0 to 2.0',
   },
+  // ── Slate Diversity ─────────────────────────────────────────────
+  'slateDiversity.enabled': {
+    definition: 'Turns on FR-015 MMR (Maximal Marginal Relevance) diversity reranking for the final per-host link slate.',
+    impact: 'When enabled, the 3 suggestions for each host thread are chosen to cover different topics. When disabled, the top 3 by score are used regardless of similarity.',
+    default: 'On',
+    example: 'Enable to prevent three nearly-identical destination links appearing on the same thread.',
+    range: 'On / Off',
+  },
+  'slateDiversity.diversity_lambda': {
+    definition: 'MMR lambda — controls the balance between relevance and diversity in the final slate.',
+    impact: 'Higher values (closer to 1.0) keep the most relevant suggestions. Lower values force more variety even if the alternatives score lower.',
+    default: '0.7',
+    example: 'Lower to 0.5 for stronger diversity. Raise to 0.9 to preserve near-original ranking with a light diversity nudge.',
+    range: '0.0 to 1.0',
+  },
+  'slateDiversity.score_window': {
+    definition: 'How far below the top candidate score a destination can be and still be considered for diversity reranking.',
+    impact: 'Prevents low-quality items from jumping to the top purely for variety. Only candidates within this gap of the best score are eligible.',
+    default: '0.30',
+    example: 'Lower to 0.10 to only consider very close competitors. Raise to 0.50 to allow more distant alternatives.',
+    range: '0.05 to 1.0',
+  },
+  'slateDiversity.similarity_cap': {
+    definition: 'Cosine similarity threshold above which two selected destinations are flagged as near-redundant in diagnostics.',
+    impact: 'Purely diagnostic — does not block selection. Helps you understand when the diversity reranker is doing meaningful work.',
+    default: '0.90',
+    example: 'Lower to 0.80 to flag moderately similar pairs. Keep at 0.90 to only flag near-clones.',
+    range: '0.70 to 0.99',
+  },
 };
 
 const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number }> = {
@@ -387,6 +417,9 @@ const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: numbe
   'silo.cross_silo_penalty': { warnAbove: 0.4 },
   'clustering.similarity_threshold': { warnAbove: 0.1 },
   'clustering.suppression_penalty': { warnAbove: 1.0 },
+  'slateDiversity.diversity_lambda': { warnBelow: 0.4 },
+  'slateDiversity.score_window': { warnAbove: 0.6 },
+  'slateDiversity.similarity_cap': { warnBelow: 0.75 },
 };
 
 @Component({
@@ -423,6 +456,7 @@ export class SettingsComponent implements OnInit {
   savingClickDistance = false;
   savingFeedbackRerank = false;
   savingClustering = false;
+  savingSlate = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -494,6 +528,12 @@ export class SettingsComponent implements OnInit {
     enabled: false,
     similarity_threshold: 0.04,
     suppression_penalty: 0.5,
+  };
+  slateDiversity: SlateDiversitySettings = {
+    enabled: true,
+    diversity_lambda: 0.7,
+    score_window: 0.30,
+    similarity_cap: 0.90,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -597,7 +637,16 @@ export class SettingsComponent implements OnInit {
                                             this.siloSvc.getClusteringSettings().subscribe({
                                               next: (clustering) => {
                                                 this.clustering = clustering;
-                                                this.loadGroupsAndScopes();
+                                                this.siloSvc.getSlateDiversitySettings().subscribe({
+                                                  next: (slateDiversity) => {
+                                                    this.slateDiversity = slateDiversity;
+                                                    this.loadGroupsAndScopes();
+                                                  },
+                                                  error: () => {
+                                                    this.loading = false;
+                                                    this.snack.open('Failed to load slate diversity settings', 'Dismiss', { duration: 4000 });
+                                                  },
+                                                });
                                               },
                                               error: () => {
                                                 this.loading = false;
@@ -782,6 +831,21 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.savingClustering = false;
         this.snack.open(error?.error?.detail || 'Failed to save clustering settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveSlateDiversitySettings(): void {
+    this.savingSlate = true;
+    this.siloSvc.updateSlateDiversitySettings(this.slateDiversity).subscribe({
+      next: (slateDiversity) => {
+        this.slateDiversity = slateDiversity;
+        this.savingSlate = false;
+        this.snack.open('Slate diversity settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingSlate = false;
+        this.snack.open(error?.error?.error || 'Failed to save slate diversity settings', 'Dismiss', { duration: 4000 });
       },
     });
   }

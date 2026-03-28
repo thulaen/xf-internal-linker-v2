@@ -123,6 +123,14 @@ export interface ClusteringSettings {
   suppression_penalty: number;
 }
 
+export interface SlateDiversitySettings {
+  enabled: boolean;
+  diversity_lambda: number;
+  score_window: number;
+  similarity_cap: number;
+  algorithm_version?: string;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -205,6 +213,10 @@ export class SiloSettingsService {
     return this.http.get<ClusteringSettings>('/api/settings/clustering/');
   }
 
+  getSlateDiversitySettings(): Observable<SlateDiversitySettings> {
+    return this.http.get<SlateDiversitySettings>('/api/settings/slate-diversity/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -243,6 +255,10 @@ export class SiloSettingsService {
 
   updateClusteringSettings(payload: ClusteringSettings): Observable<ClusteringSettings> {
     return this.http.put<ClusteringSettings>('/api/settings/clustering/', payload);
+  }
+
+  updateSlateDiversitySettings(payload: SlateDiversitySettings): Observable<SlateDiversitySettings> {
+    return this.http.put<SlateDiversitySettings>('/api/settings/slate-diversity/', payload);
   }
 
   recalculateClickDistance(): Observable<{ job_id: string }> {
