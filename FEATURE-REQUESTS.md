@@ -794,6 +794,39 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
+### FR-027 - R Analytics Tidyverse Upgrade
+**Requested:** 2026-03-28
+**Target phase:** Phase 30
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr027-r-analytics-tidyverse-upgrade.md`
+
+### What's wanted
+- `dplyr` and `tibble` are already in the R service. Add `lubridate`, `tidyr`, `ggplot2`, and `purrr` where they give the most concrete benefit.
+
+### Where each package is beneficial
+- **`lubridate`** — `compute_logic.R` and `data_fetch.R`: clean date arithmetic for rolling windows (`today() - days(90)`), time decay age computation (needed by FR-023 Hot decay), parameterised date-filtered fetch.
+- **`tidyr`** — `compute_logic.R`: `complete()` fills missing date gaps so rolling averages are accurate; `pivot_longer()` reshapes wide metrics for trend charts.
+- **`ggplot2`** — `dashboard/app.R`: replaces the static placeholder table with three real charts: score distribution histogram, site-wide traffic trend line, clicks-vs-impressions scatter.
+- **`purrr`** — `write_layer.R`: replaces a row-by-row `for` loop (one DB round-trip per content item) with `pwalk()`. The loop is an R anti-pattern that will be slow at scale.
+
+### Specific controls / behaviour
+- `DESCRIPTION` updated — four packages added to `Imports`; version bumped to `0.2.0`.
+- New helpers added to `compute_logic.R`: `filter_lookback_window(metrics, lookback_days)` and `fill_date_gaps(metrics, lookback_days)`.
+- `compute_content_value_score()` updated to use the two new helpers. Formula is unchanged.
+- New `fetch_search_metrics_windowed(con, lookback_days)` added to `data_fetch.R`. Existing `fetch_search_metrics()` kept for backward compatibility.
+- `write_layer.R` `for` loop replaced with `purrr::pwalk()`. Behaviour identical.
+- Dashboard gets a `lookback_days` slider, a Refresh button, and three `ggplot2` chart tabs.
+- Scaffold functions for FR-023 Hot decay (`compute_hot_score`) and FR-024 rolling engagement (`compute_rolling_engagement`) added to `compute_logic.R` so those FRs can build on them without signature changes.
+
+### Implementation notes for the AI
+- Do not change `compute_content_value_score()` formula — only its input window and gap-filling.
+- Do not change `write_layer.R` validation logic — only replace the loop.
+- Existing `fetch_search_metrics()` must not be removed (backward compatibility).
+- All existing tests must pass after this FR.
+- Docker image must be rebuilt — the four new packages must be installed in the container.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -817,4 +850,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-026 added to backlog.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-027 added to backlog.)*
