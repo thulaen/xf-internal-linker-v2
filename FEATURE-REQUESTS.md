@@ -704,6 +704,66 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
+### FR-024 - TikTok Read-Through Rate — Engagement Signal
+**Requested:** 2026-03-28
+**Target phase:** Phase 27
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`
+
+### What's wanted
+- Inspired by TikTok's completion rate signal: articles that hold human attention all the way through are better link destinations than keyword-stuffed pages people immediately bounce from.
+- Add a sixth signal slot `engagement_signal` to the FR-021 value model.
+- Compute it from `SearchMetric.avg_engagement_time` (already stored) divided by an estimated read time from `ContentItem.distilled_text` word count.
+- Apply a bounce-rate penalty: `engagement_quality = read_through_rate × (1 − bounce_rate)`.
+- Normalize site-wide with min-max, same pattern as other value model signals.
+- Falls back to neutral `0.5` when no `SearchMetric` rows exist.
+
+### Specific controls / behaviour
+- New settings fields on `GET/PUT /api/settings/value-model/`: `engagement_signal_enabled`, `w_engagement` (default: 0.1), `engagement_lookback_days` (30), `engagement_words_per_minute` (200), `engagement_cap_ratio` (1.5), `engagement_fallback_value` (0.5).
+- `value_model_diagnostics` extended with: `engagement_signal`, `read_through_rate_raw`, `engagement_quality_raw`, `avg_engagement_time_seconds`, `avg_bounce_rate`, `word_count`, `estimated_read_time_seconds`, `engagement_metric_rows_used`, `engagement_fallback_used`.
+- Review UI shows full engagement breakdown per suggestion.
+- Settings card adds engagement sub-section to the FR-021 card.
+
+### Implementation notes for the AI
+- Only `SearchMetric.avg_engagement_time` and `bounce_rate` are used. Do not read FR-016 `SuggestionTelemetryDaily` data — that is deferred from ranking by FR-016's staged rollout design.
+- Only modify the `engagement_signal` computation function inside the FR-021 value model service. Do not touch `score_final`, FR-007, `velocity.py`, or FR-023.
+- `engagement_signal_enabled = false` must return `0.5` fallback cleanly.
+- Depends on: FR-021.
+
+---
+
+### FR-025 - Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering
+**Requested:** 2026-03-28
+**Target phase:** Phase 28
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr025-session-cooccurrence-collaborative-filtering-behavioral-hubs.md`
+
+### What's wanted
+- Merges Amazon Item-to-Item Collaborative Filtering and Spotify Discover Weekly co-occurrence into one FR (both need the same underlying data pipeline).
+- **Part 1:** New weekly Celery task fetches GA4 session-level page-view sequences and builds a `SessionCoOccurrencePair` table (Jaccard similarity + lift per article pair). No personal data stored.
+- **Part 2:** Seventh signal slot `co_occurrence_signal` added to the FR-021 value model. Pairwise signal — non-zero only for pairs with recorded co-occurrence data. Uses Jaccard similarity. Falls back to `0.5` when no data exists.
+- **Part 3:** Behavioral hub detection — finds groups of articles frequently read together in the same session using threshold-based connected components. New `BehavioralHub` and `BehavioralHubMembership` models. Operators can view, edit, and hard-link hubs via a `/behavioral-hubs` management page.
+
+### Specific controls / behaviour
+- New backend app: `backend/apps/cooccurrence/` with `SessionCoOccurrencePair` and `SessionCoOccurrenceRun` models.
+- Minimum thresholds: `min_co_session_count` (default: 5), `min_jaccard` (default: 0.05), `hub_min_jaccard` (default: 0.15), `hub_min_members` (default: 3).
+- Settings API: `GET/PUT /api/settings/cooccurrence/` with all thresholds, schedule toggle, last-run stats.
+- Value model: `w_cooccurrence` default `0.15`, configurable. Diagnostics show `co_session_count`, `jaccard_similarity`, `lift`.
+- `BehavioralHub.auto_link_enabled` flags hub-pair suggestions as `candidate_origin = "behavioral_hub"`.
+- Hub management page: list, detail, edit, merge, manual add/remove members.
+- FR-019 alerts: `cooccurrence.run_failed` and `cooccurrence.run_completed`.
+- FR-014 `ContentCluster` is not modified. A content item can belong to both a cluster and a hub.
+
+### Implementation notes for the AI
+- Part 1 reuses GA4 credentials and Data API client from FR-016. It is a separate task and table, not an extension of the FR-016 telemetry pipeline.
+- Part 2 adds a pairwise signal to FR-021's value model. Existing signals are not reweighted by default.
+- Part 3 hub detection must preserve `manual_remove_override` memberships across re-detection runs.
+- The co-occurrence pipeline runs weekly and pre-computes all pair scores. The main suggestion pipeline reads pre-computed rows only — no live GA4 calls during pipeline runs.
+- `score_final` in the main ranker is not modified.
+- Depends on: FR-016 (GA4 credentials), FR-021 (value model), FR-019 (alerts).
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -727,4 +787,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021, FR-022, and FR-023 added to backlog.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021, FR-022, FR-023, FR-024, and FR-025 added to backlog.)*
