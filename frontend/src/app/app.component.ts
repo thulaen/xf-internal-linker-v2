@@ -114,4 +114,9 @@ export class AppComponent implements OnInit {
   get siteName(): string {
     return this.appearance.config.siteName;
   }
+
+  goToAdmin(event: MouseEvent): void {
+    event.preventDefault();
+    window.open('/admin/', '_blank');
+  }
 }

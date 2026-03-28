@@ -19,6 +19,7 @@ from urllib.parse import urlparse
 from django.conf import settings as django_settings
 from django.http import JsonResponse
 from django.views import View
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -1119,6 +1120,7 @@ class AppearanceSettingsView(APIView):
     GET  /api/settings/appearance/ — returns current appearance config (or defaults)
     PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
     """
+    permission_classes = [AllowAny]
 
     def _get_config(self) -> dict:
         from apps.core.models import AppSetting
@@ -1859,6 +1861,7 @@ class DashboardView(APIView):
     - recent pipeline runs (last 5)
     - recent import jobs (last 5)
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         from apps.suggestions.models import Suggestion, PipelineRun

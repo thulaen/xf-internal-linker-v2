@@ -67,7 +67,7 @@
       >
         <mat-icon>palette</mat-icon>
       </button>
-      <button mat-icon-button matTooltip="Open Django Admin" [attr.onclick]="null">
+      <button mat-icon-button matTooltip="Open Django Admin" (click)="goToAdmin($event)">
         <mat-icon>admin_panel_settings</mat-icon>
       </button>
     </mat-toolbar>

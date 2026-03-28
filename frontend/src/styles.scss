@@ -12,6 +12,11 @@
   box-sizing: border-box;
 }
 
+:root {
+  --layout-max-width: 1280px; 
+  --sidenav-width: 233px;
+}
+
 html,
 body {
   height: 100%;
@@ -85,11 +90,12 @@ mat-sidenav.app-sidenav,
 .review-controls-surface,
 .link-health-controls-surface {
   padding: 40px 64px 0 64px !important; // Standardized spacing
-  margin: 0 -64px 40px -64px !important; // Offset the 64px padding
+  margin: 0 0 40px 0 !important; // Removed negative margin hacks
   border-bottom: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
+  width: 100%;
 }
 
 .review-controls-surface,
@@ -110,10 +116,11 @@ mat-sidenav.app-sidenav,
 
 .link-health-controls-surface {
   .summary-row {
-    margin-bottom: 34px !important; // Fibonacci
-    max-width: none !important; // Removed 900px restriction for focus
+    margin-bottom: 48px !important; // Increased Fibonacci gap for airy feel
+    max-width: none !important; 
     margin-left: 0 !important;
     margin-right: auto !important;
+    width: 100%;
   }
 
   .summary-card {
@@ -173,7 +180,7 @@ mat-sidenav.app-sidenav,
   p {
     font-size: 14px !important;
     margin-bottom: 32px !important;
-    max-width: 400px !important;
+    max-width: 600px !important; // Increased from 400px for airy feel
   }
 
   // Centered primary action button
@@ -287,6 +294,6 @@ mat-toolbar.app-toolbar,
   p {
     margin: 0;
     font-size: var(--font-size-base);
-    max-width: 400px;
+    max-width: 600px;
   }
 }
