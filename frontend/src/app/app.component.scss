@@ -138,13 +138,18 @@
         font-weight: 500;
         border-radius: var(--radius-md);
 
-        .nav-item-title, span {
+        // Target nested MDC structures for absolute enforcement
+        .nav-item-title, span, .mdc-list-item__primary-text, .mdc-list-item__secondary-text {
           font-weight: 500;
           color: var(--color-text-on-dark) !important;
         }
 
-        mat-icon {
+        mat-icon, [matListItemIcon] {
           color: var(--color-text-on-dark) !important;
+        }
+
+        &:hover {
+          background: var(--color-primary-dark) !important;
         }
       }
     }
