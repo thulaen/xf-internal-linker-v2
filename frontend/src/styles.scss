@@ -221,6 +221,19 @@ mat-toolbar.app-toolbar,
   margin-bottom: 24px;
 }
 
+// ── Global chip sizing — fixes cramped padding on all pages ───────
+// Angular Material MDC chips ship with very tight padding defaults.
+// This override applies to every mat-chip-option and mat-chip across
+// the app so no page needs its own fix.
+.mat-mdc-chip,
+.mat-mdc-chip-option {
+  --mdc-chip-container-height: 32px;
+
+  .mdc-evolution-chip__action--primary {
+    padding-inline: 16px !important;
+  }
+}
+
 // Consistent chip colors matching GSC semantic colors
 .mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; color: var(--color-warning-dark) !important; }
 .mat-mdc-chip.status-approved { background: var(--color-success-light) !important; color: var(--color-success-deeper) !important; }
