@@ -12,6 +12,9 @@ Simple version first.
 
 ### Items available for clustering
 - `backend/apps/content/models.py`
+  - `ContentCluster`: Stores grouping and canonical item. (Implemented)
+  - `ContentItem.cluster`: FK to cluster. (Implemented)
+  - `ContentItem.is_canonical`: Canonical flag. (Implemented)
   - `ContentItem.embedding`: 1024-dim semantic vector (BAAI/bge-m3).
   - `ContentItem.content_hash`: Hash of raw body (exact duplicate detection).
   - `ContentItem.title`: Text name.
@@ -20,8 +23,7 @@ Simple version first.
   - `ScoredCandidate`: Dataclass carrying suggestion-time scores.
 
 ### Items not available
-- No formal `Cluster` or `Canonical` model relationship.
-- No background task to group near-duplicates.
+- No background task to group near-duplicates. (Task implemented, needs triggering)
 - No UI to manage clusters or "merge" redundant pages.
 
 ## Plain-English Summary
@@ -121,14 +123,14 @@ When multiple candidates are found:
 ## API Surface
 - `GET /api/settings/clustering/`
 - `PUT /api/settings/clustering/`
-- `POST /api/settings/clustering/run/` - Trigger background pass.
+- `POST /api/settings/clustering/recalculate/` - Trigger background pass.
 
 ## Implementation Workflow
 
-1. **Models**: Add `ContentCluster` and migrate `ContentItem`.
-2. **Service**: Implement `ClusteringService` using transitive grouping.
-3. **Pipeline**: Update `ranker.py` and `pipeline.py` to identify cluster membership.
-4. **UI**: Add cluster badges to the Review screen and a "Canonical" toggle.
+1. **Models**: Add `ContentCluster` and migrate `ContentItem`. (Done)
+2. **Service**: Implement `ClusteringService`. (Done)
+3. **Pipeline**: Update `ranker.py` and `pipeline.py`. (In Progress - Integration Bug Fix)
+4. **UI**: Add cluster badges to Review screen and settings dashboard. (In Progress)
 
 ## Final Rule
 

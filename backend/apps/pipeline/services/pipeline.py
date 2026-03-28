@@ -249,6 +249,7 @@ def run_pipeline(
             ga4_gsc_ranking_weight=ga4_gsc_settings["ranking_weight"],
             click_distance_ranking_weight=click_distance_settings["ranking_weight"],
             silo_settings=silo_settings,
+            clustering_settings=clustering_settings,
             blocked_reasons=blocked_reasons,
         )
 

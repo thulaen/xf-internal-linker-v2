@@ -117,6 +117,12 @@ export interface FeedbackRerankSettings {
   exploration_rate: number;
 }
 
+export interface ClusteringSettings {
+  enabled: boolean;
+  similarity_threshold: number;
+  suppression_penalty: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -195,6 +201,10 @@ export class SiloSettingsService {
     return this.http.get<FeedbackRerankSettings>('/api/settings/explore-exploit/');
   }
 
+  getClusteringSettings(): Observable<ClusteringSettings> {
+    return this.http.get<ClusteringSettings>('/api/settings/clustering/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -231,12 +241,20 @@ export class SiloSettingsService {
     return this.http.put<FeedbackRerankSettings>('/api/settings/explore-exploit/', payload);
   }
 
+  updateClusteringSettings(payload: ClusteringSettings): Observable<ClusteringSettings> {
+    return this.http.put<ClusteringSettings>('/api/settings/clustering/', payload);
+  }
+
   recalculateClickDistance(): Observable<{ job_id: string }> {
     return this.http.post<{ job_id: string }>('/api/settings/click-distance/recalculate/', {});
   }
 
   recalculateLinkFreshness(): Observable<{ job_id: string }> {
     return this.http.post<{ job_id: string }>('/api/settings/link-freshness/recalculate/', {});
+  }
+
+  recalculateClustering(): Observable<{ job_id: string }> {
+    return this.http.post<{ job_id: string }>('/api/settings/clustering/recalculate/', {});
   }
 
   updateWordPressSettings(payload: WordPressSettingsUpdate): Observable<WordPressSettings> {

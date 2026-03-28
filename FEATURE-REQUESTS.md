@@ -175,35 +175,11 @@ Important:
  
  ---
  
--### FR-013 - Feedback-Driven Explore/Exploit Reranking
--**Requested:** 2024-03-24
-+### FR-013 - Feedback-Driven Explore/Exploit Reranking
-+**Requested:** 2026-03-24
-+**Completed:** 2026-03-27
-+
-+- Added post-ranking Explore/Exploit reranker using Bayesian-smoothed approval rates and UCB1 exploration.
-+- Integrated with pipeline scoring loop and exposed explainable diagnostics in the review UI.
-+
-+---
-
-
 <br>
 
 ---
 
 ## PENDING
-
-
-### FR-014 - Near-Duplicate Destination Clustering
-**Requested:** 2026-03-24
-**Target phase:** Phase 17
-**Priority:** Medium
-**Patent inspiration:** `US7698317B2`
-
-- Cluster near-duplicate destinations with canonical preference, soft suppression, manual override, and confidence-aware behavior.
-- Do not default to cross-source canonicalization.
-
----
 
 ### FR-015 - Final Slate Diversity Reranking
 **Requested:** 2026-03-24
@@ -636,4 +612,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-27 (Phase 16 / FR-013 is complete. Next target: Phase 17 / FR-014.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015.)*

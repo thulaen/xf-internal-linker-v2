@@ -42,11 +42,9 @@ Execution order and FR IDs are decoupled.
 - **R Analytics Service** (`services/r-analytics/`): R-based infrastructure for content value scoring and mathematical weight-tuning groundwork.
 
 
-## Current Phase
-
-- Active target for the next session: Phase 17
-- FR cross-reference: `FR-014 - Local Diversity and Cluster Suppression`
-- Status: Phase 16 / FR-013 is complete. Phase 17 is the next target.
+- Active target for the next session: Phase 18
+- FR cross-reference: `FR-015 - Final Slate Diversity Reranking`
+- Status: Phase 17 / FR-014 is complete. Phase 18 is the next target.
 
 - Session target: Separate R Analytics Service Scaffold + Tests
 - What changed:
@@ -144,6 +142,8 @@ Phase 12 shipped:
 - Phase 12 / `FR-009`: separate learned-anchor vocabulary, suggestion-level corroboration scoring, settings, diagnostics, review exposure, and admin exposure implemented from `docs/specs/fr009-learned-anchor-vocabulary-corroboration.md`
 - Phase 14 / `FR-011`: separate field-aware relevance scoring, settings, diagnostics, review exposure, admin exposure, and snapshot wiring implemented from `docs/specs/fr011-field-aware-relevance-scoring.md`
 - Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, diagnostics, review exposure, and recalculation task implemented from `docs/specs/fr012-click-distance-structural-prior.md`
+- Phase 16 / `FR-013`: post-ranking Explore/Exploit reranker with Bayesian smoothing and UCB1 exploration.
+- Phase 17 / `FR-014`: near-duplicate destination clustering with soft suppression and manual recalculation.
 - **Neutral Analytics Groundwork**: Created interim R analytics service scaffold and dashboard to support future `FR-018` auto-tuning.
 - **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
 
@@ -169,8 +169,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 13 | FR-010 | Complete | Rare-term propagation shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and targeted verification |
 | 14 | FR-011 | Complete | Field-aware relevance shipped with separate backend scoring, settings/snapshot wiring, migration, review/admin exposure, and targeted verification |
 | 15 | FR-012 | Complete | Click-Distance Structural Prior shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and unit verification |
-| 16 | FR-013 | Queued | Feedback-Driven Explore/Exploit Reranking |
-| 17 | FR-014 | Queued | Near-Duplicate Destination Clustering |
+| 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
+| 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Queued | Final Slate Diversity Reranking |
 | 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
@@ -178,12 +178,10 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
 | 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
-## What Is Next
-
-- Next exact target: Phase 16 / `FR-013 - Feedback-Driven Explore/Exploit Reranking`
-- Phase 15 reference: `FR-012` shipped as a separate structural prior layer and stays separate from FR-011, FR-013, FR-014, and FR-015
-- Current continuity state: FR-012 is complete and verified against its spec.
-- Next session type: implement FR-013 against its spec.
+- Next exact target: Phase 18 / `FR-015 - Final Slate Diversity Reranking`
+- Phase 17 reference: `FR-014` shipped as a separate content clustering layer and stays separate from FR-012, FR-013, and FR-015
+- Current continuity state: FR-014 is complete and verified against its updated spec.
+- Next session type: implement FR-015 against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 

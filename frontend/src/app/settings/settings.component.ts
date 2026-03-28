@@ -26,6 +26,7 @@ import {
   WordPressSettings,
   WordPressSettingsUpdate,
   FeedbackRerankSettings,
+  ClusteringSettings,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -333,6 +334,28 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 5 or above pushes many untested links to the top for review. Lowering to 0.1 exploits known winners.',
     range: '0 to 10',
   },
+  // ── Clustering ──────────────────────────────────────────────────
+  'clustering.enabled': {
+    definition: 'Turns on near-duplicate destination clustering based on semantic embedding similarity.',
+    impact: 'Enabled prevents suggesting multiple redundant links to effectively the same content. Disabled treats every URL as unique.',
+    default: 'Off',
+    example: 'Enable to clean up the Review dashboard if you see many similar thread/resource pairs.',
+    range: 'On / Off',
+  },
+  'clustering.similarity_threshold': {
+    definition: 'How similar two pages must be (cosine distance) to be grouped into the same cluster.',
+    impact: 'Lower values are stricter (only clones are grouped). Higher values are more inclusive (related topics might be grouped).',
+    default: '0.04',
+    example: 'Lower to 0.02 to only group exact duplicates. Raise to 0.08 to group broadly related content.',
+    range: '0 to 0.15',
+  },
+  'clustering.suppression_penalty': {
+    definition: 'The score penalty applied to non-canonical (redundant) versions of a content cluster.',
+    impact: 'Higher values aggressively hide duplicates. Lower values let them surface if they are strong matches.',
+    default: '0.5',
+    example: 'Set to 1.0 to almost always hide duplicates. Set to 0.1 to just slightly demote them.',
+    range: '0 to 2.0',
+  },
 };
 
 const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number }> = {
@@ -362,6 +385,8 @@ const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: numbe
   'feedbackRerank.exploration_rate': { warnAbove: 5.0 },
   'silo.same_silo_boost': { warnAbove: 0.4 },
   'silo.cross_silo_penalty': { warnAbove: 0.4 },
+  'clustering.similarity_threshold': { warnAbove: 0.1 },
+  'clustering.suppression_penalty': { warnAbove: 1.0 },
 };
 
 @Component({
@@ -397,10 +422,12 @@ export class SettingsComponent implements OnInit {
   savingFieldAwareRelevance = false;
   savingClickDistance = false;
   savingFeedbackRerank = false;
+  savingClustering = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
   recalculatingClickDistance = false;
+  recalculatingClustering = false;
   runningWordPressSync = false;
   creatingGroup = false;
 
@@ -462,6 +489,11 @@ export class SettingsComponent implements OnInit {
     enabled: false,
     ranking_weight: 0.2,
     exploration_rate: 1.0,
+  };
+  clustering: ClusteringSettings = {
+    enabled: false,
+    similarity_threshold: 0.04,
+    suppression_penalty: 0.5,
   };
   wordpress: WordPressSettings = {
     base_url: '',
@@ -562,7 +594,16 @@ export class SettingsComponent implements OnInit {
                                         this.siloSvc.getFeedbackRerankSettings().subscribe({
                                           next: (feedbackRerank) => {
                                             this.feedbackRerank = feedbackRerank;
-                                            this.loadGroupsAndScopes();
+                                            this.siloSvc.getClusteringSettings().subscribe({
+                                              next: (clustering) => {
+                                                this.clustering = clustering;
+                                                this.loadGroupsAndScopes();
+                                              },
+                                              error: () => {
+                                                this.loading = false;
+                                                this.snack.open('Failed to load clustering settings', 'Dismiss', { duration: 4000 });
+                                              },
+                                            });
                                           },
                                           error: () => {
                                             this.loading = false;
@@ -730,6 +771,21 @@ export class SettingsComponent implements OnInit {
     });
   }
 
+  saveClusteringSettings(): void {
+    this.savingClustering = true;
+    this.siloSvc.updateClusteringSettings(this.clustering).subscribe({
+      next: (clustering) => {
+        this.clustering = clustering;
+        this.savingClustering = false;
+        this.snack.open('Clustering settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingClustering = false;
+        this.snack.open(error?.error?.detail || 'Failed to save clustering settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   recalculateClickDistance(): void {
     this.recalculatingClickDistance = true;
     this.siloSvc.recalculateClickDistance().subscribe({
@@ -740,6 +796,20 @@ export class SettingsComponent implements OnInit {
       error: (error) => {
         this.recalculatingClickDistance = false;
         this.snack.open(error?.error?.detail || 'Failed to start click distance recalculation', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  recalculateClustering(): void {
+    this.recalculatingClustering = true;
+    this.siloSvc.recalculateClustering().subscribe({
+      next: (response) => {
+        this.recalculatingClustering = false;
+        this.snack.open(`Clustering recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
+      },
+      error: (error) => {
+        this.recalculatingClustering = false;
+        this.snack.open(error?.error?.detail || 'Failed to start clustering recalculation', 'Dismiss', { duration: 4000 });
       },
     });
   }
