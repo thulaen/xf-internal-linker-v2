@@ -589,6 +589,121 @@ Important:
 - Design for both small laptop-safe models and future larger local models on a stronger PC.
 - Keep the first implementation focused on reliability and rollback, not on squeezing maximum hardware utilization.
 
+### FR-021 - Graph-Based Link Candidate Generation (Pixie Random Walk + Instagram Value Scoring)
+**Requested:** 2026-03-28
+**Target phase:** Phase 24
+**Priority:** High
+**Spec draft:** `docs/specs/fr021-graph-based-link-candidate-generation.md`
+
+### What's wanted
+- Build a bipartite knowledge graph of Articles ↔ Entities extracted from content.
+- Run a Pinterest Pixie-style biased random walk from each source article to generate candidate destination links, surfacing topically-related pages that embedding similarity alone would miss.
+- Rank the merged candidate pool (graph-walk + embedding) using an Instagram-style weighted value model: a configurable weighted sum of relevance signal, historical page traffic data from R analytics / `SearchMetric`, link freshness, and authority.
+- Pass the ranked candidates into the existing multi-signal scoring pipeline (FR-006 to FR-015) unchanged.
+
+### Specific controls / behaviour
+- New backend app: `backend/apps/knowledge_graph/` with `EntityNode` and `ArticleEntityEdge` models.
+- Entity extraction task runs after every sync and on-demand.
+- Pixie walk is biased by edge weight, uses multi-hit boosting for intersection candidates, and early-stops when candidate set is stable.
+- All walk parameters are configurable: steps per entity, K candidates, min-stable threshold, entities per article.
+- Instagram value model: `score = w_relevance × relevance + w_traffic × traffic + w_freshness × freshness + w_authority × authority − w_penalty × penalty`.
+- All weights configurable via `GET/PUT /api/settings/value-model/`.
+- Traffic signal draws from `SearchMetric` and R analytics output; falls back to neutral `0.5` when missing.
+- `Suggestion` gets `candidate_origin` (embedding / graph_walk / both), `score_value_model`, and `value_model_diagnostics` fields.
+- Settings card shows graph stats (article count, entity count, edge count, last built) and "Rebuild Graph Now" button.
+- Review detail shows candidate origin and value model signal breakdown.
+
+### Implementation notes for the AI
+- The graph is small for a typical site — fits in a few hundred MB at most. No distributed graph infrastructure needed.
+- Keep Pixie walk as pure Python graph math. No external graph database required for first pass.
+- The value model is a pre-ranking pass only. It does not replace or merge into the existing FR-006 to FR-015 signal scores.
+- Existing scoring, hard filters, silo rules, and diversity reranking must remain unchanged.
+- Missing traffic data must fall back to neutral, never to zero.
+- Automatic weight tuning for the value model belongs to FR-018, not here.
+
+---
+
+### FR-022 - Data Source & System Health Check Dashboard
+**Requested:** 2026-03-28
+**Target phase:** Phase 25
+**Priority:** High
+**Spec draft:** `docs/specs/fr022-data-source-system-health-check.md`
+
+### What's wanted
+- Add a dedicated `/health` page showing one status card per data source and service.
+- Every card answers: is it connected, when did data last arrive, and is anything wrong right now.
+- Silent broken connections (expired tokens, stale syncs, downed containers) must be impossible to miss.
+- Degraded services must fire `FR-019` operator alerts automatically.
+- Recovered services must resolve their alerts automatically.
+
+### Specific controls / behaviour
+- Health cards included (12 total):
+  1. **GA4** — credentials valid, last data received, auth error detection.
+  2. **GSC** — credentials valid, last data received, auth error detection, 48h lag note.
+  3. **XenForo Sync** — last sync timestamp + item count, overdue detection.
+  4. **WordPress Sync** — last sync timestamp + item count, overdue detection.
+  5. **R Analytics Service** — Docker container ping, last computation run.
+  6. **Algorithm Pipeline** — last run result, suggestion count, suggestion-count-drop detection.
+  7. **Auto-Tuning Algorithm** — champion/challenger state, last training run, gate check result (visible once FR-018 is live).
+  8. **Embedding Model** — download / warmup / ready / failed state.
+  9. **Celery Workers** — worker count, queue depth, backed-up detection.
+  10. **HttpWorker Service** — .NET service ping, last task.
+  11. **Database** — connection status, migration state.
+  12. **Redis / Channel Layer** — PING check.
+- New backend app: `backend/apps/health/` with `ServiceHealthRecord` model.
+- Periodic Celery task runs all checks every 5 minutes (configurable).
+- REST API: `GET /api/health/status/`, per-service immediate check endpoint, settings endpoint.
+- Top summary bar: overall system status + "Check All Now" button.
+- Cards sorted: errors first, then warnings, then healthy, then not-configured.
+- Status dot in sidebar nav and top toolbar visible from any page when any service is degraded.
+- All stale thresholds and alert thresholds configurable via `GET/PUT /api/settings/health/`.
+
+### Implementation notes for the AI
+- Health checks must be read-only and non-destructive. No write side-effects during a check.
+- `ServiceHealthRecord` upserts on every check — one row per service, not a history log.
+- All alert emission uses the `FR-019` `emit_operator_alert()` helper with dedupe keys so a persistently-down service does not flood the alert center.
+- Resolved alerts (service came back healthy) must call resolve on the matching open alert.
+- FR-019 must be implemented before FR-022 because FR-022 depends on `emit_operator_alert()`.
+- Auto-tuning card (card 7) gracefully hides or shows "Not enabled" state until FR-018 is shipped.
+- Embedding model card (card 8) connects to the same model-state contract already defined in FR-019.
+
+---
+
+### FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
+**Requested:** 2026-03-28
+**Target phase:** Phase 26
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr023-reddit-hot-decay-wilson-score-spike-alerts.md`
+
+### What's wanted
+Three independent, non-conflicting improvements built around Reddit's Hot algorithm and Wilson Score math:
+
+1. **Reddit Hot decay** — replace the flat 90-day average inside FR-021's `traffic_signal` slot with Reddit Hot's logarithmic time-decay formula. Recent traffic counts for more. Old traffic fades. Pages gaining momentum right now surface as better link candidates than pages that were popular months ago.
+2. **Wilson Score display** — show a confidence-adjusted CTR label in the FR-016 telemetry review UI. Makes it obvious when a "great CTR" is based on 5 impressions vs 5,000.
+3. **Hot-score spike alerts** — a new `analytics.hot_score_spike` alert that fires when a page's traffic *momentum* rises sharply, even if raw volume is modest. Complements (does not replace) the existing `analytics.gsc_spike` alert.
+
+### Specific controls / behaviour
+- Part 1 modifies exactly one function: the `traffic_signal` computation in the FR-021 value model. Nothing else.
+- Reddit Hot formula adapted for traffic: `hot_score = log10(max(traffic_volume, 1)) − gravity × age_in_days`. Summed across daily `SearchMetric` rows. Normalized site-wide with min-max.
+- `hot_decay_enabled` toggle — when off, falls back to original flat average. Instant rollback.
+- Configurable: `hot_gravity` (default 0.05), `hot_clicks_weight` (1.0), `hot_impressions_weight` (0.05), `hot_lookback_days` (90).
+- Part 2 adds `wilson_lower_bound` and `wilson_confidence_label` as computed read-only fields on the FR-016 telemetry API. No DB column. No ranking impact.
+- Confidence labels: low (< 20 impressions), moderate (20–99), good (100–499), high (≥ 500).
+- Part 3 adds `analytics.hot_score_spike` and `analytics.hot_score_spike_resolved` event types to FR-019.
+- Spike detected when: `delta ≥ 1.5` log units AND `relative_lift ≥ 50%` vs 7-day trailing average.
+- Severity: `warning` at 50–99% lift, `urgent` at ≥ 100% lift.
+- Dedupe cooldown: 24 hours per item per day.
+
+### Implementation notes for the AI
+- Part 1 must only modify the `traffic_signal` computation inside the FR-021 knowledge-graph service. Do not touch `score_final`, `score_link_freshness`, or `velocity.py`.
+- Part 2 must be computed on read in the serializer/view. Do not add a DB column. Do not feed Wilson Score into any ranking weight.
+- Part 3 must use `emit_operator_alert()` from FR-019. Do not build a separate alert path.
+- FR-016's rule — "no live ranking from telemetry in first pass" — is fully respected. Parts 2 and 3 are display and alerts only.
+- FR-007 and `velocity.py` are not modified by this FR under any circumstances.
+- Depends on: FR-021 (Part 1), FR-016 (Part 2), FR-019 (Part 3).
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -612,4 +727,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021, FR-022, and FR-023 added to backlog.)*
