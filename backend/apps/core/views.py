@@ -342,6 +342,45 @@ def get_feedback_rerank_settings() -> dict[str, float | bool]:
         return dict(DEFAULT_FEEDBACK_RERANK_SETTINGS)
 
 
+def get_clustering_settings() -> dict[str, float | bool]:
+    """Load persisted FR-014 clustering settings with defensive defaults."""
+    settings = _read_clustering_settings()
+    try:
+        return _validate_clustering_settings(
+            settings,
+            current=dict(DEFAULT_CLUSTERING_SETTINGS),
+        )
+    except Exception:
+        return dict(DEFAULT_CLUSTERING_SETTINGS)
+
+
+def _read_clustering_settings() -> dict[str, float | bool]:
+    """Read near-duplicate clustering settings from AppSetting without applying bounds."""
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            value = float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        if not math.isfinite(value):
+            return default
+        return value
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        if isinstance(raw, str):
+            return raw.strip().lower() in {"1", "true", "yes", "on"}
+        return bool(raw)
+
+    return {
+        "enabled": _read_bool("clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"]),
+        "similarity_threshold": _read_float("clustering.similarity_threshold", DEFAULT_CLUSTERING_SETTINGS["similarity_threshold"]),
+        "suppression_penalty": _read_float("clustering.suppression_penalty", DEFAULT_CLUSTERING_SETTINGS["suppression_penalty"]),
+    }
+
+
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
