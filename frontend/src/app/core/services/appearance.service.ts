@@ -23,8 +23,8 @@ export interface AppearanceConfig {
 }
 
 export const DEFAULT_CONFIG: AppearanceConfig = {
-  primaryColor: '#0066cc',
-  accentColor: '#0066cc',
+  primaryColor: '#0078d4',
+  accentColor: '#0078d4',
   fontSize: 'medium',
   layoutWidth: 'wide',
   sidebarWidth: 'standard',

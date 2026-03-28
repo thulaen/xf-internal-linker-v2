@@ -80,9 +80,15 @@ mat-sidenav.app-sidenav,
   border-radius: var(--radius-md) !important; // Microsoft 6px style
   padding: 0 24px !important; // Airy feeling
   box-shadow: none !important;
+  display: inline-flex !important; // Ensures centering
+  align-items: center !important;
+  justify-content: center !important;
+  text-align: center !important;
 
   mat-icon {
     color: var(--color-text-on-dark) !important;
+    margin-right: 10px !important; // Standard gap for icon on left
+    margin-left: -4px !important; // Symmetrical offset
   }
 }
 
@@ -134,9 +140,10 @@ mat-sidenav.app-sidenav,
   .status-tabs { 
     margin-bottom: 24px !important; // Breathing room before filter bar
     border-bottom: 2px solid var(--color-border) !important; 
+    padding: 0 48px !important; // Left alignment matches header
   }
   .filter-bar { 
-    padding: 0 !important; 
+    padding: 0 48px !important; // Breathing room for chips like "All"
     margin-bottom: 0 !important;
   }
 }
@@ -165,9 +172,18 @@ mat-sidenav.app-sidenav,
     .summary-label { font-weight: 500 !important; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
   }
 
+  .summary-row {
+    margin-bottom: 48px !important; // Increased Fibonacci gap for airy feel
+    padding: 0 48px !important; // Consistent breathing room
+    max-width: none !important; 
+    margin-left: 0 !important;
+    margin-right: auto !important;
+    width: 100%;
+  }
+
   .filter-bar { 
-    padding: 0 !important; 
-    margin-top: 24px !important; // Breathing room after summary cards
+    padding: 0 48px !important; // Breathing room for chips like "All"
+    margin-top: 24px !important; 
     margin-bottom: 0 !important; 
   }
 }
