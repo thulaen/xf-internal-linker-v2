@@ -23,18 +23,18 @@ export interface AppearanceConfig {
 }
 
 export const DEFAULT_CONFIG: AppearanceConfig = {
-  primaryColor: '#1a73e8',
-  accentColor: '#f4b400',
+  primaryColor: '#0066cc',
+  accentColor: '#0066cc',
   fontSize: 'medium',
-  layoutWidth: 'standard',
+  layoutWidth: 'wide',
   sidebarWidth: 'standard',
   density: 'comfortable',
-  headerBg: '#ffffff',
+  headerBg: '#0066cc',
   siteName: 'XF Internal Linker',
   showScrollToTop: true,
   footerText: 'XF Internal Linker V2',
   showFooter: true,
-  footerBg: '#f8f9fa',
+  footerBg: '#faf9f8',
   logoUrl: '',
   faviconUrl: '',
   presets: [],

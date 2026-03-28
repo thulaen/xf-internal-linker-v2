@@ -34,7 +34,7 @@ Execution order and FR IDs are decoupled.
 - Node.js 22 LTS target runtime
 - Angular 20 + Angular Material 20
 - TypeScript 5.8
-- SCSS with theme tokens in `frontend/src/styles/gsc-theme.scss`
+- SCSS with theme tokens in `frontend/src/styles/default-theme.scss`
 - Roadmap libraries: `ngx-monaco-editor-v2`, `three`, `ngx-charts`
 
 ### Services

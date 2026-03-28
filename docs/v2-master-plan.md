@@ -68,7 +68,7 @@ A local-first application that suggests highly contextual internal links for Xen
 | **Cache/Queue** | None | Redis |
 | **Real-time** | HTTP polling | WebSockets (Django Channels) |
 | **Jobs** | threading.Thread | Celery + Redis |
-| **Theme** | Fixed GSC-inspired | WordPress-like customizer |
+| **Theme** | Fixed GSC-inspired | Customizable default-theme |
 | **Plugins** | None | Hot-loadable add-on system |
 | **Analytics** | None | GSC + GA4 integration |
 | **WordPress** | None | Cross-platform linking |
@@ -505,7 +505,7 @@ xf-internal-linker-v2/
 │       └── styles/
 │           ├── themes/
 │           │   ├── _variables.scss
-│           │   ├── _gsc-theme.scss     # Google Search Console theme
+│           │   ├── _default-theme.scss     # Professional default theme
 │           │   ├── _dark-theme.scss
 │           │   └── _custom-theme.scss  # User customizations
 │           └── global.scss
