@@ -131,8 +131,14 @@ mat-sidenav.app-sidenav,
     justify-content: space-between !important; // Title left, buttons far right
     gap: 0 !important; // Let flex handle the gap
   }
-  .status-tabs { margin-bottom: 0 !important; border-bottom: none !important; }
-  .filter-bar { padding: 12px 0 16px 0 !important; }
+  .status-tabs { 
+    margin-bottom: 24px !important; // Breathing room before filter bar
+    border-bottom: 2px solid var(--color-border) !important; 
+  }
+  .filter-bar { 
+    padding: 0 !important; 
+    margin-bottom: 0 !important;
+  }
 }
 
 .link-health-controls-surface {
@@ -159,7 +165,11 @@ mat-sidenav.app-sidenav,
     .summary-label { font-weight: 500 !important; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
   }
 
-  .filter-bar { padding: 12px 0 16px 0 !important; margin-bottom: 0 !important; }
+  .filter-bar { 
+    padding: 0 !important; 
+    margin-top: 24px !important; // Breathing room after summary cards
+    margin-bottom: 0 !important; 
+  }
 }
 
 // Ensure the tab links also feel GSC-like
@@ -220,14 +230,9 @@ mat-sidenav.app-sidenav,
   }
 }
 
-// Toolbar background white
-mat-toolbar.app-toolbar,
-.app-toolbar {
-  background-color: var(--color-bg-white) !important;
-  color: var(--color-text-primary) !important;
-  border-bottom: none !important; // Removed border
-  box-shadow: none !important;
-}
+// ── Toolbar Cleanup ───────────────────────────────────────────────
+// Redundant styles removed to ensure app.component.scss takes precedence
+
 
 // Make cards use the white background and subtle border
 .mat-mdc-card {
@@ -248,7 +253,7 @@ mat-toolbar.app-toolbar,
 .mat-mdc-chip-option {
   --mdc-chip-container-height: 32px;
   margin-right: 16px !important; // Increased from 8px for wide feel
-  margin-bottom: 8px !important;
+  margin-bottom: 12px !important; // More vertical air
 
   .mdc-evolution-chip__action--primary {
     padding-inline: 16px !important;

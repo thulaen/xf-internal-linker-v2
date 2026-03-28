@@ -11,10 +11,11 @@
   border-right: none;
   transition: width 0.2s ease;
 
-  // Enforce background on the mat-sidenav element itself
+  // Enforce background and prevent horizontal scroll
   &.mat-drawer {
     background-color: var(--color-bg-alt-1);
     border-right: none;
+    overflow-x: hidden !important; // Eliminates bottom scrollbar
   }
 
   .sidenav-header {
@@ -54,11 +55,12 @@
       .brand-name {
         color: var(--color-text-primary);
         font-size: 14px;
-        font-weight: 500;
-        letter-spacing: 0.2px;
+        font-weight: 600;
+        letter-spacing: 0.1px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        max-width: 150px; // Ensure it doesn't push the sidebar wider
       }
 
       .brand-version {
@@ -169,13 +171,13 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: var(--toolbar-bg); // Solid Blue
-  color: var(--color-text-on-dark); // White
+  background: var(--color-bg-white); // White per Airy aesthetic
+  color: var(--color-text-primary); // Dark
   position: sticky;
   top: 0;
-  z-index: 100;
-  border-bottom: none;
-  box-shadow: var(--shadow-sm);
+  z-index: 1000; // Above sidebar
+  border-bottom: 1px solid var(--color-border);
+  box-shadow: none;
   height: 64px;
   padding: 0 24px;
 
@@ -186,8 +188,8 @@
 
   span {
     font-size: 18px;
-    font-weight: 500;
-    color: var(--color-text-on-dark);
+    font-weight: 600;
+    color: var(--color-primary); // Brand Blue title
     letter-spacing: -0.5px;
   }
 
@@ -196,11 +198,11 @@
   }
 
   button[mat-icon-button] {
-    color: var(--color-text-on-dark);
+    color: var(--color-text-secondary); // Clearly visible dark icons
 
     &:hover {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--color-text-on-dark);
+      background: var(--color-bg-faint);
+      color: var(--color-primary);
     }
   }
 }
