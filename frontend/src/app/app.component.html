@@ -1,4 +1,23 @@
 <!-- XF Internal Linker V2 — Main Application Shell -->
+<!-- ── Top Toolbar (Spans entire width) ────────────────────────── -->
+<mat-toolbar class="app-toolbar">
+  @if (config.logoUrl) {
+    <img [src]="config.logoUrl" alt="" class="toolbar-logo-img" aria-hidden="true" />
+  }
+  <span>{{ siteName }}</span>
+  <span class="toolbar-spacer"></span>
+  <button
+    mat-icon-button
+    matTooltip="Customize appearance"
+    (click)="customizerOpen = !customizerOpen"
+  >
+    <mat-icon>palette</mat-icon>
+  </button>
+  <button mat-icon-button matTooltip="Open Django Admin" (click)="goToAdmin($event)">
+    <mat-icon>admin_panel_settings</mat-icon>
+  </button>
+</mat-toolbar>
+
 <mat-sidenav-container class="app-container">
 
   <!-- ── Left Sidebar: Navigation ───────────────────────────────── -->
@@ -52,25 +71,6 @@
 
   <!-- ── Main Content Area ──────────────────────────────────────── -->
   <mat-sidenav-content class="app-content">
-
-    <!-- Top Toolbar -->
-    <mat-toolbar class="app-toolbar">
-      @if (config.logoUrl) {
-        <img [src]="config.logoUrl" alt="" class="toolbar-logo-img" aria-hidden="true" />
-      }
-      <span>{{ siteName }}</span>
-      <span class="toolbar-spacer"></span>
-      <button
-        mat-icon-button
-        matTooltip="Customize appearance"
-        (click)="customizerOpen = !customizerOpen"
-      >
-        <mat-icon>palette</mat-icon>
-      </button>
-      <button mat-icon-button matTooltip="Open Django Admin" (click)="goToAdmin($event)">
-        <mat-icon>admin_panel_settings</mat-icon>
-      </button>
-    </mat-toolbar>
 
     <!-- Page Content (routed) -->
     <main class="page-content">

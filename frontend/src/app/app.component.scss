@@ -1,8 +1,8 @@
 // ── App Shell Layout ──────────────────────────────────────────────
 
 .app-container {
-  height: 100vh;
-  background-color: var(--color-bg-alt-1); // #f0f4f9
+  height: calc(100vh - 64px);
+  background-color: var(--color-bg-alt-1); // #faf9f8
 }
 
 .app-sidenav {
@@ -85,10 +85,10 @@
 
     a[mat-list-item] {
       color: var(--color-text-secondary);
-      border-radius: 0 20px 20px 0; // GSC style pill (open on left)
-      margin: 0 8px 0 0;
-      height: 40px;
-      min-height: 40px;
+      border-radius: var(--radius-md); // 6px Microsoft style
+      margin: 4px 12px; // Space from container edge
+      height: 44px; // Taller for airy feel
+      min-height: 44px;
       transition: background 0.15s, color 0.15s;
       font-size: 14px;
 
@@ -133,17 +133,18 @@
       }
 
       &.active-link {
-        background: var(--color-blue-200); // Forced GSC Active Tab
-        color: var(--color-dark-blue);
+        background: var(--color-primary) !important; // Solid Blue
+        color: var(--color-text-on-dark) !important; // White Text
         font-weight: 500;
-        border-radius: 0 20px 20px 0;
+        border-radius: var(--radius-md);
 
-        .nav-item-title {
+        .nav-item-title, span {
           font-weight: 500;
+          color: var(--color-text-on-dark) !important;
         }
 
         mat-icon {
-          color: var(--color-dark-blue);
+          color: var(--color-text-on-dark) !important;
         }
       }
     }
@@ -163,15 +164,15 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: var(--color-bg-white);
-  color: var(--color-text-primary);
+  background: var(--toolbar-bg); // Solid Blue
+  color: var(--color-text-on-dark); // White
   position: sticky;
   top: 0;
   z-index: 100;
   border-bottom: none;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
   height: 64px;
-  padding: 0 16px;
+  padding: 0 24px;
 
   .toolbar-logo-img {
     height: 24px;
@@ -180,8 +181,8 @@
 
   span {
     font-size: 18px;
-    font-weight: 400;
-    color: var(--color-text-secondary);
+    font-weight: 500;
+    color: var(--color-text-on-dark);
     letter-spacing: -0.5px;
   }
 
@@ -190,11 +191,11 @@
   }
 
   button[mat-icon-button] {
-    color: var(--color-text-secondary);
+    color: var(--color-text-on-dark);
 
     &:hover {
-      background: var(--color-blue-50);
-      color: var(--color-text-primary);
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--color-text-on-dark);
     }
   }
 }
@@ -204,32 +205,32 @@
 .app-content {
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-alt-1); // GSC Body Background (#f0f4f9)
+  background: var(--color-bg-page);
   overflow: hidden;
-  min-height: 100vh;
+  min-height: calc(100vh - 64px);
 }
 
 .page-content {
   flex: 1;
   overflow-y: auto;
-  padding: 24px; // Uniform padding of 24px on all sides
+  padding: 32px 48px; // Wide and airy padding
   width: 100%;
-  max-width: var(--layout-max-width, 100%); // Allow full width expansion
+  max-width: var(--layout-max-width, 100%);
   margin: 0; 
   background: transparent;
 }
 
 .app-footer {
-  padding: 32px; // Unified padding with content
-  background: var(--color-bg-white);
+  padding: 24px 48px; // Matches page content padding
+  background: transparent; // Bing style
   border-top: 1px solid var(--color-border);
   font-size: 13px;
   color: var(--color-text-secondary);
   width: 100%;
-  max-width: var(--layout-max-width, 1280px);
-  margin: 0; // Removed margin: 0 auto to stay anchored
+  max-width: var(--layout-max-width, 100%);
+  margin: 0;
   flex-shrink: 0;
   display: flex;
-  justify-content: flex-start; // Anchor text to the left
+  justify-content: flex-start;
   align-items: center;
 }

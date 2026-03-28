@@ -1,0 +1,119 @@
+// ═══════════════════════════════════════════════════════════════════
+// Default Theme — Bing Webmaster Tools inspired palette
+// ═══════════════════════════════════════════════════════════════════
+
+:root {
+  // ── Primary Brand and Action Colors ──────────────────────────
+  --color-primary:        #0066cc; // Microsoft Blue (Primary Action)
+  --color-primary-dark:   #0050a1; // Dark Blue (Hover/Pressed)
+
+  // ── MDC Global Overrides ──────────────────────────────────────
+  --mdc-theme-primary:            var(--color-primary);
+  --mdc-checkbox-selected-focus-icon-color: var(--color-primary);
+  --mdc-checkbox-selected-hover-icon-color: var(--color-primary-dark);
+  --mdc-checkbox-selected-icon-color:       var(--color-primary);
+  --mdc-checkbox-selected-pressed-icon-color: var(--color-primary-dark);
+  --mat-menu-item-hover-state-layer-color:  var(--color-blue-50);
+  --mat-menu-item-focus-state-layer-color:  var(--color-blue-100);
+
+  // ── Light Blue Selection/Hover Surfaces ───────────────────────
+  --color-blue-50:  #f0f6ff; // Selected item background
+  --color-blue-100: #e0edff; // Hovered button background
+  --color-blue-200: #0066cc; // Active surface container (Solid Blue)
+
+  // ── Text on Primary Surfaces ──────────────────────────────────
+  --color-dark-blue:        #ffffff; // Text/Icon on selection
+  --color-dark-blue-medium: #ffffff; // Secondary on selection
+
+  // ── Semantic and Status Colors (Success/Error/Warning) ────────
+  --color-success:        #107c41; // Positive indicator (Microsoft green)
+  --color-success-dark:   #0d6836;
+  --color-success-deeper: #094725;
+  --color-success-light:  #dff6dd; // OK Highlight
+
+  --color-error:        #d13438; // Primary Error
+  --color-error-medium: #a80000;
+  --color-error-dark:   #750b1c;
+  --color-error-light:  #fde7e9; // Error Highlight
+  --color-error-50:     #fceded; // Error background
+
+  --color-warning:       #d83b01; // Primary Warning (Microsoft style)
+  --color-warning-dark:  #a80000;
+  --color-warning-light: #ffebcc; // Warning Highlight
+  --color-warning-200:   #ffb900;
+
+  // ── Neutral Text Colors ────────────────────────────────────────
+  --color-text-primary:   #242424; // Primary body/headings
+  --color-text-primary-alt: #1f1f1f;
+  --color-text-primary-rgba: rgba(36, 36, 36, 0.87);
+
+  --color-text-secondary: #5c5c5c; // Form labels / Icons
+  --color-text-secondary-alt: #505050;
+  --color-text-secondary-rgba: rgba(36, 36, 36, 0.6);
+
+  --color-text-disabled: #a19f9d; // Disabled states
+  --color-text-disabled-alt: #8a8886;
+  --color-text-disabled-rgba: rgba(36, 36, 36, 0.38);
+
+  --color-text-muted:     var(--color-text-secondary);
+  --color-text-on-dark:   #ffffff;
+  --color-text-dark-1:    var(--color-text-primary-alt);
+  --color-text-dark-2:    var(--color-text-primary);
+  --color-text-faint:     var(--color-text-disabled);
+
+  // ── Borders and Dividers ──────────────────────────────────────
+  --color-border:       #edebe9; // Subtle structural borders
+  --color-border-dark:  #c8c6c4; // Input outlines
+  --color-border-faint: #f3f2f1; // List dividers
+
+  // ── Backgrounds and Surface Colors ────────────────────────────
+  --color-bg-white:  #ffffff; // Primary App Background / Cards
+  --color-bg-page:   #faf9f8; // Bing style background (very light gray)
+  --color-bg-faint:  #f3f2f1; // Secondary panels
+  --color-bg-alt-1:  #faf9f8; // Elevated surfaces
+  --color-bg-alt-2:  #f3f2f1; // Side panels
+  --color-surface:   #ffffff;
+  --color-bg-card:   #ffffff;
+
+  // ── Inverse Surface Colors ────────────────────────────────────
+  --color-inverse-surface: #242424; // Tooltips
+  --color-inverse-on-surface: #ffffff;
+  --color-inverse-dark: #1f1f1f;
+
+  // ── Dynamic layout/theme vars ─────────────────────────────────
+  --toolbar-bg:        #1e65d0; // Bing header is blue
+  --footer-bg:         #faf9f8;
+  --sidenav-width:     256px;
+  --layout-max-width:  none; // Removed constraint
+  --color-accent:      #0066cc;
+
+  // ── Spacing (Increased for airy feel) ──────────────────────────
+  --spacing-xs:  8px;
+  --spacing-sm:  12px;
+  --spacing-md:  24px;
+  --spacing-lg:  32px;
+  --spacing-xl:  48px;
+  --spacing-2xl: 64px;
+
+  // ── Radius (6px standard for Microsoft) ───────────────────────
+  --radius-sm:  4px;
+  --radius-md:  6px;
+  --radius-lg:  8px;
+  --radius-xl:  12px;
+  --radius-pill: 6px; // Reused for buttons so we don't need to change every class
+
+  // ── Shadows ────────────────────────────────────────────────────
+  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.05);
+  --shadow-md:  0 2px 6px rgba(0, 0, 0, 0.08);
+  --shadow-lg:  0 4px 12px rgba(0, 0, 0, 0.12);
+
+  // ── Typography ─────────────────────────────────────────────────
+  --font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+  --font-size-xs:   12px;
+  --font-size-sm:   13px;
+  --font-size-base: 14px;
+  --font-size-md:   16px;
+  --font-size-lg:   20px;
+  --font-size-xl:   24px;
+  --font-size-2xl:  32px;
+}

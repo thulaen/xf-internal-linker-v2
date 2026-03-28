@@ -2,8 +2,8 @@
 // Global styles for XF Internal Linker V2
 // ═══════════════════════════════════════════════════════════════════
 
-// Import GSC theme variables
-@use './styles/gsc-theme';
+// Import Bing theme variables
+@use './styles/default-theme';
 
 // ── Reset / Base ───────────────────────────────────────────────────
 *,
@@ -35,13 +35,13 @@ body {
 }
 
 // Global GSC Background Enforcements
-// The main page body background should be #f0f4f9 (Red arrows)
+// The main page body background should be light gray
 mat-sidenav-container,
 mat-sidenav-content,
 .mat-sidenav-content,
 .app-container,
 .app-main-content {
-  background-color: var(--color-bg-alt-1) !important;
+  background-color: var(--color-bg-page) !important;
 }
 
 // Sidebar background #f0f4f9
@@ -74,10 +74,11 @@ mat-sidenav.app-sidenav,
 .mat-flat-button.mat-primary,
 .status-tab.active,
 .btn-gsc-primary {
-  background-color: var(--color-primary) !important; // GSC Primary Blue
+  background-color: var(--color-primary) !important; // Primary Blue
   color: var(--color-text-on-dark) !important; // White text on dark blue
   font-weight: 500 !important;
-  border-radius: var(--radius-pill) !important; // Rounded pill shape
+  border-radius: var(--radius-md) !important; // Microsoft 6px style
+  padding: 0 24px !important; // Airy feeling
   box-shadow: none !important;
 
   mat-icon {
@@ -86,26 +87,27 @@ mat-sidenav.app-sidenav,
 }
 
 // Global page header adjustment to sit on white surface
-.page-header,
-.review-controls-surface {
-  margin: 0 0 40px 0 !important; // Removed negative margin hacks
+.page-header {
+  margin: 0 0 32px 0 !important;
+  padding: 24px 32px !important; // Added padding so it isn't touching the top/bottom edges
   border-bottom: none !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   width: 100%;
+  border-radius: var(--radius-md) !important;
+  box-shadow: var(--shadow-sm) !important;
 }
 
 .review-controls-surface {
   padding-bottom: 0 !important;
   flex-direction: column !important;
   align-items: stretch !important;
+  background-color: transparent !important; // container doesn't need bg if children have it
   
   .page-header { 
-    margin: 0 !important; 
-    padding: 0 !important; 
+    margin: 0 0 24px 0 !important; 
     border-bottom: none !important;
-    margin-bottom: 24px !important; // Consistent margin below header
     justify-content: space-between !important; // Title left, buttons far right
     gap: 0 !important; // Let flex handle the gap
   }
@@ -207,14 +209,15 @@ mat-toolbar.app-toolbar,
   box-shadow: none !important;
 }
 
-// Make cards use the GSC white background and subtle border
+// Make cards use the white background and subtle border
 .mat-mdc-card {
   background: var(--color-bg-white) !important;
   border: 1px solid var(--color-border) !important;
-  box-shadow: none !important;
-  border-radius: 8px !important;
+  box-shadow: var(--shadow-sm) !important;
+  border-radius: var(--radius-md) !important;
   color: var(--color-text-primary) !important;
-  margin-bottom: 24px;
+  margin-bottom: 32px;
+  padding: 24px !important; // Wider, airier feel
 }
 
 // ── Global chip sizing — fixes cramped padding on all pages ───────
@@ -224,6 +227,7 @@ mat-toolbar.app-toolbar,
 .mat-mdc-chip,
 .mat-mdc-chip-option {
   --mdc-chip-container-height: 32px;
+  margin-right: 8px !important; // Added extra margin spacing for breathing room
 
   .mdc-evolution-chip__action--primary {
     padding-inline: 16px !important;
