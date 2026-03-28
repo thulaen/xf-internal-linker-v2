@@ -89,7 +89,7 @@ mat-sidenav.app-sidenav,
 .page-header,
 .review-controls-surface,
 .link-health-controls-surface {
-  padding: 40px 64px 0 64px !important; // Standardized spacing
+  padding: 40px 32px 0 32px !important; // Standardized spacing
   margin: 0 0 40px 0 !important; // Removed negative margin hacks
   border-bottom: none !important;
   display: flex !important;
@@ -108,7 +108,9 @@ mat-sidenav.app-sidenav,
     margin: 0 !important; 
     padding: 0 !important; 
     border-bottom: none !important;
-    margin-bottom: 16px !important;
+    margin-bottom: 24px !important; // Increased gap for airy feel
+    justify-content: flex-start !important; // Anchoring together
+    gap: 32px !important;
   }
   .status-tabs { margin-bottom: 0 !important; border-bottom: none !important; }
   .filter-bar { padding: 12px 0 16px 0 !important; }

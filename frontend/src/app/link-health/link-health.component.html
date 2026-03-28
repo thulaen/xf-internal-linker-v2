@@ -1,33 +1,3 @@
-<div class="page-header">
-  <h1 class="page-title">
-    <mat-icon>link_off</mat-icon>
-    Link Health
-  </h1>
-  <div class="header-actions">
-    <button
-      mat-stroked-button
-      [disabled]="loading"
-      (click)="exportCsv()"
-    >
-      <mat-icon>download</mat-icon>
-      Export CSV
-    </button>
-    <button
-      mat-flat-button
-      color="primary"
-      [disabled]="scanning"
-      (click)="startScan()"
-    >
-      @if (scanning) {
-        <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
-      } @else {
-        <mat-icon>play_arrow</mat-icon>
-      }
-      Scan Now
-    </button>
-  </div>
-</div>
-
 @if (scanning || progressMessage || errorMessage) {
   <mat-card class="scan-status-card">
     <mat-card-content>
@@ -36,7 +6,7 @@
           <div class="scan-label">Broken-link scan</div>
           <div class="scan-message">{{ progressMessage || 'Waiting for progress...' }}</div>
         </div>
-        @if (jobId) {
+        @if ( jobId) {
           <code class="job-chip">{{ jobId.slice(0, 8) }}</code>
         }
       </div>
@@ -52,6 +22,36 @@
 }
 
 <div class="link-health-controls-surface">
+  <div class="page-header">
+    <h1 class="page-title">
+      <mat-icon>link_off</mat-icon>
+      Link Health
+    </h1>
+    <div class="header-actions">
+      <button
+        mat-stroked-button
+        [disabled]="loading"
+        (click)="exportCsv()"
+      >
+        <mat-icon>download</mat-icon>
+        Export CSV
+      </button>
+      <button
+        mat-flat-button
+        color="primary"
+        [disabled]="scanning"
+        (click)="startScan()"
+      >
+        @if (scanning) {
+          <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+        } @else {
+          <mat-icon>play_arrow</mat-icon>
+        }
+        Scan Now
+      </button>
+    </div>
+  </div>
+
   <div class="summary-row">
     <div class="summary-card summary-open">
       <span class="summary-label">Open</span>
