@@ -827,6 +827,37 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
+### FR-028 - Algorithm Weight Diagnostics Tab
+**Requested:** 2026-03-28
+**Target phase:** Phase 31
+**Priority:** High
+**Spec draft:** `docs/specs/fr028-algorithm-weight-diagnostics-tab.md`
+
+### What's wanted
+- A single read-only **Diagnostics** tab on the Settings page showing all 23 scoring signals (16 `score_final` signals + 7 value model signals from FR-021) on one screen.
+- Each signal card answers four questions: is it running? how much space is it using? are there errors? what settings is it using?
+
+### Specific controls / behaviour
+- New `GET /api/diagnostics/weights/` endpoint — reads from `AppSetting`, `ErrorLog`, PostgreSQL table sizes (`pg_total_relation_size`), and recent `Suggestion` score aggregates. Cached 5 minutes; `?refresh=true` busts cache.
+- New backend app: `backend/apps/diagnostics/`.
+- New settings endpoint `GET /api/settings/diagnostics/` for cache TTL and lookback window config.
+- Each card shows: status badge (`ACTIVE` / `ENABLED` / `DISABLED` / `ERROR` / `NOT BUILT`), ranking weight, weight active flag, signal coverage % (last 7 days), avg signal value, storage (table name + row count + bytes), last computation time, last error message + timestamp.
+- Expandable "View current settings" panel — read-only key-value list of every configurable parameter for that signal.
+- "Go to settings →" link per card navigates to the signal's own settings tab.
+- Error cards show a red left border and a "View in Error Log →" link.
+- Summary bar: total signals, active count, error count, total storage across all signal tables.
+- Signals for not-yet-implemented FRs show `NOT BUILT` state gracefully.
+- Auto-refreshes every 5 minutes while the tab is open.
+
+### Implementation notes for the AI
+- This FR is read-only. Do not add any editing controls.
+- Verify exact table names against live migration files before writing the table registry — they may differ from the names listed in the spec.
+- `signal_coverage_pct` and `avg_signal_value` are computed from `Suggestion` score columns for the past 7 days. Return `null` when no suggestions exist in the window.
+- Signals with no dedicated database table (phrase matching, field-aware, slate diversity — all computed at pipeline time) show "computed at pipeline time — no dedicated table" for storage.
+- No dependency on other pending FRs. Cards for future FRs (FR-021 through FR-027) show `NOT BUILT` until those FRs are implemented.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -850,4 +881,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-027 added to backlog.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-028 added to backlog.)*
