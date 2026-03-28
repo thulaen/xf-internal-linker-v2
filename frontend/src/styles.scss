@@ -93,11 +93,9 @@ mat-sidenav.app-sidenav,
 }
 
 // ── Global Page Header & Airy Spacing ──────────────────────────────
-// This block ensures all page titles sit on an airy, white surface
-// without any layout "touching" or cramped margins.
 .page-header {
   margin: 0 0 32px 0 !important;
-  padding: 32px 48px !important; // Increased from 24/32 for extra "airiness"
+  padding: 32px 48px !important;
   background-color: var(--color-bg-white) !important;
   border-bottom: 1px solid var(--color-border) !important;
   display: flex !important;
@@ -114,13 +112,18 @@ mat-sidenav.app-sidenav,
     font-size: 24px !important;
     font-weight: 500 !important;
     color: var(--color-text-dark-1) !important;
-    margin: 0 !important; // No margin to prevent "touching" shifts
+    margin: 0 !important;
 
     mat-icon {
       color: var(--color-primary) !important;
       font-size: 28px !important;
       width: 28px !important;
       height: 28px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      // Optical centering nudge
+      margin-top: -2px !important;
     }
   }
 }
@@ -129,21 +132,20 @@ mat-sidenav.app-sidenav,
   padding-bottom: 0 !important;
   flex-direction: column !important;
   align-items: stretch !important;
-  background-color: transparent !important; // container doesn't need bg if children have it
+  background-color: transparent !important;
   
   .page-header { 
     margin: 0 0 24px 0 !important; 
     border-bottom: none !important;
-    justify-content: space-between !important; // Title left, buttons far right
-    gap: 0 !important; // Let flex handle the gap
+    justify-content: space-between !important;
+    gap: 0 !important;
   }
-  .status-tabs { 
-    margin-bottom: 24px !important; // Breathing room before filter bar
-    border-bottom: 2px solid var(--color-border) !important; 
-    padding: 0 48px !important; // Left alignment matches header
+  .filter-group-container { 
+    margin-bottom: 24px !important;
+    padding: 0 48px !important;
   }
   .filter-bar { 
-    padding: 0 48px !important; // Breathing room for chips like "All"
+    padding: 0 48px !important;
     margin-bottom: 0 !important;
   }
 }
@@ -303,33 +305,83 @@ mat-sidenav.app-sidenav,
 // REDUNDANT BLOCK REMOVED — Consolidated into Global Page Header above
 
 
-// ── Loading / Empty States ────────────────────────────────────────
+// ── Empty States (Improved with Icon Box) ───────────────────────
 .empty-state {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 64px 24px;
-  text-align: center;
-  color: var(--color-text-muted);
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  padding: 80px 24px !important;
+  color: var(--color-text-primary) !important;
 
-  mat-icon {
-    font-size: 64px;
+  .empty-icon-wrap {
     width: 64px;
     height: 64px;
-    margin-bottom: 16px;
-    opacity: 0.4;
+    border-radius: 16px;
+    background: var(--color-bg-faint);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 24px;
+    
+    mat-icon {
+      font-size: 32px !important;
+      width: 32px !important;
+      height: 32px !important;
+      color: var(--color-text-secondary) !important;
+      opacity: 0.5 !important;
+      margin-bottom: 0 !important;
+    }
   }
 
   h3 {
-    margin: 0 0 8px;
-    font-size: var(--font-size-lg);
-    font-weight: 500;
+    font-size: 18px !important;
+    font-weight: 600 !important;
+    margin-bottom: 8px !important;
+    color: var(--color-text-primary) !important;
   }
 
   p {
-    margin: 0;
-    font-size: var(--font-size-base);
-    max-width: 600px;
+    font-size: 14px !important;
+    color: var(--color-text-muted) !important;
+    max-width: 320px !important;
+    line-height: 1.6 !important;
+    margin-bottom: 24px !important;
+  }
+
+  button {
+    min-width: 160px;
+  }
+}
+
+// ── Table Refinements ─────────────────────────────────────────────
+.mat-mdc-table {
+  background: transparent !important;
+
+  .mat-mdc-header-row {
+    height: 44px !important;
+    background: var(--color-bg-faint) !important;
+  }
+
+  .mat-mdc-header-cell {
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    color: var(--color-text-secondary) !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+  }
+
+  .mat-mdc-row {
+    height: 52px !important;
+    transition: background-color 0.15s ease !important;
+
+    &:hover {
+      background-color: var(--color-blue-50) !important;
+    }
+  }
+
+  .mat-mdc-cell {
+    font-size: 13px !important;
+    color: var(--color-text-primary) !important;
   }
 }

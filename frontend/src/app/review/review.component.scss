@@ -43,34 +43,43 @@
   text-align: center;
 }
 
-// ── Status tabs ───────────────────────────────────────────────────
-
-.status-tabs {
+// ── Status filters (Pill Group) ───────────────────────────────────
+.filter-group-container {
   display: flex;
-  gap: 8px;
-  margin-bottom: 48px; // Fibonacci-like expansion
-  padding-bottom: 0;
+  justify-content: flex-start;
+  margin-bottom: 32px;
 }
 
-.status-tab {
-  padding: 8px 18px;
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -2px;
-  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
-  transition: color 0.15s, border-color 0.15s;
+.filter-group {
+  display: flex;
+  gap: 0;
+  background: var(--color-bg-white);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 4px;
+  box-shadow: var(--shadow-sm);
 
-  &:hover { color: var(--color-primary); }
+  button {
+    border-radius: 6px;
+    border: none;
+    background: none;
+    padding: 6px 20px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
 
-  &.active {
-    color: var(--color-primary);
-    border-bottom-color: var(--color-primary);
-    font-weight: 600;
+    &.active {
+      background: var(--color-primary);
+      color: var(--color-text-on-dark);
+      box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
+    }
+
+    &:hover:not(.active) {
+      background: var(--color-bg-faint);
+      color: var(--color-text-primary);
+    }
   }
 }
 

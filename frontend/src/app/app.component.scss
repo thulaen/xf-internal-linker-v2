@@ -82,17 +82,28 @@
     }
   }
 
+  .sidebar-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    color: var(--color-text-secondary);
+    padding: 16px 16px 4px;
+    opacity: 0.7;
+  }
+
   mat-nav-list {
-    padding-top: 0;
+    padding-top: 8px;
 
     a[mat-list-item] {
       color: var(--color-text-secondary);
-      border-radius: var(--radius-md); // 6px Microsoft style
-      margin: 4px 12px; // Space from container edge
-      height: 44px; // Taller for airy feel
-      min-height: 44px;
-      transition: background 0.15s, color 0.15s;
-      font-size: 14px;
+      border-radius: 0; // Flush look
+      margin: 0; // Remove space from edges
+      padding: 0 16px !important;
+      height: 38px;
+      min-height: 38px;
+      transition: background 0.1s, color 0.1s;
+      font-size: 13px;
 
       .nav-item-title {
         display: flex;
@@ -119,10 +130,11 @@
 
       mat-icon {
         color: var(--color-text-secondary);
-        font-size: 20px;
-        width: 20px;
-        height: 20px;
-        margin-right: 16px;
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        margin-right: 12px;
+        opacity: 0.6;
       }
 
       &:hover {
@@ -131,27 +143,34 @@
 
         mat-icon {
           color: var(--color-text-primary);
+          opacity: 1;
         }
       }
 
       &.active-link {
-        background: var(--color-primary) !important; // Solid Blue
-        color: var(--color-text-on-dark) !important; // White Text
-        font-weight: 500;
-        border-radius: var(--radius-md);
+        background: #E3EDFF !important; // Light branded blue
+        color: #1565C0 !important; // Strong branded blue
+        position: relative;
 
-        // Target nested MDC structures for absolute enforcement
-        .nav-item-title, span, .mdc-list-item__primary-text, .mdc-list-item__secondary-text {
-          font-weight: 500;
-          color: var(--color-text-on-dark) !important;
+        .nav-item-title, span, .mdc-list-item__primary-text {
+          font-weight: 500 !important;
+          color: #1565C0 !important;
         }
 
         mat-icon, [matListItemIcon] {
-          color: var(--color-text-on-dark) !important;
+          color: #1565C0 !important;
+          opacity: 1;
         }
 
-        &:hover {
-          background: var(--color-primary-dark) !important;
+        // Left indicator bar
+        &::before {
+          content: '';
+          position: absolute;
+          left: 0;
+          top: 0;
+          bottom: 0;
+          width: 3px;
+          background: #1565C0;
         }
       }
     }

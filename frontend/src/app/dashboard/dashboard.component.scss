@@ -44,58 +44,64 @@
 }
 
 .stat-card {
+  display: flex !important;
+  align-items: center !important;
+  gap: 16px !important;
+  padding: 16px !important;
+  border-radius: 10px !important;
+  box-shadow: none !important;
+  border: 1px solid var(--color-border) !important;
+  background: var(--color-bg-white) !important;
+  margin-bottom: 0 !important; // Grid handles gap
+  transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md) !important;
+  }
+
   &.stat-card-warning {
     cursor: pointer;
-    border: none; // Removed border
-
     &:hover {
-      border-color: var(--color-warning-dark);
+      background: var(--color-warning-light) !important;
     }
   }
 
-  mat-card-content {
-    display: flex;
-    align-items: center;
-    gap: 21px; // Fibonacci
-    padding: 21px; // Fibonacci
+  .stat-value {
+    font-size: 22px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--color-text-primary);
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+    white-space: nowrap;
   }
 }
 
-.stat-icon-wrap {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.stat-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
 
   mat-icon {
-    font-size: 24px;
-    width: 24px;
-    height: 24px;
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
   }
 
-  &.pending  { background: var(--color-warning-light); color: var(--color-warning-dark); }
-  &.warning  { background: var(--color-warning-light); color: var(--color-warning-dark); }
-  &.approved { background: var(--color-success-light); color: var(--color-success-dark); }
-  &.applied  { background: var(--color-blue-100);      color: var(--color-primary-dark); }
-  &.content  { background: var(--color-bg-card);       color: var(--color-text-muted); }
-}
-
-.stat-body {
-  .stat-value {
-    font-size: 28px;
-    font-weight: 600;
-    color: var(--color-text-dark-1);
-    line-height: 1;
-  }
-
-  .stat-label {
-    font-size: 13px;
-    color: var(--color-text-muted);
-    margin-top: 4px;
-  }
+  &.warn    { background: #FFF3E0; mat-icon { color: #E65100; } }
+  &.success { background: #E8F5E9; mat-icon { color: #2E7D32; } }
+  &.link    { background: #E3F2FD; mat-icon { color: #1565C0; } }
+  &.item    { background: #F3E5F5; mat-icon { color: #7B1FA2; } }
+  &.info    { background: var(--color-bg-faint); mat-icon { color: var(--color-text-muted); } }
 }
 
 // ── Sync banner ───────────────────────────────────────────────────

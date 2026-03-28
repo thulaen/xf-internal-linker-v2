@@ -36,24 +36,27 @@
       </div>
     </div>
 
-    <!-- Navigation Links -->
+    <!-- Navigation Sections -->
     <mat-nav-list>
-      @for (item of navItems; track item.route) {
-        <a
-          mat-list-item
-          [routerLink]="item.route"
-          routerLinkActive="active-link"
-          [matTooltip]="item.tooltip"
-          matTooltipPosition="right"
-        >
-          <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
-          <div matListItemTitle class="nav-item-title">
-            <span>{{ item.label }}</span>
-            @if (item.route === '/link-health' && openBrokenLinks > 0) {
-              <span class="nav-badge">{{ openBrokenLinks }}</span>
-            }
-          </div>
-        </a>
+      @for (section of navSections; track section.label) {
+        <div class="sidebar-section-label">{{ section.label }}</div>
+        @for (item of section.items; track item.route) {
+          <a
+            mat-list-item
+            [routerLink]="item.route"
+            routerLinkActive="active-link"
+            [matTooltip]="item.tooltip"
+            matTooltipPosition="right"
+          >
+            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <div matListItemTitle class="nav-item-title">
+              <span>{{ item.label }}</span>
+              @if (item.route === '/link-health' && openBrokenLinks > 0) {
+                <span class="nav-badge">{{ openBrokenLinks }}</span>
+              }
+            </div>
+          </a>
+        }
       }
     </mat-nav-list>
 

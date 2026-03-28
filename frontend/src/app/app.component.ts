@@ -20,6 +20,11 @@ interface NavItem {
   tooltip: string;
 }
 
+interface NavSection {
+  label: string;
+  items: NavItem[];
+}
+
 @Component({
   selector: 'app-root',
   standalone: true,
@@ -48,48 +53,63 @@ export class AppComponent implements OnInit {
   customizerOpen = false;
   openBrokenLinks = 0;
 
-  navItems: NavItem[] = [
+  navSections: NavSection[] = [
     {
-      label: 'Dashboard',
-      icon: 'dashboard',
-      route: '/dashboard',
-      tooltip: 'Overview of jobs, suggestions, and key metrics',
+      label: 'Main',
+      items: [
+        {
+          label: 'Dashboard',
+          icon: 'dashboard',
+          route: '/dashboard',
+          tooltip: 'Overview of jobs, suggestions, and key metrics',
+        },
+      ],
     },
     {
-      label: 'Review',
-      icon: 'rate_review',
-      route: '/review',
-      tooltip: 'Review and approve link suggestions',
+      label: 'Analysis',
+      items: [
+        {
+          label: 'Review',
+          icon: 'rate_review',
+          route: '/review',
+          tooltip: 'Review and approve link suggestions',
+        },
+        {
+          label: 'Link Health',
+          icon: 'link_off',
+          route: '/link-health',
+          tooltip: 'Broken link scanner and status tracker',
+        },
+        {
+          label: 'Link Graph',
+          icon: 'account_tree',
+          route: '/graph',
+          tooltip: 'Visualize the internal link graph',
+        },
+        {
+          label: 'Analytics',
+          icon: 'bar_chart',
+          route: '/analytics',
+          tooltip: 'SEO impact reports from GSC and GA4',
+        },
+      ],
     },
     {
-      label: 'Link Health',
-      icon: 'link_off',
-      route: '/link-health',
-      tooltip: 'Broken link scanner and status tracker',
-    },
-    {
-      label: 'Link Graph',
-      icon: 'account_tree',
-      route: '/graph',
-      tooltip: 'Visualize the internal link graph',
-    },
-    {
-      label: 'Analytics',
-      icon: 'bar_chart',
-      route: '/analytics',
-      tooltip: 'SEO impact reports from GSC and GA4',
-    },
-    {
-      label: 'Jobs',
-      icon: 'pending_actions',
-      route: '/jobs',
-      tooltip: 'Background job queue and history',
-    },
-    {
-      label: 'Settings',
-      icon: 'settings',
-      route: '/settings',
-      tooltip: 'Theme, silo controls, and app settings',
+      label: 'System',
+      items: [
+        {
+          label: 'Jobs',
+          icon: 'pending_actions',
+          route: '/jobs',
+          tooltip: 'Background job queue and history',
+        },
+        {
+          label: 'Settings',
+          icon: 'settings',
+          route: '/settings',
+          tooltip: 'Theme, silo controls, and app settings',
+        },
+      ],
     },
   ];
 

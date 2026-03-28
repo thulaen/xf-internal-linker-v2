@@ -40,64 +40,54 @@
 
     @if (data.open_broken_links > 0) {
       <mat-card class="stat-card stat-card-warning" routerLink="/link-health" tabindex="0">
-        <mat-card-content>
-          <div class="stat-icon-wrap warning">
-            <mat-icon>link_off</mat-icon>
-          </div>
-          <div class="stat-body">
-            <div class="stat-value">{{ data.open_broken_links | number }}</div>
-            <div class="stat-label">Open broken links</div>
-          </div>
-        </mat-card-content>
+        <div class="stat-icon warn">
+          <mat-icon>link_off</mat-icon>
+        </div>
+        <div>
+          <div class="stat-value">{{ data.open_broken_links | number }}</div>
+          <div class="stat-label">Open broken links</div>
+        </div>
       </mat-card>
     }
 
     <mat-card class="stat-card">
-      <mat-card-content>
-        <div class="stat-icon-wrap pending">
-          <mat-icon>pending_actions</mat-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value">{{ data.suggestion_counts.pending | number }}</div>
-          <div class="stat-label">Pending review</div>
-        </div>
-      </mat-card-content>
+      <div class="stat-icon item">
+        <mat-icon>pending_actions</mat-icon>
+      </div>
+      <div>
+        <div class="stat-value">{{ data.suggestion_counts.pending | number }}</div>
+        <div class="stat-label">Pending review</div>
+      </div>
     </mat-card>
 
     <mat-card class="stat-card">
-      <mat-card-content>
-        <div class="stat-icon-wrap approved">
-          <mat-icon>check_circle</mat-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value">{{ data.suggestion_counts.approved | number }}</div>
-          <div class="stat-label">Approved</div>
-        </div>
-      </mat-card-content>
+      <div class="stat-icon success">
+        <mat-icon>check_circle</mat-icon>
+      </div>
+      <div>
+        <div class="stat-value">{{ data.suggestion_counts.approved | number }}</div>
+        <div class="stat-label">Approved</div>
+      </div>
     </mat-card>
 
     <mat-card class="stat-card">
-      <mat-card-content>
-        <div class="stat-icon-wrap applied">
-          <mat-icon>link</mat-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value">{{ data.suggestion_counts.applied | number }}</div>
-          <div class="stat-label">Applied (live links)</div>
-        </div>
-      </mat-card-content>
+      <div class="stat-icon link">
+        <mat-icon>link</mat-icon>
+      </div>
+      <div>
+        <div class="stat-value">{{ data.suggestion_counts.applied | number }}</div>
+        <div class="stat-label">Applied (live links)</div>
+      </div>
     </mat-card>
 
     <mat-card class="stat-card">
-      <mat-card-content>
-        <div class="stat-icon-wrap content">
-          <mat-icon>article</mat-icon>
-        </div>
-        <div class="stat-body">
-          <div class="stat-value">{{ data.content_count | number }}</div>
-          <div class="stat-label">Content items</div>
-        </div>
-      </mat-card-content>
+      <div class="stat-icon info">
+        <mat-icon>article</mat-icon>
+      </div>
+      <div>
+        <div class="stat-value">{{ data.content_count | number }}</div>
+        <div class="stat-label">Content items</div>
+      </div>
     </mat-card>
 
   </div>
@@ -131,7 +121,9 @@
 
       @if (data.pipeline_runs.length === 0) {
         <div class="empty-state">
-          <mat-icon>not_started</mat-icon>
+          <div class="empty-icon-wrap">
+            <mat-icon>not_started</mat-icon>
+          </div>
           <h3>No runs yet</h3>
           <p>Click <strong>Run Pipeline</strong> above to generate your first suggestions.</p>
         </div>
@@ -201,7 +193,9 @@
 
       @if (data.recent_imports.length === 0) {
         <div class="empty-state">
-          <mat-icon>cloud_upload</mat-icon>
+          <div class="empty-icon-wrap">
+            <mat-icon>cloud_upload</mat-icon>
+          </div>
           <h3>No imports yet</h3>
           <p>Use the <a routerLink="/jobs">Jobs page</a> to upload a JSONL file.</p>
         </div>

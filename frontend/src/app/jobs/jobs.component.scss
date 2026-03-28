@@ -173,26 +173,6 @@
   .status-pending { color: var(--color-warning-dark); }
 }
 
-.empty-history {
-  padding: 64px 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: var(--color-text-light);
-  
-  mat-icon {
-    font-size: 48px;
-    width: 48px;
-    height: 48px;
-    margin-bottom: 12px;
-    opacity: 0.5;
-  }
-  
-  p {
-    margin: 0;
-    font-size: 14px;
-  }
-}
 
 // ── Animations ───────────────────────────────────────────────────
 

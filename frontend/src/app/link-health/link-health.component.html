@@ -98,7 +98,9 @@
 
 @if (!loading && brokenLinks.length === 0) {
   <div class="empty-state">
-    <mat-icon>link_off</mat-icon>
+    <div class="empty-icon-wrap">
+      <mat-icon>link_off</mat-icon>
+    </div>
     <h3>No broken links found</h3>
     <p>
       @if (statusFilter !== 'all' || httpStatusFilter !== null) {

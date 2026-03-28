@@ -204,8 +204,10 @@
             <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
           </table>
         } @else {
-          <div class="empty-history">
-            <mat-icon>history_toggle_off</mat-icon>
+          <div class="empty-state">
+            <div class="empty-icon-wrap">
+              <mat-icon>history_toggle_off</mat-icon>
+            </div>
             <p>No recent synchronization activity.</p>
           </div>
         }

@@ -24,17 +24,18 @@
     </button>
   </div>
 
-  <!-- ── Status tabs ──────────────────────────────────────────────── -->
-  <div class="status-tabs">
-    @for (tab of statusTabs; track tab.value) {
-      <button
-        class="status-tab"
-        [class.active]="statusFilter === tab.value"
-        (click)="setStatus(tab.value)"
-      >
-        {{ tab.label }}
-      </button>
-    }
+  <!-- ── Status filters (Pill Group) ────────────────────────────── -->
+  <div class="filter-group-container">
+    <div class="filter-group">
+      @for (tab of statusTabs; track tab.value) {
+        <button
+          [class.active]="statusFilter === tab.value"
+          (click)="setStatus(tab.value)"
+        >
+          {{ tab.label }}
+        </button>
+      }
+    </div>
   </div>
 
   <!-- ── Filter bar ───────────────────────────────────────────────── -->
@@ -103,7 +104,9 @@
 <!-- ── Empty state ──────────────────────────────────────────────── -->
 @if (!loading && suggestions.length === 0) {
   <div class="empty-state">
-    <mat-icon>rate_review</mat-icon>
+    <div class="empty-icon-wrap">
+      <mat-icon>rate_review</mat-icon>
+    </div>
     <h3>No {{ statusFilter === 'all' ? '' : statusFilter }} suggestions</h3>
     <p>
       @if (searchQuery) {
