@@ -54,5 +54,5 @@ requests==2.32.3                     # HTTP client (XenForo/WP API calls)
  
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0
-pyroaring==0.4.9
+pyroaring==1.0.4
 pybind11==2.13.6

@@ -18,6 +18,10 @@ struct Candidate {
     float score_pr;
     float score_freshness;
     float score_ga4;
+
+    Candidate(float s, float k, float n, float q, float p, float f, float g)
+        : score_semantic(s), score_keyword(k), score_node(n), score_quality(q), 
+          score_pr(p), score_freshness(f), score_ga4(g) {}
 };
 
 std::vector<float> calculate_composite_scores(

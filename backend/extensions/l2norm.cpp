@@ -9,7 +9,7 @@ namespace py = pybind11;
  * L2 normalization for a 1D numpy array.
  * Uses AVX2 if available (auto-vectorized by compiler -O3).
  */
-void normalize_l2(py::array_t<float> input) {
+void normalize_l2(py::array_t<float, py::array::c_style | py::array::forcecast> input) {
     auto buf = input.request();
     float* ptr = static_cast<float*>(buf.ptr);
     size_t size = buf.size;
@@ -31,7 +31,7 @@ void normalize_l2(py::array_t<float> input) {
 /**
  * L2 normalization for a 2D numpy array (row-wise).
  */
-void normalize_l2_batch(py::array_t<float> input) {
+void normalize_l2_batch(py::array_t<float, py::array::c_style | py::array::forcecast> input) {
     auto buf = input.request();
     if (buf.ndim != 2) throw std::runtime_error("Input must be 2D");
     

@@ -33,6 +33,7 @@ public:
             const auto& postings = it->second;
             float n_q = static_cast<float>(postings.size());
             float idf = std::log((total_docs_ - n_q + 0.5f) / (n_q + 0.5f) + 1.0f);
+            idf = std::max(0.0f, idf);
 
             // Document frequencies for this token
             std::unordered_map<int, int> f_q;
