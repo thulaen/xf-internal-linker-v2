@@ -858,6 +858,61 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
+### FR-029 - GPU Embedding Pipeline: fp16 Inference + HIGH_PERFORMANCE Mode
+**Requested:** 2026-03-28
+**Target phase:** Phase 32
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr029-gpu-embedding-pipeline-fp16.md`
+
+### What's wanted
+- Enable fp16 (half-precision) inference on the bge-m3 embedding model when running on CUDA.
+- Set `ML_PERFORMANCE_MODE=HIGH_PERFORMANCE` in Docker Compose so the GPU is actually used.
+- The batch_size=128 path already exists — this FR activates it and adds fp16 on top.
+
+### Specific controls / behaviour
+- `model.half()` called in `_load_model()` when `device='cuda'`.
+- Log line confirming fp16 is active.
+- `ML_PERFORMANCE_MODE: HIGH_PERFORMANCE` added to backend + celery service env in `docker-compose.yml`.
+- `get_model_status()` returns `"fp16": true` when active — used by FR-028 Diagnostics Tab.
+
+### Implementation notes for the AI
+- Do NOT use `torch_dtype=torch.float16` on the `SentenceTransformer` constructor — it does not accept that kwarg.
+- Use `model.half()` after loading.
+- The `_l2_normalize()` step already casts back to float32 before pgvector storage — no change needed there.
+- Only two files change: `embeddings.py` and `docker-compose.yml`.
+
+---
+
+### FR-030 - FAISS-GPU Vector Similarity Search
+**Requested:** 2026-03-28
+**Target phase:** Phase 33
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr030-faiss-gpu-vector-search.md`
+**Depends on:** FR-029
+
+### What's wanted
+- Replace the Stage 1 CPU NumPy matmul (`dest_block @ host_matrix.T`) in the pipeline with a GPU-accelerated FAISS IndexFlatIP search.
+- Keep all host content embeddings in VRAM (~391MB for 100k vectors) rather than fetching from pgvector on every pipeline run.
+- Graceful CPU fallback when FAISS-GPU is not available (Windows dev, no CUDA, etc.).
+
+### Specific controls / behaviour
+- New `backend/apps/pipeline/services/faiss_index.py` — singleton index, build, search, status functions.
+- Index built in `PipelineConfig.ready()` at startup. Skipped when `FAISS_INDEX_SKIP_BUILD=1`.
+- Celery Beat task `refresh_faiss_index` refreshes the index every 15 minutes.
+- `faiss_search(query_vectors, k)` replaces Stage 1 matmul; existing NumPy path stays as fallback.
+- `get_faiss_status()` returns index size, device, VRAM estimate — feeds FR-028 Diagnostics Tab.
+- Install `faiss-gpu-cu12>=1.8.0` in `backend/requirements.txt`.
+
+### Implementation notes for the AI
+- `faiss-gpu-cu12` is Linux/Docker only. Import inside a try/except; fall back to CPU matmul if unavailable.
+- Vectors are already L2-normalized — use `IndexFlatIP` (inner product = cosine on unit vectors).
+- Each gunicorn worker gets its own `StandardGpuResources()` instance — do not share across processes.
+- Stage 2 sentence scoring is NOT changed by this FR — only Stage 1 content-level retrieval.
+- Do NOT remove the existing pgvector HNSW indexes — they remain for direct DB queries outside the pipeline.
+- `FAISS_INDEX_SKIP_BUILD=1` must be respected so `manage.py migrate` and management commands work cleanly.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -881,4 +936,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-028 added to backlog.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-030 added to backlog.)*
