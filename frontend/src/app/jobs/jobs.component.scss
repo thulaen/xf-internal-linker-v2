@@ -31,7 +31,7 @@
 // ── Drop zone ────────────────────────────────────────────────────
 
 .drop-zone {
-  border: 2px dashed var(--color-border, #dadce0);
+  border: 2px dashed var(--color-border);
   border-radius: 12px;
   padding: 48px 24px;
   display: flex;
@@ -41,7 +41,7 @@
   cursor: pointer;
   transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   margin-bottom: 34px; // Fibonacci
-  background: var(--color-surface, #f8f9fa);
+  background: var(--color-surface);
   outline: none;
 
   &:hover, &:focus {
@@ -67,7 +67,7 @@
   font-size: 48px;
   width: 48px;
   height: 48px;
-  color: var(--color-text-light, #80868b);
+  color: var(--color-text-light);
   margin-bottom: 8px;
 
   &.file-selected {
@@ -84,7 +84,7 @@
 
 .drop-secondary {
   font-size: 13px;
-  color: var(--color-text-light, #80868b);
+  color: var(--color-text-light);
 }
 
 // ── Mode selector ────────────────────────────────────────────────
@@ -94,7 +94,7 @@
   margin-bottom: 8px;
 
   .mode-hint {
-    color: var(--color-text-light, #80868b);
+    color: var(--color-text-light);
     font-size: 12px;
     font-weight: normal;
   }
@@ -114,7 +114,7 @@
 
   .progress-message {
     font-size: 14px;
-    color: var(--color-text-dark-2, #3c4043);
+    color: var(--color-text-dark-2);
     font-weight: 500;
   }
 
@@ -158,19 +158,19 @@
   }
 
   .source-label {
-    background: #f1f3f4;
+    background: var(--color-bg-alt-1);
     padding: 2px 8px;
     border-radius: 4px;
     font-size: 11px;
     font-weight: 600;
-    color: #5f6368;
+    color: var(--color-text-secondary);
   }
 
   // Status Icons
-  .status-completed { color: #137333; }
-  .status-failed { color: #d93025; }
+  .status-completed { color: var(--color-success-dark); }
+  .status-failed { color: var(--color-error); }
   .status-running { color: var(--color-primary); animation: spin 2s linear infinite; }
-  .status-pending { color: #f9ab00; }
+  .status-pending { color: var(--color-warning-dark); }
 }
 
 .empty-history {
@@ -235,13 +235,13 @@
   }
 
   &.success {
-    background: #e6f4ea;
-    color: #137333;
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
   }
 
   &.failure {
-    background: #fce8e6;
-    color: #c5221f;
+    background: var(--color-error-light);
+    color: var(--color-error-dark);
   }
 }
 
@@ -249,11 +249,11 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #d93025;
+  color: var(--color-error-dark);
   font-size: 13px;
   margin-bottom: 16px;
   padding: 8px 12px;
-  background: #fdf2f2;
+  background: var(--color-error-50);
   border-radius: 4px;
 
   mat-icon {

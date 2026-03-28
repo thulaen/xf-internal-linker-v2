@@ -1,9 +1,9 @@
 .service-card {
-  background: white;
+  background: var(--color-bg-white);
   border-radius: 12px;
   padding: 20px;
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-  border-left: 6px solid #e2e8f0;
+  border-left: 6px solid var(--color-border);
   transition: transform 0.2s, box-shadow 0.2s;
   display: flex;
   flex-direction: column;
@@ -14,11 +14,11 @@
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
   }
 
-  &.status-healthy { border-left-color: #10b981; }
-  &.status-degraded { border-left-color: #f59e0b; }
-  &.status-failed { border-left-color: #ef4444; }
-  &.status-disabled { border-left-color: #94a3b8; }
-  &.status-planned_only { border-left-color: #3b82f6; border-left-style: dashed; }
+  &.status-healthy { border-left-color: var(--color-success); }
+  &.status-degraded { border-left-color: var(--color-warning); }
+  &.status-failed { border-left-color: var(--color-error); }
+  &.status-disabled { border-left-color: var(--color-text-disabled); }
+  &.status-planned_only { border-left-color: var(--color-primary); border-left-style: dashed; }
 }
 
 .card-header {
@@ -34,7 +34,7 @@
     margin: 0;
     font-size: 1.125rem;
     font-weight: 600;
-    color: #1e293b;
+    color: var(--color-text-primary);
     flex: 1;
   }
 
@@ -43,19 +43,19 @@
     border-radius: 20px;
     font-size: 0.75rem;
     font-weight: 600;
-    background: #f1f5f9;
-    color: #475569;
+    background: var(--color-bg-alt-1);
+    color: var(--color-text-muted);
   }
 }
 
-.status-healthy .status-icon { color: #10b981; }
-.status-degraded .status-icon { color: #f59e0b; }
-.status-failed .status-icon { color: #ef4444; }
+.status-healthy .status-icon { color: var(--color-success); }
+.status-degraded .status-icon { color: var(--color-warning); }
+.status-failed .status-icon { color: var(--color-error); }
 
 .explanation {
   margin: 0;
   font-size: 0.9375rem;
-  color: #475569;
+  color: var(--color-text-muted);
   line-height: 1.5;
 }
 
@@ -65,23 +65,23 @@
   flex-wrap: wrap;
   gap: 16px;
   font-size: 0.8125rem;
-  color: #94a3b8;
+  color: var(--color-text-disabled);
 
   label {
     font-weight: 600;
     margin-right: 4px;
-    color: #64748b;
+    color: var(--color-text-secondary);
   }
 }
 
 .text-error {
-  color: #ef4444;
+  color: var(--color-error);
 }
 
 .card-footer {
   margin-top: auto;
   padding-top: 16px;
-  border-top: 1px solid #f1f5f9;
+  border-top: 1px solid var(--color-bg-alt-1);
 
   .next-step {
     label {
@@ -90,14 +90,14 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.025em;
-      color: #64748b;
+      color: var(--color-text-secondary);
       margin-bottom: 4px;
     }
 
     p {
       margin: 0;
       font-size: 0.875rem;
-      color: #1e293b;
+      color: var(--color-text-primary);
       font-weight: 500;
     }
   }

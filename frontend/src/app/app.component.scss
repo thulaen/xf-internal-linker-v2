@@ -2,19 +2,19 @@
 
 .app-container {
   height: 100vh;
-  background-color: var(--color-bg-alt-1) !important; // #f0f4f9
+  background-color: var(--color-bg-alt-1); // #f0f4f9
 }
 
 .app-sidenav {
-  width: var(--sidenav-width, 233px) !important; // Controlled by Appearance Settings
-  background-color: var(--color-bg-alt-1) !important; // GSC Sidebar Background (#f0f4f9)
-  border-right: none !important;
+  width: var(--sidenav-width, 233px); // Controlled by Appearance Settings
+  background-color: var(--color-bg-alt-1); // GSC Sidebar Background (#f0f4f9)
+  border-right: none;
   transition: width 0.2s ease;
 
   // Enforce background on the mat-sidenav element itself
   &.mat-drawer {
-    background-color: var(--color-bg-alt-1) !important;
-    border-right: none !important;
+    background-color: var(--color-bg-alt-1);
+    border-right: none;
   }
 
   .sidenav-header {
@@ -110,7 +110,7 @@
         padding: 0 5px;
         border-radius: 9px;
         background: var(--color-error);
-        color: #ffffff;
+        color: var(--color-text-on-dark);
         font-size: 10px;
         font-weight: 700;
       }
@@ -133,8 +133,8 @@
       }
 
       &.active-link {
-        background: #c2e7ff !important; // Forced GSC Active Tab
-        color: var(--color-dark-blue) !important;
+        background: var(--color-blue-200); // Forced GSC Active Tab
+        color: var(--color-dark-blue);
         font-weight: 500;
         border-radius: 0 20px 20px 0;
 
@@ -143,7 +143,7 @@
         }
 
         mat-icon {
-          color: var(--color-dark-blue) !important;
+          color: var(--color-dark-blue);
         }
       }
     }
@@ -163,13 +163,13 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: var(--color-bg-white) !important;
-  color: var(--color-text-primary) !important;
+  background: var(--color-bg-white);
+  color: var(--color-text-primary);
   position: sticky;
   top: 0;
   z-index: 100;
-  border-bottom: none !important;
-  box-shadow: none !important;
+  border-bottom: none;
+  box-shadow: none;
   height: 64px;
   padding: 0 16px;
 
@@ -204,7 +204,7 @@
 .app-content {
   display: flex;
   flex-direction: column;
-  background: var(--color-bg-alt-1) !important; // GSC Body Background (#f0f4f9)
+  background: var(--color-bg-alt-1); // GSC Body Background (#f0f4f9)
   overflow: hidden;
   min-height: 100vh;
 }

@@ -46,7 +46,7 @@
 .stat-card {
   &.stat-card-warning {
     cursor: pointer;
-    border: none !important; // Removed border
+    border: none; // Removed border
 
     &:hover {
       border-color: var(--color-warning-dark);
@@ -57,7 +57,7 @@
     display: flex;
     align-items: center;
     gap: 21px; // Fibonacci
-    padding: 21px !important; // Fibonacci
+    padding: 21px; // Fibonacci
   }
 }
 
@@ -105,7 +105,7 @@
   align-items: center;
   gap: 8px; // Fibonacci-like
   background: var(--color-blue-50);
-  border: none !important; // Removed border
+  border: none; // Removed border
   border-radius: var(--radius-md);
   padding: 13px 21px; // Fibonacci
   font-size: 13px;

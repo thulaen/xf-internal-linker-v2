@@ -27,24 +27,24 @@
   .mdc-notched-outline__leading,
   .mdc-notched-outline__notch,
   .mdc-notched-outline__trailing {
-    border-color: #f9ab00 !important;
+    border-color: var(--color-warning);
   }
   .mdc-floating-label,
   .mat-mdc-floating-label {
-    color: #b06e00 !important;
+    color: var(--color-warning-dark);
   }
 }
 
 .info-btn {
-  width: 28px !important;
-  height: 28px !important;
-  line-height: 28px !important;
-  padding: 0 !important;
+  width: 28px;
+  height: 28px;
+  line-height: 28px;
+  padding: 0;
 
   mat-icon {
-    font-size: 17px !important;
-    width: 17px !important;
-    height: 17px !important;
+    font-size: 17px;
+    width: 17px;
+    height: 17px;
     color: var(--color-text-muted);
   }
 }

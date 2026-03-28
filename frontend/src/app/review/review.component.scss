@@ -34,7 +34,7 @@
 
 .count-badge {
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-text-on-dark);
   font-size: 12px;
   font-weight: 700;
   padding: 2px 8px;
@@ -201,13 +201,13 @@
   text-transform: uppercase;
   letter-spacing: 0.4px;
 
-  &.status-pending   { background: var(--color-warning-light); color: #7b5800; }
+  &.status-pending   { background: var(--color-warning-light); color: var(--color-warning-dark); }
   &.status-approved  { background: var(--color-success-light); color: var(--color-success-dark); }
   &.status-rejected  { background: var(--color-error-light);   color: var(--color-error-dark); }
   &.status-applied   { background: var(--color-blue-100);      color: var(--color-primary-dark); }
   &.status-verified  { background: var(--color-blue-200);      color: var(--color-dark-blue); }
-  &.status-stale     { background: #f1f3f4; color: var(--color-text-muted); }
-  &.status-superseded{ background: #f1f3f4; color: var(--color-text-muted); }
+  &.status-stale     { background: var(--color-bg-alt-1);      color: var(--color-text-muted); }
+  &.status-superseded{ background: var(--color-bg-alt-1);      color: var(--color-text-muted); }
 }
 
 .score-chip {
@@ -217,8 +217,8 @@
   font-weight: 700;
 
   &.score-high   { background: var(--color-success-light); color: var(--color-success-dark); }
-  &.score-medium { background: var(--color-warning-light); color: #7b5800; }
-  &.score-low    { background: #f1f3f4; color: var(--color-text-muted); }
+  &.score-medium { background: var(--color-warning-light); color: var(--color-warning-dark); }
+  &.score-low    { background: var(--color-bg-alt-1);      color: var(--color-text-muted); }
 }
 
 .warn-icon {
@@ -357,8 +357,8 @@
   letter-spacing: 0.4px;
 
   &.confidence-strong { background: var(--color-success-light); color: var(--color-success-dark); }
-  &.confidence-weak   { background: var(--color-warning-light); color: #7b5800; }
-  &.confidence-none   { background: #f1f3f4; color: var(--color-text-muted); }
+  &.confidence-weak   { background: var(--color-warning-light); color: var(--color-warning-dark); }
+  &.confidence-none   { background: var(--color-bg-alt-1);      color: var(--color-text-muted); }
 }
 
 .rejection-reason {
