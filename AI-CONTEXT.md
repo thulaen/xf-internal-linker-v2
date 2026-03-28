@@ -217,6 +217,7 @@ Every implementation session must:
 6. Update `PROMPTS.md` only when workflow guidance drifts from reality.
 7. Stage only intended files; never stage `tmp/`, `backend/scripts/`, or unrelated changes.
 8. Prefer ending the session with a clean worktree through a narrow commit and push when safe.
+9. After making any changes to backend or frontend code, automatically restart the entire stack (all Docker services) to ensure changes are live and verified before ending the session.
 
 ## Workflow Guardrails Future AIs Must Follow
 
