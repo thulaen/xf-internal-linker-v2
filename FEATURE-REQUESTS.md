@@ -764,6 +764,36 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
+### FR-026 - Authentication & Login Status UI
+**Requested:** 2026-03-28
+**Target phase:** Phase 29
+**Priority:** High
+**Spec draft:** `docs/specs/fr026-authentication-login-status-ui.md`
+
+### What's wanted
+- Show clearly in the GUI whether the operator is logged in or not.
+- The backend already has full token + session auth configured. The Angular frontend has never implemented it — the auth interceptor and route guards are empty stubs from Phase 4.
+- This FR completes that work and adds a username + logout button to the toolbar.
+
+### Specific controls / behaviour
+- New `GET /api/auth/me/` endpoint returns current user's `id`, `username`, `email`, `is_staff`.
+- New `POST /api/auth/token/` endpoint (DRF `obtain_auth_token`) for Angular login form.
+- New Angular `AuthService` — stores token in `localStorage`, exposes `isLoggedIn$` and `currentUser$`, provides `login()` and `logout()`.
+- Auth interceptor stub completed — attaches `Authorization: Token ...` header to all requests. On `401` response: logs out and redirects to `/login`.
+- Login page at `/login` — username + password fields, error message on bad credentials, redirect to original URL on success.
+- Auth guard applied to all routes except `/login` — unauthenticated users are redirected.
+- Toolbar shows: username + logout icon button when logged in. Login page has its own minimal layout (no shell).
+
+### Implementation notes for the AI
+- Token stored in `localStorage` under key `xfil_auth_token`.
+- On app startup: if token exists in `localStorage`, call `/api/auth/me/` to verify it. If expired/invalid, clear token and redirect to `/login`.
+- Do not attach auth header to `POST /api/auth/token/` itself.
+- `/api/settings/appearance/` and `/api/dashboard/` are already public (`AllowAny`) — login page loads app theme without auth. Do not change these.
+- No role management, no registration page, no OAuth. Accounts created via Django admin only.
+- No other FR dependencies.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -787,4 +817,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021, FR-022, FR-023, FR-024, and FR-025 added to backlog.)*
+*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-026 added to backlog.)*
