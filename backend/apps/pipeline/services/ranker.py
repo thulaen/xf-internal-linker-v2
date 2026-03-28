@@ -263,13 +263,13 @@ def log_minmax_normalize_score(
 ) -> float:
     """Logarithmic min-max normalization for positive authority-like scores."""
     if score_min == score_max:
-        return 0.0
+        return 0.5
 
     epsilon = 1e-9
     min_log = math.log(score_min + epsilon)
     max_log = math.log(score_max + epsilon)
     if min_log == max_log:
-        return 0.0
+        return 0.5
 
     score_log = math.log(score + epsilon)
     normalized = (score_log - min_log) / (max_log - min_log)
@@ -420,9 +420,8 @@ def score_destination_matches(
                 score_quality,
                 score_march_2026_pagerank_component,
                 score_link_freshness,
-                ga4_gsc_ranking_weight * score_ga4_gsc # This is a bit awkward with individual weights
+                score_ga4_gsc,
             )
-            # The parallel scoring is better suited for larger batches, but we integrate it here as requested.
             score_final = scoring.calculate_composite_scores(
                 [c],
                 float(weights.get("w_semantic", 0.0)),
@@ -431,11 +430,12 @@ def score_destination_matches(
                 float(weights.get("w_quality", 0.0)),
                 float(weighted_authority_ranking_weight),
                 float(link_freshness_ranking_weight),
-                1.0 # weight for GA4 is already multiplied
+                float(ga4_gsc_ranking_weight),
             )[0] + score_silo + (float(phrase_matching_settings.ranking_weight) * score_phrase_relevance) + \
                  (float(learned_anchor_settings.ranking_weight) * score_learned_anchor) + \
                  (float(rare_term_settings.ranking_weight) * score_rare_term) + \
-                 (float(field_aware_settings.ranking_weight) * score_field_aware)
+                 (float(field_aware_settings.ranking_weight) * score_field_aware) + \
+                 (float(click_distance_ranking_weight) * score_click_distance_component)
         else:
             score_final = (
                 float(weights.get("w_semantic", 0.0)) * match.score_semantic

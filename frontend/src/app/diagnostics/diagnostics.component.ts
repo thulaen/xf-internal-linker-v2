@@ -1,10 +1,10 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagnosticsService, ServiceStatus, SystemConflict, FeatureReadiness, ResourceUsage } from './diagnostics.service';
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
-import { forkJoin } from 'rxjs';
+import { forkJoin, Subject, takeUntil } from 'rxjs';
 
 @Component({
   selector: 'app-diagnostics',
@@ -18,8 +18,9 @@ import { forkJoin } from 'rxjs';
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss']
 })
-export class DiagnosticsComponent implements OnInit {
+export class DiagnosticsComponent implements OnInit, OnDestroy {
   private diagnosticsService = inject(DiagnosticsService);
+  private destroy$ = new Subject<void>();
 
   services: ServiceStatus[] = [];
   conflicts: SystemConflict[] = [];
@@ -39,7 +40,7 @@ export class DiagnosticsComponent implements OnInit {
       conflicts: this.diagnosticsService.getConflicts(),
       features: this.diagnosticsService.getFeatures(),
       resources: this.diagnosticsService.getResources()
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.services = data.services;
         this.conflicts = data.conflicts;
@@ -59,7 +60,7 @@ export class DiagnosticsComponent implements OnInit {
     forkJoin({
       services: this.diagnosticsService.refreshServices(),
       conflicts: this.diagnosticsService.detectConflicts()
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.loadData();
         this.refreshing = false;
@@ -72,9 +73,14 @@ export class DiagnosticsComponent implements OnInit {
   }
 
   onResolveConflict(id: number): void {
-    this.diagnosticsService.resolveConflict(id).subscribe(() => {
+    this.diagnosticsService.resolveConflict(id).pipe(takeUntil(this.destroy$)).subscribe(() => {
       this.conflicts = this.conflicts.filter(c => c.id !== id);
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   getHealthyCount(): number {

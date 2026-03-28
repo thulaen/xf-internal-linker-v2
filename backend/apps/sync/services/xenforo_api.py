@@ -1,4 +1,5 @@
 import logging
+import time
 import requests
 from django.conf import settings
 from typing import Dict, Any, Optional
@@ -26,21 +27,29 @@ class XenForoAPIClient:
     def _get_api_key(self) -> str:
         return getattr(settings, "XENFORO_API_KEY", "")
 
-    def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
-        """Internal helper for GET requests."""
+    def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, max_retries: int = 3) -> Dict[str, Any]:
+        """Internal helper for GET requests with exponential backoff retry."""
         url = f"{self.base_url}/api/{endpoint.lstrip('/')}"
         headers = {
             "XF-Api-Key": self.api_key,
             "Accept": "application/json",
         }
-        
-        try:
-            response = requests.get(url, headers=headers, params=params, timeout=30)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            logger.error("XenForo API request failed: %s (URL: %s)", e, url)
-            raise
+
+        last_exc: Optional[Exception] = None
+        for attempt in range(max_retries):
+            try:
+                response = requests.get(url, headers=headers, params=params, timeout=30)
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.RequestException as e:
+                last_exc = e
+                if attempt < max_retries - 1:
+                    wait = 2 ** attempt
+                    logger.warning("XenForo API request failed (attempt %d/%d): %s — retrying in %ds", attempt + 1, max_retries, e, wait)
+                    time.sleep(wait)
+
+        logger.error("XenForo API request failed after %d attempts: %s (URL: %s)", max_retries, last_exc, url)
+        raise last_exc
 
     def verify_api_key(self) -> bool:
         """Check if the API key is valid by calling a simple endpoint."""

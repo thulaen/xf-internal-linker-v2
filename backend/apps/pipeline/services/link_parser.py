@@ -10,10 +10,13 @@ occurrence in the source body becomes the stored representative edge.
 
 from __future__ import annotations
 
+import logging
 import re
 from dataclasses import dataclass
 from html import unescape
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 _XF_THREAD_RE = re.compile(
     r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE
@@ -175,6 +178,7 @@ def extract_urls(
             try:
                 host = (urlparse(normalized_url).hostname or "").lower()
             except Exception:
+                logger.debug("Failed to parse hostname from URL: %s", normalized_url)
                 continue
             if host not in normalized_domains:
                 continue
@@ -192,6 +196,7 @@ def _resolve_target(
     try:
         parsed = urlparse(url)
     except Exception:
+        logger.debug("Failed to parse URL in _resolve_target: %s", url)
         return None
 
     if allowed_domains is not None:
@@ -221,6 +226,7 @@ def _resolve_target(
         if target:
             return int(target[0]), str(target[1])
     except Exception:
+        logger.warning("Failed to resolve target for URL: %s", url, exc_info=True)
         return None
 
     return None
@@ -278,6 +284,7 @@ def normalize_internal_url(url: str) -> str:
     try:
         parsed = urlparse(url.strip())
     except Exception:
+        logger.debug("Failed to parse URL in normalize_internal_url: %s", url)
         return ""
 
     scheme = (parsed.scheme or "").lower()

@@ -1,16 +1,33 @@
 /**
  * Error interceptor — catches HTTP errors and shows friendly notifications.
- * Full error handling implementation added in Phase 4.
  */
 
 import { HttpInterceptorFn } from '@angular/common/http';
+import { inject } from '@angular/core';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, throwError } from 'rxjs';
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
+  const snack = inject(MatSnackBar);
+
   return next(req).pipe(
     catchError((error) => {
-      // Phase 4: show snackbar, handle 401 redirects, log errors
-      console.error('HTTP Error:', error);
+      const status = error?.status;
+      let message = 'An unexpected error occurred';
+
+      if (status === 0) {
+        message = 'Network error — check your connection';
+      } else if (status === 401) {
+        message = 'Session expired — please reload';
+      } else if (status === 403) {
+        message = 'Permission denied';
+      } else if (status === 404) {
+        message = 'Resource not found';
+      } else if (status >= 500) {
+        message = 'Server error — please try again later';
+      }
+
+      snack.open(message, 'Dismiss', { duration: 5000 });
       return throwError(() => error);
     })
   );

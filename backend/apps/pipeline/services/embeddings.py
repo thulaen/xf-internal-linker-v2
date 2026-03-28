@@ -180,8 +180,8 @@ def generate_content_item_embeddings(
 
     # Bulk-update the embedding column
     to_update = [
-        ContentItem(pk=pk, embedding=vectors[idx].tolist())
-        for idx, pk in enumerate(pks)
+        ContentItem(pk=pk, embedding=vec.tolist())
+        for pk, vec in zip(pks, vectors, strict=True)
     ]
     ContentItem.objects.bulk_update(to_update, fields=["embedding"], batch_size=500)
 

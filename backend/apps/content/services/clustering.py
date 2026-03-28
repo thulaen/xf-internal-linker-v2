@@ -61,21 +61,21 @@ class ClusteringService:
         # 2. Collect existing clusters from neighbors
         existing_clusters = list(ContentCluster.objects.filter(id__in=neighbor_cluster_ids))
         
-        # We also need the neighbors for joining if no clusters exist yet
-        neighbors_no_cluster = ContentItem.objects.filter(id__in=neighbor_ids, cluster__isnull=True)
-
         with transaction.atomic():
+            # Re-query inside transaction to avoid race conditions
+            neighbors_no_cluster = ContentItem.objects.select_for_update().filter(
+                id__in=neighbor_ids, cluster__isnull=True
+            )
+
             if not existing_clusters:
-                # Join with neighbors that have no cluster? 
+                # Join with neighbors that have no cluster?
                 # If neighbors have no clusters, we should create one and add them all.
-                if neighbors_no_cluster.exists():
+                no_cluster_ids = list(neighbors_no_cluster.values_list('id', flat=True))
+                if no_cluster_ids:
                     new_cluster = ContentCluster.objects.create()
                     item.cluster = new_cluster
                     item.save(update_fields=['cluster'])
-                    for n in neighbors_no_cluster:
-                        if not n.cluster_id:
-                            n.cluster = new_cluster
-                            n.save(update_fields=['cluster'])
+                    ContentItem.objects.filter(id__in=no_cluster_ids).update(cluster=new_cluster)
                     self.elect_canonical(new_cluster.id)
                 else:
                     # No near-duplicates, item stays unclustered (or in its own cluster if we prefer)
@@ -141,6 +141,9 @@ class ClusteringService:
         def get_type_priority(ctype):
             prio = {"resource": 3, "thread": 2, "wp_post": 1}
             return prio.get(ctype, 0)
+
+        if not members.exists():
+            return None
 
         best_item = sorted(members, key=lambda x: get_type_priority(x.content_type), reverse=True)[0]
 

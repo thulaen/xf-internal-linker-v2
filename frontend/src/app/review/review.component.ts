@@ -257,16 +257,19 @@ export class ReviewComponent implements OnInit {
       width: '95vw',
     });
 
-    ref.afterClosed().subscribe((result) => {
-      if (result) {
-        this.replaceSuggestion(result.suggestion);
-        const msgs: Record<string, string> = {
-          approved: 'Suggestion approved',
-          rejected: 'Suggestion rejected',
-          applied:  'Marked as applied',
-        };
-        this.snack.open(msgs[result.action] ?? 'Saved', undefined, { duration: 2500 });
-      }
+    ref.afterClosed().subscribe({
+      next: (result) => {
+        if (result) {
+          this.replaceSuggestion(result.suggestion);
+          const msgs: Record<string, string> = {
+            approved: 'Suggestion approved',
+            rejected: 'Suggestion rejected',
+            applied:  'Marked as applied',
+          };
+          this.snack.open(msgs[result.action] ?? 'Saved', undefined, { duration: 2500 });
+        }
+      },
+      error: () => this.snack.open('Dialog error', 'Dismiss', { duration: 4000 }),
     });
   }
 

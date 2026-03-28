@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { forkJoin, Subject, takeUntil } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -441,9 +442,10 @@ const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: numbe
   templateUrl: './settings.component.html',
   styleUrls: ['./settings.component.scss'],
 })
-export class SettingsComponent implements OnInit {
+export class SettingsComponent implements OnInit, OnDestroy {
   private siloSvc = inject(SiloSettingsService);
   private snack = inject(MatSnackBar);
+  private destroy$ = new Subject<void>();
 
   loading = true;
   savingSettings = false;
@@ -604,115 +606,45 @@ export class SettingsComponent implements OnInit {
 
   reload(): void {
     this.loading = true;
-    this.siloSvc.getSettings().subscribe({
-      next: (settings) => {
-        this.settings = settings;
-        this.siloSvc.getWeightedAuthoritySettings().subscribe({
-          next: (weightedAuthority) => {
-            this.weightedAuthority = weightedAuthority;
-            this.siloSvc.getLinkFreshnessSettings().subscribe({
-              next: (linkFreshness) => {
-                this.linkFreshness = linkFreshness;
-                this.siloSvc.getPhraseMatchingSettings().subscribe({
-                  next: (phraseMatching) => {
-                    this.phraseMatching = phraseMatching;
-                    this.siloSvc.getLearnedAnchorSettings().subscribe({
-                      next: (learnedAnchor) => {
-                        this.learnedAnchor = learnedAnchor;
-                        this.siloSvc.getRareTermPropagationSettings().subscribe({
-                          next: (rareTermPropagation) => {
-                            this.rareTermPropagation = rareTermPropagation;
-                            this.siloSvc.getFieldAwareRelevanceSettings().subscribe({
-                              next: (fieldAwareRelevance) => {
-                                this.fieldAwareRelevance = fieldAwareRelevance;
-                                this.siloSvc.getWordPressSettings().subscribe({
-                                  next: (wordpress) => {
-                                    this.wordpress = wordpress;
-                                    this.siloSvc.getClickDistanceSettings().subscribe({
-                                      next: (clickDistance) => {
-                                        this.clickDistance = clickDistance;
-                                        this.siloSvc.getFeedbackRerankSettings().subscribe({
-                                          next: (feedbackRerank) => {
-                                            this.feedbackRerank = feedbackRerank;
-                                            this.siloSvc.getClusteringSettings().subscribe({
-                                              next: (clustering) => {
-                                                this.clustering = clustering;
-                                                this.siloSvc.getSlateDiversitySettings().subscribe({
-                                                  next: (slateDiversity) => {
-                                                    this.slateDiversity = slateDiversity;
-                                                    this.loadGroupsAndScopes();
-                                                  },
-                                                  error: () => {
-                                                    this.loading = false;
-                                                    this.snack.open('Failed to load slate diversity settings', 'Dismiss', { duration: 4000 });
-                                                  },
-                                                });
-                                              },
-                                              error: () => {
-                                                this.loading = false;
-                                                this.snack.open('Failed to load clustering settings', 'Dismiss', { duration: 4000 });
-                                              },
-                                            });
-                                          },
-                                          error: () => {
-                                            this.loading = false;
-                                            this.snack.open('Failed to load feedback rerank settings', 'Dismiss', { duration: 4000 });
-                                          },
-                                        });
-                                      },
-                                      error: () => {
-                                        this.loading = false;
-                                        this.snack.open('Failed to load click distance settings', 'Dismiss', { duration: 4000 });
-                                      },
-                                    });
-                                  },
-                                  error: () => {
-                                    this.loading = false;
-                                    this.snack.open('Failed to load WordPress settings', 'Dismiss', { duration: 4000 });
-                                  },
-                                });
-                              },
-                              error: () => {
-                                this.loading = false;
-                                this.snack.open('Failed to load field-aware relevance settings', 'Dismiss', { duration: 4000 });
-                              },
-                            });
-                          },
-                          error: () => {
-                            this.loading = false;
-                            this.snack.open('Failed to load rare-term propagation settings', 'Dismiss', { duration: 4000 });
-                          },
-                        });
-                      },
-                      error: () => {
-                        this.loading = false;
-                        this.snack.open('Failed to load learned anchor settings', 'Dismiss', { duration: 4000 });
-                      },
-                    });
-                  },
-                  error: () => {
-                    this.loading = false;
-                    this.snack.open('Failed to load phrase matching settings', 'Dismiss', { duration: 4000 });
-                  },
-                });
-              },
-              error: () => {
-                this.loading = false;
-                this.snack.open('Failed to load Link Freshness settings', 'Dismiss', { duration: 4000 });
-              },
-            });
-          },
-          error: () => {
-            this.loading = false;
-            this.snack.open('Failed to load March 2026 PageRank settings', 'Dismiss', { duration: 4000 });
-          },
-        });
+    forkJoin({
+      settings: this.siloSvc.getSettings(),
+      weightedAuthority: this.siloSvc.getWeightedAuthoritySettings(),
+      linkFreshness: this.siloSvc.getLinkFreshnessSettings(),
+      phraseMatching: this.siloSvc.getPhraseMatchingSettings(),
+      learnedAnchor: this.siloSvc.getLearnedAnchorSettings(),
+      rareTermPropagation: this.siloSvc.getRareTermPropagationSettings(),
+      fieldAwareRelevance: this.siloSvc.getFieldAwareRelevanceSettings(),
+      wordpress: this.siloSvc.getWordPressSettings(),
+      clickDistance: this.siloSvc.getClickDistanceSettings(),
+      feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
+      clustering: this.siloSvc.getClusteringSettings(),
+      slateDiversity: this.siloSvc.getSlateDiversitySettings(),
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (data) => {
+        this.settings = data.settings;
+        this.weightedAuthority = data.weightedAuthority;
+        this.linkFreshness = data.linkFreshness;
+        this.phraseMatching = data.phraseMatching;
+        this.learnedAnchor = data.learnedAnchor;
+        this.rareTermPropagation = data.rareTermPropagation;
+        this.fieldAwareRelevance = data.fieldAwareRelevance;
+        this.wordpress = data.wordpress;
+        this.clickDistance = data.clickDistance;
+        this.feedbackRerank = data.feedbackRerank;
+        this.clustering = data.clustering;
+        this.slateDiversity = data.slateDiversity;
+        this.loadGroupsAndScopes();
       },
       error: () => {
         this.loading = false;
-        this.snack.open('Failed to load silo settings', 'Dismiss', { duration: 4000 });
+        this.snack.open('Failed to load settings', 'Dismiss', { duration: 4000 });
       },
     });
+  }
+
+  ngOnDestroy(): void {
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 
   savePhraseMatchingSettings(): void {

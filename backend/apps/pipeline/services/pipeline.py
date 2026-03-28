@@ -474,8 +474,6 @@ def _load_ga4_gsc_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.05)),
         }
     except Exception:
-        config_snapshot["algorithm_versions"]["rare_term_propagation"] = "v1"
-        config_snapshot["algorithm_versions"]["click_distance"] = "v1"
         return {
             "ranking_weight": 0.05,
         }

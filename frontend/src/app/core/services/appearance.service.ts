@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, catchError, map, of, tap } from 'rxjs';
+import { BehaviorSubject, Observable, catchError, map, of, take, tap } from 'rxjs';
 
 export interface AppearanceConfig {
   primaryColor: string;
@@ -89,7 +89,7 @@ export class AppearanceService {
     this.applyToDom(next);
     this.http
       .put<AppearanceConfig>(this.apiUrl, patch)
-      .pipe(catchError(() => of(next)))
+      .pipe(take(1), catchError(() => of(next)))
       .subscribe();
   }
 
@@ -136,7 +136,7 @@ export class AppearanceService {
 
   /** Remove the site logo and clear logoUrl. */
   removeLogo(): void {
-    this.http.delete('/api/settings/logo/').pipe(catchError(() => of(null))).subscribe();
+    this.http.delete('/api/settings/logo/').pipe(take(1), catchError(() => of(null))).subscribe();
     this.update({ logoUrl: '' });
   }
 
@@ -157,7 +157,7 @@ export class AppearanceService {
 
   /** Remove the site favicon and clear faviconUrl. */
   removeFavicon(): void {
-    this.http.delete('/api/settings/favicon/').pipe(catchError(() => of(null))).subscribe();
+    this.http.delete('/api/settings/favicon/').pipe(take(1), catchError(() => of(null))).subscribe();
     this.update({ faviconUrl: '' });
   }
 
