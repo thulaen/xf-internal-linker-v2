@@ -60,6 +60,7 @@ services:
               capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      HOME: /tmp
     volumes:
       - ./backend:/app
       - media_files:/app/media
@@ -75,7 +76,7 @@ services:
              (cd extensions && python setup.py build_ext --inplace) &&
              python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload"
 
   # ─────────────────────────────────────────────
   # Celery worker — CPU-bound ML jobs (default)
@@ -97,6 +98,7 @@ services:
               capabilities: [gpu]
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      HOME: /tmp
     volumes:
       - ./backend:/app
     depends_on:
@@ -121,6 +123,7 @@ services:
     env_file: .env
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
+      HOME: /tmp
     volumes:
       - ./backend:/app
     depends_on:
