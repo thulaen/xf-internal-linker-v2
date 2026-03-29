@@ -297,6 +297,11 @@ context.
 - Existing mode-selection behavior still supports both CPU-safe and GPU-capable operation through `ML_PERFORMANCE_MODE`
 - pgvector is the embeddings source of truth
 
+### Docker / Disk Hygiene
+- Build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. `xf-linker-http-worker:latest` is shared by http-worker-api and http-worker-queue. Never give those services their own `build:` block.
+- After every `docker-compose build`, run `docker image prune -f` to remove dangling images immediately.
+- Never run `docker-compose down -v` — the `-v` flag deletes the PostgreSQL volume and all embeddings. Use `docker-compose down` only (no `-v`).
+
 ### Git / Collaboration
 - One narrow slice per AI session
 - Start every session with `git status --short`
