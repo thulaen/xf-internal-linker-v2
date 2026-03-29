@@ -79,7 +79,7 @@ Do not leave mystery changes behind.
 - Do not claim a session is complete if the intended files are still uncommitted without explanation.
 - Never use `git add -A` in a dirty tree.
 - Stage only the intended files for the current slice.
-- If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass.**
+- If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass. Session-type gate: if backend or frontend application code changed, `docker-compose build` must succeed before any commit is allowed; if only documentation or configuration files changed, skip the build step and state that plainly in the commit message. If `docker-compose build` fails on a code-change session, do not commit — leave a Current Session Note in AI-CONTEXT.md describing the failure and stop.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 
 ## User Communication Preference
@@ -254,7 +254,21 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |
 | WordPress base URL + optional username/app password | live WordPress sync; private content requires Application Password auth | UI/API shipped; operator must supply real values in env/settings |
 | Local runtimes | build/test execution | Direct installed Python 3.12.10 and direct Node paths work for verification; the usual `py`/`python` launcher aliases and `.venv` launcher still need cleanup if a future session wants the shorter commands |
-| **Storage & RAM** | Performance guardrails | **Postponed Ollama/vLLM** (FR-020) due to 16GB RAM / 40GB Disk constraints. Current stack (Nomic embed-text-v1.5) is safe for 74k items (~2-3GB storage). |
+| **Storage & RAM** | Performance guardrails | **Postponed GPU inference (FR-029 fp16, FR-030 FAISS-GPU)** due to 16GB RAM / 40GB Disk constraints. FR-020 (Zero-Downtime Model Switching, Hot Swap & Runtime Registry) is separately queued and is not a GPU resource constraint. Current stack (Nomic embed-text-v1.5) is safe for 74k items (~2-3GB storage). |
+| **ImpactReport retention** | Data hygiene guardrail | Filter expired rows using `created_at` (the only timestamp on the model). There is no separate `date` field. Any retention query must use: `ImpactReport.objects.filter(created_at__lt=cutoff).delete()` |
+
+## Docker Build Context and .dockerignore Files
+
+Each service uses its own subdirectory as its Docker build context. The .dockerignore files
+are scoped accordingly:
+- `backend/.dockerignore` — excludes pyc files, caches, scripts/, tmp/, and .env from the
+  backend image layer (among others) (build context: `./backend`)
+- `frontend/.dockerignore` — already present; excludes node_modules, dist, .angular,
+  .git, .gitignore, README.md, Dockerfile (among others) (build context: `./frontend`)
+- `services/http-worker/.dockerignore` — already present; excludes bin/, obj/, .vs/,
+  TestResults/ (among others) (build context: `./services/http-worker`)
+A root-level .dockerignore is not needed because no service uses the repo root as its build
+context.
 
 ## Non-Negotiable Guardrails
 

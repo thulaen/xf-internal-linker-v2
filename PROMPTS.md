@@ -50,6 +50,14 @@ Git rules:
 - Claude Code: architecture review, risk validation, skeptical review before broad refactors or phase-complete claims.
 - Gemini or other frontend-focused tools: Angular/Material UX work only after backend contracts are stable.
 
+Image verification (use after any docker-compose build):
+
+    docker images | grep xf-linker
+
+Expected output: one or more rows whose REPOSITORY column contains `xf-linker`. If the
+command returns nothing, the build did not produce the expected images and the session must
+not proceed to commit.
+
 ## Decision-First Prompt
 
 ```text
@@ -92,9 +100,12 @@ At the end:
 - summarize what changed
 - summarize verification
 - name the next exact phase and FR ID
-- update AI-CONTEXT.md and FEATURE-REQUESTS.md
+- update AI-CONTEXT.md in a single pass: first record the phase completion (phase ledger
+  entry, next phase pointer, What Changed summary); then, if the worktree is still dirty,
+  append a Current Session Note that names the AI/tool, the exact files intentionally changed,
+  commit status, and what remains uncommitted and why — both updates belong in one write
+- update FEATURE-REQUESTS.md
 - if workflow guidance drifted, update PROMPTS.md too
-- leave a handoff note in AI-CONTEXT.md if the worktree is still dirty
 - if Git is safe, stage intended files, commit, and push
 ```
 
@@ -120,13 +131,15 @@ Then continue with one phase only.
 
 ```text
 Before ending the session:
-1. update AI-CONTEXT.md
+1. update AI-CONTEXT.md in a single pass: record phase completion (phase ledger, next phase
+   pointer, What Changed summary); if the worktree is still dirty, append a Current Session
+   Note naming the AI/tool, exact files changed, commit status, and what remains uncommitted
+   and why — one write, not two
 2. update FEATURE-REQUESTS.md
 3. update PROMPTS.md only if workflow guidance drifted
 4. summarize exactly what changed
 5. summarize verification performed
 6. name the next exact phase and FR ID
-7. if the worktree is still dirty, leave a short handoff note naming the AI/tool, intended files, commit status, and remaining dirty files
-8. if Git is safe, stage intended files, commit, and push
-9. if Git is not safe, explain why
+7. if Git is safe, stage intended files, commit, and push
+8. if Git is not safe, explain why
 ```
