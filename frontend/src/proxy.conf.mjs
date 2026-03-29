@@ -16,4 +16,14 @@ export default {
     ws: true,
     changeOrigin: true,
   },
+  '/static': {
+    target,
+    secure: false,
+    changeOrigin: true,
+  },
+  '/media': {
+    target,
+    secure: false,
+    changeOrigin: true,
+  },
 };
