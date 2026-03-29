@@ -27,6 +27,9 @@ LOGGING["loggers"]["apps"]["level"] = "DEBUG"  # noqa: F405
 # ── CORS: allow Angular dev server ───────────────────────────────
 CORS_ALLOW_ALL_ORIGINS = True  # Only safe in dev — never in production!
 
+# ── CSRF: trust the Angular dev server origin ─────────────────────
+CSRF_TRUSTED_ORIGINS = ["http://localhost:4200", "http://127.0.0.1:4200"]
+
 # ── Celery: eager mode for debugging (tasks run synchronously) ────
 # Uncomment to debug tasks without Redis:
 # CELERY_TASK_ALWAYS_EAGER = True
