@@ -48,6 +48,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
+    image: xf-linker-backend:latest
     container_name: xf_linker_backend
     restart: unless-stopped
     env_file: .env
@@ -83,9 +84,7 @@ services:
   # Handles: import, embed, pipeline, ranking
   # ─────────────────────────────────────────────
   celery-worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: xf-linker-backend:latest
     container_name: xf_linker_celery_worker
     restart: unless-stopped
     env_file: .env
@@ -106,18 +105,13 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: >
-      sh -c "pip install --no-cache-dir -r requirements.txt &&
-             (cd extensions && python setup.py build_ext --inplace) &&
-             celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} -Q default,pipeline,embeddings"
+    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} -Q default,pipeline,embeddings
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
   # ─────────────────────────────────────────────
   celery-beat:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: xf-linker-backend:latest
     container_name: xf_linker_celery_beat
     restart: unless-stopped
     env_file: .env
@@ -131,10 +125,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: >
-      sh -c "pip install --no-cache-dir -r requirements.txt &&
-             (cd extensions && python setup.py build_ext --inplace) &&
-             celery -A config.celery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+    command: celery -A config.celery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 
   # ─────────────────────────────────────────────
   # Nginx — serves Angular production build
@@ -178,6 +169,7 @@ services:
     build:
       context: ./services/http-worker
       dockerfile: Dockerfile
+    image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_api
     restart: unless-stopped
     environment:
@@ -198,9 +190,7 @@ services:
         condition: service_healthy
 
   http-worker-queue:
-    build:
-      context: ./services/http-worker
-      dockerfile: Dockerfile
+    image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_queue
     restart: unless-stopped
     environment:
