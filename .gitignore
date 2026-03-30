@@ -99,3 +99,4 @@ frontend/out-tsc/
 
 # Backend static files (build artifacts)
 backend/static/
+.claude/
