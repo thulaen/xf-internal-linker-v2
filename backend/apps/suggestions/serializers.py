@@ -63,7 +63,26 @@ class PipelineRunSerializer(serializers.ModelSerializer):
         return f"{minutes}m {seconds}s"
 
 
-class SuggestionListSerializer(serializers.ModelSerializer):
+class _SuggestionSerializerMixin:
+    """Shared computed fields for suggestion serializers."""
+
+    def get_same_silo(self, obj) -> bool:
+        destination_scope = getattr(obj.destination, "scope", None)
+        host_scope = getattr(obj.host, "scope", None)
+        if destination_scope is None or host_scope is None:
+            return False
+        if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
+            return False
+        return destination_scope.silo_group_id == host_scope.silo_group_id
+
+    def get_destination_source_label(self, obj) -> str:
+        return _content_source_label(getattr(obj.destination, "content_type", ""))
+
+    def get_host_source_label(self, obj) -> str:
+        return _content_source_label(getattr(obj.host, "content_type", ""))
+
+
+class SuggestionListSerializer(_SuggestionSerializerMixin, serializers.ModelSerializer):
     """Lightweight serializer for paginated suggestion list views."""
 
     destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
@@ -95,23 +114,8 @@ class SuggestionListSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_destination_source_label(self, obj: Suggestion) -> str:
-        return _content_source_label(getattr(obj.destination, "content_type", ""))
 
-    def get_host_source_label(self, obj: Suggestion) -> str:
-        return _content_source_label(getattr(obj.host, "content_type", ""))
-
-    def get_same_silo(self, obj: Suggestion) -> bool:
-        destination_scope = getattr(obj.destination, "scope", None)
-        host_scope = getattr(obj.host, "scope", None)
-        if destination_scope is None or host_scope is None:
-            return False
-        if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
-            return False
-        return destination_scope.silo_group_id == host_scope.silo_group_id
-
-
-class SuggestionDetailSerializer(serializers.ModelSerializer):
+class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSerializer):
     """Full serializer for the suggestion review detail view."""
 
     destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
@@ -178,21 +182,6 @@ class SuggestionDetailSerializer(serializers.ModelSerializer):
             "created_at", "updated_at",
         ]
 
-    def get_destination_source_label(self, obj: Suggestion) -> str:
-        return _content_source_label(getattr(obj.destination, "content_type", ""))
-
-    def get_host_source_label(self, obj: Suggestion) -> str:
-        return _content_source_label(getattr(obj.host, "content_type", ""))
-
-    def get_same_silo(self, obj: Suggestion) -> bool:
-        destination_scope = getattr(obj.destination, "scope", None)
-        host_scope = getattr(obj.host, "scope", None)
-        if destination_scope is None or host_scope is None:
-            return False
-        if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
-            return False
-        return destination_scope.silo_group_id == host_scope.silo_group_id
-
     def get_link_freshness_diagnostics(self, obj: Suggestion) -> dict[str, object]:
         return get_destination_link_freshness_diagnostics(obj.destination_id).as_dict()
 
@@ -205,6 +194,16 @@ class SuggestionReviewSerializer(serializers.ModelSerializer):
     All other fields are read-only.
     """
 
+    VALID_TRANSITIONS = {
+        "pending": {"approved", "rejected"},
+        "approved": {"applied", "rejected"},
+        "rejected": {"approved"},
+        "applied": set(),
+        "verified": set(),
+        "stale": set(),
+        "superseded": set(),
+    }
+
     class Meta:
         model = Suggestion
         fields = [
@@ -212,6 +211,19 @@ class SuggestionReviewSerializer(serializers.ModelSerializer):
             "rejection_reason", "reviewer_notes", "is_applied",
         ]
         read_only_fields = ["suggestion_id"]
+
+    def validate(self, attrs):
+        if self.instance and "status" in attrs:
+            current = self.instance.status
+            requested = attrs["status"]
+            allowed = self.VALID_TRANSITIONS.get(current, set())
+            if requested not in allowed:
+                from rest_framework.exceptions import ValidationError
+
+                raise ValidationError(
+                    {"status": f"Cannot transition from '{current}' to '{requested}'."}
+                )
+        return attrs
 
 
 class PipelineDiagnosticSerializer(serializers.ModelSerializer):

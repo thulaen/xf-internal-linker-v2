@@ -23,6 +23,7 @@ from typing import Any, Callable
 import numpy as np
 import pyarrow as pa
 import pyroaring as pr
+from django.conf import settings
  
 try:
     from extensions import inv_index, strpool

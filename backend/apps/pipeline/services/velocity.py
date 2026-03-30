@@ -217,16 +217,27 @@ def persist_velocity(scores: dict[NodeKey, float]) -> int:
     Returns the number of items updated.
     """
     from apps.content.models import ContentItem
+    from django.db import transaction
 
-    ContentItem.objects.all().update(velocity_score=0.0)
-    updated = 0
-    for (pk, content_type), score in scores.items():
-        count = ContentItem.objects.filter(pk=pk, content_type=content_type).update(
-            velocity_score=score
-        )
-        updated += count
-    logger.info("Velocity scores persisted: %d items updated.", updated)
-    return updated
+    score_map = {pk: score for (pk, _content_type), score in scores.items()}
+
+    with transaction.atomic():
+        items_to_update = list(ContentItem.objects.filter(pk__in=score_map.keys()))
+        for item in items_to_update:
+            item.velocity_score = score_map[item.pk]
+
+        if items_to_update:
+            ContentItem.objects.bulk_update(
+                items_to_update,
+                ["velocity_score"],
+                batch_size=1000,
+            )
+
+        updated_pks = [item.pk for item in items_to_update]
+        ContentItem.objects.exclude(pk__in=updated_pks).update(velocity_score=0.0)
+
+    logger.info("Velocity scores persisted: %d items updated.", len(items_to_update))
+    return len(items_to_update)
 
 
 def persist_metric_snapshots(*, import_job_id: str, captured_at: int) -> int:
@@ -363,8 +374,6 @@ def _load_primary_clean_text_lens() -> dict[NodeKey, int]:
         Post.objects
         .filter(
             content_item=OuterRef("pk"),
-            content_type="thread",
-            xf_post_id=OuterRef("xf_post_id"),
         )
         .annotate(len=Length("clean_text"))
         .values("len")[:1]

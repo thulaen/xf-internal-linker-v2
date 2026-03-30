@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 from django.db.models import Count, Q
 
 if TYPE_CHECKING:
-    from backend.apps.pipeline.services.ranker import ScoredCandidate
+    from apps.pipeline.services.ranker import ScoredCandidate
 
 
 @dataclass(frozen=True, slots=True)

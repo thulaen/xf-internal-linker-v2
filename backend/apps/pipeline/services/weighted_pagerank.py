@@ -249,20 +249,31 @@ def calculate_weighted_pagerank(
 def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
     """Persist March 2026 PageRank back onto content items."""
     from apps.content.models import ContentItem
+    from django.db import transaction
 
-    ContentItem.objects.filter(is_deleted=False).update(march_2026_pagerank_score=0.0)
-    ContentItem.objects.filter(is_deleted=True).update(march_2026_pagerank_score=0.0)
+    score_map = {pk: score for (pk, _content_type), score in scores.items()}
 
-    updated = 0
-    for (pk, content_type), score in scores.items():
-        updated += ContentItem.objects.filter(
-            pk=pk,
-            content_type=content_type,
-            is_deleted=False,
-        ).update(march_2026_pagerank_score=score)
+    with transaction.atomic():
+        items_to_update = list(
+            ContentItem.objects.filter(pk__in=score_map.keys(), is_deleted=False)
+        )
+        for item in items_to_update:
+            item.march_2026_pagerank_score = score_map[item.pk]
 
-    logger.info("March 2026 PageRank persisted: %d items updated.", updated)
-    return updated
+        if items_to_update:
+            ContentItem.objects.bulk_update(
+                items_to_update,
+                ["march_2026_pagerank_score"],
+                batch_size=1000,
+            )
+
+        updated_pks = [item.pk for item in items_to_update]
+        ContentItem.objects.exclude(pk__in=updated_pks).update(
+            march_2026_pagerank_score=0.0
+        )
+
+    logger.info("March 2026 PageRank persisted: %d items updated.", len(items_to_update))
+    return len(items_to_update)
 
 
 def run_weighted_pagerank(

@@ -215,6 +215,10 @@ class SuggestionViewSet(viewsets.ModelViewSet):
 
         if action_name not in ("approve", "reject", "skip"):
             return Response({"detail": "action must be 'approve', 'reject', or 'skip'."}, status=400)
+        if not isinstance(ids, list):
+            return Response({"detail": "ids must be a list."}, status=400)
+        if len(ids) > 500:
+            return Response({"detail": "Maximum 500 IDs per batch."}, status=400)
         if not ids:
             return Response({"detail": "ids list is required."}, status=400)
 

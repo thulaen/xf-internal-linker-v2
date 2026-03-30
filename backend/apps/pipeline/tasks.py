@@ -1079,5 +1079,22 @@ def nightly_data_retention():
             why="Check database connectivity and the suggestions.PipelineRun table.",
         )
 
+    try:
+        from apps.pipeline.services.velocity import prune_old_snapshots
+
+        deleted = prune_old_snapshots(keep=2)
+        results["metric_snapshots_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d ContentMetricSnapshot rows (keeping last 2 per item).", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] ContentMetricSnapshot purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="metric_snapshot_purge",
+            error_message="ContentMetricSnapshot retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the content.ContentMetricSnapshot table.",
+        )
+
     logger.info("[nightly_data_retention] Complete. Results: %s", results)
     return results

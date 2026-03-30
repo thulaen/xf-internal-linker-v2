@@ -11,6 +11,7 @@ namespace py = pybind11;
  */
 void normalize_l2(py::array_t<float, py::array::c_style | py::array::forcecast> input) {
     auto buf = input.request();
+    if (buf.size == 0) return;
     float* ptr = static_cast<float*>(buf.ptr);
     size_t size = buf.size;
 

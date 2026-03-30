@@ -164,8 +164,6 @@ def generate_content_item_embeddings(
     if not texts:
         return {"embedded": 0, "skipped": len(items)}
 
-    texts = [t for t in texts]
-
     logger.info("Embedding %d content items...", len(texts))
     start = time.monotonic()
     raw_vectors = model.encode(
@@ -231,8 +229,6 @@ def generate_sentence_embeddings(
 
     if not texts:
         return {"embedded": 0, "skipped": len(sentences)}
-
-    texts = list(texts)
 
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()

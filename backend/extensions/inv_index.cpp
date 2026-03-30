@@ -17,14 +17,14 @@ public:
             index_[token].push_back(doc_id);
         }
         total_docs_++;
-        avg_doc_length_ += tokens.size();
+        total_doc_length_ += tokens.size();
     }
 
     std::unordered_map<int, float> search(const std::vector<uint32_t>& query_tokens, float k1 = 1.5f, float b = 0.75f) {
         std::unordered_map<int, float> scores;
         if (total_docs_ == 0) return scores;
 
-        float avg_dl = avg_doc_length_ / total_docs_;
+        float avg_dl = total_doc_length_ / total_docs_;
 
         for (auto token : query_tokens) {
             auto it = index_.find(token);
@@ -54,7 +54,7 @@ public:
 private:
     std::unordered_map<uint32_t, std::vector<int>> index_;
     std::unordered_map<int, float> doc_lengths_;
-    float avg_doc_length_ = 0.0f;
+    float total_doc_length_ = 0.0f;
     int total_docs_ = 0;
 };
 
