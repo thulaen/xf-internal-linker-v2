@@ -137,6 +137,33 @@ export interface SyncRunResponse {
   mode: string;
 }
 
+export interface WeightPreset {
+  id: number;
+  name: string;
+  is_system: boolean;
+  weights: Record<string, string>;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WeightDeltaEntry {
+  previous: string | null;
+  new: string | null;
+}
+
+export interface WeightAdjustmentHistory {
+  id: number;
+  source: 'r_auto' | 'manual' | 'preset_applied';
+  preset: number | null;
+  preset_name: string | null;
+  previous_weights: Record<string, string>;
+  new_weights: Record<string, string>;
+  delta: Record<string, WeightDeltaEntry>;
+  reason: string;
+  r_run_id: string;
+  created_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class SiloSettingsService {
   private http = inject(HttpClient);
@@ -279,5 +306,45 @@ export class SiloSettingsService {
 
   runWordPressSync(): Observable<SyncRunResponse> {
     return this.http.post<SyncRunResponse>('/api/sync/wordpress/run/', {});
+  }
+
+  // ── Weight presets ────────────────────────────────────────────────
+
+  listWeightPresets(): Observable<WeightPreset[]> {
+    return this.http.get<WeightPreset[]>('/api/weight-presets/');
+  }
+
+  createWeightPreset(payload: { name: string; weights: Record<string, string> }): Observable<WeightPreset> {
+    return this.http.post<WeightPreset>('/api/weight-presets/', payload);
+  }
+
+  renameWeightPreset(id: number, name: string): Observable<WeightPreset> {
+    return this.http.patch<WeightPreset>(`/api/weight-presets/${id}/`, { name });
+  }
+
+  deleteWeightPreset(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/weight-presets/${id}/`);
+  }
+
+  applyWeightPreset(id: number): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`/api/weight-presets/${id}/apply/`, {});
+  }
+
+  getCurrentWeights(): Observable<Record<string, string>> {
+    return this.http.get<Record<string, string>>('/api/weight-presets/current/');
+  }
+
+  triggerRTune(): Observable<{ detail: string; task_id: string }> {
+    return this.http.post<{ detail: string; task_id: string }>('/api/settings/r-tune/trigger/', {});
+  }
+
+  // ── Weight adjustment history ─────────────────────────────────────
+
+  listWeightHistory(): Observable<WeightAdjustmentHistory[]> {
+    return this.http.get<WeightAdjustmentHistory[]>('/api/weight-history/');
+  }
+
+  rollbackWeights(id: number): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`/api/weight-history/${id}/rollback/`, {});
   }
 }

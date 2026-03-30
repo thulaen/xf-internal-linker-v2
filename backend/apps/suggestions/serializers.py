@@ -9,7 +9,27 @@ from rest_framework import serializers
 
 from apps.pipeline.services.link_freshness import get_destination_link_freshness_diagnostics
 
-from .models import PipelineDiagnostic, PipelineRun, Suggestion
+from .models import PipelineDiagnostic, PipelineRun, Suggestion, WeightAdjustmentHistory, WeightPreset
+
+
+class WeightPresetSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = WeightPreset
+        fields = ["id", "name", "is_system", "weights", "created_at", "updated_at"]
+        read_only_fields = ["id", "is_system", "created_at", "updated_at"]
+
+
+class WeightAdjustmentHistorySerializer(serializers.ModelSerializer):
+    preset_name = serializers.CharField(source="preset.name", read_only=True, allow_null=True)
+
+    class Meta:
+        model = WeightAdjustmentHistory
+        fields = [
+            "id", "source", "preset", "preset_name",
+            "previous_weights", "new_weights", "delta",
+            "reason", "r_run_id", "created_at",
+        ]
+        read_only_fields = fields
 
 
 class PipelineRunSerializer(serializers.ModelSerializer):

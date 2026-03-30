@@ -186,6 +186,18 @@ CELERY_BEAT_SCHEDULE = {
         "kwargs": {"source": "api", "mode": "full"},
         "options": {"queue": "pipeline"},
     },
+    # Part 6 — monthly R auto-tune: 02:00 on the first Sunday of every month.
+    "monthly-r-auto-tune": {
+        "task": "pipeline.monthly_r_auto_tune",
+        "schedule": crontab(hour=2, minute=0, day_of_week=0, day_of_month="1-7"),
+        "options": {"queue": "pipeline"},
+    },
+    # Part 7 — nightly data retention: 03:00 UTC daily.
+    "nightly-data-retention": {
+        "task": "pipeline.nightly_data_retention",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "pipeline"},
+    },
 }
 
 

@@ -9,6 +9,7 @@ The app NEVER writes to XenForo — all changes are to local records only.
 import logging
 from datetime import datetime, timezone
 
+from django.db import transaction
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
@@ -16,13 +17,21 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 
 from apps.audit.models import AuditEntry
-from .models import PipelineDiagnostic, PipelineRun, Suggestion
+from .models import PipelineDiagnostic, PipelineRun, Suggestion, WeightAdjustmentHistory, WeightPreset
 from .serializers import (
     PipelineDiagnosticSerializer,
     PipelineRunSerializer,
     SuggestionDetailSerializer,
     SuggestionListSerializer,
     SuggestionReviewSerializer,
+    WeightAdjustmentHistorySerializer,
+    WeightPresetSerializer,
+)
+from .weight_preset_service import (
+    apply_weights,
+    compute_delta,
+    get_current_weights,
+    write_history,
 )
 
 logger = logging.getLogger(__name__)
@@ -261,3 +270,94 @@ class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PipelineDiagnosticSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["pipeline_run", "skip_reason"]
+
+
+class WeightPresetViewSet(viewsets.ModelViewSet):
+    """
+    CRUD for weight presets + apply action.
+
+    GET    /api/weight-presets/           — list all presets
+    POST   /api/weight-presets/           — create a user preset
+    PATCH  /api/weight-presets/{id}/      — update a user preset (403 for system)
+    DELETE /api/weight-presets/{id}/      — delete a user preset (403 for system)
+    POST   /api/weight-presets/{id}/apply/ — apply preset weights to AppSetting
+    """
+
+    queryset = WeightPreset.objects.all()
+    serializer_class = WeightPresetSerializer
+    http_method_names = ["get", "post", "patch", "delete", "head", "options"]
+
+    def update(self, request, *args, **kwargs):
+        preset = self.get_object()
+        if preset.is_system:
+            return Response({"detail": "System presets cannot be modified."}, status=status.HTTP_403_FORBIDDEN)
+        return super().update(request, *args, **kwargs)
+
+    def partial_update(self, request, *args, **kwargs):
+        kwargs["partial"] = True
+        return self.update(request, *args, **kwargs)
+
+    def destroy(self, request, *args, **kwargs):
+        preset = self.get_object()
+        if preset.is_system:
+            return Response({"detail": "System presets cannot be deleted."}, status=status.HTTP_403_FORBIDDEN)
+        return super().destroy(request, *args, **kwargs)
+
+    @action(detail=True, methods=["post"])
+    def apply(self, request, pk=None):
+        """Apply this preset's weights atomically to AppSetting and record history."""
+        preset = self.get_object()
+
+        previous_weights = get_current_weights()
+
+        with transaction.atomic():
+            apply_weights(preset.weights)
+
+        new_weights = get_current_weights()
+        username = getattr(request.user, "username", "unknown") if request.user else "system"
+        write_history(
+            source="preset_applied",
+            previous_weights=previous_weights,
+            new_weights=new_weights,
+            reason=f"Preset: {preset.name} applied by {username}",
+            preset=preset,
+        )
+        return Response({"detail": f"Preset '{preset.name}' applied successfully."})
+
+    @action(detail=False, methods=["get"])
+    def current(self, request):
+        """Return the current in-scope AppSetting values as a weights dict."""
+        return Response(get_current_weights())
+
+
+class WeightAdjustmentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only list of all weight adjustment events.
+
+    GET  /api/weight-history/       — all events, newest first
+    POST /api/weight-history/{id}/rollback/ — roll back to previous_weights
+    """
+
+    queryset = WeightAdjustmentHistory.objects.select_related("preset").order_by("-created_at")
+    serializer_class = WeightAdjustmentHistorySerializer
+
+    @action(detail=True, methods=["post"])
+    def rollback(self, request, pk=None):
+        """Roll back weights to the previous_weights snapshot of this history row."""
+        history_row = self.get_object()
+        target_weights = history_row.previous_weights
+
+        previous_weights = get_current_weights()
+
+        with transaction.atomic():
+            apply_weights(target_weights)
+
+        new_weights = get_current_weights()
+        created_str = history_row.created_at.strftime("%Y-%m-%d %H:%M UTC")
+        write_history(
+            source="manual",
+            previous_weights=previous_weights,
+            new_weights=new_weights,
+            reason=f"Rollback to {created_str}",
+        )
+        return Response({"detail": f"Rolled back to weights from {created_str}."})

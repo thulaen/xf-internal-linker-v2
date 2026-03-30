@@ -1,4 +1,4 @@
-import { CommonModule } from '@angular/common';
+import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Subject, takeUntil } from 'rxjs';
@@ -29,6 +29,8 @@ import {
   FeedbackRerankSettings,
   ClusteringSettings,
   SlateDiversitySettings,
+  WeightPreset,
+  WeightAdjustmentHistory,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -428,6 +430,7 @@ const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: numbe
   standalone: true,
   imports: [
     CommonModule,
+    DatePipe,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -547,8 +550,24 @@ export class SettingsComponent implements OnInit, OnDestroy {
   };
   wordpressPassword = '';
 
+  // ── Weight presets ──────────────────────────────────────────────
+  weightPresets: WeightPreset[] = [];
+  loadingPresets = false;
+  applyingPreset = false;
+  savingPreset = false;
+  deletingPreset = false;
+  renamingPresetId: number | null = null;
+  newPresetName = '';
+  renamePresetValue = '';
+  showSavePresetInput = false;
+
+  // ── Weight history ──────────────────────────────────────────────
+  weightHistory: WeightAdjustmentHistory[] = [];
+  loadingHistory = false;
+  rollingBack = false;
+  triggeringRTune = false;
+
   siloGroups: SiloGroup[] = [];
-  scopes: ScopeItem[] = [];
 
   newGroup: Pick<SiloGroup, 'name' | 'slug' | 'description' | 'display_order'> = {
     name: '',
@@ -640,6 +659,144 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.snack.open('Failed to load settings', 'Dismiss', { duration: 4000 });
       },
     });
+    this.reloadPresetsAndHistory();
+  }
+
+  reloadPresetsAndHistory(): void {
+    this.loadingPresets = true;
+    this.loadingHistory = true;
+    this.siloSvc.listWeightPresets().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (presets) => { this.weightPresets = presets; this.loadingPresets = false; },
+      error: () => { this.loadingPresets = false; },
+    });
+    this.siloSvc.listWeightHistory().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (history) => { this.weightHistory = history; this.loadingHistory = false; },
+      error: () => { this.loadingHistory = false; },
+    });
+  }
+
+  applyPreset(preset: WeightPreset): void {
+    if (!confirm(`Apply preset "${preset.name}"? This will overwrite all current weight settings.`)) return;
+    this.applyingPreset = true;
+    this.siloSvc.applyWeightPreset(preset.id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.applyingPreset = false;
+        this.snack.open(`Preset "${preset.name}" applied. Reloading settings…`, undefined, { duration: 3000 });
+        this.reload();
+      },
+      error: (err) => {
+        this.applyingPreset = false;
+        this.snack.open(err?.error?.detail || 'Failed to apply preset', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveCurrentAsPreset(): void {
+    const name = this.newPresetName.trim();
+    if (!name) return;
+    this.savingPreset = true;
+    this.siloSvc.getCurrentWeights().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (weights) => {
+        this.siloSvc.createWeightPreset({ name, weights }).pipe(takeUntil(this.destroy$)).subscribe({
+          next: () => {
+            this.savingPreset = false;
+            this.newPresetName = '';
+            this.showSavePresetInput = false;
+            this.snack.open(`Preset "${name}" saved.`, undefined, { duration: 2500 });
+            this.reloadPresetsAndHistory();
+          },
+          error: (err) => {
+            this.savingPreset = false;
+            this.snack.open(err?.error?.detail || err?.error?.name?.[0] || 'Failed to save preset', 'Dismiss', { duration: 4000 });
+          },
+        });
+      },
+      error: () => {
+        this.savingPreset = false;
+        this.snack.open('Failed to read current weights', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  startRenamePreset(preset: WeightPreset): void {
+    this.renamingPresetId = preset.id;
+    this.renamePresetValue = preset.name;
+  }
+
+  confirmRenamePreset(preset: WeightPreset): void {
+    const name = this.renamePresetValue.trim();
+    if (!name || name === preset.name) { this.renamingPresetId = null; return; }
+    this.siloSvc.renameWeightPreset(preset.id, name).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.renamingPresetId = null;
+        this.snack.open('Preset renamed.', undefined, { duration: 2000 });
+        this.reloadPresetsAndHistory();
+      },
+      error: (err) => {
+        this.renamingPresetId = null;
+        this.snack.open(err?.error?.detail || 'Failed to rename preset', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  deletePreset(preset: WeightPreset): void {
+    if (!confirm(`Delete preset "${preset.name}"? This cannot be undone.`)) return;
+    this.deletingPreset = true;
+    this.siloSvc.deleteWeightPreset(preset.id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.deletingPreset = false;
+        this.snack.open(`Preset "${preset.name}" deleted.`, undefined, { duration: 2500 });
+        this.reloadPresetsAndHistory();
+      },
+      error: (err) => {
+        this.deletingPreset = false;
+        this.snack.open(err?.error?.detail || 'Failed to delete preset', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  rollbackWeights(row: WeightAdjustmentHistory): void {
+    const dateStr = new Date(row.created_at).toLocaleString();
+    if (!confirm(`Roll back to weights from ${dateStr}? This will overwrite all current weight settings.`)) return;
+    this.rollingBack = true;
+    this.siloSvc.rollbackWeights(row.id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.rollingBack = false;
+        this.snack.open(`Rolled back to weights from ${dateStr}. Reloading…`, undefined, { duration: 3000 });
+        this.reload();
+      },
+      error: (err) => {
+        this.rollingBack = false;
+        this.snack.open(err?.error?.detail || 'Rollback failed', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  triggerRTune(): void {
+    if (!confirm('Queue the R auto-tune task now? This will run in the background and may update your weights.')) return;
+    this.triggeringRTune = true;
+    this.siloSvc.triggerRTune().pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.triggeringRTune = false;
+        this.snack.open('R auto-tune task queued.', undefined, { duration: 2500 });
+      },
+      error: () => {
+        this.triggeringRTune = false;
+        this.snack.open('Failed to queue R auto-tune task.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  historySourceLabel(source: string): string {
+    return { r_auto: 'R auto-tune', manual: 'Manual', preset_applied: 'Preset applied' }[source] ?? source;
+  }
+
+  deltaKeys(delta: Record<string, { previous: string | null; new: string | null }>): string[] {
+    return Object.keys(delta);
+  }
+
+  formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {
+    return `${key}: ${entry.previous ?? '—'} → ${entry.new ?? '—'}`;
   }
 
   ngOnDestroy(): void {

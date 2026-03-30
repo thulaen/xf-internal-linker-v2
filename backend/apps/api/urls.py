@@ -27,6 +27,7 @@ from apps.core.views import (
     LogoUploadView,
     PhraseMatchingSettingsView,
     RareTermPropagationSettingsView,
+    RTuneTriggerView,
     SiloSettingsView,
     SlateDiversitySettingsView,
     WeightedAuthorityRecalculateView,
@@ -39,6 +40,8 @@ from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
     SuggestionViewSet,
+    WeightAdjustmentHistoryViewSet,
+    WeightPresetViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet
 
@@ -55,6 +58,8 @@ router.register(r"pipeline-runs", PipelineRunViewSet, basename="pipeline-run")
 router.register(r"diagnostics", PipelineDiagnosticViewSet, basename="diagnostic")
 router.register(r"sync-jobs", SyncJobViewSet, basename="sync-job")
 router.register(r"broken-links", BrokenLinkViewSet, basename="broken-link")
+router.register(r"weight-presets", WeightPresetViewSet, basename="weight-preset")
+router.register(r"weight-history", WeightAdjustmentHistoryViewSet, basename="weight-history")
 
 urlpatterns = [
     path("", include("apps.core.urls")),
@@ -77,6 +82,7 @@ urlpatterns = [
     path("settings/clustering/", ClusteringSettingsView.as_view(), name="clustering-settings"),
     path("settings/clustering/recalculate/", ClusteringRecalculateView.as_view(), name="clustering-recalculate"),
     path("settings/slate-diversity/", SlateDiversitySettingsView.as_view(), name="slate-diversity-settings"),
+    path("settings/r-tune/trigger/", RTuneTriggerView.as_view(), name="r-tune-trigger"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),

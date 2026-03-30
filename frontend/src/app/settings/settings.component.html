@@ -11,6 +11,99 @@
   </mat-card>
 } @else {
   <div class="settings-grid">
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         PRESETS CARD — place at top, before all signal cards
+         ═══════════════════════════════════════════════════════════════ -->
+    <mat-card class="settings-card">
+      <mat-card-header>
+        <mat-card-title>Weight Presets</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          Save and load named snapshots of all ranking weights. The
+          <strong>Recommended</strong> preset contains research-backed SEO starting
+          values. System presets cannot be edited or deleted.
+        </p>
+
+        @if (loadingPresets) {
+          <p>Loading presets…</p>
+        } @else {
+          <div class="preset-list">
+            @for (preset of weightPresets; track preset.id) {
+              <div class="preset-row">
+                <mat-icon class="preset-icon" [title]="preset.is_system ? 'System preset — read-only' : 'User preset'">
+                  {{ preset.is_system ? 'lock' : 'bookmark' }}
+                </mat-icon>
+
+                @if (renamingPresetId === preset.id) {
+                  <mat-form-field appearance="outline" class="rename-field">
+                    <input matInput [(ngModel)]="renamePresetValue"
+                           (keydown.enter)="confirmRenamePreset(preset)"
+                           (keydown.escape)="renamingPresetId = null" />
+                  </mat-form-field>
+                  <button mat-icon-button color="primary" (click)="confirmRenamePreset(preset)" title="Save name">
+                    <mat-icon>check</mat-icon>
+                  </button>
+                  <button mat-icon-button (click)="renamingPresetId = null" title="Cancel">
+                    <mat-icon>close</mat-icon>
+                  </button>
+                } @else {
+                  <span class="preset-name">{{ preset.name }}</span>
+                  <span class="preset-date">{{ preset.created_at | date:'dd MMM yyyy' }}</span>
+
+                  <button mat-stroked-button color="primary" [disabled]="applyingPreset"
+                          (click)="applyPreset(preset)" class="preset-action-btn">
+                    <mat-icon>play_arrow</mat-icon>
+                    Load
+                  </button>
+
+                  @if (!preset.is_system) {
+                    <button mat-icon-button title="Rename" (click)="startRenamePreset(preset)">
+                      <mat-icon>edit</mat-icon>
+                    </button>
+                    <button mat-icon-button color="warn" title="Delete" [disabled]="deletingPreset"
+                            (click)="deletePreset(preset)">
+                      <mat-icon>delete</mat-icon>
+                    </button>
+                  }
+                }
+              </div>
+            }
+
+            @if (weightPresets.length === 0) {
+              <p class="empty-hint">No presets saved yet.</p>
+            }
+          </div>
+
+          <div class="button-row" style="margin-top: 12px;">
+            @if (showSavePresetInput) {
+              <mat-form-field appearance="outline" style="flex: 1;">
+                <mat-label>Preset name</mat-label>
+                <input matInput [(ngModel)]="newPresetName"
+                       placeholder="e.g. Authority-heavy"
+                       (keydown.enter)="saveCurrentAsPreset()"
+                       (keydown.escape)="showSavePresetInput = false" />
+              </mat-form-field>
+              <button mat-flat-button color="primary" [disabled]="savingPreset || !newPresetName.trim()"
+                      (click)="saveCurrentAsPreset()">
+                <mat-icon>save</mat-icon>
+                Save
+              </button>
+              <button mat-stroked-button (click)="showSavePresetInput = false; newPresetName = ''">
+                Cancel
+              </button>
+            } @else {
+              <button mat-stroked-button color="primary" (click)="showSavePresetInput = true">
+                <mat-icon>add</mat-icon>
+                Save current as new preset
+              </button>
+            }
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
     <mat-card class="settings-card">
       <mat-card-header>
         <mat-card-title>March 2026 PageRank</mat-card-title>
@@ -802,4 +895,76 @@
       </div>
     </mat-card-content>
   </mat-card>
+
+    <!-- ═══════════════════════════════════════════════════════════════
+         WEIGHT HISTORY CARD — bottom of Settings page
+         ═══════════════════════════════════════════════════════════════ -->
+    <mat-card class="settings-card">
+      <mat-card-header>
+        <mat-card-title>Weight Adjustment History</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          Every change to ranking weights — by preset apply, manual save, or the
+          monthly R auto-tune — is recorded here. Use <strong>Rollback</strong>
+          to restore any previous state.
+        </p>
+
+        <div class="button-row" style="margin-bottom: 12px;">
+          <button mat-stroked-button color="primary" [disabled]="triggeringRTune"
+                  (click)="triggerRTune()" title="Manually queue the monthly R auto-tune task now">
+            <mat-icon>auto_fix_high</mat-icon>
+            Run R auto-tune now
+          </button>
+          <button mat-icon-button (click)="reloadPresetsAndHistory()" title="Refresh history">
+            <mat-icon>refresh</mat-icon>
+          </button>
+        </div>
+
+        @if (loadingHistory) {
+          <p>Loading history…</p>
+        } @else if (weightHistory.length === 0) {
+          <p class="empty-hint">No weight changes recorded yet.</p>
+        } @else {
+          <div class="history-list">
+            @for (row of weightHistory; track row.id) {
+              <div class="history-row">
+                <div class="history-header">
+                  <span class="history-date">{{ row.created_at | date:'dd MMM yyyy, HH:mm' }}</span>
+                  <span class="history-source">{{ historySourceLabel(row.source) }}</span>
+                  @if (row.preset_name) {
+                    <span class="history-preset">{{ row.preset_name }}</span>
+                  }
+                </div>
+
+                <div class="history-reason">{{ row.reason }}</div>
+
+                @if (deltaKeys(row.delta).length > 0) {
+                  <div class="history-delta">
+                    @for (key of deltaKeys(row.delta); track key) {
+                      <div class="delta-line">
+                        <code>{{ key }}</code>
+                        <span class="delta-prev">{{ row.delta[key].previous ?? '—' }}</span>
+                        <mat-icon class="delta-arrow">arrow_forward</mat-icon>
+                        <span class="delta-new">{{ row.delta[key].new ?? '—' }}</span>
+                      </div>
+                    }
+                  </div>
+                }
+
+                <div class="history-actions">
+                  <button mat-stroked-button color="warn" [disabled]="rollingBack"
+                          (click)="rollbackWeights(row)">
+                    <mat-icon>undo</mat-icon>
+                    Rollback
+                  </button>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+  </div>
 }

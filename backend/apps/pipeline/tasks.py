@@ -928,3 +928,156 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
     _publish_progress(job_id, "completed", 1.0, f"Clustering complete. Processed {processed} items.")
 
     return {"status": "completed", "processed": processed}
+
+
+# ---------------------------------------------------------------------------
+# Part 6 — Monthly R auto-tune task
+# ---------------------------------------------------------------------------
+
+@shared_task(bind=True, name="pipeline.monthly_r_auto_tune")
+def monthly_r_auto_tune(self):
+    """Monthly auto-tune of ranking weights from R analytics.
+
+    Scheduled at 02:00 on the first Sunday of every month
+    (crontab(hour=2, minute=0, day_of_week=0, day_of_month='1-7')).
+
+    Phase 21 stub: step 1 (call R analytics to get candidate weights) is a
+    no-op until the R analytics service returns candidate weights.  Only step 1
+    needs to be filled in for FR-018 — everything else (threshold comparison,
+    atomic write, history row, error logging) is already wired.
+    """
+    import traceback
+
+    from apps.audit.models import ErrorLog
+    from apps.suggestions.weight_preset_service import (
+        apply_weights,
+        get_current_weights,
+        write_history,
+    )
+
+    CHANGE_THRESHOLD = 0.02  # Will be superseded by FR-018 spec value.
+
+    try:
+        # ── Step 1: call R analytics for candidate weights ─────────────────
+        # STUB: R analytics service not yet available (FR-018).
+        # Replace this block with the real R API call in Phase 21.
+        # The return format must be dict[str, str] matching PRESET_DEFAULTS keys.
+        candidate_weights: dict[str, str] | None = None  # noqa: F841
+
+        if candidate_weights is None:
+            logger.info("[monthly_r_auto_tune] R analytics not available yet — no-op.")
+            return {"status": "skipped", "reason": "R analytics stub — no candidate weights returned."}
+
+        # ── Step 2: compare candidate to current weights ───────────────────
+        current_weights = get_current_weights()
+        changed_keys = {
+            k for k, v in candidate_weights.items()
+            if abs(float(v) - float(current_weights.get(k, v))) > CHANGE_THRESHOLD
+        }
+        if not changed_keys:
+            logger.info("[monthly_r_auto_tune] Candidate weights within threshold — no change applied.")
+            return {"status": "no_change"}
+
+        # ── Step 3: apply new weights atomically ───────────────────────────
+        from django.db import transaction
+
+        previous_weights = get_current_weights()
+        with transaction.atomic():
+            apply_weights(candidate_weights)
+        new_weights = get_current_weights()
+
+        # ── Step 4: write history row ──────────────────────────────────────
+        r_run_id = str(getattr(self.request, "id", "") or "")
+        write_history(
+            source="r_auto",
+            previous_weights=previous_weights,
+            new_weights=new_weights,
+            reason="Monthly R auto-tune",
+            r_run_id=r_run_id,
+        )
+
+        logger.info(
+            "[monthly_r_auto_tune] Applied new weights for %d key(s): %s",
+            len(changed_keys),
+            ", ".join(sorted(changed_keys)),
+        )
+        return {"status": "applied", "changed_keys": sorted(changed_keys)}
+
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[monthly_r_auto_tune] Failed: %s", raw)
+        ErrorLog.objects.create(
+            job_type="auto_tune_weights",
+            step="monthly_r_auto_tune",
+            error_message="R auto-tune task failed — see raw_exception for details.",
+            raw_exception=raw,
+            why="The monthly R analytics auto-tune task raised an unexpected exception. Check the R analytics service.",
+        )
+        return {"status": "error"}
+
+
+# ---------------------------------------------------------------------------
+# Part 7 — Nightly data retention task
+# ---------------------------------------------------------------------------
+
+@shared_task(name="pipeline.nightly_data_retention")
+def nightly_data_retention():
+    """Purge stale data rows according to the retention policy.
+
+    Scheduled daily at 03:00 UTC.
+
+    Retention policy:
+        SearchMetric rows       — 12 months
+        PipelineRun logs        — 90 days
+        ImpactReport            — FOREVER (never purged)
+        Suggestion              — FOREVER (never purged)
+        WeightAdjustmentHistory — FOREVER (never purged)
+    """
+    import traceback
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.audit.models import ErrorLog
+
+    now = timezone.now()
+    results: dict[str, int] = {}
+
+    try:
+        from apps.analytics.models import SearchMetric
+
+        cutoff_12m = now - timedelta(days=365)
+        deleted, _ = SearchMetric.objects.filter(date__lt=cutoff_12m.date()).delete()
+        results["search_metrics_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d SearchMetric rows older than 12 months.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] SearchMetric purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="search_metric_purge",
+            error_message="SearchMetric retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the analytics.SearchMetric table.",
+        )
+
+    try:
+        from apps.suggestions.models import PipelineRun
+
+        cutoff_90d = now - timedelta(days=90)
+        deleted, _ = PipelineRun.objects.filter(created_at__lt=cutoff_90d).delete()
+        results["pipeline_runs_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d PipelineRun rows older than 90 days.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] PipelineRun purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="pipeline_run_purge",
+            error_message="PipelineRun retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the suggestions.PipelineRun table.",
+        )
+
+    logger.info("[nightly_data_retention] Complete. Results: %s", results)
+    return results

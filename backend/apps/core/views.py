@@ -2279,3 +2279,14 @@ class SlateDiversitySettingsView(APIView):
             )
 
         return Response(validated)
+
+
+
+class RTuneTriggerView(APIView):
+    """POST /api/settings/r-tune/trigger/ — manually queue the monthly R auto-tune task."""
+
+    def post(self, request):
+        from apps.pipeline.tasks import monthly_r_auto_tune
+
+        task = monthly_r_auto_tune.delay()
+        return Response({"detail": "R auto-tune task queued.", "task_id": task.id}, status=202)

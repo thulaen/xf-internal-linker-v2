@@ -15,6 +15,116 @@ from django.db import models
 from apps.core.models import TimestampedModel
 
 
+class WeightPreset(TimestampedModel):
+    """
+    A named snapshot of all ranking-weight AppSetting values (categories ml,
+    link_freshness, anchor).
+
+    System presets (is_system=True) are read-only — they cannot be edited or
+    deleted via the API.  The "Recommended" preset is seeded by a data migration.
+
+    The weights JSON is a flat key/value map keyed by AppSetting.key.  Any key
+    absent from the JSON falls back to that signal's hardcoded default when the
+    preset is applied.  This means adding a new signal in a future phase does NOT
+    break existing presets.
+    """
+
+    name = models.CharField(
+        max_length=200,
+        unique=True,
+        help_text="Friendly name for this preset, e.g. 'Recommended' or 'Authority-heavy'.",
+    )
+    is_system = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="System presets are read-only and cannot be modified or deleted via the API.",
+    )
+    weights = models.JSONField(
+        default=dict,
+        help_text=(
+            "Flat key/value map of AppSetting keys → values for all "
+            "settings in categories ml, link_freshness, and anchor."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Weight Preset"
+        verbose_name_plural = "Weight Presets"
+        ordering = ["-is_system", "name"]
+
+    def __str__(self) -> str:
+        tag = " [system]" if self.is_system else ""
+        return f"{self.name}{tag}"
+
+
+class WeightAdjustmentHistory(models.Model):
+    """
+    Bulk audit record for every event that changes ranking weights.
+
+    One row is written each time weights change — whether triggered by a preset
+    apply, a manual settings save, or the monthly R auto-tune task.
+
+    This is additive to AuditEntry: AuditEntry still fires per-key for every
+    individual AppSetting.key that changes.  WeightAdjustmentHistory adds a
+    single bulk event record on top of that per-key trail.
+    """
+
+    SOURCE_CHOICES = [
+        ("r_auto", "Monthly R auto-tune"),
+        ("manual", "Manual save"),
+        ("preset_applied", "Preset applied"),
+    ]
+
+    source = models.CharField(
+        max_length=20,
+        choices=SOURCE_CHOICES,
+        db_index=True,
+        help_text="What triggered this weight change.",
+    )
+    preset = models.ForeignKey(
+        WeightPreset,
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="adjustment_history",
+        help_text="The preset that was applied (only set when source='preset_applied').",
+    )
+    previous_weights = models.JSONField(
+        default=dict,
+        help_text="Snapshot of all in-scope weights before the change.",
+    )
+    new_weights = models.JSONField(
+        default=dict,
+        help_text="Snapshot of all in-scope weights after the change.",
+    )
+    delta = models.JSONField(
+        default=dict,
+        help_text="Only the keys that changed, with {previous, new} sub-keys.",
+    )
+    reason = models.CharField(
+        max_length=500,
+        help_text="Plain-English summary, e.g. 'Preset: Recommended applied by admin'.",
+    )
+    r_run_id = models.CharField(
+        max_length=200,
+        blank=True,
+        help_text="Reference to the R analytics run (populated by FR-018 when active).",
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="When this adjustment was recorded.",
+    )
+
+    class Meta:
+        verbose_name = "Weight Adjustment"
+        verbose_name_plural = "Weight Adjustment History"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"[{self.source}] {self.reason[:80]} at {self.created_at}"
+
+
 class ScopePreset(TimestampedModel):
     """
     A saved named configuration of which scopes are included in a pipeline run.
