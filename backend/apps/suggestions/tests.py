@@ -1,6 +1,7 @@
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
@@ -379,3 +380,107 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             FIELD_AWARE_RELEVANCE_VERSION,
         )
         delay_mock.assert_called_once()
+
+
+class SuggestionBatchActionApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="batch-reviewer", password="pass")
+        self.client.force_authenticate(user=user)
+
+        self.scope = ScopeItem.objects.create(scope_id=20, scope_type="node", title="Forum")
+        self.destination = ContentItem.objects.create(content_id=200, content_type="thread", title="Destination", scope=self.scope)
+
+        self.pending = self._suggestion(content_id=201, title="Pending Host", status="pending")
+        self.approved_reviewed_at = timezone.now()
+        self.approved = self._suggestion(
+            content_id=202,
+            title="Approved Host",
+            status="approved",
+            reviewed_at=self.approved_reviewed_at,
+        )
+        self.rejected_reviewed_at = timezone.now()
+        self.rejected = self._suggestion(
+            content_id=203,
+            title="Rejected Host",
+            status="rejected",
+            reviewed_at=self.rejected_reviewed_at,
+            rejection_reason="duplicate",
+        )
+
+    def _suggestion(
+        self,
+        *,
+        content_id: int,
+        title: str,
+        status: str,
+        reviewed_at=None,
+        rejection_reason: str = "",
+    ) -> Suggestion:
+        host = ContentItem.objects.create(content_id=content_id, content_type="thread", title=title, scope=self.scope)
+        post = Post.objects.create(content_item=host, raw_bbcode=title, clean_text=title)
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text=f"{title} sentence",
+            position=0,
+            char_count=len(f"{title} sentence"),
+            start_char=0,
+            end_char=len(f"{title} sentence"),
+            word_position=1,
+        )
+        return Suggestion.objects.create(
+            destination=self.destination,
+            destination_title=self.destination.title,
+            host=host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="anchor",
+            status=status,
+            reviewed_at=reviewed_at,
+            rejection_reason=rejection_reason,
+        )
+
+    def test_batch_approve_only_updates_pending_suggestions_and_keeps_response_shape(self):
+        response = self.client.post(
+            "/api/suggestions/batch_action/",
+            {
+                "action": "approve",
+                "ids": [str(self.pending.suggestion_id), str(self.approved.suggestion_id)],
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"updated": 1})
+
+        self.pending.refresh_from_db()
+        self.approved.refresh_from_db()
+
+        self.assertEqual(self.pending.status, "approved")
+        self.assertIsNotNone(self.pending.reviewed_at)
+        self.assertEqual(self.approved.status, "approved")
+        self.assertEqual(self.approved.reviewed_at, self.approved_reviewed_at)
+
+    def test_batch_reject_only_updates_pending_suggestions_and_leaves_non_pending_untouched(self):
+        response = self.client.post(
+            "/api/suggestions/batch_action/",
+            {
+                "action": "reject",
+                "ids": [str(self.pending.suggestion_id), str(self.rejected.suggestion_id)],
+                "rejection_reason": "wrong_context",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"updated": 1})
+
+        self.pending.refresh_from_db()
+        self.rejected.refresh_from_db()
+
+        self.assertEqual(self.pending.status, "rejected")
+        self.assertEqual(self.pending.rejection_reason, "wrong_context")
+        self.assertIsNotNone(self.pending.reviewed_at)
+        self.assertEqual(self.rejected.status, "rejected")
+        self.assertEqual(self.rejected.reviewed_at, self.rejected_reviewed_at)
+        self.assertEqual(self.rejected.rejection_reason, "duplicate")

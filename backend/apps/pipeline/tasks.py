@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 _MAX_PAGES = 500
 _MAX_BROKEN_LINK_SCAN_URLS = 10_000
-_BROKEN_LINK_SCAN_DELAY_SECONDS = 0.5
+_BROKEN_LINK_SCAN_DELAY_SECONDS = 0.1
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
 
 
@@ -90,8 +90,20 @@ def run_pipeline(
         )
         duration = time.monotonic() - started_at
         run.run_state = "completed"
+        run.suggestions_created = result.suggestions_created
+        run.destinations_processed = result.items_in_scope
+        run.destinations_skipped = result.destinations_skipped
         run.duration_seconds = duration
-        run.save(update_fields=["run_state", "duration_seconds", "updated_at"])
+        run.save(
+            update_fields=[
+                "run_state",
+                "suggestions_created",
+                "destinations_processed",
+                "destinations_skipped",
+                "duration_seconds",
+                "updated_at",
+            ]
+        )
         _publish_progress(
             job_id,
             "completed",
@@ -642,6 +654,7 @@ def import_content(
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
     from django.conf import settings
+    from django.utils import timezone
 
     from apps.content.models import Post
     from apps.graph.models import BrokenLink, ExistingLink
@@ -675,7 +688,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
             break
         urls_to_scan.setdefault(
             (link.from_content_item_id, link.to_content_item.url),
-            {"source_content": link.from_content_item, "url": link.to_content_item.url},
+            {"source_content_id": link.from_content_item_id, "url": link.to_content_item.url},
         )
 
     if not hit_scan_cap:
@@ -691,7 +704,10 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
                 hit_scan_cap = True
                 break
             for url in extract_urls(post.raw_bbcode, allowed_domains=allowed_domains):
-                urls_to_scan.setdefault((post.content_item_id, url), {"source_content": post.content_item, "url": url})
+                urls_to_scan.setdefault(
+                    (post.content_item_id, url),
+                    {"source_content_id": post.content_item_id, "url": url},
+                )
                 if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
                     hit_scan_cap = True
                     break
@@ -712,40 +728,62 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
 
     flagged_urls = 0
     fixed_urls = 0
+    checked_at = timezone.now()
+    delay_seconds = _get_broken_link_scan_delay_seconds()
+    existing_records = {
+        (record.source_content_id, record.url): record
+        for record in BrokenLink.objects.filter(
+            source_content_id__in={source_content_id for source_content_id, _ in urls_to_scan.keys()},
+            url__in={url for _, url in urls_to_scan.keys()},
+        )
+    }
+    to_create: list[BrokenLink] = []
+    to_update: list[BrokenLink] = []
+
     with requests.Session() as session:
         session.headers.update({"User-Agent": "XF Internal Linker V2 Broken Link Scanner"})
         for index, scan_item in enumerate(urls_to_scan.values(), start=1):
-            source_content = scan_item["source_content"]
+            source_content_id = scan_item["source_content_id"]
             url = scan_item["url"]
             http_status, redirect_url = _probe_link_health(session, url)
-            existing_record = (
-                BrokenLink.objects.filter(source_content=source_content, url=url).values("status", "notes").first()
-            )
+            existing_record = existing_records.get((source_content_id, url))
             issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 400
             if issue_detected:
-                record_status = BrokenLink.STATUS_IGNORED if existing_record and existing_record["status"] == BrokenLink.STATUS_IGNORED else BrokenLink.STATUS_OPEN
-                BrokenLink.objects.update_or_create(
-                    source_content=source_content,
-                    url=url,
-                    defaults={
-                        "http_status": http_status,
-                        "redirect_url": redirect_url,
-                        "status": record_status,
-                        "notes": existing_record["notes"] if existing_record else "",
-                    },
+                record_status = (
+                    BrokenLink.STATUS_IGNORED
+                    if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
+                    else BrokenLink.STATUS_OPEN
                 )
+                if existing_record is None:
+                    to_create.append(
+                        BrokenLink(
+                            source_content_id=source_content_id,
+                            url=url,
+                            http_status=http_status,
+                            redirect_url=redirect_url,
+                            status=record_status,
+                            notes="",
+                            first_detected_at=checked_at,
+                            last_checked_at=checked_at,
+                            created_at=checked_at,
+                            updated_at=checked_at,
+                        )
+                    )
+                else:
+                    existing_record.http_status = http_status
+                    existing_record.redirect_url = redirect_url
+                    existing_record.status = record_status
+                    existing_record.last_checked_at = checked_at
+                    existing_record.updated_at = checked_at
+                    to_update.append(existing_record)
                 flagged_urls += 1
             elif existing_record:
-                BrokenLink.objects.update_or_create(
-                    source_content=source_content,
-                    url=url,
-                    defaults={
-                        "http_status": http_status,
-                        "redirect_url": "",
-                        "status": BrokenLink.STATUS_FIXED,
-                        "notes": existing_record["notes"],
-                    },
-                )
+                existing_record.http_status = http_status
+                existing_record.redirect_url = ""
+                existing_record.status = BrokenLink.STATUS_FIXED
+                existing_record.last_checked_at = checked_at
+                existing_record.updated_at = checked_at
+                to_update.append(existing_record)
                 fixed_urls += 1
 
             _publish_progress(
@@ -760,8 +798,16 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
                 current_url=url,
                 hit_scan_cap=hit_scan_cap,
             )
-            if index < total_urls:
-                time.sleep(_BROKEN_LINK_SCAN_DELAY_SECONDS)
+            if delay_seconds > 0.0 and index < total_urls:
+                time.sleep(delay_seconds)
+
+    if to_create:
+        BrokenLink.objects.bulk_create(to_create)
+    if to_update:
+        BrokenLink.objects.bulk_update(
+            to_update,
+            ["http_status", "redirect_url", "status", "notes", "last_checked_at", "updated_at"],
+        )
 
     completion_message = (
         f"Broken link scan complete. {flagged_urls} issue(s) flagged, {fixed_urls} previously flagged link(s) resolved."
@@ -892,6 +938,21 @@ def _probe_link_health(session: requests.Session, url: str) -> tuple[int, str]:
 
 def _status_label(http_status: int) -> str:
     return str(http_status) if http_status else "connection error"
+
+
+def _get_broken_link_scan_delay_seconds() -> float:
+    from django.conf import settings
+
+    raw_value = getattr(settings, "BROKEN_LINK_SCAN_DELAY_SECONDS", _BROKEN_LINK_SCAN_DELAY_SECONDS)
+    try:
+        return max(0.0, float(raw_value))
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid BROKEN_LINK_SCAN_DELAY_SECONDS value %r; using %.2f seconds.",
+            raw_value,
+            _BROKEN_LINK_SCAN_DELAY_SECONDS,
+        )
+        return _BROKEN_LINK_SCAN_DELAY_SECONDS
 
 
 @shared_task(name="pipeline.run_clustering_pass")

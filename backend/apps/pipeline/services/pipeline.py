@@ -76,7 +76,11 @@ class PipelineResult:
     run_id: str
     items_in_scope: int
     suggestions_created: int
-    suggestions_skipped: int
+    destinations_skipped: int
+
+    @property
+    def suggestions_skipped(self) -> int:
+        return self.destinations_skipped
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +145,7 @@ def run_pipeline(
             run_id=run_id,
             items_in_scope=0,
             suggestions_created=0,
-            suggestions_skipped=0,
+            destinations_skipped=0,
         )
 
     _progress(0.08, "Loading sentence records...")
@@ -183,7 +187,7 @@ def run_pipeline(
             run_id=run_id,
             items_in_scope=0,
             suggestions_created=0,
-            suggestions_skipped=0,
+            destinations_skipped=0,
         )
 
     _progress(0.22, "Loading sentence embeddings from pgvector...")
@@ -197,8 +201,13 @@ def run_pipeline(
             run_id=run_id,
             items_in_scope=items_in_scope,
             suggestions_created=0,
-            suggestions_skipped=items_in_scope,
+            destinations_skipped=items_in_scope,
         )
+
+    sentence_id_to_row = {
+        sentence_id: index
+        for index, sentence_id in enumerate(sentence_ids_ordered)
+    }
 
     march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
 
@@ -226,6 +235,7 @@ def run_pipeline(
             sentence_ids_ordered=sentence_ids_ordered,
             sentence_embeddings=sentence_embeddings,
             sentence_records=sentence_records,
+            sentence_id_to_row=sentence_id_to_row,
             top_k=STAGE2_TOP_K,
         )
 
@@ -266,7 +276,7 @@ def run_pipeline(
                         for c in scored
                     },
                     destination_scope_id_map={
-                        destination.id: destination.scope_id
+                        destination.content_id: destination.scope_id
                     }
                 )
             candidates_by_destination[dest_key] = scored
@@ -332,7 +342,7 @@ def run_pipeline(
         run_id=run_id,
         items_in_scope=items_in_scope,
         suggestions_created=suggestions_created,
-        suggestions_skipped=items_in_scope - suggestions_created,
+        destinations_skipped=items_in_scope - suggestions_created,
     )
 
 
@@ -349,6 +359,7 @@ def _load_weights() -> dict[str, float]:
         overrides = {k: float(v) for k, v in qs}
         return {**DEFAULT_WEIGHTS, **overrides}
     except Exception:
+        logger.exception("Failed to load pipeline weights; using defaults.")
         return dict(DEFAULT_WEIGHTS)
 
 
@@ -359,7 +370,7 @@ def _get_max_host_reuse() -> int:
         if setting:
             return int(setting.value)
     except Exception:
-        pass
+        logger.exception("Failed to load max host reuse; using default.")
     return 3
 
 
@@ -374,6 +385,7 @@ def _load_silo_settings() -> SiloSettings:
             cross_silo_penalty=float(config.get("cross_silo_penalty", 0.0)),
         )
     except Exception:
+        logger.exception("Failed to load silo settings; using defaults.")
         return SiloSettings()
 
 
@@ -386,6 +398,7 @@ def _load_weighted_authority_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.2)),
         }
     except Exception:
+        logger.exception("Failed to load weighted authority settings; using defaults.")
         return {
             "ranking_weight": 0.2,
         }
@@ -400,6 +413,7 @@ def _load_link_freshness_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.0)),
         }
     except Exception:
+        logger.exception("Failed to load link freshness settings; using defaults.")
         return {
             "ranking_weight": 0.0,
         }
@@ -417,6 +431,7 @@ def _load_phrase_matching_settings() -> PhraseMatchingSettings:
             context_window_tokens=int(config.get("context_window_tokens", 8)),
         )
     except Exception:
+        logger.exception("Failed to load phrase matching settings; using defaults.")
         return PhraseMatchingSettings()
 
 
@@ -432,6 +447,7 @@ def _load_learned_anchor_settings() -> LearnedAnchorSettings:
             enable_noise_filter=bool(config.get("enable_noise_filter", True)),
         )
     except Exception:
+        logger.exception("Failed to load learned anchor settings; using defaults.")
         return LearnedAnchorSettings()
 
 
@@ -447,6 +463,7 @@ def _load_rare_term_propagation_settings() -> RareTermPropagationSettings:
             minimum_supporting_related_pages=int(config.get("minimum_supporting_related_pages", 2)),
         )
     except Exception:
+        logger.exception("Failed to load rare-term propagation settings; using defaults.")
         return RareTermPropagationSettings()
 
 
@@ -463,6 +480,7 @@ def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
             learned_anchor_field_weight=float(config.get("learned_anchor_field_weight", 0.15)),
         )
     except Exception:
+        logger.exception("Failed to load field-aware relevance settings; using defaults.")
         return FieldAwareRelevanceSettings()
 
 
@@ -475,6 +493,7 @@ def _load_ga4_gsc_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.05)),
         }
     except Exception:
+        logger.exception("Failed to load GA4/GSC settings; using defaults.")
         return {
             "ranking_weight": 0.05,
         }
@@ -489,6 +508,7 @@ def _load_click_distance_settings() -> dict[str, float]:
             "ranking_weight": float(config.get("ranking_weight", 0.0)),
         }
     except Exception:
+        logger.exception("Failed to load click-distance settings; using defaults.")
         return {
             "ranking_weight": 0.0,
         }
@@ -505,6 +525,7 @@ def _load_feedback_rerank_settings() -> FeedbackRerankSettings:
             exploration_rate=raw["exploration_rate"],
         )
     except Exception:
+        logger.exception("Failed to load feedback rerank settings; using defaults.")
         return FeedbackRerankSettings()
 
 
@@ -834,19 +855,23 @@ def _score_sentences_stage2(
     sentence_ids_ordered: list[int],
     sentence_embeddings: np.ndarray,
     sentence_records: dict[int, SentenceRecord],
+    sentence_id_to_row: dict[int, int] | None = None,
     top_k: int,
 ) -> list[SentenceSemanticMatch]:
     """Stage 2: score candidate sentences by cosine similarity to destination."""
     if not sentence_ids:
         return []
 
-    # Build an index from sentence_id to row index in sentence_embeddings
-    id_to_row = {sid: idx for idx, sid in enumerate(sentence_ids_ordered)}
+    if sentence_id_to_row is None:
+        sentence_id_to_row = {
+            sentence_id: index
+            for index, sentence_id in enumerate(sentence_ids_ordered)
+        }
 
     candidate_rows: list[int] = []
     candidate_ids: list[int] = []
     for sid in sentence_ids:
-        row = id_to_row.get(sid)
+        row = sentence_id_to_row.get(sid)
         if row is not None:
             candidate_rows.append(row)
             candidate_ids.append(sid)
@@ -903,69 +928,89 @@ def _persist_suggestions(
     except PipelineRun.DoesNotExist:
         run = None
 
-    created = 0
+    valid_candidates: list[ScoredCandidate] = []
+    content_item_ids: set[int] = set()
+    sentence_ids: set[int] = set()
+    destination_ids_to_replace: set[int] = set()
+
     for candidate in selected_candidates:
         dest_key = candidate.destination_key
         dest_record = content_records.get(dest_key)
         sentence_record = sentence_records.get(candidate.host_sentence_id)
         if dest_record is None or sentence_record is None:
             continue
+        valid_candidates.append(candidate)
+        content_item_ids.add(candidate.destination_content_id)
+        content_item_ids.add(candidate.host_content_id)
+        sentence_ids.add(candidate.host_sentence_id)
+        if rerun_mode == "full_regenerate":
+            destination_ids_to_replace.add(candidate.destination_content_id)
 
-        try:
-            dest_ci = ContentItem.objects.get(pk=candidate.destination_content_id)
-            host_ci = ContentItem.objects.get(pk=candidate.host_content_id)
-            host_sentence = Sentence.objects.get(pk=candidate.host_sentence_id)
-        except (ContentItem.DoesNotExist, Sentence.DoesNotExist):
+    if not valid_candidates:
+        return 0
+
+    content_items = ContentItem.objects.in_bulk(content_item_ids)
+    sentences = Sentence.objects.in_bulk(sentence_ids)
+
+    if destination_ids_to_replace:
+        Suggestion.objects.filter(
+            destination_id__in=destination_ids_to_replace,
+            status__in=["pending", "superseded"],
+        ).delete()
+
+    to_create: list[Suggestion] = []
+    for candidate in valid_candidates:
+        dest_ci = content_items.get(candidate.destination_content_id)
+        host_ci = content_items.get(candidate.host_content_id)
+        host_sentence = sentences.get(candidate.host_sentence_id)
+        if dest_ci is None or host_ci is None or host_sentence is None:
             continue
 
-        if rerun_mode == "full_regenerate":
-            Suggestion.objects.filter(
+        to_create.append(
+            Suggestion(
+                pipeline_run=run,
                 destination=dest_ci,
-                status__in=["pending", "superseded"],
-            ).delete()
-
-        Suggestion.objects.create(
-            pipeline_run=run,
-            destination=dest_ci,
-            host=host_ci,
-            host_sentence=host_sentence,
-            destination_title=dest_ci.title,
-            host_sentence_text=host_sentence.text,
-            anchor_phrase=candidate.anchor_phrase,
-            anchor_start=candidate.anchor_start,
-            anchor_end=candidate.anchor_end,
-            anchor_confidence=candidate.anchor_confidence,
-            score_semantic=candidate.score_semantic,
-            score_keyword=candidate.score_keyword,
-            score_node_affinity=candidate.score_node_affinity,
-            score_quality=candidate.score_quality,
-            score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
-            score_velocity=dest_ci.velocity_score,
-            score_link_freshness=dest_ci.link_freshness_score,
-            score_phrase_relevance=candidate.score_phrase_relevance,
-            score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
-            score_rare_term_propagation=candidate.score_rare_term_propagation,
-            score_field_aware_relevance=candidate.score_field_aware_relevance,
-            score_ga4_gsc=candidate.score_ga4_gsc,
-            score_cluster_suppression=candidate.score_cluster_suppression,
-            score_slate_diversity=candidate.score_slate_diversity,
-            slate_diversity_diagnostics=candidate.slate_diversity_diagnostics or {},
-            phrase_match_diagnostics=candidate.phrase_match_diagnostics,
-            learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
-            rare_term_diagnostics=candidate.rare_term_diagnostics,
-            field_aware_diagnostics=candidate.field_aware_diagnostics,
-            cluster_diagnostics=candidate.cluster_diagnostics,
-            score_final=candidate.score_final,
-            status="pending",
+                host=host_ci,
+                host_sentence=host_sentence,
+                destination_title=dest_ci.title,
+                host_sentence_text=host_sentence.text,
+                anchor_phrase=candidate.anchor_phrase,
+                anchor_start=candidate.anchor_start,
+                anchor_end=candidate.anchor_end,
+                anchor_confidence=candidate.anchor_confidence,
+                score_semantic=candidate.score_semantic,
+                score_keyword=candidate.score_keyword,
+                score_node_affinity=candidate.score_node_affinity,
+                score_quality=candidate.score_quality,
+                score_march_2026_pagerank=dest_ci.march_2026_pagerank_score,
+                score_velocity=dest_ci.velocity_score,
+                score_link_freshness=dest_ci.link_freshness_score,
+                score_phrase_relevance=candidate.score_phrase_relevance,
+                score_learned_anchor_corroboration=candidate.score_learned_anchor_corroboration,
+                score_rare_term_propagation=candidate.score_rare_term_propagation,
+                score_field_aware_relevance=candidate.score_field_aware_relevance,
+                score_ga4_gsc=candidate.score_ga4_gsc,
+                score_click_distance=candidate.score_click_distance,
+                score_explore_exploit=candidate.score_explore_exploit,
+                score_cluster_suppression=candidate.score_cluster_suppression,
+                score_slate_diversity=candidate.score_slate_diversity,
+                slate_diversity_diagnostics=candidate.slate_diversity_diagnostics or {},
+                phrase_match_diagnostics=candidate.phrase_match_diagnostics,
+                learned_anchor_diagnostics=candidate.learned_anchor_diagnostics,
+                rare_term_diagnostics=candidate.rare_term_diagnostics,
+                field_aware_diagnostics=candidate.field_aware_diagnostics,
+                click_distance_diagnostics=candidate.click_distance_diagnostics,
+                explore_exploit_diagnostics=candidate.explore_exploit_diagnostics,
+                cluster_diagnostics=candidate.cluster_diagnostics,
+                score_final=candidate.score_final,
+                status="pending",
+            )
         )
-        created += 1
 
-    if run:
-        run.suggestions_created = created
-        run.destinations_processed = len(selected_candidates)
-        run.save(update_fields=["suggestions_created", "destinations_processed", "updated_at"])
+    if to_create:
+        Suggestion.objects.bulk_create(to_create)
 
-    return created
+    return len(to_create)
 
 
 def _persist_diagnostics(
@@ -982,11 +1027,17 @@ def _persist_diagnostics(
     except PipelineRun.DoesNotExist:
         return
 
+    content_items = {
+        (content_item.pk, content_item.content_type): content_item
+        for content_item in ContentItem.objects.filter(
+            pk__in={content_id for content_id, _, _, _ in diagnostics}
+        )
+    }
+
     to_create = []
     for content_id, content_type, reason, detail in diagnostics:
-        try:
-            ci = ContentItem.objects.get(pk=content_id, content_type=content_type)
-        except ContentItem.DoesNotExist:
+        ci = content_items.get((content_id, content_type))
+        if ci is None:
             continue
         to_create.append(PipelineDiagnostic(
             pipeline_run=run,
@@ -1022,6 +1073,7 @@ def _load_clustering_settings() -> ClusteringSettings:
             suppression_penalty=raw["suppression_penalty"],
         )
     except Exception:
+        logger.exception("Failed to load clustering settings; using defaults.")
         return ClusteringSettings()
 
 
@@ -1037,6 +1089,7 @@ def _load_slate_diversity_settings() -> SlateDiversitySettings:
             similarity_cap=raw["similarity_cap"],
         )
     except Exception:
+        logger.exception("Failed to load slate diversity settings; using defaults.")
         return SlateDiversitySettings()
 
 

@@ -224,20 +224,21 @@ class SuggestionViewSet(viewsets.ModelViewSet):
 
         suggestions = Suggestion.objects.filter(suggestion_id__in=ids, status="pending")
         now = datetime.now(tz=timezone.utc)
-        updated = 0
-
-        for s in suggestions:
-            if action_name == "approve":
-                s.status = "approved"
-                s.reviewed_at = now
-            elif action_name == "reject":
-                s.status = "rejected"
-                s.reviewed_at = now
-                s.rejection_reason = request.data.get("rejection_reason", "other")
-            elif action_name == "skip":
-                pass  # leave as pending, just skip in focus mode
-            s.save(update_fields=["status", "reviewed_at", "rejection_reason", "updated_at"])
-            updated += 1
+        if action_name == "approve":
+            updated = suggestions.update(
+                status="approved",
+                reviewed_at=now,
+                updated_at=now,
+            )
+        elif action_name == "reject":
+            updated = suggestions.update(
+                status="rejected",
+                reviewed_at=now,
+                rejection_reason=request.data.get("rejection_reason", "other"),
+                updated_at=now,
+            )
+        else:
+            updated = suggestions.update(updated_at=now)
 
         return Response({"updated": updated})
 

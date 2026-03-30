@@ -1,21 +1,28 @@
 import math
+from contextlib import ExitStack
 from dataclasses import replace
 from datetime import timedelta
+from unittest.mock import MagicMock, patch
 
+import numpy as np
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.pipeline.services.click_distance import (
     ClickDistanceService,
     ClickDistanceSettings,
 )
+from apps.pipeline import tasks as pipeline_tasks
+from apps.pipeline.services import pipeline as pipeline_service
 from apps.pipeline.services.feedback_rerank import (
     FeedbackRerankService,
     FeedbackRerankSettings,
 )
 from apps.core.models import AppSetting
-from apps.graph.models import ExistingLink
+from apps.graph.models import BrokenLink, ExistingLink
 from apps.pipeline.services.field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
@@ -41,20 +48,30 @@ from apps.pipeline.services.rare_term_propagation import (
     build_rare_term_profiles,
     evaluate_rare_term_propagation,
 )
-from apps.pipeline.services.pipeline import _persist_diagnostics
+from apps.pipeline.services.pipeline import (
+    DEFAULT_WEIGHTS,
+    PipelineResult,
+    _load_weights,
+    _persist_diagnostics,
+    _persist_suggestions,
+    _score_sentences_stage2,
+)
 from apps.pipeline.services.ranker import (
+    ClusteringSettings,
     ContentRecord,
+    ScoredCandidate,
     SentenceRecord,
     SentenceSemanticMatch,
     SiloSettings,
     score_destination_matches,
 )
+from apps.pipeline.services.slate_diversity import SlateDiversitySettings
 from apps.pipeline.services.weighted_pagerank import (
     _WeightedEdge,
     _normalize_source_edges,
     run_weighted_pagerank,
 )
-from apps.suggestions.models import PipelineDiagnostic, PipelineRun
+from apps.suggestions.models import PipelineDiagnostic, PipelineRun, Suggestion
 
 
 def _content_record(
@@ -84,6 +101,56 @@ def _content_record(
         content_value_score=content_value_score,
         primary_post_char_count=500,
         tokens=frozenset({"topic", str(content_id)}),
+    )
+
+
+def _scored_candidate(
+    *,
+    destination_content_id: int,
+    host_content_id: int,
+    host_sentence_id: int,
+    score_final: float = 1.0,
+    score_click_distance: float = 0.5,
+    score_explore_exploit: float = 0.5,
+    click_distance_diagnostics: dict[str, object] | None = None,
+    explore_exploit_diagnostics: dict[str, object] | None = None,
+    phrase_match_diagnostics: dict[str, object] | None = None,
+    learned_anchor_diagnostics: dict[str, object] | None = None,
+    rare_term_diagnostics: dict[str, object] | None = None,
+    field_aware_diagnostics: dict[str, object] | None = None,
+    cluster_diagnostics: dict[str, object] | None = None,
+) -> ScoredCandidate:
+    return ScoredCandidate(
+        destination_content_id=destination_content_id,
+        destination_content_type="thread",
+        host_content_id=host_content_id,
+        host_content_type="thread",
+        host_sentence_id=host_sentence_id,
+        score_semantic=0.81,
+        score_keyword=0.31,
+        score_node_affinity=0.21,
+        score_quality=0.41,
+        score_silo_affinity=0.0,
+        score_phrase_relevance=0.77,
+        score_learned_anchor_corroboration=0.73,
+        score_rare_term_propagation=0.69,
+        score_field_aware_relevance=0.66,
+        score_ga4_gsc=0.62,
+        score_click_distance=score_click_distance,
+        score_explore_exploit=score_explore_exploit,
+        score_cluster_suppression=0.0,
+        score_final=score_final,
+        anchor_phrase="internal link",
+        anchor_start=3,
+        anchor_end=16,
+        anchor_confidence="strong",
+        phrase_match_diagnostics=phrase_match_diagnostics or {"phrase_match_state": "computed_exact_title"},
+        learned_anchor_diagnostics=learned_anchor_diagnostics or {"learned_anchor_state": "exact_variant_match"},
+        rare_term_diagnostics=rare_term_diagnostics or {"rare_term_state": "computed_match"},
+        field_aware_diagnostics=field_aware_diagnostics or {"field_aware_state": "computed_match"},
+        cluster_diagnostics=cluster_diagnostics or {},
+        explore_exploit_diagnostics=explore_exploit_diagnostics or {"final_factor": 1.25},
+        click_distance_diagnostics=click_distance_diagnostics or {"score_component": 0.4},
     )
 
 
@@ -1974,3 +2041,545 @@ class FeedbackRerankServiceTests(TestCase):
         self.assertGreater(reranked[0].score_final, 1.0)
         self.assertGreater(reranked[0].score_explore_exploit, 1.0)
         self.assertIn("score_exploit", reranked[0].explore_exploit_diagnostics)
+
+
+class PipelinePersistenceRegressionTests(TestCase):
+    def setUp(self):
+        self.scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        self.run = PipelineRun.objects.create()
+
+        self.destination_a = ContentItem.objects.create(
+            content_id=101,
+            content_type="thread",
+            title="Destination A",
+            scope=self.scope,
+            march_2026_pagerank_score=0.9,
+            velocity_score=0.2,
+            link_freshness_score=0.7,
+            content_value_score=0.66,
+            click_distance_score=0.82,
+        )
+        self.destination_b = ContentItem.objects.create(
+            content_id=102,
+            content_type="thread",
+            title="Destination B",
+            scope=self.scope,
+            march_2026_pagerank_score=0.4,
+            velocity_score=0.1,
+            link_freshness_score=0.6,
+            content_value_score=0.58,
+            click_distance_score=0.74,
+        )
+        self.host_a = ContentItem.objects.create(
+            content_id=201,
+            content_type="thread",
+            title="Host A",
+            scope=self.scope,
+            march_2026_pagerank_score=0.3,
+        )
+        self.host_b = ContentItem.objects.create(
+            content_id=202,
+            content_type="thread",
+            title="Host B",
+            scope=self.scope,
+            march_2026_pagerank_score=0.2,
+        )
+        self.post_a = Post.objects.create(content_item=self.host_a, raw_bbcode="host a", clean_text="host a")
+        self.post_b = Post.objects.create(content_item=self.host_b, raw_bbcode="host b", clean_text="host b")
+        self.sentence_a = Sentence.objects.create(
+            content_item=self.host_a,
+            post=self.post_a,
+            text="Host sentence A",
+            position=0,
+            char_count=15,
+            start_char=0,
+            end_char=15,
+            word_position=1,
+        )
+        self.sentence_b = Sentence.objects.create(
+            content_item=self.host_b,
+            post=self.post_b,
+            text="Host sentence B",
+            position=0,
+            char_count=15,
+            start_char=0,
+            end_char=15,
+            word_position=1,
+        )
+        self.content_records = {
+            (self.destination_a.pk, self.destination_a.content_type): self._record(self.destination_a),
+            (self.destination_b.pk, self.destination_b.content_type): self._record(self.destination_b),
+            (self.host_a.pk, self.host_a.content_type): self._record(self.host_a, reply_count=9),
+            (self.host_b.pk, self.host_b.content_type): self._record(self.host_b, reply_count=7),
+        }
+        self.sentence_records = {
+            self.sentence_a.pk: SentenceRecord(
+                self.sentence_a.pk,
+                self.host_a.pk,
+                self.host_a.content_type,
+                self.sentence_a.text,
+                self.sentence_a.char_count,
+                frozenset({"host", "a"}),
+            ),
+            self.sentence_b.pk: SentenceRecord(
+                self.sentence_b.pk,
+                self.host_b.pk,
+                self.host_b.content_type,
+                self.sentence_b.text,
+                self.sentence_b.char_count,
+                frozenset({"host", "b"}),
+            ),
+        }
+
+    def _record(self, item: ContentItem, *, reply_count: int = 5) -> ContentRecord:
+        return ContentRecord(
+            content_id=item.pk,
+            content_type=item.content_type,
+            title=item.title,
+            distilled_text=f"{item.title} body",
+            scope_id=item.scope_id or 0,
+            scope_type=item.scope.scope_type if item.scope else "",
+            parent_id=None,
+            parent_type="",
+            grandparent_id=None,
+            grandparent_type="",
+            silo_group_id=None,
+            silo_group_name="",
+            reply_count=reply_count,
+            march_2026_pagerank_score=item.march_2026_pagerank_score,
+            link_freshness_score=item.link_freshness_score,
+            content_value_score=item.content_value_score,
+            click_distance_score=item.click_distance_score,
+            primary_post_char_count=500,
+            tokens=frozenset({item.title.lower(), "guide"}),
+            scope_title=item.scope.title if item.scope else "",
+        )
+
+    def test_persist_suggestions_saves_real_scores_and_uses_batched_fetches(self):
+        candidates = [
+            _scored_candidate(
+                destination_content_id=self.destination_a.pk,
+                host_content_id=self.host_a.pk,
+                host_sentence_id=self.sentence_a.pk,
+                score_final=1.41,
+                score_click_distance=0.82,
+                score_explore_exploit=1.25,
+                click_distance_diagnostics={"score_component": 0.64, "state": "computed"},
+                explore_exploit_diagnostics={"final_factor": 1.25, "n_pair": 5},
+            ),
+            _scored_candidate(
+                destination_content_id=self.destination_b.pk,
+                host_content_id=self.host_b.pk,
+                host_sentence_id=self.sentence_b.pk,
+                score_final=1.19,
+                score_click_distance=0.74,
+                score_explore_exploit=0.91,
+                click_distance_diagnostics={"score_component": 0.48, "state": "computed"},
+                explore_exploit_diagnostics={"final_factor": 0.91, "n_pair": 2},
+            ),
+        ]
+
+        with CaptureQueriesContext(connection) as queries:
+            created = _persist_suggestions(
+                run_id=str(self.run.run_id),
+                selected_candidates=candidates,
+                content_records=self.content_records,
+                sentence_records=self.sentence_records,
+                rerun_mode="skip_pending",
+            )
+
+        self.assertEqual(created, 2)
+        self.assertLessEqual(len(queries), 4)
+
+        suggestion_a = Suggestion.objects.get(destination=self.destination_a)
+        suggestion_b = Suggestion.objects.get(destination=self.destination_b)
+
+        self.assertEqual(suggestion_a.score_click_distance, 0.82)
+        self.assertEqual(suggestion_a.score_explore_exploit, 1.25)
+        self.assertEqual(suggestion_a.click_distance_diagnostics["state"], "computed")
+        self.assertEqual(suggestion_a.explore_exploit_diagnostics["final_factor"], 1.25)
+        self.assertEqual(suggestion_a.destination_title, self.destination_a.title)
+        self.assertEqual(suggestion_a.host_sentence_text, self.sentence_a.text)
+
+        self.assertEqual(suggestion_b.score_click_distance, 0.74)
+        self.assertEqual(suggestion_b.score_explore_exploit, 0.91)
+        self.assertEqual(suggestion_b.click_distance_diagnostics["score_component"], 0.48)
+        self.assertEqual(suggestion_b.explore_exploit_diagnostics["n_pair"], 2)
+
+    def test_persist_diagnostics_saves_details_with_batched_content_lookup(self):
+        with CaptureQueriesContext(connection) as queries:
+            _persist_diagnostics(
+                run_id=str(self.run.run_id),
+                diagnostics=[
+                    (self.destination_a.pk, "thread", "no_semantic_matches", {"stage": 2}),
+                    (self.destination_b.pk, "thread", "cross_silo_blocked", {"mode": "strict_same_silo"}),
+                ],
+            )
+
+        self.assertLessEqual(len(queries), 3)
+        diagnostics = {
+            diagnostic.destination_id: diagnostic
+            for diagnostic in PipelineDiagnostic.objects.order_by("destination_id")
+        }
+        self.assertEqual(diagnostics[self.destination_a.pk].detail["stage"], 2)
+        self.assertEqual(diagnostics[self.destination_b.pk].detail["mode"], "strict_same_silo")
+
+
+class PipelineServiceRegressionTests(TestCase):
+    def _build_run_fixtures(self):
+        destination_a = _content_record(content_id=101, silo_group_id=10)
+        destination_b = _content_record(content_id=102, silo_group_id=20)
+        host = _content_record(content_id=201, silo_group_id=10)
+        sentence_records = {
+            501: SentenceRecord(501, 201, "thread", "Helpful host sentence", 80, frozenset({"helpful"})),
+            502: SentenceRecord(502, 201, "thread", "Second host sentence", 80, frozenset({"second"})),
+        }
+        candidate = _scored_candidate(
+            destination_content_id=101,
+            host_content_id=201,
+            host_sentence_id=501,
+            score_final=1.33,
+            score_click_distance=0.77,
+            score_explore_exploit=1.17,
+        )
+        content_records = {
+            destination_a.key: destination_a,
+            destination_b.key: destination_b,
+            host.key: host,
+        }
+        return content_records, sentence_records, candidate
+
+    def test_feedback_rerank_path_uses_destination_content_id_and_no_longer_crashes(self):
+        content_records, sentence_records, candidate = self._build_run_fixtures()
+        feedback_service = MagicMock()
+        feedback_service.load_historical_stats.return_value = None
+        feedback_service.rerank_candidates.return_value = [candidate]
+
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(pipeline_service, "_load_weights", return_value=dict(DEFAULT_WEIGHTS)))
+            stack.enter_context(patch.object(pipeline_service, "_load_silo_settings", return_value=SiloSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_weighted_authority_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_link_freshness_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_phrase_matching_settings", return_value=PhraseMatchingSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_settings", return_value=LearnedAnchorSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_rare_term_propagation_settings", return_value=RareTermPropagationSettings(enabled=False)))
+            stack.enter_context(patch.object(pipeline_service, "_load_field_aware_relevance_settings", return_value=FieldAwareRelevanceSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_ga4_gsc_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_click_distance_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_feedback_rerank_settings",
+                    return_value=FeedbackRerankSettings(enabled=True, ranking_weight=0.2, exploration_rate=1.0),
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "_load_clustering_settings", return_value=ClusteringSettings()))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_slate_diversity_settings",
+                    return_value=SlateDiversitySettings(enabled=False),
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "_get_max_host_reuse", return_value=3))
+            stack.enter_context(patch.object(pipeline_service, "FeedbackRerankService", return_value=feedback_service))
+            stack.enter_context(patch.object(pipeline_service, "_load_content_records", return_value=content_records))
+            stack.enter_context(patch.object(pipeline_service, "_load_sentence_records", return_value=(sentence_records, {})))
+            stack.enter_context(patch.object(pipeline_service, "_load_existing_links", return_value=set()))
+            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_rows_by_destination", return_value={}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_destination_embeddings",
+                    return_value=(((101, "thread"),), np.array([[1.0, 0.0]], dtype=np.float32)),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_sentence_embeddings",
+                    return_value=([501], np.array([[1.0, 0.0]], dtype=np.float32)),
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "_stage1_candidates", return_value={(101, "thread"): [501]}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_score_sentences_stage2",
+                    return_value=[SentenceSemanticMatch(201, "thread", 501, 0.9)],
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "score_destination_matches", return_value=[candidate]))
+            stack.enter_context(patch.object(pipeline_service, "select_final_candidates", return_value=[candidate]))
+            stack.enter_context(patch.object(pipeline_service, "_persist_suggestions", return_value=1))
+            stack.enter_context(patch.object(pipeline_service, "_persist_diagnostics"))
+
+            result = pipeline_service.run_pipeline(run_id="feedback-run")
+
+        self.assertEqual(result.suggestions_created, 1)
+        feedback_service.rerank_candidates.assert_called_once()
+        _, kwargs = feedback_service.rerank_candidates.call_args
+        self.assertEqual(kwargs["destination_scope_id_map"], {101: content_records[(101, "thread")].scope_id})
+
+    def test_run_pipeline_returns_correct_processed_and_skipped_counts(self):
+        content_records, sentence_records, candidate = self._build_run_fixtures()
+
+        with ExitStack() as stack:
+            stack.enter_context(patch.object(pipeline_service, "_load_weights", return_value=dict(DEFAULT_WEIGHTS)))
+            stack.enter_context(patch.object(pipeline_service, "_load_silo_settings", return_value=SiloSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_weighted_authority_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_link_freshness_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_phrase_matching_settings", return_value=PhraseMatchingSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_settings", return_value=LearnedAnchorSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_rare_term_propagation_settings", return_value=RareTermPropagationSettings(enabled=False)))
+            stack.enter_context(patch.object(pipeline_service, "_load_field_aware_relevance_settings", return_value=FieldAwareRelevanceSettings()))
+            stack.enter_context(patch.object(pipeline_service, "_load_ga4_gsc_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(patch.object(pipeline_service, "_load_click_distance_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_feedback_rerank_settings",
+                    return_value=FeedbackRerankSettings(enabled=False),
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "_load_clustering_settings", return_value=ClusteringSettings()))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_slate_diversity_settings",
+                    return_value=SlateDiversitySettings(enabled=False),
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "_get_max_host_reuse", return_value=3))
+            stack.enter_context(patch.object(pipeline_service, "_load_content_records", return_value=content_records))
+            stack.enter_context(patch.object(pipeline_service, "_load_sentence_records", return_value=(sentence_records, {})))
+            stack.enter_context(patch.object(pipeline_service, "_load_existing_links", return_value=set()))
+            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_rows_by_destination", return_value={}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_destination_embeddings",
+                    return_value=(
+                        ((101, "thread"), (102, "thread")),
+                        np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
+                    ),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_sentence_embeddings",
+                    return_value=(
+                        [501, 502],
+                        np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
+                    ),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_stage1_candidates",
+                    return_value={(101, "thread"): [501], (102, "thread"): [502]},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_score_sentences_stage2",
+                    side_effect=[
+                        [SentenceSemanticMatch(201, "thread", 501, 0.9)],
+                        [],
+                    ],
+                )
+            )
+            stack.enter_context(patch.object(pipeline_service, "score_destination_matches", return_value=[candidate]))
+            stack.enter_context(patch.object(pipeline_service, "select_final_candidates", return_value=[candidate]))
+            stack.enter_context(patch.object(pipeline_service, "_persist_suggestions", return_value=1))
+            persist_diagnostics = stack.enter_context(patch.object(pipeline_service, "_persist_diagnostics"))
+
+            result = pipeline_service.run_pipeline(run_id="stats-run")
+
+        self.assertEqual(result.items_in_scope, 2)
+        self.assertEqual(result.suggestions_created, 1)
+        self.assertEqual(result.destinations_skipped, 1)
+        _, kwargs = persist_diagnostics.call_args
+        self.assertIn((102, "thread", "no_semantic_matches", None), kwargs["diagnostics"])
+
+
+class Stage2RegressionTests(TestCase):
+    def test_precomputed_lookup_keeps_stage2_results_unchanged(self):
+        sentence_records = {
+            10: SentenceRecord(10, 110, "thread", "Sentence 10", 20, frozenset({"ten"})),
+            20: SentenceRecord(20, 120, "thread", "Sentence 20", 20, frozenset({"twenty"})),
+            30: SentenceRecord(30, 130, "thread", "Sentence 30", 20, frozenset({"thirty"})),
+            40: SentenceRecord(40, 140, "thread", "Sentence 40", 20, frozenset({"forty"})),
+        }
+        sentence_ids_ordered = [30, 10, 20, 40]
+        sentence_embeddings = np.array(
+            [
+                [0.2, 0.1],
+                [1.0, 0.0],
+                [0.8, 0.2],
+                [0.6, 0.4],
+            ],
+            dtype=np.float32,
+        )
+        lookup = {sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)}
+        kwargs = {
+            "destination_embedding": np.array([1.0, 0.0], dtype=np.float32),
+            "sentence_ids": [20, 40, 10, 999],
+            "sentence_ids_ordered": sentence_ids_ordered,
+            "sentence_embeddings": sentence_embeddings,
+            "sentence_records": sentence_records,
+            "top_k": 3,
+        }
+
+        baseline = _score_sentences_stage2(**kwargs)
+        optimized = _score_sentences_stage2(**kwargs, sentence_id_to_row=lookup)
+
+        self.assertEqual(baseline, optimized)
+        self.assertEqual([match.sentence_id for match in optimized], [10, 20, 40])
+        self.assertAlmostEqual(optimized[0].score_semantic, 1.0)
+        self.assertAlmostEqual(optimized[1].score_semantic, 0.8)
+        self.assertAlmostEqual(optimized[2].score_semantic, 0.6)
+
+
+class PipelineTaskRunStatsTests(TestCase):
+    def test_task_saves_pipeline_counts_from_service_result(self):
+        run = PipelineRun.objects.create()
+
+        with patch.object(
+            pipeline_tasks,
+            "_publish_progress",
+        ), patch(
+            "apps.pipeline.services.pipeline.run_pipeline",
+            return_value=PipelineResult(
+                run_id=str(run.run_id),
+                items_in_scope=3,
+                suggestions_created=1,
+                destinations_skipped=2,
+            ),
+        ):
+            result = pipeline_tasks.run_pipeline.run(
+                run_id=str(run.run_id),
+                host_scope={},
+                destination_scope={},
+                rerun_mode="skip_pending",
+            )
+
+        run.refresh_from_db()
+        self.assertEqual(run.suggestions_created, 1)
+        self.assertEqual(run.destinations_processed, 3)
+        self.assertEqual(run.destinations_skipped, 2)
+        self.assertEqual(result["state"], "completed")
+
+
+class BrokenLinkScanTaskRegressionTests(TestCase):
+    def setUp(self):
+        self.scope = ScopeItem.objects.create(scope_id=5, scope_type="node", title="Forum")
+        self.source = ContentItem.objects.create(content_id=50, content_type="thread", title="Source", scope=self.scope)
+
+    def _existing_link(self, *, url: str) -> ContentItem:
+        destination = ContentItem.objects.create(
+            content_id=60 + ContentItem.objects.count(),
+            content_type="thread",
+            title=f"Destination {ContentItem.objects.count()}",
+            scope=self.scope,
+            url=url,
+        )
+        ExistingLink.objects.create(
+            from_content_item=self.source,
+            to_content_item=destination,
+            anchor_text="link",
+            extraction_method="html_anchor",
+            link_ordinal=0,
+            source_internal_link_count=1,
+            context_class="contextual",
+        )
+        return destination
+
+    def test_scan_marks_new_issue_as_open(self):
+        destination = self._existing_link(url="https://example.com/broken")
+
+        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+            return_value=(404, ""),
+        ), patch("apps.pipeline.tasks.time.sleep"):
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-open")
+
+        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
+        self.assertEqual(result["flagged_urls"], 1)
+        self.assertEqual(result["fixed_urls"], 0)
+        self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
+        self.assertEqual(record.http_status, 404)
+
+    def test_scan_marks_existing_issue_as_fixed_when_url_recovers(self):
+        destination = self._existing_link(url="https://example.com/fixed")
+        BrokenLink.objects.create(
+            source_content=self.source,
+            url=destination.url,
+            http_status=404,
+            status=BrokenLink.STATUS_OPEN,
+            notes="keep me",
+        )
+
+        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+            return_value=(200, ""),
+        ), patch("apps.pipeline.tasks.time.sleep"):
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-fixed")
+
+        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
+        self.assertEqual(result["flagged_urls"], 0)
+        self.assertEqual(result["fixed_urls"], 1)
+        self.assertEqual(record.status, BrokenLink.STATUS_FIXED)
+        self.assertEqual(record.notes, "keep me")
+
+    def test_scan_preserves_ignored_status_for_known_issue(self):
+        destination = self._existing_link(url="https://example.com/ignored")
+        BrokenLink.objects.create(
+            source_content=self.source,
+            url=destination.url,
+            http_status=301,
+            status=BrokenLink.STATUS_IGNORED,
+            notes="reviewer kept this ignored",
+        )
+
+        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+            return_value=(301, "https://example.com/new-home"),
+        ), patch("apps.pipeline.tasks.time.sleep"):
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-ignored")
+
+        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
+        self.assertEqual(result["flagged_urls"], 1)
+        self.assertEqual(record.status, BrokenLink.STATUS_IGNORED)
+        self.assertEqual(record.redirect_url, "https://example.com/new-home")
+        self.assertEqual(record.notes, "reviewer kept this ignored")
+
+    def test_scan_returns_cleanly_when_no_urls_exist(self):
+        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+        ) as probe_health:
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-empty")
+
+        self.assertEqual(result["scanned_urls"], 0)
+        self.assertEqual(result["flagged_urls"], 0)
+        self.assertEqual(result["fixed_urls"], 0)
+        probe_health.assert_not_called()
+
+
+class PipelineSettingsFallbackLoggingTests(TestCase):
+    def test_load_weights_logs_and_keeps_default_fallback(self):
+        with patch("apps.core.models.AppSetting.objects.filter", side_effect=RuntimeError("boom")), patch.object(
+            pipeline_service.logger,
+            "exception",
+        ) as log_exception:
+            weights = _load_weights()
+
+        self.assertEqual(weights, DEFAULT_WEIGHTS)
+        log_exception.assert_called_once()
