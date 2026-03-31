@@ -553,6 +553,7 @@
   height: 28px;
   padding: 0;
   color: var(--settings-text-muted);
+  z-index: 10;
 
   mat-icon {
     width: 18px;
@@ -583,10 +584,10 @@
     linear-gradient(180deg, #f8fbff 0%, #ffffff 100%) !important;
 }
 
-// Undo the global white !important background on the form-field wrapper
+// Undo the global white background on the form-field wrapper
 // so the outline notch, floating labels, and warn/danger tints show through.
 :host ::ng-deep .settings-card .mat-mdc-text-field-wrapper {
-  background-color: transparent !important;
+  background-color: transparent;
 }
 
 // Make floating labels clearly visible (global card overrides hide them)

@@ -2,8 +2,11 @@
 // Global styles for XF Internal Linker V2
 // ═══════════════════════════════════════════════════════════════════
 
+// Import Angular Material prebuilt theme for core structural styles
+@import "@angular/material/prebuilt-themes/indigo-pink.css";
+
 // Import Bing theme variables
-@use './styles/default-theme';
+@import './styles/default-theme';
 
 // ── Reset / Base ───────────────────────────────────────────────────
 *,
@@ -53,10 +56,9 @@ mat-sidenav.app-sidenav,
   border-right: none !important; // Removed border
 }
 
-// Elevated surfaces (cards, inputs, filters) should be White (Green arrows)
+// Elevated surfaces (cards, inputs, filters) should be White
 .mat-mdc-card,
 .mat-mdc-form-field-focus-indicator,
-.mat-mdc-text-field-wrapper,
 .search-container,
 .filter-bar,
 .review-header-card,
@@ -66,6 +68,12 @@ mat-sidenav.app-sidenav,
 .filter-actions,
 .mat-mdc-tab-header {
   background-color: var(--color-bg-white) !important;
+}
+
+// Form-field wrapper should NOT have a white background !important 
+// because it nuked the "outline" appearance notch.
+.mat-mdc-text-field-wrapper {
+  background-color: transparent;
 }
 
 // ── GSC Styled Buttons ──────────────────────────────────────────

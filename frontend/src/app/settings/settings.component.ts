@@ -1096,8 +1096,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return { r_auto: 'R auto-tune', manual: 'Manual', preset_applied: 'Preset applied' }[source] ?? source;
   }
 
-  deltaKeys(delta: Record<string, { previous: string | null; new: string | null }>): string[] {
-    return Object.keys(delta);
+  deltaKeys(delta: Record<string, { previous: string | null; new: string | null }> | null | undefined): string[] {
+    return delta ? Object.keys(delta) : [];
   }
 
   formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {
