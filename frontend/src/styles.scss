@@ -385,3 +385,15 @@ mat-sidenav.app-sidenav,
     color: var(--color-text-primary) !important;
   }
 }
+
+// ── Settings page: rich multi-line hover tooltips ───────────────────
+// matTooltipClass="setting-tooltip" is applied to every info icon button
+// on the Settings page. The tooltip text uses \n\n separators so we need
+// pre-wrap to render them as real line breaks.
+.setting-tooltip {
+  white-space: pre-wrap !important;
+  max-width: 380px !important;
+  font-size: 13px !important;
+  line-height: 1.65 !important;
+  padding: 10px 14px !important;
+}

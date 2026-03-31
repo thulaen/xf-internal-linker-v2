@@ -228,6 +228,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.position_bias')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.position_bias', weightedAuthority.position_bias) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.empty_anchor_factor, 'weightedAuthority.empty_anchor_factor') && !isDanger(weightedAuthority.empty_anchor_factor, 'weightedAuthority.empty_anchor_factor')" [class.field-danger]="isDanger(weightedAuthority.empty_anchor_factor, 'weightedAuthority.empty_anchor_factor')">
@@ -236,6 +237,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.empty_anchor_factor')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.empty_anchor_factor', weightedAuthority.empty_anchor_factor) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.bare_url_factor, 'weightedAuthority.bare_url_factor') && !isDanger(weightedAuthority.bare_url_factor, 'weightedAuthority.bare_url_factor')" [class.field-danger]="isDanger(weightedAuthority.bare_url_factor, 'weightedAuthority.bare_url_factor')">
@@ -244,6 +246,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.bare_url_factor')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.bare_url_factor', weightedAuthority.bare_url_factor) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.weak_context_factor, 'weightedAuthority.weak_context_factor') && !isDanger(weightedAuthority.weak_context_factor, 'weightedAuthority.weak_context_factor')" [class.field-danger]="isDanger(weightedAuthority.weak_context_factor, 'weightedAuthority.weak_context_factor')">
@@ -252,6 +255,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.weak_context_factor')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.weak_context_factor', weightedAuthority.weak_context_factor) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.isolated_context_factor, 'weightedAuthority.isolated_context_factor') && !isDanger(weightedAuthority.isolated_context_factor, 'weightedAuthority.isolated_context_factor')" [class.field-danger]="isDanger(weightedAuthority.isolated_context_factor, 'weightedAuthority.isolated_context_factor')">
@@ -260,6 +264,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.isolated_context_factor')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.isolated_context_factor', weightedAuthority.isolated_context_factor) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -301,6 +306,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.recent_window_days')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.recent_window_days', linkFreshness.recent_window_days) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.newest_peer_percent, 'linkFreshness.newest_peer_percent') && !isDanger(linkFreshness.newest_peer_percent, 'linkFreshness.newest_peer_percent')" [class.field-danger]="isDanger(linkFreshness.newest_peer_percent, 'linkFreshness.newest_peer_percent')">
@@ -309,6 +315,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.newest_peer_percent')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.newest_peer_percent', linkFreshness.newest_peer_percent) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.min_peer_count, 'linkFreshness.min_peer_count') && !isDanger(linkFreshness.min_peer_count, 'linkFreshness.min_peer_count')" [class.field-danger]="isDanger(linkFreshness.min_peer_count, 'linkFreshness.min_peer_count')">
@@ -317,6 +324,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.min_peer_count')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.min_peer_count', linkFreshness.min_peer_count) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.w_recent, 'linkFreshness.w_recent') && !isDanger(linkFreshness.w_recent, 'linkFreshness.w_recent')" [class.field-danger]="isDanger(linkFreshness.w_recent, 'linkFreshness.w_recent')">
@@ -325,6 +333,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_recent')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.w_recent', linkFreshness.w_recent) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.w_growth, 'linkFreshness.w_growth') && !isDanger(linkFreshness.w_growth, 'linkFreshness.w_growth')" [class.field-danger]="isDanger(linkFreshness.w_growth, 'linkFreshness.w_growth')">
@@ -333,6 +342,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_growth')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.w_growth', linkFreshness.w_growth) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.w_cohort, 'linkFreshness.w_cohort') && !isDanger(linkFreshness.w_cohort, 'linkFreshness.w_cohort')" [class.field-danger]="isDanger(linkFreshness.w_cohort, 'linkFreshness.w_cohort')">
@@ -341,6 +351,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_cohort')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.w_cohort', linkFreshness.w_cohort) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.w_loss, 'linkFreshness.w_loss') && !isDanger(linkFreshness.w_loss, 'linkFreshness.w_loss')" [class.field-danger]="isDanger(linkFreshness.w_loss, 'linkFreshness.w_loss')">
@@ -349,6 +360,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.w_loss')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.w_loss', linkFreshness.w_loss) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -387,24 +399,26 @@
 
           <mat-form-field appearance="outline">
             <mat-label>Anchor expansion</mat-label>
-            <mat-select [(ngModel)]="phraseMatching.enable_anchor_expansion">
+            <mat-select [(ngModel)]="phraseMatching.enable_anchor_expansion" [compareWith]="compareBooleans">
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.enable_anchor_expansion')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('phraseMatching.enable_anchor_expansion', phraseMatching.enable_anchor_expansion) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Partial matching</mat-label>
-            <mat-select [(ngModel)]="phraseMatching.enable_partial_matching">
+            <mat-select [(ngModel)]="phraseMatching.enable_partial_matching" [compareWith]="compareBooleans">
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.enable_partial_matching')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('phraseMatching.enable_partial_matching', phraseMatching.enable_partial_matching) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(phraseMatching.context_window_tokens, 'phraseMatching.context_window_tokens') && !isDanger(phraseMatching.context_window_tokens, 'phraseMatching.context_window_tokens')" [class.field-danger]="isDanger(phraseMatching.context_window_tokens, 'phraseMatching.context_window_tokens')">
@@ -413,6 +427,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.context_window_tokens')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('phraseMatching.context_window_tokens', phraseMatching.context_window_tokens) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -451,6 +466,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_anchor_sources')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('learnedAnchor.minimum_anchor_sources', learnedAnchor.minimum_anchor_sources) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.minimum_family_support_share, 'learnedAnchor.minimum_family_support_share') && !isDanger(learnedAnchor.minimum_family_support_share, 'learnedAnchor.minimum_family_support_share')" [class.field-danger]="isDanger(learnedAnchor.minimum_family_support_share, 'learnedAnchor.minimum_family_support_share')">
@@ -459,17 +475,19 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_family_support_share')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('learnedAnchor.minimum_family_support_share', learnedAnchor.minimum_family_support_share) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
             <mat-label>Noise filter</mat-label>
-            <mat-select [(ngModel)]="learnedAnchor.enable_noise_filter">
+            <mat-select [(ngModel)]="learnedAnchor.enable_noise_filter" [compareWith]="compareBooleans">
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.enable_noise_filter')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('learnedAnchor.enable_noise_filter', learnedAnchor.enable_noise_filter) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -496,13 +514,14 @@
         <div class="number-grid">
           <mat-form-field appearance="outline">
             <mat-label>Enabled</mat-label>
-            <mat-select [(ngModel)]="rareTermPropagation.enabled">
+            <mat-select [(ngModel)]="rareTermPropagation.enabled" [compareWith]="compareBooleans">
               <mat-option [value]="true">Enabled</mat-option>
               <mat-option [value]="false">Disabled</mat-option>
             </mat-select>
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.enabled')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('rareTermPropagation.enabled', rareTermPropagation.enabled) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(rareTermPropagation.ranking_weight, 'rareTermPropagation.ranking_weight') && !isDanger(rareTermPropagation.ranking_weight, 'rareTermPropagation.ranking_weight')" [class.field-danger]="isDanger(rareTermPropagation.ranking_weight, 'rareTermPropagation.ranking_weight')">
@@ -520,6 +539,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.max_document_frequency')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('rareTermPropagation.max_document_frequency', rareTermPropagation.max_document_frequency) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(rareTermPropagation.minimum_supporting_related_pages, 'rareTermPropagation.minimum_supporting_related_pages') && !isDanger(rareTermPropagation.minimum_supporting_related_pages, 'rareTermPropagation.minimum_supporting_related_pages')" [class.field-danger]="isDanger(rareTermPropagation.minimum_supporting_related_pages, 'rareTermPropagation.minimum_supporting_related_pages')">
@@ -528,6 +548,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.minimum_supporting_related_pages')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('rareTermPropagation.minimum_supporting_related_pages', rareTermPropagation.minimum_supporting_related_pages) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -587,7 +608,7 @@
         <div class="number-grid">
           <mat-form-field appearance="outline">
             <mat-label>Scheduled WordPress sync</mat-label>
-            <mat-select [(ngModel)]="wordpress.sync_enabled">
+            <mat-select [(ngModel)]="wordpress.sync_enabled" [compareWith]="compareBooleans">
               <mat-option [value]="false">Disabled</mat-option>
               <mat-option [value]="true">Enabled</mat-option>
             </mat-select>
@@ -661,6 +682,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.title_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('fieldAwareRelevance.title_field_weight', fieldAwareRelevance.title_field_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(fieldAwareRelevance.body_field_weight, 'fieldAwareRelevance.body_field_weight') && !isDanger(fieldAwareRelevance.body_field_weight, 'fieldAwareRelevance.body_field_weight')" [class.field-danger]="isDanger(fieldAwareRelevance.body_field_weight, 'fieldAwareRelevance.body_field_weight')">
@@ -669,6 +691,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.body_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('fieldAwareRelevance.body_field_weight', fieldAwareRelevance.body_field_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(fieldAwareRelevance.scope_field_weight, 'fieldAwareRelevance.scope_field_weight') && !isDanger(fieldAwareRelevance.scope_field_weight, 'fieldAwareRelevance.scope_field_weight')" [class.field-danger]="isDanger(fieldAwareRelevance.scope_field_weight, 'fieldAwareRelevance.scope_field_weight')">
@@ -677,6 +700,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.scope_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('fieldAwareRelevance.scope_field_weight', fieldAwareRelevance.scope_field_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(fieldAwareRelevance.learned_anchor_field_weight, 'fieldAwareRelevance.learned_anchor_field_weight') && !isDanger(fieldAwareRelevance.learned_anchor_field_weight, 'fieldAwareRelevance.learned_anchor_field_weight')" [class.field-danger]="isDanger(fieldAwareRelevance.learned_anchor_field_weight, 'fieldAwareRelevance.learned_anchor_field_weight')">
@@ -685,6 +709,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.learned_anchor_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('fieldAwareRelevance.learned_anchor_field_weight', fieldAwareRelevance.learned_anchor_field_weight) }}</mat-hint>
           </mat-form-field>
         </div>
 

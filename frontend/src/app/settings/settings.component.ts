@@ -844,6 +844,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return this.fieldSeverity(value, key) === 'danger';
   }
 
+  /**
+   * Used as [compareWith] on every boolean mat-select.
+   * Angular compares by reference by default, so if the API returns the
+   * string "true" the option [value]="true" (boolean) won't match and the
+   * dropdown shows blank. Normalising both sides to string fixes that.
+   */
+  compareBooleans(a: unknown, b: unknown): boolean {
+    return String(a) === String(b);
+  }
+
   private presetMatchesCurrent(preset: WeightPreset): boolean {
     const presetEntries = Object.entries(preset.weights ?? {});
     if (!presetEntries.length) return false;
