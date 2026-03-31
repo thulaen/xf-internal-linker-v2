@@ -1,17 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════
-// Default Theme — Bing Webmaster Tools inspired palette
+// Default Theme — Cloudflare inspired palette
 // ═══════════════════════════════════════════════════════════════════
 
 @use '@angular/material' as mat;
 
 @include mat.core();
 
-// Define a palette based on Microsoft Azure Blue (#0066cc)
-$primary-palette: mat.m2-define-palette(mat.$m2-indigo-palette, 700);
+// Define a palette based on Cloudflare Orange (#ee730a)
+$primary-palette: mat.m2-define-palette(mat.$m2-orange-palette, 600);
 $accent-palette:  mat.m2-define-palette(mat.$m2-blue-palette, 600);
 
-// Create the theme using the stable M2 bridge functions still supported in Angular 20.
-// This preserves the custom Bing aesthetic while fixing the component rendering.
+// Create the theme using the stable M2 bridge functions
 $theme: mat.m2-define-light-theme((
   color: (
     primary: $primary-palette,
@@ -21,129 +20,196 @@ $theme: mat.m2-define-light-theme((
   density: 0,
 ));
 
-// Emit all theme styles to fix the "ugly" bare HTML components
+// Emit all theme styles
 @include mat.all-component-themes($theme);
 
 :root {
-  // ── Primary Brand and Action Colors ──────────────────────────
-  --color-primary:        #0066cc; // Microsoft Blue (Primary Action)
-  --color-primary-dark:   #0050a1; // Dark Blue (Hover/Pressed)
+  // ── Cloudflare Brand Palette ──────────────────────────────────
+  --cf-white: #fff;
+  --cf-black: #000;
+  --cf-red-0: #3c0501;
+  --cf-red-1: #5a0801;
+  --cf-red-2: #780a02;
+  --cf-red-3: #970d02;
+  --cf-red-4: #b20f03;
+  --cf-red-5: #e81403;
+  --cf-red-6: #fc574a;
+  --cf-red-7: #fe9f97;
+  --cf-red-8: #feccc8;
+  --cf-red-9: #ffefee;
+  --cf-orange-0: #361a02;
+  --cf-orange-1: #482303;
+  --cf-orange-2: #592b04;
+  --cf-orange-3: #763905;
+  --cf-orange-4: #8d4406;
+  --cf-orange-5: #c05d08;
+  --cf-orange-6: #ee730a;
+  --cf-orange-7: #f8a054;
+  --cf-orange-8: #fbcda5;
+  --cf-orange-9: #fef1e6;
+  --cf-gold-0: #261c00;
+  --cf-gold-1: #3e2d00;
+  --cf-gold-2: #4c3700;
+  --cf-gold-3: #644900;
+  --cf-gold-4: #735400;
+  --cf-gold-5: #a77a00;
+  --cf-gold-6: #dda100;
+  --cf-gold-7: #ffce4b;
+  --cf-gold-8: #ffeab2;
+  --cf-gold-9: #fff8e4;
+  --cf-green-0: #0a2614;
+  --cf-green-1: #0e381d;
+  --cf-green-2: #104122;
+  --cf-green-3: #15562d;
+  --cf-green-4: #196535;
+  --cf-green-5: #228b49;
+  --cf-green-6: #2db35e;
+  --cf-green-7: #55d584;
+  --cf-green-8: #a8e9c0;
+  --cf-green-9: #e3f8eb;
+  --cf-cyan-0: #061b20;
+  --cf-cyan-1: #0b333e;
+  --cf-cyan-2: #0d3e4b;
+  --cf-cyan-3: #115061;
+  --cf-cyan-4: #156074;
+  --cf-cyan-5: #1e89a5;
+  --cf-cyan-6: #30b6da;
+  --cf-cyan-7: #73cee6;
+  --cf-cyan-8: #ace2f0;
+  --cf-cyan-9: #e9f7fb;
+  --cf-blue-0: #001c43;
+  --cf-blue-1: #002b67;
+  --cf-blue-2: #003681;
+  --cf-blue-3: #0045a6;
+  --cf-blue-4: #0051c3;
+  --cf-blue-5: #086fff;
+  --cf-blue-6: #4693ff;
+  --cf-blue-7: #82b6ff;
+  --cf-blue-8: #b9d6ff;
+  --cf-blue-9: #ecf4ff;
+  --cf-indigo-0: #170f58;
+  --cf-indigo-1: #221785;
+  --cf-indigo-2: #2c1ea9;
+  --cf-indigo-3: #3524cd;
+  --cf-indigo-4: #4b3bdc;
+  --cf-indigo-5: #7366e4;
+  --cf-indigo-6: #9d94ec;
+  --cf-indigo-7: #c2bdf3;
+  --cf-indigo-8: #dfdcf9;
+  --cf-indigo-9: #f1f0fc;
+  --cf-violet-0: #350b42;
+  --cf-violet-1: #490f5c;
+  --cf-violet-2: #5f1477;
+  --cf-violet-3: #741892;
+  --cf-violet-4: #8d1eb1;
+  --cf-violet-5: #b73cdf;
+  --cf-violet-6: #cf7ee9;
+  --cf-violet-7: #dfa8f1;
+  --cf-violet-8: #ebcaf6;
+  --cf-violet-9: #f7eafb;
+  --cf-pink-0: #2d0210;
+  --cf-pink-1: #4e031c;
+  --cf-pink-2: #6a0426;
+  --cf-pink-3: #8d0633;
+  --cf-pink-4: #af0740;
+  --cf-pink-5: #e80954;
+  --cf-pink-6: #f85189;
+  --cf-pink-7: #fb97b9;
+  --cf-pink-8: #fdc9db;
+  --cf-pink-9: #fef1f5;
+  --cf-gray-0: #0a0a0a;
+  --cf-gray-1: #313131;
+  --cf-gray-2: #3d3d3d;
+  --cf-gray-3: #4a4a4a;
+  --cf-gray-4: #595959;
+  --cf-gray-5: #797979;
+  --cf-gray-6: #999999;
+  --cf-gray-7: #b6b6b6;
+  --cf-gray-8: #d9d9d9;
+  --cf-gray-9: #f2f2f2;
+  --cf-newGray-0: #191919;
+  --cf-newGray-1: #2C2C2C;
+  --cf-newGray-2: #424242;
+  --cf-newGray-3: #5A5A5A;
+  --cf-newGray-4: #666666;
+  --cf-newGray-5: #767676;
+  --cf-newGray-6: #909090;
+  --cf-newGray-7: #AEAEAE;
+  --cf-newGray-8: #CCCCCC;
+  --cf-newGray-9: #EAEAEA;
+  --cf-newGreen-0: #081E10;
+  --cf-newGreen-1: #0D341B;
+  --cf-newGreen-2: #134C28;
+  --cf-newGreen-3: #1A6736;
+  --cf-newGreen-4: #1E753E;
+  --cf-newGreen-5: #228747;
+  --cf-newGreen-6: #29A456;
+  --cf-newGreen-7: #32C769;
+  --cf-newGreen-8: #81DFA3;
+  --cf-newGreen-9: #CFF3DC;
+  --cf-sequential-0: #3E8EFF;
+  --cf-sequential-1: #104858;
+  --cf-sequential-2: #E46E0A;
+  --cf-sequential-3: #6B1687;
+  --cf-sequential-4: #F8528A;
+  --cf-sequential-5: #003E93;
+  --cf-sequential-6: #FD5548;
+  --cf-sequential-7: #423979;
+  --cf-sequential-8: #29A456;
+  --cf-sequential-9: #870531;
+  --cf-sequential-10: #BA8700;
+  --cf-sequential-11: #134C28;
+  --cf-sequential-12: #C768E6;
+  --cf-sequential-13: #880C02;
 
-  // ── MDC Global Overrides ──────────────────────────────────────
+  // ── Functional Mapping ────────────────────────────────────────
+  --color-primary:        var(--cf-orange-6);
+  --color-primary-dark:   #d46400; // Custom dark orange for hover
+  --color-accent:         var(--cf-blue-5);
+  
   --mdc-theme-primary:            var(--color-primary);
   --mdc-button-label-text-color:  var(--color-primary);
   --mdc-outlined-button-label-text-color: var(--color-primary);
-  --mdc-switch-selected-handle-color: var(--color-primary);
-  --mdc-switch-selected-track-color:  var(--color-primary-dark);
-  --mdc-checkbox-selected-focus-icon-color: var(--color-primary);
-  --mdc-checkbox-selected-hover-icon-color: var(--color-primary-dark);
-  --mdc-checkbox-selected-icon-color:       var(--color-primary);
-  --mdc-checkbox-selected-pressed-icon-color: var(--color-primary-dark);
-  --mat-menu-item-hover-state-layer-color:  var(--color-blue-50);
-  --mat-menu-item-focus-state-layer-color:  var(--color-blue-100);
-  --mat-option-selected-state-label-text-color: var(--color-primary);
-  --mat-select-focused-arrow-color: var(--color-primary);
-  --mat-select-focused-label-text-color: var(--color-primary);
-  --mat-form-field-focus-outline-color: var(--color-primary);
+  
+  --color-blue-50:  var(--cf-blue-9);
+  --color-blue-100: var(--cf-blue-8);
+  --color-blue-200: var(--cf-blue-5);
 
-  // ── Light Blue Selection/Hover Surfaces ───────────────────────
-  --color-blue-50:  #f0f6ff; // Selected item background
-  --color-blue-100: #e0edff; // Hovered button background
-  --color-blue-200: #0066cc; // Active surface container (Solid Blue)
+  --color-success:        var(--cf-newGreen-5);
+  --color-success-light:  var(--cf-newGreen-9);
+  --color-error:          var(--cf-red-5);
+  --color-error-light:    var(--cf-red-9);
+  --color-warning:        var(--cf-gold-5);
+  --color-warning-light:  var(--cf-gold-9);
 
-  // ── Text on Primary Surfaces ──────────────────────────────────
-  --color-dark-blue:        #ffffff; // Text/Icon on selection
-  --color-dark-blue-medium: #ffffff; // Secondary on selection
+  --color-text-primary:   var(--cf-gray-0);
+  --color-text-secondary: var(--cf-newGray-4);
+  --color-text-muted:     var(--cf-newGray-5);
+  --color-text-on-dark:   var(--cf-white);
 
-  // ── Semantic and Status Colors (Success/Error/Warning) ────────
-  --color-success:        #107c41; // Positive indicator (Microsoft green)
-  --color-success-dark:   #0d6836;
-  --color-success-deeper: #094725;
-  --color-success-light:  #dff6dd; // OK Highlight
+  --color-border:       var(--cf-gray-8);
+  --color-border-faint: var(--cf-gray-9);
 
-  --color-error:        #d13438; // Primary Error
-  --color-error-medium: #a80000;
-  --color-error-dark:   #750b1c;
-  --color-error-light:  #fde7e9; // Error Highlight
-  --color-error-50:     #fceded; // Error background
+  --color-bg-white:  var(--cf-white);
+  --color-bg-page:   var(--cf-newGray-9);
+  --color-bg-faint:  var(--cf-gray-9);
+  --color-bg-alt-1:  var(--cf-white); // Cloudflare sidebar is mostly white
+  --color-bg-alt-2:  var(--cf-gray-9);
 
-  --color-warning:       #d83b01; // Primary Warning (Microsoft style)
-  --color-warning-dark:  #a80000;
-  --color-warning-light: #ffebcc; // Warning Highlight
-  --color-warning-200:   #ffb900;
-
-  // ── Neutral Text Colors ────────────────────────────────────────
-  --color-text-primary:   #242424; // Primary body/headings
-  --color-text-primary-alt: #1f1f1f;
-  --color-text-primary-rgba: rgba(36, 36, 36, 0.87);
-
-  --color-text-secondary: #5c5c5c; // Form labels / Icons
-  --color-text-secondary-alt: #505050;
-  --color-text-secondary-rgba: rgba(36, 36, 36, 0.6);
-
-  --color-text-disabled: #a19f9d; // Disabled states
-  --color-text-disabled-alt: #8a8886;
-  --color-text-disabled-rgba: rgba(36, 36, 36, 0.38);
-
-  --color-text-muted:     var(--color-text-secondary);
-  --color-text-on-dark:   #ffffff;
-  --color-text-dark-1:    var(--color-text-primary-alt);
-  --color-text-dark-2:    var(--color-text-primary);
-  --color-text-faint:     var(--color-text-disabled);
-
-  // ── Borders and Dividers ──────────────────────────────────────
-  --color-border:       #edebe9; // Subtle structural borders
-  --color-border-dark:  #c8c6c4; // Input outlines
-  --color-border-faint: #f3f2f1; // List dividers
-
-  // ── Backgrounds and Surface Colors ────────────────────────────
-  --color-bg-white:  #ffffff; // Primary App Background / Cards
-  --color-bg-page:   #faf9f8; // Bing style background (very light gray)
-  --color-bg-faint:  #f3f2f1; // Secondary panels
-  --color-bg-alt-1:  #faf9f8; // Elevated surfaces
-  --color-bg-alt-2:  #f3f2f1; // Side panels
-  --color-surface:   #ffffff;
-  --color-bg-card:   #ffffff;
-
-  // ── Inverse Surface Colors ────────────────────────────────────
-  --color-inverse-surface: #242424; // Tooltips
-  --color-inverse-on-surface: #ffffff;
-  --color-inverse-dark: #1f1f1f;
-
-  // ── Dynamic layout/theme vars ─────────────────────────────────
-  --toolbar-bg:        #1e65d0; // Bing header is blue
-  --footer-bg:         #faf9f8;
-  --sidenav-width:     256px;
-  --layout-max-width:  none; // Removed constraint
-  --color-accent:      #0066cc;
-
-  // ── Spacing (Increased for airy feel) ──────────────────────────
-  --spacing-xs:  8px;
-  --spacing-sm:  12px;
-  --spacing-md:  24px;
-  --spacing-lg:  32px;
-  --spacing-xl:  48px;
-  --spacing-2xl: 64px;
-
-  // ── Radius (6px standard for Microsoft) ───────────────────────
-  --radius-sm:  4px;
-  --radius-md:  6px;
+  --toolbar-bg:        var(--cf-newGray-9); // Off-white top bar
+  --sidenav-width:     233px;
+  
+  // ── Radius & Spacing ──────────────────────────────────────────
+  --radius-sm:  2px;
+  --radius-md:  4px;
   --radius-lg:  8px;
-  --radius-xl:  12px;
-  --radius-pill: 6px; // Reused for buttons so we don't need to change every class
+  --spacing-md: 24px;
 
   // ── Shadows ────────────────────────────────────────────────────
-  --shadow-sm:  0 1px 3px rgba(0, 0, 0, 0.05);
-  --shadow-md:  0 2px 6px rgba(0, 0, 0, 0.08);
-  --shadow-lg:  0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
 
   // ── Typography ─────────────────────────────────────────────────
-  --font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-  --font-size-xs:   12px;
-  --font-size-sm:   13px;
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --font-size-base: 14px;
-  --font-size-md:   16px;
-  --font-size-lg:   20px;
-  --font-size-xl:   24px;
-  --font-size-2xl:  32px;
 }

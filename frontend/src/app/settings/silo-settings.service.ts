@@ -1,7 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
-import { map } from 'rxjs/operators';
+import { Observable, of } from 'rxjs';
+import { map, catchError } from 'rxjs/operators';
 
 export type SiloMode = 'disabled' | 'prefer_same_silo' | 'strict_same_silo';
 
@@ -182,7 +182,11 @@ export class SiloSettingsService {
   }
 
   listSiloGroups(): Observable<SiloGroup[]> {
-    return this.http.get<SiloGroup[]>('/api/silo-groups/');
+    return this.http.get<SiloGroup[] | { results: SiloGroup[] }>('/api/silo-groups/')
+      .pipe(
+        map((r) => Array.isArray(r) ? r : r.results ?? []),
+        catchError(() => of([]))
+      );
   }
 
   createSiloGroup(payload: Partial<SiloGroup>): Observable<SiloGroup> {
@@ -198,7 +202,11 @@ export class SiloSettingsService {
   }
 
   listScopes(): Observable<ScopeItem[]> {
-    return this.http.get<ScopeItem[]>('/api/scopes/');
+    return this.http.get<ScopeItem[] | { results: ScopeItem[] }>('/api/scopes/')
+      .pipe(
+        map((r) => Array.isArray(r) ? r : r.results ?? []),
+        catchError(() => of([]))
+      );
   }
 
   updateScopeSilo(id: number, siloGroupId: number | null): Observable<ScopeItem> {
@@ -325,7 +333,10 @@ export class SiloSettingsService {
 
   listWeightPresets(): Observable<WeightPreset[]> {
     return this.http.get<{ results: WeightPreset[] }>('/api/weight-presets/')
-      .pipe(map((r) => r.results ?? []));
+      .pipe(
+        map((r) => r.results ?? []),
+        catchError(() => of([]))
+      );
   }
 
   createWeightPreset(payload: { name: string; weights: Record<string, string> }): Observable<WeightPreset> {
@@ -355,7 +366,11 @@ export class SiloSettingsService {
   // ── Weight adjustment history ─────────────────────────────────────
 
   listWeightHistory(): Observable<WeightAdjustmentHistory[]> {
-    return this.http.get<WeightAdjustmentHistory[]>('/api/weight-history/');
+    return this.http.get<WeightAdjustmentHistory[] | { results: WeightAdjustmentHistory[] }>('/api/weight-history/')
+      .pipe(
+        map((r) => Array.isArray(r) ? r : r.results ?? []),
+        catchError(() => of([]))
+      );
   }
 
   rollbackWeights(id: number): Observable<{ detail: string }> {

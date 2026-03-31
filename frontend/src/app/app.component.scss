@@ -2,20 +2,19 @@
 
 .app-container {
   height: calc(100vh - 64px);
-  background-color: var(--color-bg-alt-1); // #faf9f8
+  background-color: var(--color-bg-page);
 }
 
 .app-sidenav {
-  width: var(--sidenav-width, 233px); // Controlled by Appearance Settings
-  background-color: var(--color-bg-alt-1); // GSC Sidebar Background (#f0f4f9)
-  border-right: none;
+  width: var(--sidenav-width, 233px);
+  background-color: var(--cf-white) !important;
+  border-right: 1px solid var(--cf-gray-8) !important;
   transition: width 0.2s ease;
 
-  // Enforce background and prevent horizontal scroll
   &.mat-drawer {
-    background-color: var(--color-bg-alt-1);
-    border-right: none;
-    overflow-x: hidden !important; // Eliminates bottom scrollbar
+    background-color: var(--cf-white);
+    border-right: 1px solid var(--cf-gray-8);
+    overflow-x: hidden !important;
   }
 
   .sidenav-header {
@@ -23,17 +22,17 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--color-border);
+    border-bottom: 1px solid var(--cf-gray-9);
     cursor: pointer;
     min-height: 64px;
     margin-bottom: 8px;
 
     &:hover {
-      background: var(--color-blue-50);
+      background: var(--cf-gray-9);
     }
 
     .brand-icon {
-      color: var(--color-primary);
+      color: var(--cf-orange-6);
       font-size: 24px;
       width: 24px;
       height: 24px;
@@ -53,18 +52,17 @@
       overflow: hidden;
 
       .brand-name {
-        color: var(--color-text-primary);
+        color: var(--cf-gray-0);
         font-size: 14px;
         font-weight: 600;
         letter-spacing: 0.1px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
-        max-width: 150px; // Ensure it doesn't push the sidebar wider
       }
 
       .brand-version {
-        color: var(--color-text-secondary);
+        color: var(--cf-newGray-4);
         font-size: 11px;
         font-weight: 400;
         opacity: 0.7;
@@ -72,37 +70,36 @@
       }
     }
 
-    // Dropdown arrow indicator to mimic GSC property selector
+    // Dropdown arrow indicator
     &::after {
       content: 'arrow_drop_down';
       font-family: 'Material Icons';
       font-size: 20px;
-      color: var(--color-text-secondary);
+      color: var(--cf-newGray-4);
       margin-left: 4px;
     }
   }
 
   .sidebar-section-label {
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: .06em;
+    font-weight: 700;
+    letter-spacing: .08em;
     text-transform: uppercase;
-    color: var(--color-text-secondary);
-    padding: 16px 16px 4px;
-    opacity: 0.7;
+    color: var(--cf-newGray-4);
+    padding: 20px 16px 8px;
   }
 
   mat-nav-list {
-    padding-top: 8px;
+    padding-top: 0;
 
     a[mat-list-item] {
-      color: var(--color-text-secondary);
-      border-radius: 0; // Flush look
-      margin: 0; // Remove space from edges
+      color: var(--cf-newGray-4);
+      border-radius: 0;
+      margin: 0;
       padding: 0 16px !important;
-      height: 38px;
-      min-height: 38px;
-      transition: background 0.1s, color 0.1s;
+      height: 40px;
+      min-height: 40px;
+      transition: all 0.1s ease;
       font-size: 13px;
 
       .nav-item-title {
@@ -111,7 +108,7 @@
         justify-content: space-between;
         gap: 12px;
         width: 100%;
-        font-weight: 400;
+        font-weight: 500;
       }
 
       .nav-badge {
@@ -121,48 +118,48 @@
         align-items: center;
         justify-content: center;
         padding: 0 5px;
-        border-radius: 9px;
-        background: var(--color-error);
-        color: var(--color-text-on-dark);
+        border-radius: 4px;
+        background: var(--cf-red-5);
+        color: var(--cf-white);
         font-size: 10px;
         font-weight: 700;
       }
 
       mat-icon {
-        color: var(--color-text-secondary);
+        color: var(--cf-newGray-4);
         font-size: 18px;
         width: 18px;
         height: 18px;
         margin-right: 12px;
-        opacity: 0.6;
+        opacity: 0.7;
       }
 
       &:hover {
-        background: var(--color-blue-50);
-        color: var(--color-text-primary);
+        background: var(--cf-gray-9);
+        color: var(--cf-gray-0);
 
         mat-icon {
-          color: var(--color-text-primary);
+          color: var(--cf-orange-6);
           opacity: 1;
         }
       }
 
       &.active-link {
-        background: #E3EDFF !important; // Light branded blue
-        color: #1565C0 !important; // Strong branded blue
+        background: var(--cf-blue-9) !important;
+        color: var(--cf-blue-5) !important;
         position: relative;
 
         .nav-item-title, span, .mdc-list-item__primary-text {
-          font-weight: 500 !important;
-          color: #1565C0 !important;
+          font-weight: 600 !important;
+          color: var(--cf-blue-5) !important;
         }
 
         mat-icon, [matListItemIcon] {
-          color: #1565C0 !important;
+          color: var(--cf-blue-5) !important;
           opacity: 1;
         }
 
-        // Left indicator bar
+        // Left indicator bar (Cloudflare style)
         &::before {
           content: '';
           position: absolute;
@@ -170,7 +167,7 @@
           top: 0;
           bottom: 0;
           width: 3px;
-          background: #1565C0;
+          background: var(--cf-blue-5);
         }
       }
     }
@@ -190,12 +187,12 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: var(--color-bg-white); // White per Airy aesthetic
-  color: var(--color-text-primary); // Dark
+  background: var(--toolbar-bg); // #f2f2f2 (Off-white)
+  color: var(--cf-gray-0);
   position: sticky;
   top: 0;
-  z-index: 1000; // Above sidebar
-  border-bottom: 1px solid var(--color-border);
+  z-index: 1000;
+  border-bottom: 1px solid var(--cf-gray-8);
   box-shadow: none;
   height: 64px;
   padding: 0 24px;
@@ -208,8 +205,8 @@
   span {
     font-size: 18px;
     font-weight: 600;
-    color: var(--color-primary); // Brand Blue title
-    letter-spacing: -0.5px;
+    color: var(--cf-gray-0);
+    letter-spacing: -0.2px;
   }
 
   .toolbar-spacer {
@@ -217,11 +214,11 @@
   }
 
   button[mat-icon-button] {
-    color: var(--color-text-secondary); // Clearly visible dark icons
+    color: var(--cf-newGray-4);
 
     &:hover {
-      background: var(--color-bg-faint);
-      color: var(--color-primary);
+      background: var(--cf-gray-8);
+      color: var(--cf-orange-6);
     }
   }
 }
@@ -232,14 +229,12 @@
   display: flex;
   flex-direction: column;
   background: var(--color-bg-page);
-  overflow: hidden;
   min-height: calc(100vh - 64px);
 }
 
 .page-content {
   flex: 1;
-  overflow-y: auto;
-  padding: 32px 48px; // Wide and airy padding
+  padding: 32px 48px;
   width: 100%;
   max-width: var(--layout-max-width, 100%);
   margin: 0; 
@@ -247,11 +242,11 @@
 }
 
 .app-footer {
-  padding: 24px 48px; // Matches page content padding
-  background: transparent; // Bing style
-  border-top: 1px solid var(--color-border);
-  font-size: 13px;
-  color: var(--color-text-secondary);
+  padding: 24px 48px;
+  background: var(--cf-white);
+  border-top: 1px solid var(--cf-gray-8);
+  font-size: 12px;
+  color: var(--cf-newGray-4);
   width: 100%;
   max-width: var(--layout-max-width, 100%);
   margin: 0;

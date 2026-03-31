@@ -1,8 +1,7 @@
 // ═══════════════════════════════════════════════════════════════════
-// Global styles for XF Internal Linker V2
+// Global styles for XF Internal Linker V2 — Cloudflare Visual Identity
 // ═══════════════════════════════════════════════════════════════════
 
-// Import Bing theme variables
 @import './styles/default-theme';
 
 // ── Reset / Base ───────────────────────────────────────────────────
@@ -13,7 +12,7 @@
 }
 
 :root {
-  --layout-max-width: 1280px; 
+  --layout-max-width: 1440px; 
   --sidenav-width: 233px;
 }
 
@@ -34,8 +33,7 @@ body {
   font-family: var(--font-family) !important;
 }
 
-// Global GSC Background Enforcements
-// The main page body background should be light gray
+// Global Cloudflare Background Enforcements
 mat-sidenav-container,
 mat-sidenav-content,
 .mat-sidenav-content,
@@ -44,13 +42,13 @@ mat-sidenav-content,
   background-color: var(--color-bg-page) !important;
 }
 
-// Sidebar background #f0f4f9
+// Sidebar: Clean White approach with subtle border
 mat-sidenav.app-sidenav,
 .mat-drawer.app-sidenav,
 .app-sidenav {
-  background-color: var(--color-bg-alt-1) !important;
+  background-color: var(--cf-white) !important;
   color: var(--color-text-primary) !important;
-  border-right: none !important; // Removed border
+  border-right: 1px solid var(--cf-gray-8) !important;
 }
 
 // Elevated surfaces (cards, inputs, filters) should be White
@@ -67,68 +65,73 @@ mat-sidenav.app-sidenav,
   background-color: var(--color-bg-white) !important;
 }
 
-// Form-field wrapper should NOT have a white background !important 
-// because it nuked the "outline" appearance notch.
 .mat-mdc-text-field-wrapper {
   background-color: transparent;
 }
 
-// ── GSC Styled Buttons ──────────────────────────────────────────
+// ── Cloudflare Styled Buttons ────────────────────────────────────────
+// Primary Action: Cloudflare Orange
 .mat-mdc-flat-button.mat-primary,
 .mat-mdc-raised-button.mat-primary,
 .mat-flat-button.mat-primary,
 .status-tab.active,
 .btn-gsc-primary {
-  background-color: var(--color-primary) !important; // Primary Blue
-  color: var(--color-text-on-dark) !important; // White text on dark blue
+  background-color: var(--cf-orange-6) !important;
+  color: var(--cf-white) !important;
   font-weight: 500 !important;
-  border-radius: var(--radius-md) !important; // Microsoft 6px style
-  padding: 0 24px !important; // Airy feeling
+  border-radius: var(--radius-md) !important; // 4px
+  padding: 0 20px !important;
   box-shadow: none !important;
-  display: inline-flex !important; // Ensures centering
-  align-items: center !important;
-  justify-content: center !important;
-  text-align: center !important;
+  transition: background-color 0.15s ease-in-out !important;
+
+  &:hover {
+    background-color: var(--cf-orange-5) !important;
+  }
 
   mat-icon {
-    color: var(--color-text-on-dark) !important;
-    margin-right: 10px !important; // Standard gap for icon on left
-    margin-left: -4px !important; // Symmetrical offset
+    color: var(--cf-white) !important;
+    margin-right: 8px !important;
   }
 }
 
-// ── Global Page Header & Airy Spacing ──────────────────────────────
+// Secondary Action: Cloudflare Blue/Cyan
+.mat-mdc-outlined-button.mat-primary,
+.btn-secondary {
+  border: 1px solid var(--cf-blue-5) !important;
+  color: var(--cf-blue-5) !important;
+  border-radius: var(--radius-md) !important;
+
+  &:hover {
+    background-color: var(--cf-blue-9) !important;
+  }
+}
+
+// ── Global Page Header & Layout ─────────────────────────────
 .page-header {
   margin: 0 0 32px 0 !important;
-  padding: 32px 48px !important;
-  background-color: var(--color-bg-white) !important;
+  padding: 24px 48px !important;
+  background-color: var(--toolbar-bg) !important; // Off-white top bar
   border-bottom: 1px solid var(--color-border) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   width: 100%;
-  border-radius: var(--radius-md) !important;
-  box-shadow: var(--shadow-sm) !important;
+  box-shadow: none !important; // Flat look
 
   .page-title {
     display: flex !important;
     align-items: center !important;
     gap: 12px !important;
-    font-size: 24px !important;
-    font-weight: 500 !important;
-    color: var(--color-text-dark-1) !important;
+    font-size: 20px !important; // Slightly more compact for technical feel
+    font-weight: 600 !important;
+    color: var(--cf-gray-0) !important;
     margin: 0 !important;
 
     mat-icon {
-      color: var(--color-primary) !important;
-      font-size: 28px !important;
-      width: 28px !important;
-      height: 28px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      // Optical centering nudge
-      margin-top: -2px !important;
+      color: var(--cf-orange-6) !important;
+      font-size: 24px !important;
+      width: 24px !important;
+      height: 24px !important;
     }
   }
 }
@@ -140,232 +143,86 @@ mat-sidenav.app-sidenav,
   background-color: transparent !important;
   
   .page-header { 
-    margin: 0 0 24px 0 !important; 
-    border-bottom: none !important;
-    justify-content: space-between !important;
-    gap: 0 !important;
+    margin: 0 !important; 
+    border-bottom: 1px solid var(--cf-gray-8) !important;
   }
   .filter-group-container { 
     margin-bottom: 24px !important;
-    padding: 0 48px !important;
-  }
-  .filter-bar { 
-    padding: 0 48px !important;
-    margin-bottom: 0 !important;
+    padding: 24px 48px !important;
+    background: var(--cf-white) !important;
+    border-bottom: 1px solid var(--cf-gray-8) !important;
   }
 }
 
+// ── Link Health Cards ──────────────────────────────────────────
 .link-health-controls-surface {
-  .summary-row {
-    margin-bottom: 48px !important; // Increased Fibonacci gap for airy feel
-    max-width: none !important; 
-    margin-left: 0 !important;
-    margin-right: auto !important;
-    width: 100%;
-  }
-
   .summary-card {
-    border: 1px solid var(--color-border) !important;
-    box-shadow: 0 1px 2px rgba(0,0,0,0.05) !important;
-    padding: 16px !important;
-    transition: all 0.2s ease !important;
+    border: 1px solid var(--cf-gray-8) !important;
+    border-radius: var(--radius-md) !important;
+    background: var(--cf-white) !important;
+    padding: 20px !important;
+    transition: box-shadow 0.2s ease !important;
+    box-shadow: none !important;
 
     &:hover { 
-      transform: translateY(-1px) !important; 
-      box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28) !important; 
+      box-shadow: var(--shadow-hover) !important; 
     }
 
-    strong { color: var(--color-text-primary) !important; font-size: 28px !important; }
-    .summary-label { font-weight: 500 !important; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
-  }
-
-  .summary-row {
-    margin-bottom: 48px !important; // Increased Fibonacci gap for airy feel
-    padding: 0 48px !important; // Consistent breathing room
-    max-width: none !important; 
-    margin-left: 0 !important;
-    margin-right: auto !important;
-    width: 100%;
-  }
-
-  .filter-bar { 
-    padding: 0 48px !important; // Breathing room for chips like "All"
-    margin-top: 24px !important; 
-    margin-bottom: 0 !important; 
+    strong { 
+      color: var(--cf-gray-0) !important; 
+      font-size: 24px !important; 
+      font-weight: 700 !important;
+    }
+    .summary-label { 
+      font-weight: 600 !important; 
+      color: var(--cf-newGray-4) !important;
+      font-size: 11px; 
+      letter-spacing: 0.05em;
+    }
   }
 }
 
-// Ensure the tab links also feel GSC-like
+// ── Tabs ────────────────────────────────────────────────────────
 .mat-mdc-tab-link {
-  font-weight: 500 !important;
-  color: var(--color-text-secondary) !important;
-  &.mat-mdc-tab-disabled {
-    opacity: 0.38;
+  font-weight: 600 !important;
+  color: var(--cf-newGray-4) !important;
+  
+  &.mat-mdc-tab-active {
+    color: var(--cf-blue-5) !important;
   }
 }
 
-// Empty State "Fibonacci" style centering
-.empty-state {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  justify-content: center !important;
-  min-height: 400px !important; // Give it room to breathe
-  padding-top: 10vh !important; // Offset from top for "natural" balance
-  color: var(--color-text-secondary) !important;
-
-  mat-icon {
-    font-size: 72px !important;
-    width: 72px !important;
-    height: 72px !important;
-    margin-bottom: 24px !important;
-    opacity: 0.2 !important;
+// ── Form Controls & Rings ───────────────────────────────────────
+.mat-mdc-form-field {
+  .mat-mdc-text-field-wrapper {
+    border-radius: var(--radius-md) !important;
   }
 
-  h3 {
-    font-size: 22px !important;
-    font-weight: 400 !important;
-    margin-bottom: 8px !important;
-  }
-
-  p {
-    font-size: 14px !important;
-    margin-bottom: 32px !important;
-    max-width: 600px !important; // Increased from 400px for airy feel
-  }
-
-  // Centered primary action button
-  button {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    padding: 12px 24px !important;
-    height: auto !important;
-    line-height: normal !important;
-
-    mat-icon {
-      font-size: 20px !important;
-      width: 20px !important;
-      height: 20px !important;
-      margin: 0 8px 0 0 !important; // Space between icon and text
-      opacity: 1 !important;
-    }
+  &.mat-focused .mat-mdc-form-field-focus-indicator {
+    border-color: var(--cf-blue-5) !important;
+    box-shadow: 0 0 0 2px var(--cf-blue-8) !important;
   }
 }
 
-// ── Toolbar Cleanup ───────────────────────────────────────────────
-// Redundant styles removed to ensure app.component.scss takes precedence
-
-
-// Make cards use the white background and subtle border
-.mat-mdc-card {
-  background: var(--color-bg-white) !important;
-  border: 1px solid var(--color-border) !important;
-  box-shadow: var(--shadow-sm) !important;
-  border-radius: var(--radius-md) !important;
-  color: var(--color-text-primary) !important;
-  margin-bottom: 32px;
-  padding: 24px !important; // Wider, airier feel
-}
-
-// ── Global chip sizing — fixes cramped padding on all pages ───────
-// Angular Material MDC chips ship with very tight padding defaults.
-// This override applies to every mat-chip-option and mat-chip across
-// the app so no page needs its own fix.
-.mat-mdc-chip,
-.mat-mdc-chip-option {
-  --mdc-chip-container-height: 32px;
-  margin-right: 16px !important; // Increased from 8px for wide feel
-  margin-bottom: 12px !important; // More vertical air
-
-  .mdc-evolution-chip__action--primary {
-    padding-inline: 16px !important;
-  }
-}
-
-// Consistent chip colors matching GSC semantic colors
-.mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; color: var(--color-warning-dark) !important; }
-.mat-mdc-chip.status-approved { background: var(--color-success-light) !important; color: var(--color-success-deeper) !important; }
-.mat-mdc-chip.status-rejected { background: var(--color-error-50) !important; color: var(--color-error-dark) !important; }
-
-// ── Utility Classes ───────────────────────────────────────────────
-.text-primary   { color: var(--color-primary) !important; }
-.text-success   { color: var(--color-success) !important; }
-.text-error     { color: var(--color-error) !important; }
-.text-warning   { color: var(--color-warning) !important; }
-.text-muted     { color: var(--color-text-muted) !important; }
-
-.bg-primary-light { background: var(--color-blue-50) !important; }
-.bg-success-light { background: var(--color-success-light) !important; }
-.bg-error-light   { background: var(--color-error-light) !important; }
-
-// REDUNDANT BLOCK REMOVED — Consolidated into Global Page Header above
-
-
-// ── Empty States (Improved with Icon Box) ───────────────────────
-.empty-state {
-  display: flex !important;
-  flex-direction: column !important;
-  align-items: center !important;
-  text-align: center !important;
-  padding: 80px 24px !important;
-  color: var(--color-text-primary) !important;
-
-  .empty-icon-wrap {
-    width: 64px;
-    height: 64px;
-    border-radius: 16px;
-    background: var(--color-bg-faint);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    margin-bottom: 24px;
-    
-    mat-icon {
-      font-size: 32px !important;
-      width: 32px !important;
-      height: 32px !important;
-      color: var(--color-text-secondary) !important;
-      opacity: 0.5 !important;
-      margin-bottom: 0 !important;
-    }
-  }
-
-  h3 {
-    font-size: 18px !important;
-    font-weight: 600 !important;
-    margin-bottom: 8px !important;
-    color: var(--color-text-primary) !important;
-  }
-
-  p {
-    font-size: 14px !important;
-    color: var(--color-text-muted) !important;
-    max-width: 320px !important;
-    line-height: 1.6 !important;
-    margin-bottom: 24px !important;
-  }
-
-  button {
-    min-width: 160px;
-  }
-}
-
-// ── Table Refinements ─────────────────────────────────────────────
+// ── Tables: Cloudflare Technical Style ──────────────────────────
 .mat-mdc-table {
-  background: transparent !important;
+  background: var(--cf-white) !important;
+  border: 1px solid var(--cf-gray-8) !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
 
   .mat-mdc-header-row {
-    height: 44px !important;
-    background: var(--color-bg-faint) !important;
+    height: 48px !important;
+    background: var(--cf-newGray-9) !important; // Technical gray header
   }
 
   .mat-mdc-header-cell {
-    font-size: 12px !important;
-    font-weight: 600 !important;
-    color: var(--color-text-secondary) !important;
+    font-size: 11px !important;
+    font-weight: 700 !important;
+    color: var(--cf-newGray-4) !important;
     text-transform: uppercase !important;
-    letter-spacing: 0.05em !important;
+    letter-spacing: 0.08em !important;
+    border-bottom: 1px solid var(--cf-gray-8) !important;
   }
 
   .mat-mdc-row {
@@ -373,24 +230,78 @@ mat-sidenav.app-sidenav,
     transition: background-color 0.15s ease !important;
 
     &:hover {
-      background-color: var(--color-blue-50) !important;
+      background-color: var(--cf-blue-9) !important;
     }
   }
 
   .mat-mdc-cell {
     font-size: 13px !important;
-    color: var(--color-text-primary) !important;
+    color: var(--cf-gray-0) !important;
+    border-bottom: 1px solid var(--cf-gray-9) !important;
   }
 }
 
-// ── Settings page: rich multi-line hover tooltips ───────────────────
-// matTooltipClass="setting-tooltip" is applied to every info icon button
-// on the Settings page. The tooltip text uses \n\n separators so we need
-// pre-wrap to render them as real line breaks.
-.setting-tooltip {
-  white-space: pre-wrap !important;
-  max-width: 380px !important;
-  font-size: 13px !important;
-  line-height: 1.65 !important;
-  padding: 10px 14px !important;
+// ── Chips ───────────────────────────────────────────────────────
+.mat-mdc-chip,
+.mat-mdc-chip-option {
+  --mdc-chip-container-height: 28px;
+  border-radius: 4px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
 }
+
+.mat-mdc-chip.status-pending  { background: var(--cf-gold-9) !important; color: var(--cf-gold-3) !important; border: 1px solid var(--cf-gold-8) !important; }
+.mat-mdc-chip.status-approved { background: var(--cf-green-9) !important; color: var(--cf-green-3) !important; border: 1px solid var(--cf-green-8) !important; }
+.mat-mdc-chip.status-rejected { background: var(--cf-red-9) !important; color: var(--cf-red-3) !important; border: 1px solid var(--cf-red-8) !important; }
+
+// ── Empty States ────────────────────────────────────────────────
+.empty-state {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  padding: 100px 24px !important;
+
+  .empty-icon-wrap {
+    width: 80px;
+    height: 80px;
+    border-radius: 20px;
+    background: var(--cf-gray-9);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 32px;
+    
+    mat-icon {
+      font-size: 40px !important;
+      width: 40px !important;
+      height: 40px !important;
+      color: var(--cf-blue-5) !important;
+      opacity: 0.6 !important;
+    }
+  }
+
+  h3 {
+    font-size: 20px !important;
+    font-weight: 600 !important;
+    color: var(--cf-gray-0) !important;
+    margin-bottom: 12px !important;
+  }
+
+  p {
+    font-size: 14px !important;
+    color: var(--cf-newGray-4) !important;
+    max-width: 400px !important;
+    margin-bottom: 32px !important;
+  }
+}
+
+// ── Utility Classes ─────────────────────────────────────────────
+.text-primary   { color: var(--cf-blue-5) !important; }
+.text-success   { color: var(--cf-green-5) !important; }
+.text-error     { color: var(--cf-red-5) !important; }
+.text-warning   { color: var(--cf-gold-5) !important; }
+
+.bg-primary-light { background: var(--cf-blue-9) !important; }
+.bg-success-light { background: var(--cf-green-9) !important; }
+.bg-error-light   { background: var(--cf-red-9) !important; }

@@ -770,11 +770,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   get recommendedFeatureCount(): number {
-    return this.getFeatureSummary().filter((feature) => feature.recommendedEnabled).length;
+    const summary = this.getFeatureSummary();
+    if (!summary) return 0;
+    return summary.filter((feature) => feature.recommendedEnabled).length;
   }
 
   get currentOffFeatures(): string[] {
-    return this.getFeatureSummary()
+    const summary = this.getFeatureSummary();
+    if (!summary) return [];
+    return summary
       .filter((feature) => feature.recommendedEnabled && !feature.currentEnabled)
       .map((feature) => feature.label);
   }
@@ -1097,7 +1101,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   deltaKeys(delta: Record<string, { previous: string | null; new: string | null }> | null | undefined): string[] {
-    return delta ? Object.keys(delta) : [];
+    try {
+      return delta ? Object.keys(delta) : [];
+    } catch (e) {
+      return [];
+    }
   }
 
   formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {
