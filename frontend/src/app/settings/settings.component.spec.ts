@@ -125,10 +125,12 @@ describe('SettingsComponent', () => {
     fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Hover any info icon to see a plain-English explanation.');
     expect(text).toContain('Load Recommended');
     expect(text).toContain('GA4 + Search Console');
     expect(text).toContain('WordPress site URL');
     expect(text).toContain('Rare-Term Propagation');
     expect(text).toContain('borrowed words stay separate');
+    expect(text).toContain('A silo group is just a bucket of related pages.');
   });
 });

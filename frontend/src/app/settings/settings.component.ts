@@ -42,8 +42,10 @@ interface SettingTooltip {
   range: string;
 }
 
+type FieldSeverity = 'none' | 'warn' | 'danger';
+
 const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
-  // ── March 2026 PageRank ─────────────────────────────────────────
+  // March 2026 PageRank
   'weightedAuthority.ranking_weight': {
     definition: 'How much the PageRank authority score contributes to the final link ranking.',
     impact: 'Higher values make authority the dominant factor. Links will strongly prefer high-authority destinations.',
@@ -86,7 +88,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 0.9 gives isolated pages full credit. Lowering to 0.1 nearly ignores them.',
     range: '0.1 to 1',
   },
-  // ── Link Freshness ──────────────────────────────────────────────
+  // Link Freshness
   'linkFreshness.ranking_weight': {
     definition: 'How much the freshness score influences the final ranking.',
     impact: 'Higher values reward destinations that are actively gaining new inbound links.',
@@ -143,7 +145,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 0.4 strongly penalises link loss. Lowering to 0 ignores link loss entirely.',
     range: '0 to 1',
   },
-  // ── Phrase Matching ─────────────────────────────────────────────
+  // Phrase Matching
   'phraseMatching.ranking_weight': {
     definition: 'How much the phrase match score influences the final ranking.',
     impact: 'Higher values reward destinations whose title or text closely matches the linking phrase.',
@@ -172,7 +174,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 12 captures more context. Lowering to 4 focuses only on the nearby words.',
     range: '4 to 12',
   },
-  // ── Learned Anchors ─────────────────────────────────────────────
+  // Learned Anchors
   'learnedAnchor.ranking_weight': {
     definition: 'How much the learned anchor score influences the final ranking.',
     impact: 'Higher values reward destinations that already have real-world anchor text pointing to them.',
@@ -198,10 +200,10 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     definition: 'Removes anchors that appear too frequently across the site and carry little meaning (e.g. "click here").',
     impact: 'Enabled keeps learned patterns meaningful. Disabled may introduce noisy, low-quality anchors.',
     default: 'Enabled',
-    example: 'Disabling is rarely useful — only consider it if you need to debug which anchors are being filtered.',
+    example: 'Disabling is rarely useful - only consider it if you need to debug which anchors are being filtered.',
     range: 'Enabled / Disabled',
   },
-  // ── Rare-Term Propagation ───────────────────────────────────────
+  // Rare-Term Propagation
   'rareTermPropagation.enabled': {
     definition: 'Turns on the ability to borrow rare keywords from nearby related pages to help thin-content destinations.',
     impact: 'Enabled helps pages with little text become discoverable via shared rare terms. Disabled turns this off entirely.',
@@ -230,7 +232,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 4 demands broader agreement. Lowering to 1 borrows from any single related page.',
     range: '1 to 5',
   },
-  // ── Field-Aware Relevance ───────────────────────────────────────
+  // Field-Aware Relevance
   'fieldAwareRelevance.ranking_weight': {
     definition: 'How much the field-aware relevance score influences the final ranking.',
     impact: 'Higher values reward destinations whose title, body, or anchor text aligns with the source sentence.',
@@ -266,7 +268,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 0.4 gives strong weight to existing anchor patterns. Lowering reduces this influence.',
     range: '0 to 1',
   },
-  // ── Click Distance ──────────────────────────────────────────────
+  // Click Distance
   'ga4Gsc.ranking_weight': {
     definition: 'How much first-party search and behavior data influences the final ranking.',
     impact: 'Higher values reward destinations that already earn stronger search clicks and better on-site engagement.',
@@ -282,27 +284,27 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     range: '0 to 0.2',
   },
   'clickDistance.k_cd': {
-    definition: 'Depth sensitivity — controls how steeply the score drops off as click-distance from the homepage increases.',
+    definition: 'Depth sensitivity - controls how steeply the score drops off as click-distance from the homepage increases.',
     impact: 'Higher values aggressively penalise pages many clicks from the homepage. Lower values are more lenient.',
     default: '4.0',
     example: 'Raising to 4.0 strongly penalises deep pages. Lowering to 0.5 makes depth almost irrelevant.',
     range: '0.5 to 5.0',
   },
   'clickDistance.b_cd': {
-    definition: 'Click-distance bias — blends raw click-distance with a smoothed version to avoid extreme scores.',
+    definition: 'Click-distance bias - blends raw click-distance with a smoothed version to avoid extreme scores.',
     impact: 'Higher values smooth out very deep or very shallow pages. Lower values use the raw depth score.',
     default: '0.75',
     example: '0.75 keeps depth useful without letting one very deep URL dominate the score.',
     range: '0 to 1',
   },
   'clickDistance.b_ud': {
-    definition: 'URL-depth bias — blends the URL depth (number of slashes in the path) into the score.',
+    definition: 'URL-depth bias - blends the URL depth (number of slashes in the path) into the score.',
     impact: 'Higher values prefer pages with shorter URL paths. Lower values ignore URL depth.',
     default: '0.25',
     example: '0.25 uses URL depth as light supporting evidence. Lowering to 0 ignores URL path depth.',
     range: '0 to 1',
   },
-  // ── Silo Ranking ────────────────────────────────────────────────
+  // Silo Ranking
   'silo.mode': {
     definition: 'Sets how strictly the system enforces topic silo boundaries when ranking links.',
     impact: '"Disabled" ignores silos entirely. "Prefer same silo" boosts same-silo matches. "Strict same silo" blocks cross-silo links when both pages have silo assignments.',
@@ -324,7 +326,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 0.2 significantly reduces cross-silo suggestions. Raising to 0.5 makes them rare.',
     range: '0 and above (no hard maximum)',
   },
-  // ── Feedback Rerank ─────────────────────────────────────────────
+  // Feedback Rerank
   'feedbackRerank.enabled': {
     definition: 'Turns on the explore/exploit reranking system, which uses historical reviewer feedback to improve suggestions over time.',
     impact: 'Enabled gradually learns from accept/reject decisions. Disabled keeps ranking purely algorithmic.',
@@ -346,7 +348,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'About 1.41 is a balanced starting point. Raising too high pushes many untested links to the top for review.',
     range: '0 to 10',
   },
-  // ── Clustering ──────────────────────────────────────────────────
+  // Clustering
   'clustering.enabled': {
     definition: 'Turns on near-duplicate destination clustering based on semantic embedding similarity.',
     impact: 'Enabled prevents suggesting multiple redundant links to effectively the same content. Disabled treats every URL as unique.',
@@ -368,7 +370,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Set to 20 to push duplicates far down the list. Lowering toward 5 makes suppression softer.',
     range: '0 to 50',
   },
-  // ── Slate Diversity ─────────────────────────────────────────────
+  // Slate Diversity
   'slateDiversity.enabled': {
     definition: 'Turns on FR-015 MMR (Maximal Marginal Relevance) diversity reranking for the final per-host link slate.',
     impact: 'When enabled, the 3 suggestions for each host thread are chosen to cover different topics. When disabled, the top 3 by score are used regardless of similarity.',
@@ -377,7 +379,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     range: 'On / Off',
   },
   'slateDiversity.diversity_lambda': {
-    definition: 'MMR lambda — controls the balance between relevance and diversity in the final slate.',
+    definition: 'MMR lambda - controls the balance between relevance and diversity in the final slate.',
     impact: 'Higher values (closer to 1.0) keep the most relevant suggestions. Lower values force more variety even if the alternatives score lower.',
     default: '0.65',
     example: 'Lower to 0.5 for stronger diversity. Raise to 0.9 to preserve near-original ranking with a light diversity nudge.',
@@ -392,10 +394,87 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   },
   'slateDiversity.similarity_cap': {
     definition: 'Cosine similarity threshold above which two selected destinations are flagged as near-redundant in diagnostics.',
-    impact: 'Purely diagnostic — does not block selection. Helps you understand when the diversity reranker is doing meaningful work.',
+    impact: 'Purely diagnostic - does not block selection. Helps you understand when the diversity reranker is doing meaningful work.',
     default: '0.90',
     example: 'Lower to 0.80 to flag moderately similar pairs. Keep at 0.90 to only flag near-clones.',
     range: '0.70 to 0.99',
+  },
+  'wordpress.base_url': {
+    definition: 'The main front-door address of your WordPress site.',
+    impact: 'The app uses this address when it talks to WordPress. If it is wrong, sync will fail or pull from the wrong place.',
+    default: 'Your live site home page',
+    example: 'Use https://example.com, not https://example.com/wp-admin.',
+    range: 'A full site URL starting with http:// or https://',
+  },
+  'wordpress.username': {
+    definition: 'The WordPress username tied to the application password.',
+    impact: 'Needed when the site requires login for the API. Leave blank if you only sync public content.',
+    default: 'Blank unless your site needs login',
+    example: 'Use the real WordPress account name, not your display nickname.',
+    range: 'Any valid WordPress username',
+  },
+  'wordpress.app_password': {
+    definition: 'A special WordPress app password, not your normal login password.',
+    impact: 'Lets this app sync content safely without storing your main site password.',
+    default: 'Blank unless private content needs access',
+    example: 'Create it in WordPress, then paste it here once. Leave this box empty later to keep the saved one.',
+    range: 'A valid WordPress application password',
+  },
+  'wordpress.sync_enabled': {
+    definition: 'Turns the automatic WordPress sync schedule on or off.',
+    impact: 'When on, the app runs a background sync at the hour and minute below.',
+    default: 'Off',
+    example: 'Turn it on if you want fresh posts pulled in every day without clicking Run sync now.',
+    range: 'Enabled / Disabled',
+  },
+  'wordpress.sync_hour': {
+    definition: 'The UTC hour for the automatic WordPress sync.',
+    impact: 'Sets the hour part of the schedule. Use UTC, not your local clock.',
+    default: '3',
+    example: '3 means the sync starts at 03:00 UTC every day.',
+    range: '0 to 23',
+  },
+  'wordpress.sync_minute': {
+    definition: 'The UTC minute for the automatic WordPress sync.',
+    impact: 'Sets the minute part of the schedule.',
+    default: '0',
+    example: '30 means the sync starts at half past the chosen UTC hour.',
+    range: '0 to 59',
+  },
+  'siloGroup.name': {
+    definition: 'The human-friendly name for this silo group.',
+    impact: 'This is the label people see when assigning scopes and reading silo settings.',
+    default: 'A short clear label',
+    example: 'Good examples: Guides, Troubleshooting, Plugins.',
+    range: 'Plain text',
+  },
+  'siloGroup.slug': {
+    definition: 'The short machine name for this silo group.',
+    impact: 'Used behind the scenes in saved data and API calls.',
+    default: 'A lowercase short code',
+    example: 'guides or troubleshooting are good slugs.',
+    range: 'Short lowercase text, usually words joined with dashes',
+  },
+  'siloGroup.description': {
+    definition: 'A simple note about what belongs in this group.',
+    impact: 'Helps you and future users remember the purpose of the group.',
+    default: 'Blank',
+    example: 'Use this for pages that teach people how to fix common setup problems.',
+    range: 'Short plain-English text',
+  },
+  'siloGroup.display_order': {
+    definition: 'Controls the order the group appears in the settings page.',
+    impact: 'Lower numbers show first. This does not change ranking by itself.',
+    default: '0',
+    example: '0 shows above 10.',
+    range: 'Any whole number',
+  },
+  'scopeAssignment.silo_group': {
+    definition: 'Picks which silo bucket a scope belongs to.',
+    impact: 'Silo ranking only works when scopes are assigned to groups. Unassigned scopes are ignored by silo rules.',
+    default: 'Unassigned',
+    example: 'Put all WordPress guides into Guides, and all product docs into Products.',
+    range: 'Any existing silo group or Unassigned',
   },
 };
 
@@ -451,39 +530,48 @@ const UI_TO_PRESET_KEY: Record<string, string> = {
   'slateDiversity.similarity_cap': 'slate_diversity.similarity_cap',
 };
 
-const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number }> = {
-  'weightedAuthority.ranking_weight': { warnAbove: 0.18 },
-  'weightedAuthority.position_bias': { warnBelow: 0.1, warnAbove: 0.9 },
-  'weightedAuthority.empty_anchor_factor': { warnBelow: 0.2, warnAbove: 0.95 },
-  'weightedAuthority.bare_url_factor': { warnBelow: 0.15, warnAbove: 0.9 },
-  'weightedAuthority.weak_context_factor': { warnBelow: 0.2, warnAbove: 0.95 },
-  'weightedAuthority.isolated_context_factor': { warnBelow: 0.15, warnAbove: 0.9 },
-  'linkFreshness.ranking_weight': { warnAbove: 0.1 },
-  'linkFreshness.recent_window_days': { warnBelow: 14, warnAbove: 60 },
-  'linkFreshness.newest_peer_percent': { warnAbove: 0.45 },
-  'linkFreshness.min_peer_count': { warnAbove: 15 },
-  'phraseMatching.ranking_weight': { warnAbove: 0.08 },
-  'phraseMatching.context_window_tokens': { warnBelow: 5, warnAbove: 11 },
-  'learnedAnchor.ranking_weight': { warnAbove: 0.08 },
-  'learnedAnchor.minimum_anchor_sources': { warnAbove: 8 },
-  'learnedAnchor.minimum_family_support_share': { warnAbove: 0.4 },
-  'rareTermPropagation.ranking_weight': { warnAbove: 0.08 },
-  'rareTermPropagation.max_document_frequency': { warnAbove: 7 },
-  'fieldAwareRelevance.ranking_weight': { warnAbove: 0.12 },
-  'ga4Gsc.ranking_weight': { warnAbove: 0.12 },
-  'clickDistance.ranking_weight': { warnAbove: 0.15 },
-  'clickDistance.k_cd': { warnBelow: 2.0, warnAbove: 5.0 },
-  'clickDistance.b_cd': { warnBelow: 0.4, warnAbove: 0.9 },
-  'clickDistance.b_ud': { warnAbove: 0.5 },
-  'feedbackRerank.ranking_weight': { warnAbove: 0.15 },
-  'feedbackRerank.exploration_rate': { warnBelow: 0.7, warnAbove: 2.5 },
-  'silo.same_silo_boost': { warnAbove: 0.4 },
-  'silo.cross_silo_penalty': { warnAbove: 0.4 },
-  'clustering.similarity_threshold': { warnAbove: 0.1 },
-  'clustering.suppression_penalty': { warnBelow: 5, warnAbove: 30 },
-  'slateDiversity.diversity_lambda': { warnBelow: 0.4 },
-  'slateDiversity.score_window': { warnAbove: 0.6 },
-  'slateDiversity.similarity_cap': { warnBelow: 0.75 },
+const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number; dangerBelow?: number; dangerAbove?: number }> = {
+  'weightedAuthority.ranking_weight': { warnAbove: 0.18, dangerAbove: 0.22 },
+  'weightedAuthority.position_bias': { warnBelow: 0.1, warnAbove: 0.9, dangerBelow: 0.05, dangerAbove: 0.96 },
+  'weightedAuthority.empty_anchor_factor': { warnBelow: 0.2, warnAbove: 0.95, dangerBelow: 0.12, dangerAbove: 0.99 },
+  'weightedAuthority.bare_url_factor': { warnBelow: 0.15, warnAbove: 0.9, dangerBelow: 0.1, dangerAbove: 0.96 },
+  'weightedAuthority.weak_context_factor': { warnBelow: 0.2, warnAbove: 0.95, dangerBelow: 0.12, dangerAbove: 0.99 },
+  'weightedAuthority.isolated_context_factor': { warnBelow: 0.15, warnAbove: 0.9, dangerBelow: 0.1, dangerAbove: 0.96 },
+  'linkFreshness.ranking_weight': { warnAbove: 0.1, dangerAbove: 0.13 },
+  'linkFreshness.recent_window_days': { warnBelow: 14, warnAbove: 60, dangerBelow: 10, dangerAbove: 80 },
+  'linkFreshness.newest_peer_percent': { warnAbove: 0.45, dangerAbove: 0.49 },
+  'linkFreshness.min_peer_count': { warnAbove: 15, dangerAbove: 18 },
+  'linkFreshness.w_recent': { warnAbove: 0.65, dangerAbove: 0.85 },
+  'linkFreshness.w_growth': { warnAbove: 0.65, dangerAbove: 0.85 },
+  'linkFreshness.w_cohort': { warnAbove: 0.45, dangerAbove: 0.65 },
+  'linkFreshness.w_loss': { warnAbove: 0.25, dangerAbove: 0.4 },
+  'phraseMatching.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.095 },
+  'phraseMatching.context_window_tokens': { warnBelow: 5, warnAbove: 11, dangerBelow: 4, dangerAbove: 12 },
+  'learnedAnchor.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.095 },
+  'learnedAnchor.minimum_anchor_sources': { warnAbove: 8, dangerAbove: 10 },
+  'learnedAnchor.minimum_family_support_share': { warnAbove: 0.4, dangerAbove: 0.48 },
+  'rareTermPropagation.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.095 },
+  'rareTermPropagation.max_document_frequency': { warnAbove: 7, dangerAbove: 9 },
+  'rareTermPropagation.minimum_supporting_related_pages': { warnAbove: 3, dangerAbove: 4 },
+  'fieldAwareRelevance.ranking_weight': { warnAbove: 0.12, dangerAbove: 0.145 },
+  'fieldAwareRelevance.title_field_weight': { warnAbove: 0.65, dangerAbove: 0.85 },
+  'fieldAwareRelevance.body_field_weight': { warnAbove: 0.65, dangerAbove: 0.85 },
+  'fieldAwareRelevance.scope_field_weight': { warnAbove: 0.4, dangerAbove: 0.6 },
+  'fieldAwareRelevance.learned_anchor_field_weight': { warnAbove: 0.4, dangerAbove: 0.6 },
+  'ga4Gsc.ranking_weight': { warnAbove: 0.12, dangerAbove: 0.2 },
+  'clickDistance.ranking_weight': { warnAbove: 0.15, dangerAbove: 0.18 },
+  'clickDistance.k_cd': { warnBelow: 2.0, warnAbove: 5.0, dangerBelow: 1.0, dangerAbove: 5.8 },
+  'clickDistance.b_cd': { warnBelow: 0.4, warnAbove: 0.9, dangerBelow: 0.2, dangerAbove: 0.97 },
+  'clickDistance.b_ud': { warnAbove: 0.5, dangerAbove: 0.75 },
+  'feedbackRerank.ranking_weight': { warnAbove: 0.15, dangerAbove: 0.3 },
+  'feedbackRerank.exploration_rate': { warnBelow: 0.7, warnAbove: 2.5, dangerBelow: 0.4, dangerAbove: 4.0 },
+  'silo.same_silo_boost': { warnAbove: 0.4, dangerAbove: 0.8 },
+  'silo.cross_silo_penalty': { warnAbove: 0.4, dangerAbove: 0.8 },
+  'clustering.similarity_threshold': { warnAbove: 0.1, dangerAbove: 0.135 },
+  'clustering.suppression_penalty': { warnBelow: 5, warnAbove: 30, dangerBelow: 2, dangerAbove: 40 },
+  'slateDiversity.diversity_lambda': { warnBelow: 0.4, dangerBelow: 0.2 },
+  'slateDiversity.score_window': { warnAbove: 0.6, dangerAbove: 0.85 },
+  'slateDiversity.similarity_cap': { warnBelow: 0.75, dangerBelow: 0.71 },
 };
 
 @Component({
@@ -615,7 +703,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   };
   wordpressPassword = '';
 
-  // ── Weight presets ──────────────────────────────────────────────
+  // Weight presets
   weightPresets: WeightPreset[] = [];
   loadingPresets = false;
   applyingPreset = false;
@@ -626,7 +714,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   renamePresetValue = '';
   showSavePresetInput = false;
 
-  // ── Weight history ──────────────────────────────────────────────
+  // Weight history
   weightHistory: WeightAdjustmentHistory[] = [];
   loadingHistory = false;
   rollingBack = false;
@@ -691,6 +779,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
       .map((feature) => feature.label);
   }
 
+  get assignedScopeCount(): number {
+    return this.scopes.filter((scope) => scope.silo_group !== null).length;
+  }
+
   recommendedValueLabel(key: string): string | null {
     const value = this.presetValueFor(key, this.recommendedPreset);
     if (value == null) return null;
@@ -707,33 +799,49 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const notes: string[] = [];
     const recommended = this.recommendedValueLabel(key);
     if (recommended) {
-      notes.push(`Recommended start: ${recommended}.`);
+      notes.push(`Good starting point: ${recommended}.`);
     }
-    if (typeof value === 'number' && this.isExtreme(value, key)) {
-      notes.push('This is an aggressive setting.');
+    if (typeof value === 'number') {
+      const severity = this.fieldSeverity(value, key);
+      if (severity === 'warn') {
+        notes.push('Warning: this is stronger than the usual starting range.');
+      }
+      if (severity === 'danger') {
+        notes.push('Risky: this is far outside the usual starting range.');
+      }
     }
     return notes.join(' ');
   }
 
   tip(key: string): string {
     const t = SETTING_TOOLTIPS[key];
-    if (!t) return `⚠ No tooltip defined for "${key}" — add an entry to SETTING_TOOLTIPS in settings.component.ts`;
+    if (!t) return `No tooltip defined for "${key}" - add an entry to SETTING_TOOLTIPS in settings.component.ts`;
     return [
-      `Definition: ${t.definition}`,
-      `Linking impact: ${t.impact}`,
-      `Recommended start: ${this.recommendedValueLabel(key) ?? t.default}`,
+      `What this changes: ${t.definition}`,
+      `What happens when you change it: ${t.impact}`,
+      `Good starting point: ${this.recommendedValueLabel(key) ?? t.default}`,
       `Example: ${t.example}`,
-      `Valid range: ${t.range}`,
+      `Safe range: ${t.range}`,
     ].join('\n\n');
   }
 
+  fieldSeverity(value: number | undefined | null, key: string): FieldSeverity {
+    if (value == null) return 'none';
+    const threshold = ALERT_THRESHOLDS[key];
+    if (!threshold) return 'none';
+    if (threshold.dangerAbove !== undefined && value > threshold.dangerAbove) return 'danger';
+    if (threshold.dangerBelow !== undefined && value < threshold.dangerBelow) return 'danger';
+    if (threshold.warnAbove !== undefined && value > threshold.warnAbove) return 'warn';
+    if (threshold.warnBelow !== undefined && value < threshold.warnBelow) return 'warn';
+    return 'none';
+  }
+
   isExtreme(value: number | undefined | null, key: string): boolean {
-    if (value == null) return false;
-    const threshold = EXTREME_THRESHOLDS[key];
-    if (!threshold) return false;
-    if (threshold.warnAbove !== undefined && value > threshold.warnAbove) return true;
-    if (threshold.warnBelow !== undefined && value < threshold.warnBelow) return true;
-    return false;
+    return this.fieldSeverity(value, key) !== 'none';
+  }
+
+  isDanger(value: number | undefined | null, key: string): boolean {
+    return this.fieldSeverity(value, key) === 'danger';
   }
 
   private presetMatchesCurrent(preset: WeightPreset): boolean {
@@ -864,7 +972,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.applyWeightPreset(preset.id).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.applyingPreset = false;
-        this.snack.open(`Preset "${preset.name}" applied. Reloading settings…`, undefined, { duration: 3000 });
+        this.snack.open(`Preset "${preset.name}" applied. Reloading settings...`, undefined, { duration: 3000 });
         this.reload();
       },
       error: (err) => {
@@ -945,7 +1053,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.rollbackWeights(row.id).pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
         this.rollingBack = false;
-        this.snack.open(`Rolled back to weights from ${dateStr}. Reloading…`, undefined, { duration: 3000 });
+        this.snack.open(`Rolled back to weights from ${dateStr}. Reloading...`, undefined, { duration: 3000 });
         this.reload();
       },
       error: (err) => {
@@ -979,7 +1087,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {
-    return `${key}: ${entry.previous ?? '—'} → ${entry.new ?? '—'}`;
+    return `${key}: ${entry.previous ?? '-'} -> ${entry.new ?? '-'}`;
   }
 
   ngOnDestroy(): void {
