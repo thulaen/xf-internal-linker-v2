@@ -283,14 +283,6 @@ mat-sidenav.app-sidenav,
 .mat-mdc-chip.status-approved { background: var(--color-success-light) !important; color: var(--color-success-deeper) !important; }
 .mat-mdc-chip.status-rejected { background: var(--color-error-50) !important; color: var(--color-error-dark) !important; }
 
-// ── Setting tooltips (used on the Settings page info buttons) ─────
-.setting-tooltip {
-  max-width: 340px !important;
-  white-space: pre-line !important;
-  font-size: 12px !important;
-  line-height: 1.6 !important;
-}
-
 // ── Utility Classes ───────────────────────────────────────────────
 .text-primary   { color: var(--color-primary) !important; }
 .text-success   { color: var(--color-success) !important; }

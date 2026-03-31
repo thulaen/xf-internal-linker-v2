@@ -931,19 +931,23 @@ export class SettingsComponent implements OnInit, OnDestroy {
       currentWeights: this.siloSvc.getCurrentWeights(),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
-        this.settings = data.settings;
-        this.weightedAuthority = data.weightedAuthority;
-        this.linkFreshness = data.linkFreshness;
-        this.phraseMatching = data.phraseMatching;
-        this.learnedAnchor = data.learnedAnchor;
-        this.rareTermPropagation = data.rareTermPropagation;
-        this.fieldAwareRelevance = data.fieldAwareRelevance;
-        this.ga4Gsc = data.ga4Gsc;
-        this.wordpress = data.wordpress;
-        this.clickDistance = data.clickDistance;
-        this.feedbackRerank = data.feedbackRerank;
-        this.clustering = data.clustering;
-        this.slateDiversity = data.slateDiversity;
+        // Merge API data with the class-level defaults so that boolean
+        // fields the API omits (enable_anchor_expansion, enabled, etc.)
+        // keep their safe default values instead of becoming undefined,
+        // which would leave mat-select dropdowns blank.
+        this.settings = { ...this.settings, ...data.settings };
+        this.weightedAuthority = { ...this.weightedAuthority, ...data.weightedAuthority };
+        this.linkFreshness = { ...this.linkFreshness, ...data.linkFreshness };
+        this.phraseMatching = { ...this.phraseMatching, ...data.phraseMatching };
+        this.learnedAnchor = { ...this.learnedAnchor, ...data.learnedAnchor };
+        this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
+        this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
+        this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
+        this.wordpress = { ...this.wordpress, ...data.wordpress };
+        this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
+        this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
+        this.clustering = { ...this.clustering, ...data.clustering };
+        this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
         this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
       },

@@ -561,10 +561,51 @@
   }
 }
 
+// ── Counter-overrides for global styles.scss !important pollution ────
+// The global stylesheet forces .mat-mdc-card { padding:24px; border-radius:6px;
+// background:white } and .mat-mdc-text-field-wrapper { background:white } with
+// !important. That nukes the custom Settings design — labels become invisible,
+// hints vanish, and amber/red field borders never appear. These rules fight back.
+
+:host ::ng-deep .settings-card.mat-mdc-card {
+  padding: 0 !important;
+  border-radius: 22px !important;
+  border: 1px solid var(--settings-border) !important;
+  box-shadow: var(--settings-shadow) !important;
+  background: var(--settings-surface) !important;
+  margin-bottom: 0 !important;
+  overflow: hidden;
+}
+
+:host ::ng-deep .settings-card--featured.mat-mdc-card {
+  background:
+    radial-gradient(circle at right top, rgba(8, 111, 255, 0.12), transparent 26%),
+    linear-gradient(180deg, #f8fbff 0%, #ffffff 100%) !important;
+}
+
+// Undo the global white !important background on the form-field wrapper
+// so the outline notch, floating labels, and warn/danger tints show through.
+:host ::ng-deep .settings-card .mat-mdc-text-field-wrapper {
+  background-color: transparent !important;
+}
+
+// Make floating labels clearly visible (global card overrides hide them)
+:host ::ng-deep .settings-card .mdc-floating-label,
+:host ::ng-deep .settings-card .mat-mdc-floating-label {
+  color: var(--settings-text-muted) !important;
+}
+
+// Make hint text below every field visible
+:host ::ng-deep .settings-card .mat-mdc-form-field-hint {
+  color: var(--settings-text-muted) !important;
+  font-size: 12px !important;
+}
+
 :host ::ng-deep .settings-card .mat-mdc-form-field-subscript-wrapper {
   min-height: 22px;
 }
 
+// ── Warn state (amber border + tinted background) ───────────────────
 :host ::ng-deep .field-warn .mdc-notched-outline__leading,
 :host ::ng-deep .field-warn .mdc-notched-outline__notch,
 :host ::ng-deep .field-warn .mdc-notched-outline__trailing {
@@ -572,11 +613,11 @@
 }
 
 :host ::ng-deep .field-warn .mat-mdc-text-field-wrapper {
-  background: linear-gradient(180deg, rgba(238, 115, 10, 0.08) 0%, rgba(238, 115, 10, 0.02) 100%);
+  background: linear-gradient(180deg, rgba(238, 115, 10, 0.08) 0%, rgba(238, 115, 10, 0.02) 100%) !important;
 }
 
 :host ::ng-deep .field-warn .mat-mdc-form-field-focus-overlay {
-  background: var(--settings-warn-bg);
+  background: var(--settings-warn-bg) !important;
 }
 
 :host ::ng-deep .field-warn .mdc-floating-label,
@@ -585,6 +626,7 @@
   color: #8d4406 !important;
 }
 
+// ── Danger state (red border + tinted background) ───────────────────
 :host ::ng-deep .field-danger .mdc-notched-outline__leading,
 :host ::ng-deep .field-danger .mdc-notched-outline__notch,
 :host ::ng-deep .field-danger .mdc-notched-outline__trailing {
@@ -593,11 +635,11 @@
 }
 
 :host ::ng-deep .field-danger .mat-mdc-text-field-wrapper {
-  background: linear-gradient(180deg, rgba(232, 20, 3, 0.1) 0%, rgba(232, 20, 3, 0.02) 100%);
+  background: linear-gradient(180deg, rgba(232, 20, 3, 0.1) 0%, rgba(232, 20, 3, 0.02) 100%) !important;
 }
 
 :host ::ng-deep .field-danger .mat-mdc-form-field-focus-overlay {
-  background: var(--settings-danger-bg);
+  background: var(--settings-danger-bg) !important;
 }
 
 :host ::ng-deep .field-danger .mdc-floating-label,
@@ -606,6 +648,7 @@
   color: #b20f03 !important;
 }
 
+// ── Buttons ─────────────────────────────────────────────────────────
 :host ::ng-deep .settings-card .mat-mdc-unelevated-button.mat-primary {
   --mdc-filled-button-container-color: var(--settings-accent);
   --mdc-filled-button-label-text-color: #ffffff;
