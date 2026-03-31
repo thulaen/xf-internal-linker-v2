@@ -70,7 +70,7 @@
                 <button mat-flat-button color="primary"
                         [disabled]="applyingPreset || matchedPreset?.id === recommendedPreset.id"
                         (click)="applyPreset(recommendedPreset)">
-                  <mat-icon>bolt</mat-icon>
+                  <mat-icon aria-hidden="true">bolt</mat-icon>
                   Load Recommended
                 </button>
               }
@@ -85,7 +85,7 @@
                 </mat-form-field>
                 <button mat-flat-button color="primary" [disabled]="savingPreset || !newPresetName.trim()"
                         (click)="saveCurrentAsPreset()">
-                  <mat-icon>save</mat-icon>
+                  <mat-icon aria-hidden="true">save</mat-icon>
                   Save
                 </button>
                 <button mat-stroked-button (click)="showSavePresetInput = false; newPresetName = ''">
@@ -93,7 +93,7 @@
                 </button>
               } @else {
                 <button mat-stroked-button color="primary" (click)="showSavePresetInput = true">
-                  <mat-icon>add</mat-icon>
+                  <mat-icon aria-hidden="true">add</mat-icon>
                   Save current as new preset
                 </button>
               }
@@ -131,7 +131,7 @@
 
                       <button mat-stroked-button color="primary" [disabled]="applyingPreset"
                               (click)="applyPreset(preset)" class="preset-action-btn">
-                        <mat-icon>play_arrow</mat-icon>
+                        <mat-icon aria-hidden="true">play_arrow</mat-icon>
                         Load
                       </button>
 
@@ -220,11 +220,11 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingWeightedAuthority" (click)="saveWeightedAuthoritySettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save March 2026 PageRank settings
           </button>
           <button mat-stroked-button color="primary" [disabled]="recalculatingWeightedAuthority" (click)="recalculateWeightedAuthority()">
-            <mat-icon>hub</mat-icon>
+            <mat-icon aria-hidden="true">hub</mat-icon>
             Recalculate March 2026 PageRank
           </button>
         </div>
@@ -309,11 +309,11 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingLinkFreshness" (click)="saveLinkFreshnessSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save Link Freshness settings
           </button>
           <button mat-stroked-button color="primary" [disabled]="recalculatingLinkFreshness" (click)="recalculateLinkFreshness()">
-            <mat-icon>schedule</mat-icon>
+            <mat-icon aria-hidden="true">schedule</mat-icon>
             Recalculate Link Freshness
           </button>
         </div>
@@ -373,7 +373,7 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingPhraseMatching" (click)="savePhraseMatchingSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save phrase matching settings
           </button>
         </div>
@@ -430,7 +430,7 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingLearnedAnchor" (click)="saveLearnedAnchorSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save learned anchor settings
           </button>
         </div>
@@ -488,7 +488,7 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingRareTermPropagation" (click)="saveRareTermPropagationSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save rare-term propagation settings
           </button>
         </div>
@@ -556,15 +556,15 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingWordPress" (click)="saveWordPressSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save WordPress settings
           </button>
           <button mat-stroked-button [disabled]="savingWordPress || !wordpress.app_password_configured" (click)="clearWordPressPassword()">
-            <mat-icon>key_off</mat-icon>
+            <mat-icon aria-hidden="true">key_off</mat-icon>
             Clear saved password
           </button>
           <button mat-stroked-button color="primary" [disabled]="runningWordPressSync" (click)="runWordPressSync()">
-            <mat-icon>sync</mat-icon>
+            <mat-icon aria-hidden="true">sync</mat-icon>
             Run sync now
           </button>
         </div>
@@ -627,7 +627,7 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingFieldAwareRelevance" (click)="saveFieldAwareRelevanceSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save field-aware relevance settings
           </button>
         </div>
@@ -657,7 +657,7 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="saveGA4GSCSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save GA4 and Search Console settings
           </button>
         </div>
@@ -715,11 +715,11 @@
 
         <div class="button-row">
           <button mat-flat-button color="primary" [disabled]="savingClickDistance" (click)="saveClickDistanceSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save click distance settings
           </button>
           <button mat-stroked-button color="primary" [disabled]="recalculatingClickDistance" (click)="recalculateClickDistance()">
-            <mat-icon>straighten</mat-icon>
+            <mat-icon aria-hidden="true">straighten</mat-icon>
             Recalculate structural scores
           </button>
         </div>
@@ -770,7 +770,7 @@
         </div>
 
         <button mat-flat-button color="primary" [disabled]="savingSettings" (click)="saveSettings()">
-          <mat-icon>save</mat-icon>
+          <mat-icon aria-hidden="true">save</mat-icon>
           Save silo settings
         </button>
       </mat-card-content>
@@ -815,7 +815,7 @@
 
         <div class="button-row" style="margin-top: 20px;">
           <button mat-flat-button color="primary" [disabled]="savingFeedbackRerank" (click)="saveFeedbackRerankSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save explore/exploit settings
           </button>
         </div>
@@ -861,11 +861,11 @@
 
         <div class="button-row" style="margin-top: 20px;">
           <button mat-flat-button color="primary" [disabled]="savingClustering" (click)="saveClusteringSettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save clustering settings
           </button>
           <button mat-stroked-button color="primary" [disabled]="recalculatingClustering" (click)="recalculateClustering()">
-            <mat-icon>auto_awesome_motion</mat-icon>
+            <mat-icon aria-hidden="true">auto_awesome_motion</mat-icon>
             Recalculate clusters
           </button>
         </div>
@@ -921,7 +921,7 @@
 
         <div class="button-row" style="margin-top: 20px;">
           <button mat-flat-button color="primary" [disabled]="savingSlate" (click)="saveSlateDiversitySettings()">
-            <mat-icon>save</mat-icon>
+            <mat-icon aria-hidden="true">save</mat-icon>
             Save slate diversity settings
           </button>
         </div>
@@ -951,7 +951,7 @@
             <input matInput type="number" [(ngModel)]="newGroup.display_order" />
           </mat-form-field>
           <button mat-stroked-button [disabled]="creatingGroup" (click)="createGroup()">
-            <mat-icon>add</mat-icon>
+            <mat-icon aria-hidden="true">add</mat-icon>
             Add group
           </button>
         </div>
@@ -1034,7 +1034,7 @@
         <div class="button-row" style="margin-bottom: 12px;">
           <button mat-stroked-button color="primary" [disabled]="triggeringRTune"
                   (click)="triggerRTune()" title="Manually queue the monthly R auto-tune task now">
-            <mat-icon>auto_fix_high</mat-icon>
+            <mat-icon aria-hidden="true">auto_fix_high</mat-icon>
             Run R auto-tune now
           </button>
           <button mat-icon-button (click)="reloadPresetsAndHistory()" title="Refresh history">
@@ -1076,7 +1076,7 @@
                 <div class="history-actions">
                   <button mat-stroked-button color="warn" [disabled]="rollingBack"
                           (click)="rollbackWeights(row)">
-                    <mat-icon>undo</mat-icon>
+                    <mat-icon aria-hidden="true">undo</mat-icon>
                     Rollback
                   </button>
                 </div>

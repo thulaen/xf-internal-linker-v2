@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export type SiloMode = 'disabled' | 'prefer_same_silo' | 'strict_same_silo';
 
@@ -323,7 +324,8 @@ export class SiloSettingsService {
   // ── Weight presets ────────────────────────────────────────────────
 
   listWeightPresets(): Observable<WeightPreset[]> {
-    return this.http.get<WeightPreset[]>('/api/weight-presets/');
+    return this.http.get<{ results: WeightPreset[] }>('/api/weight-presets/')
+      .pipe(map((r) => r.results ?? []));
   }
 
   createWeightPreset(payload: { name: string; weights: Record<string, string> }): Observable<WeightPreset> {
