@@ -1,9 +1,29 @@
-<!-- ── Header ─────────────────────────────────────────────────────── -->
-<div class="page-header">
-  <h1 class="page-title">
-    <mat-icon>dashboard</mat-icon>
-    Dashboard
-  </h1>
+<section class="dashboard-hero">
+  <div class="dashboard-hero-copy">
+    <span class="dashboard-kicker">Operations snapshot</span>
+    <h1 class="page-title">
+      <mat-icon>dashboard</mat-icon>
+      Dashboard
+    </h1>
+    <p class="dashboard-summary">
+      Keep an eye on suggestion flow, content imports, and link health from one place.
+    </p>
+    <div class="dashboard-hero-highlights">
+      <span class="hero-pill">
+        <mat-icon>insights</mat-icon>
+        Suggestion queue
+      </span>
+      <span class="hero-pill">
+        <mat-icon>sync</mat-icon>
+        Sync activity
+      </span>
+      <span class="hero-pill">
+        <mat-icon>monitor_heart</mat-icon>
+        System signals
+      </span>
+    </div>
+  </div>
+
   <div class="header-actions">
     <button
       mat-flat-button
@@ -23,9 +43,8 @@
       Import Data
     </button>
   </div>
-</div>
+</section>
 
-<!-- ── Loading ────────────────────────────────────────────────────── -->
 @if (loading) {
   <div class="center-spinner">
     <mat-spinner diameter="48"></mat-spinner>
@@ -33,11 +52,45 @@
 }
 
 @if (!loading && data) {
-  <app-system-summary></app-system-summary>
-  
-  <!-- ── Stat cards ────────────────────────────────────────────────── -->
-  <div class="stat-grid">
+  <section class="dashboard-overview-grid">
+    <app-system-summary></app-system-summary>
 
+    <section class="sync-banner" [class.no-sync]="!data.last_sync">
+      @if (data.last_sync) {
+        <div class="sync-copy">
+          <span class="sync-kicker">Latest sync</span>
+          <div class="sync-title-row">
+            <mat-icon>sync</mat-icon>
+            <h2>Fresh content is flowing in</h2>
+          </div>
+          <p>
+            <strong>{{ data.last_sync.source }}</strong> ran in {{ data.last_sync.mode }} mode and
+            synced {{ data.last_sync.items_synced | number }} items.
+          </p>
+          <span class="sync-meta">{{ data.last_sync.completed_at | date:'medium' }}</span>
+        </div>
+        <a mat-stroked-button routerLink="/jobs">
+          <mat-icon>visibility</mat-icon>
+          View Jobs
+        </a>
+      } @else {
+        <div class="sync-copy">
+          <span class="sync-kicker">Latest sync</span>
+          <div class="sync-title-row">
+            <mat-icon>sync_disabled</mat-icon>
+            <h2>No completed syncs yet</h2>
+          </div>
+          <p>Import data to start filling the dashboard with live site activity.</p>
+        </div>
+        <a mat-flat-button color="primary" routerLink="/jobs">
+          <mat-icon>upload_file</mat-icon>
+          Import Data
+        </a>
+      }
+    </section>
+  </section>
+
+  <div class="stat-grid">
     @if (data.open_broken_links > 0) {
       <mat-card class="stat-card stat-card-warning" routerLink="/link-health" tabindex="0">
         <div class="stat-icon warn">
@@ -46,6 +99,7 @@
         <div>
           <div class="stat-value">{{ data.open_broken_links | number }}</div>
           <div class="stat-label">Open broken links</div>
+          <div class="stat-note">Needs cleanup before users hit dead ends</div>
         </div>
       </mat-card>
     }
@@ -57,6 +111,7 @@
       <div>
         <div class="stat-value">{{ data.suggestion_counts.pending | number }}</div>
         <div class="stat-label">Pending review</div>
+        <div class="stat-note">Needs a decision next</div>
       </div>
     </mat-card>
 
@@ -67,6 +122,7 @@
       <div>
         <div class="stat-value">{{ data.suggestion_counts.approved | number }}</div>
         <div class="stat-label">Approved</div>
+        <div class="stat-note">Ready for publishing work</div>
       </div>
     </mat-card>
 
@@ -76,7 +132,8 @@
       </div>
       <div>
         <div class="stat-value">{{ data.suggestion_counts.applied | number }}</div>
-        <div class="stat-label">Applied (live links)</div>
+        <div class="stat-label">Applied live links</div>
+        <div class="stat-note">Already showing on site</div>
       </div>
     </mat-card>
 
@@ -87,141 +144,121 @@
       <div>
         <div class="stat-value">{{ data.content_count | number }}</div>
         <div class="stat-label">Content items</div>
+        <div class="stat-note">Available for matching</div>
       </div>
     </mat-card>
-
   </div>
 
-  <!-- ── Last sync banner ─────────────────────────────────────────── -->
-  @if (data.last_sync) {
-    <div class="sync-banner">
-      <mat-icon>sync</mat-icon>
-      <span>
-        Last sync: <strong>{{ data.last_sync.source }}</strong>
-        ({{ data.last_sync.mode }}) —
-        {{ data.last_sync.items_synced | number }} items —
-        {{ data.last_sync.completed_at | date:'medium' }}
-      </span>
-    </div>
-  } @else {
-    <div class="sync-banner no-sync">
-      <mat-icon>sync_disabled</mat-icon>
-      <span>No completed syncs yet. <a routerLink="/jobs">Import data</a> to get started.</span>
-    </div>
-  }
-
-  <!-- ── Recent pipeline runs ─────────────────────────────────────── -->
-  <mat-card class="runs-card">
-    <mat-card-header>
-      <mat-icon mat-card-avatar>history</mat-icon>
-      <mat-card-title>Recent Pipeline Runs</mat-card-title>
-      <mat-card-subtitle>Last {{ data.pipeline_runs.length }} run(s)</mat-card-subtitle>
-    </mat-card-header>
-    <mat-card-content>
-
-      @if (data.pipeline_runs.length === 0) {
-        <div class="empty-state">
-          <div class="empty-icon-wrap">
-            <mat-icon>not_started</mat-icon>
-          </div>
-          <h3>No runs yet</h3>
-          <p>Click <strong>Run Pipeline</strong> above to generate your first suggestions.</p>
-        </div>
-      } @else {
-        <table mat-table [dataSource]="data.pipeline_runs" [trackBy]="trackByRunId" class="runs-table">
-
-          <ng-container matColumnDef="run_id">
-            <th mat-header-cell *matHeaderCellDef>Run ID</th>
-            <td mat-cell *matCellDef="let r">
-              <code class="run-id">{{ r.run_id.slice(0, 8) }}</code>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="run_state">
-            <th mat-header-cell *matHeaderCellDef>State</th>
-            <td mat-cell *matCellDef="let r">
-              <span class="state-chip state-{{ r.run_state }}">
-                <mat-icon class="state-icon" [class.spinning]="r.run_state === 'running'">
-                  {{ stateIcon(r.run_state) }}
-                </mat-icon>
-                {{ r.run_state }}
-              </span>
-            </td>
-          </ng-container>
-
-          <ng-container matColumnDef="suggestions_created">
-            <th mat-header-cell *matHeaderCellDef>Suggestions</th>
-            <td mat-cell *matCellDef="let r">{{ r.suggestions_created | number }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="destinations_processed">
-            <th mat-header-cell *matHeaderCellDef>Destinations</th>
-            <td mat-cell *matCellDef="let r">{{ r.destinations_processed | number }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="duration_display">
-            <th mat-header-cell *matHeaderCellDef>Duration</th>
-            <td mat-cell *matCellDef="let r">{{ r.duration_display ?? '—' }}</td>
-          </ng-container>
-
-          <ng-container matColumnDef="created_at">
-            <th mat-header-cell *matHeaderCellDef>Started</th>
-            <td mat-cell *matCellDef="let r">{{ r.created_at | date:'short' }}</td>
-          </ng-container>
-
-          <tr mat-header-row *matHeaderRowDef="runColumns"></tr>
-          <tr mat-row *matRowDef="let r; columns: runColumns;"></tr>
-        </table>
-      }
-
-    </mat-card-content>
-    <mat-card-actions align="end">
-      <button mat-button routerLink="/review">
-        <mat-icon>rate_review</mat-icon>
-        Review suggestions
-      </button>
-    </mat-card-actions>
-  </mat-card>
-
-  <!-- ── Recent imports ────────────────────────────────────────────── -->
-  <mat-card class="imports-card">
-    <mat-card-header>
-      <mat-icon mat-card-avatar>upload_file</mat-icon>
-      <mat-card-title>Recent Imports</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-
-      @if (data.recent_imports.length === 0) {
-        <div class="empty-state">
-          <div class="empty-icon-wrap">
-            <mat-icon>cloud_upload</mat-icon>
-          </div>
-          <h3>No imports yet</h3>
-          <p>Use the <a routerLink="/jobs">Jobs page</a> to upload a JSONL file.</p>
-        </div>
-      } @else {
-        <div class="import-list">
-          @for (job of data.recent_imports; track job.job_id) {
-            <div class="import-row">
-              <span class="import-source">{{ job.source }}</span>
-              <span class="import-mode badge">{{ job.mode }}</span>
-              <span class="import-status state-chip state-{{ job.status }}">
-                {{ job.status }}
-              </span>
-              <span class="import-count">{{ job.items_synced | number }} items</span>
-              <span class="import-date text-muted">{{ job.created_at | date:'short' }}</span>
+  <section class="dashboard-section-grid">
+    <mat-card class="runs-card dashboard-panel">
+      <mat-card-header>
+        <mat-icon mat-card-avatar>history</mat-icon>
+        <mat-card-title>Recent Pipeline Runs</mat-card-title>
+        <mat-card-subtitle>Last {{ data.pipeline_runs.length }} run(s)</mat-card-subtitle>
+      </mat-card-header>
+      <mat-card-content>
+        @if (data.pipeline_runs.length === 0) {
+          <div class="empty-state compact-empty-state">
+            <div class="empty-icon-wrap">
+              <mat-icon>not_started</mat-icon>
             </div>
-          }
-        </div>
-      }
+            <h3>No runs yet</h3>
+            <p>Click <strong>Run Pipeline</strong> above to generate your first suggestions.</p>
+          </div>
+        } @else {
+          <div class="table-shell">
+            <table mat-table [dataSource]="data.pipeline_runs" [trackBy]="trackByRunId" class="runs-table">
+              <ng-container matColumnDef="run_id">
+                <th mat-header-cell *matHeaderCellDef>Run ID</th>
+                <td mat-cell *matCellDef="let r">
+                  <code class="run-id">{{ r.run_id.slice(0, 8) }}</code>
+                </td>
+              </ng-container>
 
-    </mat-card-content>
-    <mat-card-actions align="end">
-      <button mat-button routerLink="/jobs">
-        <mat-icon>more_horiz</mat-icon>
-        All jobs
-      </button>
-    </mat-card-actions>
-  </mat-card>
+              <ng-container matColumnDef="run_state">
+                <th mat-header-cell *matHeaderCellDef>State</th>
+                <td mat-cell *matCellDef="let r">
+                  <span class="state-chip state-{{ r.run_state }}">
+                    <mat-icon class="state-icon" [class.spinning]="r.run_state === 'running'">
+                      {{ stateIcon(r.run_state) }}
+                    </mat-icon>
+                    {{ r.run_state }}
+                  </span>
+                </td>
+              </ng-container>
 
-} <!-- end !loading && data -->
+              <ng-container matColumnDef="suggestions_created">
+                <th mat-header-cell *matHeaderCellDef>Suggestions</th>
+                <td mat-cell *matCellDef="let r">{{ r.suggestions_created | number }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="destinations_processed">
+                <th mat-header-cell *matHeaderCellDef>Destinations</th>
+                <td mat-cell *matCellDef="let r">{{ r.destinations_processed | number }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="duration_display">
+                <th mat-header-cell *matHeaderCellDef>Duration</th>
+                <td mat-cell *matCellDef="let r">{{ r.duration_display ?? '-' }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="created_at">
+                <th mat-header-cell *matHeaderCellDef>Started</th>
+                <td mat-cell *matCellDef="let r">{{ r.created_at | date:'short' }}</td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="runColumns"></tr>
+              <tr mat-row *matRowDef="let r; columns: runColumns;"></tr>
+            </table>
+          </div>
+        }
+      </mat-card-content>
+      <mat-card-actions align="end">
+        <button mat-button routerLink="/review">
+          <mat-icon>rate_review</mat-icon>
+          Review suggestions
+        </button>
+      </mat-card-actions>
+    </mat-card>
+
+    <mat-card class="imports-card dashboard-panel">
+      <mat-card-header>
+        <mat-icon mat-card-avatar>upload_file</mat-icon>
+        <mat-card-title>Recent Imports</mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        @if (data.recent_imports.length === 0) {
+          <div class="empty-state compact-empty-state">
+            <div class="empty-icon-wrap">
+              <mat-icon>cloud_upload</mat-icon>
+            </div>
+            <h3>No imports yet</h3>
+            <p>Use the <a routerLink="/jobs">Jobs page</a> to upload a JSONL file.</p>
+          </div>
+        } @else {
+          <div class="import-list">
+            @for (job of data.recent_imports; track job.job_id) {
+              <div class="import-row">
+                <div class="import-primary">
+                  <span class="import-source">{{ job.source }}</span>
+                  <span class="import-mode badge">{{ job.mode }}</span>
+                </div>
+                <span class="import-status state-chip state-{{ job.status }}">
+                  {{ job.status }}
+                </span>
+                <span class="import-count">{{ job.items_synced | number }} items</span>
+                <span class="import-date text-muted">{{ job.created_at | date:'short' }}</span>
+              </div>
+            }
+          </div>
+        }
+      </mat-card-content>
+      <mat-card-actions align="end">
+        <button mat-button routerLink="/jobs">
+          <mat-icon>more_horiz</mat-icon>
+          All jobs
+        </button>
+      </mat-card-actions>
+    </mat-card>
+  </section>
+}

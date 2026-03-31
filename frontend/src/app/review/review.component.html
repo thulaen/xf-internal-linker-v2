@@ -1,14 +1,32 @@
-<div class="review-controls-surface">
-  <div class="page-header">
-    <div class="header-left">
-      <h1 class="page-title">
-        <mat-icon>rate_review</mat-icon>
-        Review
-      </h1>
-      @if (totalCount > 0) {
-        <span class="count-badge">{{ totalCount }}</span>
-      }
+<section class="review-shell">
+  <section class="review-hero">
+    <div class="review-hero-copy">
+      <span class="review-kicker">Suggestion workspace</span>
+      <div class="header-left">
+        <h1 class="page-title">
+          <mat-icon>rate_review</mat-icon>
+          Review
+        </h1>
+        @if (totalCount > 0) {
+          <span class="count-badge">{{ totalCount }}</span>
+        }
+      </div>
+      <p class="review-summary">
+        Sort the strongest ideas first, inspect the host sentence, and decide what should go live.
+      </p>
+      <div class="review-status-overview">
+        @for (tab of statusTabs; track tab.value) {
+          <button
+            class="status-overview-pill"
+            [class.active]="statusFilter === tab.value"
+            (click)="setStatus(tab.value)"
+          >
+            {{ tab.label }}
+          </button>
+        }
+      </div>
     </div>
+
     <button
       mat-flat-button
       color="primary"
@@ -22,55 +40,41 @@
       }
       Run Pipeline
     </button>
-  </div>
+  </section>
 
-  <!-- ── Status filters (Pill Group) ────────────────────────────── -->
-  <div class="filter-group-container">
-    <div class="filter-group">
-      @for (tab of statusTabs; track tab.value) {
-        <button
-          [class.active]="statusFilter === tab.value"
-          (click)="setStatus(tab.value)"
-        >
-          {{ tab.label }}
-        </button>
-      }
+  <div class="review-controls-surface">
+    <div class="filter-bar">
+      <mat-form-field appearance="outline" class="search-field">
+        <mat-icon matPrefix>search</mat-icon>
+        <input
+          matInput
+          placeholder="Search..."
+          [(ngModel)]="searchQuery"
+          (keydown.enter)="onSearch()"
+        />
+        @if (searchQuery) {
+          <button matSuffix mat-icon-button (click)="clearSearch()">
+            <mat-icon>close</mat-icon>
+          </button>
+        }
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="sort-field">
+        <mat-label>Sort by</mat-label>
+        <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
+          @for (opt of sortOptions; track opt.value) {
+            <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
+        Same silo only
+      </mat-checkbox>
     </div>
   </div>
+</section>
 
-  <!-- ── Filter bar ───────────────────────────────────────────────── -->
-  <div class="filter-bar">
-    <mat-form-field appearance="outline" class="search-field">
-      <mat-icon matPrefix>search</mat-icon>
-      <input
-        matInput
-        placeholder="Search..."
-        [(ngModel)]="searchQuery"
-        (keydown.enter)="onSearch()"
-      />
-      @if (searchQuery) {
-        <button matSuffix mat-icon-button (click)="clearSearch()">
-          <mat-icon>close</mat-icon>
-        </button>
-      }
-    </mat-form-field>
-
-    <mat-form-field appearance="outline" class="sort-field">
-      <mat-label>Sort by</mat-label>
-      <mat-select [(ngModel)]="sortBy" (ngModelChange)="onSortChange()">
-        @for (opt of sortOptions; track opt.value) {
-          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
-
-    <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
-      Same silo only
-    </mat-checkbox>
-  </div>
-</div>
-
-<!-- ── Batch toolbar (visible when items selected) ─────────────── -->
 @if (selectedIds.size > 0) {
   <div class="batch-bar">
     <span class="batch-count">{{ selectedIds.size }} selected</span>
@@ -94,14 +98,12 @@
   </div>
 }
 
-<!-- ── Loading spinner ──────────────────────────────────────────── -->
 @if (loading) {
   <div class="loading-row">
     <mat-spinner diameter="36"></mat-spinner>
   </div>
 }
 
-<!-- ── Empty state ──────────────────────────────────────────────── -->
 @if (!loading && suggestions.length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
@@ -126,9 +128,7 @@
   </div>
 }
 
-<!-- ── Suggestion cards ─────────────────────────────────────────── -->
 @if (!loading && suggestions.length > 0) {
-  <!-- Select-all row -->
   <div class="select-all-row">
     <mat-checkbox
       [checked]="allSelected"
@@ -149,7 +149,6 @@
         [class.status-applied]="s.status === 'applied'"
         (click)="openDetail(s)"
       >
-        <!-- Card header row -->
         <div class="card-header" (click)="$event.stopPropagation()">
           <mat-checkbox
             [checked]="isSelected(s.suggestion_id)"
@@ -166,7 +165,6 @@
           <span class="card-date">{{ s.created_at | date:'MMM d' }}</span>
         </div>
 
-        <!-- Destination -->
         <div class="card-destination">
           <mat-icon>arrow_forward</mat-icon>
           <span class="destination-title">{{ s.destination_title }}</span>
@@ -185,7 +183,6 @@
           }
         </div>
 
-        <!-- Host thread label -->
         <div class="card-host">
           <mat-icon>article</mat-icon>
           <span>{{ s.host_title }}</span>
@@ -201,14 +198,11 @@
           </span>
         </div>
 
-
-        <!-- Insertion sentence -->
         <p
           class="card-sentence"
           [innerHTML]="highlightAnchor(s.host_sentence_text, s)"
         ></p>
 
-        <!-- Anchor + confidence -->
         <div class="card-anchor-row">
           <mat-icon class="anchor-icon">link</mat-icon>
           <span class="anchor-text">{{ s.anchor_edited || s.anchor_phrase }}</span>
@@ -224,7 +218,6 @@
           </div>
         }
 
-        <!-- Actions row -->
         <div class="card-actions" (click)="$event.stopPropagation()">
           @if (s.status === 'pending' || s.status === 'rejected') {
             <button
@@ -256,7 +249,7 @@
           @if (s.status === 'approved') {
             <span class="approved-label">
               <mat-icon>check_circle</mat-icon>
-              Approved — add to forum manually
+              Approved - add to forum manually
             </span>
           }
           <span class="spacer"></span>
@@ -268,7 +261,6 @@
     }
   </div>
 
-  <!-- ── Paginator ───────────────────────────────────────────────── -->
   <mat-paginator
     [length]="totalCount"
     [pageSize]="pageSize"

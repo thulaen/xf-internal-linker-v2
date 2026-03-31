@@ -1,12 +1,39 @@
-// ── Page header ───────────────────────────────────────────────────
-
-.page-header {
+.review-shell {
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  gap: 22px;
+}
+
+.review-hero {
+  display: flex;
+  align-items: flex-start;
   justify-content: space-between;
-  margin-bottom: 20px;
-  gap: 16px;
+  gap: 20px;
   flex-wrap: wrap;
+  padding: 26px 28px;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top right, rgb(37 99 235 / 0.08), transparent 32%),
+    linear-gradient(135deg, #ffffff 0%, #f9fbff 52%, #eef4ff 100%);
+  border: 1px solid rgb(148 163 184 / 0.14);
+  box-shadow: 0 18px 36px rgb(15 23 42 / 0.06);
+}
+
+.review-hero-copy {
+  max-width: 760px;
+}
+
+.review-kicker {
+  display: inline-flex;
+  margin-bottom: 14px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgb(37 99 235 / 0.08);
+  color: #1d4ed8;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .header-left {
@@ -33,72 +60,74 @@
 }
 
 .count-badge {
-  background: var(--color-primary);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
   color: var(--color-text-on-dark);
   font-size: 12px;
   font-weight: 700;
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: var(--radius-pill);
   min-width: 24px;
   text-align: center;
 }
 
-// ── Status filters (Pill Group) ───────────────────────────────────
-.filter-group-container {
-  display: flex;
-  justify-content: flex-start;
-  margin-bottom: 32px;
+.review-summary {
+  max-width: 58ch;
+  margin: 12px 0 0;
+  color: var(--color-text-secondary);
+  line-height: 1.7;
 }
 
-.filter-group {
+.review-status-overview {
   display: flex;
-  gap: 0;
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  padding: 4px;
-  box-shadow: var(--shadow-sm);
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
+}
 
-  button {
-    border-radius: 6px;
-    border: none;
-    background: none;
-    padding: 6px 20px;
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text-secondary);
-    cursor: pointer;
-    transition: all 0.2s ease;
+.status-overview-pill {
+  border: 1px solid rgb(148 163 184 / 0.18);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.86);
+  padding: 9px 14px;
+  color: #334155;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
 
-    &.active {
-      background: var(--color-primary);
-      color: var(--color-text-on-dark);
-      box-shadow: 0 2px 4px rgba(0, 102, 204, 0.2);
-    }
+  &:hover {
+    transform: translateY(-1px);
+    border-color: rgb(37 99 235 / 0.28);
+  }
 
-    &:hover:not(.active) {
-      background: var(--color-bg-faint);
-      color: var(--color-text-primary);
-    }
+  &.active {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: white;
+    box-shadow: 0 10px 18px rgb(37 99 235 / 0.20);
   }
 }
 
-// ── Filter bar ────────────────────────────────────────────────────
-
 .filter-bar {
   display: flex;
-  gap: 34px; // Fibonacci
-  margin-bottom: 48px; // Fibonacci-like expansion
+  gap: 18px;
+  margin-bottom: 12px;
   flex-wrap: wrap;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid rgb(148 163 184 / 0.14);
+  border-radius: 22px;
+  background: linear-gradient(180deg, #ffffff, #f8fbff);
+  box-shadow: 0 14px 28px rgb(15 23 42 / 0.04);
 }
 
 .search-field {
   flex: 1;
-  min-width: 220px;
+  min-width: 260px;
 }
 
 .sort-field {
-  width: 200px;
+  width: 220px;
 }
 
 .filter-bar mat-checkbox {
@@ -106,17 +135,15 @@
   padding: 0 4px;
 }
 
-// ── Batch bar ─────────────────────────────────────────────────────
-
 .batch-bar {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--color-blue-50);
-  border: 1px solid var(--color-blue-100);
-  border-radius: var(--radius-md);
-  padding: 8px 16px;
-  margin-bottom: 12px;
+  background: linear-gradient(180deg, #eaf3ff, #dbeafe);
+  border: 1px solid rgb(96 165 250 / 0.25);
+  border-radius: 18px;
+  padding: 10px 16px;
+  margin-bottom: 18px;
   flex-wrap: wrap;
 }
 
@@ -126,8 +153,6 @@
   color: var(--color-primary-dark);
   margin-right: 4px;
 }
-
-// ── Loading / empty ───────────────────────────────────────────────
 
 .loading-row {
   display: flex;
@@ -157,53 +182,50 @@
   p  { margin: 0; font-size: 14px; }
 }
 
-// ── Select all row ────────────────────────────────────────────────
-
 .select-all-row {
   padding: 4px 0 8px;
   font-size: 13px;
 }
 
-// ── Suggestion cards ──────────────────────────────────────────────
-
 .cards-list {
-  display: flex;
-  flex-direction: column;
-  gap: 24px; // Fibonacci
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+
+  @media (max-width: 1080px) {
+    grid-template-columns: 1fr;
+  }
 }
 
 .suggestion-card {
-  background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 24px 32px;
+  background: linear-gradient(180deg, #ffffff 0%, #f9fbff 100%);
+  border: 1px solid rgb(148 163 184 / 0.14);
+  border-radius: 24px;
+  padding: 22px 24px;
   cursor: pointer;
-  transition: box-shadow 0.15s, border-color 0.15s;
+  transition: box-shadow 0.15s, border-color 0.15s, transform 0.15s;
 
   &:hover {
-    box-shadow: var(--shadow-md);
-    border-color: var(--color-primary);
+    transform: translateY(-2px);
+    box-shadow: 0 16px 32px rgb(15 23 42 / 0.08);
+    border-color: rgb(37 99 235 / 0.28);
   }
 
   &.selected {
-    border-color: var(--color-primary);
-    background: rgba(66, 133, 244, 0.03);
+    border-color: rgb(37 99 235 / 0.45);
+    background: linear-gradient(180deg, #f8fbff 0%, #eef5ff 100%);
   }
-
-  // Removed border-left status indicators
 }
-
-// ── Card header row ───────────────────────────────────────────────
 
 .card-header {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-bottom: 10px;
+  margin-bottom: 14px;
 }
 
 .status-pill {
-  padding: 2px 8px;
+  padding: 4px 10px;
   border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 700;
@@ -220,7 +242,7 @@
 }
 
 .score-chip {
-  padding: 2px 8px;
+  padding: 4px 8px;
   border-radius: var(--radius-pill);
   font-size: 11px;
   font-weight: 700;
@@ -244,13 +266,11 @@
   color: var(--color-text-muted);
 }
 
-// ── Destination / host rows ───────────────────────────────────────
-
 .card-destination {
   display: flex;
   align-items: center;
-  gap: 6px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 8px;
 
   mat-icon {
     font-size: 16px;
@@ -262,8 +282,8 @@
 }
 
 .destination-title {
-  font-size: 14px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 700;
   color: var(--color-text-dark-1);
   flex: 1;
   white-space: nowrap;
@@ -287,7 +307,7 @@
   gap: 6px;
   font-size: 12px;
   color: var(--color-text-muted);
-  margin-bottom: 10px;
+  margin-bottom: 12px;
 
   mat-icon { font-size: 14px; width: 14px; height: 14px; }
 }
@@ -300,12 +320,12 @@
 }
 
 .silo-pill {
-  border: 1px solid var(--color-border);
+  border: 1px solid rgb(148 163 184 / 0.18);
   border-radius: var(--radius-pill);
-  padding: 3px 10px;
+  padding: 4px 10px;
   font-size: 11px;
   color: var(--color-text-muted);
-  background: var(--color-bg-faint);
+  background: rgb(248 250 252 / 0.95);
 
   &.same {
     border-color: var(--color-success);
@@ -314,17 +334,15 @@
   }
 }
 
-// ── Sentence ──────────────────────────────────────────────────────
-
 .card-sentence {
   font-size: 13px;
   line-height: 1.6;
   color: var(--color-text-dark-2);
-  margin: 10px 0;
-  padding: 10px 14px;
-  background: var(--color-bg-faint);
-  border-radius: var(--radius-sm);
-  border-left: 3px solid var(--color-border);
+  margin: 12px 0;
+  padding: 14px 16px;
+  background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+  border-radius: 16px;
+  border-left: 3px solid rgb(148 163 184 / 0.35);
 
   mark {
     background: rgba(66, 133, 244, 0.18);
@@ -334,13 +352,12 @@
   }
 }
 
-// ── Anchor ────────────────────────────────────────────────────────
-
 .card-anchor-row {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
+  flex-wrap: wrap;
 }
 
 .anchor-icon {
@@ -381,14 +398,13 @@
   mat-icon { font-size: 14px; width: 14px; height: 14px; }
 }
 
-// ── Card actions ──────────────────────────────────────────────────
-
 .card-actions {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid rgb(148 163 184 / 0.14);
   flex-wrap: wrap;
 }
 
@@ -401,4 +417,21 @@
   font-weight: 500;
 
   mat-icon { font-size: 16px; width: 16px; height: 16px; }
+}
+
+@media (max-width: 720px) {
+  .review-hero {
+    padding: 22px 20px;
+    border-radius: 20px;
+  }
+
+  .filter-bar {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .suggestion-card {
+    padding: 18px;
+    border-radius: 20px;
+  }
 }

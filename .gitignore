@@ -43,6 +43,8 @@ node_modules/
 frontend/dist/
 frontend/.angular/
 frontend/coverage/
+frontend/playwright-report/
+frontend/test-results/
 
 # Docker
 docker-compose.override.yml
