@@ -1279,6 +1279,7 @@ class SiloSettingsView(APIView):
     GET  /api/settings/silos/ - returns persisted silo-ranking configuration
     PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_silo_settings())
@@ -1328,6 +1329,7 @@ class WeightedAuthoritySettingsView(APIView):
     GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
     PUT  /api/settings/weighted-authority/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_weighted_authority_settings())
@@ -1397,6 +1399,7 @@ class LinkFreshnessSettingsView(APIView):
     GET  /api/settings/link-freshness/ - returns Link Freshness settings
     PUT  /api/settings/link-freshness/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_link_freshness_settings())
@@ -1482,6 +1485,7 @@ class PhraseMatchingSettingsView(APIView):
     GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
     PUT  /api/settings/phrase-matching/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_phrase_matching_settings())
@@ -1536,6 +1540,7 @@ class LearnedAnchorSettingsView(APIView):
     GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
     PUT  /api/settings/learned-anchor/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_learned_anchor_settings())
@@ -1590,6 +1595,7 @@ class RareTermPropagationSettingsView(APIView):
     GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_rare_term_propagation_settings())
@@ -1644,6 +1650,7 @@ class FieldAwareRelevanceSettingsView(APIView):
     GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
     PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_field_aware_relevance_settings())
@@ -1703,6 +1710,7 @@ class GA4GSCSettingsView(APIView):
     GET  /api/settings/ga4-gsc/ - returns GA4/GSC placeholder settings
     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_ga4_gsc_settings())
@@ -1742,6 +1750,7 @@ class WordPressSettingsView(APIView):
     GET  /api/settings/wordpress/ - returns saved WordPress sync settings
     PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_wordpress_settings())
@@ -2057,6 +2066,7 @@ class ClickDistanceSettingsView(APIView):
     GET /api/settings/click-distance/
     PUT /api/settings/click-distance/
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_click_distance_settings())
@@ -2099,6 +2109,7 @@ class FeedbackRerankSettingsView(APIView):
     GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
     PUT  /api/settings/explore-exploit/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_feedback_rerank_settings())
@@ -2150,6 +2161,7 @@ class ClusteringSettingsView(APIView):
     GET  /api/settings/clustering/ - returns FR-014 clustering configuration
     PUT  /api/settings/clustering/ - validates and persists clustering configuration
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_clustering_settings())
@@ -2211,6 +2223,7 @@ class SlateDiversitySettingsView(APIView):
     GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
     PUT  /api/settings/slate-diversity/ - validates and persists those settings
     """
+    permission_classes = [AllowAny]
 
     def get(self, request):
         return Response(get_slate_diversity_settings())

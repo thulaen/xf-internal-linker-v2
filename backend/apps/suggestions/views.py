@@ -13,6 +13,7 @@ from django.db import transaction
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -45,6 +46,7 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     GET  /api/pipeline-runs/{id}/    — full detail with progress
     POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
     """
+    permission_classes = [AllowAny]
 
     queryset = PipelineRun.objects.order_by("-created_at")
     serializer_class = PipelineRunSerializer
@@ -102,14 +104,8 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
 class SuggestionViewSet(viewsets.ModelViewSet):
     """
     List, retrieve, and review link suggestions.
-
-    GET  /api/suggestions/               — paginated list with filters
-    GET  /api/suggestions/{id}/          — full detail
-    POST /api/suggestions/{id}/approve/  — approve a suggestion
-    POST /api/suggestions/{id}/reject/   — reject a suggestion
-    POST /api/suggestions/{id}/apply/    — mark as manually applied
-    POST /api/suggestions/batch_action/  — approve/reject/skip many at once
     """
+    permission_classes = [AllowAny]
 
     queryset = (
         Suggestion.objects
@@ -266,10 +262,8 @@ class SuggestionViewSet(viewsets.ModelViewSet):
 class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
     """
     List pipeline skip diagnostics for the 'why no suggestion?' explorer.
-
-    GET /api/diagnostics/                    — all diagnostics
-    GET /api/diagnostics/?pipeline_run={id}  — filter by run
     """
+    permission_classes = [AllowAny]
 
     queryset = PipelineDiagnostic.objects.select_related("destination", "pipeline_run")
     serializer_class = PipelineDiagnosticSerializer
@@ -280,13 +274,8 @@ class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
 class WeightPresetViewSet(viewsets.ModelViewSet):
     """
     CRUD for weight presets + apply action.
-
-    GET    /api/weight-presets/           — list all presets
-    POST   /api/weight-presets/           — create a user preset
-    PATCH  /api/weight-presets/{id}/      — update a user preset (403 for system)
-    DELETE /api/weight-presets/{id}/      — delete a user preset (403 for system)
-    POST   /api/weight-presets/{id}/apply/ — apply preset weights to AppSetting
     """
+    permission_classes = [AllowAny]
 
     queryset = WeightPreset.objects.all()
     serializer_class = WeightPresetSerializer
@@ -338,10 +327,8 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
 class WeightAdjustmentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Read-only list of all weight adjustment events.
-
-    GET  /api/weight-history/       — all events, newest first
-    POST /api/weight-history/{id}/rollback/ — roll back to previous_weights
     """
+    permission_classes = [AllowAny]
 
     queryset = WeightAdjustmentHistory.objects.select_related("preset").order_by("-created_at")
     serializer_class = WeightAdjustmentHistorySerializer

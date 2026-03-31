@@ -72,46 +72,47 @@
 }
 
 .summary-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 20px 24px;
+  padding: 0; // Padding handled by mat-card-content
   border-radius: 8px;
-  border: 1px solid var(--color-border); // Thin light gray border
   background: var(--color-bg-white);
   transition: all 0.2s ease;
-  box-shadow: none;
+  box-shadow: var(--shadow-sm);
+
+  mat-card-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 24px;
+  }
 
   &:hover {
-    box-shadow: 0 1px 6px rgba(32, 33, 36, 0.28); // Subtle GSC hover effect
-    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
   }
 
   strong {
-    font-size: 28px;
+    font-size: 32px;
     line-height: 1.2;
-    color: var(--color-text-primary);
+    color: var(--color-text-dark-1);
   }
 }
 
 .summary-label {
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 500;
   color: var(--color-text-muted);
 }
 
 .summary-open {
-  background: var(--color-error-light);
-  border-color: var(--color-error);
+  border-top: 4px solid var(--color-error);
 }
 
 .summary-ignored {
-  background: var(--color-warning-light);
-  border-color: var(--color-warning);
+  border-top: 4px solid var(--color-warning);
 }
 
 .summary-fixed {
-  background: var(--color-success-light);
-  border-color: var(--color-success);
+  border-top: 4px solid var(--color-success);
 }
 
 .filter-bar {

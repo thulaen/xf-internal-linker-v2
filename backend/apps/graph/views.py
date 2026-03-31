@@ -9,6 +9,7 @@ from datetime import datetime
 from django.http import StreamingHttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
 
@@ -25,6 +26,7 @@ class BrokenLinkViewSet(viewsets.ModelViewSet):
     GET   /api/broken-links/export-csv/
     """
 
+    permission_classes = [AllowAny]
     serializer_class = BrokenLinkSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_fields = ["status", "http_status"]
