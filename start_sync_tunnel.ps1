@@ -1,5 +1,6 @@
 # XF Linker V2 — Cloudflare Sync Tunnel Watcher
 # Starts the named tunnel when Docker Desktop opens, stops it when Docker closes.
+# Runs fully hidden — no windows. Logs to $env:TEMP\xf-tunnel.log
 # Loops forever. Safe to Ctrl+C at any time.
 #
 # PRE-REQUISITE: Run setup_cloudflare_tunnel.ps1 once before using this.
@@ -32,27 +33,42 @@ if (-not (Test-Path $configFile)) {
     exit 1
 }
 
-Write-Host "Using cloudflared : $cloudflared" -ForegroundColor Cyan
-Write-Host "Tunnel name       : $tunnelName" -ForegroundColor Cyan
-Write-Host "Webhook URL       : $webhookUrl" -ForegroundColor Cyan
-Write-Host ""
+$logFile = "$env:TEMP\xf-tunnel.log"
+
+function Write-Log($msg) {
+    $line = "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss')  $msg"
+    Add-Content -Path $logFile -Value $line -ErrorAction SilentlyContinue
+}
+
+Write-Log "Watcher started. cloudflared=$cloudflared tunnel=$tunnelName"
 
 # ── Cleanup on exit (Ctrl+C) ──────────────────────────────────────────────────
 $tunnelProcess = $null
 
 function Stop-Tunnel {
     if ($tunnelProcess -ne $null -and -not $tunnelProcess.HasExited) {
-        Write-Host ""
-        Write-Host "Stopping tunnel..." -ForegroundColor Yellow
+        Write-Log "Stopping tunnel (pid=$($tunnelProcess.Id))..."
         Stop-Process -Id $tunnelProcess.Id -Force -ErrorAction SilentlyContinue
         $script:tunnelProcess = $null
     }
 }
 
+function Start-Tunnel {
+    Write-Log "Starting cloudflared tunnel..."
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName        = $cloudflared
+    $psi.Arguments       = "tunnel --config `"$configFile`" run `"$tunnelName`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow  = $true
+    $proc = [System.Diagnostics.Process]::Start($psi)
+    Write-Log "Tunnel started (pid=$($proc.Id))"
+    return $proc
+}
+
 $null = Register-EngineEvent -SourceIdentifier PowerShell.Exiting -Action { Stop-Tunnel }
 
 # ── Main loop ─────────────────────────────────────────────────────────────────
-Write-Host "XF Linker Tunnel Watcher started. Waiting for Docker Desktop..." -ForegroundColor Green
+Write-Log "Waiting for Docker Desktop..."
 
 while ($true) {
 
@@ -61,39 +77,27 @@ while ($true) {
         Start-Sleep -Seconds 5
     }
 
-    Write-Host ""
-    Write-Host "Docker Desktop detected. Starting Cloudflare tunnel..." -ForegroundColor Green
+    Write-Log "Docker Desktop detected. Starting tunnel..."
 
-    # ── Phase 2: Start the named tunnel in a new visible window ───────────────
-    $tunnelProcess = Start-Process `
-        -FilePath "powershell.exe" `
-        -ArgumentList "-NoExit", "-Command", "& '$cloudflared' tunnel --config '$configFile' run '$tunnelName'" `
-        -PassThru `
-        -WindowStyle Normal
+    # ── Phase 2: Start the tunnel fully hidden ────────────────────────────────
+    $tunnelProcess = Start-Tunnel
 
-    Write-Host ""
-    Write-Host "Tunnel is running." -ForegroundColor Cyan
-    Write-Host "Webhook URL (already set in XenForo): $webhookUrl" -ForegroundColor Yellow
-    Write-Host "Secret: MySuperSecretSync123" -ForegroundColor Yellow
-    Write-Host ""
+    Write-Log "Tunnel running (pid=$($tunnelProcess.Id))"
 
     # ── Phase 3: Watch for Docker Desktop to close ────────────────────────────
     while (Get-Process "Docker Desktop" -ErrorAction SilentlyContinue) {
-        # Also restart the tunnel if it died unexpectedly
+        # Restart the tunnel if it died unexpectedly
         if ($tunnelProcess.HasExited) {
-            Write-Host "Tunnel exited unexpectedly. Restarting..." -ForegroundColor Yellow
-            $tunnelProcess = Start-Process `
-                -FilePath "powershell.exe" `
-                -ArgumentList "-NoExit", "-Command", "& '$cloudflared' tunnel --config '$configFile' run '$tunnelName'" `
-                -PassThru `
-                -WindowStyle Normal
+            Write-Log "Tunnel exited unexpectedly. Restarting..."
+            $tunnelProcess = Start-Tunnel
+            Write-Log "Tunnel restarted (pid=$($tunnelProcess.Id))"
         }
         Start-Sleep -Seconds 10
     }
 
-    Write-Host "Docker closed. Tunnel stopped." -ForegroundColor Red
+    Write-Log "Docker Desktop closed. Stopping tunnel..."
     Stop-Tunnel
 
     # Loop back to Phase 1
-    Write-Host "Waiting for Docker Desktop to start again..." -ForegroundColor Green
+    Write-Log "Waiting for Docker Desktop to start again..."
 }
