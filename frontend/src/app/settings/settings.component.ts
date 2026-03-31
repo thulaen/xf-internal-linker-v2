@@ -568,6 +568,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   triggeringRTune = false;
 
   siloGroups: SiloGroup[] = [];
+  scopes: ScopeItem[] = [];
 
   newGroup: Pick<SiloGroup, 'name' | 'slug' | 'description' | 'display_order'> = {
     name: '',
