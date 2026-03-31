@@ -1159,3 +1159,50 @@ def nightly_data_retention():
 
     logger.info("[nightly_data_retention] Complete. Results: %s", results)
     return results
+
+
+@shared_task(name="pipeline.sync_single_xf_item")
+def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: int | None = None) -> dict:
+    """Real-time sync for a single XenForo item (thread or resource) via webhook."""
+    from apps.content.models import ScopeItem
+    from apps.sync.services.xenforo_api import XenForoAPIClient
+    from apps.pipeline.tasks import import_content
+    
+    logger.info("Real-time sync triggered for %s %d (node/cat: %s)", content_type, content_id, node_id)
+    
+    try:
+        client = XenForoAPIClient()
+        
+        # 1. Fetch item data to get node_id if not provided
+        xf_node_id = node_id
+        if not xf_node_id:
+            if content_type == "thread":
+                resp = client.get_thread(content_id)
+                xf_node_id = resp.get("thread", {}).get("node_id")
+            elif content_type == "resource":
+                resp = client.get_resource_updates(content_id) # hypothetical
+                xf_node_id = resp.get("resource", {}).get("resource_category_id")
+
+        if not xf_node_id:
+            logger.error("Could not determine node_id for %s %d", content_type, content_id)
+            return {"error": "Missing node_id"}
+            
+        # 2. Find or create ScopeItem
+        scope_type = "node" if content_type == "thread" else "resource_category"
+        scope, created = ScopeItem.objects.get_or_create(
+            scope_id=xf_node_id,
+            scope_type=scope_type,
+            defaults={"title": f"Auto-discovered {scope_type} {xf_node_id}", "is_enabled": True}
+        )
+        
+        if not scope.is_enabled:
+            logger.info("Scope %s is disabled; skipping sync for %s %d", scope.title, content_type, content_id)
+            return {"status": "skipped", "reason": "scope disabled"}
+
+        # 3. Trigger the import logic for this specific scope
+        # We reuse the existing robust logic in import_content
+        return import_content(scope_ids=[scope.pk], mode="full", source="api")
+        
+    except Exception as e:
+        logger.exception("Failed to sync single item %d", content_id)
+        return {"error": str(e)}

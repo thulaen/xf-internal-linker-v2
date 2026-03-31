@@ -97,3 +97,44 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SyncJob.objects.all()
     serializer_class = SyncJobSerializer
     lookup_field = "job_id"
+
+
+class XenForoWebhookView(APIView):
+    """
+    Real-time webhook receiver for XenForo forum events.
+    
+    POST /api/v1/sync/webhooks/xenforo/
+    Headers:
+        XF-Webhook-Secret: <your-configured-secret>
+        XF-Webhook-Event: thread_insert | post_update | etc.
+    """
+    permission_classes = [] # Public endpoint, handled by internal signature check
+    authentication_classes = []
+
+    def post(self, request):
+        from .services.webhooks import verify_xf_signature, process_xf_webhook
+        
+        # 1. Security Check
+        # XF puts the secret in the 'XF-Webhook-Secret' header
+        signature = request.headers.get("XF-Webhook-Secret")
+        # In some XF versions, it might be in the POST body or another header.
+        # We also support checking against the raw body if it's a signature.
+        if not verify_xf_signature(request.body.decode('utf-8'), signature):
+            return Response({"error": "Invalid webhook secret"}, status=403)
+
+        # 2. Extract Event Type
+        event_type = request.headers.get("XF-Webhook-Event")
+        if not event_type:
+            # Fallback to payload data if header is missing
+            event_type = request.data.get("event")
+            
+        if not event_type:
+            return Response({"error": "Missing event type"}, status=400)
+
+        # 3. Process the event asynchronously
+        success = process_xf_webhook(event_type, request.data)
+        
+        if success:
+            return Response({"status": "received", "event": event_type}, status=200)
+        else:
+            return Response({"status": "ignored", "event": event_type}, status=200)

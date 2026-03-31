@@ -355,6 +355,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 
 XENFORO_BASE_URL = env("XENFORO_BASE_URL", default="")
 XENFORO_API_KEY = env("XENFORO_API_KEY", default="")
+XENFORO_WEBHOOK_SECRET = env("XENFORO_WEBHOOK_SECRET", default="")
 
 
 # ── WordPress API (read-only, optional) ──────────────────────────

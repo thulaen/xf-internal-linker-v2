@@ -100,3 +100,6 @@ frontend/out-tsc/
 # Backend static files (build artifacts)
 backend/static/
 .claude/
+
+# Cloudflare Tunnel portable binary
+tools/cloudflared.exe

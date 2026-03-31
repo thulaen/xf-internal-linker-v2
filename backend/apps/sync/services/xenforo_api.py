@@ -63,6 +63,10 @@ class XenForoAPIClient:
         """Fetch a page of threads from a specific forum node."""
         return self._get("threads/", params={"node_id": node_id, "page": page})
 
+    def get_thread(self, thread_id: int) -> Dict[str, Any]:
+        """Fetch a single thread by ID."""
+        return self._get(f"threads/{thread_id}/")
+
     def get_posts(self, thread_id: int, page: int = 1) -> Dict[str, Any]:
         """Fetch a page of posts from a specific thread."""
         return self._get("posts/", params={"thread_id": thread_id, "page": page})

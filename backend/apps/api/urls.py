@@ -43,7 +43,7 @@ from apps.suggestions.views import (
     WeightAdjustmentHistoryViewSet,
     WeightPresetViewSet,
 )
-from apps.sync.views import ImportUploadView, SyncJobViewSet
+from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
 
 router = DefaultRouter()
 
@@ -65,6 +65,7 @@ urlpatterns = [
     path("", include("apps.core.urls")),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+    path("sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"),
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
     path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),
     path("settings/weighted-authority/", WeightedAuthoritySettingsView.as_view(), name="weighted-authority-settings"),
