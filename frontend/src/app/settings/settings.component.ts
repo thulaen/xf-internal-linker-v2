@@ -10,6 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import {
   FieldAwareRelevanceSettings,
@@ -577,6 +578,8 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
 @Component({
   selector: 'app-settings',
   standalone: true,
+  templateUrl: './settings.component.html',
+  styleUrls: ['./settings.component.scss'],
   imports: [
     CommonModule,
     DatePipe,
@@ -589,10 +592,9 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatInputModule,
     MatSelectModule,
     MatSnackBarModule,
+    MatTabsModule,
     MatTooltipModule,
   ],
-  templateUrl: './settings.component.html',
-  styleUrls: ['./settings.component.scss'],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private siloSvc = inject(SiloSettingsService);
@@ -619,6 +621,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
   recalculatingClustering = false;
   runningWordPressSync = false;
   creatingGroup = false;
+
+  // Tab persistence
+  selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
+
+  onTabChange(index: number): void {
+    this.selectedTabIndex = index;
+    localStorage.setItem('settings_active_tab', String(index));
+  }
 
   settings: SiloSettings = {
     mode: 'prefer_same_silo',
@@ -724,6 +734,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   siloGroups: SiloGroup[] = [];
   scopes: ScopeItem[] = [];
 
+
   newGroup: Pick<SiloGroup, 'name' | 'slug' | 'description' | 'display_order'> = {
     name: '',
     slug: '',
@@ -754,7 +765,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   get recommendedPreset(): WeightPreset | null {
-    return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase() === 'recommended') ?? null;
+    return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase().includes('recommended')) ?? null;
   }
 
   get matchedPreset(): WeightPreset | null {
@@ -767,12 +778,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   get currentFeatureCount(): number {
     return this.getFeatureSummary().filter((feature) => feature.currentEnabled).length;
-  }
-
-  get recommendedFeatureCount(): number {
-    const summary = this.getFeatureSummary();
-    if (!summary) return 0;
-    return summary.filter((feature) => feature.recommendedEnabled).length;
   }
 
   get currentOffFeatures(): string[] {
@@ -820,13 +825,35 @@ export class SettingsComponent implements OnInit, OnDestroy {
   tip(key: string): string {
     const t = SETTING_TOOLTIPS[key];
     if (!t) return `No tooltip defined for "${key}" - add an entry to SETTING_TOOLTIPS in settings.component.ts`;
-    return [
-      `What this changes: ${t.definition}`,
-      `What happens when you change it: ${t.impact}`,
-      `Good starting point: ${this.recommendedValueLabel(key) ?? t.default}`,
-      `Example: ${t.example}`,
-      `Safe range: ${t.range}`,
-    ].join('\n\n');
+    
+    const lines: string[] = [];
+    
+    // Add dynamic severity alerts
+    const currentValue = this.valueFor(key);
+    if (typeof currentValue === 'number') {
+      const severity = this.fieldSeverity(currentValue, key);
+      if (severity === 'warn') {
+        lines.push('⚠️ AMBER ALERT: This value is unusually strong. Monitor closely for over-optimized links.');
+      }
+      if (severity === 'danger') {
+        lines.push('🚨 RED ALERT: This value is in the risky range! It may cause unnatural link patterns.');
+      }
+    }
+
+    lines.push(`DEFINITION: ${t.definition}`);
+    lines.push(`IMPACT: ${t.impact}`);
+    lines.push(`RECOMMENDED: ${this.recommendedValueLabel(key) ?? t.default}`);
+    lines.push(`EXAMPLE: ${t.example}`);
+    lines.push(`VALID RANGE: ${t.range}`);
+    
+    return lines.join('\n\n');
+  }
+
+  valueFor(key: string): any {
+    const parts = key.split('.');
+    if (parts.length !== 2) return null;
+    const [section, field] = parts;
+    return (this as any)[section]?.[field];
   }
 
   fieldSeverity(value: number | undefined | null, key: string): FieldSeverity {
@@ -1411,6 +1438,62 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.savingWordPress = false;
         this.snack.open(error?.error?.detail || 'Failed to save WordPress settings', 'Dismiss', { duration: 4000 });
       },
+    });
+  }
+
+  saveAllSettings(): void {
+    this.savingSettings = true;
+    
+    const wordpressPayload: WordPressSettingsUpdate = {
+      base_url: this.wordpress.base_url.trim(),
+      username: this.wordpress.username.trim(),
+      sync_enabled: this.wordpress.sync_enabled,
+      sync_hour: Number(this.wordpress.sync_hour),
+      sync_minute: Number(this.wordpress.sync_minute),
+    };
+    if (this.wordpressPassword.trim()) {
+      wordpressPayload.app_password = this.wordpressPassword.trim();
+    }
+
+    forkJoin({
+      settings: this.siloSvc.updateSettings(this.settings),
+      authority: this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority),
+      freshness: this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness),
+      phrase: this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching),
+      learned: this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor),
+      rare: this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation),
+      relevance: this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance),
+      ga4: this.siloSvc.updateGA4GSCSettings(this.ga4Gsc),
+      click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
+      explore: this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank),
+      clustering: this.siloSvc.updateClusteringSettings(this.clustering),
+      slate: this.siloSvc.updateSlateDiversitySettings(this.slateDiversity),
+      wordpress: this.siloSvc.updateWordPressSettings(wordpressPayload)
+    }).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (results) => {
+        this.settings = results.settings;
+        this.weightedAuthority = results.authority;
+        this.linkFreshness = results.freshness;
+        this.phraseMatching = results.phrase;
+        this.learnedAnchor = results.learned;
+        this.rareTermPropagation = results.rare;
+        this.fieldAwareRelevance = results.relevance;
+        this.ga4Gsc = results.ga4;
+        this.clickDistance = results.click;
+        this.feedbackRerank = results.explore;
+        this.clustering = results.clustering;
+        this.slateDiversity = results.slate;
+        this.wordpress = results.wordpress;
+        this.wordpressPassword = '';
+        
+        this.savingSettings = false;
+        this.snack.open('All settings saved successfully', undefined, { duration: 3000 });
+        this.refreshCurrentWeights();
+      },
+      error: (err) => {
+        this.savingSettings = false;
+        this.snack.open(err?.error?.detail || 'One or more settings failed to save', 'Dismiss', { duration: 5000 });
+      }
     });
   }
 

@@ -61,11 +61,15 @@
           <span class="sync-kicker">Latest sync</span>
           <div class="sync-title-row">
             <mat-icon>sync</mat-icon>
-            <h2>Fresh content is flowing in</h2>
+            <h2>Content Synchronization</h2>
           </div>
           <p>
-            <strong>{{ data.last_sync.source }}</strong> ran in {{ data.last_sync.mode }} mode and
-            synced {{ data.last_sync.items_synced | number }} items.
+            <strong>{{ data.last_sync.source }}</strong> ran in {{ data.last_sync.mode }} mode.
+            @if (data.last_sync.items_synced > 0) {
+              Synced {{ data.last_sync.items_synced | number }} items.
+            } @else {
+              Your content is already up to date.
+            }
           </p>
           <span class="sync-meta">{{ data.last_sync.completed_at | date:'medium' }}</span>
         </div>

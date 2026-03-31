@@ -37,16 +37,12 @@
         Export CSV
       </button>
       <button
-        mat-flat-button
+        mat-stroked-button
         color="primary"
         [disabled]="scanning"
         (click)="startScan()"
       >
-        @if (scanning) {
-          <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
-        } @else {
-          <mat-icon>play_arrow</mat-icon>
-        }
+        <mat-icon>play_arrow</mat-icon>
         Scan Now
       </button>
     </div>

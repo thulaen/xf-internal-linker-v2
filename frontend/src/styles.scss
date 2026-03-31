@@ -82,7 +82,7 @@ mat-sidenav.app-sidenav,
   border-radius: var(--radius-md) !important; // 4px
   padding: 0 20px !important;
   box-shadow: none !important;
-  transition: background-color 0.15s ease-in-out !important;
+  transition: all 0.15s ease-in-out !important;
 
   &:hover {
     background-color: var(--cf-orange-5) !important;
@@ -92,6 +92,29 @@ mat-sidenav.app-sidenav,
     color: var(--cf-white) !important;
     margin-right: 8px !important;
   }
+}
+
+// Global Brand Overrides for MDC Buttons (Material 15+)
+.mat-mdc-button, .mat-mdc-outlined-button, .mat-mdc-stroked-button, .mat-mdc-flat-button {
+  &.mat-primary:not(:disabled) {
+    --mdc-filled-button-container-color: var(--cf-orange-6) !important;
+    --mdc-filled-button-label-text-color: var(--cf-white) !important;
+    --mdc-outlined-button-label-text-color: var(--cf-orange-6) !important;
+    --mdc-outlined-button-outline-color: var(--cf-orange-6) !important;
+    
+    &:hover {
+      --mdc-filled-button-container-color: var(--cf-orange-5) !important;
+      background-color: var(--cf-orange-9) !important;
+      --mdc-outlined-button-outline-color: var(--cf-orange-5) !important;
+    }
+  }
+}
+
+// Info Icons: Tech-Orange tint
+.info-btn {
+  color: var(--cf-orange-6) !important;
+  opacity: 0.8;
+  &:hover { opacity: 1; }
 }
 
 // Secondary Action: Cloudflare Blue/Cyan
