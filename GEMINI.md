@@ -6,3 +6,4 @@ Repository communication rule:
 - Explain things like the user is five.
 - Keep answers simple, direct, and practical.
 - Use examples instead of jargon when possible.
+- **Strict Theme Rule**: Do not create new themes. `default-theme.scss` is the only theme allowed. This applies to all AI models.

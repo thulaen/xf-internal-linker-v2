@@ -86,9 +86,18 @@ Do not leave mystery changes behind.
 
 - The user is not a developer and prefers plain-English, layman's-terms explanations by default.
 - Default communication rule: AI should talk to the user in plain English and explain things like they are five.
+- Avoid jargon unless it is necessary. If you must use jargon, explain it immediately in simple language.
+
+### UI / Theming Rule
+- **No New Themes**: Never create a new CSS/SCSS theme file.
+- **Default Theme Only**: All styling must use or extend `frontend/src/styles/default-theme.scss`. This rule applies to ALL AI models (Antigravity, Claude, Codex, etc.) without exception.
+
 - When explaining blockers, risks, test results, or architecture, lead with the simple version first.
 - Avoid unnecessary jargon; if a technical term matters, define it briefly in the same reply.
-- Keep answers practical and direct; do not assume deep framework or infrastructure knowledge.
+- Keep answers simple, direct, and practical.
+- Use examples instead of jargon when possible.
+- **Strict Theme Rule**: Do not create new themes. `default-theme.scss` is the only theme allowed. This applies to all AI models.
+- Do not assume deep framework or infrastructure knowledge.
 
 Phase 8 shipped:
 - read-only WordPress REST client for posts/pages with optional Application Password auth
@@ -280,6 +289,11 @@ context.
 - Only scan the first 600 words of host content for insertion
 - Never write directly to XenForo or WordPress databases
 - Read-only API access only
+
+### UI / Theming
+- **Single Source of Truth**: `frontend/src/styles/default-theme.scss` is the only allowed theme file.
+- **Strict Rule**: No AI agent (Antigravity, Claude, Codex, etc.) is permitted to create a new theme or alternative theme file. All styling must be integrated into the existing `default-theme.scss` or `styles.scss` as appropriate.
+- **Material Consistency**: Use the project's custom Material theme generated in `default-theme.scss`. Do not override it with prebuilt themes (like indigo-pink) in `angular.json` or elsewhere.
 
 ### Architecture
 - Django + DRF backend, Angular frontend, full API separation
