@@ -34,6 +34,7 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     evaluate_rare_term_propagation,
 )
+from apps.suggestions.recommended_weights import recommended_float, recommended_str
 
 
 ContentKey: TypeAlias = tuple[int, str]
@@ -153,16 +154,16 @@ class ScoredCandidate:
 class ClusteringSettings:
     enabled: bool = False
     similarity_threshold: float = 0.04
-    suppression_penalty: float = 0.5
+    suppression_penalty: float = 20.0
 
 
 @dataclass(frozen=True, slots=True)
 class SiloSettings:
     """Persisted controls for silo-aware ranking."""
 
-    mode: str = "disabled"
-    same_silo_boost: float = 0.0
-    cross_silo_penalty: float = 0.0
+    mode: str = recommended_str("silo.mode")
+    same_silo_boost: float = recommended_float("silo.same_silo_boost")
+    cross_silo_penalty: float = recommended_float("silo.cross_silo_penalty")
 
 
 def classify_silo_relationship(destination: ContentRecord, host: ContentRecord) -> str:

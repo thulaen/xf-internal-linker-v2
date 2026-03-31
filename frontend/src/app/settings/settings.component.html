@@ -15,92 +15,146 @@
     <!-- ═══════════════════════════════════════════════════════════════
          PRESETS CARD — place at top, before all signal cards
          ═══════════════════════════════════════════════════════════════ -->
-    <mat-card class="settings-card">
+    <mat-card class="settings-card settings-card--featured">
       <mat-card-header>
         <mat-card-title>Weight Presets</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">
-        <p class="hint">
-          Save and load named snapshots of all ranking weights. The
-          <strong>Recommended</strong> preset contains research-backed SEO starting
-          values. System presets cannot be edited or deleted.
-        </p>
+        <div class="preset-hero">
+          <section class="preset-summary">
+            <div class="preset-pill-row">
+              <span class="status-pill status-pill--primary">Live preset: {{ activePresetLabel }}</span>
+              @if (matchedPreset?.id === recommendedPreset?.id) {
+                <span class="status-pill status-pill--good">Recommended is live</span>
+              } @else {
+                <span class="status-pill status-pill--warn">Custom live mix</span>
+              }
+            </div>
 
-        @if (loadingPresets) {
-          <p>Loading presets…</p>
-        } @else {
-          <div class="preset-list">
-            @for (preset of weightPresets; track preset.id) {
-              <div class="preset-row">
-                <mat-icon class="preset-icon" [title]="preset.is_system ? 'System preset — read-only' : 'User preset'">
-                  {{ preset.is_system ? 'lock' : 'bookmark' }}
-                </mat-icon>
+            <p class="hint">
+              Save and load named snapshots of all ranking settings. The
+              <strong>Recommended</strong> preset now turns on every shipped ranking
+              feature, uses research-backed starting values, and shows those starts
+              throughout the page.
+            </p>
 
-                @if (renamingPresetId === preset.id) {
-                  <mat-form-field appearance="outline" class="rename-field">
-                    <input matInput [(ngModel)]="renamePresetValue"
-                           (keydown.enter)="confirmRenamePreset(preset)"
-                           (keydown.escape)="renamingPresetId = null" />
-                  </mat-form-field>
-                  <button mat-icon-button color="primary" (click)="confirmRenamePreset(preset)" title="Save name">
-                    <mat-icon>check</mat-icon>
-                  </button>
-                  <button mat-icon-button (click)="renamingPresetId = null" title="Cancel">
-                    <mat-icon>close</mat-icon>
-                  </button>
-                } @else {
-                  <span class="preset-name">{{ preset.name }}</span>
-                  <span class="preset-date">{{ preset.created_at | date:'dd MMM yyyy' }}</span>
+            <div class="preset-summary-grid">
+              <div class="summary-stat">
+                <span class="summary-stat__label">Live features on</span>
+                <strong>{{ currentFeatureCount }}</strong>
+              </div>
+              <div class="summary-stat">
+                <span class="summary-stat__label">Recommended features on</span>
+                <strong>{{ recommendedFeatureCount }}</strong>
+              </div>
+            </div>
 
-                  <button mat-stroked-button color="primary" [disabled]="applyingPreset"
-                          (click)="applyPreset(preset)" class="preset-action-btn">
-                    <mat-icon>play_arrow</mat-icon>
-                    Load
-                  </button>
+            <p class="field-note">
+              Hover the info icons for plain-English help. Amber borders mean a
+              value is unusually strong and may be risky as a starting point.
+            </p>
 
-                  @if (!preset.is_system) {
-                    <button mat-icon-button title="Rename" (click)="startRenamePreset(preset)">
-                      <mat-icon>edit</mat-icon>
-                    </button>
-                    <button mat-icon-button color="warn" title="Delete" [disabled]="deletingPreset"
-                            (click)="deletePreset(preset)">
-                      <mat-icon>delete</mat-icon>
-                    </button>
+            @if (currentOffFeatures.length > 0) {
+              <div class="feature-callout">
+                <strong>Recommended features still off in the live mix:</strong>
+                <div class="pill-list">
+                  @for (feature of currentOffFeatures; track feature) {
+                    <span class="status-pill status-pill--muted">{{ feature }}</span>
                   }
-                }
+                </div>
               </div>
             }
 
-            @if (weightPresets.length === 0) {
-              <p class="empty-hint">No presets saved yet.</p>
-            }
-          </div>
+            <div class="button-row">
+              @if (recommendedPreset) {
+                <button mat-flat-button color="primary"
+                        [disabled]="applyingPreset || matchedPreset?.id === recommendedPreset.id"
+                        (click)="applyPreset(recommendedPreset)">
+                  <mat-icon>bolt</mat-icon>
+                  Load Recommended
+                </button>
+              }
 
-          <div class="button-row" style="margin-top: 12px;">
-            @if (showSavePresetInput) {
-              <mat-form-field appearance="outline" style="flex: 1;">
-                <mat-label>Preset name</mat-label>
-                <input matInput [(ngModel)]="newPresetName"
-                       placeholder="e.g. Authority-heavy"
-                       (keydown.enter)="saveCurrentAsPreset()"
-                       (keydown.escape)="showSavePresetInput = false" />
-              </mat-form-field>
-              <button mat-flat-button color="primary" [disabled]="savingPreset || !newPresetName.trim()"
-                      (click)="saveCurrentAsPreset()">
-                <mat-icon>save</mat-icon>
-                Save
-              </button>
-              <button mat-stroked-button (click)="showSavePresetInput = false; newPresetName = ''">
-                Cancel
-              </button>
+              @if (showSavePresetInput) {
+                <mat-form-field appearance="outline" class="preset-save-field">
+                  <mat-label>Preset name</mat-label>
+                  <input matInput [(ngModel)]="newPresetName"
+                         placeholder="e.g. Authority-heavy"
+                         (keydown.enter)="saveCurrentAsPreset()"
+                         (keydown.escape)="showSavePresetInput = false; newPresetName = ''" />
+                </mat-form-field>
+                <button mat-flat-button color="primary" [disabled]="savingPreset || !newPresetName.trim()"
+                        (click)="saveCurrentAsPreset()">
+                  <mat-icon>save</mat-icon>
+                  Save
+                </button>
+                <button mat-stroked-button (click)="showSavePresetInput = false; newPresetName = ''">
+                  Cancel
+                </button>
+              } @else {
+                <button mat-stroked-button color="primary" (click)="showSavePresetInput = true">
+                  <mat-icon>add</mat-icon>
+                  Save current as new preset
+                </button>
+              }
+            </div>
+          </section>
+
+          <section class="preset-library">
+            @if (loadingPresets) {
+              <p>Loading presets…</p>
             } @else {
-              <button mat-stroked-button color="primary" (click)="showSavePresetInput = true">
-                <mat-icon>add</mat-icon>
-                Save current as new preset
-              </button>
+              <div class="preset-list">
+                @for (preset of weightPresets; track preset.id) {
+                  <div class="preset-row" [class.preset-row--active]="matchedPreset?.id === preset.id">
+                    <mat-icon class="preset-icon" [title]="preset.is_system ? 'System preset — read-only' : 'User preset'">
+                      {{ preset.is_system ? 'lock' : 'bookmark' }}
+                    </mat-icon>
+
+                    @if (renamingPresetId === preset.id) {
+                      <mat-form-field appearance="outline" class="rename-field">
+                        <input matInput [(ngModel)]="renamePresetValue"
+                               (keydown.enter)="confirmRenamePreset(preset)"
+                               (keydown.escape)="renamingPresetId = null" />
+                      </mat-form-field>
+                      <button mat-icon-button color="primary" (click)="confirmRenamePreset(preset)" title="Save name">
+                        <mat-icon>check</mat-icon>
+                      </button>
+                      <button mat-icon-button (click)="renamingPresetId = null" title="Cancel">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    } @else {
+                      <div class="preset-copy">
+                        <span class="preset-name">{{ preset.name }}</span>
+                        <span class="preset-date">{{ preset.created_at | date:'dd MMM yyyy' }}</span>
+                      </div>
+
+                      <button mat-stroked-button color="primary" [disabled]="applyingPreset"
+                              (click)="applyPreset(preset)" class="preset-action-btn">
+                        <mat-icon>play_arrow</mat-icon>
+                        Load
+                      </button>
+
+                      @if (!preset.is_system) {
+                        <button mat-icon-button title="Rename" (click)="startRenamePreset(preset)">
+                          <mat-icon>edit</mat-icon>
+                        </button>
+                        <button mat-icon-button color="warn" title="Delete" [disabled]="deletingPreset"
+                                (click)="deletePreset(preset)">
+                          <mat-icon>delete</mat-icon>
+                        </button>
+                      }
+                    }
+                  </div>
+                }
+
+                @if (weightPresets.length === 0) {
+                  <p class="empty-hint">No presets saved yet.</p>
+                }
+              </div>
             }
-          </div>
-        }
+          </section>
+        </div>
       </mat-card-content>
     </mat-card>
 
@@ -120,6 +174,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('weightedAuthority.ranking_weight', weightedAuthority.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(weightedAuthority.position_bias, 'weightedAuthority.position_bias')">
@@ -192,10 +247,11 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('linkFreshness.ranking_weight', linkFreshness.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.recent_window_days, 'linkFreshness.recent_window_days')">
-            <mat-label>Recent window days</mat-label>
+            <mat-label>Recent window (days)</mat-label>
             <input matInput type="number" min="7" max="90" step="1" [(ngModel)]="linkFreshness.recent_window_days" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.recent_window_days')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -203,7 +259,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.newest_peer_percent, 'linkFreshness.newest_peer_percent')">
-            <mat-label>Newest peer percent</mat-label>
+            <mat-label>Fresh peer share</mat-label>
             <input matInput type="number" min="0.1" max="0.5" step="0.05" [(ngModel)]="linkFreshness.newest_peer_percent" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.newest_peer_percent')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -211,7 +267,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(linkFreshness.min_peer_count, 'linkFreshness.min_peer_count')">
-            <mat-label>Min peer count</mat-label>
+            <mat-label>Minimum peers</mat-label>
             <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="linkFreshness.min_peer_count" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.min_peer_count')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -270,7 +326,8 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Anchor expansion can use destination phrases from the title and distilled text. Ranking impact is off by default until you set a small non-zero weight.
+          Anchor expansion can use destination phrases from the title and distilled
+          text. Recommended starts with this signal on, but at a light weight.
         </p>
 
         <div class="number-grid">
@@ -280,6 +337,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('phraseMatching.ranking_weight', phraseMatching.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -328,7 +386,8 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Learned anchors come from existing live internal links only. Ranking impact is off by default until you set a small non-zero weight.
+          Learned anchors come from existing live internal links only. Recommended
+          starts with this signal on at a light weight.
         </p>
 
         <div class="number-grid">
@@ -338,10 +397,11 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('learnedAnchor.ranking_weight', learnedAnchor.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.minimum_anchor_sources, 'learnedAnchor.minimum_anchor_sources')">
-            <mat-label>Min anchor sources</mat-label>
+            <mat-label>Minimum source pages</mat-label>
             <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="learnedAnchor.minimum_anchor_sources" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_anchor_sources')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -349,7 +409,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(learnedAnchor.minimum_family_support_share, 'learnedAnchor.minimum_family_support_share')">
-            <mat-label>Min family support share</mat-label>
+            <mat-label>Minimum family support</mat-label>
             <input matInput type="number" min="0.05" max="0.5" step="0.05" [(ngModel)]="learnedAnchor.minimum_family_support_share" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_family_support_share')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -383,7 +443,9 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          This feature can borrow a few rare words from nearby related pages. The borrowed words stay separate from the destination's own text, and ranking impact is off by default until you set a small non-zero weight.
+          This feature can borrow a few rare words from nearby related pages. The
+          borrowed words stay separate from the destination's own text. Recommended
+          starts with this feature enabled and lightly weighted.
         </p>
 
         <div class="number-grid">
@@ -404,10 +466,11 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('rareTermPropagation.ranking_weight', rareTermPropagation.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(rareTermPropagation.max_document_frequency, 'rareTermPropagation.max_document_frequency')">
-            <mat-label>Max document frequency</mat-label>
+            <mat-label>Max pages containing the word</mat-label>
             <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="rareTermPropagation.max_document_frequency" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.max_document_frequency')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -415,7 +478,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Min supporting related pages</mat-label>
+            <mat-label>Minimum related pages</mat-label>
             <input matInput type="number" min="1" max="5" step="1" [(ngModel)]="rareTermPropagation.minimum_supporting_related_pages" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.minimum_supporting_related_pages')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -437,19 +500,25 @@
         <mat-card-title>WordPress Sync</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">
+        <p class="hint">
+          Use your main site URL here, not the `/wp-admin` screen. The password
+          box is for a WordPress application password.
+        </p>
+
         <mat-form-field appearance="outline">
-          <mat-label>Base URL</mat-label>
+          <mat-label>WordPress site URL</mat-label>
           <input matInput [(ngModel)]="wordpress.base_url" placeholder="https://your-wordpress-site.com" />
+          <mat-hint>Example: https://example.com</mat-hint>
         </mat-form-field>
 
         <div class="number-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Username</mat-label>
+            <mat-label>WordPress username</mat-label>
             <input matInput [(ngModel)]="wordpress.username" />
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Application Password</mat-label>
+            <mat-label>WordPress app password</mat-label>
             <input matInput type="password" [(ngModel)]="wordpressPassword" />
             <mat-hint>
               @if (wordpress.app_password_configured) {
@@ -463,7 +532,7 @@
 
         <div class="number-grid">
           <mat-form-field appearance="outline">
-            <mat-label>Scheduled sync</mat-label>
+            <mat-label>Scheduled WordPress sync</mat-label>
             <mat-select [(ngModel)]="wordpress.sync_enabled">
               <mat-option [value]="false">Disabled</mat-option>
               <mat-option [value]="true">Enabled</mat-option>
@@ -471,12 +540,12 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>UTC hour</mat-label>
+            <mat-label>Sync hour (UTC)</mat-label>
             <input matInput type="number" min="0" max="23" [(ngModel)]="wordpress.sync_hour" />
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>UTC minute</mat-label>
+            <mat-label>Sync minute (UTC)</mat-label>
             <input matInput type="number" min="0" max="59" [(ngModel)]="wordpress.sync_minute" />
           </mat-form-field>
         </div>
@@ -508,7 +577,9 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          This score checks whether the host sentence lines up with the destination title, body text, scope labels, and learned anchor wording. Ranking impact stays off until you set a small non-zero weight.
+          This score checks whether the host sentence lines up with the destination
+          title, body text, scope labels, and learned anchor wording. Recommended
+          starts with this signal on at a moderate weight.
         </p>
 
         <div class="number-grid">
@@ -518,10 +589,11 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('fieldAwareRelevance.ranking_weight', fieldAwareRelevance.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Title field weight</mat-label>
+            <mat-label>Title share</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.title_field_weight" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.title_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -529,7 +601,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Body field weight</mat-label>
+            <mat-label>Body share</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.body_field_weight" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.body_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -537,7 +609,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Scope field weight</mat-label>
+            <mat-label>Scope label share</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.scope_field_weight" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.scope_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -545,7 +617,7 @@
           </mat-form-field>
 
           <mat-form-field appearance="outline">
-            <mat-label>Learned-anchor field weight</mat-label>
+            <mat-label>Learned anchor share</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.learned_anchor_field_weight" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.learned_anchor_field_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
@@ -564,11 +636,43 @@
 
     <mat-card class="settings-card">
       <mat-card-header>
+        <mat-card-title>GA4 + Search Console</mat-card-title>
+      </mat-card-header>
+      <mat-card-content class="card-content">
+        <p class="hint">
+          This is first-party search and behavior data. Recommended keeps it light
+          so it helps break ties without overruling relevance.
+        </p>
+
+        <div class="number-grid">
+          <mat-form-field appearance="outline" [class.field-warn]="isExtreme(ga4Gsc.ranking_weight, 'ga4Gsc.ranking_weight')">
+            <mat-label>Ranking weight</mat-label>
+            <input matInput type="number" min="0" max="0.3" step="0.01" [(ngModel)]="ga4Gsc.ranking_weight" />
+            <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" matTooltipClass="setting-tooltip">
+              <mat-icon>info_outline</mat-icon>
+            </button>
+            <mat-hint>{{ fieldHelper('ga4Gsc.ranking_weight', ga4Gsc.ranking_weight) }}</mat-hint>
+          </mat-form-field>
+        </div>
+
+        <div class="button-row">
+          <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="saveGA4GSCSettings()">
+            <mat-icon>save</mat-icon>
+            Save GA4 and Search Console settings
+          </button>
+        </div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="settings-card">
+      <mat-card-header>
         <mat-card-title>Click Distance</mat-card-title>
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Click distance prioritizes pages that are structurally closer to the homepage or have shorter URLs.
+          Click distance prioritizes pages that are structurally closer to the
+          homepage or have shorter URLs. Recommended keeps this as a light
+          structural tie-breaker.
         </p>
 
         <div class="number-grid">
@@ -578,30 +682,34 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clickDistance.ranking_weight', clickDistance.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.k_cd, 'clickDistance.k_cd')">
-            <mat-label>Depth sensitivity (k_cd)</mat-label>
+            <mat-label>Depth sensitivity</mat-label>
             <input matInput type="number" min="0.5" max="5.0" step="0.1" [(ngModel)]="clickDistance.k_cd" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.k_cd')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clickDistance.k_cd', clickDistance.k_cd) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.b_cd, 'clickDistance.b_cd')">
-            <mat-label>Click-distance bias (b_cd)</mat-label>
+            <mat-label>Depth smoothing bias</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="clickDistance.b_cd" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.b_cd')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clickDistance.b_cd', clickDistance.b_cd) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clickDistance.b_ud, 'clickDistance.b_ud')">
-            <mat-label>URL-depth bias (b_ud)</mat-label>
+            <mat-label>URL depth bias</mat-label>
             <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="clickDistance.b_ud" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.b_ud')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clickDistance.b_ud', clickDistance.b_ud) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -633,10 +741,12 @@
           <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.mode')" matTooltipClass="setting-tooltip">
             <mat-icon>info_outline</mat-icon>
           </button>
+          <mat-hint>{{ fieldHelper('silo.mode', settings.mode) }}</mat-hint>
         </mat-form-field>
 
         <p class="hint">
-          {{ selectedModeDescription }}
+          {{ selectedModeDescription }} If no scopes are assigned to silo groups
+          yet, this has no effect.
         </p>
 
         <div class="number-grid">
@@ -646,6 +756,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.same_silo_boost')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('silo.same_silo_boost', settings.same_silo_boost) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(settings.cross_silo_penalty, 'silo.cross_silo_penalty')">
@@ -654,6 +765,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('silo.cross_silo_penalty')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('silo.cross_silo_penalty', settings.cross_silo_penalty) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -670,7 +782,8 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Optimizes suggestion quality based on historical reviewer feedback using Bayesian Smoothing (Exploit) and UCB1 (Explore).
+          Uses past reviewer decisions to nudge the ranking over time. Recommended
+          keeps it on at a light weight, with a balanced exploration constant.
         </p>
 
         <div class="number-grid">
@@ -687,14 +800,16 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.ranking_weight')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('feedbackRerank.ranking_weight', feedbackRerank.ranking_weight) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(feedbackRerank.exploration_rate, 'feedbackRerank.exploration_rate')">
-            <mat-label>Exploration rate (k)</mat-label>
+            <mat-label>Exploration rate</mat-label>
             <input matInput type="number" min="0" max="10.0" step="0.1" [(ngModel)]="feedbackRerank.exploration_rate" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.exploration_rate')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('feedbackRerank.exploration_rate', feedbackRerank.exploration_rate) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -713,7 +828,8 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Groups similar pages (e.g., forum thread vs. thread summary) and suppresses duplicates in link suggestions.
+          Groups very similar pages and pushes duplicate versions down. Recommended
+          keeps this on so the Review screen stays cleaner.
         </p>
 
         <div class="number-grid">
@@ -730,14 +846,16 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clustering.similarity_threshold')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clustering.similarity_threshold', clustering.similarity_threshold) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(clustering.suppression_penalty, 'clustering.suppression_penalty')">
             <mat-label>Suppression penalty</mat-label>
-            <input matInput type="number" min="0" max="2.0" step="0.1" [(ngModel)]="clustering.suppression_penalty" />
+            <input matInput type="number" min="0" max="50" step="0.5" [(ngModel)]="clustering.suppression_penalty" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clustering.suppression_penalty')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('clustering.suppression_penalty', clustering.suppression_penalty) }}</mat-hint>
           </mat-form-field>
         </div>
 
@@ -760,8 +878,9 @@
       </mat-card-header>
       <mat-card-content class="card-content">
         <p class="hint">
-          Ensures the final 3 link suggestions for each host thread cover different topics,
-          using Maximal Marginal Relevance (MMR) to balance relevance and variety.
+          Ensures the final 3 link suggestions for each host thread cover
+          different topics, using Maximal Marginal Relevance (MMR) to balance
+          relevance and variety.
         </p>
 
         <div class="number-grid">
@@ -773,11 +892,12 @@
           </div>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.diversity_lambda, 'slateDiversity.diversity_lambda')">
-            <mat-label>Relevance / Diversity balance (lambda)</mat-label>
+            <mat-label>Relevance / diversity balance</mat-label>
             <input matInput type="number" min="0" max="1.0" step="0.05" [(ngModel)]="slateDiversity.diversity_lambda" />
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.diversity_lambda')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('slateDiversity.diversity_lambda', slateDiversity.diversity_lambda) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.score_window, 'slateDiversity.score_window')">
@@ -786,6 +906,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.score_window')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('slateDiversity.score_window', slateDiversity.score_window) }}</mat-hint>
           </mat-form-field>
 
           <mat-form-field appearance="outline" [class.field-warn]="isExtreme(slateDiversity.similarity_cap, 'slateDiversity.similarity_cap')">
@@ -794,6 +915,7 @@
             <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.similarity_cap')" matTooltipClass="setting-tooltip">
               <mat-icon>info_outline</mat-icon>
             </button>
+            <mat-hint>{{ fieldHelper('slateDiversity.similarity_cap', slateDiversity.similarity_cap) }}</mat-hint>
           </mat-form-field>
         </div>
 

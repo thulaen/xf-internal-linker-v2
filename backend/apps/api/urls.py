@@ -15,7 +15,6 @@ from apps.core.views import (
     ClusteringSettingsView,
     ClusteringRecalculateView,
     FieldAwareRelevanceSettingsView,
-    FieldAwareRelevanceSettingsView,
     ClickDistanceSettingsView,
     ClickDistanceRecalculateView,
     FeedbackRerankSettingsView,

@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
+from apps.suggestions.recommended_weights import recommended_bool, recommended_float
+
 if TYPE_CHECKING:
     from .ranker import ContentKey, ScoredCandidate
 
@@ -29,10 +31,10 @@ if TYPE_CHECKING:
 class SlateDiversitySettings:
     """Settings controlling the final slate diversity reranker."""
 
-    enabled: bool = True
-    diversity_lambda: float = 0.7      # 1.0 = pure relevance, 0.0 = pure diversity
-    score_window: float = 0.30         # max score gap from top candidate to be eligible
-    similarity_cap: float = 0.90       # cosine similarity above which items are flagged as redundant
+    enabled: bool = recommended_bool("slate_diversity.enabled")
+    diversity_lambda: float = recommended_float("slate_diversity.diversity_lambda")  # 1.0 = pure relevance, 0.0 = pure diversity
+    score_window: float = recommended_float("slate_diversity.score_window")  # max score gap from top candidate to be eligible
+    similarity_cap: float = recommended_float("slate_diversity.similarity_cap")  # cosine similarity above which items are flagged as redundant
     algorithm_version: str = "fr015-v1"
 
 

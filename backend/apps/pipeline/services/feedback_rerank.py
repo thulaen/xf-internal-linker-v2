@@ -13,6 +13,8 @@ from typing import TYPE_CHECKING, Any
 
 from django.db.models import Count, Q
 
+from apps.suggestions.recommended_weights import recommended_bool, recommended_float
+
 if TYPE_CHECKING:
     from apps.pipeline.services.ranker import ScoredCandidate
 
@@ -21,9 +23,9 @@ if TYPE_CHECKING:
 class FeedbackRerankSettings:
     """Settings controlling the Explore/Exploit reranker."""
 
-    enabled: bool = False
-    ranking_weight: float = 0.2
-    exploration_rate: float = 1.0  # k factor in UCB1 sqrt(k * ln(N)/n)
+    enabled: bool = recommended_bool("explore_exploit.enabled")
+    ranking_weight: float = recommended_float("explore_exploit.ranking_weight")
+    exploration_rate: float = recommended_float("explore_exploit.exploration_rate")  # k factor in UCB1 sqrt(k * ln(N)/n)
     alpha_prior: float = 1.0       # Bayesian smoothing alpha (prior approved)
     beta_prior: float = 1.0        # Bayesian smoothing beta (prior rejected)
 

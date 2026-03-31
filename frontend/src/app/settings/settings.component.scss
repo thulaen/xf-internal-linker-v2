@@ -9,6 +9,14 @@
   margin-bottom: 16px;
 }
 
+.settings-card--featured {
+  grid-column: 1 / -1;
+  border: 1px solid color-mix(in srgb, var(--color-primary-500, #1a73e8) 20%, var(--color-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--color-primary-500, #1a73e8) 6%, white) 0%, var(--color-surface) 42%),
+    var(--color-surface);
+}
+
 .card-content {
   display: flex;
   flex-direction: column;
@@ -22,13 +30,20 @@
   font-size: 13px;
 }
 
-// Extreme-value warning — amber outline on the form field
+.field-note {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
 .field-warn {
   .mdc-notched-outline__leading,
   .mdc-notched-outline__notch,
   .mdc-notched-outline__trailing {
     border-color: var(--color-warning);
   }
+
   .mdc-floating-label,
   .mat-mdc-floating-label {
     color: var(--color-warning-dark);
@@ -130,13 +145,102 @@
   margin-top: 2px;
 }
 
-@media (max-width: 720px) {
-  .scope-row {
-    grid-template-columns: 1fr;
+.preset-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(320px, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.preset-summary,
+.preset-library {
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--color-surface) 92%, white);
+  padding: 16px;
+}
+
+.preset-pill-row,
+.pill-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--color-bg-faint);
+  color: var(--color-text-dark-1);
+  border: 1px solid transparent;
+}
+
+.status-pill--primary {
+  background: color-mix(in srgb, var(--color-primary-500, #1a73e8) 12%, white);
+  color: var(--color-primary-700, #1a73e8);
+}
+
+.status-pill--good {
+  background: color-mix(in srgb, #2e7d32 12%, white);
+  color: #2e7d32;
+}
+
+.status-pill--warn {
+  background: color-mix(in srgb, #b26a00 12%, white);
+  color: #8a5200;
+}
+
+.status-pill--muted {
+  border-color: var(--color-border);
+}
+
+.preset-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.summary-stat {
+  padding: 14px;
+  border-radius: 12px;
+  background: var(--color-bg-faint);
+  border: 1px solid var(--color-border);
+
+  strong {
+    display: block;
+    margin-top: 6px;
+    font-size: 28px;
+    line-height: 1;
+    color: var(--color-text-dark-1);
   }
 }
 
-// ── Weight Presets card ───────────────────────────────────────────
+.summary-stat__label {
+  display: block;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.feature-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 12px;
+  background: color-mix(in srgb, #fff8e1 75%, white);
+  border: 1px solid color-mix(in srgb, #f2c55c 42%, var(--color-border));
+}
+
+.preset-save-field {
+  flex: 1 1 240px;
+}
 
 .preset-list {
   display: flex;
@@ -154,6 +258,11 @@
   background: var(--color-surface);
 }
 
+.preset-row--active {
+  border-color: color-mix(in srgb, var(--color-primary-500, #1a73e8) 40%, var(--color-border));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-primary-500, #1a73e8) 12%, transparent);
+}
+
 .preset-icon {
   font-size: 18px;
   width: 18px;
@@ -162,8 +271,15 @@
   flex-shrink: 0;
 }
 
-.preset-name {
+.preset-copy {
   flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.preset-name {
   font-weight: 500;
   color: var(--color-text-dark-1);
   min-width: 0;
@@ -190,8 +306,6 @@
   color: var(--color-text-muted);
   font-size: 14px;
 }
-
-// ── Weight History card ────────────────────────────────────────────
 
 .history-list {
   display: flex;
@@ -289,4 +403,14 @@
 .history-actions {
   display: flex;
   gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .scope-row {
+    grid-template-columns: 1fr;
+  }
+
+  .preset-hero {
+    grid-template-columns: 1fr;
+  }
 }

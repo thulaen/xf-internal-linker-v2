@@ -55,6 +55,7 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     build_rare_term_profiles,
 )
+from apps.suggestions.recommended_weights import recommended_float, recommended_str
 
 logger = logging.getLogger(__name__)
 
@@ -64,10 +65,10 @@ FALLBACK_CANDIDATES_PER_DESTINATION = 5
 BLOCK_SIZE = 256
 
 DEFAULT_WEIGHTS = {
-    "w_semantic": 0.55,
-    "w_keyword": 0.20,
-    "w_node": 0.10,
-    "w_quality": 0.15,
+    "w_semantic": recommended_float("w_semantic"),
+    "w_keyword": recommended_float("w_keyword"),
+    "w_node": recommended_float("w_node"),
+    "w_quality": recommended_float("w_quality"),
 }
 
 
@@ -380,9 +381,9 @@ def _load_silo_settings() -> SiloSettings:
 
         config = get_silo_settings()
         return SiloSettings(
-            mode=str(config.get("mode", "disabled")),
-            same_silo_boost=float(config.get("same_silo_boost", 0.0)),
-            cross_silo_penalty=float(config.get("cross_silo_penalty", 0.0)),
+            mode=str(config.get("mode", recommended_str("silo.mode"))),
+            same_silo_boost=float(config.get("same_silo_boost", recommended_float("silo.same_silo_boost"))),
+            cross_silo_penalty=float(config.get("cross_silo_penalty", recommended_float("silo.cross_silo_penalty"))),
         )
     except Exception:
         logger.exception("Failed to load silo settings; using defaults.")
@@ -395,12 +396,12 @@ def _load_weighted_authority_settings() -> dict[str, float]:
 
         config = get_weighted_authority_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", 0.2)),
+            "ranking_weight": float(config.get("ranking_weight", recommended_float("weighted_authority.ranking_weight"))),
         }
     except Exception:
         logger.exception("Failed to load weighted authority settings; using defaults.")
         return {
-            "ranking_weight": 0.2,
+            "ranking_weight": recommended_float("weighted_authority.ranking_weight"),
         }
 
 
@@ -410,12 +411,12 @@ def _load_link_freshness_settings() -> dict[str, float]:
 
         config = get_link_freshness_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", 0.0)),
+            "ranking_weight": float(config.get("ranking_weight", recommended_float("link_freshness.ranking_weight"))),
         }
     except Exception:
         logger.exception("Failed to load link freshness settings; using defaults.")
         return {
-            "ranking_weight": 0.0,
+            "ranking_weight": recommended_float("link_freshness.ranking_weight"),
         }
 
 
@@ -425,10 +426,10 @@ def _load_phrase_matching_settings() -> PhraseMatchingSettings:
 
         config = get_phrase_matching_settings()
         return PhraseMatchingSettings(
-            ranking_weight=float(config.get("ranking_weight", 0.0)),
+            ranking_weight=float(config.get("ranking_weight", recommended_float("phrase_matching.ranking_weight"))),
             enable_anchor_expansion=bool(config.get("enable_anchor_expansion", True)),
             enable_partial_matching=bool(config.get("enable_partial_matching", True)),
-            context_window_tokens=int(config.get("context_window_tokens", 8)),
+            context_window_tokens=int(config.get("context_window_tokens", recommended_float("phrase_matching.context_window_tokens"))),
         )
     except Exception:
         logger.exception("Failed to load phrase matching settings; using defaults.")
@@ -441,9 +442,9 @@ def _load_learned_anchor_settings() -> LearnedAnchorSettings:
 
         config = get_learned_anchor_settings()
         return LearnedAnchorSettings(
-            ranking_weight=float(config.get("ranking_weight", 0.0)),
-            minimum_anchor_sources=int(config.get("minimum_anchor_sources", 2)),
-            minimum_family_support_share=float(config.get("minimum_family_support_share", 0.15)),
+            ranking_weight=float(config.get("ranking_weight", recommended_float("learned_anchor.ranking_weight"))),
+            minimum_anchor_sources=int(config.get("minimum_anchor_sources", recommended_float("learned_anchor.minimum_anchor_sources"))),
+            minimum_family_support_share=float(config.get("minimum_family_support_share", recommended_float("learned_anchor.minimum_family_support_share"))),
             enable_noise_filter=bool(config.get("enable_noise_filter", True)),
         )
     except Exception:
@@ -458,9 +459,9 @@ def _load_rare_term_propagation_settings() -> RareTermPropagationSettings:
         config = get_rare_term_propagation_settings()
         return RareTermPropagationSettings(
             enabled=bool(config.get("enabled", True)),
-            ranking_weight=float(config.get("ranking_weight", 0.0)),
-            max_document_frequency=int(config.get("max_document_frequency", 3)),
-            minimum_supporting_related_pages=int(config.get("minimum_supporting_related_pages", 2)),
+            ranking_weight=float(config.get("ranking_weight", recommended_float("rare_term_propagation.ranking_weight"))),
+            max_document_frequency=int(config.get("max_document_frequency", recommended_float("rare_term_propagation.max_document_frequency"))),
+            minimum_supporting_related_pages=int(config.get("minimum_supporting_related_pages", recommended_float("rare_term_propagation.minimum_supporting_related_pages"))),
         )
     except Exception:
         logger.exception("Failed to load rare-term propagation settings; using defaults.")
@@ -473,11 +474,11 @@ def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
 
         config = get_field_aware_relevance_settings()
         return FieldAwareRelevanceSettings(
-            ranking_weight=float(config.get("ranking_weight", 0.0)),
-            title_field_weight=float(config.get("title_field_weight", 0.4)),
-            body_field_weight=float(config.get("body_field_weight", 0.3)),
-            scope_field_weight=float(config.get("scope_field_weight", 0.15)),
-            learned_anchor_field_weight=float(config.get("learned_anchor_field_weight", 0.15)),
+            ranking_weight=float(config.get("ranking_weight", recommended_float("field_aware_relevance.ranking_weight"))),
+            title_field_weight=float(config.get("title_field_weight", recommended_float("field_aware_relevance.title_field_weight"))),
+            body_field_weight=float(config.get("body_field_weight", recommended_float("field_aware_relevance.body_field_weight"))),
+            scope_field_weight=float(config.get("scope_field_weight", recommended_float("field_aware_relevance.scope_field_weight"))),
+            learned_anchor_field_weight=float(config.get("learned_anchor_field_weight", recommended_float("field_aware_relevance.learned_anchor_field_weight"))),
         )
     except Exception:
         logger.exception("Failed to load field-aware relevance settings; using defaults.")
@@ -490,12 +491,12 @@ def _load_ga4_gsc_settings() -> dict[str, float]:
 
         config = get_ga4_gsc_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", 0.05)),
+            "ranking_weight": float(config.get("ranking_weight", recommended_float("ga4_gsc.ranking_weight"))),
         }
     except Exception:
         logger.exception("Failed to load GA4/GSC settings; using defaults.")
         return {
-            "ranking_weight": 0.05,
+            "ranking_weight": recommended_float("ga4_gsc.ranking_weight"),
         }
 
 
@@ -505,12 +506,12 @@ def _load_click_distance_settings() -> dict[str, float]:
 
         config = get_click_distance_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", 0.0)),
+            "ranking_weight": float(config.get("ranking_weight", recommended_float("click_distance.ranking_weight"))),
         }
     except Exception:
         logger.exception("Failed to load click-distance settings; using defaults.")
         return {
-            "ranking_weight": 0.0,
+            "ranking_weight": recommended_float("click_distance.ranking_weight"),
         }
 
 

@@ -23,6 +23,13 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.suggestions.recommended_weights import (
+    recommended_bool,
+    recommended_float,
+    recommended_int,
+    recommended_str,
+)
+
 
 DEFAULT_APPEARANCE = {
     "primaryColor": "#1a73e8",
@@ -43,9 +50,9 @@ DEFAULT_APPEARANCE = {
 }
 
 DEFAULT_SILO_SETTINGS = {
-    "mode": "disabled",
-    "same_silo_boost": 0.0,
-    "cross_silo_penalty": 0.0,
+    "mode": recommended_str("silo.mode"),
+    "same_silo_boost": recommended_float("silo.same_silo_boost"),
+    "cross_silo_penalty": recommended_float("silo.cross_silo_penalty"),
 }
 
 DEFAULT_WORDPRESS_SETTINGS = {
@@ -57,82 +64,82 @@ DEFAULT_WORDPRESS_SETTINGS = {
 }
 
 DEFAULT_WEIGHTED_AUTHORITY_SETTINGS = {
-    "ranking_weight": 0.2,
-    "position_bias": 0.5,
-    "empty_anchor_factor": 0.6,
-    "bare_url_factor": 0.35,
-    "weak_context_factor": 0.75,
-    "isolated_context_factor": 0.45,
+    "ranking_weight": recommended_float("weighted_authority.ranking_weight"),
+    "position_bias": recommended_float("weighted_authority.position_bias"),
+    "empty_anchor_factor": recommended_float("weighted_authority.empty_anchor_factor"),
+    "bare_url_factor": recommended_float("weighted_authority.bare_url_factor"),
+    "weak_context_factor": recommended_float("weighted_authority.weak_context_factor"),
+    "isolated_context_factor": recommended_float("weighted_authority.isolated_context_factor"),
 }
 
 DEFAULT_LINK_FRESHNESS_SETTINGS = {
-    "ranking_weight": 0.0,
-    "recent_window_days": 30,
-    "newest_peer_percent": 0.25,
-    "min_peer_count": 3,
-    "w_recent": 0.35,
-    "w_growth": 0.35,
-    "w_cohort": 0.20,
-    "w_loss": 0.10,
+    "ranking_weight": recommended_float("link_freshness.ranking_weight"),
+    "recent_window_days": recommended_int("link_freshness.recent_window_days"),
+    "newest_peer_percent": recommended_float("link_freshness.newest_peer_percent"),
+    "min_peer_count": recommended_int("link_freshness.min_peer_count"),
+    "w_recent": recommended_float("link_freshness.w_recent"),
+    "w_growth": recommended_float("link_freshness.w_growth"),
+    "w_cohort": recommended_float("link_freshness.w_cohort"),
+    "w_loss": recommended_float("link_freshness.w_loss"),
 }
 
 DEFAULT_PHRASE_MATCHING_SETTINGS = {
-    "ranking_weight": 0.0,
-    "enable_anchor_expansion": True,
-    "enable_partial_matching": True,
-    "context_window_tokens": 8,
+    "ranking_weight": recommended_float("phrase_matching.ranking_weight"),
+    "enable_anchor_expansion": recommended_bool("phrase_matching.enable_anchor_expansion"),
+    "enable_partial_matching": recommended_bool("phrase_matching.enable_partial_matching"),
+    "context_window_tokens": recommended_int("phrase_matching.context_window_tokens"),
 }
 
 DEFAULT_LEARNED_ANCHOR_SETTINGS = {
-    "ranking_weight": 0.0,
-    "minimum_anchor_sources": 2,
-    "minimum_family_support_share": 0.15,
-    "enable_noise_filter": True,
+    "ranking_weight": recommended_float("learned_anchor.ranking_weight"),
+    "minimum_anchor_sources": recommended_int("learned_anchor.minimum_anchor_sources"),
+    "minimum_family_support_share": recommended_float("learned_anchor.minimum_family_support_share"),
+    "enable_noise_filter": recommended_bool("learned_anchor.enable_noise_filter"),
 }
 
 DEFAULT_RARE_TERM_PROPAGATION_SETTINGS = {
-    "enabled": True,
-    "ranking_weight": 0.0,
-    "max_document_frequency": 3,
-    "minimum_supporting_related_pages": 2,
+    "enabled": recommended_bool("rare_term_propagation.enabled"),
+    "ranking_weight": recommended_float("rare_term_propagation.ranking_weight"),
+    "max_document_frequency": recommended_int("rare_term_propagation.max_document_frequency"),
+    "minimum_supporting_related_pages": recommended_int("rare_term_propagation.minimum_supporting_related_pages"),
 }
 
 DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
-    "ranking_weight": 0.0,
-    "title_field_weight": 0.40,
-    "body_field_weight": 0.30,
-    "scope_field_weight": 0.15,
-    "learned_anchor_field_weight": 0.15,
+    "ranking_weight": recommended_float("field_aware_relevance.ranking_weight"),
+    "title_field_weight": recommended_float("field_aware_relevance.title_field_weight"),
+    "body_field_weight": recommended_float("field_aware_relevance.body_field_weight"),
+    "scope_field_weight": recommended_float("field_aware_relevance.scope_field_weight"),
+    "learned_anchor_field_weight": recommended_float("field_aware_relevance.learned_anchor_field_weight"),
 }
 
 DEFAULT_GA4_GSC_SETTINGS = {
-    "ranking_weight": 0.05,
+    "ranking_weight": recommended_float("ga4_gsc.ranking_weight"),
 }
 
 DEFAULT_CLICK_DISTANCE_SETTINGS = {
-    "ranking_weight": 0.0,
-    "k_cd": 4.0,
-    "b_cd": 0.75,
-    "b_ud": 0.25,
+    "ranking_weight": recommended_float("click_distance.ranking_weight"),
+    "k_cd": recommended_float("click_distance.k_cd"),
+    "b_cd": recommended_float("click_distance.b_cd"),
+    "b_ud": recommended_float("click_distance.b_ud"),
 }
 
 DEFAULT_FEEDBACK_RERANK_SETTINGS = {
-    "enabled": False,
-    "ranking_weight": 0.2,
-    "exploration_rate": 1.0,
+    "enabled": recommended_bool("explore_exploit.enabled"),
+    "ranking_weight": recommended_float("explore_exploit.ranking_weight"),
+    "exploration_rate": recommended_float("explore_exploit.exploration_rate"),
 }
 
 DEFAULT_CLUSTERING_SETTINGS = {
-    "enabled": False,
-    "similarity_threshold": 0.04,
-    "suppression_penalty": 20.0,
+    "enabled": recommended_bool("clustering.enabled"),
+    "similarity_threshold": recommended_float("clustering.similarity_threshold"),
+    "suppression_penalty": recommended_float("clustering.suppression_penalty"),
 }
 
 DEFAULT_SLATE_DIVERSITY_SETTINGS = {
-    "enabled": True,
-    "diversity_lambda": 0.7,
-    "score_window": 0.30,
-    "similarity_cap": 0.90,
+    "enabled": recommended_bool("slate_diversity.enabled"),
+    "diversity_lambda": recommended_float("slate_diversity.diversity_lambda"),
+    "score_window": recommended_float("slate_diversity.score_window"),
+    "similarity_cap": recommended_float("slate_diversity.similarity_cap"),
     "algorithm_version": "fr015-v1",
 }
 
@@ -1712,7 +1719,7 @@ class GA4GSCSettingsView(APIView):
             "ga4_gsc.ranking_weight": {
                 "value": str(validated["ranking_weight"]),
                 "value_type": "float",
-                "description": "Neutral future-facing ranking weight for GA4/GSC scores.",
+                "description": "Ranking weight for the GA4/GSC content-value signal.",
             },
         }
 
@@ -2043,32 +2050,6 @@ class DashboardView(APIView):
             "pipeline_runs": pipeline_runs,
             "recent_imports": recent_imports,
         })
-
-
-class GA4GSCSettingsView(APIView):
-    """
-    GET /api/settings/ga4-gsc/
-    PUT /api/settings/ga4-gsc/
-    """
-    def get(self, request):
-        return Response(get_ga4_gsc_settings())
-
-    def put(self, request):
-        from apps.core.models import AppSetting
-        current = get_ga4_gsc_settings()
-        try:
-            # We reuse common logic or simple direct clamping
-            val = float(request.data.get("ranking_weight", current["ranking_weight"]))
-            ranking_weight = max(0.0, min(0.3, val))
-            validated = {"ranking_weight": ranking_weight}
-        except (TypeError, ValueError):
-            return Response({"error": "ranking_weight must be numeric"}, status=400)
-
-        AppSetting.objects.update_or_create(
-            key="ga4_gsc.ranking_weight",
-            defaults={"value": str(validated["ranking_weight"])}
-        )
-        return Response(validated)
 
 
 class ClickDistanceSettingsView(APIView):

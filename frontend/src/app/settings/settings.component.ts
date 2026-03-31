@@ -26,6 +26,7 @@ import {
   WeightedAuthoritySettings,
   WordPressSettings,
   WordPressSettingsUpdate,
+  GA4GSCSettings,
   FeedbackRerankSettings,
   ClusteringSettings,
   SlateDiversitySettings,
@@ -46,8 +47,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'weightedAuthority.ranking_weight': {
     definition: 'How much the PageRank authority score contributes to the final link ranking.',
     impact: 'Higher values make authority the dominant factor. Links will strongly prefer high-authority destinations.',
-    default: '0.2',
-    example: 'Raising to 0.25 makes authority the top signal. Setting to 0 turns this off entirely.',
+    default: '0.10',
+    example: 'Raising to 0.18 makes authority much stronger. Setting to 0 turns this off entirely.',
     range: '0 to 0.25',
   },
   'weightedAuthority.position_bias': {
@@ -89,8 +90,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'linkFreshness.ranking_weight': {
     definition: 'How much the freshness score influences the final ranking.',
     impact: 'Higher values reward destinations that are actively gaining new inbound links.',
-    default: '0 (off)',
-    example: 'Setting to 0.05 gives a gentle freshness boost. Raising to 0.15 makes freshness a strong signal.',
+    default: '0.05',
+    example: '0.05 gives a gentle freshness boost. Raising to 0.15 makes freshness a strong signal.',
     range: '0 to 0.15',
   },
   'linkFreshness.recent_window_days': {
@@ -146,8 +147,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'phraseMatching.ranking_weight': {
     definition: 'How much the phrase match score influences the final ranking.',
     impact: 'Higher values reward destinations whose title or text closely matches the linking phrase.',
-    default: '0 (off)',
-    example: 'Setting to 0.05 gives a gentle phrase boost. Raising to 0.1 makes it a significant factor.',
+    default: '0.08',
+    example: '0.08 gives phrase matching a clear voice. Raising to 0.1 makes it even stronger.',
     range: '0 to 0.1',
   },
   'phraseMatching.enable_anchor_expansion': {
@@ -175,8 +176,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'learnedAnchor.ranking_weight': {
     definition: 'How much the learned anchor score influences the final ranking.',
     impact: 'Higher values reward destinations that already have real-world anchor text pointing to them.',
-    default: '0 (off)',
-    example: 'Setting to 0.05 gives a gentle boost. Raising above 0.08 may over-fit to past link patterns.',
+    default: '0.05',
+    example: '0.05 gives a gentle boost. Raising above 0.08 may over-fit to past link patterns.',
     range: '0 to 0.1',
   },
   'learnedAnchor.minimum_anchor_sources': {
@@ -211,8 +212,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'rareTermPropagation.ranking_weight': {
     definition: 'How much the rare-term propagation signal influences the final ranking.',
     impact: 'Higher values give more credit to thin pages that borrowed rare terms from neighbours.',
-    default: '0 (off)',
-    example: 'Setting to 0.03 gently helps thin pages. Raising above 0.08 may over-reward borrowed terms.',
+    default: '0.05',
+    example: '0.05 gently helps thin pages. Raising above 0.08 may over-reward borrowed terms.',
     range: '0 to 0.1',
   },
   'rareTermPropagation.max_document_frequency': {
@@ -233,8 +234,8 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'fieldAwareRelevance.ranking_weight': {
     definition: 'How much the field-aware relevance score influences the final ranking.',
     impact: 'Higher values reward destinations whose title, body, or anchor text aligns with the source sentence.',
-    default: '0 (off)',
-    example: 'Setting to 0.05 gives a gentle relevance boost. Raising above 0.12 may dominate other signals.',
+    default: '0.10',
+    example: '0.10 gives a meaningful relevance boost. Raising above 0.12 may dominate other signals.',
     range: '0 to 0.15',
   },
   'fieldAwareRelevance.title_field_weight': {
@@ -266,39 +267,46 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     range: '0 to 1',
   },
   // ── Click Distance ──────────────────────────────────────────────
+  'ga4Gsc.ranking_weight': {
+    definition: 'How much first-party search and behavior data influences the final ranking.',
+    impact: 'Higher values reward destinations that already earn stronger search clicks and better on-site engagement.',
+    default: '0.05',
+    example: 'Start at 0.05 so analytics acts like a light tie-breaker instead of overruling relevance.',
+    range: '0 to 0.3',
+  },
   'clickDistance.ranking_weight': {
     definition: 'How much the click-distance score influences the final ranking.',
     impact: 'Higher values prefer destinations structurally closer to the homepage or entry points.',
-    default: '0 (off)',
-    example: 'Setting to 0.1 gently favours shallower pages. Raising above 0.15 may over-penalise deep content.',
+    default: '0.07',
+    example: '0.07 gently favours shallower pages. Raising above 0.15 may over-penalise deep content.',
     range: '0 to 0.2',
   },
   'clickDistance.k_cd': {
     definition: 'Depth sensitivity — controls how steeply the score drops off as click-distance from the homepage increases.',
     impact: 'Higher values aggressively penalise pages many clicks from the homepage. Lower values are more lenient.',
-    default: '1.5',
+    default: '4.0',
     example: 'Raising to 4.0 strongly penalises deep pages. Lowering to 0.5 makes depth almost irrelevant.',
     range: '0.5 to 5.0',
   },
   'clickDistance.b_cd': {
     definition: 'Click-distance bias — blends raw click-distance with a smoothed version to avoid extreme scores.',
     impact: 'Higher values smooth out very deep or very shallow pages. Lower values use the raw depth score.',
-    default: '0.1',
-    example: 'Raising to 0.5 adds strong smoothing. Lowering to 0 uses raw click-distance directly.',
+    default: '0.75',
+    example: '0.75 keeps depth useful without letting one very deep URL dominate the score.',
     range: '0 to 1',
   },
   'clickDistance.b_ud': {
     definition: 'URL-depth bias — blends the URL depth (number of slashes in the path) into the score.',
     impact: 'Higher values prefer pages with shorter URL paths. Lower values ignore URL depth.',
-    default: '0.1',
-    example: 'Raising to 0.5 gives strong weight to URL shortness. Lowering to 0 ignores URL path depth.',
+    default: '0.25',
+    example: '0.25 uses URL depth as light supporting evidence. Lowering to 0 ignores URL path depth.',
     range: '0 to 1',
   },
   // ── Silo Ranking ────────────────────────────────────────────────
   'silo.mode': {
     definition: 'Sets how strictly the system enforces topic silo boundaries when ranking links.',
     impact: '"Disabled" ignores silos entirely. "Prefer same silo" boosts same-silo matches. "Strict same silo" blocks cross-silo links when both pages have silo assignments.',
-    default: 'Disabled',
+    default: 'Prefer same silo',
     example: 'Start with "Prefer same silo" to keep link suggestions on-topic without hard blocking.',
     range: 'Disabled / Prefer same silo / Strict same silo',
   },
@@ -320,29 +328,29 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'feedbackRerank.enabled': {
     definition: 'Turns on the explore/exploit reranking system, which uses historical reviewer feedback to improve suggestions over time.',
     impact: 'Enabled gradually learns from accept/reject decisions. Disabled keeps ranking purely algorithmic.',
-    default: 'Off',
-    example: 'Enable once you have reviewed at least a few hundred suggestions so the system has data to learn from.',
+    default: 'On',
+    example: 'Keep this on at a light weight so feedback acts like a helper, not the boss.',
     range: 'On / Off',
   },
   'feedbackRerank.ranking_weight': {
     definition: 'How strongly historical reviewer feedback adjusts the final link ranking.',
     impact: 'Higher values make the feedback signal dominant. Lower values keep it as a subtle nudge.',
-    default: '0.2',
-    example: 'Raising to 0.8 means feedback controls most of the ranking. Lowering to 0.05 keeps it light.',
+    default: '0.08',
+    example: '0.08 keeps feedback as a light nudge. Raising too far can let old reviewer habits overpower relevance.',
     range: '0 to 1',
   },
   'feedbackRerank.exploration_rate': {
     definition: 'Controls how much the system explores links with little historical data versus exploiting known-good ones.',
     impact: 'Higher values aggressively test uncertain link pairs. Lower values rely more on established patterns.',
-    default: '1.0',
-    example: 'Raising to 5 or above pushes many untested links to the top for review. Lowering to 0.1 exploits known winners.',
+    default: '1.41421356237',
+    example: 'About 1.41 is a balanced starting point. Raising too high pushes many untested links to the top for review.',
     range: '0 to 10',
   },
   // ── Clustering ──────────────────────────────────────────────────
   'clustering.enabled': {
     definition: 'Turns on near-duplicate destination clustering based on semantic embedding similarity.',
     impact: 'Enabled prevents suggesting multiple redundant links to effectively the same content. Disabled treats every URL as unique.',
-    default: 'Off',
+    default: 'On',
     example: 'Enable to clean up the Review dashboard if you see many similar thread/resource pairs.',
     range: 'On / Off',
   },
@@ -356,9 +364,9 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'clustering.suppression_penalty': {
     definition: 'The score penalty applied to non-canonical (redundant) versions of a content cluster.',
     impact: 'Higher values aggressively hide duplicates. Lower values let them surface if they are strong matches.',
-    default: '0.5',
-    example: 'Set to 1.0 to almost always hide duplicates. Set to 0.1 to just slightly demote them.',
-    range: '0 to 2.0',
+    default: '20.0',
+    example: 'Set to 20 to push duplicates far down the list. Lowering toward 5 makes suppression softer.',
+    range: '0 to 50',
   },
   // ── Slate Diversity ─────────────────────────────────────────────
   'slateDiversity.enabled': {
@@ -371,7 +379,7 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'slateDiversity.diversity_lambda': {
     definition: 'MMR lambda — controls the balance between relevance and diversity in the final slate.',
     impact: 'Higher values (closer to 1.0) keep the most relevant suggestions. Lower values force more variety even if the alternatives score lower.',
-    default: '0.7',
+    default: '0.65',
     example: 'Lower to 0.5 for stronger diversity. Raise to 0.9 to preserve near-original ranking with a light diversity nudge.',
     range: '0.0 to 1.0',
   },
@@ -391,8 +399,60 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   },
 };
 
+const UI_TO_PRESET_KEY: Record<string, string> = {
+  'weightedAuthority.ranking_weight': 'weighted_authority.ranking_weight',
+  'weightedAuthority.position_bias': 'weighted_authority.position_bias',
+  'weightedAuthority.empty_anchor_factor': 'weighted_authority.empty_anchor_factor',
+  'weightedAuthority.bare_url_factor': 'weighted_authority.bare_url_factor',
+  'weightedAuthority.weak_context_factor': 'weighted_authority.weak_context_factor',
+  'weightedAuthority.isolated_context_factor': 'weighted_authority.isolated_context_factor',
+  'linkFreshness.ranking_weight': 'link_freshness.ranking_weight',
+  'linkFreshness.recent_window_days': 'link_freshness.recent_window_days',
+  'linkFreshness.newest_peer_percent': 'link_freshness.newest_peer_percent',
+  'linkFreshness.min_peer_count': 'link_freshness.min_peer_count',
+  'linkFreshness.w_recent': 'link_freshness.w_recent',
+  'linkFreshness.w_growth': 'link_freshness.w_growth',
+  'linkFreshness.w_cohort': 'link_freshness.w_cohort',
+  'linkFreshness.w_loss': 'link_freshness.w_loss',
+  'phraseMatching.ranking_weight': 'phrase_matching.ranking_weight',
+  'phraseMatching.enable_anchor_expansion': 'phrase_matching.enable_anchor_expansion',
+  'phraseMatching.enable_partial_matching': 'phrase_matching.enable_partial_matching',
+  'phraseMatching.context_window_tokens': 'phrase_matching.context_window_tokens',
+  'learnedAnchor.ranking_weight': 'learned_anchor.ranking_weight',
+  'learnedAnchor.minimum_anchor_sources': 'learned_anchor.minimum_anchor_sources',
+  'learnedAnchor.minimum_family_support_share': 'learned_anchor.minimum_family_support_share',
+  'learnedAnchor.enable_noise_filter': 'learned_anchor.enable_noise_filter',
+  'rareTermPropagation.enabled': 'rare_term_propagation.enabled',
+  'rareTermPropagation.ranking_weight': 'rare_term_propagation.ranking_weight',
+  'rareTermPropagation.max_document_frequency': 'rare_term_propagation.max_document_frequency',
+  'rareTermPropagation.minimum_supporting_related_pages': 'rare_term_propagation.minimum_supporting_related_pages',
+  'fieldAwareRelevance.ranking_weight': 'field_aware_relevance.ranking_weight',
+  'fieldAwareRelevance.title_field_weight': 'field_aware_relevance.title_field_weight',
+  'fieldAwareRelevance.body_field_weight': 'field_aware_relevance.body_field_weight',
+  'fieldAwareRelevance.scope_field_weight': 'field_aware_relevance.scope_field_weight',
+  'fieldAwareRelevance.learned_anchor_field_weight': 'field_aware_relevance.learned_anchor_field_weight',
+  'ga4Gsc.ranking_weight': 'ga4_gsc.ranking_weight',
+  'clickDistance.ranking_weight': 'click_distance.ranking_weight',
+  'clickDistance.k_cd': 'click_distance.k_cd',
+  'clickDistance.b_cd': 'click_distance.b_cd',
+  'clickDistance.b_ud': 'click_distance.b_ud',
+  'silo.mode': 'silo.mode',
+  'silo.same_silo_boost': 'silo.same_silo_boost',
+  'silo.cross_silo_penalty': 'silo.cross_silo_penalty',
+  'feedbackRerank.enabled': 'explore_exploit.enabled',
+  'feedbackRerank.ranking_weight': 'explore_exploit.ranking_weight',
+  'feedbackRerank.exploration_rate': 'explore_exploit.exploration_rate',
+  'clustering.enabled': 'clustering.enabled',
+  'clustering.similarity_threshold': 'clustering.similarity_threshold',
+  'clustering.suppression_penalty': 'clustering.suppression_penalty',
+  'slateDiversity.enabled': 'slate_diversity.enabled',
+  'slateDiversity.diversity_lambda': 'slate_diversity.diversity_lambda',
+  'slateDiversity.score_window': 'slate_diversity.score_window',
+  'slateDiversity.similarity_cap': 'slate_diversity.similarity_cap',
+};
+
 const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number }> = {
-  'weightedAuthority.ranking_weight': { warnAbove: 0.2 },
+  'weightedAuthority.ranking_weight': { warnAbove: 0.18 },
   'weightedAuthority.position_bias': { warnBelow: 0.1, warnAbove: 0.9 },
   'weightedAuthority.empty_anchor_factor': { warnBelow: 0.2, warnAbove: 0.95 },
   'weightedAuthority.bare_url_factor': { warnBelow: 0.15, warnAbove: 0.9 },
@@ -410,16 +470,17 @@ const EXTREME_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: numbe
   'rareTermPropagation.ranking_weight': { warnAbove: 0.08 },
   'rareTermPropagation.max_document_frequency': { warnAbove: 7 },
   'fieldAwareRelevance.ranking_weight': { warnAbove: 0.12 },
+  'ga4Gsc.ranking_weight': { warnAbove: 0.12 },
   'clickDistance.ranking_weight': { warnAbove: 0.15 },
-  'clickDistance.k_cd': { warnAbove: 3.5 },
-  'clickDistance.b_cd': { warnAbove: 0.6 },
-  'clickDistance.b_ud': { warnAbove: 0.6 },
-  'feedbackRerank.ranking_weight': { warnAbove: 0.75 },
-  'feedbackRerank.exploration_rate': { warnAbove: 5.0 },
+  'clickDistance.k_cd': { warnBelow: 2.0, warnAbove: 5.0 },
+  'clickDistance.b_cd': { warnBelow: 0.4, warnAbove: 0.9 },
+  'clickDistance.b_ud': { warnAbove: 0.5 },
+  'feedbackRerank.ranking_weight': { warnAbove: 0.15 },
+  'feedbackRerank.exploration_rate': { warnBelow: 0.7, warnAbove: 2.5 },
   'silo.same_silo_boost': { warnAbove: 0.4 },
   'silo.cross_silo_penalty': { warnAbove: 0.4 },
   'clustering.similarity_threshold': { warnAbove: 0.1 },
-  'clustering.suppression_penalty': { warnAbove: 1.0 },
+  'clustering.suppression_penalty': { warnBelow: 5, warnAbove: 30 },
   'slateDiversity.diversity_lambda': { warnBelow: 0.4 },
   'slateDiversity.score_window': { warnAbove: 0.6 },
   'slateDiversity.similarity_cap': { warnBelow: 0.75 },
@@ -458,6 +519,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   savingLearnedAnchor = false;
   savingRareTermPropagation = false;
   savingFieldAwareRelevance = false;
+  savingGA4GSC = false;
   savingClickDistance = false;
   savingFeedbackRerank = false;
   savingClustering = false;
@@ -471,12 +533,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
   creatingGroup = false;
 
   settings: SiloSettings = {
-    mode: 'disabled',
-    same_silo_boost: 0,
-    cross_silo_penalty: 0,
+    mode: 'prefer_same_silo',
+    same_silo_boost: 0.05,
+    cross_silo_penalty: 0.05,
   };
   weightedAuthority: WeightedAuthoritySettings = {
-    ranking_weight: 0.2,
+    ranking_weight: 0.1,
     position_bias: 0.5,
     empty_anchor_factor: 0.6,
     bare_url_factor: 0.35,
@@ -484,7 +546,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     isolated_context_factor: 0.45,
   };
   linkFreshness: LinkFreshnessSettings = {
-    ranking_weight: 0,
+    ranking_weight: 0.05,
     recent_window_days: 30,
     newest_peer_percent: 0.25,
     min_peer_count: 3,
@@ -494,49 +556,52 @@ export class SettingsComponent implements OnInit, OnDestroy {
     w_loss: 0.1,
   };
   phraseMatching: PhraseMatchingSettings = {
-    ranking_weight: 0,
+    ranking_weight: 0.08,
     enable_anchor_expansion: true,
     enable_partial_matching: true,
     context_window_tokens: 8,
   };
   learnedAnchor: LearnedAnchorSettings = {
-    ranking_weight: 0,
+    ranking_weight: 0.05,
     minimum_anchor_sources: 2,
     minimum_family_support_share: 0.15,
     enable_noise_filter: true,
   };
   rareTermPropagation: RareTermPropagationSettings = {
     enabled: true,
-    ranking_weight: 0,
+    ranking_weight: 0.05,
     max_document_frequency: 3,
     minimum_supporting_related_pages: 2,
   };
   fieldAwareRelevance: FieldAwareRelevanceSettings = {
-    ranking_weight: 0,
+    ranking_weight: 0.1,
     title_field_weight: 0.4,
     body_field_weight: 0.3,
     scope_field_weight: 0.15,
     learned_anchor_field_weight: 0.15,
   };
+  ga4Gsc: GA4GSCSettings = {
+    ranking_weight: 0.05,
+  };
   clickDistance: ClickDistanceSettings = {
-    ranking_weight: 0,
-    k_cd: 1.5,
-    b_cd: 0.1,
-    b_ud: 0.1,
+    ranking_weight: 0.07,
+    k_cd: 4,
+    b_cd: 0.75,
+    b_ud: 0.25,
   };
   feedbackRerank: FeedbackRerankSettings = {
-    enabled: false,
-    ranking_weight: 0.2,
-    exploration_rate: 1.0,
+    enabled: true,
+    ranking_weight: 0.08,
+    exploration_rate: 1.41421356237,
   };
   clustering: ClusteringSettings = {
-    enabled: false,
+    enabled: true,
     similarity_threshold: 0.04,
-    suppression_penalty: 0.5,
+    suppression_penalty: 20,
   };
   slateDiversity: SlateDiversitySettings = {
     enabled: true,
-    diversity_lambda: 0.7,
+    diversity_lambda: 0.65,
     score_window: 0.30,
     similarity_cap: 0.90,
   };
@@ -566,6 +631,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   loadingHistory = false;
   rollingBack = false;
   triggeringRTune = false;
+  currentWeights: Record<string, string> = {};
 
   siloGroups: SiloGroup[] = [];
   scopes: ScopeItem[] = [];
@@ -599,13 +665,63 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return this.modeOptions.find((option) => option.value === this.settings.mode)?.description ?? '';
   }
 
+  get recommendedPreset(): WeightPreset | null {
+    return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase() === 'recommended') ?? null;
+  }
+
+  get matchedPreset(): WeightPreset | null {
+    return this.weightPresets.find((preset) => this.presetMatchesCurrent(preset)) ?? null;
+  }
+
+  get activePresetLabel(): string {
+    return this.matchedPreset?.name ?? 'Custom live mix';
+  }
+
+  get currentFeatureCount(): number {
+    return this.getFeatureSummary().filter((feature) => feature.currentEnabled).length;
+  }
+
+  get recommendedFeatureCount(): number {
+    return this.getFeatureSummary().filter((feature) => feature.recommendedEnabled).length;
+  }
+
+  get currentOffFeatures(): string[] {
+    return this.getFeatureSummary()
+      .filter((feature) => feature.recommendedEnabled && !feature.currentEnabled)
+      .map((feature) => feature.label);
+  }
+
+  recommendedValueLabel(key: string): string | null {
+    const value = this.presetValueFor(key, this.recommendedPreset);
+    if (value == null) return null;
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return 'On';
+    if (normalized === 'false') return 'Off';
+    if (key === 'silo.mode') {
+      return this.modeOptions.find((option) => option.value === normalized)?.label ?? value;
+    }
+    return value;
+  }
+
+  fieldHelper(key: string, value: number | boolean | string | null | undefined): string {
+    const notes: string[] = [];
+    const recommended = this.recommendedValueLabel(key);
+    if (recommended) {
+      notes.push(`Recommended start: ${recommended}.`);
+    }
+    if (typeof value === 'number' && this.isExtreme(value, key)) {
+      notes.push('This is an aggressive setting.');
+    }
+    return notes.join(' ');
+  }
+
   tip(key: string): string {
     const t = SETTING_TOOLTIPS[key];
     if (!t) return `⚠ No tooltip defined for "${key}" — add an entry to SETTING_TOOLTIPS in settings.component.ts`;
     return [
       `Definition: ${t.definition}`,
       `Linking impact: ${t.impact}`,
-      `Recommended default: ${t.default}`,
+      `Recommended start: ${this.recommendedValueLabel(key) ?? t.default}`,
       `Example: ${t.example}`,
       `Valid range: ${t.range}`,
     ].join('\n\n');
@@ -618,6 +734,60 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (threshold.warnAbove !== undefined && value > threshold.warnAbove) return true;
     if (threshold.warnBelow !== undefined && value < threshold.warnBelow) return true;
     return false;
+  }
+
+  private presetMatchesCurrent(preset: WeightPreset): boolean {
+    const presetEntries = Object.entries(preset.weights ?? {});
+    if (!presetEntries.length) return false;
+    return presetEntries.every(([key, value]) => this.normalizeComparableValue(this.currentWeights[key]) === this.normalizeComparableValue(value));
+  }
+
+  private presetValueFor(key: string, preset: WeightPreset | null): string | null {
+    if (!preset) return null;
+    const presetKey = UI_TO_PRESET_KEY[key];
+    if (!presetKey) return null;
+    const value = preset.weights?.[presetKey];
+    return value == null ? null : String(value);
+  }
+
+  private getFeatureSummary(): Array<{ label: string; currentEnabled: boolean; recommendedEnabled: boolean }> {
+    const recommended = this.recommendedPreset;
+    return [
+      { label: 'March 2026 PageRank', currentEnabled: this.weightedAuthority.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'weighted_authority.ranking_weight') },
+      { label: 'Link Freshness', currentEnabled: this.linkFreshness.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'link_freshness.ranking_weight') },
+      { label: 'Phrase Matching', currentEnabled: this.phraseMatching.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'phrase_matching.ranking_weight') },
+      { label: 'Learned Anchors', currentEnabled: this.learnedAnchor.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'learned_anchor.ranking_weight') },
+      { label: 'Rare-Term Propagation', currentEnabled: this.rareTermPropagation.enabled && this.rareTermPropagation.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.enabled') && this.isFeatureEnabledInPreset(recommended, 'rare_term_propagation.ranking_weight') },
+      { label: 'Field-Aware Relevance', currentEnabled: this.fieldAwareRelevance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'field_aware_relevance.ranking_weight') },
+      { label: 'GA4 + Search Console', currentEnabled: this.ga4Gsc.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'ga4_gsc.ranking_weight') },
+      { label: 'Click Distance', currentEnabled: this.clickDistance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'click_distance.ranking_weight') },
+      { label: 'Silo Ranking', currentEnabled: this.settings.mode !== 'disabled', recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'silo.mode') },
+      { label: 'Feedback Reranking', currentEnabled: this.feedbackRerank.enabled && this.feedbackRerank.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'explore_exploit.enabled') && this.isFeatureEnabledInPreset(recommended, 'explore_exploit.ranking_weight') },
+      { label: 'Near-Duplicate Clustering', currentEnabled: this.clustering.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'clustering.enabled') },
+      { label: 'Slate Diversity', currentEnabled: this.slateDiversity.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'slate_diversity.enabled') },
+    ];
+  }
+
+  private isFeatureEnabledInPreset(preset: WeightPreset | null, presetKey: string): boolean {
+    const value = preset?.weights?.[presetKey];
+    if (value == null) return false;
+    const normalized = String(value).trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+    if (normalized === 'disabled') return false;
+    const numeric = Number(normalized);
+    if (Number.isFinite(numeric)) return numeric > 0;
+    return normalized.length > 0;
+  }
+
+  private normalizeComparableValue(value: unknown): string {
+    if (value == null) return '';
+    const raw = String(value).trim();
+    const normalized = raw.toLowerCase();
+    if (normalized === 'true' || normalized === 'false') return normalized;
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric)) return String(numeric);
+    return normalized;
   }
 
   ngOnInit(): void {
@@ -634,11 +804,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
       learnedAnchor: this.siloSvc.getLearnedAnchorSettings(),
       rareTermPropagation: this.siloSvc.getRareTermPropagationSettings(),
       fieldAwareRelevance: this.siloSvc.getFieldAwareRelevanceSettings(),
+      ga4Gsc: this.siloSvc.getGA4GSCSettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
       clustering: this.siloSvc.getClusteringSettings(),
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
+      currentWeights: this.siloSvc.getCurrentWeights(),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.settings = data.settings;
@@ -648,11 +820,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.learnedAnchor = data.learnedAnchor;
         this.rareTermPropagation = data.rareTermPropagation;
         this.fieldAwareRelevance = data.fieldAwareRelevance;
+        this.ga4Gsc = data.ga4Gsc;
         this.wordpress = data.wordpress;
         this.clickDistance = data.clickDistance;
         this.feedbackRerank = data.feedbackRerank;
         this.clustering = data.clustering;
         this.slateDiversity = data.slateDiversity;
+        this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
       },
       error: () => {
@@ -661,6 +835,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
       },
     });
     this.reloadPresetsAndHistory();
+  }
+
+  private refreshCurrentWeights(): void {
+    this.siloSvc.getCurrentWeights().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (weights) => {
+        this.currentWeights = weights;
+      },
+    });
   }
 
   reloadPresetsAndHistory(): void {
@@ -810,6 +992,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching).subscribe({
       next: (phraseMatching) => {
         this.phraseMatching = phraseMatching;
+        this.refreshCurrentWeights();
         this.savingPhraseMatching = false;
         this.snack.open('Phrase matching settings saved', undefined, { duration: 2500 });
       },
@@ -825,6 +1008,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor).subscribe({
       next: (learnedAnchor) => {
         this.learnedAnchor = learnedAnchor;
+        this.refreshCurrentWeights();
         this.savingLearnedAnchor = false;
         this.snack.open('Learned anchor settings saved', undefined, { duration: 2500 });
       },
@@ -840,6 +1024,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation).subscribe({
       next: (rareTermPropagation) => {
         this.rareTermPropagation = rareTermPropagation;
+        this.refreshCurrentWeights();
         this.savingRareTermPropagation = false;
         this.snack.open('Rare-term propagation settings saved', undefined, { duration: 2500 });
       },
@@ -855,6 +1040,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance).subscribe({
       next: (fieldAwareRelevance) => {
         this.fieldAwareRelevance = fieldAwareRelevance;
+        this.refreshCurrentWeights();
         this.savingFieldAwareRelevance = false;
         this.snack.open('Field-aware relevance settings saved', undefined, { duration: 2500 });
       },
@@ -865,11 +1051,28 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  saveGA4GSCSettings(): void {
+    this.savingGA4GSC = true;
+    this.siloSvc.updateGA4GSCSettings(this.ga4Gsc).subscribe({
+      next: (ga4Gsc) => {
+        this.ga4Gsc = ga4Gsc;
+        this.refreshCurrentWeights();
+        this.savingGA4GSC = false;
+        this.snack.open('GA4 and Search Console settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingGA4GSC = false;
+        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save GA4 and Search Console settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   saveLinkFreshnessSettings(): void {
     this.savingLinkFreshness = true;
     this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness).subscribe({
       next: (linkFreshness) => {
         this.linkFreshness = linkFreshness;
+        this.refreshCurrentWeights();
         this.savingLinkFreshness = false;
         this.snack.open('Link Freshness settings saved', undefined, { duration: 2500 });
       },
@@ -885,6 +1088,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateClickDistanceSettings(this.clickDistance).subscribe({
       next: (clickDistance) => {
         this.clickDistance = clickDistance;
+        this.refreshCurrentWeights();
         this.savingClickDistance = false;
         this.snack.open('Click distance settings saved', undefined, { duration: 2500 });
       },
@@ -900,6 +1104,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank).subscribe({
       next: (feedbackRerank) => {
         this.feedbackRerank = feedbackRerank;
+        this.refreshCurrentWeights();
         this.savingFeedbackRerank = false;
         this.snack.open('Explore/Exploit reranking settings saved', undefined, { duration: 2500 });
       },
@@ -915,6 +1120,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateClusteringSettings(this.clustering).subscribe({
       next: (clustering) => {
         this.clustering = clustering;
+        this.refreshCurrentWeights();
         this.savingClustering = false;
         this.snack.open('Clustering settings saved', undefined, { duration: 2500 });
       },
@@ -930,6 +1136,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateSlateDiversitySettings(this.slateDiversity).subscribe({
       next: (slateDiversity) => {
         this.slateDiversity = slateDiversity;
+        this.refreshCurrentWeights();
         this.savingSlate = false;
         this.snack.open('Slate diversity settings saved', undefined, { duration: 2500 });
       },
@@ -995,6 +1202,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateSettings(this.settings).subscribe({
       next: (settings) => {
         this.settings = settings;
+        this.refreshCurrentWeights();
         this.savingSettings = false;
         this.snack.open('Silo settings saved', undefined, { duration: 2500 });
       },
@@ -1010,6 +1218,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority).subscribe({
       next: (weightedAuthority) => {
         this.weightedAuthority = weightedAuthority;
+        this.refreshCurrentWeights();
         this.savingWeightedAuthority = false;
         this.snack.open('March 2026 PageRank settings saved', undefined, { duration: 2500 });
       },

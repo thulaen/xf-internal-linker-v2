@@ -104,6 +104,10 @@ export interface FieldAwareRelevanceSettings {
   learned_anchor_field_weight: number;
 }
 
+export interface GA4GSCSettings {
+  ranking_weight: number;
+}
+
 export interface ClickDistanceSettings {
   ranking_weight: number;
   k_cd: number;
@@ -228,6 +232,10 @@ export class SiloSettingsService {
     return this.http.get<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/');
   }
 
+  getGA4GSCSettings(): Observable<GA4GSCSettings> {
+    return this.http.get<GA4GSCSettings>('/api/settings/ga4-gsc/');
+  }
+
   getClickDistanceSettings(): Observable<ClickDistanceSettings> {
     return this.http.get<ClickDistanceSettings>('/api/settings/click-distance/');
   }
@@ -270,6 +278,10 @@ export class SiloSettingsService {
 
   updateFieldAwareRelevanceSettings(payload: FieldAwareRelevanceSettings): Observable<FieldAwareRelevanceSettings> {
     return this.http.put<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/', payload);
+  }
+
+  updateGA4GSCSettings(payload: GA4GSCSettings): Observable<GA4GSCSettings> {
+    return this.http.put<GA4GSCSettings>('/api/settings/ga4-gsc/', payload);
   }
 
   updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {

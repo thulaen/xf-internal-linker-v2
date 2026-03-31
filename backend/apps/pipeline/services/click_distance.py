@@ -14,6 +14,8 @@ from urllib.parse import urlparse
 from django.db import transaction
 from django.db.models import F
 
+from apps.suggestions.recommended_weights import recommended_float
+
 if TYPE_CHECKING:
     from apps.content.models import ContentItem, ScopeItem
 
@@ -21,10 +23,10 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class ClickDistanceSettings:
     """Settings for FR-012 Click-Distance Structural Prior."""
-    ranking_weight: float = 0.0
-    k_cd: float = 4.0        # Saturation constant
-    b_cd: float = 0.75       # Structural depth weight
-    b_ud: float = 0.25       # URL depth weight
+    ranking_weight: float = recommended_float("click_distance.ranking_weight")
+    k_cd: float = recommended_float("click_distance.k_cd")        # Saturation constant
+    b_cd: float = recommended_float("click_distance.b_cd")        # Structural depth weight
+    b_ud: float = recommended_float("click_distance.b_ud")        # URL depth weight
 
     def is_valid(self) -> bool:
         """Weight sum must be positive to avoid division by zero."""

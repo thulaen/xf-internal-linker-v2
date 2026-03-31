@@ -1,0 +1,80 @@
+"""Canonical research-backed starting weights for the Recommended preset.
+
+These values are the single backend source of truth for the default ranking
+starting point shown in Settings and used when older presets are missing newer
+keys.
+"""
+
+from __future__ import annotations
+
+RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
+    "w_semantic": "0.40",
+    "w_keyword": "0.25",
+    "w_node": "0.20",
+    "w_quality": "0.15",
+    "silo.mode": "prefer_same_silo",
+    "silo.same_silo_boost": "0.05",
+    "silo.cross_silo_penalty": "0.05",
+    "weighted_authority.ranking_weight": "0.10",
+    "weighted_authority.position_bias": "0.5",
+    "weighted_authority.empty_anchor_factor": "0.6",
+    "weighted_authority.bare_url_factor": "0.35",
+    "weighted_authority.weak_context_factor": "0.75",
+    "weighted_authority.isolated_context_factor": "0.45",
+    "rare_term_propagation.enabled": "true",
+    "rare_term_propagation.ranking_weight": "0.05",
+    "rare_term_propagation.max_document_frequency": "3",
+    "rare_term_propagation.minimum_supporting_related_pages": "2",
+    "field_aware_relevance.ranking_weight": "0.10",
+    "field_aware_relevance.title_field_weight": "0.40",
+    "field_aware_relevance.body_field_weight": "0.30",
+    "field_aware_relevance.scope_field_weight": "0.15",
+    "field_aware_relevance.learned_anchor_field_weight": "0.15",
+    "ga4_gsc.ranking_weight": "0.05",
+    "click_distance.ranking_weight": "0.07",
+    "click_distance.k_cd": "4.0",
+    "click_distance.b_cd": "0.75",
+    "click_distance.b_ud": "0.25",
+    "explore_exploit.enabled": "true",
+    "explore_exploit.ranking_weight": "0.08",
+    "explore_exploit.exploration_rate": "1.41421356237",
+    "clustering.enabled": "true",
+    "clustering.similarity_threshold": "0.04",
+    "clustering.suppression_penalty": "20.0",
+    "slate_diversity.enabled": "true",
+    "slate_diversity.diversity_lambda": "0.65",
+    "slate_diversity.score_window": "0.30",
+    "slate_diversity.similarity_cap": "0.90",
+    "link_freshness.ranking_weight": "0.05",
+    "link_freshness.recent_window_days": "30",
+    "link_freshness.newest_peer_percent": "0.25",
+    "link_freshness.min_peer_count": "3",
+    "link_freshness.w_recent": "0.35",
+    "link_freshness.w_growth": "0.35",
+    "link_freshness.w_cohort": "0.20",
+    "link_freshness.w_loss": "0.10",
+    "phrase_matching.ranking_weight": "0.08",
+    "phrase_matching.enable_anchor_expansion": "true",
+    "phrase_matching.enable_partial_matching": "true",
+    "phrase_matching.context_window_tokens": "8",
+    "learned_anchor.ranking_weight": "0.05",
+    "learned_anchor.minimum_anchor_sources": "2",
+    "learned_anchor.minimum_family_support_share": "0.15",
+    "learned_anchor.enable_noise_filter": "true",
+}
+
+
+def recommended_bool(key: str) -> bool:
+    return RECOMMENDED_PRESET_WEIGHTS[key].strip().lower() == "true"
+
+
+def recommended_float(key: str) -> float:
+    return float(RECOMMENDED_PRESET_WEIGHTS[key])
+
+
+def recommended_int(key: str) -> int:
+    return int(float(RECOMMENDED_PRESET_WEIGHTS[key]))
+
+
+def recommended_str(key: str) -> str:
+    return RECOMMENDED_PRESET_WEIGHTS[key]
