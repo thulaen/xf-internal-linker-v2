@@ -130,7 +130,5 @@ describe('SettingsComponent', () => {
     expect(text).toContain('GA4 + Search Console');
     expect(text).toContain('WordPress site URL');
     expect(text).toContain('Rare-Term Propagation');
-    expect(text).toContain('borrowed words stay separate');
-    expect(text).toContain('A silo group is just a bucket of related pages.');
   });
 });

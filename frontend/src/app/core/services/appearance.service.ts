@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, catchError, map, of, take, tap } from 'rxjs';
+import { BehaviorSubject, Observable, Subject, catchError, debounceTime, map, of, take, tap } from 'rxjs';
 
 export interface AppearanceConfig {
   primaryColor: string;
@@ -66,6 +66,21 @@ export class AppearanceService {
   private _config$ = new BehaviorSubject<AppearanceConfig>(DEFAULT_CONFIG);
   readonly config$ = this._config$.asObservable();
 
+  private updateSubject = new Subject<Partial<AppearanceConfig>>();
+  private pendingPatch: Partial<AppearanceConfig> = {};
+
+  constructor() {
+    this.updateSubject.pipe(
+      debounceTime(500)
+    ).subscribe(() => {
+      if (Object.keys(this.pendingPatch).length > 0) {
+        const patchToTransmit = { ...this.pendingPatch };
+        this.pendingPatch = {};
+        this.http.put<AppearanceConfig>(this.apiUrl, patchToTransmit).subscribe();
+      }
+    });
+  }
+
   get config(): AppearanceConfig {
     return this._config$.getValue();
   }
@@ -82,15 +97,26 @@ export class AppearanceService {
       });
   }
 
-  /** Update one or more keys, save to API, apply immediately. */
-  update(patch: Partial<AppearanceConfig>): void {
+  /** Update one or more keys, apply immediately to DOM. Persists to API (can be debounced). */
+  update(patch: Partial<AppearanceConfig>, debounce = false): void {
+    this.updateLocal(patch);
+
+    if (debounce) {
+      this.pendingPatch = { ...this.pendingPatch, ...patch };
+      this.updateSubject.next(this.pendingPatch);
+    } else {
+      this.http
+        .put<AppearanceConfig>(this.apiUrl, patch)
+        .pipe(take(1), catchError(() => of(this.config)))
+        .subscribe();
+    }
+  }
+
+  /** Update local state and DOM immediately without triggering an API write. */
+  updateLocal(patch: Partial<AppearanceConfig>): void {
     const next = { ...this._config$.getValue(), ...patch };
     this._config$.next(next);
     this.applyToDom(next);
-    this.http
-      .put<AppearanceConfig>(this.apiUrl, patch)
-      .pipe(take(1), catchError(() => of(next)))
-      .subscribe();
   }
 
   /** Reset to factory defaults, persist. */
@@ -129,7 +155,7 @@ export class AppearanceService {
     return this.http
       .post<{ logo_url: string }>('/api/settings/logo/', form)
       .pipe(
-        tap((res) => this.update({ logoUrl: res.logo_url })),
+        tap((res) => this.updateLocal({ logoUrl: res.logo_url })),
         map((res) => res.logo_url),
       );
   }
@@ -137,7 +163,7 @@ export class AppearanceService {
   /** Remove the site logo and clear logoUrl. */
   removeLogo(): void {
     this.http.delete('/api/settings/logo/').pipe(take(1), catchError(() => of(null))).subscribe();
-    this.update({ logoUrl: '' });
+    this.updateLocal({ logoUrl: '' });
   }
 
   /**
@@ -150,7 +176,7 @@ export class AppearanceService {
     return this.http
       .post<{ favicon_url: string }>('/api/settings/favicon/', form)
       .pipe(
-        tap((res) => this.update({ faviconUrl: res.favicon_url })),
+        tap((res) => this.updateLocal({ faviconUrl: res.favicon_url })),
         map((res) => res.favicon_url),
       );
   }
@@ -158,7 +184,7 @@ export class AppearanceService {
   /** Remove the site favicon and clear faviconUrl. */
   removeFavicon(): void {
     this.http.delete('/api/settings/favicon/').pipe(take(1), catchError(() => of(null))).subscribe();
-    this.update({ faviconUrl: '' });
+    this.updateLocal({ faviconUrl: '' });
   }
 
   private applyToDom(cfg: AppearanceConfig): void {

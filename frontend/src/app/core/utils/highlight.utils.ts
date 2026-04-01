@@ -8,15 +8,25 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
-/**
- * Wrap occurrences of `anchor` inside `sentence` with `<mark>` tags.
- * Both inputs are HTML-escaped first so raw forum content cannot inject markup.
- * Returns a safe HTML string ready for use with bypassSecurityTrustHtml or [innerHTML].
- */
+const highlightCache = new Map<string, string>();
+
 export function highlightText(sentence: string, anchor: string): string {
+  const key = `${sentence}|||${anchor}`;
+  if (highlightCache.has(key)) {
+    return highlightCache.get(key)!;
+  }
+
   const safeSentence = escapeHtml(sentence);
-  if (!anchor) return safeSentence;
+  if (!anchor) {
+    return safeSentence;
+  }
   const safeAnchor = escapeHtml(anchor);
   const reEsc = safeAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  return safeSentence.replace(new RegExp(`(${reEsc})`, 'gi'), '<mark>$1</mark>');
+  const result = safeSentence.replace(new RegExp(`(${reEsc})`, 'gi'), '<mark>$1</mark>');
+
+  if (highlightCache.size > 500) {
+    highlightCache.clear();
+  }
+  highlightCache.set(key, result);
+  return result;
 }

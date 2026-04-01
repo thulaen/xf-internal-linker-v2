@@ -49,7 +49,7 @@
       <p class="section-title">Insertion sentence</p>
       <blockquote
         class="host-sentence"
-        [innerHTML]="highlightSentence(detail.host_sentence_text, effectiveAnchor)"
+        [innerHTML]="detail.host_sentence_text | highlight:effectiveAnchor"
       ></blockquote>
     </section>
 

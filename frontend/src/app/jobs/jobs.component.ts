@@ -52,6 +52,7 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   private syncService = inject(SyncService);
   private ws: WebSocket | null = null;
+  private pollingInterval: any;
 
   readonly modes = [
     { value: 'full',   label: 'Full import',   hint: 'Body text, sentences, embeddings' },
@@ -168,19 +169,65 @@ export class JobsComponent implements OnInit, OnDestroy {
           this.state = 'completed';
           this.progress = 100;
           this.ws?.close();
+          this.stopPolling();
           this.loadHistory(); // Refresh history on completion
         } else if (data.state === 'failed') {
           this.state = 'failed';
           this.errorMessage = data.error ?? 'Import failed.';
           this.ws?.close();
+          this.stopPolling();
           this.loadHistory(); // Refresh history on failure
         }
       }
     };
 
     this.ws.onerror = () => {
-      this.progressMessage = 'WebSocket error — progress updates unavailable.';
+      if (this.state === 'running') {
+        this.progressMessage = 'WebSocket error — switching to polling...';
+        this.startPolling(jobId);
+      }
     };
+
+    this.ws.onclose = () => {
+      if (this.state === 'running') {
+        this.progressMessage = 'Connection closed — switching to polling...';
+        this.startPolling(jobId);
+      }
+    };
+  }
+
+  private startPolling(jobId: string): void {
+    if (this.pollingInterval) return;
+    this.pollingInterval = setInterval(() => {
+      this.syncService.getJob(jobId).subscribe({
+        next: (job) => {
+          this.progress = Math.round((job.progress ?? 0) * 100);
+          this.progressMessage = job.message ?? '';
+
+          if (job.status === 'completed') {
+            this.state = 'completed';
+            this.progress = 100;
+            this.stopPolling();
+            this.loadHistory();
+          } else if (job.status === 'failed') {
+            this.state = 'failed';
+            this.errorMessage = job.error_message ?? 'Import failed.';
+            this.stopPolling();
+            this.loadHistory();
+          }
+        },
+        error: () => {
+          // Silent fail for polling, will retry next interval
+        }
+      });
+    }, 3000);
+  }
+
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 
   // ── UI Helpers ──────────────────────────────────────────────────
@@ -202,6 +249,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   reset(): void {
     this.ws?.close();
     this.ws = null;
+    this.stopPolling();
     this.selectedFile = null;
     this.state = 'idle';
     this.progress = 0;
@@ -212,5 +260,6 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.ws?.close();
+    this.stopPolling();
   }
 }

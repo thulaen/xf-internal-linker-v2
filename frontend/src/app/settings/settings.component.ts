@@ -1052,7 +1052,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     
     const recommended = this.recommendedPreset;
     if (recommended && !this.matchedPreset) {
-      console.log('Auto-applying Recommended preset for new instance...');
       this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$)).subscribe({
         next: () => {
           this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
@@ -1178,12 +1177,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return { r_auto: 'R auto-tune', manual: 'Manual', preset_applied: 'Preset applied' }[source] ?? source;
   }
 
-  deltaKeys(delta: Record<string, { previous: string | null; new: string | null }> | null | undefined): string[] {
-    try {
-      return delta ? Object.keys(delta) : [];
-    } catch (e) {
-      return [];
-    }
+  deltaKeys(delta: Record<string, any> | null | undefined): string[] {
+    return delta ? Object.keys(delta) : [];
   }
 
   formatDeltaLine(key: string, entry: { previous: string | null; new: string | null }): string {

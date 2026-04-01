@@ -200,7 +200,7 @@
 
         <p
           class="card-sentence"
-          [innerHTML]="highlightAnchor(s.host_sentence_text, s)"
+          [innerHTML]="s.host_sentence_text | highlight:(s.anchor_edited || s.anchor_phrase)"
         ></p>
 
         <div class="card-anchor-row">

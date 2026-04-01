@@ -14,6 +14,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { forkJoin } from 'rxjs';
+import { SyncService } from '../jobs/sync.service';
 import { DashboardService } from '../dashboard/dashboard.service';
 import {
   BrokenLink,
@@ -48,6 +49,7 @@ type LinkHealthFilter = BrokenLinkStatus | 'all';
 export class LinkHealthComponent implements OnInit, OnDestroy {
   private brokenLinkSvc = inject(BrokenLinkService);
   private dashboardSvc = inject(DashboardService);
+  private syncService = inject(SyncService);
   private snack = inject(MatSnackBar);
 
   brokenLinks: BrokenLink[] = [];
@@ -98,6 +100,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   ];
 
   private ws: WebSocket | null = null;
+  private pollingInterval: any;
 
   ngOnInit(): void {
     this.load();
@@ -106,6 +109,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
 
   ngOnDestroy(): void {
     this.ws?.close();
+    this.stopPolling();
   }
 
   load(): void {
@@ -207,15 +211,29 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   }
 
   markStatus(link: BrokenLink, status: BrokenLinkStatus): void {
+    const oldStatus = link.status;
     this.brokenLinkSvc.patch(link.broken_link_id, { status }).subscribe({
       next: () => {
         this.snack.open(
           status === 'fixed' ? 'Marked as fixed' : 'Broken link ignored',
           undefined,
-          { duration: 2500 },
+          { duration: 2500 }
         );
+
+        // Update local summary counts to avoid redundant summary fetch
+        if (oldStatus !== status) {
+          if (oldStatus === 'open') this.summary.open--;
+          if (oldStatus === 'ignored') this.summary.ignored--;
+          if (oldStatus === 'fixed') this.summary.fixed--;
+
+          if (status === 'open') this.summary.open++;
+          if (status === 'ignored') this.summary.ignored++;
+          if (status === 'fixed') this.summary.fixed++;
+
+          this.dashboardSvc.updateOpenBrokenLinks(this.summary.open);
+        }
+
         this.load();
-        this.loadSummary();
       },
       error: () => {
         this.snack.open('Failed to update broken link', 'Dismiss', { duration: 4000 });
@@ -263,6 +281,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
         this.scanning = false;
         this.progress = 100;
         this.ws?.close();
+        this.stopPolling();
         this.load();
         this.loadSummary();
         this.snack.open('Broken-link scan complete', undefined, { duration: 3000 });
@@ -270,12 +289,59 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
         this.scanning = false;
         this.errorMessage = data.error ?? 'Broken-link scan failed.';
         this.ws?.close();
+        this.stopPolling();
         this.snack.open(this.errorMessage, 'Dismiss', { duration: 5000 });
       }
     };
 
     this.ws.onerror = () => {
-      this.errorMessage = 'WebSocket error — progress updates unavailable.';
+      if (this.scanning) {
+        this.errorMessage = 'WebSocket error — switching to polling...';
+        this.startPolling(jobId);
+      }
     };
+
+    this.ws.onclose = () => {
+      if (this.scanning) {
+        this.errorMessage = 'Connection closed — switching to polling...';
+        this.startPolling(jobId);
+      }
+    };
+  }
+
+  private startPolling(jobId: string): void {
+    if (this.pollingInterval) return;
+    this.pollingInterval = setInterval(() => {
+      this.syncService.getJob(jobId).subscribe({
+        next: (job) => {
+          this.progress = Math.round((job.progress ?? 0) * 100);
+          this.progressMessage = job.message ?? '';
+
+          if (job.status === 'completed') {
+            this.scanning = false;
+            this.progress = 100;
+            this.stopPolling();
+            this.load();
+            this.loadSummary();
+            this.snack.open('Broken-link scan complete', undefined, { duration: 3000 });
+          } else if (job.status === 'failed') {
+            this.scanning = false;
+            this.errorMessage = job.error_message ?? 'Broken-link scan failed.';
+            this.stopPolling();
+            this.snack.open(this.errorMessage, 'Dismiss', { duration: 5000 });
+          }
+        },
+        error: () => {
+          // Silent retry
+        }
+      });
+    }, 3000);
+  }
+
+  private stopPolling(): void {
+    if (this.pollingInterval) {
+      clearInterval(this.pollingInterval);
+      this.pollingInterval = null;
+    }
   }
 }

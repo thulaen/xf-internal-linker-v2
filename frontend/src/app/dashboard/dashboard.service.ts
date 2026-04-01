@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap } from 'rxjs';
+import { BehaviorSubject, Observable, tap, of, shareReplay, finalize } from 'rxjs';
 
 export interface SuggestionCounts {
   pending: number;
@@ -51,17 +51,34 @@ export class DashboardService {
   private http = inject(HttpClient);
   private url = '/api/dashboard/';
   private dataSubject = new BehaviorSubject<DashboardData | null>(null);
-
   readonly data$ = this.dataSubject.asObservable();
+  private refreshRequest: Observable<DashboardData> | null = null;
 
   get(): Observable<DashboardData> {
+    const current = this.dataSubject.value;
+    if (current && !this.refreshRequest) {
+      return of(current);
+    }
     return this.refresh();
   }
 
   refresh(): Observable<DashboardData> {
-    return this.http.get<DashboardData>(this.url).pipe(
+    if (this.refreshRequest) {
+      return this.refreshRequest;
+    }
+
+    const request = this.http.get<DashboardData>(this.url).pipe(
       tap((data) => this.dataSubject.next(data)),
+      shareReplay(1),
+      finalize(() => {
+        if (this.refreshRequest === request) {
+          this.refreshRequest = null;
+        }
+      })
     );
+
+    this.refreshRequest = request;
+    return request;
   }
 
   updateOpenBrokenLinks(count: number): void {

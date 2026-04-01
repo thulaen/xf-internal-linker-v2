@@ -12,7 +12,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SuggestionService, SuggestionDetail, REJECTION_REASONS } from './suggestion.service';
-import { highlightText } from '../core/utils/highlight.utils';
+import { HighlightPipe } from '../core/pipes/highlight.pipe';
 
 export interface DialogData {
   suggestionId: string;
@@ -39,6 +39,7 @@ export type DialogResult =
     MatProgressBarModule,
     MatSelectModule,
     MatTooltipModule,
+    HighlightPipe,
   ],
   templateUrl: './suggestion-detail-dialog.component.html',
   styleUrls: ['./suggestion-detail-dialog.component.scss'],
@@ -80,9 +81,6 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return this.detail?.anchor_edited || this.detail?.anchor_phrase || '';
   }
 
-  highlightSentence(sentence: string, anchor: string): string {
-    return highlightText(sentence, anchor);
-  }
 
   scorePercent(val: number): number {
     return Math.round(val * 100);

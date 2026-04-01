@@ -96,19 +96,19 @@ export class ThemeCustomizerComponent {
   }
 
   setPrimary(color: string): void {
-    this.appearance.update({ primaryColor: color });
+    this.appearance.update({ primaryColor: color }, true);
   }
 
   setAccent(color: string): void {
-    this.appearance.update({ accentColor: color });
+    this.appearance.update({ accentColor: color }, true);
   }
 
   setHeaderBg(color: string): void {
-    this.appearance.update({ headerBg: color });
+    this.appearance.update({ headerBg: color }, true);
   }
 
   setFooterBg(color: string): void {
-    this.appearance.update({ footerBg: color });
+    this.appearance.update({ footerBg: color }, true);
   }
 
   setFontSize(size: 'small' | 'medium' | 'large'): void {
@@ -128,11 +128,11 @@ export class ThemeCustomizerComponent {
   }
 
   setSiteName(name: string): void {
-    this.appearance.update({ siteName: name });
+    this.appearance.update({ siteName: name }, true);
   }
 
   setFooterText(text: string): void {
-    this.appearance.update({ footerText: text });
+    this.appearance.update({ footerText: text }, true);
   }
 
   toggleFooter(show: boolean): void {

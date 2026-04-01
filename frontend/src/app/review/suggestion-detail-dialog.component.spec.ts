@@ -47,6 +47,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_learned_anchor_corroboration: 0.91,
     score_rare_term_propagation: 0.88,
     score_field_aware_relevance: 0.86,
+    score_click_distance: 0.7,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -174,6 +175,40 @@ describe('SuggestionDetailDialogComponent', () => {
       recent_window_days: 30,
       newest_peer_percent: 0.25,
       min_peer_count: 3,
+    },
+    click_distance_diagnostics: {
+      click_distance_score: 0.7,
+      click_distance_state: 'computed',
+      source_url: 'https://example.com/host',
+      click_distance: 2,
+      url_depth: 1,
+      combined_depth: 1.5,
+      k_cd: 4,
+      b_cd: 0.75,
+      b_ud: 0.25
+    },
+    score_cluster_suppression: 0,
+    cluster_diagnostics: {
+      score_cluster_suppression: 0,
+      clustering_state: 'neutral_no_cluster',
+      cluster_id: null,
+      is_canonical: true,
+      member_count: 1,
+      canonical_title: null,
+      similarity_threshold: 0.04,
+      suppression_penalty: 20
+    },
+    score_explore_exploit: 0.05,
+    explore_exploit_diagnostics: {
+      score_explore_exploit: 0.05,
+      rerank_state: 'neutral_no_historical_data',
+      exploit_score: 0,
+      explore_score: 0.05,
+      successes: 0,
+      total_attempts: 0,
+      global_attempts: 100,
+      ranking_weight: 0.08,
+      exploration_rate: 1.41
     },
     updated_at: '2026-03-25T00:00:00Z',
   };

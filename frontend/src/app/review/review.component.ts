@@ -16,7 +16,6 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import {
   SuggestionService,
   Suggestion,
@@ -24,6 +23,7 @@ import {
   REJECTION_REASONS,
 } from './suggestion.service';
 import { highlightText } from '../core/utils/highlight.utils';
+import { HighlightPipe } from '../core/pipes/highlight.pipe';
 import {
   SuggestionDetailDialogComponent,
   DialogData,
@@ -58,6 +58,7 @@ interface StatusTab {
     MatSelectModule,
     MatSnackBarModule,
     MatTooltipModule,
+    HighlightPipe,
   ],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
@@ -66,7 +67,6 @@ export class ReviewComponent implements OnInit {
   private svc = inject(SuggestionService);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
-  private sanitizer = inject(DomSanitizer);
 
   // ── Data ─────────────────────────────────────────────────────────
   suggestions: Suggestion[] = [];
@@ -295,10 +295,6 @@ export class ReviewComponent implements OnInit {
 
   // ── Template helpers ─────────────────────────────────────────────
 
-  highlightAnchor(sentence: string, suggestion: Suggestion): SafeHtml {
-    const anchor = suggestion.anchor_edited || suggestion.anchor_phrase;
-    return this.sanitizer.bypassSecurityTrustHtml(highlightText(sentence, anchor));
-  }
 
   scoreColor(score: number): string {
     if (score >= 0.75) return 'high';
@@ -317,7 +313,12 @@ export class ReviewComponent implements OnInit {
   private replaceSuggestion(updated: { suggestion_id: string; status: string } & Partial<Suggestion>): void {
     const idx = this.suggestions.findIndex(s => s.suggestion_id === updated.suggestion_id);
     if (idx !== -1) {
-      this.suggestions[idx] = { ...this.suggestions[idx], ...updated };
+      // If the status changed and we are in a filtered view, reload to keep the list and counts fresh.
+      if (this.statusFilter !== 'all' && updated.status !== this.statusFilter) {
+        this.load();
+      } else {
+        this.suggestions[idx] = { ...this.suggestions[idx], ...updated };
+      }
     }
   }
 }
