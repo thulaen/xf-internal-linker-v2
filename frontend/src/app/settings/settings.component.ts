@@ -661,8 +661,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   settings: SiloSettings = {
     mode: 'prefer_same_silo',
-    same_silo_boost: 0.05,
-    cross_silo_penalty: 0.05,
+    same_silo_boost: 0.10, // Increased from 0.05 to match research
+    cross_silo_penalty: 0.10, // Increased from 0.05 to match research
   };
   weightedAuthority: WeightedAuthoritySettings = {
     ranking_weight: 0.1,
@@ -1016,7 +1016,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.snack.open('Failed to load settings', 'Dismiss', { duration: 4000 });
       },
     });
-    this.reloadPresetsAndHistory();
+    this.reloadPresetsAndHistory(true); // pass true to trigger auto-apply check
   }
 
   private refreshCurrentWeights(): void {
@@ -1027,17 +1027,39 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  reloadPresetsAndHistory(): void {
+  reloadPresetsAndHistory(shouldCheckAutoApply = false): void {
     this.loadingPresets = true;
     this.loadingHistory = true;
     this.siloSvc.listWeightPresets().pipe(takeUntil(this.destroy$)).subscribe({
-      next: (presets) => { this.weightPresets = presets; this.loadingPresets = false; },
+      next: (presets) => { 
+        this.weightPresets = presets; 
+        this.loadingPresets = false;
+        if (shouldCheckAutoApply) {
+          this.checkAndAutoApplyRecommended();
+        }
+      },
       error: () => { this.loadingPresets = false; },
     });
     this.siloSvc.listWeightHistory().pipe(takeUntil(this.destroy$)).subscribe({
       next: (history) => { this.weightHistory = history; this.loadingHistory = false; },
       error: () => { this.loadingHistory = false; },
     });
+  }
+
+  private checkAndAutoApplyRecommended(): void {
+    // If we have history or current weights don't look like "brand new", don't auto-apply.
+    if (this.weightHistory.length > 0) return;
+    
+    const recommended = this.recommendedPreset;
+    if (recommended && !this.matchedPreset) {
+      console.log('Auto-applying Recommended preset for new instance...');
+      this.siloSvc.applyWeightPreset(recommended.id).pipe(takeUntil(this.destroy$)).subscribe({
+        next: () => {
+          this.snack.open('System Recommended settings applied by default.', undefined, { duration: 3000 });
+          this.reload();
+        }
+      });
+    }
   }
 
   applyPreset(preset: WeightPreset): void {

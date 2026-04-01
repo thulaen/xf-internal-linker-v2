@@ -404,7 +404,7 @@
 // ── Presets & Library ─────────────────────────────────────────────
 .preset-hero {
   display: grid;
-  grid-template-columns: 1fr 340px;
+  grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
   gap: 24px;
 }
 
@@ -445,16 +445,36 @@
   border-radius: var(--s-radius);
   background: #fff;
 
-  &--active { border-color: var(--cf-blue-5); border-left: 4px solid var(--cf-blue-5); background: var(--cf-blue-9); }
+  &--active { 
+    border-color: var(--cf-blue-5); 
+    border-left: 4px solid var(--cf-blue-5); 
+    background: var(--cf-blue-9); 
+  }
 
-  .preset-icon { color: var(--cf-blue-5); }
+  .preset-icon { 
+    color: var(--cf-blue-5); 
+    flex-shrink: 0; 
+  }
+
+  button { 
+    flex-shrink: 0; 
+    margin-left: auto; // Push to the very right
+  }
 }
 
 .preset-copy {
   flex: 1;
   display: flex;
   flex-direction: column;
-  .preset-name { font-weight: 600; font-size: 14px; }
+  min-width: 0; // Crucial fix for flex-item shrinking
+  
+  .preset-name { 
+    font-weight: 600; 
+    font-size: 14px; 
+    white-space: nowrap; 
+    overflow: hidden; 
+    text-overflow: ellipsis; 
+  }
   .preset-date { font-size: 11px; color: var(--s-text-secondary); }
 }
 
