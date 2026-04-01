@@ -24,6 +24,48 @@ ext_modules = [
         ["inv_index.cpp"],
         extra_compile_args=["-O3"] if sys.platform != "win32" else ["/O2"],
     ),
+    Pybind11Extension(
+        "texttok",
+        ["texttok.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "simsearch",
+        ["simsearch.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+        libraries=["tbb"] if sys.platform != "win32" else [],  # Add Windows TBB here once availability is verified.
+    ),
+    Pybind11Extension(
+        "pagerank",
+        ["pagerank.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "phrasematch",
+        ["phrasematch.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "fieldrel",
+        ["fieldrel.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "rareterm",
+        ["rareterm.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "linkparse",
+        ["linkparse.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
+    Pybind11Extension(
+        "feedrerank",
+        ["feedrerank.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+        libraries=["tbb"] if sys.platform != "win32" else [],  # Add Windows TBB here once availability is verified.
+    ),
 ]
 
 setup(

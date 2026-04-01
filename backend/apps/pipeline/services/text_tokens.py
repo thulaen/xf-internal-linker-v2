@@ -4,6 +4,12 @@ from __future__ import annotations
 
 import re
 
+try:
+    from extensions import texttok
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 
 TOKEN_RE = re.compile(r"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?")
 STANDARD_ENGLISH_STOPWORDS = frozenset(
@@ -35,11 +41,26 @@ STANDARD_ENGLISH_STOPWORDS = frozenset(
 )
 
 
-def tokenize_text(text: str) -> frozenset[str]:
-    """Tokenize text for set-style overlap scoring."""
+def _tokenize_text_py(text: str, stopwords: frozenset[str]) -> frozenset[str]:
+    """Tokenize one text using the Python regex reference behavior."""
     tokens = {
         token.lower()
         for token in TOKEN_RE.findall(text or "")
-        if token and token.lower() not in STANDARD_ENGLISH_STOPWORDS
+        if token and token.lower() not in stopwords
     }
     return frozenset(tokens)
+
+
+def tokenize_text_batch(
+    texts: list[str],
+    stopwords: frozenset[str],
+) -> list[frozenset[str]]:
+    """Tokenize many texts into deduplicated token sets."""
+    return [_tokenize_text_py(text, stopwords) for text in texts]
+
+
+def tokenize_text(text: str) -> frozenset[str]:
+    """Tokenize text for set-style overlap scoring."""
+    if HAS_CPP_EXT:
+        return texttok.tokenize_text_batch([text or ""], STANDARD_ENGLISH_STOPWORDS)[0]
+    return tokenize_text_batch([text], STANDARD_ENGLISH_STOPWORDS)[0]

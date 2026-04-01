@@ -10,6 +10,7 @@ from collections import Counter
 from dataclasses import dataclass, field
 import heapq
 import math
+import numpy as np
 from typing import Mapping, TypeAlias
  
 try:
@@ -17,6 +18,8 @@ try:
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
+
+HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(scoring, "calculate_composite_scores_full_batch")
 
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
@@ -287,6 +290,36 @@ def derive_march_2026_pagerank_bounds(
     return (min(scores), max(scores))
 
 
+def _calculate_composite_scores_full_batch_py(
+    component_scores: np.ndarray,
+    weights: np.ndarray,
+    silo: np.ndarray,
+) -> np.ndarray:
+    """Return dot(row, weights) + silo using columns: semantic, keyword, node, quality, pagerank, freshness, phrase, learned_anchor, rare_term, field_aware, ga4_gsc, click_distance."""
+    component_scores = np.asarray(component_scores, dtype=np.float32)
+    weights = np.asarray(weights, dtype=np.float32)
+    silo = np.asarray(silo, dtype=np.float32)
+
+    if component_scores.ndim != 2:
+        raise ValueError("component_scores must be a 2D array")
+    if weights.ndim != 1:
+        raise ValueError("weights must be a 1D array")
+    if silo.ndim != 1:
+        raise ValueError("silo must be a 1D array")
+    if component_scores.shape[1] != weights.shape[0]:
+        raise ValueError("weights length must match component_scores.shape[1]")
+    if component_scores.shape[0] != silo.shape[0]:
+        raise ValueError("silo length must match component_scores.shape[0]")
+
+    results = np.empty(component_scores.shape[0], dtype=np.float32)
+    for row_index, row in enumerate(component_scores):
+        total = float(silo[row_index])
+        for component, weight in zip(row, weights):
+            total += float(component) * float(weight)
+        results[row_index] = total
+    return results
+
+
 def score_destination_matches(
     destination: ContentRecord,
     sentence_matches: list[SentenceSemanticMatch],
@@ -319,7 +352,27 @@ def score_destination_matches(
     learned_anchor_rows_by_destination = learned_anchor_rows_by_destination or {}
     rare_term_profiles = rare_term_profiles or {}
     ranked: list[ScoredCandidate] = []
+    pending_candidates: list[dict[str, object]] = []
+    component_rows: list[list[float]] = []
+    silo_scores: list[float] = []
     destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(destination.key, [])
+    batch_weights = np.asarray(
+        [
+            float(weights.get("w_semantic", 0.0)),
+            float(weights.get("w_keyword", 0.0)),
+            float(weights.get("w_node", 0.0)),
+            float(weights.get("w_quality", 0.0)),
+            float(weighted_authority_ranking_weight),
+            float(link_freshness_ranking_weight),
+            float(phrase_matching_settings.ranking_weight),
+            float(learned_anchor_settings.ranking_weight),
+            float(rare_term_settings.ranking_weight),
+            float(field_aware_settings.ranking_weight),
+            float(ga4_gsc_ranking_weight),
+            float(click_distance_ranking_weight),
+        ],
+        dtype=np.float32,
+    )
 
     for match in sentence_matches:
         if match.score_semantic < min_semantic_score:
@@ -413,46 +466,71 @@ def score_destination_matches(
         score_click_distance = destination.click_distance_score
         score_click_distance_component = 2 * (score_click_distance - 0.5)
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
-        if HAS_CPP_EXT:
-            c = scoring.Candidate(
-                match.score_semantic,
-                score_keyword,
-                score_node,
-                score_quality,
-                score_march_2026_pagerank_component,
-                score_link_freshness,
-                score_ga4_gsc,
+        pending_candidates.append(
+            {
+                "match": match,
+                "score_keyword": score_keyword,
+                "score_node": score_node,
+                "score_quality": score_quality,
+                "score_silo": score_silo,
+                "score_phrase_relevance": score_phrase_relevance,
+                "score_learned_anchor": score_learned_anchor,
+                "score_rare_term": score_rare_term,
+                "score_field_aware": score_field_aware,
+                "score_ga4_gsc": score_ga4_gsc,
+                "score_click_distance": score_click_distance,
+                "score_click_distance_component": score_click_distance_component,
+                "phrase_match": phrase_match,
+                "learned_anchor_match": learned_anchor_match,
+                "rare_term_match": rare_term_match,
+                "field_aware_match": field_aware_match,
+            }
+        )
+        component_rows.append(
+            [
+                float(match.score_semantic),
+                float(score_keyword),
+                float(score_node),
+                float(score_quality),
+                float(score_march_2026_pagerank_component),
+                float(score_link_freshness),
+                float(score_phrase_relevance),
+                float(score_learned_anchor),
+                float(score_rare_term),
+                float(score_field_aware),
+                float(score_ga4_gsc),
+                float(score_click_distance_component),
+            ]
+        )
+        silo_scores.append(float(score_silo))
+
+    if pending_candidates:
+        component_scores = np.asarray(component_rows, dtype=np.float32)
+        silo_array = np.asarray(silo_scores, dtype=np.float32)
+        if HAS_CPP_FULL_BATCH:
+            score_finals = scoring.calculate_composite_scores_full_batch(
+                component_scores,
+                batch_weights,
+                silo_array,
             )
-            score_final = scoring.calculate_composite_scores(
-                [c],
-                float(weights.get("w_semantic", 0.0)),
-                float(weights.get("w_keyword", 0.0)),
-                float(weights.get("w_node", 0.0)),
-                float(weights.get("w_quality", 0.0)),
-                float(weighted_authority_ranking_weight),
-                float(link_freshness_ranking_weight),
-                float(ga4_gsc_ranking_weight),
-            )[0] + score_silo + (float(phrase_matching_settings.ranking_weight) * score_phrase_relevance) + \
-                 (float(learned_anchor_settings.ranking_weight) * score_learned_anchor) + \
-                 (float(rare_term_settings.ranking_weight) * score_rare_term) + \
-                 (float(field_aware_settings.ranking_weight) * score_field_aware) + \
-                 (float(click_distance_ranking_weight) * score_click_distance_component)
         else:
-            score_final = (
-                float(weights.get("w_semantic", 0.0)) * match.score_semantic
-                + float(weights.get("w_keyword", 0.0)) * score_keyword
-                + float(weights.get("w_node", 0.0)) * score_node
-                + float(weights.get("w_quality", 0.0)) * score_quality
-                + float(weighted_authority_ranking_weight) * score_march_2026_pagerank_component
-                + float(link_freshness_ranking_weight) * score_link_freshness
-                + float(phrase_matching_settings.ranking_weight) * score_phrase_relevance
-                + float(learned_anchor_settings.ranking_weight) * score_learned_anchor
-                + float(rare_term_settings.ranking_weight) * score_rare_term
-                + float(field_aware_settings.ranking_weight) * score_field_aware
-                + float(ga4_gsc_ranking_weight) * score_ga4_gsc
-                + float(click_distance_ranking_weight) * score_click_distance_component
-                + score_silo
+            score_finals = _calculate_composite_scores_full_batch_py(
+                component_scores,
+                batch_weights,
+                silo_array,
             )
+    else:
+        score_finals = np.empty(0, dtype=np.float32)
+
+    for pending_candidate, raw_score_final in zip(pending_candidates, score_finals):
+        match = pending_candidate["match"]
+        phrase_match = pending_candidate["phrase_match"]
+        learned_anchor_match = pending_candidate["learned_anchor_match"]
+        rare_term_match = pending_candidate["rare_term_match"]
+        field_aware_match = pending_candidate["field_aware_match"]
+        score_click_distance = float(pending_candidate["score_click_distance"])
+        score_click_distance_component = float(pending_candidate["score_click_distance_component"])
+        score_final = float(raw_score_final)
 
         # FR-014 Clustering Suppression
         score_cluster_suppression = 0.0
@@ -482,16 +560,16 @@ def score_destination_matches(
                 host_content_type=match.host_content_type,
                 host_sentence_id=match.sentence_id,
                 score_semantic=float(match.score_semantic),
-                score_keyword=float(score_keyword),
-                score_node_affinity=float(score_node),
-                score_quality=float(score_quality),
-                score_silo_affinity=float(score_silo),
+                score_keyword=float(pending_candidate["score_keyword"]),
+                score_node_affinity=float(pending_candidate["score_node"]),
+                score_quality=float(pending_candidate["score_quality"]),
+                score_silo_affinity=float(pending_candidate["score_silo"]),
                 score_phrase_relevance=float(phrase_match.score_phrase_relevance),
                 score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
                 score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
                 score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
-                score_ga4_gsc=float(score_ga4_gsc),
-                score_click_distance=float(score_click_distance),
+                score_ga4_gsc=float(pending_candidate["score_ga4_gsc"]),
+                score_click_distance=score_click_distance,
                 score_explore_exploit=0.0, # Will be updated by feedback reranker later
                 score_cluster_suppression=float(score_cluster_suppression),
                 score_final=float(score_final),

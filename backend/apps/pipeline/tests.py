@@ -1,10 +1,12 @@
 import math
+from collections import Counter
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import timedelta
 from unittest.mock import MagicMock, patch
 
 import numpy as np
+from scipy.sparse import csr_matrix
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
@@ -17,6 +19,12 @@ from apps.pipeline.services.click_distance import (
 )
 from apps.pipeline import tasks as pipeline_tasks
 from apps.pipeline.services import pipeline as pipeline_service
+from apps.pipeline.services import ranker as ranker_service
+from apps.pipeline.services import text_tokens as text_tokens_service
+from apps.pipeline.services import field_aware_relevance as field_aware_service
+from apps.pipeline.services import link_parser as link_parser_service
+from apps.pipeline.services import rare_term_propagation as rare_term_service
+from apps.pipeline.services import weighted_pagerank as weighted_pagerank_service
 from apps.pipeline.services.feedback_rerank import (
     FeedbackRerankService,
     FeedbackRerankSettings,
@@ -72,6 +80,51 @@ from apps.pipeline.services.weighted_pagerank import (
     run_weighted_pagerank,
 )
 from apps.suggestions.models import PipelineDiagnostic, PipelineRun, Suggestion
+
+try:
+    from extensions import scoring as scoring_ext
+except ImportError:
+    scoring_ext = None
+
+try:
+    from extensions import texttok as texttok_ext
+except ImportError:
+    texttok_ext = None
+
+try:
+    from extensions import simsearch as simsearch_ext
+except ImportError:
+    simsearch_ext = None
+
+try:
+    from extensions import pagerank as pagerank_ext
+except ImportError:
+    pagerank_ext = None
+
+try:
+    from extensions import phrasematch as phrasematch_ext
+except ImportError:
+    phrasematch_ext = None
+
+try:
+    from extensions import fieldrel as fieldrel_ext
+except ImportError:
+    fieldrel_ext = None
+
+try:
+    from extensions import rareterm as rareterm_ext
+except ImportError:
+    rareterm_ext = None
+
+try:
+    from extensions import linkparse as linkparse_ext
+except ImportError:
+    linkparse_ext = None
+
+try:
+    from extensions import feedrerank as feedrerank_ext
+except ImportError:
+    feedrerank_ext = None
 
 
 def _content_record(
@@ -152,6 +205,464 @@ def _scored_candidate(
         explore_exploit_diagnostics=explore_exploit_diagnostics or {"final_factor": 1.25},
         click_distance_diagnostics=click_distance_diagnostics or {"score_component": 0.4},
     )
+
+
+class ScoringExtensionTests(TestCase):
+    def _assert_full_batch_matches_reference(self, component_count: int) -> None:
+        if scoring_ext is None or not hasattr(scoring_ext, "calculate_composite_scores_full_batch"):
+            self.skipTest("C++ extension not compiled")
+
+        np.random.seed(42)
+        component_scores = np.random.uniform(-1.0, 1.0, size=(50, component_count)).astype(np.float32)
+        weights = np.random.uniform(-0.75, 0.75, size=(component_count,)).astype(np.float32)
+        silo = np.random.uniform(-0.5, 0.5, size=(50,)).astype(np.float32)
+
+        py_result = ranker_service._calculate_composite_scores_full_batch_py(
+            component_scores,
+            weights,
+            silo,
+        )
+        cpp_result = scoring_ext.calculate_composite_scores_full_batch(
+            component_scores,
+            weights,
+            silo,
+        )
+
+        np.testing.assert_allclose(cpp_result, py_result, atol=1e-6, rtol=0.0)
+
+    def test_full_batch_scoring_matches_python_reference_with_12_columns(self):
+        self._assert_full_batch_matches_reference(component_count=12)
+
+    def test_full_batch_scoring_matches_python_reference_with_5_columns(self):
+        self._assert_full_batch_matches_reference(component_count=5)
+
+
+class TextTokenizerExtensionTests(TestCase):
+    def test_batch_tokenizer_matches_python_reference(self):
+        if texttok_ext is None or not hasattr(texttok_ext, "tokenize_text_batch"):
+            self.skipTest("C++ extension not compiled")
+
+        texts = [
+            "",
+            "the and or but",
+            "don't stop believing",
+            "can't stop won't stop",
+            "it's a test",
+            "Hello WORLD",
+            "abc123 xyz789",
+            "cafe",
+            "café",
+            "café and tea",
+            "A typical sentence for token testing.",
+            "Numbers 123 456 and words",
+            "Mixed CASE and Don't Repeat don't repeat",
+            "one,two;three",
+            "rock'n'roll",
+            "URL http://example.com/path",
+            "Email me@example.com now",
+            "Quote 'single' and apostrophe don't",
+            "Tabs\tand\nnewlines",
+            "Repeat repeat REPEAT unique",
+        ]
+
+        py_result = text_tokens_service.tokenize_text_batch(
+            texts,
+            text_tokens_service.STANDARD_ENGLISH_STOPWORDS,
+        )
+        cpp_result = texttok_ext.tokenize_text_batch(
+            texts,
+            text_tokens_service.STANDARD_ENGLISH_STOPWORDS,
+        )
+
+        self.assertEqual(len(cpp_result), len(py_result))
+        for cpp_tokens, py_tokens in zip(cpp_result, py_result, strict=True):
+            self.assertEqual(cpp_tokens, py_tokens)
+
+
+class TextTokenizerServiceTests(TestCase):
+    def test_tokenize_text_filters_stopwords_and_keeps_ascii_apostrophe_tokens(self):
+        result = text_tokens_service.tokenize_text("Don't stop the internal linking guide")
+        self.assertEqual(
+            result,
+            frozenset({"stop", "internal", "linking", "guide"}),
+        )
+
+
+class SimsearchExtensionTests(TestCase):
+    def test_score_and_topk_matches_numpy_reference(self):
+        if simsearch_ext is None or not hasattr(simsearch_ext, "score_and_topk"):
+            self.skipTest("C++ extension not compiled")
+
+        np.random.seed(42)
+        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(200, 64)).astype(np.float32)
+        destination_embedding = np.random.uniform(-1.0, 1.0, size=(64,)).astype(np.float32)
+        candidate_rows = [
+            3, 7, 11, 19, 24, 28, 33, 41, 47, 52,
+            58, 63, 71, 76, 84, 89, 97, 103, 111, 118,
+            126, 133, 141, 148, 152, 167, 173, 181, 188, 196,
+        ]
+
+        candidate_matrix = sentence_embeddings[candidate_rows]
+        scores = candidate_matrix @ destination_embedding
+        top_idx = np.argpartition(scores, -5)[-5:]
+        top_idx = top_idx[np.argsort(-scores[top_idx])]
+        expected_scores = scores[top_idx]
+
+        cpp_idx, cpp_scores = simsearch_ext.score_and_topk(
+            destination_embedding,
+            sentence_embeddings,
+            candidate_rows,
+            5,
+        )
+
+        np.testing.assert_array_equal(cpp_idx, top_idx)
+        np.testing.assert_allclose(cpp_scores, expected_scores, atol=1e-6, rtol=0.0)
+
+
+class PagerankExtensionTests(TestCase):
+    def test_pagerank_step_matches_python_reference_after_20_iterations(self):
+        if pagerank_ext is None or not hasattr(pagerank_ext, "pagerank_step"):
+            self.skipTest("C++ extension not compiled")
+
+        rows = np.array([1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 9, 0, 9, 4], dtype=np.int32)
+        cols = np.array([0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 9], dtype=np.int32)
+        data = np.array([1.0, 0.4, 0.6, 1.0, 1.0, 0.7, 0.3, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0], dtype=np.float64)
+        adjacency = csr_matrix((data, (rows, cols)), shape=(10, 10), dtype=np.float64)
+        dangling_mask = np.array([False, False, False, False, False, False, False, False, False, False], dtype=bool)
+        damping = 0.15
+
+        py_ranks = np.full(10, 0.1, dtype=np.float64)
+        cpp_ranks = np.full(10, 0.1, dtype=np.float64)
+
+        for _ in range(20):
+            py_ranks, _ = weighted_pagerank_service._pagerank_step_py(
+                indptr=adjacency.indptr.astype(np.int32),
+                indices=adjacency.indices.astype(np.int32),
+                data=adjacency.data.astype(np.float64),
+                ranks=py_ranks,
+                dangling_mask=dangling_mask,
+                damping=damping,
+                node_count=10,
+            )
+            cpp_ranks, _ = pagerank_ext.pagerank_step(
+                adjacency.indptr.astype(np.int32),
+                adjacency.indices.astype(np.int32),
+                adjacency.data.astype(np.float64),
+                cpp_ranks,
+                dangling_mask,
+                damping,
+                10,
+            )
+
+        np.testing.assert_allclose(cpp_ranks, py_ranks, atol=1e-6, rtol=0.0)
+
+
+class PhraseMatchExtensionTests(TestCase):
+    def test_longest_contiguous_overlap_matches_python_reference(self):
+        if phrasematch_ext is None or not hasattr(phrasematch_ext, "longest_contiguous_overlap"):
+            self.skipTest("C++ extension not compiled")
+
+        cases = [
+            ([], [], 0),
+            ([], ["a"], 0),
+            (["a"], [], 0),
+            (["a", "b", "c"], ["a", "b", "c"], 3),
+            (["a", "b"], ["x", "y"], 0),
+            (["a", "b", "c"], ["a", "b", "x"], 2),
+            (["x", "a", "b", "c", "y"], ["q", "a", "b", "c", "r"], 3),
+            (["x", "y", "a", "b"], ["q", "a", "b"], 2),
+            (["solo"], ["solo", "pair"], 1),
+            (["guide", "internal", "links"], ["internal", "links", "guide"], 2),
+        ]
+
+        for left, right, expected in cases:
+            best = 0
+            for left_start in range(len(left)):
+                for right_start in range(len(right)):
+                    match_len = 0
+                    while (
+                        left_start + match_len < len(left)
+                        and right_start + match_len < len(right)
+                        and left[left_start + match_len] == right[right_start + match_len]
+                    ):
+                        match_len += 1
+                    if match_len > best:
+                        best = match_len
+            py_result = best
+            cpp_result = phrasematch_ext.longest_contiguous_overlap(left, right)
+            self.assertEqual(py_result, expected)
+            self.assertEqual(cpp_result, py_result)
+
+
+class FieldRelExtensionTests(TestCase):
+    def test_score_field_tokens_matches_python_reference_profiles(self):
+        if fieldrel_ext is None or not hasattr(fieldrel_ext, "score_field_tokens"):
+            self.skipTest("C++ extension not compiled")
+
+        profiles = [
+            {
+                "profile": field_aware_service._FieldProfile(
+                    name="title",
+                    token_counts=Counter({"alpha": 2, "beta": 1}),
+                    field_length=3,
+                    field_weight=0.4,
+                    b_value=field_aware_service.TITLE_B,
+                ),
+                "host_token_counts": Counter({"alpha": 10, "beta": 1}),
+                "field_presence_count": Counter({"alpha": 1, "beta": 2}),
+            },
+            {
+                "profile": field_aware_service._FieldProfile(
+                    name="body",
+                    token_counts=Counter({"longform": 6, "guide": 2, "editor": 1}),
+                    field_length=90,
+                    field_weight=0.3,
+                    b_value=field_aware_service.BODY_B,
+                ),
+                "host_token_counts": Counter({"longform": 2, "guide": 1, "editor": 1}),
+                "field_presence_count": Counter({"longform": 1, "guide": 2, "editor": 4}),
+            },
+            {
+                "profile": field_aware_service._FieldProfile(
+                    name="scope",
+                    token_counts=Counter({"alpha": 2, "alpine": 2, "atom": 1}),
+                    field_length=5,
+                    field_weight=0.15,
+                    b_value=field_aware_service.SCOPE_B,
+                ),
+                "host_token_counts": Counter({"alpha": 1, "alpine": 1, "atom": 1}),
+                "field_presence_count": Counter({"alpha": 2, "alpine": 2, "atom": 2}),
+            },
+        ]
+
+        for case in profiles:
+            profile = case["profile"]
+            host_token_counts = case["host_token_counts"]
+            field_presence_count = case["field_presence_count"]
+            matched_tokens = []
+            host_tfs = []
+            field_tfs = []
+            field_presence_counts = []
+            for token, host_tf in host_token_counts.items():
+                field_tf = profile.token_counts.get(token, 0)
+                if field_tf <= 0:
+                    continue
+                matched_tokens.append(token)
+                host_tfs.append(int(host_tf))
+                field_tfs.append(int(field_tf))
+                field_presence_counts.append(int(field_presence_count.get(token, 0)))
+
+            cpp_score = fieldrel_ext.score_field_tokens(
+                matched_tokens,
+                host_tfs,
+                field_tfs,
+                field_presence_counts,
+                profile.field_length,
+                field_aware_service.REFERENCE_FIELD_LENGTHS[profile.name],
+                profile.b_value,
+                field_aware_service.FIELD_COUNT,
+                field_aware_service.BM25_K1,
+                field_aware_service.MAX_MATCHED_TOKENS_PER_FIELD,
+            )
+
+            with patch.object(field_aware_service, "HAS_CPP_EXT", False):
+                py_score, _ = field_aware_service._score_field(
+                    profile=profile,
+                    host_token_counts=host_token_counts,
+                    field_presence_count=field_presence_count,
+                )
+
+            self.assertAlmostEqual(cpp_score, py_score, places=6)
+
+
+class RareTermExtensionTests(TestCase):
+    def test_evaluate_rare_terms_matches_python_reference_profiles(self):
+        if rareterm_ext is None or not hasattr(rareterm_ext, "evaluate_rare_terms"):
+            self.skipTest("C++ extension not compiled")
+
+        cases = [
+            (
+                ["xenforo", "plugin"],
+                [0.8, 0.6],
+                [3, 2],
+                frozenset({"xenforo"}),
+            ),
+            (
+                ["anchor", "signal"],
+                [0.7, 0.4],
+                [2, 2],
+                frozenset({"anchor", "signal"}),
+            ),
+            (
+                ["alpine", "alpha", "atom"],
+                [0.9, 0.9, 0.9],
+                [2, 2, 2],
+                frozenset({"alpha", "alpine", "atom"}),
+            ),
+            (
+                ["guide", "workflow"],
+                [0.3, 0.2],
+                [1, 1],
+                frozenset({"missing"}),
+            ),
+            (
+                ["scope", "cluster", "rank"],
+                [0.55, 0.75, 0.65],
+                [1, 4, 2],
+                frozenset({"scope", "rank"}),
+            ),
+            (
+                ["freshness"],
+                [0.51],
+                [2],
+                frozenset({"freshness"}),
+            ),
+            (
+                ["learned", "anchor", "rare"],
+                [0.61, 0.62, 0.63],
+                [2, 3, 4],
+                frozenset({"learned", "anchor"}),
+            ),
+            (
+                ["query", "click", "distance"],
+                [0.42, 0.52, 0.62],
+                [1, 2, 3],
+                frozenset({"distance"}),
+            ),
+            (
+                ["family", "support"],
+                [0.88, 0.88],
+                [4, 3],
+                frozenset({"family", "support"}),
+            ),
+            (
+                ["alpha", "beta", "gamma"],
+                [0.5, 0.5, 0.5],
+                [2, 2, 2],
+                frozenset({"beta", "gamma"}),
+            ),
+        ]
+
+        for index, (terms, evidences, supporting_pages, host_tokens) in enumerate(cases, start=1):
+            destination = _content_record(content_id=900 + index, silo_group_id=None)
+            profile = rare_term_service.RareTermProfile(
+                destination_key=destination.key,
+                profile_state="profile_ready",
+                original_destination_terms=(),
+                eligible_related_page_count=3,
+                related_page_summary=(),
+                propagated_terms=tuple(
+                    rare_term_service.PropagatedRareTerm(
+                        term=term,
+                        document_frequency=1,
+                        supporting_related_pages=pages,
+                        supporting_relationship_weights=(1.0,),
+                        average_relationship_weight=1.0,
+                        term_evidence=evidence,
+                    )
+                    for term, evidence, pages in zip(terms, evidences, supporting_pages, strict=True)
+                ),
+            )
+
+            cpp_matched, cpp_score = rareterm_ext.evaluate_rare_terms(
+                terms,
+                evidences,
+                supporting_pages,
+                host_tokens,
+                rare_term_service.MAX_TERMS_PER_SUGGESTION,
+            )
+
+            with patch.object(rare_term_service, "HAS_CPP_EXT", False):
+                py_result = rare_term_service._evaluate_rare_term_propagation(
+                    destination=destination,
+                    host_sentence_tokens=host_tokens,
+                    profiles={destination.key: profile},
+                    settings=rare_term_service.RareTermPropagationSettings(enabled=True),
+                )
+
+            self.assertEqual(cpp_matched, py_result.rare_term_state == "computed_match")
+            if cpp_matched:
+                self.assertAlmostEqual(cpp_score, py_result.score_rare_term_propagation, places=6)
+            else:
+                self.assertAlmostEqual(cpp_score, 0.0, places=6)
+
+
+class LinkParseExtensionTests(TestCase):
+    def test_find_urls_matches_python_reference_cases(self):
+        if linkparse_ext is None or not hasattr(linkparse_ext, "find_urls"):
+            self.skipTest("C++ extension not compiled")
+
+        cases = [
+            "",
+            "[URL=https://example.com/threads/topic.1]Anchor[/URL]",
+            "[url=https://example.com/threads/topic.2]Lower[/url]",
+            "<a href=\"https://example.com/resources/tool.3\">Tool</a>",
+            "Visit https://example.com/threads/topic.4 now",
+            "[URL=https://example.com/threads/topic.5]<b>Bold</b> anchor[/URL]",
+            "<a class=\"x\" href='https://example.com/resources/tool.6'>Inner <b>tag</b></a>",
+            "[URL=https://example.com/threads/topic.7]<a href=\"https://bad\">Nested</a>[/URL>",
+            "[URL=https://example.com/threads/topic.8][/URL]",
+            "Before <a href=\"https://example.com/threads/topic.9?x=1#frag\">Query</a> after",
+            "Mix [url=https://example.com/threads/topic.10]One[/url] and https://example.com/resources/tool.10",
+            "No urls here at all",
+            "Overlap <a href=\"https://example.com/threads/topic.11\">https://example.com/resources/tool.11</a>",
+            "[URL=https://example.com/threads/topic.12]Upper[/URL] <A HREF=\"https://example.com/resources/tool.12\">Html</A>",
+            "Two bare URLs https://example.com/threads/topic.13 and https://example.com/resources/tool.13",
+        ]
+
+        for text in cases:
+            py_result = [
+                (link.url, link.anchor_text, link.extraction_method, link.start, link.end)
+                for link in link_parser_service._find_urls_py(text)
+            ]
+            cpp_result = linkparse_ext.find_urls(text)
+            self.assertEqual(cpp_result, py_result)
+
+
+class FeedRerankExtensionTests(TestCase):
+    def test_calculate_rerank_factors_batch_matches_python_reference(self):
+        if feedrerank_ext is None or not hasattr(feedrerank_ext, "calculate_rerank_factors_batch"):
+            self.skipTest("C++ extension not compiled")
+
+        np.random.seed(42)
+        n_totals = np.random.randint(0, 50, size=100, dtype=np.int32)
+        n_successes = np.array(
+            [np.random.randint(0, int(total) + 1) for total in n_totals],
+            dtype=np.int32,
+        )
+        n_global = 250
+        alpha = 1.0
+        beta = 1.0
+        weight = 0.2
+        exploration_rate = 1.0
+
+        service = FeedbackRerankService(
+            FeedbackRerankSettings(
+                enabled=True,
+                ranking_weight=weight,
+                exploration_rate=exploration_rate,
+                alpha_prior=alpha,
+                beta_prior=beta,
+            )
+        )
+        expected = []
+        for successes, total in zip(n_successes.tolist(), n_totals.tolist(), strict=True):
+            service._pair_stats[(1, 1)] = {"total": total, "successes": successes}
+            service._global_total_samples = n_global
+            factor, _ = service.calculate_rerank_factor(1, 1)
+            expected.append(factor)
+
+        cpp_result = feedrerank_ext.calculate_rerank_factors_batch(
+            n_successes,
+            n_totals,
+            n_global,
+            alpha,
+            beta,
+            weight,
+            exploration_rate,
+        )
+
+        np.testing.assert_allclose(cpp_result, np.asarray(expected, dtype=np.float64), atol=1e-6, rtol=0.0)
 
 
 class SiloRankerTests(TestCase):

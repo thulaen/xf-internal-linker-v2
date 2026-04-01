@@ -24,6 +24,9 @@ It contains one card per scoring signal. Each card answers four questions at a g
 2. **Space used?** — how many rows and bytes does this signal's data occupy in the database?
 3. **Errors?** — has this signal's computation task logged a recent error?
 4. **Settings?** — what values are the configurable parameters set to right now?
+5. **C++ active?** — is the compiled fast path running right now?
+6. **Fallback used?** — did the signal fall back to Python instead?
+7. **Helping?** — is the C++ path giving a real speed benefit, or not enough to matter?
 
 **Hard boundaries:**
 
@@ -89,6 +92,8 @@ There are 23 scoring signals across two layers of the pipeline. Each one has its
 
 The Diagnostics tab puts all 23 signals on one screen. One glance tells the operator what is active, what is taking up space, and what has errors.
 
+For C++-accelerated ranking signals, one glance must also tell the operator whether C++ is active, whether Python fallback is being used, and whether the fast path is actually helping.
+
 ---
 
 ## Backend Design
@@ -127,6 +132,10 @@ class SignalDiagnostic:
     signal_coverage_pct: float | None  # % of recent suggestions with non-fallback value
     avg_signal_value: float | None     # mean score across recent suggestions
     recent_diagnostics_sample: dict    # latest diagnostics JSON from one recent suggestion
+    cpp_runtime_status: str | None     # "C++ ACTIVE", "PYTHON FALLBACK", "C++ NOT HELPING"
+    cpp_status_reason: str | None      # plain-English explanation for operators
+    cpp_fallback_used_recently: bool | None
+    cpp_speedup_ratio: float | None    # optional benchmark ratio, >1 means C++ faster
 
 @dataclass
 class TableStorage:
@@ -273,6 +282,10 @@ Single signal card example:
   "last_error_at": null,
   "signal_coverage_pct": 94.2,
   "avg_signal_value": 0.42,
+  "cpp_runtime_status": "C++ ACTIVE",
+  "cpp_status_reason": "C++ extension loaded and faster than Python on recent batches.",
+  "cpp_fallback_used_recently": false,
+  "cpp_speedup_ratio": 2.8,
   "recent_diagnostics_sample": {
     "pagerank_score": 0.0034,
     "normalized_score": 0.42,
@@ -318,6 +331,8 @@ Each card shows:
 │  ──────────────────────────────────────────────────  │
 │  Weight: 0.20          Coverage: 94.2%               │
 │  Avg value: 0.42       Last run: 18 hours ago        │
+│  C++: ACTIVE           Speedup: 2.8x                 │
+│  Reason: C++ loaded and faster on recent runs        │
 │                                                      │
 │  Storage: 11.8 MB across 1 table (45,230 rows)       │
 │                                                      │
@@ -334,8 +349,12 @@ Each card shows:
 | Disabled | `✕ DISABLED` (grey) | enabled = false |
 | Error | `⚠ ERROR` (red) | last_error_message is not null |
 | Not yet built | `– NOT BUILT` (amber) | last_computation_at is null |
+| C++ active | `⚡ C++ ACTIVE` (green) | compiled extension loaded and used |
+| Python fallback | `↺ PYTHON FALLBACK` (amber) | Python path used instead of C++ |
+| C++ not helping | `◌ C++ NOT HELPING` (blue) | C++ exists but no meaningful speed benefit is seen |
 
 A signal can be both `ACTIVE` and have an `ERROR` badge — show both.
+A signal with a C++ accelerator can also show one C++ runtime badge at the same time.
 
 **Expandable settings panel:**
 

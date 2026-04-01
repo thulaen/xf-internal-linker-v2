@@ -15,6 +15,12 @@ from typing import Mapping
 import numpy as np
 from scipy.sparse import coo_matrix, csr_matrix
 
+try:
+    from extensions import pagerank as pagerank_ext
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 logger = logging.getLogger(__name__)
 NodeKey = tuple[int, str]
 
@@ -216,14 +222,26 @@ def calculate_weighted_pagerank(
     iterations = 0
 
     for iteration in range(1, max_iter + 1):
-        link_mass = graph.adjacency_matrix @ ranks
-        dangling_mass = float(ranks[graph.dangling_mask].sum()) if dangling_count else 0.0
-
-        next_ranks = (1.0 - damping) * link_mass
-        next_ranks += ((1.0 - damping) * dangling_mass + damping) / node_count
-        next_ranks /= float(next_ranks.sum())
-
-        final_delta = float(np.abs(next_ranks - ranks).sum())
+        if HAS_CPP_EXT:
+            next_ranks, final_delta = pagerank_ext.pagerank_step(
+                np.asarray(graph.adjacency_matrix.indptr, dtype=np.int32),
+                np.asarray(graph.adjacency_matrix.indices, dtype=np.int32),
+                np.asarray(graph.adjacency_matrix.data, dtype=np.float64),
+                ranks,
+                graph.dangling_mask,
+                float(damping),
+                int(node_count),
+            )
+        else:
+            next_ranks, final_delta = _pagerank_step_py(
+                indptr=np.asarray(graph.adjacency_matrix.indptr, dtype=np.int32),
+                indices=np.asarray(graph.adjacency_matrix.indices, dtype=np.int32),
+                data=np.asarray(graph.adjacency_matrix.data, dtype=np.float64),
+                ranks=ranks,
+                dangling_mask=graph.dangling_mask,
+                damping=damping,
+                node_count=node_count,
+            )
         ranks = next_ranks
         iterations = iteration
 
@@ -274,6 +292,32 @@ def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
 
     logger.info("March 2026 PageRank persisted: %d items updated.", len(items_to_update))
     return len(items_to_update)
+
+
+def _pagerank_step_py(
+    *,
+    indptr: np.ndarray,
+    indices: np.ndarray,
+    data: np.ndarray,
+    ranks: np.ndarray,
+    dangling_mask: np.ndarray,
+    damping: float,
+    node_count: int,
+) -> tuple[np.ndarray, float]:
+    """Run one weighted PageRank iteration step from CSR arrays."""
+    link_mass = np.zeros(node_count, dtype=np.float64)
+    for row in range(node_count):
+        row_total = 0.0
+        for idx in range(indptr[row], indptr[row + 1]):
+            row_total += float(data[idx]) * float(ranks[indices[idx]])
+        link_mass[row] = row_total
+
+    dangling_mass = float(ranks[dangling_mask].sum()) if int(dangling_mask.sum()) else 0.0
+    next_ranks = (1.0 - damping) * link_mass
+    next_ranks += ((1.0 - damping) * dangling_mass + damping) / node_count
+    next_ranks /= float(next_ranks.sum())
+    delta = float(np.abs(next_ranks - ranks).sum())
+    return next_ranks, delta
 
 
 def run_weighted_pagerank(

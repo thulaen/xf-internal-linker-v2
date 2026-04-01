@@ -31,6 +31,12 @@ try:
 except ImportError:
     HAS_CPP_EXT = False
 
+try:
+    from extensions import simsearch
+    HAS_CPP_SIMSEARCH = True
+except ImportError:
+    HAS_CPP_SIMSEARCH = False
+
 from .click_distance import ClickDistanceSettings, ClickDistanceService
 from .feedback_rerank import FeedbackRerankSettings, FeedbackRerankService
 from .slate_diversity import SlateDiversitySettings, apply_slate_diversity
@@ -880,16 +886,25 @@ def _score_sentences_stage2(
     if not candidate_rows:
         return []
 
-    candidate_matrix = sentence_embeddings[candidate_rows]
-    scores = candidate_matrix @ destination_embedding  # cosine similarity (normalized)
+    if HAS_CPP_SIMSEARCH:
+        top_idx, top_scores = simsearch.score_and_topk(
+            destination_embedding,
+            sentence_embeddings,
+            candidate_rows,
+            top_k,
+        )
+    else:
+        candidate_matrix = sentence_embeddings[candidate_rows]
+        scores = candidate_matrix @ destination_embedding  # cosine similarity (normalized)
 
-    # Keep top-K
-    k = min(top_k, len(scores))
-    top_idx = np.argpartition(scores, -k)[-k:]
-    top_idx = top_idx[np.argsort(-scores[top_idx])]
+        # Keep top-K
+        k = min(top_k, len(scores))
+        top_idx = np.argpartition(scores, -k)[-k:]
+        top_idx = top_idx[np.argsort(-scores[top_idx])]
+        top_scores = scores[top_idx]
 
     matches: list[SentenceSemanticMatch] = []
-    for i in top_idx:
+    for i, score in zip(top_idx, top_scores, strict=True):
         sid = candidate_ids[i]
         record = sentence_records.get(sid)
         if record is None:
@@ -898,7 +913,7 @@ def _score_sentences_stage2(
             host_content_id=record.content_id,
             host_content_type=record.content_type,
             sentence_id=sid,
-            score_semantic=float(scores[i]),
+            score_semantic=float(score),
         ))
 
     return matches

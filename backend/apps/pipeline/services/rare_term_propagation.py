@@ -6,6 +6,12 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Mapping, TypeAlias
 
+try:
+    from extensions import rareterm
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 if TYPE_CHECKING:
     from .ranker import ContentRecord
 
@@ -239,6 +245,48 @@ def _evaluate_rare_term_propagation(
             rare_term_state=profile.profile_state,
             profile=profile,
             settings=settings,
+        )
+
+    if HAS_CPP_EXT:
+        matched, score = rareterm.evaluate_rare_terms(
+            [term.term for term in profile.propagated_terms],
+            [float(term.term_evidence) for term in profile.propagated_terms],
+            [int(term.supporting_related_pages) for term in profile.propagated_terms],
+            host_sentence_tokens,
+            MAX_TERMS_PER_SUGGESTION,
+        )
+        if not matched:
+            return _neutral_result(
+                rare_term_state="neutral_no_host_match",
+                profile=profile,
+                settings=settings,
+            )
+
+        matched_terms = [
+            term
+            for term in profile.propagated_terms
+            if term.term in host_sentence_tokens
+        ]
+        matched_terms.sort(
+            key=lambda term: (
+                -term.term_evidence,
+                -term.supporting_related_pages,
+                term.term,
+            )
+        )
+        top_matches = tuple(matched_terms[:MAX_TERMS_PER_SUGGESTION])
+        diagnostics = _build_diagnostics(
+            rare_term_state="computed_match",
+            profile=profile,
+            matched_terms=top_matches,
+            settings=settings,
+            score=score,
+        )
+        return RareTermPropagationResult(
+            score_rare_term_propagation=score,
+            rare_term_component=score_rare_term_component(score),
+            rare_term_state="computed_match",
+            rare_term_diagnostics=diagnostics,
         )
 
     matched_terms = [

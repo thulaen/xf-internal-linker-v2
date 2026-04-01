@@ -5,6 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import re
 
+try:
+    from extensions import phrasematch
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
 
 
@@ -566,6 +572,9 @@ def _count_context_hits(
 
 
 def _longest_contiguous_overlap(left: tuple[str, ...], right: tuple[str, ...]) -> int:
+    if HAS_CPP_EXT:
+        return int(phrasematch.longest_contiguous_overlap(list(left), list(right)))
+
     best = 0
     for left_start in range(len(left)):
         for right_start in range(len(right)):
