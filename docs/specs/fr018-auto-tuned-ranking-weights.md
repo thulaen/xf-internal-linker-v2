@@ -7,23 +7,26 @@ To automatically refine ranking weights using a feedback loop from GA4 engagemen
 - **Patent Inspiration**: **US8661029B1** (Google) - "Modifying search result ranking based on implicit user feedback."
 - **Math**: **Bayesian Optimization** or **Gradient Descent** on a "Lift" metric derived from GSC clicks and GA4 engagement.
 
-## How it works (The R Loop)
+## How it works (The C# Tuning Loop)
 
-### 1. Data Collection (Django -> R)
-- R service pulls the following via the Django API:
-    - `Suggestion` approval/rejection rates.
-    - `LinkFreshness` and `ExistingLink` topology.
-    - `GSC` baseline vs. post-apply impressions/clicks.
-    - `GA4` dwell time and click-through rates.
+The R analytics service has been removed. Auto-weight tuning is implemented in C# inside `services/http-worker/src/HttpWorker.Analytics/` using LINQ for data aggregation and MathNet.Numerics for optimization.
 
-### 2. Weight Tuning (R)
-- **Objective Function**: $Maximize(Impact) = w_1(GSC_{lift}) + w_2(GA4_{dwell}) + w_3(Review_{approval})$.
-- R uses a **Search Algorithm** to find the optimal set of weights that would have predicted the most successful links in history.
-- It produces a "Candidate Weight Set."
+### 1. Data Collection (Postgres -> C# Analytics Worker)
+- C# Analytics Worker queries PostgreSQL directly via Npgsql:
+    - `Suggestion` approval/rejection rates from `suggestions_suggestion`.
+    - `LinkFreshness` and `ExistingLink` topology from `graph_*` tables.
+    - `GSC` baseline vs. post-apply impressions/clicks from `analytics_searchmetric`.
+    - `GA4` dwell time and click-through rates from `analytics_suggestiontelemetrydaily` (FR-016).
 
-### 3. Challenger Creation (R -> Django)
-- R sends the candidate weights back to Django.
-- Django saves them as a **Challenger** model, e.g., `april_18_2026_pagerank_score`.
+### 2. Weight Tuning (C# + MathNet.Numerics)
+- **Objective Function**: `Maximize(Impact) = w1 * GSC_lift + w2 * GA4_dwell + w3 * Review_approval`
+- Optimization uses **MathNet.Numerics L-BFGS** to find the weight vector that best predicts successful links in historical data.
+- Each run is bounded: maximum delta of `±0.05` per weight per run. No weight may drift more than `0.20` from the documented recommended baseline without a manual review flag.
+- Produces a "Candidate Weight Set."
+
+### 3. Challenger Creation (C# -> Django via Npgsql)
+- C# writes the candidate weights directly to `core_appsetting` via a whitelisted key set.
+- Django reads them as a **Challenger** model, e.g., `april_18_2026_weights`.
 
 ### 4. Verification (Champion vs Challenger)
 - The system runs the "Champion" (Active) and "Challenger" (New) side-by-side.

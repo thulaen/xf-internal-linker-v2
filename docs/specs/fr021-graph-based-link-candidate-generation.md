@@ -10,7 +10,7 @@
   - entity extraction does not yet exist as a standalone service;
   - an embedding-based candidate retrieval step already exists inside the pipeline;
   - a multi-signal scoring layer already exists;
-  - the R analytics service (`services/r-analytics/`) already stores scored content-value data;
+  - the C# Analytics Worker (`services/http-worker/src/HttpWorker.Analytics/`) computes and stores content-value scores (replaced former R analytics service);
   - `SearchMetric` already stores daily coarse GA4 / GSC traffic data per content item;
   - no bipartite article-entity graph or random-walk candidate layer exists yet.
 
@@ -30,11 +30,9 @@
 - `backend/apps/analytics/models.py`
   - `SearchMetric` — daily coarse GSC / GA4 metrics by content item;
   - `ImpactReport` — before/after comparison rows for applied suggestions.
-- `services/r-analytics/`
-  - `R/compute_logic.R` — content-value scoring;
-  - `R/data_fetch.R` — data retrieval from PostgreSQL;
-  - `R/write_layer.R` — results persistence;
-  - `dashboard/app.R` — Shiny dashboard.
+- `services/http-worker/src/HttpWorker.Analytics/`
+  - C# Analytics Worker — content-value scoring (LINQ + MathNet.Numerics), batch writes via Npgsql.
+  - Charts are rendered by D3.js in the Angular frontend, not server-side.
 
 ### Existing signal scores on `ContentItem` or `Suggestion`
 

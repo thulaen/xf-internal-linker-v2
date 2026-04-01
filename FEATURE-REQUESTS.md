@@ -648,7 +648,7 @@ Important:
   2. **GSC** — credentials valid, last data received, auth error detection, 48h lag note.
   3. **XenForo Sync** — last sync timestamp + item count, overdue detection.
   4. **WordPress Sync** — last sync timestamp + item count, overdue detection.
-  5. **R Analytics Service** — Docker container ping, last computation run.
+  5. **C# Analytics Worker** — .NET service ping, last content-value computation run, last weight-tuning run.
   6. **Algorithm Pipeline** — last run result, suggestion count, suggestion-count-drop detection.
   7. **Auto-Tuning Algorithm** — champion/challenger state, last training run, gate check result (visible once FR-018 is live).
   8. **Embedding Model** — download / warmup / ready / failed state.
@@ -800,36 +800,22 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 
 ---
 
-### FR-027 - R Analytics Tidyverse Upgrade
+### FR-027 - CANCELLED: R Analytics Tidyverse Upgrade
 **Requested:** 2026-03-28
 **Target phase:** Phase 30
-**Priority:** Medium
-**Spec draft:** `docs/specs/fr027-r-analytics-tidyverse-upgrade.md`
+**Priority:** Cancelled
+**Spec:** `docs/specs/fr027-r-analytics-tidyverse-upgrade.md` (cancelled)
 
-### What's wanted
-- `dplyr` and `tibble` are already in the R service. Add `lubridate`, `tidyr`, `ggplot2`, and `purrr` where they give the most concrete benefit.
+### Why cancelled
+The R analytics service has been removed from the stack. All goals originally planned for this FR are now covered by:
 
-### Where each package is beneficial
-- **`lubridate`** — `compute_logic.R` and `data_fetch.R`: clean date arithmetic for rolling windows (`today() - days(90)`), time decay age computation (needed by FR-023 Hot decay), parameterised date-filtered fetch.
-- **`tidyr`** — `compute_logic.R`: `complete()` fills missing date gaps so rolling averages are accurate; `pivot_longer()` reshapes wide metrics for trend charts.
-- **`ggplot2`** — `dashboard/app.R`: replaces the static placeholder table with three real charts: score distribution histogram, site-wide traffic trend line, clicks-vs-impressions scatter.
-- **`purrr`** — `write_layer.R`: replaces a row-by-row `for` loop (one DB round-trip per content item) with `pwalk()`. The loop is an R anti-pattern that will be slow at scale.
+- **Data manipulation and aggregation** — C# LINQ (built-in, no packages needed). Replaces `dplyr`, `tidyr`, `purrr`.
+- **Log-score computation and date arithmetic** — C# `Math`, `DateOnly`, `TimeSpan`. Replaces `lubridate`.
+- **Statistical functions** (Wilson score, confidence bounds, L-BFGS optimization for FR-018) — `MathNet.Numerics` NuGet package.
+- **Charts and visualizations** — D3.js in the Angular frontend. Replaces `ggplot2` and the Shiny dashboard.
+- **Batch writes** — Npgsql batch `UPDATE` via `UNNEST`. Replaces the `purrr::pwalk()` row-by-row fix.
 
-### Specific controls / behaviour
-- `DESCRIPTION` updated — four packages added to `Imports`; version bumped to `0.2.0`.
-- New helpers added to `compute_logic.R`: `filter_lookback_window(metrics, lookback_days)` and `fill_date_gaps(metrics, lookback_days)`.
-- `compute_content_value_score()` updated to use the two new helpers. Formula is unchanged.
-- New `fetch_search_metrics_windowed(con, lookback_days)` added to `data_fetch.R`. Existing `fetch_search_metrics()` kept for backward compatibility.
-- `write_layer.R` `for` loop replaced with `purrr::pwalk()`. Behaviour identical.
-- Dashboard gets a `lookback_days` slider, a Refresh button, and three `ggplot2` chart tabs.
-- Scaffold functions for FR-023 Hot decay (`compute_hot_score`) and FR-024 rolling engagement (`compute_rolling_engagement`) added to `compute_logic.R` so those FRs can build on them without signature changes.
-
-### Implementation notes for the AI
-- Do not change `compute_content_value_score()` formula — only its input window and gap-filling.
-- Do not change `write_layer.R` validation logic — only replace the loop.
-- Existing `fetch_search_metrics()` must not be removed (backward compatibility).
-- All existing tests must pass after this FR.
-- Docker image must be rebuilt — the four new packages must be installed in the container.
+The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will be implemented in C# inside `services/http-worker/src/HttpWorker.Analytics/` instead.
 
 ---
 

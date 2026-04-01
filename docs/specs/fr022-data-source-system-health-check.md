@@ -247,36 +247,34 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 5. R Analytics Service Health Card
+### 5. C# Analytics Worker Health Card
 
-**Purpose:** Confirm the R analytics Docker container is running and producing content-value scores.
+**Purpose:** Confirm the C# Analytics Worker inside `services/http-worker` is running and producing content-value scores and weight-tuning runs. The former R analytics service has been removed; this card replaces it.
 
 **Status indicators:**
 
-- `Running` — HTTP ping to R service returns 200.
+- `Running` — HTTP ping to `http-worker-api` health endpoint returns 200 and analytics worker reports healthy.
 - `Down` — HTTP ping fails or times out.
-- `Stale` — R service is reachable but last computation run was more than N hours ago.
-- `Not configured` — R service URL is not configured.
+- `Stale` — Service is reachable but last content-value computation run was more than N hours ago.
+- `Not configured` — Analytics worker is not enabled in settings.
 
 **Displayed fields:**
 
 - Connection status badge.
-- R service endpoint URL.
-- Last successful computation run: timestamp.
-- Last written value scores: count of content items scored.
+- Last successful content-value computation run: timestamp + count of content items scored.
+- Last weight-tuning run: timestamp + champion weight version promoted (if any).
 - Last error: message + timestamp.
-- R analytics version / DESCRIPTION metadata (if exposed by the service).
+- MathNet.Numerics version (from assembly metadata).
 
 **Actions:**
 
-- "Ping Service" — lightweight HTTP health check.
-- "View R Dashboard" — opens the Shiny dashboard URL in a new tab.
-- "Trigger Computation Run" — if a trigger endpoint exists on the R service.
+- "Ping Service" — lightweight HTTP health check against `http-worker-api`.
+- "Trigger Computation Run" — POST to analytics worker trigger endpoint.
 
 **Alert integration (`FR-019`):**
 
-- Emit `service.r_analytics_down` when ping fails.
-- Emit `service.r_analytics_stale` when last run is overdue.
+- Emit `service.analytics_worker_down` when ping fails.
+- Emit `service.analytics_worker_stale` when last run is overdue.
 
 ---
 

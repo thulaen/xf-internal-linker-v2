@@ -39,7 +39,7 @@ Execution order and FR IDs are decoupled.
 
 ### Services
 - **C# HTTP Worker** (`services/http-worker/`): .NET 9 worker for distributed link scanning, URL fetching, and sitemap processing.
-- **R Analytics Service** (`services/r-analytics/`): R-based infrastructure for content value scoring and mathematical weight-tuning groundwork.
+- **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
 - Active target for the next session: Phase 18
@@ -153,7 +153,7 @@ Phase 12 shipped:
 - Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, diagnostics, review exposure, and recalculation task implemented from `docs/specs/fr012-click-distance-structural-prior.md`
 - Phase 16 / `FR-013`: post-ranking Explore/Exploit reranker with Bayesian smoothing and UCB1 exploration.
 - Phase 17 / `FR-014`: near-duplicate destination clustering with soft suppression and manual recalculation.
-- **Neutral Analytics Groundwork**: Created interim R analytics service scaffold and dashboard to support future `FR-018` auto-tuning.
+- **Analytics Groundwork**: R analytics service removed. Content value scoring and FR-018 auto-weight tuning will be implemented in C# (LINQ + MathNet.Numerics) inside `services/http-worker`. Charts replaced by D3.js in Angular (FR-016). FR-027 (R Tidyverse Upgrade) is cancelled — its goals are fully covered by C# + D3.js.
 - **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
 
 ## Execution Ledger

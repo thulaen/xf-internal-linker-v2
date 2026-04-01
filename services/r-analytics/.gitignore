@@ -1,9 +1,0 @@
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
-.Renviron
-renv/library/
-renv/python/
-renv/staging/
-.Rcache
