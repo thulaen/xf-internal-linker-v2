@@ -10,6 +10,16 @@
   margin-right: 6px;
 }
 
+.btn-prominent {
+  min-width: 160px;
+  height: 44px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+
+  mat-icon { margin-right: 6px; }
+}
+
 .scan-status-card {
   margin-bottom: 24px;
   border: 1px solid var(--cf-gray-8) !important;

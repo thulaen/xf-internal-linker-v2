@@ -77,6 +77,22 @@
       height: 18px;
     }
 
+    .tab-label-info {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      margin-left: 8px;
+      color: var(--cf-newGray-4);
+      opacity: 0.6;
+      transition: all 0.2s ease;
+      cursor: help;
+
+      &:hover {
+        color: var(--color-primary);
+        opacity: 1;
+      }
+    }
+
     .mat-mdc-tab-group-inverted-header .mat-mdc-tab-header {
       border-top: 1px solid var(--s-border);
       border-bottom: none;

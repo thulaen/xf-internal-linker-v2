@@ -37,8 +37,9 @@
         Export CSV
       </button>
       <button
-        mat-stroked-button
+        mat-flat-button
         color="primary"
+        class="btn-prominent"
         [disabled]="scanning"
         (click)="startScan()"
       >
@@ -112,7 +113,7 @@
       }
     </p>
     @if (!scanning) {
-      <button mat-flat-button color="primary" (click)="startScan()">
+      <button mat-flat-button color="primary" class="btn-prominent" (click)="startScan()">
         <mat-icon>play_arrow</mat-icon>
         Scan Now
       </button>

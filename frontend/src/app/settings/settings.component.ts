@@ -477,6 +477,35 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Put all WordPress guides into Guides, and all product docs into Products.',
     range: 'Any existing silo group or Unassigned',
   },
+  // Tabs
+  'tabs.ranking_weights': {
+    definition: 'Fine-tune the mathematical weights used to rank link suggestions.',
+    impact: 'Changes here directly affect which links the ranker picks as the best matches.',
+    default: 'Research-backed defaults',
+    example: 'Increase the PageRank weight to favor high-authority pages.',
+    range: 'Numerical weights',
+  },
+  'tabs.silo_architecture': {
+    definition: 'Manage topical content silos and scope mapping.',
+    impact: 'Controls how content is grouped to prevent irrelevant cross-topic link suggestions.',
+    default: 'Silo mapping logic',
+    example: 'Assign "Post Type: Guide" to the "Guides" silo.',
+    range: 'Group assignments',
+  },
+  'tabs.wordpress_sync': {
+    definition: 'Configure your WordPress API connection and sync schedule.',
+    impact: 'Ensures the app has the latest content and can push suggested links back to WordPress.',
+    default: 'API configuration',
+    example: 'Set the sync hour to 03:00 UTC for daily updates.',
+    range: 'URL and credentials',
+  },
+  'tabs.library_history': {
+    definition: 'Save weight presets and view your adjustment history.',
+    impact: 'Allows you to experiment with different weights and quickly rollback if needed.',
+    default: 'Snapshot library',
+    example: 'Save your "Black Friday" weights as a preset.',
+    range: 'Presets and logs',
+  },
 };
 
 const UI_TO_PRESET_KEY: Record<string, string> = {
