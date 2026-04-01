@@ -890,14 +890,57 @@ Mitigation:
 - first-party integration code for XenForo / WordPress rendering of instrumented links
 - any “copy instrumented markup” helper used by reviewers
 
+## GUI-First Requirement
+
+**The user must never touch a config file, environment variable, or code to set up or change credentials.**
+
+All three services — GA4, GSC, and Matomo — must be configured entirely through the settings page in the Angular UI. This is a hard requirement, not a nice-to-have.
+
+Every credential field must:
+- be editable through a form field in the settings page
+- show a live connection status badge next to it (`Connected`, `Auth error`, `Not set up`)
+- have a "Test Connection" button that fires immediately and shows pass/fail inline
+- never display secrets in plain text after saving (write-only fields — show masked placeholder once saved)
+- show the last successful sync timestamp and row count so the user can confirm data is flowing
+
+If a credential is wrong or expired, the badge turns red and a plain-English error message appears on the settings card — no digging through logs required.
+
+---
+
 ## Rollout Plan
 
-### Slice 1 - Settings and schema
+### Slice 1 - Credential settings UI + backend storage (build this first)
 
-- add settings storage
-- add new analytics models
-- add sync-run model
+This slice must be completed before any sync runs. Nothing else in FR-016 can work without valid credentials.
+
+**Backend:**
+- add `AppSetting` keys for GA4 (property ID, measurement ID, API secret) and Matomo (URL, site IDs, token)
+- add `GET /api/settings/analytics/ga4/` and `PUT /api/settings/analytics/ga4/` endpoints
+- add `GET /api/settings/analytics/matomo/` and `PUT /api/settings/analytics/matomo/` endpoints
+- add `POST /api/settings/analytics/ga4/test-connection/` — lightweight live credential check, returns `{status, message}`
+- add `POST /api/settings/analytics/matomo/test-connection/` — calls `SitesManager.getSiteFromId`, returns `{status, message}`
+- secrets stored encrypted; never returned in plain text
+- add new analytics models (`SuggestionTelemetryDaily`, `TelemetryCoverageDaily`, `AnalyticsSyncRun`)
 - add schema constants
+
+**Angular settings page — new Analytics credentials card:**
+- GA4 section:
+  - Property ID field
+  - Measurement ID field
+  - API Secret field (write-only, shows `••••••` once saved)
+  - "Test Connection" button → inline badge: `Connected ✓` / `Auth error ✗` / `No data yet`
+  - Sync enabled toggle + lookback days field
+  - Last sync: timestamp + row count (or "Never synced" if no runs yet)
+- Matomo section:
+  - Instance URL field (e.g. `https://matomo.goldmidi.com`)
+  - XenForo site ID field
+  - WordPress site ID field (optional)
+  - API token field (write-only, shows `••••••` once saved)
+  - "Test Connection" button → inline badge: `Connected ✓` / `Auth error ✗` / `Unreachable`
+  - Sync enabled toggle + lookback days field
+  - Last sync: timestamp + row count (or "Never synced")
+- Save button per section; unsaved changes highlighted
+- All errors shown inline in plain English — no log digging
 
 ### Slice 2 - Live-site instrumentation
 
@@ -905,18 +948,21 @@ Mitigation:
 - add session-storage attribution bridge
 - add impression and click dedupe
 
-### Slice 3 - `GA4` sync and local aggregates
+### Slice 3 - GA4 + Matomo sync and local aggregates
 
-- add scheduled sync task
-- pull daily aggregates
-- write `SuggestionTelemetryDaily`
-- write `TelemetryCoverageDaily`
+- add scheduled sync tasks for both GA4 and Matomo
+- pull daily aggregates from GA4 Data API
+- pull daily aggregates from Matomo Reporting API (`Events.getCategory`, `Actions.getPageUrls`)
+- write `SuggestionTelemetryDaily` rows with `telemetry_source` field
+- write `TelemetryCoverageDaily` rows
+- update last-sync timestamp and row count visible in Slice 1 settings card
 
 ### Slice 4 - Charts and diagnostics
 
 - build analytics APIs
-- build charts page
+- build charts page with D3.js (funnel, trend lines, version comparison, device split, geo)
 - add telemetry health views
+- charts filterable by `telemetry_source` (GA4 vs Matomo vs combined)
 
 ### Slice 5 - Review helpers
 

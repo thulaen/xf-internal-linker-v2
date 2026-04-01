@@ -198,74 +198,39 @@ Important:
 
 ---
 
-### FR-016 - GA4 Suggestion Attribution & User-Behavior Telemetry
+### FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
 **Requested:** 2026-03-25
 **Target phase:** Phase 19
 **Priority:** High
 **Spec draft:** `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
 
 ### What's wanted
-- Add first-class `GA4` tracking for suggestion-driven internal-link behavior so the app can learn from real user activity instead of only reviewer decisions.
+- Add first-class GA4 and Matomo tracking for suggestion-driven internal-link behavior so the app can learn from real user activity instead of only reviewer decisions.
 - Track the full path from impression to click to destination engagement, while keeping the ranking system stable and off-by-default until telemetry quality is proven.
 - Make telemetry rich enough to support future automatic tuning without mixing raw analytics directly into the current ranker.
 
+### GUI-first requirement (hard rule)
+- The user must never touch a config file, environment variable, or code to configure credentials.
+- GA4, GSC, and Matomo must all be configured entirely through the settings page in the Angular UI.
+- Every credential field must show a live connection status badge and a "Test Connection" button.
+- Status must show clearly whether data is flowing or something is broken — in plain English on the settings card.
+- Secrets must be write-only — shown as `••••••` after saving, never in plain text.
+
 ### Specific controls / behaviour
+- **Slice 1 (build first):** Angular credentials settings card for GA4 (property ID, measurement ID, API secret) and Matomo (URL, XenForo site ID, WordPress site ID, API token). Each section has a "Test Connection" button, inline status badge, and last-sync display. Nothing else in this FR can run without valid credentials.
 - Add a versioned analytics event schema for suggestion-linked traffic.
-- Track at minimum:
-  - `suggestion_link_impression`
-  - `suggestion_link_click`
-  - `suggestion_destination_view`
-  - `suggestion_destination_engaged`
-  - `suggestion_destination_conversion` when a site goal exists
-  - `suggestion_destination_bounce`
-- Track engagement inputs needed for later tuning:
-  - engaged time
-  - session count
-  - returning-vs-new visitor state when available
-  - scroll depth buckets
-  - page depth / pages per session
-  - device class
-  - traffic channel / source / medium
-  - coarse geography such as country/region only
-- Every tracked event must carry stable attribution fields:
-  - `suggestion_id`
-  - `pipeline_run_id`
-  - `algorithm_version`
-  - `destination_content_id`
-  - `destination_content_type`
-  - `host_content_id`
-  - `host_content_type`
-  - `anchor_text`
-  - `anchor_confidence`
-  - `link_position_bucket`
-  - `same_silo`
-  - `source_label`
-- Add a local ingestion/sync layer that stores normalized daily aggregates by suggestion, destination, algorithm version, device bucket, channel bucket, and geography bucket.
-- Keep raw event names and local aggregate field names versioned so schema changes do not silently poison future learning data.
-- Keep review outcomes and `GA4` outcomes separate at storage time, then join them only in a later training/reporting step.
-- Add diagnostics that show telemetry coverage quality:
-  - missing tag rate
-  - unattributed click rate
-  - duplicate event rate
-  - delayed ingestion rate
-  - event schema version mix
-- Add admin/settings controls for:
-  - telemetry enabled/disabled
-  - allowed geography granularity
-  - event retention window
-  - minimum sample thresholds before data can influence any later model
-  - property IDs / secrets / sync windows
+- Track at minimum: `suggestion_link_impression`, `suggestion_link_click`, `suggestion_destination_view`, `suggestion_destination_engaged`, `suggestion_destination_conversion`
+- Two parallel collection sources: GA4 (cloud, sampled at scale) and Matomo (on-premise, unsampled, full cardinality). Both feed the same `SuggestionTelemetryDaily` model via a `telemetry_source` field.
+- Matomo preferred for per-suggestion click accuracy (no cardinality cap). GA4 preferred for device/channel/geographic segmentation.
+- Local daily aggregate storage — charts read from local DB only, not live from GA4/Matomo API.
+- Add diagnostics that show telemetry coverage quality.
 
 ### Implementation notes for the AI
-- Do not let `GA4` metrics directly change `score_final` in the first implementation pass.
-- First pass must be telemetry-only plus reporting-only.
-- Existing ranking, review flow, imports, and diagnostics must stay behaviorally identical when telemetry is enabled but no learning phase has promoted a new model.
-- New telemetry fields must be additive. Do not rename or overload current score fields.
-- Use feature flags and schema versioning from day one.
-- Store coarse geography only. Do not use precise location.
-- Do not use location as a direct ranking bonus. It is for segmentation, QA, and later evaluation only.
+- Do not let GA4 or Matomo metrics directly change `score_final` in the first implementation pass.
+- First pass is telemetry-only plus reporting-only.
+- Existing ranking, review flow, imports, and diagnostics must stay behaviorally identical.
 - Treat missing analytics as neutral, never as negative evidence.
-- Add rate-limiting, deduplication, and delayed-arrival handling so `GA4` noise does not create regressions.
+- Add rate-limiting, deduplication, and delayed-arrival handling.
 
 ---
 
@@ -273,6 +238,11 @@ Important:
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
 **Priority:** High
+
+### GUI-first requirement (hard rule)
+- GSC credentials (OAuth client ID/secret, verified site URL) must be configured entirely through the settings page. No config files, no code, no environment variables.
+- The settings card must show a live connection status badge, an "Authorize with Google" OAuth button, and a last-sync display with row count.
+- If the OAuth token expires, the card shows a clear warning and a re-authorize button — not a silent failure.
 
 ### What's wanted
 - Add `GSC` attribution so the app can measure whether approved/applied internal links helped search outcomes after a realistic delay.
