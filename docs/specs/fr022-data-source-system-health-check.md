@@ -9,7 +9,7 @@
   - GA4 and GSC settings already exist but no connection-status check is surfaced in the UI;
   - XenForo sync already exists (`apps/sync/`) but no live health status is exposed;
   - WordPress sync already exists (`apps/sync/services/wordpress_api.py`) but no live health status is exposed;
-  - R analytics service exists as a separate Docker container (`services/r-analytics/`) with no health endpoint wired into the main app;
+  - R analytics service has been removed and replaced by the C# Analytics Worker inside `services/http-worker/`;
   - `AppSetting` stores connection credentials and config but no "last successful connection" or "last error" status fields;
   - `ErrorLog` stores background failures but they are not surfaced as per-source health indicators;
   - `FR-019` adds the notification center and alert system that this FR connects into;
@@ -278,7 +278,43 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 6. Algorithm Pipeline Health Card
+### 6. Matomo Health Card
+
+**Purpose:** Confirm the on-premise Matomo instance at `matomo.goldmidi.com` is reachable, the API token is valid, and suggestion-level click data is flowing into `SuggestionTelemetryDaily(telemetry_source="matomo")`.
+
+**Status indicators:**
+
+- `Connected` — Matomo API ping returns 200 and token is valid.
+- `No data` — Matomo is reachable but no `SuggestionTelemetryDaily(telemetry_source="matomo")` rows have arrived in the last N days.
+- `Auth error` — API token is invalid or revoked.
+- `Misconfigured` — Matomo URL or site ID is missing.
+- `Not set up` — `analytics.matomo_enabled` is false.
+
+**Displayed fields:**
+
+- Connection status badge.
+- Matomo instance URL (e.g. `matomo.goldmidi.com`).
+- Site IDs configured: XenForo site ID, WordPress site ID.
+- Last successful sync: timestamp + row count written.
+- Last error: message + timestamp.
+- Data freshness lag: hours since most recent `SuggestionTelemetryDaily(telemetry_source="matomo")` row.
+- Total suggestion link clicks tracked this week (from Matomo).
+- Cardinality coverage note: "X% of suggestions have Matomo click data (vs GA4 which caps at top N)."
+
+**Actions:**
+
+- "Test Connection" — lightweight Matomo API call (`SitesManager.getSiteFromId`) and report pass/fail.
+- "Trigger Sync" — POST to force an immediate Matomo data pull.
+- "Go to Matomo Dashboard" — opens `matomo.goldmidi.com` in a new tab.
+
+**Alert integration (`FR-019`):**
+
+- Emit `service.matomo_down` when ping fails.
+- Emit `service.matomo_no_data` when no data has arrived for more than `matomo_stale_threshold_hours` (default: 48).
+
+---
+
+### 7. Algorithm Pipeline Health Card
 
 **Purpose:** Confirm the main link-suggestion pipeline is running, completing successfully, and producing suggestions.
 
@@ -311,7 +347,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 7. Auto-Tuning Algorithm Health Card
+### 8. Auto-Tuning Algorithm Health Card
 
 **Purpose:** Confirm the FR-018 auto-tuning system is in a valid state (only visible once FR-018 is implemented).
 
@@ -345,7 +381,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 8. Embedding Model Health Card
+### 9. Embedding Model Health Card
 
 **Purpose:** Confirm the active embedding model is downloaded, loaded, and ready.
 
@@ -377,7 +413,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 9. Celery Worker Health Card
+### 10. Celery Worker Health Card
 
 **Purpose:** Confirm background task workers are running and the task queue is not backed up.
 
@@ -409,7 +445,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 10. HttpWorker Service Health Card
+### 11. HttpWorker Service Health Card
 
 **Purpose:** Confirm the .NET 9 HttpWorker microservice (broken-link scanner, URL fetcher, sitemap crawler) is reachable.
 
@@ -438,7 +474,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 11. Database Health Card
+### 12. Database Health Card
 
 **Purpose:** Confirm the PostgreSQL database is reachable and migrations are current.
 
@@ -468,7 +504,7 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 12. Redis / Channel Layer Health Card
+### 13. Redis / Channel Layer Health Card
 
 **Purpose:** Confirm Redis (used by Celery broker and Django Channels) is reachable.
 
@@ -643,8 +679,10 @@ Label in nav: **System Health**
 | XenForo | `data_source.xenforo_stale` | Sync overdue |
 | WordPress | `data_source.wordpress_sync_error` | Sync failed |
 | WordPress | `data_source.wordpress_stale` | Sync overdue |
-| R Analytics | `service.r_analytics_down` | Ping failed |
-| R Analytics | `service.r_analytics_stale` | No run for 24h |
+| C# Analytics | `service.analytics_worker_down` | Ping failed |
+| C# Analytics | `service.analytics_worker_stale` | No run for 24h |
+| Matomo | `service.matomo_down` | Ping failed |
+| Matomo | `service.matomo_no_data` | No data for 48h |
 | Pipeline | `pipeline.run_failed` | Pipeline failed |
 | Pipeline | `pipeline.suggestion_count_drop` | >30% drop |
 | Auto-Tuning | `autotuning.promotion_blocked` | Gates failed |
@@ -672,7 +710,7 @@ All alerts use dedupe keys so a persistently-down service does not flood the ale
 
 ### Frontend tests
 
-- Health page renders all 12 cards.
+- Health page renders all 13 cards.
 - Error/warning cards appear first.
 - Status dot appears in nav when any service is degraded.
 - "Check All Now" button triggers the check-all endpoint and refreshes the UI.
@@ -680,7 +718,8 @@ All alerts use dedupe keys so a persistently-down service does not flood the ale
 ### Manual verification
 
 - Disable GA4 credentials and verify `ga4` card shows `Auth error` and an FR-019 alert fires.
-- Stop the R analytics Docker container and verify `r_analytics` card shows `Down`.
+- Stop the C# Analytics Worker and verify `analytics_worker` card shows `Down`.
+- Revoke the Matomo API token and verify `matomo` card shows `Auth error`.
 - Let XenForo sync go overdue and verify `xenforo` card shows `Stale`.
 - Restore each service and verify card returns to `Healthy` and alert resolves.
 

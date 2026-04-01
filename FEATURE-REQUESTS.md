@@ -643,19 +643,20 @@ Important:
 - Recovered services must resolve their alerts automatically.
 
 ### Specific controls / behaviour
-- Health cards included (12 total):
+- Health cards included (13 total):
   1. **GA4** — credentials valid, last data received, auth error detection.
   2. **GSC** — credentials valid, last data received, auth error detection, 48h lag note.
   3. **XenForo Sync** — last sync timestamp + item count, overdue detection.
   4. **WordPress Sync** — last sync timestamp + item count, overdue detection.
   5. **C# Analytics Worker** — .NET service ping, last content-value computation run, last weight-tuning run.
-  6. **Algorithm Pipeline** — last run result, suggestion count, suggestion-count-drop detection.
-  7. **Auto-Tuning Algorithm** — champion/challenger state, last training run, gate check result (visible once FR-018 is live).
-  8. **Embedding Model** — download / warmup / ready / failed state.
-  9. **Celery Workers** — worker count, queue depth, backed-up detection.
-  10. **HttpWorker Service** — .NET service ping, last task.
-  11. **Database** — connection status, migration state.
-  12. **Redis / Channel Layer** — PING check.
+  6. **Matomo** — on-premise instance ping, API token validity, last sync, suggestion-click cardinality coverage vs GA4.
+  7. **Algorithm Pipeline** — last run result, suggestion count, suggestion-count-drop detection.
+  8. **Auto-Tuning Algorithm** — champion/challenger state, last training run, gate check result (visible once FR-018 is live).
+  9. **Embedding Model** — download / warmup / ready / failed state.
+  10. **Celery Workers** — worker count, queue depth, backed-up detection.
+  11. **HttpWorker Service** — .NET service ping, last task.
+  12. **Database** — connection status, migration state.
+  13. **Redis / Channel Layer** — PING check.
 - New backend app: `backend/apps/health/` with `ServiceHealthRecord` model.
 - Periodic Celery task runs all checks every 5 minutes (configurable).
 - REST API: `GET /api/health/status/`, per-service immediate check endpoint, settings endpoint.

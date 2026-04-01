@@ -1,11 +1,12 @@
-# FR-016 - GA4 Suggestion Attribution & User-Behavior Telemetry
+# FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
 
 ## Confirmation
 
 - `FR-016` is a real backlog item in `FEATURE-REQUESTS.md`.
 - It is queued for `Phase 19`.
 - This spec is being written early because the user explicitly asked for the real blueprint before implementation.
-- Repo confirmed: the analytics app exists, but it only stores coarse content-level `GSC` / `GA4` numbers today. There is no suggestion-level `GA4` attribution, no algorithm-version behavior tracking, and no telemetry charts tied to suggestion performance.
+- Repo confirmed: the analytics app exists, but it only stores coarse content-level `GSC` / `GA4` numbers today. There is no suggestion-level attribution, no algorithm-version behavior tracking, and no telemetry charts tied to suggestion performance.
+- **Matomo update (2026-04-01):** Matomo is now installed on-premise at `matomo.goldmidi.com`. Tracking code is live on XenForo and WordPress. FR-016 collects from **two parallel sources**: GA4 (cloud, sampled at scale) and Matomo (on-premise, unsampled, full cardinality). Both feed the same `SuggestionTelemetryDaily` model via a `telemetry_source` field. Matomo fills the cardinality gap where GA4 buckets low-volume suggestions into `(other)`.
 
 ## Current Repo Map
 
@@ -391,6 +392,7 @@ Reason:
 Add to `backend/apps/analytics/models.py`:
 
 - `date: DateField(db_index=True)`
+- `telemetry_source: CharField(choices=["ga4", "matomo"], db_index=True)` — which analytics platform this row came from
 - `suggestion: ForeignKey("suggestions.Suggestion", null=True, blank=True, on_delete=models.CASCADE)`
 - `destination: ForeignKey("content.ContentItem", related_name="telemetry_as_destination", on_delete=models.CASCADE)`
 - `host: ForeignKey("content.ContentItem", related_name="telemetry_as_host", on_delete=models.CASCADE)`
@@ -421,6 +423,7 @@ Add to `backend/apps/analytics/models.py`:
 Recommended uniqueness:
 
 - `date`
+- `telemetry_source`
 - `suggestion`
 - `algorithm_version_slug`
 - `device_category`
@@ -433,6 +436,7 @@ Recommended uniqueness:
 Recommended indexes:
 
 - `Index(fields=["algorithm_version_slug", "date"])`
+- `Index(fields=["telemetry_source", "date"])`
 - `Index(fields=["suggestion", "-date"])`
 - `Index(fields=["destination", "-date"])`
 - `Index(fields=["device_category", "date"])`
@@ -467,11 +471,11 @@ Fields:
 
 Purpose:
 
-- record each `GA4` import / restatement run.
+- record each analytics import / restatement run for any source.
 
 Fields:
 
-- `source = "ga4"`
+- `source: CharField(choices=["ga4", "matomo", "gsc"])` — which platform this run imported from
 - `started_at`
 - `completed_at`
 - `status`
@@ -487,7 +491,7 @@ Fields:
 
 Persist through `AppSetting` in category `analytics`.
 
-Keys:
+**GA4 keys:**
 
 - `analytics.ga4_behavior_enabled`
 - `analytics.ga4_property_id`
@@ -495,6 +499,19 @@ Keys:
 - `analytics.ga4_api_secret`
 - `analytics.ga4_sync_enabled`
 - `analytics.ga4_sync_lookback_days`
+
+**Matomo keys:**
+
+- `analytics.matomo_enabled` — master on/off for Matomo collection
+- `analytics.matomo_url` — base URL of the Matomo instance (e.g. `https://matomo.goldmidi.com`)
+- `analytics.matomo_site_id_xenforo` — Matomo site ID for the XenForo forum
+- `analytics.matomo_site_id_wordpress` — Matomo site ID for WordPress (if separate)
+- `analytics.matomo_token_auth` — Matomo API token (stored encrypted, never returned in plain text)
+- `analytics.matomo_sync_enabled`
+- `analytics.matomo_sync_lookback_days`
+
+**Shared telemetry keys:**
+
 - `analytics.telemetry_event_schema`
 - `analytics.telemetry_geo_granularity`
 - `analytics.telemetry_retention_days`
@@ -507,6 +524,9 @@ Keys:
 - `ga4_behavior_enabled = false`
 - `ga4_sync_enabled = false`
 - `ga4_sync_lookback_days = 7`
+- `matomo_enabled = false`
+- `matomo_sync_enabled = false`
+- `matomo_sync_lookback_days = 7`
 - `telemetry_event_schema = "fr016_v1"`
 - `telemetry_geo_granularity = "country"`
 - `telemetry_retention_days = 400`
@@ -517,6 +537,7 @@ Keys:
 ### Bounds
 
 - `1 <= ga4_sync_lookback_days <= 30`
+- `1 <= matomo_sync_lookback_days <= 30`
 - `telemetry_geo_granularity` in:
   - `none`
   - `country`
@@ -536,31 +557,49 @@ Keys:
 
 ## Data Collection and Sync Shape
 
-### Collection path
+### Collection paths (two parallel sources)
 
-1. live site renders instrumented link markup
-2. browser emits `GA4` custom events
-3. scheduled backend sync pulls aggregated rows from `GA4`
-4. backend writes local daily aggregates
+**GA4 path:**
+
+1. live site renders instrumented link markup with `data-xfil-*` attributes
+2. browser emits GA4 custom events (`suggestion_link_impression`, `suggestion_link_click`, etc.)
+3. scheduled backend sync pulls aggregated rows from GA4 Data API
+4. backend writes `SuggestionTelemetryDaily` rows with `telemetry_source = "ga4"`
 5. analytics UI charts read local aggregates only
+
+**Matomo path:**
+
+1. same instrumented link markup triggers a parallel Matomo custom event via the Matomo JS tracker
+2. Matomo stores the raw event on-premise at `matomo.goldmidi.com` — unsampled, full cardinality
+3. scheduled backend sync calls the Matomo Reporting API (`Actions.getPageUrls`, `Events.getCategory`)
+4. backend writes `SuggestionTelemetryDaily` rows with `telemetry_source = "matomo"`
+5. same analytics UI charts read both sources; charts can filter by `telemetry_source`
+
+**Why both:**
+
+- GA4 is the primary source for device/channel/geographic segmentation
+- Matomo is the primary source for per-suggestion click accuracy — GA4 buckets low-volume `suggestion_id` values into `(other)` at scale; Matomo has no cardinality limit
+- FR-018 auto-tuning prefers Matomo click data when available because it is unsampled
 
 ### Sync cadence
 
-Recommended:
+**GA4:**
 
 - hourly restatement for the last `2` days
 - daily catch-up for the last `7` days
+- reason: GA4 data arrives late and recent rows need safe rewrites
 
-Reason:
+**Matomo:**
 
-- `GA4` data can arrive late;
-- recent rows may need safe rewrites.
+- hourly sync for the last `1` day (Matomo data is available immediately, no processing delay)
+- daily catch-up for the last `7` days
 
 ### Pull granularity
 
 Pull daily aggregates grouped by:
 
 - `date`
+- `telemetry_source`
 - `suggestion_id`
 - `algorithm_version_slug`
 - `device_category`
