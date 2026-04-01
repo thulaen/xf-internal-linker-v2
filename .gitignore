@@ -48,6 +48,7 @@ frontend/test-results/
 
 # Docker
 docker-compose.override.yml
+tmp/docker-config/
 
 # OS
 .DS_Store

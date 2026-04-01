@@ -3,7 +3,7 @@
 
 Write-Host "Stopping XF Internal Linker..." -ForegroundColor Cyan
 
-docker compose down
+& "$PSScriptRoot\docker-safe.ps1" compose down
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""
