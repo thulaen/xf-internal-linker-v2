@@ -13,7 +13,7 @@ Important:
 - Check completed requests before implementing anything new.
 - Verify the repository state before trusting request status text.
 - Update this file and `AI-CONTEXT.md` after finishing a session.
-- Future ranking-affecting requests should plan a C++ accelerator for the hot inner loop by default, while keeping a behavior-matching Python fallback.
+- Future ranking-affecting requests should treat C++ as the default execution path for the hot inner loop, while keeping a behavior-matching Python fallback for safety.
 - Those ranking requests must also expose a plain-English reason when the C++ speed path is not active or is not helping enough, for example: not compiled, import failed, disabled, unsupported input shape, small batch, or no real speedup measured.
 - That status must be visible on the dashboard or diagnostics UI so an operator can see whether C++ is active, whether fallback is being used, and whether the fast path is actually helping.
 
@@ -192,7 +192,7 @@ Important:
 
 - Apply a late diversity reranker only after hard constraints and duplicate-family normalization.
 - Stay inside a close-score window and never override hard suppression rules.
-- Use a C++ accelerator for the hot reranking math if a hot inner loop exists, but keep a pure-Python fallback with matching behavior.
+- Use C++ as the default execution path for the hot reranking math when a hot inner loop exists, but keep a pure-Python fallback with matching behavior.
 - Add diagnostics that say, in plain English, whether the C++ path ran and, if not, why not.
 - Show that C++ status on the dashboard or diagnostics UI, including whether fallback was used and whether the C++ path gave a real speed benefit.
 
