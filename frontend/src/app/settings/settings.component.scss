@@ -269,21 +269,6 @@
       .mat-mdc-form-field-subscript-wrapper { display: block !important; padding-bottom: 8px; }
     }
   }
-
-  // TOOLTIP FIX: "Wall of text" solution
-  .setting-tooltip {
-    background: rgba(15, 20, 25, 0.96) !important;
-    color: #fff !important;
-    font-size: 13px !important;
-    line-height: 1.62 !important;
-    padding: 18px !important;
-    border-radius: 6px !important;
-    max-width: 440px !important;
-    white-space: pre-line !important; 
-    box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important;
-    border: 1px solid rgba(255, 255, 255, 0.15) !important;
-    backdrop-filter: blur(4px);
-  }
 }
 
 .number-grid {
