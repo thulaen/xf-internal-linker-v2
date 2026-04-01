@@ -13,4 +13,5 @@ public interface IJobQueueService
     Task WriteDeadLetterAsync(DeadLetterRecord deadLetter, CancellationToken cancellationToken);
     Task DeleteQueuedMarkerAsync(string jobId, CancellationToken cancellationToken);
     Task<bool> IsRedisConnectedAsync(CancellationToken cancellationToken);
+    Task<long> GetQueueDepthAsync(CancellationToken cancellationToken);
 }

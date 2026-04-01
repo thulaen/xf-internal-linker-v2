@@ -6,19 +6,19 @@ using StackExchange.Redis;
 
 namespace HttpWorker.Services;
 
-public sealed class RedisJobQueueService : IJobQueueService, IDisposable
+public sealed class RedisJobQueueService : IJobQueueService
 {
     private const int QueuedMarkerTtlSeconds = 3600;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
-    private readonly ConnectionMultiplexer _connection;
     private readonly IDatabase _database;
     private readonly HttpWorkerOptions _options;
 
-    public RedisJobQueueService(IOptions<HttpWorkerOptions> options)
+    public RedisJobQueueService(
+        ConnectionMultiplexer connection,
+        IOptions<HttpWorkerOptions> options)
     {
         _options = options.Value;
-        _connection = ConnectionMultiplexer.Connect(_options.Redis.ConnectionString);
-        _database = _connection.GetDatabase();
+        _database = connection.GetDatabase();
     }
 
     public async Task QueueJobAsync(JobRequest request, CancellationToken cancellationToken)
@@ -100,9 +100,9 @@ public sealed class RedisJobQueueService : IJobQueueService, IDisposable
         return string.Equals(result.ToString(), "PONG", StringComparison.OrdinalIgnoreCase);
     }
 
-    public void Dispose()
+    public async Task<long> GetQueueDepthAsync(CancellationToken cancellationToken)
     {
-        _connection.Dispose();
+        return await _database.ListLengthAsync(_options.Redis.JobQueueKey);
     }
 
     private static string GetQueuedMarkerKey(string jobId) => $"http_worker:queued:{jobId}";

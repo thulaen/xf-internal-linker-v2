@@ -12,23 +12,34 @@ namespace HttpWorker.Worker;
 public sealed class JobDispatcherWorker(
     IJobQueueService jobQueueService,
     JobProcessor jobProcessor,
+    IRuntimeTelemetryService runtimeTelemetryService,
     IOptions<HttpWorkerOptions> options,
     ILogger<JobDispatcherWorker> logger) : BackgroundService
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly HttpWorkerOptions _options = options.Value;
+    private readonly string _instanceId = Guid.NewGuid().ToString("N");
+    private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        while (!stoppingToken.IsCancellationRequested)
+        var heartbeatTask = RunHeartbeatLoopAsync(stoppingToken);
+        try
         {
-            var rawJob = await jobQueueService.PopRawJobAsync(stoppingToken);
-            if (string.IsNullOrWhiteSpace(rawJob))
+            while (!stoppingToken.IsCancellationRequested)
             {
-                continue;
-            }
+                var rawJob = await jobQueueService.PopRawJobAsync(stoppingToken);
+                if (string.IsNullOrWhiteSpace(rawJob))
+                {
+                    continue;
+                }
 
-            await ProcessRawJobAsync(rawJob, stoppingToken);
+                await ProcessRawJobAsync(rawJob, stoppingToken);
+            }
+        }
+        finally
+        {
+            await heartbeatTask;
         }
     }
 
@@ -43,14 +54,14 @@ public sealed class JobDispatcherWorker(
                 parsedRequest ??= JsonSerializer.Deserialize<JobRequest>(rawJob, JsonOptions)
                     ?? throw new ValidationException("request body is required");
                 var result = await jobProcessor.ProcessAsync(parsedRequest, cancellationToken);
-                await jobQueueService.WriteResultAsync(result, cancellationToken);
+                await WriteResultAsync(result, attempt - 1, cancellationToken);
                 return;
             }
             catch (ValidationException ex)
             {
                 if (parsedRequest is not null)
                 {
-                    await jobQueueService.WriteResultAsync(new JobResult
+                    await WriteResultAsync(new JobResult
                     {
                         SchemaVersion = _options.SchemaVersion,
                         JobId = parsedRequest.JobId,
@@ -59,7 +70,7 @@ public sealed class JobDispatcherWorker(
                         Success = false,
                         Error = ex.Message,
                         Results = null,
-                    }, cancellationToken);
+                    }, attempt - 1, cancellationToken);
                     return;
                 }
 
@@ -74,7 +85,7 @@ public sealed class JobDispatcherWorker(
                     return;
                 }
 
-                await jobQueueService.WriteResultAsync(new JobResult
+                await WriteResultAsync(new JobResult
                 {
                     SchemaVersion = _options.SchemaVersion,
                     JobId = parsedRequest.JobId,
@@ -83,7 +94,7 @@ public sealed class JobDispatcherWorker(
                     Success = false,
                     Error = "blocked url",
                     Results = null,
-                }, cancellationToken);
+                }, attempt - 1, cancellationToken);
                 return;
             }
             catch (MalformedSitemapException)
@@ -94,7 +105,7 @@ public sealed class JobDispatcherWorker(
                     return;
                 }
 
-                await jobQueueService.WriteResultAsync(new JobResult
+                await WriteResultAsync(new JobResult
                 {
                     SchemaVersion = _options.SchemaVersion,
                     JobId = parsedRequest.JobId,
@@ -103,7 +114,7 @@ public sealed class JobDispatcherWorker(
                     Success = false,
                     Error = "malformed sitemap xml",
                     Results = null,
-                }, cancellationToken);
+                }, attempt - 1, cancellationToken);
                 return;
             }
             catch (Exception ex) when (attempt < 4)
@@ -138,7 +149,7 @@ public sealed class JobDispatcherWorker(
             originalRequest = JsonValue.Create(rawJob);
         }
 
-        await jobQueueService.WriteDeadLetterAsync(new DeadLetterRecord
+        var deadLetter = new DeadLetterRecord
         {
             SchemaVersion = parsedRequest?.SchemaVersion ?? _options.SchemaVersion,
             JobId = parsedRequest?.JobId ?? Guid.Empty.ToString(),
@@ -147,7 +158,23 @@ public sealed class JobDispatcherWorker(
             AttemptCount = attemptCount,
             Error = error,
             OriginalRequest = originalRequest,
-        }, cancellationToken);
+        };
+
+        await jobQueueService.WriteDeadLetterAsync(deadLetter, cancellationToken);
+
+        try
+        {
+            await runtimeTelemetryService.RecordDeadLetterAsync(
+                _instanceId,
+                _startedAt,
+                deadLetter,
+                Math.Max(0, attemptCount - 1),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "HttpWorker telemetry write failed for dead-lettered job");
+        }
     }
 
     private static JobRequest? TryParseFallback(string rawJob)
@@ -159,6 +186,57 @@ public sealed class JobDispatcherWorker(
         catch
         {
             return null;
+        }
+    }
+
+    private async Task WriteResultAsync(
+        JobResult result,
+        int retryCount,
+        CancellationToken cancellationToken)
+    {
+        await jobQueueService.WriteResultAsync(result, cancellationToken);
+
+        try
+        {
+            await runtimeTelemetryService.RecordResultAsync(
+                _instanceId,
+                _startedAt,
+                result,
+                retryCount,
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "HttpWorker telemetry write failed for completed job");
+        }
+    }
+
+    private async Task RunHeartbeatLoopAsync(CancellationToken stoppingToken)
+    {
+        await TryWriteHeartbeatAsync(stoppingToken);
+
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
+        try
+        {
+            while (await timer.WaitForNextTickAsync(stoppingToken))
+            {
+                await TryWriteHeartbeatAsync(stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+        }
+    }
+
+    private async Task TryWriteHeartbeatAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await runtimeTelemetryService.WriteHeartbeatAsync(_instanceId, _startedAt, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "HttpWorker heartbeat write failed");
         }
     }
 }

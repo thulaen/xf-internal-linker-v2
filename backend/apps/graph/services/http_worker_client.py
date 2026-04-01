@@ -21,7 +21,10 @@ def _base_url() -> str:
     enabled = getattr(settings, "HTTP_WORKER_ENABLED", False)
     if not enabled:
         raise HttpWorkerDisabledError("HttpWorker is disabled")
-    return getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080").rstrip("/")
+    base_url = getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080").rstrip("/")
+    if base_url.endswith("/api/v1/status"):
+        return base_url[: -len("/api/v1/status")]
+    return base_url
 
 
 def _post_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:

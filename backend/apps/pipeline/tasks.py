@@ -650,6 +650,76 @@ def import_content(
         raise
 
 
+def _get_broken_link_scan_http_worker_batch_size() -> int:
+    from django.conf import settings
+
+    raw_value = getattr(settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", 250)
+    try:
+        return min(max(int(raw_value), 1), 1000)
+    except (TypeError, ValueError):
+        logger.warning(
+            "Invalid HTTP_WORKER_BROKEN_LINK_BATCH_SIZE value %r; using %d.",
+            raw_value,
+            250,
+        )
+        return 250
+
+
+def _iter_broken_link_scan_batches(
+    scan_items: list[dict[str, Any]],
+    batch_size: int,
+):
+    for start in range(0, len(scan_items), batch_size):
+        yield scan_items[start:start + batch_size]
+
+
+def _check_broken_links_via_http_worker(
+    scan_items: list[dict[str, Any]],
+) -> dict[tuple[int, str], tuple[int, str]]:
+    from apps.graph.services.http_worker_client import HttpWorkerError, check_broken_links
+
+    batch_size = _get_broken_link_scan_http_worker_batch_size()
+    checked_results: dict[tuple[int, str], tuple[int, str]] = {}
+
+    for batch in _iter_broken_link_scan_batches(scan_items, batch_size):
+        request_items = [
+            {
+                "source_content_id": int(item["source_content_id"]),
+                "url": str(item["url"]),
+            }
+            for item in batch
+        ]
+        expected_keys = {
+            (item["source_content_id"], item["url"])
+            for item in request_items
+        }
+        batch_results = check_broken_links(request_items)
+        batch_map: dict[tuple[int, str], tuple[int, str]] = {}
+
+        for row in batch_results:
+            source_content_id = int(row.get("source_content_id") or 0)
+            url = str(row.get("url") or "").strip()
+            if source_content_id <= 0 or not url:
+                raise HttpWorkerError("HttpWorker returned an invalid broken-link result row.")
+
+            key = (source_content_id, url)
+            if key not in expected_keys:
+                raise HttpWorkerError("HttpWorker returned an unexpected broken-link result row.")
+
+            batch_map[key] = (
+                int(row.get("http_status") or 0),
+                str(row.get("redirect_url") or ""),
+            )
+
+        missing_keys = expected_keys.difference(batch_map)
+        if missing_keys:
+            raise HttpWorkerError("HttpWorker returned an incomplete broken-link result batch.")
+
+        checked_results.update(batch_map)
+
+    return checked_results
+
+
 @shared_task(bind=True, name="pipeline.scan_broken_links", queue="default")
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
@@ -730,6 +800,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     fixed_urls = 0
     checked_at = timezone.now()
     delay_seconds = _get_broken_link_scan_delay_seconds()
+    scan_items = list(urls_to_scan.values())
     existing_records = {
         (record.source_content_id, record.url): record
         for record in BrokenLink.objects.filter(
@@ -739,53 +810,84 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     }
     to_create: list[BrokenLink] = []
     to_update: list[BrokenLink] = []
+    probe_backend = "python_requests"
+    http_worker_error = ""
+    http_worker_results: dict[tuple[int, str], tuple[int, str]] | None = None
 
-    with requests.Session() as session:
-        session.headers.update({"User-Agent": "XF Internal Linker V2 Broken Link Scanner"})
-        for index, scan_item in enumerate(urls_to_scan.values(), start=1):
-            source_content_id = scan_item["source_content_id"]
-            url = scan_item["url"]
-            http_status, redirect_url = _probe_link_health(session, url)
-            existing_record = existing_records.get((source_content_id, url))
-            issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 400
-            if issue_detected:
-                record_status = (
-                    BrokenLink.STATUS_IGNORED
-                    if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
-                    else BrokenLink.STATUS_OPEN
-                )
-                if existing_record is None:
-                    to_create.append(
-                        BrokenLink(
-                            source_content_id=source_content_id,
-                            url=url,
-                            http_status=http_status,
-                            redirect_url=redirect_url,
-                            status=record_status,
-                            notes="",
-                            first_detected_at=checked_at,
-                            last_checked_at=checked_at,
-                            created_at=checked_at,
-                            updated_at=checked_at,
-                        )
+    def _store_probe_result(
+        *,
+        source_content_id: int,
+        url: str,
+        http_status: int,
+        redirect_url: str,
+    ) -> None:
+        nonlocal flagged_urls, fixed_urls
+
+        existing_record = existing_records.get((source_content_id, url))
+        issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 400
+        if issue_detected:
+            record_status = (
+                BrokenLink.STATUS_IGNORED
+                if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
+                else BrokenLink.STATUS_OPEN
+            )
+            if existing_record is None:
+                to_create.append(
+                    BrokenLink(
+                        source_content_id=source_content_id,
+                        url=url,
+                        http_status=http_status,
+                        redirect_url=redirect_url,
+                        status=record_status,
+                        notes="",
+                        first_detected_at=checked_at,
+                        last_checked_at=checked_at,
+                        created_at=checked_at,
+                        updated_at=checked_at,
                     )
-                else:
-                    existing_record.http_status = http_status
-                    existing_record.redirect_url = redirect_url
-                    existing_record.status = record_status
-                    existing_record.last_checked_at = checked_at
-                    existing_record.updated_at = checked_at
-                    to_update.append(existing_record)
-                flagged_urls += 1
-            elif existing_record:
+                )
+            else:
                 existing_record.http_status = http_status
-                existing_record.redirect_url = ""
-                existing_record.status = BrokenLink.STATUS_FIXED
+                existing_record.redirect_url = redirect_url
+                existing_record.status = record_status
                 existing_record.last_checked_at = checked_at
                 existing_record.updated_at = checked_at
                 to_update.append(existing_record)
-                fixed_urls += 1
+            flagged_urls += 1
+            return
 
+        if existing_record:
+            existing_record.http_status = http_status
+            existing_record.redirect_url = ""
+            existing_record.status = BrokenLink.STATUS_FIXED
+            existing_record.last_checked_at = checked_at
+            existing_record.updated_at = checked_at
+            to_update.append(existing_record)
+            fixed_urls += 1
+
+    if getattr(settings, "HTTP_WORKER_ENABLED", False):
+        try:
+            http_worker_results = _check_broken_links_via_http_worker(scan_items)
+            probe_backend = "csharp_http_worker"
+        except Exception as exc:
+            http_worker_error = str(exc)
+            probe_backend = "python_requests_fallback"
+            logger.warning(
+                "HttpWorker broken-link scan fallback engaged: %s",
+                exc,
+            )
+
+    if http_worker_results is not None:
+        for index, scan_item in enumerate(scan_items, start=1):
+            source_content_id = int(scan_item["source_content_id"])
+            url = str(scan_item["url"])
+            http_status, redirect_url = http_worker_results[(source_content_id, url)]
+            _store_probe_result(
+                source_content_id=source_content_id,
+                url=url,
+                http_status=http_status,
+                redirect_url=redirect_url,
+            )
             _publish_progress(
                 job_id,
                 "running",
@@ -797,9 +899,38 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
                 fixed_urls=fixed_urls,
                 current_url=url,
                 hit_scan_cap=hit_scan_cap,
+                probe_backend=probe_backend,
             )
-            if delay_seconds > 0.0 and index < total_urls:
-                time.sleep(delay_seconds)
+    else:
+        with requests.Session() as session:
+            session.headers.update({"User-Agent": "XF Internal Linker V2 Broken Link Scanner"})
+            for index, scan_item in enumerate(scan_items, start=1):
+                source_content_id = int(scan_item["source_content_id"])
+                url = str(scan_item["url"])
+                http_status, redirect_url = _probe_link_health(session, url)
+                _store_probe_result(
+                    source_content_id=source_content_id,
+                    url=url,
+                    http_status=http_status,
+                    redirect_url=redirect_url,
+                )
+
+                _publish_progress(
+                    job_id,
+                    "running",
+                    index / total_urls,
+                    f"Checked {index}/{total_urls}: {_status_label(http_status)}",
+                    scanned_urls=index,
+                    total_urls=total_urls,
+                    flagged_urls=flagged_urls,
+                    fixed_urls=fixed_urls,
+                    current_url=url,
+                    hit_scan_cap=hit_scan_cap,
+                    probe_backend=probe_backend,
+                    http_worker_error=http_worker_error,
+                )
+                if delay_seconds > 0.0 and index < total_urls:
+                    time.sleep(delay_seconds)
 
     if to_create:
         BrokenLink.objects.bulk_create(to_create)
@@ -824,6 +955,8 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         flagged_urls=flagged_urls,
         fixed_urls=fixed_urls,
         hit_scan_cap=hit_scan_cap,
+        probe_backend=probe_backend,
+        http_worker_error=http_worker_error,
     )
     return {
         "job_id": job_id,
@@ -831,6 +964,8 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         "flagged_urls": flagged_urls,
         "fixed_urls": fixed_urls,
         "hit_scan_cap": hit_scan_cap,
+        "probe_backend": probe_backend,
+        "http_worker_error": http_worker_error or None,
     }
 
 

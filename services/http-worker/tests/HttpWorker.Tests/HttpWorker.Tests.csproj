@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <ProjectReference Include="..\..\src\HttpWorker.Api\HttpWorker.Api.csproj" />
     <ProjectReference Include="..\..\src\HttpWorker.Core\HttpWorker.Core.csproj" />
     <ProjectReference Include="..\..\src\HttpWorker.Services\HttpWorker.Services.csproj" />
   </ItemGroup>

@@ -3,12 +3,12 @@ from collections import Counter
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import timedelta
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 from scipy.sparse import csr_matrix
 from django.db import connection
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
@@ -3082,6 +3082,59 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         self.assertEqual(result["flagged_urls"], 0)
         self.assertEqual(result["fixed_urls"], 0)
         probe_health.assert_not_called()
+
+    @override_settings(
+        HTTP_WORKER_ENABLED=True,
+        HTTP_WORKER_URL="http://http-worker-api:8080",
+        HTTP_WORKER_BROKEN_LINK_BATCH_SIZE=100,
+    )
+    def test_scan_uses_http_worker_when_enabled(self):
+        destination = self._existing_link(url="https://example.com/http-worker")
+
+        with patch.object(pipeline_tasks, "_publish_progress"), patch(
+            "apps.graph.services.http_worker_client.check_broken_links",
+            return_value=[
+                {
+                    "source_content_id": self.source.pk,
+                    "url": destination.url,
+                    "http_status": 404,
+                    "redirect_url": "",
+                }
+            ],
+        ) as check_broken_links, patch.object(pipeline_tasks, "_probe_link_health") as probe_health:
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker")
+
+        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
+        self.assertEqual(result["probe_backend"], "csharp_http_worker")
+        self.assertIsNone(result["http_worker_error"])
+        self.assertEqual(result["flagged_urls"], 1)
+        self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
+        check_broken_links.assert_called_once()
+        probe_health.assert_not_called()
+
+    @override_settings(
+        HTTP_WORKER_ENABLED=True,
+        HTTP_WORKER_URL="http://http-worker-api:8080",
+    )
+    def test_scan_falls_back_to_python_when_http_worker_fails(self):
+        destination = self._existing_link(url="https://example.com/http-worker-fallback")
+
+        with patch.object(pipeline_tasks, "_publish_progress"), patch(
+            "apps.graph.services.http_worker_client.check_broken_links",
+            side_effect=RuntimeError("worker offline"),
+        ), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+            return_value=(404, ""),
+        ) as probe_health, patch("apps.pipeline.tasks.time.sleep"):
+            result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker-fallback")
+
+        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
+        self.assertEqual(result["probe_backend"], "python_requests_fallback")
+        self.assertEqual(result["http_worker_error"], "worker offline")
+        self.assertEqual(result["flagged_urls"], 1)
+        self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
+        probe_health.assert_called_once_with(ANY, destination.url)
 
 
 class PipelineSettingsFallbackLoggingTests(TestCase):

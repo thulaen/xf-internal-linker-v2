@@ -1,77 +1,281 @@
 import logging
+import os
+
 import requests
-from django.db import connection
-from django_redis import get_redis_connection
+from asgiref.sync import async_to_sync
 from celery import current_app
 from django.conf import settings
+from django.db import connection
+from django.utils import timezone
+from django_redis import get_redis_connection
+
 from apps.suggestions.models import Suggestion
+
 from .models import ServiceStatusSnapshot, SystemConflict
 
 logger = logging.getLogger(__name__)
 
+
+def _result(
+    state: str,
+    explanation: str,
+    next_step: str,
+    metadata: dict | None = None,
+):
+    return state, explanation, next_step, metadata or {}
+
+
+def _http_worker_status_url() -> str:
+    base_url = str(getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080")).rstrip("/")
+    if base_url.endswith("/api/v1/status"):
+        return base_url
+    return f"{base_url}/api/v1/status"
+
+
+def _http_worker_metadata(status_url: str, data: dict) -> dict:
+    worker = data.get("worker") or {}
+    last_completed = worker.get("last_completed") or {}
+    last_failed = worker.get("last_failed") or {}
+    redis_connected = bool(data.get("redis_connected"))
+    worker_online = bool(data.get("worker_online"))
+    queue_depth = data.get("queue_depth", 0)
+
+    return {
+        "url": status_url,
+        "schema_version": data.get("schema_version"),
+        "build_version": data.get("build_version"),
+        "redis_connected": redis_connected,
+        "worker_online": worker_online,
+        "queue_depth": queue_depth,
+        "worker_heartbeat_age_seconds": data.get("worker_heartbeat_age_seconds"),
+        "worker_instance_id": worker.get("instance_id"),
+        "dead_letter_count": worker.get("dead_letter_count"),
+        "retry_count_total": worker.get("retry_count_total"),
+        "last_completed_job_type": last_completed.get("job_type"),
+        "last_failed_job_type": last_failed.get("job_type"),
+        "last_failed_error": last_failed.get("error"),
+        "python_fallback_active": not (redis_connected and worker_online),
+    }
+
+
 def check_django():
-    return "healthy", "Django API is responding normally.", "No action needed."
+    return _result(
+        "healthy",
+        "Django answered this health check.",
+        "No action needed.",
+        {
+            "settings_module": os.environ.get("DJANGO_SETTINGS_MODULE", ""),
+        },
+    )
+
 
 def check_postgresql():
     try:
         connection.ensure_connection()
-        return "healthy", "PostgreSQL connection is active.", "No action needed."
-    except Exception as e:
-        return "failed", f"PostgreSQL connection failed: {str(e)}", "Check if the database service is running and the credentials are correct."
+        return _result(
+            "healthy",
+            "PostgreSQL accepted a live connection.",
+            "No action needed.",
+            {
+                "database": connection.settings_dict.get("NAME", ""),
+                "host": connection.settings_dict.get("HOST", ""),
+            },
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"PostgreSQL connection failed: {exc}",
+            "Check whether PostgreSQL is running and whether the Django database settings are correct.",
+        )
+
 
 def check_redis():
     try:
         conn = get_redis_connection("default")
         conn.ping()
-        return "healthy", "Redis connection is active.", "No action needed."
-    except Exception as e:
-        return "failed", f"Redis connection failed: {str(e)}", "Check if the Redis service is running and the URL is correct."
+        return _result(
+            "healthy",
+            "Redis answered a live ping.",
+            "No action needed.",
+            {
+                "redis_url": getattr(settings, "REDIS_URL", ""),
+            },
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"Redis connection failed: {exc}",
+            "Check whether Redis is running and whether REDIS_URL is correct.",
+        )
+
 
 def check_celery():
     try:
         inspect = current_app.control.inspect()
-        ping = inspect.ping()
-        if ping:
-            return "healthy", f"Celery workers are alive ({len(ping)} workers).", "No action needed."
-        return "failed", "No Celery workers detected.", "Start the Celery worker process."
-    except Exception as e:
-        return "failed", f"Celery check failed: {str(e)}", "Check if Redis (the broker) is reachable."
+        ping = inspect.ping() or {}
+        worker_count = len(ping)
+        if worker_count > 0:
+            return _result(
+                "healthy",
+                f"Celery workers replied to a ping ({worker_count} worker(s)).",
+                "No action needed.",
+                {
+                    "worker_count": worker_count,
+                },
+            )
+        return _result(
+            "failed",
+            "No Celery workers replied to a ping.",
+            "Start the Celery worker process or check the broker connection.",
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"Celery check failed: {exc}",
+            "Check Redis connectivity and the Celery worker logs.",
+        )
+
 
 def check_celery_beat():
-    # Checking for beat is harder without shared state, but we can check if any periodic tasks have run recently
-    # or if the django-celery-beat scheduler is active.
     try:
-        import django_celery_beat  # noqa: F401
-        # Just a placeholder for now
-        return "healthy", "Celery Beat is configured.", "Check Celery Beat logs for recent executions."
+        from django_celery_beat.models import PeriodicTask
+
+        enabled_tasks = PeriodicTask.objects.filter(enabled=True).count()
+        if enabled_tasks == 0:
+            return _result(
+                "not_configured",
+                "Celery Beat is installed, but there are no enabled periodic tasks.",
+                "Add or enable a periodic task before relying on Celery Beat.",
+                {
+                    "enabled_periodic_tasks": 0,
+                    "proof": "configuration_only",
+                },
+            )
+        return _result(
+            "degraded",
+            f"Found {enabled_tasks} enabled periodic task(s), but this check does not have a live Beat heartbeat yet.",
+            "Add a Beat heartbeat before treating Celery Beat as fully healthy.",
+            {
+                "enabled_periodic_tasks": enabled_tasks,
+                "proof": "configuration_only",
+            },
+        )
     except ImportError:
-        return "not_installed", "django-celery-beat is not installed.", "Install django-celery-beat if periodic tasks are required."
+        return _result(
+            "not_installed",
+            "django-celery-beat is not installed.",
+            "Install django-celery-beat if scheduled tasks are required.",
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"Celery Beat check failed: {exc}",
+            "Check the database and the Celery Beat configuration.",
+        )
+
 
 def check_channels():
-    if not hasattr(settings, 'CHANNEL_LAYERS'):
-        return "not_configured", "Django Channels is not configured.", "Add CHANNEL_LAYERS to settings."
+    if not hasattr(settings, "CHANNEL_LAYERS"):
+        return _result(
+            "not_configured",
+            "Django Channels is not configured.",
+            "Add CHANNEL_LAYERS to the Django settings before relying on WebSocket progress updates.",
+        )
     try:
         from channels.layers import get_channel_layer
+
         channel_layer = get_channel_layer()
-        if channel_layer:
-            # Simple test for RedisChannelLayer
-            return "healthy", "Channel layer is available.", "No action needed."
-        return "failed", "Channel layer could not be retrieved.", "Check Channels configuration."
-    except Exception as e:
-        return "failed", f"Channels check failed: {str(e)}", "Check Redis connectivity."
+        if channel_layer is None:
+            return _result(
+                "failed",
+                "Channel layer could not be created.",
+                "Check the Channels backend settings and Redis connection.",
+            )
+        async_to_sync(channel_layer.group_send)(
+            "diagnostics_health_probe",
+            {"type": "diagnostics.noop"},
+        )
+        return _result(
+            "healthy",
+            "Channel layer accepted a live send operation.",
+            "No action needed.",
+            {
+                "backend": channel_layer.__class__.__name__,
+            },
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"Channels check failed: {exc}",
+            "Check the Channels backend and Redis connection.",
+        )
+
 
 def check_http_worker():
-    url = getattr(settings, 'HTTP_WORKER_URL', 'http://http-worker:5000/api/v1/status')
+    status_url = _http_worker_status_url()
+    if not getattr(settings, "HTTP_WORKER_ENABLED", False):
+        return _result(
+            "disabled",
+            "C# HttpWorker is turned off, so Python still owns this helper path.",
+            "Set HTTP_WORKER_ENABLED=true when you want Django to use the C# helper service.",
+            {
+                "url": status_url,
+                "python_fallback_active": True,
+            },
+        )
+
     try:
-        response = requests.get(url, timeout=5)
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("status") == "ok":
-                return "healthy", "C# HttpWorker is responding.", "No action needed."
-            return "degraded", f"HttpWorker reported non-ok status: {data.get('status')}", "Check HttpWorker logs."
-        return "failed", f"HttpWorker returned status code {response.status_code}.", "Check if the HttpWorker container is running."
-    except Exception as e:
-        return "failed", f"HttpWorker is unreachable: {str(e)}", "Check if the HttpWorker URL is correct and the service is up."
+        response = requests.get(status_url, timeout=5)
+        if response.status_code != 200:
+            return _result(
+                "failed",
+                f"C# HttpWorker returned status code {response.status_code}.",
+                "Check whether the http-worker-api service is running and reachable.",
+                {
+                    "url": status_url,
+                    "python_fallback_active": True,
+                },
+            )
+
+        data = response.json()
+        redis_connected = bool(data.get("redis_connected"))
+        worker_online = bool(data.get("worker_online"))
+        queue_depth = data.get("queue_depth", 0)
+        metadata = _http_worker_metadata(status_url, data)
+
+        if redis_connected and worker_online:
+            return _result(
+                "healthy",
+                f"C# HttpWorker API, Redis, and the queue worker are all alive. Queue depth is {queue_depth}.",
+                "No action needed.",
+                metadata,
+            )
+
+        if not redis_connected:
+            return _result(
+                "degraded",
+                "C# HttpWorker answered, but its Redis queue is not healthy yet.",
+                "Restore Redis first, then confirm the queue depth starts draining again.",
+                metadata,
+            )
+
+        return _result(
+            "degraded",
+            "C# HttpWorker API answered, but the queue-backed worker lane is offline. Direct helper endpoints may still work, but C# is not ready to own heavy jobs yet.",
+            "Start the http-worker-queue service and wait for a fresh worker heartbeat before trusting this lane.",
+            metadata,
+        )
+    except Exception as exc:
+        return _result(
+            "failed",
+            f"C# HttpWorker is unreachable: {exc}",
+            "Check whether HTTP_WORKER_URL points at the live http-worker-api service.",
+            {
+                "url": status_url,
+                "python_fallback_active": True,
+            },
+        )
+
 
 def get_resource_usage():
     metrics = {
@@ -81,104 +285,140 @@ def get_resource_usage():
     }
     try:
         import psutil
+
         metrics["cpu_percent"] = psutil.cpu_percent()
         metrics["ram_usage_mb"] = psutil.virtual_memory().used / (1024 * 1024)
-        metrics["disk_usage_percent"] = psutil.disk_usage('/').percent
+        metrics["disk_usage_percent"] = psutil.disk_usage("/").percent
     except ImportError:
         pass
     return metrics
 
+
 def run_health_checks():
     checks = {
-        'django': check_django,
-        'postgresql': check_postgresql,
-        'redis': check_redis,
-        'celery_worker': check_celery,
-        'celery_beat': check_celery_beat,
-        'channels': check_channels,
-        'http_worker': check_http_worker,
+        "django": check_django,
+        "postgresql": check_postgresql,
+        "redis": check_redis,
+        "celery_worker": check_celery,
+        "celery_beat": check_celery_beat,
+        "channels": check_channels,
+        "http_worker": check_http_worker,
     }
 
     results = {}
+    checked_at = timezone.now()
     for service, check_fn in checks.items():
-        state, explanation, next_step = check_fn()
-        snapshot, created = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
+        state, explanation, next_step, metadata = check_fn()
+        snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
         snapshot.state = state
         snapshot.explanation = explanation
         snapshot.next_action_step = next_step
+        snapshot.metadata = metadata
         if state == "healthy":
-            snapshot.last_success = snapshot.last_check
+            snapshot.last_success = checked_at
         elif state == "failed":
-            snapshot.last_failure = snapshot.last_check
+            snapshot.last_failure = checked_at
         snapshot.save()
         results[service] = {
             "state": state,
             "explanation": explanation,
             "next_step": next_step,
-            "last_check": snapshot.last_check,
+            "last_check": checked_at,
+            "metadata": metadata,
         }
     return results
 
+
 def detect_conflicts():
     conflicts = []
-    
-    # 1. Check for placeholder analytics vs missing real API
-    # (Checking if analytics app exists but has no real data or API)
+
     from apps.analytics.models import SearchMetric
+
     if SearchMetric.objects.count() == 0:
-        conflicts.append({
-            "type": "placeholder",
-            "title": "Analytics Data Missing",
-            "description": "Analytics app is present but no SearchMetric records exist.",
-            "severity": "medium",
-            "location": "apps/analytics",
-            "why": "The system has models for analytics, but no telemetry (GA4/GSC) sync has been performed yet.",
-            "next_step": "Configure GA4/GSC sync to populate analytics data."
-        })
-
-    # 2. Check for drift in suggestions (e.g., pending suggestions with no destination)
-    orphaned_suggestions = Suggestion.objects.filter(destination__isnull=True).count()
-    if orphaned_suggestions > 0:
-        conflicts.append({
-            "type": "drift",
-            "title": "Orphaned Suggestions",
-            "description": f"Found {orphaned_suggestions} suggestions without a destination content item.",
-            "severity": "high",
-            "location": "apps.suggestions.models.Suggestion",
-            "why": "Content items were likely deleted while suggestions were still pending.",
-            "next_step": "Run a cleanup task to remove orphaned suggestions."
-        })
-
-    # 3. Check for planned-only systems mentioned in docs but not fully implemented
-    # (Hardcoded for now based on FR requirements)
-    planned_services = ['ga4', 'gsc', 'r_analytics', 'r_weight_tuning']
-    for service in planned_services:
-        snapshot, created = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
-        if snapshot.state == 'planned_only':
-            conflicts.append({
-                "type": "mismatch",
-                "title": f"Planned Service: {service}",
-                "description": f"{service} is in the roadmap but not yet implemented.",
-                "severity": "low",
-                "location": f"Phase {service}",
-                "why": "This feature is planned for a future phase.",
-                "next_step": "Wait for the implementation of this phase."
-            })
-
-    for c in conflicts:
-        SystemConflict.objects.get_or_create(
-            title=c["title"],
-            defaults={
-                "conflict_type": c["type"],
-                "description": c["description"],
-                "severity": c["severity"],
-                "location": c["location"],
-                "why": c["why"],
-                "next_step": c["next_step"],
+        conflicts.append(
+            {
+                "type": "placeholder",
+                "title": "Analytics Data Missing",
+                "description": "Analytics models exist, but there are no SearchMetric rows yet.",
+                "severity": "medium",
+                "location": "apps/analytics",
+                "why": "The code can read analytics data, but no sync has populated it yet.",
+                "next_step": "Run the analytics sync before trusting traffic-based ranking signals.",
             }
         )
 
+    orphaned_suggestions = Suggestion.objects.filter(destination__isnull=True).count()
+    if orphaned_suggestions > 0:
+        conflicts.append(
+            {
+                "type": "drift",
+                "title": "Orphaned Suggestions",
+                "description": f"Found {orphaned_suggestions} suggestion row(s) without a destination content item.",
+                "severity": "high",
+                "location": "apps.suggestions.models.Suggestion",
+                "why": "Content was deleted while suggestions were still hanging around.",
+                "next_step": "Clean up orphaned suggestions and check the delete flow.",
+            }
+        )
+
+    if getattr(settings, "HTTP_WORKER_ENABLED", False) and "http-worker:5000" in _http_worker_status_url():
+        conflicts.append(
+            {
+                "type": "mismatch",
+                "title": "HttpWorker URL Drift",
+                "description": "Diagnostics is still pointed at the old HttpWorker host or port.",
+                "severity": "high",
+                "location": "apps.diagnostics.health.check_http_worker",
+                "why": "The compose service is named http-worker-api on port 8080, so the old URL will always lie.",
+                "next_step": "Set HTTP_WORKER_URL to the live http-worker-api base URL.",
+            }
+        )
+
+    settings_module = os.environ.get("DJANGO_SETTINGS_MODULE", "")
+    if settings_module.endswith(".development"):
+        conflicts.append(
+            {
+                "type": "drift",
+                "title": "Development Runtime Active",
+                "description": "The main Django process is running with development settings.",
+                "severity": "medium",
+                "location": settings_module,
+                "why": "Development mode is fine for local work, but it is not a trustworthy runtime shape for a 16 GB production box.",
+                "next_step": "Move the main compose runtime onto production settings before calling the stack production-ready.",
+            }
+        )
+
+    planned_services = ["ga4", "gsc", "r_analytics", "r_weight_tuning"]
+    for service in planned_services:
+        snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
+        if snapshot.state == "planned_only":
+            conflicts.append(
+                {
+                    "type": "mismatch",
+                    "title": f"Planned Service: {service}",
+                    "description": f"{service} is on the roadmap but does not have a live runtime yet.",
+                    "severity": "low",
+                    "location": f"diagnostics:{service}",
+                    "why": "This entry is roadmap tracking, not proof that the service exists.",
+                    "next_step": "Do not treat this row as a live dependency until a real runtime is wired in.",
+                }
+            )
+
+    for conflict in conflicts:
+        SystemConflict.objects.get_or_create(
+            title=conflict["title"],
+            defaults={
+                "conflict_type": conflict["type"],
+                "description": conflict["description"],
+                "severity": conflict["severity"],
+                "location": conflict["location"],
+                "why": conflict["why"],
+                "next_step": conflict["next_step"],
+            },
+        )
+
     return conflicts
+
 
 def get_feature_readinessMatrix():
     """
@@ -202,5 +442,4 @@ def get_feature_readinessMatrix():
         {"id": "FR-020", "name": "Hot swap", "status": "planned_only"},
         {"id": "FR-021", "name": "System health", "status": "implementing"},
     ]
-    # In a real system, these could be checked against actual code/tests.
     return features

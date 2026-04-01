@@ -364,6 +364,13 @@ WORDPRESS_BASE_URL = env("WORDPRESS_BASE_URL", default="")
 WORDPRESS_USERNAME = env("WORDPRESS_USERNAME", default="")
 WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 
+HTTP_WORKER_ENABLED = env.bool("HTTP_WORKER_ENABLED", default=False)
+HTTP_WORKER_URL = env("HTTP_WORKER_URL", default="http://http-worker-api:8080").rstrip("/")
+HTTP_WORKER_BROKEN_LINK_BATCH_SIZE = min(
+    max(env.int("HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", default=250), 1),
+    1000,
+)
+
 
 # ── ML / AI Settings ─────────────────────────────────────────────
 

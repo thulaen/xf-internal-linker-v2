@@ -1,6 +1,11 @@
-import { Component, Input } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ServiceStatus } from '../diagnostics.service';
+
+interface MetadataEntry {
+  label: string;
+  value: string;
+}
 
 @Component({
   selector: 'app-service-card',
@@ -9,8 +14,15 @@ import { ServiceStatus } from '../diagnostics.service';
   templateUrl: './service-card.component.html',
   styleUrls: ['./service-card.component.scss']
 })
-export class ServiceCardComponent {
+export class ServiceCardComponent implements OnChanges {
   @Input() service!: ServiceStatus;
+  metadataEntries: MetadataEntry[] = [];
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['service']) {
+      this.metadataEntries = this.buildMetadataEntries();
+    }
+  }
 
   getStatusClass(): string {
     return `status-${this.service.state}`;
@@ -30,5 +42,28 @@ export class ServiceCardComponent {
 
   formatState(state: string): string {
     return state.replace(/_/g, ' ');
+  }
+
+  private buildMetadataEntries(): MetadataEntry[] {
+    const metadata = this.service?.metadata ?? {};
+
+    return Object.entries(metadata)
+      .filter(([, value]) => value !== null && value !== undefined && value !== '' && typeof value !== 'object')
+      .map(([key, value]) => ({
+        label: this.formatState(key),
+        value: this.formatMetadataValue(value),
+      }));
+  }
+
+  private formatMetadataValue(value: unknown): string {
+    if (typeof value === 'boolean') {
+      return value ? 'Yes' : 'No';
+    }
+
+    if (typeof value === 'number' && !Number.isInteger(value)) {
+      return value.toFixed(1);
+    }
+
+    return String(value);
   }
 }

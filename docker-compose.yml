@@ -62,6 +62,8 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
+      HTTP_WORKER_ENABLED: "true"
+      HTTP_WORKER_URL: http://http-worker-api:8080
     volumes:
       - ./backend:/app
       - media_files:/app/media
@@ -98,6 +100,8 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
+      HTTP_WORKER_ENABLED: "true"
+      HTTP_WORKER_URL: http://http-worker-api:8080
     volumes:
       - ./backend:/app
     depends_on:
@@ -118,6 +122,8 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
+      HTTP_WORKER_ENABLED: "true"
+      HTTP_WORKER_URL: http://http-worker-api:8080
     volumes:
       - ./backend:/app
     depends_on:

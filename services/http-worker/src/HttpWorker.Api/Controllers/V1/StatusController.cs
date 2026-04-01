@@ -1,3 +1,5 @@
+using System.Reflection;
+using HttpWorker.Core.Contracts.V1;
 using HttpWorker.Core.Interfaces;
 using HttpWorker.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -9,16 +11,51 @@ namespace HttpWorker.Api.Controllers.V1;
 [Route("api/v1/status")]
 public sealed class StatusController(
     IJobQueueService jobQueueService,
+    IRuntimeTelemetryService runtimeTelemetryService,
     IOptions<HttpWorkerOptions> options) : ControllerBase
 {
+    private static readonly DateTimeOffset ServiceStartedAt = DateTimeOffset.UtcNow;
+    private static readonly string BuildVersion =
+        Assembly.GetEntryAssembly()?.GetName().Version?.ToString() ?? "dev";
+    private static readonly TimeSpan WorkerHeartbeatFreshWindow = TimeSpan.FromSeconds(15);
+
     [HttpGet]
-    public async Task<IActionResult> GetAsync(CancellationToken cancellationToken)
+    public async Task<ActionResult<HttpWorkerStatusResponse>> GetAsync(CancellationToken cancellationToken)
     {
-        return Ok(new
+        var response = new HttpWorkerStatusResponse
         {
-            status = "ok",
-            schema_version = options.Value.SchemaVersion,
-            redis_connected = await jobQueueService.IsRedisConnectedAsync(cancellationToken),
-        });
+            Status = "degraded",
+            SchemaVersion = options.Value.SchemaVersion,
+            BuildVersion = BuildVersion,
+            ServiceStartedAt = ServiceStartedAt,
+        };
+
+        try
+        {
+            response.RedisConnected = await jobQueueService.IsRedisConnectedAsync(cancellationToken);
+            if (response.RedisConnected)
+            {
+                response.QueueDepth = await jobQueueService.GetQueueDepthAsync(cancellationToken);
+                response.Worker = await runtimeTelemetryService.GetWorkerSnapshotAsync(cancellationToken);
+
+                if (response.Worker is not null)
+                {
+                    response.WorkerHeartbeatAgeSeconds = Math.Max(
+                        0,
+                        (DateTimeOffset.UtcNow - response.Worker.HeartbeatAt).TotalSeconds);
+                    response.WorkerOnline = response.WorkerHeartbeatAgeSeconds <= WorkerHeartbeatFreshWindow.TotalSeconds;
+                }
+            }
+
+            response.Status = response.RedisConnected ? "ok" : "degraded";
+        }
+        catch
+        {
+            response.Status = "degraded";
+            response.RedisConnected = false;
+            response.WorkerOnline = false;
+        }
+
+        return Ok(response);
     }
 }
