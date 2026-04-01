@@ -7,6 +7,12 @@ from dataclasses import dataclass
 import math
 from typing import TYPE_CHECKING
 
+try:
+    from extensions import fieldrel
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 from .learned_anchor import KNOWN_NOISE_ANCHORS, LearnedAnchorInputRow
 from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
 
@@ -256,6 +262,10 @@ def _score_field(
         return 0.0, []
 
     scored_terms: list[dict[str, object]] = []
+    matched_tokens: list[str] = []
+    matched_host_tfs: list[int] = []
+    matched_field_tfs: list[int] = []
+    matched_field_presence_counts: list[int] = []
     for token, host_tf in host_token_counts.items():
         field_tf = profile.token_counts.get(token, 0)
         if field_tf <= 0:
@@ -278,6 +288,10 @@ def _score_field(
                 "token_score": round(token_score, 6),
             }
         )
+        matched_tokens.append(token)
+        matched_host_tfs.append(int(host_tf))
+        matched_field_tfs.append(int(field_tf))
+        matched_field_presence_counts.append(int(field_presence_count.get(token, 0)))
 
     if not scored_terms:
         return 0.0, []
@@ -290,8 +304,22 @@ def _score_field(
         )
     )
     top_terms = scored_terms[:MAX_MATCHED_TOKENS_PER_FIELD]
-    field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
-    field_score = field_raw / (1.0 + field_raw)
+    if HAS_CPP_EXT:
+        field_score = float(fieldrel.score_field_tokens(
+            matched_tokens,
+            matched_host_tfs,
+            matched_field_tfs,
+            matched_field_presence_counts,
+            int(profile.field_length),
+            float(REFERENCE_FIELD_LENGTHS[profile.name]),
+            float(profile.b_value),
+            int(FIELD_COUNT),
+            float(BM25_K1),
+            int(MAX_MATCHED_TOKENS_PER_FIELD),
+        ))
+    else:
+        field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
+        field_score = field_raw / (1.0 + field_raw)
     return field_score, top_terms
 
 

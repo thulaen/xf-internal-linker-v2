@@ -23,6 +23,7 @@ Project rules:
 - Read-only access to XenForo and WordPress APIs.
 - Update `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` before stopping.
 - Update this file only when workflow guidance has drifted.
+- For future ranking-affecting features, default to a C++ accelerator for the hot loop, keep a behavior-matching Python fallback, and add a plain-English reason field or diagnostic on the dashboard or diagnostics UI when the C++ speed path is missing, skipped, falling back, or not helping enough.
 
 User communication rules:
 - Assume the user prefers layman's terms unless they ask for a deep technical explanation.
@@ -95,6 +96,7 @@ During implementation:
 - keep the slice narrow
 - heavy work belongs in Celery tasks, not request handlers
 - add tests for new functionality
+- if the slice affects ranking or reranking, make the hot loop C++-accelerated when practical, preserve the Python fallback, and include dashboard or diagnostics UI output that explains whether the fast path is active, whether fallback is being used, and why it is not materially faster when that happens
 
 At the end:
 - summarize what changed

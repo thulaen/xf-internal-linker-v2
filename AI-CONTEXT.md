@@ -201,6 +201,10 @@ Every phase that introduces new functionality or a feature request (FR) requires
 - **Mandatory Web Research**: Before writing a spec or code for a feature request, the AI MUST search the web (including patent databases, academic papers, and official documentation) to find the most accurate math and algorithms. This ensures the implementation is based on a "source of truth" and is not "half-baked."
 - Write the spec to `docs/specs/fr0XX-<slug>.md` before touching implementation code.
 - The spec must include a source summary, a math-fidelity note, a full implementation spec, and a test plan. Use `docs/specs/fr006-weighted-link-graph.md` as the quality model.
+- **Ranking Performance Rule**: For `FR-015` and any later feature that changes ranking, reranking, candidate scoring, candidate retrieval, or another hot ranking loop, the spec must plan a C++ accelerator for the hot inner loop and a behavior-matching Python fallback. The C++ path should be the preferred runtime path when the extension is compiled and loadable; the Python path must remain available and behaviorally equivalent.
+- **Ranking Fallback Rule**: Every such ranking spec must name the Python twin, the `HAS_CPP_EXT`-style gate, the correctness test that compares Python and C++ outputs, and the fallback proof that the feature still works when the compiled module is missing.
+- **Ranking Speed Visibility Rule**: Every such ranking spec must also define a plain-English diagnostic or status field that explains why the C++ speed path is not active or not helping enough, for example: not compiled, import failed, disabled by setting, unsupported inputs, below serial/parallel threshold, or no material speedup seen in benchmark checks.
+- **Ranking Dashboard Rule**: That C++ status must appear on the operator-facing dashboard or diagnostics UI, not only in logs or hidden JSON. Operators must be able to see whether the C++ path is active, whether Python fallback is being used, and whether the speed path is actually helping.
 - FR-007 (freshness): source the math from `US8407231B2`. Do not reuse freshness signals from FR-006's weighted edge features - the boundary is intentional.
 - FR-008 (phrase matching): source the math from `US7536408B2`. Do not reuse phrase or surrounding-text signals from FR-006's edge features - the boundary is intentional.
 - FR-016 to FR-020 also require a spec/design pass before implementation because they change telemetry schemas, attribution logic, alerting behavior, and model-promotion/runtime safety. Those phases must define neutral fallbacks, rollback paths, and regression gates before any code lands.
@@ -238,6 +242,8 @@ This repo expects the docs, checks, and git workflow to move together.
 - Before starting any code for a feature request, check whether `docs/specs/fr0XX-<slug>.md` already exists.
 - If the spec file is missing, add the spec file first and ensure it is based on online research of the actual math or source of truth.
 - When implementing an FR that already has a spec, implement against that spec and keep the code boundary aligned with it.
+- For future ranking-affecting work, default to: C++ for the hot loop, Python for the safety net, and visible diagnostics that explain why the fast path is unavailable, skipped, or not materially faster.
+- For future ranking-affecting work, those diagnostics should be visible on the dashboard or diagnostics UI and should say whether fallback was used and whether the C++ path is helping.
 - Before claiming a phase is done, make sure the matching spec doc exists and that `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` still point at the right next phase.
 - Always do sanity checks after code changes, not just before commit.
 - Prefer the repo's SQLite test settings for quick verification:

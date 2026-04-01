@@ -16,6 +16,12 @@ from dataclasses import dataclass
 from html import unescape
 from urllib.parse import urlparse
 
+try:
+    from extensions import linkparse
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
+
 logger = logging.getLogger(__name__)
 
 _XF_THREAD_RE = re.compile(
@@ -233,6 +239,23 @@ def _resolve_target(
 
 
 def _find_urls(raw_bbcode: str) -> list[_MatchedLink]:
+    if HAS_CPP_EXT:
+        raw = linkparse.find_urls(raw_bbcode or "")
+        return [
+            _MatchedLink(
+                url=row[0],
+                anchor_text=row[1],
+                extraction_method=row[2],
+                start=row[3],
+                end=row[4],
+            )
+            for row in raw
+        ]
+
+    return _find_urls_py(raw_bbcode)
+
+
+def _find_urls_py(raw_bbcode: str) -> list[_MatchedLink]:
     if not raw_bbcode:
         return []
 

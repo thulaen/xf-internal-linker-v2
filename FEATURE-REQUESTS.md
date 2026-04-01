@@ -13,6 +13,9 @@ Important:
 - Check completed requests before implementing anything new.
 - Verify the repository state before trusting request status text.
 - Update this file and `AI-CONTEXT.md` after finishing a session.
+- Future ranking-affecting requests should plan a C++ accelerator for the hot inner loop by default, while keeping a behavior-matching Python fallback.
+- Those ranking requests must also expose a plain-English reason when the C++ speed path is not active or is not helping enough, for example: not compiled, import failed, disabled, unsupported input shape, small batch, or no real speedup measured.
+- That status must be visible on the dashboard or diagnostics UI so an operator can see whether C++ is active, whether fallback is being used, and whether the fast path is actually helping.
 
 ## Infrastructure Notes
 
@@ -189,6 +192,9 @@ Important:
 
 - Apply a late diversity reranker only after hard constraints and duplicate-family normalization.
 - Stay inside a close-score window and never override hard suppression rules.
+- Use a C++ accelerator for the hot reranking math if a hot inner loop exists, but keep a pure-Python fallback with matching behavior.
+- Add diagnostics that say, in plain English, whether the C++ path ran and, if not, why not.
+- Show that C++ status on the dashboard or diagnostics UI, including whether fallback was used and whether the C++ path gave a real speed benefit.
 
 ---
 
@@ -842,6 +848,7 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 - New backend app: `backend/apps/diagnostics/`.
 - New settings endpoint `GET /api/settings/diagnostics/` for cache TTL and lookback window config.
 - Each card shows: status badge (`ACTIVE` / `ENABLED` / `DISABLED` / `ERROR` / `NOT BUILT`), ranking weight, weight active flag, signal coverage % (last 7 days), avg signal value, storage (table name + row count + bytes), last computation time, last error message + timestamp.
+- For ranking signals with a C++ accelerator, each card also shows C++ runtime status (`C++ ACTIVE`, `PYTHON FALLBACK`, or `C++ NOT HELPING`) and a plain-English reason.
 - Expandable "View current settings" panel — read-only key-value list of every configurable parameter for that signal.
 - "Go to settings →" link per card navigates to the signal's own settings tab.
 - Error cards show a red left border and a "View in Error Log →" link.

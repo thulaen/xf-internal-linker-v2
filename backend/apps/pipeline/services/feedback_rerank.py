@@ -11,7 +11,14 @@ import math
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
+import numpy as np
 from django.db.models import Count, Q
+
+try:
+    from extensions import feedrerank
+    HAS_CPP_EXT = True
+except ImportError:
+    HAS_CPP_EXT = False
 
 from apps.suggestions.recommended_weights import recommended_bool, recommended_float
 
@@ -127,6 +134,63 @@ class FeedbackRerankService:
         
         if not self.settings.enabled:
             return candidates
+
+        if HAS_CPP_EXT:
+            n_successes = []
+            n_totals = []
+
+            for c in candidates:
+                host_scope = host_scope_id_map.get(c.host_content_id, 0)
+                dest_scope = destination_scope_id_map.get(c.destination_content_id, 0)
+                stats = self._pair_stats.get((host_scope, dest_scope), {"total": 0, "successes": 0})
+                n_successes.append(int(stats["successes"]))
+                n_totals.append(int(stats["total"]))
+
+            factors = feedrerank.calculate_rerank_factors_batch(
+                np.asarray(n_successes, dtype=np.int32),
+                np.asarray(n_totals, dtype=np.int32),
+                max(1, self._global_total_samples),
+                float(self.settings.alpha_prior),
+                float(self.settings.beta_prior),
+                float(self.settings.ranking_weight),
+                float(self.settings.exploration_rate),
+            )
+
+            from dataclasses import replace
+
+            reranked = []
+            for c, factor, n_success, n_total in zip(
+                candidates,
+                factors,
+                n_successes,
+                n_totals,
+                strict=True,
+            ):
+                n_global = max(1, self._global_total_samples)
+                score_exploit = (n_success + self.settings.alpha_prior) / (
+                    n_total + self.settings.alpha_prior + self.settings.beta_prior
+                )
+                score_explore = self.settings.exploration_rate * math.sqrt(
+                    math.log(n_global + 1.0) / (n_total + 1.0)
+                )
+                raw_modifier = (score_exploit + score_explore) - 0.5
+                diags = {
+                    "n_pair": n_total,
+                    "n_success": n_success,
+                    "n_global": n_global,
+                    "score_exploit": round(score_exploit, 4),
+                    "score_explore": round(score_explore, 4),
+                    "raw_modifier": round(raw_modifier, 4),
+                    "final_factor": round(float(factor), 4),
+                }
+                updated = replace(
+                    c,
+                    score_final=c.score_final * float(factor),
+                    score_explore_exploit=round(float(factor), 4),
+                    explore_exploit_diagnostics=diags,
+                )
+                reranked.append(updated)
+            return reranked
 
         reranked = []
         for c in candidates:
