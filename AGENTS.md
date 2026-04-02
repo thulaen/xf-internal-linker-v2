@@ -7,6 +7,7 @@ All AI agents working in this repository must follow these communication rules:
 - Start with the simple version first.
 - Use short sentences, concrete examples, and everyday words.
 - Avoid jargon unless it is necessary. If you must use jargon, explain it immediately in simple language.
+- Do not create git branches unless the user explicitly asks for a branch. Work on the main repo branch in place by default.
 
 ### UI / Theming Rule
 - **No New Themes**: Never create a new CSS/SCSS theme file.
