@@ -145,6 +145,40 @@ export interface AnalyticsBreakdownsResponse {
   countries: AnalyticsBreakdownRow[];
 }
 
+export interface AnalyticsVersionComparisonRow {
+  version_slug: string;
+  impressions: number;
+  clicks: number;
+  destination_views: number;
+  engaged_sessions: number;
+  conversions: number;
+  ctr: number;
+  engagement_rate: number;
+  conversion_rate: number;
+}
+
+export interface AnalyticsVersionComparisonResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  items: AnalyticsVersionComparisonRow[];
+}
+
+export interface AnalyticsGeoDetailRow {
+  country: string;
+  region: string;
+  impressions: number;
+  clicks: number;
+  engaged_sessions: number;
+  conversions: number;
+  ctr: number;
+}
+
+export interface AnalyticsGeoDetailResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  items: AnalyticsGeoDetailRow[];
+}
+
 export interface AnalyticsSyncTriggerResponse {
   sync_run_id: number;
   task_id: string;
@@ -183,6 +217,14 @@ export class AnalyticsService {
 
   getBreakdowns(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsBreakdownsResponse> {
     return this.http.get<AnalyticsBreakdownsResponse>(`/api/analytics/telemetry/breakdowns/?source=${source}&days=${days}`);
+  }
+
+  getTelemetryByVersion(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsVersionComparisonResponse> {
+    return this.http.get<AnalyticsVersionComparisonResponse>(`/api/analytics/telemetry/by-version/?source=${source}&days=${days}`);
+  }
+
+  getTelemetryGeoDetail(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsGeoDetailResponse> {
+    return this.http.get<AnalyticsGeoDetailResponse>(`/api/analytics/telemetry/geo-detail/?source=${source}&days=${days}`);
   }
 
   runGa4Sync(): Observable<AnalyticsSyncTriggerResponse> {

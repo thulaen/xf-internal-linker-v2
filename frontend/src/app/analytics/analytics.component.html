@@ -53,7 +53,7 @@
         <p>People who stayed and interacted.</p>
       </mat-card-content>
     </mat-card>
-  </div>
+  </div> <!-- End of overview-grid -->
 
   @if (funnel; as funnelData) {
     <mat-card class="report-card">
@@ -82,6 +82,56 @@
             </div>
           }
         </div>
+      </mat-card-content>
+    </mat-card>
+  }
+
+  @if (versionComparison; as versionData) {
+    <mat-card class="report-card">
+      <mat-card-content>
+        <div class="status-card__top">
+          <h3>Algorithm comparison ({{ versionData.days }} days)</h3>
+          <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
+        </div>
+        @if (versionData.items.length) {
+          <div class="table-container">
+            <table class="report-table">
+              <thead>
+                <tr>
+                  <th>Version</th>
+                  <th>CTR</th>
+                  <th>Uplift</th>
+                  <th>Engagement</th>
+                  <th>Conv.</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of versionData.items; track row.version_slug) {
+                  <tr>
+                    <td>
+                      <div class="version-label">
+                        <strong>{{ row.version_slug }}</strong>
+                        <span>{{ row.clicks }} clicks / {{ row.impressions }} views</span>
+                      </div>
+                    </td>
+                    <td><strong>{{ formatPercent(row.ctr) }}</strong></td>
+                    <td>
+                      @if (calculateUplift(row); as uplift) {
+                        <span class="uplift-badge" [class.uplift-badge--negative]="uplift.startsWith('-')">{{ uplift }}</span>
+                      } @else {
+                        —
+                      }
+                    </td>
+                    <td>{{ formatPercent(row.engagement_rate) }}</td>
+                    <td>{{ formatPercent(row.conversion_rate) }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p>No version data yet. This requires suggestions to be generated with an algorithm version slug.</p>
+        }
       </mat-card-content>
     </mat-card>
   }
@@ -245,12 +295,54 @@
                 </div>
               }
             </div>
+            <div class="card-actions">
+              <button mat-button type="button" (click)="toggleFullGeo()">
+                {{ showFullGeo ? 'Hide detail' : 'Show full geo breakdown' }}
+              </button>
+            </div>
           } @else {
             <p>No country rows yet.</p>
           }
         </mat-card-content>
       </mat-card>
     </div>
+  }
+
+  @if (showFullGeo && geoDetail; as geoData) {
+    <mat-card class="report-card geo-detail-card">
+      <mat-card-content>
+        <div class="status-card__top">
+          <h3>Full Geographic Breakdown ({{ geoData.items.length }} regions)</h3>
+          <button mat-icon-button type="button" (click)="toggleFullGeo()"><mat-icon>close</mat-icon></button>
+        </div>
+        <div class="table-container">
+          <table class="report-table">
+            <thead>
+              <tr>
+                <th>Region</th>
+                <th>Country</th>
+                <th>Clicks</th>
+                <th>CTR</th>
+                <th>Engaged</th>
+                <th>Conv.</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of geoData.items; track row.country + row.region) {
+                <tr>
+                  <td>{{ row.region }}</td>
+                  <td>{{ row.country }}</td>
+                  <td>{{ row.clicks }}</td>
+                  <td>{{ formatPercent(row.ctr) }}</td>
+                  <td>{{ row.engaged_sessions }}</td>
+                  <td>{{ row.conversions }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </mat-card-content>
+    </mat-card>
   }
 
   @if (topSuggestions; as topData) {

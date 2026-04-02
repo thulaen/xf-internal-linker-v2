@@ -8,6 +8,7 @@ import { forkJoin } from 'rxjs';
 import {
   AnalyticsBreakdownsResponse,
   AnalyticsFunnelResponse,
+  AnalyticsGeoDetailResponse,
   AnalyticsHealthResponse,
   AnalyticsHealthSummary,
   AnalyticsIntegrationResponse,
@@ -16,6 +17,8 @@ import {
   AnalyticsTopSuggestionsResponse,
   AnalyticsTrendPoint,
   AnalyticsTrendResponse,
+  AnalyticsVersionComparisonResponse,
+  AnalyticsVersionComparisonRow,
 } from './analytics.service';
 
 @Component({
@@ -38,6 +41,10 @@ export class AnalyticsComponent implements OnInit {
   funnel: AnalyticsFunnelResponse | null = null;
   trend: AnalyticsTrendResponse | null = null;
   topSuggestions: AnalyticsTopSuggestionsResponse | null = null;
+  versionComparison: AnalyticsVersionComparisonResponse | null = null;
+  geoDetail: AnalyticsGeoDetailResponse | null = null;
+
+  showFullGeo = false;
   syncingGa4 = false;
   syncingMatomo = false;
   selectedSource: 'all' | 'ga4' | 'matomo' = 'all';
@@ -57,8 +64,10 @@ export class AnalyticsComponent implements OnInit {
       funnel: this.analyticsSvc.getFunnel(this.selectedSource),
       trend: this.analyticsSvc.getTrend(this.selectedSource),
       topSuggestions: this.analyticsSvc.getTopSuggestions(this.selectedSource),
+      versionComparison: this.analyticsSvc.getTelemetryByVersion(this.selectedSource),
+      geoDetail: this.analyticsSvc.getTelemetryGeoDetail(this.selectedSource),
     }).subscribe({
-      next: ({ overview, integration, health, breakdowns, funnel, trend, topSuggestions }) => {
+      next: ({ overview, integration, health, breakdowns, funnel, trend, topSuggestions, versionComparison, geoDetail }) => {
         this.overview = overview;
         this.integration = integration;
         this.health = health;
@@ -66,6 +75,8 @@ export class AnalyticsComponent implements OnInit {
         this.funnel = funnel;
         this.trend = trend;
         this.topSuggestions = topSuggestions;
+        this.versionComparison = versionComparison;
+        this.geoDetail = geoDetail;
         this.loading = false;
       },
       error: () => {
@@ -136,6 +147,21 @@ export class AnalyticsComponent implements OnInit {
 
   coverageStateClass(state: AnalyticsHealthSummary['latest_state']): string {
     return `status-badge--${state}`;
+  }
+
+  toggleFullGeo(): void {
+    this.showFullGeo = !this.showFullGeo;
+  }
+
+  calculateUplift(row: AnalyticsVersionComparisonRow): string {
+    // Basic uplift calculation vs the average of others
+    if (!this.versionComparison || this.versionComparison.items.length < 2) return '';
+    const others = this.versionComparison.items.filter(i => i.version_slug !== row.version_slug);
+    const avgCtr = others.reduce((acc, i) => acc + i.ctr, 0) / others.length;
+    if (avgCtr === 0) return '';
+    const uplift = ((row.ctr - avgCtr) / avgCtr) * 100;
+    const sign = uplift >= 0 ? '+' : '';
+    return `${sign}${uplift.toFixed(1)}%`;
   }
 
   sourceName(source: string): string {

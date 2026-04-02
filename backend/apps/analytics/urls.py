@@ -17,6 +17,8 @@ from .views import (
     AnalyticsTelemetryOverviewView,
     AnalyticsTelemetryTopSuggestionsView,
     AnalyticsTelemetryTrendView,
+    AnalyticsTelemetryByVersionView,
+    AnalyticsTelemetryGeoDetailView,
 )
 
 urlpatterns = [
@@ -26,6 +28,8 @@ urlpatterns = [
     path("telemetry/funnel/", AnalyticsTelemetryFunnelView.as_view(), name="analytics-telemetry-funnel"),
     path("telemetry/trend/", AnalyticsTelemetryTrendView.as_view(), name="analytics-telemetry-trend"),
     path("telemetry/top-suggestions/", AnalyticsTelemetryTopSuggestionsView.as_view(), name="analytics-telemetry-top-suggestions"),
+    path("telemetry/by-version/", AnalyticsTelemetryByVersionView.as_view(), name="analytics-telemetry-by-version"),
+    path("telemetry/geo-detail/", AnalyticsTelemetryGeoDetailView.as_view(), name="analytics-telemetry-geo-detail"),
     path("telemetry/integration/", AnalyticsTelemetryIntegrationView.as_view(), name="analytics-telemetry-integration"),
     path("telemetry/ga4-sync/", AnalyticsGA4SyncView.as_view(), name="analytics-ga4-sync"),
     path("telemetry/matomo-sync/", AnalyticsMatomoSyncView.as_view(), name="analytics-matomo-sync"),

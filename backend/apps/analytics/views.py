@@ -1012,3 +1012,90 @@ class AnalyticsMatomoSyncView(APIView):
             },
             status=202,
         )
+
+
+class AnalyticsTelemetryByVersionView(APIView):
+    """Compare performance metrics group by algorithm version."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        version_rows = (
+            queryset.values("algorithm_version_slug")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                destination_views=Sum("destination_views"),
+                engaged_sessions=Sum("engaged_sessions"),
+                conversions=Sum("conversions"),
+            )
+            .order_by("-clicks", "algorithm_version_slug")
+        )
+        items = []
+        for row in version_rows:
+            impressions = int(row["impressions"] or 0)
+            clicks = int(row["clicks"] or 0)
+            destination_views = int(row["destination_views"] or 0)
+            engaged_sessions = int(row["engaged_sessions"] or 0)
+            conversions = int(row["conversions"] or 0)
+            items.append(
+                {
+                    "version_slug": row["algorithm_version_slug"] or "unknown",
+                    "impressions": impressions,
+                    "clicks": clicks,
+                    "destination_views": destination_views,
+                    "engaged_sessions": engaged_sessions,
+                    "conversions": conversions,
+                    "ctr": _safe_rate(clicks, impressions),
+                    "engagement_rate": _safe_rate(engaged_sessions, destination_views),
+                    "conversion_rate": _safe_rate(conversions, clicks),
+                }
+            )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "items": items,
+            }
+        )
+
+
+class AnalyticsTelemetryGeoDetailView(APIView):
+    """Return a detailed country+region breakdown for the selected telemetry window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        # Group by country and region for a deeper look
+        rows = (
+            queryset.values("country", "region")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                engaged_sessions=Sum("engaged_sessions"),
+                conversions=Sum("conversions"),
+            )
+            .order_by("-clicks", "-impressions", "country", "region")[:50]
+        )
+        items = []
+        for row in rows:
+            items.append(
+                {
+                    "country": _label_or_unknown(row["country"]),
+                    "region": _label_or_unknown(row["region"]),
+                    "impressions": int(row["impressions"] or 0),
+                    "clicks": int(row["clicks"] or 0),
+                    "engaged_sessions": int(row["engaged_sessions"] or 0),
+                    "conversions": int(row["conversions"] or 0),
+                    "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
+                }
+            )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "items": items,
+            }
+        )
