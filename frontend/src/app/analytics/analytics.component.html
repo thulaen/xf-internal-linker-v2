@@ -185,7 +185,7 @@
                 <div class="breakdown-row">
                   <div class="breakdown-row__main">
                     <strong>{{ row.label }}</strong>
-                    <span>{{ row.clicks }} clicks • {{ formatPercent(row.ctr) }} CTR</span>
+                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
                   </div>
                   <div class="breakdown-row__bar">
                     <div class="breakdown-row__fill" [style.width]="breakdownBarWidth(row.clicks, breakdownData.device_categories)"></div>
@@ -211,7 +211,7 @@
                 <div class="breakdown-row">
                   <div class="breakdown-row__main">
                     <strong>{{ row.label }}</strong>
-                    <span>{{ row.clicks }} clicks • {{ formatPercent(row.ctr) }} CTR</span>
+                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
                   </div>
                   <div class="breakdown-row__bar">
                     <div class="breakdown-row__fill breakdown-row__fill--channel" [style.width]="breakdownBarWidth(row.clicks, breakdownData.channel_groups)"></div>
@@ -221,6 +221,32 @@
             </div>
           } @else {
             <p>No channel rows yet.</p>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="report-card">
+        <mat-card-content>
+          <div class="status-card__top">
+            <h3>Country mix</h3>
+            <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
+          </div>
+          @if (breakdownData.countries.length) {
+            <div class="breakdown-list">
+              @for (row of breakdownData.countries; track row.label) {
+                <div class="breakdown-row">
+                  <div class="breakdown-row__main">
+                    <strong>{{ row.label }}</strong>
+                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
+                  </div>
+                  <div class="breakdown-row__bar">
+                    <div class="breakdown-row__fill breakdown-row__fill--country" [style.width]="breakdownBarWidth(row.clicks, breakdownData.countries)"></div>
+                  </div>
+                </div>
+              }
+            </div>
+          } @else {
+            <p>No country rows yet.</p>
           }
         </mat-card-content>
       </mat-card>
@@ -263,9 +289,9 @@
       <mat-card-content>
         <div class="status-card__top">
           <h3>GA4</h3>
-          <span class="status-badge">{{ statusLabel(data.ga4.read_connection_status || data.ga4.connection_status) }}</span>
+          <span class="status-badge">{{ ga4StatusLabel() }}</span>
         </div>
-        <p>{{ data.ga4.read_connection_message || data.ga4.connection_message }}</p>
+        <p>{{ ga4StatusMessage() }}</p>
         <div class="status-card__meta">Last sync: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
       </mat-card-content>
     </mat-card>

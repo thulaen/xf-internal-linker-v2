@@ -477,3 +477,95 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("must sum to 1.0", response.json()["detail"])
+
+
+class GA4GSCSettingsApiTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="ga4-gsc-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_ga4_gsc_defaults_and_round_trip(self):
+        default_response = self.client.get("/api/settings/ga4-gsc/")
+
+        self.assertEqual(default_response.status_code, 200)
+        self.assertEqual(default_response.json()["ranking_weight"], recommended_float("ga4_gsc.ranking_weight"))
+        self.assertEqual(default_response.json()["property_url"], "")
+        self.assertFalse(default_response.json()["private_key_configured"])
+
+        update_response = self.client.put(
+            "/api/settings/ga4-gsc/",
+            {
+                "ranking_weight": 0.05,
+                "property_url": "https://example.com/",
+                "service_account_email": "search-console@example.iam.gserviceaccount.com",
+                "private_key": "-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                "sync_enabled": True,
+                "sync_lookback_days": 14,
+            },
+            format="json",
+        )
+
+        self.assertEqual(update_response.status_code, 200)
+        payload = update_response.json()
+        self.assertEqual(payload["property_url"], "https://example.com")
+        self.assertEqual(payload["service_account_email"], "search-console@example.iam.gserviceaccount.com")
+        self.assertTrue(payload["private_key_configured"])
+        self.assertTrue(payload["sync_enabled"])
+        self.assertEqual(payload["sync_lookback_days"], 14)
+        self.assertEqual(AppSetting.objects.get(key="ga4_gsc.property_url").value, "https://example.com")
+        self.assertTrue(AppSetting.objects.get(key="ga4_gsc.private_key").is_secret)
+
+    def test_ga4_gsc_validation_rejects_bad_values(self):
+        response = self.client.put(
+            "/api/settings/ga4-gsc/",
+            {
+                "ranking_weight": 0.05,
+                "property_url": "not-a-url",
+                "service_account_email": "bad-email",
+                "sync_enabled": False,
+                "sync_lookback_days": 14,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("property_url", response.json()["detail"])
+
+    @patch("apps.core.views._build_gsc_service")
+    def test_ga4_gsc_test_connection_uses_saved_credentials(self, build_service_mock):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="ga4_gsc.property_url",
+                    value="https://example.com",
+                    value_type="str",
+                    category="analytics",
+                    description="property",
+                ),
+                AppSetting(
+                    key="ga4_gsc.service_account_email",
+                    value="search-console@example.iam.gserviceaccount.com",
+                    value_type="str",
+                    category="analytics",
+                    description="email",
+                ),
+                AppSetting(
+                    key="ga4_gsc.private_key",
+                    value="-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                    value_type="str",
+                    category="analytics",
+                    description="key",
+                    is_secret=True,
+                ),
+            ]
+        )
+        service_mock = build_service_mock.return_value
+        service_mock.sites.return_value.list.return_value.execute.return_value = {
+            "siteEntry": [{"siteUrl": "https://example.com"}]
+        }
+
+        response = self.client.post("/api/settings/ga4-gsc/test-connection/", {}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "connected")
+        build_service_mock.assert_called_once()

@@ -84,6 +84,16 @@ export class AnalyticsComponent implements OnInit {
     }[status] ?? 'Unknown';
   }
 
+  ga4StatusLabel(): string {
+    const ga4 = this.overview?.ga4;
+    return this.statusLabel(ga4?.read_connection_status || ga4?.connection_status || 'not_configured');
+  }
+
+  ga4StatusMessage(): string {
+    const ga4 = this.overview?.ga4;
+    return ga4?.read_connection_message || ga4?.connection_message || 'Fill in the GA4 fields and test the connection.';
+  }
+
   lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {
     if (!sync) return 'Never synced';
     const stamp = sync.completed_at || sync.started_at;
@@ -133,6 +143,10 @@ export class AnalyticsComponent implements OnInit {
     if (source === 'matomo') return 'Matomo';
     if (source === 'unknown') return 'Unknown';
     return source;
+  }
+
+  metricLabel(value: number, suffix: string): string {
+    return `${value} ${suffix}`;
   }
 
   breakdownBarWidth(value: number, rows: Array<{ clicks: number }>): string {

@@ -114,6 +114,13 @@ DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
 
 DEFAULT_GA4_GSC_SETTINGS = {
     "ranking_weight": recommended_float("ga4_gsc.ranking_weight"),
+    "property_url": "",
+    "service_account_email": "",
+    "private_key_configured": False,
+    "sync_enabled": False,
+    "sync_lookback_days": 7,
+    "connection_status": "not_configured",
+    "connection_message": "Fill in the Search Console property URL and service-account credentials.",
 }
 
 DEFAULT_CLICK_DISTANCE_SETTINGS = {
@@ -313,16 +320,12 @@ def get_field_aware_relevance_settings() -> dict[str, float]:
         return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
 
 
-def get_ga4_gsc_settings() -> dict[str, float]:
+def get_ga4_gsc_settings() -> dict[str, object]:
     """Load persisted GA4/GSC settings with defensive defaults."""
     settings = _read_ga4_gsc_settings()
-    try:
-        return _validate_ga4_gsc_settings(
-            settings,
-            current=dict(DEFAULT_GA4_GSC_SETTINGS),
-        )
-    except ValueError:
-        return dict(DEFAULT_GA4_GSC_SETTINGS)
+    if not isinstance(settings.get("ranking_weight"), (float, int)):
+        settings["ranking_weight"] = DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
+    return settings
 
 
 def get_click_distance_settings() -> dict[str, float]:
@@ -754,7 +757,7 @@ def _validate_clustering_settings(payload: dict, current: dict) -> dict[str, flo
 
 
 
-def _read_ga4_gsc_settings() -> dict[str, float]:
+def _read_ga4_gsc_settings() -> dict[str, object]:
     """Read GA4/GSC settings from AppSetting without applying bounds."""
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
@@ -766,8 +769,38 @@ def _read_ga4_gsc_settings() -> dict[str, float]:
             return default
         return value
 
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            value = int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+        return value
+
+    property_url = (_get_app_setting_value("ga4_gsc.property_url", "") or "").strip().rstrip("/")
+    service_account_email = (_get_app_setting_value("ga4_gsc.service_account_email", "") or "").strip()
+    private_key = (_get_app_setting_value("ga4_gsc.private_key", "") or "").strip()
+    connection_status = "not_configured"
+    connection_message = "Fill in the Search Console property URL and service-account credentials."
+    if property_url and service_account_email and private_key:
+        connection_status = "saved"
+        connection_message = "Search Console credentials are saved. Run Test Connection to confirm access."
+
     return {
         "ranking_weight": _read_float("ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]),
+        "property_url": property_url,
+        "service_account_email": service_account_email,
+        "private_key_configured": bool(private_key),
+        "sync_enabled": _read_bool("ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"]),
+        "sync_lookback_days": _read_int("ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"]),
+        "connection_status": connection_status,
+        "connection_message": connection_message,
     }
 
 
@@ -1130,8 +1163,8 @@ def _validate_field_aware_relevance_settings(
 def _validate_ga4_gsc_settings(
     payload: dict,
     *,
-    current: dict[str, float] | None = None,
-) -> dict[str, float]:
+    current: dict[str, object] | None = None,
+) -> dict[str, object]:
     current = current or _read_ga4_gsc_settings()
 
     def _coerce_float(key: str) -> float:
@@ -1144,12 +1177,52 @@ def _validate_ga4_gsc_settings(
             raise ValueError(f"{key} must be finite.")
         return coerced
 
+    def _coerce_bool(key: str) -> bool:
+        value = payload.get(key, current[key])
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            lowered = value.strip().lower()
+            if lowered in {"1", "true", "yes", "on"}:
+                return True
+            if lowered in {"0", "false", "no", "off"}:
+                return False
+        raise ValueError(f"{key} must be true or false.")
+
+    def _coerce_int(key: str, minimum: int, maximum: int) -> int:
+        value = payload.get(key, current[key])
+        try:
+            coerced = int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be a whole number.") from exc
+        if coerced < minimum or coerced > maximum:
+            raise ValueError(f"{key} must be between {minimum} and {maximum}.")
+        return coerced
+
     validated = {
         "ranking_weight": _coerce_float("ranking_weight"),
+        "property_url": str(payload.get("property_url", current["property_url"])).strip().rstrip("/"),
+        "service_account_email": str(payload.get("service_account_email", current["service_account_email"])).strip(),
+        "sync_enabled": _coerce_bool("sync_enabled"),
+        "sync_lookback_days": _coerce_int("sync_lookback_days", 1, 30),
     }
+    private_key_provided = "private_key" in payload
+    private_key = str(payload.get("private_key", "")).strip() if private_key_provided else None
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
         raise ValueError("ranking_weight must be between 0.0 and 1.0.")
+    if validated["property_url"]:
+        parsed = urlparse(validated["property_url"])
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("property_url must be a valid http(s) URL.")
+    if validated["service_account_email"] and "@" not in validated["service_account_email"]:
+        raise ValueError("service_account_email must look like an email address.")
+    has_private_key = bool(current.get("private_key_configured")) or bool(private_key)
+    if validated["sync_enabled"] and (not validated["property_url"] or not validated["service_account_email"] or not has_private_key):
+        raise ValueError("Search Console sync needs property_url, service_account_email, and private_key.")
+
+    validated["private_key"] = private_key
+    validated["private_key_provided"] = private_key_provided
 
     return validated
 
@@ -1707,7 +1780,7 @@ class FieldAwareRelevanceSettingsView(APIView):
 
 class GA4GSCSettingsView(APIView):
     """
-    GET  /api/settings/ga4-gsc/ - returns GA4/GSC placeholder settings
+    GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
     """
     permission_classes = [AllowAny]
@@ -1728,8 +1801,46 @@ class GA4GSCSettingsView(APIView):
                 "value": str(validated["ranking_weight"]),
                 "value_type": "float",
                 "description": "Ranking weight for the GA4/GSC content-value signal.",
+                "category": "ml",
+                "is_secret": False,
+            },
+            "ga4_gsc.property_url": {
+                "value": str(validated["property_url"]),
+                "value_type": "str",
+                "description": "Google Search Console property URL for read access.",
+                "category": "analytics",
+                "is_secret": False,
+            },
+            "ga4_gsc.service_account_email": {
+                "value": str(validated["service_account_email"]),
+                "value_type": "str",
+                "description": "Service-account email used for Search Console read access.",
+                "category": "analytics",
+                "is_secret": False,
+            },
+            "ga4_gsc.sync_enabled": {
+                "value": "true" if validated["sync_enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether Search Console sync is enabled when the importer is added.",
+                "category": "analytics",
+                "is_secret": False,
+            },
+            "ga4_gsc.sync_lookback_days": {
+                "value": str(validated["sync_lookback_days"]),
+                "value_type": "int",
+                "description": "How many days the future Search Console sync should reread.",
+                "category": "analytics",
+                "is_secret": False,
             },
         }
+        if validated["private_key_provided"]:
+            rows["ga4_gsc.private_key"] = {
+                "value": str(validated["private_key"] or ""),
+                "value_type": "str",
+                "description": "Service-account private key for Search Console read access.",
+                "category": "analytics",
+                "is_secret": True,
+            }
 
         for key, row in rows.items():
             AppSetting.objects.update_or_create(
@@ -1737,12 +1848,62 @@ class GA4GSCSettingsView(APIView):
                 defaults={
                     "value": row["value"],
                     "value_type": row["value_type"],
-                    "category": "ml",
+                    "category": row["category"],
                     "description": row["description"],
-                    "is_secret": False,
+                    "is_secret": row["is_secret"],
                 },
             )
-        return Response(validated)
+        return Response(get_ga4_gsc_settings())
+
+
+def _gsc_private_key() -> str:
+    return (_get_app_setting_value("ga4_gsc.private_key", "") or "").strip()
+
+
+def _build_gsc_service(*, service_account_email: str, private_key: str):
+    from google.oauth2 import service_account
+    from googleapiclient.discovery import build
+
+    credentials = service_account.Credentials.from_service_account_info(
+        {
+            "type": "service_account",
+            "client_email": service_account_email,
+            "private_key": private_key.replace("\\n", "\n"),
+            "token_uri": "https://oauth2.googleapis.com/token",
+        },
+        scopes=["https://www.googleapis.com/auth/webmasters.readonly"],
+    )
+    return build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+
+
+class GSCConnectionTestView(APIView):
+    """POST /api/settings/ga4-gsc/test-connection/ - validate Search Console credentials."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        current = get_ga4_gsc_settings()
+        property_url = str(request.data.get("property_url") or current["property_url"] or "").strip().rstrip("/")
+        service_account_email = str(request.data.get("service_account_email") or current["service_account_email"] or "").strip()
+        private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
+        if not property_url or not service_account_email or not private_key:
+            return Response(
+                {"status": "not_configured", "message": "Save the property URL, service-account email, and private key first."},
+                status=400,
+            )
+
+        try:
+            service = _build_gsc_service(service_account_email=service_account_email, private_key=private_key)
+            response = service.sites().list().execute()
+        except Exception as exc:
+            return Response({"status": "error", "message": f"Search Console connection failed: {exc}"}, status=400)
+
+        site_entries = response.get("siteEntry", []) if isinstance(response, dict) else []
+        property_match = any(str(entry.get("siteUrl") or "").rstrip("/") == property_url for entry in site_entries)
+        message = "Search Console credentials worked and the property is visible."
+        if not property_match:
+            message = "Search Console credentials worked, but this property URL was not listed for the service account."
+        return Response({"status": "connected" if property_match else "saved", "message": message})
 
 
 class WordPressSettingsView(APIView):

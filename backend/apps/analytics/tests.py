@@ -352,6 +352,7 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             source_label="xenforo",
             device_category="mobile",
             default_channel_group="Organic Search",
+            country="United Kingdom",
             impressions=12,
             clicks=5,
             engaged_sessions=3,
@@ -368,6 +369,7 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             source_label="xenforo",
             device_category="desktop",
             default_channel_group="Direct",
+            country="United States",
             impressions=8,
             clicks=2,
             engaged_sessions=1,
@@ -382,6 +384,8 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(payload["device_categories"][0]["clicks"], 5)
         self.assertEqual(payload["channel_groups"][0]["label"], "Organic Search")
         self.assertEqual(payload["channel_groups"][0]["ctr"], 0.4167)
+        self.assertEqual(payload["countries"][0]["label"], "United Kingdom")
+        self.assertEqual(payload["countries"][0]["clicks"], 5)
 
     def test_integration_view_returns_copy_ready_snippet_when_browser_events_enabled(self):
         AppSetting.objects.create(

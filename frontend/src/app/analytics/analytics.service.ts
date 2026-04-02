@@ -142,6 +142,7 @@ export interface AnalyticsBreakdownsResponse {
   selected_source: 'all' | 'ga4' | 'matomo';
   device_categories: AnalyticsBreakdownRow[];
   channel_groups: AnalyticsBreakdownRow[];
+  countries: AnalyticsBreakdownRow[];
 }
 
 export interface AnalyticsSyncTriggerResponse {

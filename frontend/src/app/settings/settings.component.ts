@@ -28,6 +28,7 @@ import {
   WordPressSettings,
   WordPressSettingsUpdate,
   GA4GSCSettings,
+  GA4GSCSettingsUpdate,
   FeedbackRerankSettings,
   ClusteringSettings,
   SlateDiversitySettings,
@@ -660,6 +661,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   testingGA4Telemetry = false;
   testingGA4TelemetryRead = false;
   testingMatomoTelemetry = false;
+  testingGSCConnection = false;
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -719,7 +721,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
   };
   ga4Gsc: GA4GSCSettings = {
     ranking_weight: 0.05,
+    property_url: '',
+    service_account_email: '',
+    private_key_configured: false,
+    sync_enabled: false,
+    sync_lookback_days: 7,
+    connection_status: 'not_configured',
+    connection_message: 'Fill in the Search Console property URL and service-account credentials.',
   };
+  gscPrivateKey = '';
   ga4Telemetry: GA4TelemetrySettings = {
     behavior_enabled: false,
     property_id: '',
@@ -1327,9 +1337,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   saveGA4GSCSettings(): void {
     this.savingGA4GSC = true;
-    this.siloSvc.updateGA4GSCSettings(this.ga4Gsc).subscribe({
+    const payload: GA4GSCSettingsUpdate = {
+      ranking_weight: Number(this.ga4Gsc.ranking_weight),
+      property_url: this.ga4Gsc.property_url.trim(),
+      service_account_email: this.ga4Gsc.service_account_email.trim(),
+      sync_enabled: this.ga4Gsc.sync_enabled,
+      sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
+    };
+    if (this.gscPrivateKey.trim()) {
+      payload.private_key = this.gscPrivateKey.trim();
+    }
+
+    this.siloSvc.updateGA4GSCSettings(payload).subscribe({
       next: (ga4Gsc) => {
         this.ga4Gsc = ga4Gsc;
+        this.gscPrivateKey = '';
         this.refreshCurrentWeights();
         this.savingGA4GSC = false;
         this.snack.open('GA4 and Search Console settings saved', undefined, { duration: 2500 });
@@ -1337,6 +1359,24 @@ export class SettingsComponent implements OnInit, OnDestroy {
       error: (error) => {
         this.savingGA4GSC = false;
         this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save GA4 and Search Console settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  testGSCConnection(): void {
+    this.testingGSCConnection = true;
+    this.siloSvc.testGSCConnection({
+      property_url: this.ga4Gsc.property_url.trim() || undefined,
+      service_account_email: this.ga4Gsc.service_account_email.trim() || undefined,
+      private_key: this.gscPrivateKey.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingGSCConnection = false;
+        this.snack.open(result.message, undefined, { duration: 3500 });
+      },
+      error: (error) => {
+        this.testingGSCConnection = false;
+        this.snack.open(error?.error?.message || error?.error?.detail || 'Search Console connection failed', 'Dismiss', { duration: 4500 });
       },
     });
   }
@@ -1760,6 +1800,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
       matomoTelemetryPayload.token_auth = this.matomoTelemetryToken.trim();
     }
 
+    const ga4GscPayload: GA4GSCSettingsUpdate = {
+      ranking_weight: Number(this.ga4Gsc.ranking_weight),
+      property_url: this.ga4Gsc.property_url.trim(),
+      service_account_email: this.ga4Gsc.service_account_email.trim(),
+      sync_enabled: this.ga4Gsc.sync_enabled,
+      sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
+    };
+    if (this.gscPrivateKey.trim()) {
+      ga4GscPayload.private_key = this.gscPrivateKey.trim();
+    }
+
     forkJoin({
       settings: this.siloSvc.updateSettings(this.settings),
       authority: this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority),
@@ -1768,7 +1819,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       learned: this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor),
       rare: this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation),
       relevance: this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance),
-      ga4: this.siloSvc.updateGA4GSCSettings(this.ga4Gsc),
+      ga4: this.siloSvc.updateGA4GSCSettings(ga4GscPayload),
       ga4Telemetry: this.siloSvc.updateGA4TelemetrySettings(ga4TelemetryPayload),
       matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
@@ -1786,6 +1837,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = results.rare;
         this.fieldAwareRelevance = results.relevance;
         this.ga4Gsc = results.ga4;
+        this.gscPrivateKey = '';
         this.ga4Telemetry = results.ga4Telemetry;
         this.matomoTelemetry = results.matomoTelemetry;
         this.clickDistance = results.click;

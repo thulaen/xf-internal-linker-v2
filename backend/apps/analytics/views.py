@@ -576,6 +576,15 @@ class AnalyticsTelemetryBreakdownView(APIView):
             )
             .order_by("-clicks", "-impressions", "default_channel_group")[:6]
         )
+        country_rows = (
+            queryset.values("country")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                engaged_sessions=Sum("engaged_sessions"),
+            )
+            .order_by("-clicks", "-impressions", "country")[:6]
+        )
         return Response(
             {
                 "days": days,
@@ -599,6 +608,16 @@ class AnalyticsTelemetryBreakdownView(APIView):
                         "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
                     }
                     for row in channel_rows
+                ],
+                "countries": [
+                    {
+                        "label": _label_or_unknown(row["country"]),
+                        "impressions": int(row["impressions"] or 0),
+                        "clicks": int(row["clicks"] or 0),
+                        "engaged_sessions": int(row["engaged_sessions"] or 0),
+                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
+                    }
+                    for row in country_rows
                 ],
             }
         )

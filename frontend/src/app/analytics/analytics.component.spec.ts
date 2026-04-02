@@ -108,6 +108,15 @@ describe('AnalyticsComponent', () => {
           ctr: 0.4167,
         },
       ],
+      countries: [
+        {
+          label: 'United Kingdom',
+          impressions: 12,
+          clicks: 5,
+          engaged_sessions: 3,
+          ctr: 0.4167,
+        },
+      ],
     })),
     getFunnel: jasmine.createSpy('getFunnel').and.returnValue(of({
       days: 30,
@@ -216,6 +225,7 @@ describe('AnalyticsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Impression coverage');
     expect(fixture.nativeElement.textContent).toContain('Device mix');
     expect(fixture.nativeElement.textContent).toContain('Channel mix');
+    expect(fixture.nativeElement.textContent).toContain('Country mix');
     expect(fixture.nativeElement.textContent).toContain('Top suggestion rows');
   });
 

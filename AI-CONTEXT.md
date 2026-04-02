@@ -44,7 +44,7 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 19
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has the repo-side browser-bridge handoff, Slice 3 sync plumbing is landed, and Slice 4 now includes the first local reporting layer plus telemetry-health and device/channel breakdown cards on the Analytics page.
+- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has the repo-side browser-bridge handoff, Slice 3 sync plumbing is landed, and Slice 4 now includes local reporting, telemetry-health, and device/channel/country breakdown cards on the Analytics page.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -182,7 +182,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Complete | Final Slate Diversity Reranking |
-| 19 | FR-016 | In Progress | GA4 + Matomo settings, browser-bridge handoff, sync plumbing, telemetry health, and device/channel reporting are landed; richer geo/comparison reporting is still pending |
+| 19 | FR-016 | In Progress | GA4 + Matomo settings, browser-bridge handoff, sync plumbing, telemetry health, and device/channel/country reporting are landed; richer geo/comparison reporting is still pending |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
@@ -272,29 +272,38 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `AI-CONTEXT.md`
   - `FEATURE-REQUESTS.md`
   - `backend/apps/analytics/tests.py`
-  - `backend/apps/analytics/urls.py`
   - `backend/apps/analytics/views.py`
+  - `backend/apps/api/urls.py`
+  - `backend/apps/core/tests.py`
+  - `backend/apps/core/views.py`
   - `frontend/src/app/analytics/analytics.component.html`
   - `frontend/src/app/analytics/analytics.component.scss`
   - `frontend/src/app/analytics/analytics.component.spec.ts`
   - `frontend/src/app/analytics/analytics.component.ts`
   - `frontend/src/app/analytics/analytics.service.ts`
+  - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/settings/settings.component.spec.ts`
+  - `frontend/src/app/settings/settings.component.ts`
+  - `frontend/src/app/settings/silo-settings.service.ts`
 - What changed:
   - Added the first real Slice 4 reporting endpoints on top of the local telemetry tables: funnel totals, day-by-day trend rows, and top suggestion rows, all filterable by telemetry source.
   - Updated the Analytics page so it now shows a source toggle, a plain-English funnel, a simple daily click chart, and a top suggestions panel instead of only setup/status cards.
   - Swapped the old GA4 “still guarded” wording on the page for the new reality: the page now reflects the landed GA4 read-import path and shows the read-sync status badge.
   - Added focused backend and frontend coverage for the new reporting endpoints and the upgraded analytics page.
   - Added a telemetry-health summary endpoint plus Analytics cards for coverage quality, attribution rate, duplicate/missing-metadata cleanup, and per-source health badges.
-  - Added device-mix and channel-mix reporting backed by a new breakdown endpoint, and hardened the health endpoint so bad `days` values fall back safely instead of erroring.
+  - Added device, channel, and country reporting backed by the local breakdown endpoint, and fixed the analytics template typing issue by moving the GA4 read-status lookup into component helpers.
+  - Added a proper Search Console credentials section on the sync tab, plus backend storage and a test-connection endpoint for the property URL, service-account email, and private key.
 - Verification that passed:
-  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics --settings=config.settings.test --verbosity 1`
+  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.core.tests.GA4GSCSettingsApiTests apps.analytics.tests.AnalyticsTelemetrySettingsApiTests --settings=config.settings.test`
   - `docker-compose run --rm frontend npm run test:ci -- --include src/app/analytics/analytics.component.spec.ts`
+  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/settings/settings.component.spec.ts`
   - `docker-compose run --rm frontend npm run build`
   - `docker-compose build`
 - Verification still needed for a full FR-016 closeout:
   - actual XenForo or WordPress template installation of the snippet on the live sites
   - live GA4 property validation against a real operator-owned service account instead of mocked/local test coverage only
-  - broader Slice 4 charting/reporting work beyond the landed funnel, trend, top-suggestions, telemetry-health, and device/channel panels
+  - broader Slice 4 charting/reporting work beyond the landed funnel, trend, top-suggestions, telemetry-health, and device/channel/country panels
+  - follow-up cleanup for the existing diagnostics-model migration warning that still appears during backend startup
 - Commit/push state:
   - Pending at the time of this note update; commit after the verified slice is staged.
 
