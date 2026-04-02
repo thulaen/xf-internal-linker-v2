@@ -21,7 +21,6 @@ from dataclasses import dataclass
 from typing import Any, Callable
 
 import numpy as np
-import pyarrow as pa
 import pyroaring as pr
 from django.conf import settings
  
@@ -76,6 +75,22 @@ DEFAULT_WEIGHTS = {
     "w_node": recommended_float("w_node"),
     "w_quality": recommended_float("w_quality"),
 }
+
+
+def _sql_in_clause_params(values: list[int]) -> tuple[str, list[int]]:
+    placeholders = ", ".join(["%s"] * len(values))
+    return placeholders, list(values)
+
+
+def _coerce_embedding_vector(raw_embedding: Any) -> np.ndarray:
+    if isinstance(raw_embedding, np.ndarray):
+        return raw_embedding.astype(np.float32, copy=False)
+    if isinstance(raw_embedding, str):
+        stripped = raw_embedding.strip()
+        if stripped.startswith("[") and stripped.endswith("]"):
+            stripped = stripped[1:-1]
+        return np.fromstring(stripped, sep=",", dtype=np.float32)
+    return np.asarray(raw_embedding, dtype=np.float32)
 
 
 @dataclass
@@ -557,7 +572,7 @@ def _load_content_records(
         qs = qs.filter(scope_id__in=scope_ids)
 
     records: dict[ContentKey, ContentRecord] = {}
-    for ci in qs:
+    for ci in qs.iterator(chunk_size=500):
         scope = ci.scope
         parent = scope.parent if scope else None
         grandparent = parent.parent if parent else None
@@ -601,57 +616,45 @@ def _load_content_records(
 def _load_sentence_records(
     content_keys: set[ContentKey],
 ) -> tuple[dict[int, SentenceRecord], dict[ContentKey, pr.BitMap]]:
-    """Load sentence records for the given content keys using PyArrow for speed."""
-    from apps.content.models import Sentence
+    """Load sentence records for the given content keys with bounded memory use."""
     from django.db import connection
 
-    content_pks = [pk for pk, _ in content_keys]
+    content_pks = sorted({pk for pk, _ in content_keys})
+    if not content_pks:
+        return {}, {}
     
-    # Use raw SQL + fetchall for maximum speed, then wrap in Arrow
-    query = """
+    in_clause, params = _sql_in_clause_params(content_pks)
+    query = f"""
         SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count
         FROM content_sentence s
         JOIN content_contentitem ci ON s.content_item_id = ci.id
-        WHERE s.content_item_id = ANY(%s)
+        WHERE s.content_item_id IN ({in_clause})
           AND ci.is_deleted = FALSE
           AND s.word_position <= %s
     """
-    
-    with connection.cursor() as cursor:
-        cursor.execute(query, [content_pks, settings.HOST_SCAN_WORD_LIMIT])
-        rows = cursor.fetchall()
-
-    if not rows:
-        return {}, {}
-
-    # Convert to Arrow Table for metadata handling
-    names = ["id", "content_id", "content_type", "text", "char_count"]
-    table = pa.Table.from_batches([pa.RecordBatch.from_arrays(
-        [pa.array([r[i] for r in rows]) for i in range(len(names))],
-        names=names
-    )])
 
     sentence_records: dict[int, SentenceRecord] = {}
     content_to_sentence_ids: dict[ContentKey, pr.BitMap] = defaultdict(pr.BitMap)
 
-    for i in range(table.num_rows):
-        sid = table["id"][i].as_py()
-        cid = table["content_id"][i].as_py()
-        ctype = table["content_type"][i].as_py()
-        text = table["text"][i].as_py() or ""
-        char_count = table["char_count"][i].as_py() or len(text)
-        
-        ckey: ContentKey = (cid, ctype)
-        record = SentenceRecord(
-            sentence_id=sid,
-            content_id=cid,
-            content_type=ctype,
-            text=text,
-            char_count=char_count,
-            tokens=tokenize_text(text),
-        )
-        sentence_records[sid] = record
-        content_to_sentence_ids[ckey].add(sid)
+    with connection.cursor() as cursor:
+        cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
+        while True:
+            rows = cursor.fetchmany(2000)
+            if not rows:
+                break
+
+            for sid, cid, ctype, text, char_count in rows:
+                text = text or ""
+                ckey: ContentKey = (cid, ctype)
+                sentence_records[sid] = SentenceRecord(
+                    sentence_id=sid,
+                    content_id=cid,
+                    content_type=ctype,
+                    text=text,
+                    char_count=char_count or len(text),
+                    tokens=tokenize_text(text),
+                )
+                content_to_sentence_ids[ckey].add(sid)
 
     return sentence_records, dict(content_to_sentence_ids)
 
@@ -736,45 +739,55 @@ def _load_destination_embeddings(
         embedding__isnull=False,
     ).values_list("pk", "content_type", "embedding")
 
-    found: dict[ContentKey, list[float]] = {}
+    found: dict[ContentKey, np.ndarray] = {}
     for pk, ct, emb in qs:
         if emb is not None:
-            found[(pk, ct)] = emb
+            found[(pk, ct)] = _coerce_embedding_vector(emb)
 
     valid_keys = [key for key in candidate_keys if key in found]
     if not valid_keys:
         return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
 
-    matrix = np.array([found[key] for key in valid_keys], dtype=np.float32)
+    matrix = np.vstack([found[key] for key in valid_keys]).astype(np.float32, copy=False)
     return tuple(valid_keys), matrix
 
 
 def _load_sentence_embeddings(
     content_keys: set[ContentKey],
 ) -> tuple[list[int], np.ndarray]:
-    """Load sentence embeddings from pgvector using PyArrow for speed."""
-    from apps.content.models import Sentence
+    """Load sentence embeddings from pgvector with bounded memory use."""
     from django.db import connection
 
-    content_pks = [pk for pk, _ in content_keys]
-    query = """
+    content_pks = sorted({pk for pk, _ in content_keys})
+    if not content_pks:
+        return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+
+    in_clause, params = _sql_in_clause_params(content_pks)
+    query = f"""
         SELECT id, embedding
         FROM content_sentence
-        WHERE content_item_id = ANY(%s)
+        WHERE content_item_id IN ({in_clause})
           AND word_position <= %s
           AND embedding IS NOT NULL
         ORDER BY id
     """
-    with connection.cursor() as cursor:
-        cursor.execute(query, [content_pks, settings.HOST_SCAN_WORD_LIMIT])
-        rows = cursor.fetchall()
+    ids: list[int] = []
+    vectors: list[list[float]] = []
 
-    if not rows:
+    with connection.cursor() as cursor:
+        cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
+        while True:
+            rows = cursor.fetchmany(1000)
+            if not rows:
+                break
+            for sentence_id, embedding in rows:
+                ids.append(sentence_id)
+                vectors.append(_coerce_embedding_vector(embedding))
+
+    if not ids:
         return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
 
-    ids = [r[0] for r in rows]
-    vectors = np.array([r[1] for r in rows], dtype=np.float32)
-    return ids, vectors
+    return ids, np.vstack(vectors).astype(np.float32, copy=False)
 
 
 # ---------------------------------------------------------------------------
@@ -810,16 +823,14 @@ def _stage1_candidates(
         embedding__isnull=False,
     ).values_list("pk", "content_type", "embedding")
 
-    host_emb_map: dict[ContentKey, list[float]] = {
-        (pk, ct): emb for pk, ct, emb in host_emb_qs if emb is not None
+    host_emb_map: dict[ContentKey, np.ndarray] = {
+        (pk, ct): _coerce_embedding_vector(emb) for pk, ct, emb in host_emb_qs if emb is not None
     }
     valid_host_keys = [k for k in host_keys if k in host_emb_map]
     if not valid_host_keys:
         return {}
 
-    host_matrix = np.array(
-        [host_emb_map[k] for k in valid_host_keys], dtype=np.float32
-    )
+    host_matrix = np.vstack([host_emb_map[k] for k in valid_host_keys]).astype(np.float32, copy=False)
 
     result: dict[ContentKey, list[int]] = {}
     n_dest = len(destination_keys)
