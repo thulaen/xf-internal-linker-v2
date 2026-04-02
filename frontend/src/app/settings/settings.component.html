@@ -679,31 +679,68 @@
               <mat-card-title>GA4 Telemetry</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
-              <p class="hint">This is the part that watches if people saw or clicked a suggested link.</p>
+              <p class="hint">This card now has two jobs: send browser events out, and read daily totals back in.</p>
               <div class="integration-status">
                 <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Telemetry.connection_status)">{{ telemetryStatusLabel(ga4Telemetry.connection_status) }}</span>
                 <span class="integration-status__message">{{ ga4Telemetry.connection_message }}</span>
               </div>
+              <div class="integration-status">
+                <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Telemetry.read_connection_status)">{{ telemetryStatusLabel(ga4Telemetry.read_connection_status) }}</span>
+                <span class="integration-status__message">{{ ga4Telemetry.read_connection_message }}</span>
+              </div>
 
               <div class="wordpress-form">
-                <mat-form-field appearance="outline">
-                  <mat-label>GA4 Property ID</mat-label>
-                  <input matInput [(ngModel)]="ga4Telemetry.property_id" placeholder="123456789" />
-                </mat-form-field>
-
-                <div class="form-row">
+                <div class="sync-schedule-box">
+                  <div class="schedule-header">
+                    <h3>Browser Event Setup</h3>
+                    <mat-checkbox [(ngModel)]="ga4Telemetry.behavior_enabled">Enable browser events</mat-checkbox>
+                  </div>
                   <mat-form-field appearance="outline">
-                    <mat-label>Measurement ID</mat-label>
-                    <input matInput [(ngModel)]="ga4Telemetry.measurement_id" placeholder="G-ABC123XYZ" />
+                    <mat-label>GA4 Property ID</mat-label>
+                    <input matInput [(ngModel)]="ga4Telemetry.property_id" placeholder="123456789" />
                   </mat-form-field>
+                  <div class="form-row">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Measurement ID</mat-label>
+                      <input matInput [(ngModel)]="ga4Telemetry.measurement_id" placeholder="G-ABC123XYZ" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>API Secret</mat-label>
+                      <input matInput type="password" [(ngModel)]="ga4TelemetrySecret" />
+                      <mat-hint>
+                        @if (ga4Telemetry.api_secret_configured) {
+                          Secret stored. Leave blank to keep it.
+                        } @else {
+                          Paste the GA4 Measurement Protocol API secret.
+                        }
+                      </mat-hint>
+                    </mat-form-field>
+                  </div>
+                </div>
+
+                <div class="sync-schedule-box">
+                  <div class="schedule-header">
+                    <h3>Read Access Setup</h3>
+                    <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled">Enable GA4 sync</mat-checkbox>
+                  </div>
+                  <div class="form-row">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Read project ID</mat-label>
+                      <input matInput [(ngModel)]="ga4Telemetry.read_project_id" placeholder="my-ga4-project" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Read client email</mat-label>
+                      <input matInput [(ngModel)]="ga4Telemetry.read_client_email" placeholder="reader@project.iam.gserviceaccount.com" />
+                    </mat-form-field>
+                  </div>
                   <mat-form-field appearance="outline">
-                    <mat-label>API Secret</mat-label>
-                    <input matInput type="password" [(ngModel)]="ga4TelemetrySecret" />
+                    <mat-label>Read private key</mat-label>
+                    <textarea matInput rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
                     <mat-hint>
-                      @if (ga4Telemetry.api_secret_configured) {
-                        Secret stored. Leave blank to keep it.
+                      @if (ga4Telemetry.read_private_key_configured) {
+                        Private key stored. Leave blank to keep it.
                       } @else {
-                        Paste the GA4 Measurement Protocol API secret.
+                        Paste the service-account private key for the GA4 Data API.
                       }
                     </mat-hint>
                   </mat-form-field>
@@ -712,7 +749,7 @@
                 <div class="sync-schedule-box">
                   <div class="schedule-header">
                     <h3>Telemetry Rules</h3>
-                    <mat-checkbox [(ngModel)]="ga4Telemetry.behavior_enabled">Enable browser events</mat-checkbox>
+                    <span class="integration-status__message">These settings shape what we store after the sync runs.</span>
                   </div>
                   <div class="form-row">
                     <mat-form-field appearance="outline">
@@ -749,7 +786,6 @@
                     </mat-form-field>
                   </div>
                   <div class="form-row">
-                    <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled">Enable GA4 sync</mat-checkbox>
                     <mat-form-field appearance="outline">
                       <mat-label>Engaged seconds</mat-label>
                       <input matInput type="number" min="5" max="60" [(ngModel)]="ga4Telemetry.engaged_min_seconds" />
@@ -761,7 +797,10 @@
 
                 <div class="action-buttons">
                   <button mat-stroked-button color="primary" [disabled]="testingGA4Telemetry" (click)="testGA4TelemetryConnection()">
-                    <mat-icon>wifi_tethering</mat-icon> {{ testingGA4Telemetry ? 'Testing...' : 'Test Connection' }}
+                    <mat-icon>wifi_tethering</mat-icon> {{ testingGA4Telemetry ? 'Testing...' : 'Test Browser Events' }}
+                  </button>
+                  <button mat-stroked-button color="primary" [disabled]="testingGA4TelemetryRead" (click)="testGA4TelemetryReadConnection()">
+                    <mat-icon>cloud_sync</mat-icon> {{ testingGA4TelemetryRead ? 'Testing Read...' : 'Test Read Access' }}
                   </button>
                   <button mat-flat-button color="primary" [disabled]="savingGA4Telemetry" (click)="saveGA4TelemetrySettings()">
                     <mat-icon>save</mat-icon> {{ savingGA4Telemetry ? 'Saving...' : 'Save GA4' }}

@@ -67,6 +67,9 @@ describe('SettingsComponent', () => {
               property_id: '',
               measurement_id: '',
               api_secret_configured: false,
+              read_project_id: '',
+              read_client_email: '',
+              read_private_key_configured: false,
               sync_enabled: false,
               sync_lookback_days: 7,
               event_schema: 'fr016_v1',
@@ -77,6 +80,8 @@ describe('SettingsComponent', () => {
               engaged_min_seconds: 10,
               connection_status: 'not_configured',
               connection_message: 'Fill in the GA4 fields and test the connection.',
+              read_connection_status: 'not_configured',
+              read_connection_message: 'Fill in the GA4 read-access fields and test read access.',
               last_sync: null,
             }),
             getMatomoTelemetrySettings: () => of({

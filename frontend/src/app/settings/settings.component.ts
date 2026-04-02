@@ -658,6 +658,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   runningWordPressSync = false;
   creatingGroup = false;
   testingGA4Telemetry = false;
+  testingGA4TelemetryRead = false;
   testingMatomoTelemetry = false;
 
   // Tab persistence
@@ -724,6 +725,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     property_id: '',
     measurement_id: '',
     api_secret_configured: false,
+    read_project_id: '',
+    read_client_email: '',
+    read_private_key_configured: false,
     sync_enabled: false,
     sync_lookback_days: 7,
     event_schema: 'fr016_v1',
@@ -734,9 +738,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     engaged_min_seconds: 10,
     connection_status: 'not_configured',
     connection_message: 'Fill in the GA4 fields and test the connection.',
+    read_connection_status: 'not_configured',
+    read_connection_message: 'Fill in the GA4 read-access fields and test read access.',
     last_sync: null,
   };
   ga4TelemetrySecret = '';
+  ga4TelemetryReadPrivateKey = '';
   matomoTelemetry: MatomoTelemetrySettings = {
     enabled: false,
     url: '',
@@ -1340,6 +1347,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       behavior_enabled: this.ga4Telemetry.behavior_enabled,
       property_id: this.ga4Telemetry.property_id.trim(),
       measurement_id: this.ga4Telemetry.measurement_id.trim(),
+      read_project_id: this.ga4Telemetry.read_project_id.trim(),
+      read_client_email: this.ga4Telemetry.read_client_email.trim(),
       sync_enabled: this.ga4Telemetry.sync_enabled,
       sync_lookback_days: Number(this.ga4Telemetry.sync_lookback_days),
       event_schema: this.ga4Telemetry.event_schema.trim(),
@@ -1352,11 +1361,15 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.ga4TelemetrySecret.trim()) {
       payload.api_secret = this.ga4TelemetrySecret.trim();
     }
+    if (this.ga4TelemetryReadPrivateKey.trim()) {
+      payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
+    }
 
     this.siloSvc.updateGA4TelemetrySettings(payload).subscribe({
       next: (ga4Telemetry) => {
         this.ga4Telemetry = ga4Telemetry;
         this.ga4TelemetrySecret = '';
+        this.ga4TelemetryReadPrivateKey = '';
         this.savingGA4Telemetry = false;
         this.snack.open('GA4 telemetry settings saved', undefined, { duration: 2500 });
       },
@@ -1389,6 +1402,36 @@ export class SettingsComponent implements OnInit, OnDestroy {
           ...this.ga4Telemetry,
           connection_status: 'error',
           connection_message: message,
+        };
+        this.snack.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  testGA4TelemetryReadConnection(): void {
+    this.testingGA4TelemetryRead = true;
+    this.siloSvc.testGA4TelemetryReadConnection({
+      property_id: this.ga4Telemetry.property_id.trim() || undefined,
+      read_project_id: this.ga4Telemetry.read_project_id.trim() || undefined,
+      read_client_email: this.ga4Telemetry.read_client_email.trim() || undefined,
+      read_private_key: this.ga4TelemetryReadPrivateKey.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingGA4TelemetryRead = false;
+        this.ga4Telemetry = {
+          ...this.ga4Telemetry,
+          read_connection_status: result.status,
+          read_connection_message: result.message,
+        };
+        this.snack.open(result.message, undefined, { duration: 3000 });
+      },
+      error: (error) => {
+        this.testingGA4TelemetryRead = false;
+        const message = error?.error?.message || error?.error?.detail || 'GA4 read-access test failed';
+        this.ga4Telemetry = {
+          ...this.ga4Telemetry,
+          read_connection_status: 'error',
+          read_connection_message: message,
         };
         this.snack.open(message, 'Dismiss', { duration: 4000 });
       },
@@ -1687,6 +1730,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       behavior_enabled: this.ga4Telemetry.behavior_enabled,
       property_id: this.ga4Telemetry.property_id.trim(),
       measurement_id: this.ga4Telemetry.measurement_id.trim(),
+      read_project_id: this.ga4Telemetry.read_project_id.trim(),
+      read_client_email: this.ga4Telemetry.read_client_email.trim(),
       sync_enabled: this.ga4Telemetry.sync_enabled,
       sync_lookback_days: Number(this.ga4Telemetry.sync_lookback_days),
       event_schema: this.ga4Telemetry.event_schema.trim(),
@@ -1698,6 +1743,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     };
     if (this.ga4TelemetrySecret.trim()) {
       ga4TelemetryPayload.api_secret = this.ga4TelemetrySecret.trim();
+    }
+    if (this.ga4TelemetryReadPrivateKey.trim()) {
+      ga4TelemetryPayload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
 
     const matomoTelemetryPayload: MatomoTelemetryUpdate = {
@@ -1747,6 +1795,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.wordpress = results.wordpress;
         this.wordpressPassword = '';
         this.ga4TelemetrySecret = '';
+        this.ga4TelemetryReadPrivateKey = '';
         this.matomoTelemetryToken = '';
         
         this.savingSettings = false;

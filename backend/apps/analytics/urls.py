@@ -4,6 +4,7 @@ from django.urls import path
 
 from .views import (
     AnalyticsGA4SettingsView,
+    AnalyticsGA4ReadConnectionView,
     AnalyticsGA4SyncView,
     AnalyticsGA4TestConnectionView,
     AnalyticsMatomoSettingsView,
@@ -20,6 +21,7 @@ urlpatterns = [
     path("telemetry/matomo-sync/", AnalyticsMatomoSyncView.as_view(), name="analytics-matomo-sync"),
     path("settings/ga4/", AnalyticsGA4SettingsView.as_view(), name="analytics-ga4-settings"),
     path("settings/ga4/test-connection/", AnalyticsGA4TestConnectionView.as_view(), name="analytics-ga4-test-connection"),
+    path("settings/ga4/test-read-connection/", AnalyticsGA4ReadConnectionView.as_view(), name="analytics-ga4-read-connection"),
     path("settings/matomo/", AnalyticsMatomoSettingsView.as_view(), name="analytics-matomo-settings"),
     path("settings/matomo/test-connection/", AnalyticsMatomoTestConnectionView.as_view(), name="analytics-matomo-test-connection"),
 ]

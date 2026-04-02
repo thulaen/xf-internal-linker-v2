@@ -1,6 +1,7 @@
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
 from apps.analytics.models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
@@ -23,6 +24,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
                 "property_id": "123456789",
                 "measurement_id": "G-TEST1234",
                 "api_secret": "super-secret",
+                "read_project_id": "ga4-read-project",
+                "read_client_email": "reader@example.iam.gserviceaccount.com",
+                "read_private_key": "-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
                 "sync_enabled": True,
                 "sync_lookback_days": 9,
                 "event_schema": "fr016_v1",
@@ -40,10 +44,16 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertTrue(payload["behavior_enabled"])
         self.assertEqual(payload["measurement_id"], "G-TEST1234")
         self.assertTrue(payload["api_secret_configured"])
+        self.assertEqual(payload["read_project_id"], "ga4-read-project")
+        self.assertEqual(payload["read_client_email"], "reader@example.iam.gserviceaccount.com")
+        self.assertTrue(payload["read_private_key_configured"])
         self.assertEqual(payload["sync_lookback_days"], 9)
         self.assertEqual(AppSetting.objects.get(key="analytics.ga4_measurement_id").value, "G-TEST1234")
         self.assertTrue(AppSetting.objects.get(key="analytics.ga4_api_secret").is_secret)
+        self.assertTrue(AppSetting.objects.get(key="analytics.ga4_read_private_key").is_secret)
         self.assertEqual(AppSetting.objects.get(key="analytics.telemetry_retention_days").value, "365")
+        self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-hourly-restatement").enabled)
+        self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-daily-catchup").enabled)
 
     @patch("apps.analytics.views.requests.post")
     def test_ga4_test_connection_uses_saved_secret(self, post_mock):
@@ -70,6 +80,52 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
         post_mock.assert_called_once()
+
+    @patch("apps.analytics.views.test_ga4_data_api_access")
+    @patch("apps.analytics.views.build_ga4_data_service")
+    def test_ga4_read_test_connection_uses_saved_read_credentials(self, build_mock, access_mock):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.ga4_property_id",
+                    value="123456789",
+                    value_type="str",
+                    category="analytics",
+                    description="property id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_project_id",
+                    value="ga4-read-project",
+                    value_type="str",
+                    category="analytics",
+                    description="project id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_client_email",
+                    value="reader@example.iam.gserviceaccount.com",
+                    value_type="str",
+                    category="analytics",
+                    description="client email",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_private_key",
+                    value="-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                    value_type="str",
+                    category="analytics",
+                    description="private key",
+                    is_secret=True,
+                ),
+            ]
+        )
+        build_mock.return_value = Mock()
+        access_mock.return_value = {"rows": []}
+
+        response = self.client.post("/api/analytics/settings/ga4/test-read-connection/", {}, format="json")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "connected")
+        build_mock.assert_called_once()
+        access_mock.assert_called_once()
 
     def test_matomo_settings_round_trip_masks_token(self):
         response = self.client.put(
@@ -346,7 +402,8 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.observed_click_links, 1)
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
 
-    def test_run_ga4_sync_raises_clear_error_until_read_auth_exists(self):
+    @patch("apps.analytics.sync.build_ga4_data_service")
+    def test_run_ga4_sync_writes_daily_rollups(self, build_service_mock):
         AppSetting.objects.bulk_create(
             [
                 AppSetting(
@@ -357,25 +414,142 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
                     description="sync enabled",
                 ),
                 AppSetting(
-                    key="analytics.ga4_measurement_id",
-                    value="G-TEST1234",
+                    key="analytics.ga4_property_id",
+                    value="123456789",
                     value_type="str",
                     category="analytics",
-                    description="measurement id",
+                    description="property id",
                 ),
                 AppSetting(
-                    key="analytics.ga4_api_secret",
-                    value="super-secret",
+                    key="analytics.ga4_read_project_id",
+                    value="ga4-read-project",
                     value_type="str",
                     category="analytics",
-                    description="api secret",
+                    description="read project id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_client_email",
+                    value="reader@example.iam.gserviceaccount.com",
+                    value_type="str",
+                    category="analytics",
+                    description="read client email",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_private_key",
+                    value="-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                    value_type="str",
+                    category="analytics",
+                    description="read private key",
                     is_secret=True,
                 ),
             ]
         )
+        host = ContentItem.objects.create(
+            content_id=301,
+            content_type="thread",
+            title="Host Thread",
+            url="https://forum.example.com/host-thread",
+        )
+        destination = ContentItem.objects.create(
+            content_id=302,
+            content_type="thread",
+            title="Destination Thread",
+            url="https://forum.example.com/destination-thread",
+        )
+        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text="Host sentence",
+            position=0,
+            char_count=13,
+            start_char=0,
+            end_char=13,
+            word_position=0,
+        )
+        pipeline_run = PipelineRun.objects.create(run_state="completed")
+        suggestion = Suggestion.objects.create(
+            pipeline_run=pipeline_run,
+            destination=destination,
+            destination_title=destination.title,
+            host=host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="host",
+            anchor_start=0,
+            anchor_end=4,
+            anchor_confidence="strong",
+        )
         sync_run = AnalyticsSyncRun.objects.create(source="ga4", status="pending", lookback_days=1)
+        service = Mock()
+        build_service_mock.return_value = service
+        service.properties.return_value.runReport.return_value.execute.side_effect = [
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [{"value": "3"}],
+                    }
+                ]
+            },
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [{"value": "2"}],
+                    }
+                ]
+            },
+            {"rows": []},
+            {"rows": []},
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [
+                            {"value": "5"},
+                            {"value": "5"},
+                            {"value": "4"},
+                            {"value": "40"},
+                        ],
+                    }
+                ]
+            },
+        ]
 
-        with self.assertRaises(RuntimeError) as context:
-            run_ga4_sync(sync_run)
+        stats = run_ga4_sync(sync_run)
 
-        self.assertIn("read sync is not wired yet", str(context.exception))
+        self.assertEqual(stats["rows_written"], 1)
+        telemetry_row = SuggestionTelemetryDaily.objects.get(telemetry_source="ga4")
+        self.assertEqual(telemetry_row.suggestion_id, suggestion.suggestion_id)
+        self.assertEqual(telemetry_row.impressions, 3)
+        self.assertEqual(telemetry_row.clicks, 2)
+        self.assertEqual(telemetry_row.destination_views, 5)
+        self.assertEqual(telemetry_row.sessions, 5)
+        self.assertEqual(telemetry_row.engaged_sessions, 4)
+        self.assertEqual(telemetry_row.total_engagement_time_seconds, 40.0)
+        coverage_row = TelemetryCoverageDaily.objects.get(source_label="ga4")
+        self.assertEqual(coverage_row.observed_impression_links, 1)
+        self.assertEqual(coverage_row.observed_click_links, 1)
+        self.assertEqual(coverage_row.attributed_destination_sessions, 5)

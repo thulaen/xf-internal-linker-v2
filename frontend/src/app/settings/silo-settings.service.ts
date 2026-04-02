@@ -125,6 +125,9 @@ export interface GA4TelemetrySettings {
   property_id: string;
   measurement_id: string;
   api_secret_configured: boolean;
+  read_project_id: string;
+  read_client_email: string;
+  read_private_key_configured: boolean;
   sync_enabled: boolean;
   sync_lookback_days: number;
   event_schema: string;
@@ -135,6 +138,8 @@ export interface GA4TelemetrySettings {
   engaged_min_seconds: number;
   connection_status: string;
   connection_message: string;
+  read_connection_status: string;
+  read_connection_message: string;
   last_sync: AnalyticsSyncSummary | null;
 }
 
@@ -142,6 +147,8 @@ export interface GA4TelemetryUpdate {
   behavior_enabled: boolean;
   property_id: string;
   measurement_id: string;
+  read_project_id: string;
+  read_client_email: string;
   sync_enabled: boolean;
   sync_lookback_days: number;
   event_schema: string;
@@ -151,6 +158,7 @@ export interface GA4TelemetryUpdate {
   impression_min_ms: number;
   engaged_min_seconds: number;
   api_secret?: string;
+  read_private_key?: string;
 }
 
 export interface MatomoTelemetrySettings {
@@ -379,6 +387,10 @@ export class SiloSettingsService {
 
   testGA4TelemetryConnection(payload: { measurement_id?: string; api_secret?: string }): Observable<AnalyticsConnectionResult> {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-connection/', payload);
+  }
+
+  testGA4TelemetryReadConnection(payload: { property_id?: string; read_project_id?: string; read_client_email?: string; read_private_key?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-read-connection/', payload);
   }
 
   updateMatomoTelemetrySettings(payload: MatomoTelemetryUpdate): Observable<MatomoTelemetrySettings> {

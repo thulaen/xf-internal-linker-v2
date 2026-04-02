@@ -44,7 +44,7 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 19
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 now has a repo-side live-site bridge handoff, and the first safe Slice 3 plumbing is now in code.
+- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 now has a repo-side live-site bridge handoff, and Slice 3 now includes GUI-first GA4 read auth, a real GA4 importer, and scheduled sync wiring.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -271,39 +271,34 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Intentional files changed:
   - `AI-CONTEXT.md`
   - `FEATURE-REQUESTS.md`
-  - `backend/apps/analytics/integration_snippet.py`
+  - `backend/apps/analytics/ga4_client.py`
   - `backend/apps/analytics/sync.py`
   - `backend/apps/analytics/tasks.py`
   - `backend/apps/analytics/tests.py`
   - `backend/apps/analytics/urls.py`
   - `backend/apps/analytics/views.py`
-  - `docker-compose.yml`
-  - `frontend/src/app/analytics/analytics.component.html`
-  - `frontend/src/app/analytics/analytics.component.scss`
-  - `frontend/src/app/analytics/analytics.component.spec.ts`
-  - `frontend/src/app/analytics/analytics.component.ts`
-  - `frontend/src/app/analytics/analytics.service.ts`
-  - `postgres/postgresql.conf`
+  - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/settings/settings.component.spec.ts`
+  - `frontend/src/app/settings/settings.component.ts`
+  - `frontend/src/app/settings/silo-settings.service.ts`
 - What changed:
-  - Repaired the local server stack before continuing FR-016: Postgres now listens on the Docker network, backend startup retries migrations until Postgres is ready, and the Celery worker uses the correct prefetch flag again.
-  - Continued FR-016 Slice 2 with a repo-side live-site bridge helper instead of pretending this app can inject tracking into XenForo or WordPress by itself.
-  - Added a new read-only telemetry integration API that returns plain-English setup status, install steps, and a copy-ready browser snippet for impression, click, destination-view, and engaged-session events.
-  - Added the browser bridge card to the Analytics page so operators can copy the live-site snippet, run manual syncs, and see whether GA4 and/or Matomo browser events are ready.
-  - Started the safest Slice 3 backend path: new manual sync endpoints, Celery task plumbing, a real Matomo daily-rollup importer into `SuggestionTelemetryDaily` / `TelemetryCoverageDaily`, and an honest GA4 guard that fails with a clear message until Data API read auth is added through the GUI-first flow.
-  - Fixed a daily coverage-rollup bug in the Matomo sync helper so each day's health row is calculated per day instead of accidentally accumulating across the whole lookback window.
-  - Added focused backend and frontend coverage for the integration payload, manual sync wiring, GA4 guard behavior, and Matomo row-writing path.
+  - Replaced the old GA4 guarded failure with a real GUI-first read path: the settings API now stores a GA4 Data API project ID, client email, and write-only private key separately from the browser-event Measurement Protocol fields.
+  - Added a GA4 read-access test endpoint plus a small backend helper that builds a service-account-backed GA4 Data API client only when the read path is used.
+  - Landed the first real GA4 importer into `SuggestionTelemetryDaily` / `TelemetryCoverageDaily`, including per-event reads for impressions, clicks, destination views, engaged sessions, and conversions.
+  - Wired scheduled telemetry sync seeds through `django_celery_beat` for hourly and daily GA4 and Matomo restatement jobs so the manual sync path is no longer the only scheduler entry point.
+  - Updated the Angular settings card so operators can save and test GA4 browser-event credentials separately from GA4 read credentials in plain English.
+  - Added focused backend and frontend coverage for GA4 read settings, GA4 read test wiring, GA4 row-writing, and the updated settings card.
 - Verification that passed:
-  - backend stack health after server fix: backend can reach Postgres on Docker TCP, migrations run, and the main services come up again
   - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics --settings=config.settings.test --verbosity 1`
-  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/analytics/analytics.component.spec.ts`
+  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/settings/settings.component.spec.ts --include src/app/analytics/analytics.component.spec.ts`
   - `docker-compose run --rm frontend npm run build`
+  - `docker-compose build`
 - Verification still needed for a full FR-016 closeout:
   - actual XenForo or WordPress template installation of the snippet on the live sites
-  - full scheduled sync / restatement flow, not just the new manual sync trigger path
-  - GA4 Data API read-auth wiring through the GUI-first path so GA4 read sync can move from guarded failure to real imports
-  - broader Slice 3 charting/reporting work beyond the current manual-sync plumbing and Matomo local rollups
+  - live GA4 property validation against a real operator-owned service account instead of mocked/local test coverage only
+  - broader Slice 4 charting/reporting work now that the GA4 and Matomo import plumbing exists
 - Commit/push state:
-  - This session's changes are not committed yet in this note.
+  - Pending at the time of this note update; commit after the verified slice is staged.
 
 | Item | Why needed | State |
 |---|---|---|

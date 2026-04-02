@@ -12,12 +12,20 @@ from django.utils import timezone
 
 from apps.suggestions.models import Suggestion
 
+from .ga4_client import build_ga4_data_service
 from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
 
 MATOMO_EVENT_FIELDS = {
     "suggestion_link_impression": "impressions",
     "suggestion_link_click": "clicks",
     "suggestion_destination_view": "destination_views",
+    "suggestion_destination_engaged": "engaged_sessions",
+    "suggestion_destination_conversion": "conversions",
+}
+
+GA4_EVENT_FIELDS = {
+    "suggestion_link_impression": "impressions",
+    "suggestion_link_click": "clicks",
     "suggestion_destination_engaged": "engaged_sessions",
     "suggestion_destination_conversion": "conversions",
 }
@@ -69,6 +77,99 @@ def _walk_matomo_rows(rows: list[dict[str, Any]], *, current_action: str = "") -
             if isinstance(nested, list):
                 parsed.extend(_walk_matomo_rows(nested, current_action=action))
     return parsed
+
+
+def _normalize_ga4_value(value: str | None) -> str:
+    raw = str(value or "").strip()
+    if raw.lower() in {"(not set)", "(other)", "not set"}:
+        return ""
+    return raw
+
+
+def _ga4_dimension_names(*, geo_granularity: str) -> list[str]:
+    dimensions = [
+        "date",
+        "customEvent:suggestion_id",
+        "deviceCategory",
+        "sessionDefaultChannelGroup",
+        "sessionSourceMedium",
+    ]
+    if geo_granularity in {"country", "country_region"}:
+        dimensions.append("country")
+    if geo_granularity == "country_region":
+        dimensions.append("region")
+    return dimensions
+
+
+def _ga4_dimensions_from_row(*, row: dict[str, Any], dimension_names: list[str], geo_granularity: str) -> dict[str, str]:
+    values = [entry.get("value") for entry in row.get("dimensionValues", [])]
+    mapped = dict(zip(dimension_names, values))
+    country = _normalize_ga4_value(mapped.get("country"))
+    region = _normalize_ga4_value(mapped.get("region")) if geo_granularity == "country_region" else ""
+    return {
+        "date": _normalize_ga4_value(mapped.get("date")),
+        "suggestion_id": _normalize_ga4_value(mapped.get("customEvent:suggestion_id")),
+        "device_category": _normalize_ga4_value(mapped.get("deviceCategory")),
+        "default_channel_group": _normalize_ga4_value(mapped.get("sessionDefaultChannelGroup")),
+        "source_medium": _normalize_ga4_value(mapped.get("sessionSourceMedium")),
+        "country": country if geo_granularity in {"country", "country_region"} else "",
+        "region": region,
+    }
+
+
+def _ga4_metric_int(row: dict[str, Any], index: int) -> int:
+    values = row.get("metricValues", [])
+    if index >= len(values):
+        return 0
+    try:
+        return int(float(values[index].get("value") or 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _ga4_metric_float(row: dict[str, Any], index: int) -> float:
+    values = row.get("metricValues", [])
+    if index >= len(values):
+        return 0.0
+    try:
+        return float(values[index].get("value") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _fetch_ga4_rows(
+    *,
+    service,
+    property_id: str,
+    target_date: date,
+    geo_granularity: str,
+    event_name: str,
+    metrics: list[str],
+) -> list[dict[str, Any]]:
+    dimension_names = _ga4_dimension_names(geo_granularity=geo_granularity)
+    response = (
+        service.properties()
+        .runReport(
+            property=f"properties/{property_id}",
+            body={
+                "dateRanges": [{"startDate": target_date.isoformat(), "endDate": target_date.isoformat()}],
+                "dimensions": [{"name": name} for name in dimension_names],
+                "metrics": [{"name": name} for name in metrics],
+                "dimensionFilter": {
+                    "filter": {
+                        "fieldName": "eventName",
+                        "stringFilter": {
+                            "matchType": "EXACT",
+                            "value": event_name,
+                        },
+                    }
+                },
+                "limit": 10000,
+            },
+        )
+        .execute()
+    )
+    return response.get("rows", [])
 
 
 def _matomo_api_get(*, base_url: str, token_auth: str, method: str, params: dict[str, Any]) -> Any:
@@ -137,6 +238,59 @@ def _upsert_telemetry_row(*, target_date: date, suggestion: Suggestion, field_to
         source_medium="",
         country="",
         region="",
+        is_attributed=True,
+        defaults=defaults,
+    )
+    return (1, 0) if created else (0, 1)
+
+
+def _upsert_ga4_row(
+    *,
+    target_date: date,
+    suggestion: Suggestion,
+    key_fields: dict[str, str],
+    field_totals: dict[str, int | float],
+    event_schema: str,
+) -> tuple[int, int]:
+    algorithm_key, algorithm_version_date, algorithm_version_slug = _algorithm_version_parts(suggestion)
+    sessions = int(field_totals.get("sessions", 0))
+    engaged_sessions = int(field_totals.get("engaged_sessions", 0))
+    total_engagement = float(field_totals.get("total_engagement_time_seconds", 0.0))
+    defaults = {
+        "destination": suggestion.destination,
+        "host": suggestion.host,
+        "algorithm_key": algorithm_key,
+        "algorithm_version_date": algorithm_version_date,
+        "event_schema": event_schema,
+        "source_label": "wordpress" if suggestion.host.content_type.startswith("wp_") else "xenforo",
+        "same_silo": _same_silo(suggestion),
+        "device_category": key_fields["device_category"],
+        "default_channel_group": key_fields["default_channel_group"],
+        "source_medium": key_fields["source_medium"],
+        "country": key_fields["country"],
+        "region": key_fields["region"],
+        "impressions": int(field_totals.get("impressions", 0)),
+        "clicks": int(field_totals.get("clicks", 0)),
+        "destination_views": int(field_totals.get("destination_views", 0)),
+        "engaged_sessions": engaged_sessions,
+        "conversions": int(field_totals.get("conversions", 0)),
+        "sessions": sessions,
+        "bounce_sessions": max(sessions - engaged_sessions, 0),
+        "avg_engagement_time_seconds": (total_engagement / sessions) if sessions else 0.0,
+        "total_engagement_time_seconds": total_engagement,
+        "event_count": int(field_totals.get("event_count", 0)),
+        "is_attributed": True,
+    }
+    _, created = SuggestionTelemetryDaily.objects.update_or_create(
+        date=target_date,
+        telemetry_source="ga4",
+        suggestion=suggestion,
+        algorithm_version_slug=algorithm_version_slug,
+        device_category=key_fields["device_category"],
+        default_channel_group=key_fields["default_channel_group"],
+        source_medium=key_fields["source_medium"],
+        country=key_fields["country"],
+        region=key_fields["region"],
         is_attributed=True,
         defaults=defaults,
     )
@@ -239,12 +393,175 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
 
 
 def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
-    from .views import get_ga4_telemetry_settings
+    from .views import get_ga4_telemetry_settings, _ga4_read_private_key
 
     settings = get_ga4_telemetry_settings()
     if not settings.get("sync_enabled"):
         raise RuntimeError("GA4 sync is disabled in settings.")
-    raise RuntimeError(
-        "GA4 read sync is not wired yet. The GUI currently stores Measurement Protocol write credentials, "
-        "but the GA4 Data API read-auth path still needs its own GUI-safe setup."
+    property_id = str(settings.get("property_id") or "").strip()
+    project_id = str(settings.get("read_project_id") or "").strip()
+    client_email = str(settings.get("read_client_email") or "").strip()
+    private_key = _ga4_read_private_key()
+    geo_granularity = str(settings.get("geo_granularity") or "country")
+    if not property_id or not project_id or not client_email or not private_key:
+        raise RuntimeError(
+            "GA4 sync needs the property ID plus saved GA4 read-access credentials on the settings page."
+        )
+
+    service = build_ga4_data_service(
+        property_id=property_id,
+        project_id=project_id,
+        client_email=client_email,
+        private_key=private_key,
     )
+
+    rows_read = 0
+    rows_written = 0
+    rows_updated = 0
+    event_schema = str(settings.get("event_schema") or "fr016_v1")
+
+    for offset in range(max(sync_run.lookback_days, 1)):
+        target_date = timezone.now().date() - timedelta(days=offset)
+        merged_rows: dict[tuple[str, str, str, str, str, str], dict[str, int | float]] = defaultdict(
+            lambda: {
+                "impressions": 0,
+                "clicks": 0,
+                "destination_views": 0,
+                "engaged_sessions": 0,
+                "conversions": 0,
+                "sessions": 0,
+                "event_count": 0,
+                "total_engagement_time_seconds": 0.0,
+            }
+        )
+        missing_metadata_events = 0
+        observed_impression_links = 0
+        observed_click_links = 0
+        attributed_destination_sessions = 0
+
+        for event_name, field_name in GA4_EVENT_FIELDS.items():
+            rows = _fetch_ga4_rows(
+                service=service,
+                property_id=property_id,
+                target_date=target_date,
+                geo_granularity=geo_granularity,
+                event_name=event_name,
+                metrics=["eventCount"],
+            )
+            rows_read += len(rows)
+            for row in rows:
+                parsed = _ga4_dimensions_from_row(
+                    row=row,
+                    dimension_names=_ga4_dimension_names(geo_granularity=geo_granularity),
+                    geo_granularity=geo_granularity,
+                )
+                key = (
+                    parsed["suggestion_id"],
+                    parsed["device_category"],
+                    parsed["default_channel_group"],
+                    parsed["source_medium"],
+                    parsed["country"],
+                    parsed["region"],
+                )
+                count = _ga4_metric_int(row, 0)
+                merged_rows[key][field_name] = int(merged_rows[key][field_name]) + count
+                merged_rows[key]["event_count"] = int(merged_rows[key]["event_count"]) + count
+
+        session_rows = _fetch_ga4_rows(
+            service=service,
+            property_id=property_id,
+            target_date=target_date,
+            geo_granularity=geo_granularity,
+            event_name="suggestion_destination_view",
+            metrics=["eventCount", "sessions", "engagedSessions", "userEngagementDuration"],
+        )
+        rows_read += len(session_rows)
+        for row in session_rows:
+            parsed = _ga4_dimensions_from_row(
+                row=row,
+                dimension_names=_ga4_dimension_names(geo_granularity=geo_granularity),
+                geo_granularity=geo_granularity,
+            )
+            key = (
+                parsed["suggestion_id"],
+                parsed["device_category"],
+                parsed["default_channel_group"],
+                parsed["source_medium"],
+                parsed["country"],
+                parsed["region"],
+            )
+            merged_rows[key]["destination_views"] = _ga4_metric_int(row, 0)
+            merged_rows[key]["sessions"] = _ga4_metric_int(row, 1)
+            merged_rows[key]["engaged_sessions"] = max(
+                int(merged_rows[key]["engaged_sessions"]),
+                _ga4_metric_int(row, 2),
+            )
+            merged_rows[key]["total_engagement_time_seconds"] = _ga4_metric_float(row, 3)
+
+        suggestion_ids = [key[0] for key in merged_rows.keys() if key[0]]
+        suggestions = {
+            str(suggestion.suggestion_id): suggestion
+            for suggestion in Suggestion.objects.select_related(
+                "destination",
+                "destination__scope",
+                "host",
+                "host__scope",
+                "pipeline_run",
+            ).filter(suggestion_id__in=suggestion_ids)
+        }
+
+        for key, field_totals in merged_rows.items():
+            suggestion_id, device_category, default_channel_group, source_medium, country, region = key
+            event_count = int(field_totals.get("event_count", 0))
+            if not suggestion_id:
+                missing_metadata_events += event_count
+                continue
+            suggestion = suggestions.get(suggestion_id)
+            if suggestion is None:
+                missing_metadata_events += event_count
+                continue
+
+            written, updated = _upsert_ga4_row(
+                target_date=target_date,
+                suggestion=suggestion,
+                key_fields={
+                    "device_category": device_category,
+                    "default_channel_group": default_channel_group,
+                    "source_medium": source_medium,
+                    "country": country,
+                    "region": region,
+                },
+                field_totals=field_totals,
+                event_schema=event_schema,
+            )
+            rows_written += written
+            rows_updated += updated
+            if int(field_totals.get("impressions", 0)) > 0:
+                observed_impression_links += 1
+            if int(field_totals.get("clicks", 0)) > 0:
+                observed_click_links += 1
+            attributed_destination_sessions += int(field_totals.get("destination_views", 0))
+
+        TelemetryCoverageDaily.objects.update_or_create(
+            date=target_date,
+            event_schema=event_schema,
+            source_label="ga4",
+            algorithm_version_slug="",
+            defaults={
+                "expected_instrumented_links": 0,
+                "observed_impression_links": observed_impression_links,
+                "observed_click_links": observed_click_links,
+                "attributed_destination_sessions": attributed_destination_sessions,
+                "unattributed_destination_sessions": 0,
+                "duplicate_event_drops": 0,
+                "missing_metadata_events": missing_metadata_events,
+                "delayed_rows_rewritten": rows_updated,
+                "coverage_state": "healthy" if observed_impression_links or observed_click_links else "partial",
+            },
+        )
+
+    return {
+        "rows_read": rows_read,
+        "rows_written": rows_written,
+        "rows_updated": rows_updated,
+    }

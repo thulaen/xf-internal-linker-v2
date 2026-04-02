@@ -17,12 +17,16 @@ from apps.core.models import AppSetting
 from .integration_snippet import build_integration_payload
 from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
 from .tasks import sync_ga4_telemetry, sync_matomo_telemetry
+from .ga4_client import build_ga4_data_service, test_ga4_data_api_access
 
 GA4_DEFAULTS = {
     "behavior_enabled": False,
     "property_id": "",
     "measurement_id": "",
     "api_secret_configured": False,
+    "read_project_id": "",
+    "read_client_email": "",
+    "read_private_key_configured": False,
     "sync_enabled": False,
     "sync_lookback_days": 7,
     "event_schema": "fr016_v1",
@@ -94,24 +98,36 @@ def get_ga4_telemetry_settings() -> dict:
     property_id = (_read_setting("analytics.ga4_property_id", "") or "").strip()
     measurement_id = (_read_setting("analytics.ga4_measurement_id", "") or "").strip()
     api_secret = (_read_setting("analytics.ga4_api_secret", "") or "").strip()
+    read_project_id = (_read_setting("analytics.ga4_read_project_id", "") or "").strip()
+    read_client_email = (_read_setting("analytics.ga4_read_client_email", "") or "").strip()
+    read_private_key = (_read_setting("analytics.ga4_read_private_key", "") or "").strip()
     sync = _latest_sync("ga4")
     status = "not_configured"
-    message = "Fill in the GA4 fields and test the connection."
+    message = "Fill in the browser-event fields and test the connection."
     if measurement_id and api_secret:
         status = "saved"
-        message = "Credentials are saved. Run Test Connection to confirm they work."
+        message = "Browser-event credentials are saved. Run Test Connection to confirm they work."
+
+    read_status = "not_configured"
+    read_message = "Fill in the GA4 read-access fields and test read access."
+    if property_id and read_client_email and read_private_key:
+        read_status = "saved"
+        read_message = "Read-access credentials are saved. Run Test Read Access to confirm they work."
     if sync and sync["status"] == "completed":
-        status = "connected"
-        message = "GA4 synced successfully the last time it ran."
+        read_status = "connected"
+        read_message = "GA4 read sync completed successfully the last time it ran."
     elif sync and sync["status"] == "failed":
-        status = "error"
-        message = sync["error_message"] or "The last GA4 sync failed."
+        read_status = "error"
+        read_message = sync["error_message"] or "The last GA4 sync failed."
 
     return {
         "behavior_enabled": _read_bool("analytics.ga4_behavior_enabled", GA4_DEFAULTS["behavior_enabled"]),
         "property_id": property_id,
         "measurement_id": measurement_id,
         "api_secret_configured": bool(api_secret),
+        "read_project_id": read_project_id,
+        "read_client_email": read_client_email,
+        "read_private_key_configured": bool(read_private_key),
         "sync_enabled": _read_bool("analytics.ga4_sync_enabled", GA4_DEFAULTS["sync_enabled"]),
         "sync_lookback_days": _read_int("analytics.ga4_sync_lookback_days", GA4_DEFAULTS["sync_lookback_days"]),
         "event_schema": (_read_setting("analytics.telemetry_event_schema", GA4_DEFAULTS["event_schema"]) or GA4_DEFAULTS["event_schema"]).strip(),
@@ -122,6 +138,8 @@ def get_ga4_telemetry_settings() -> dict:
         "engaged_min_seconds": _read_int("analytics.telemetry_engaged_min_seconds", GA4_DEFAULTS["engaged_min_seconds"]),
         "connection_status": status,
         "connection_message": message,
+        "read_connection_status": read_status,
+        "read_connection_message": read_message,
         "last_sync": sync,
     }
 
@@ -192,13 +210,19 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
     current = get_ga4_telemetry_settings()
     property_id = str(payload.get("property_id", current["property_id"])).strip()
     measurement_id = str(payload.get("measurement_id", current["measurement_id"])).strip().upper()
+    read_project_id = str(payload.get("read_project_id", current["read_project_id"])).strip()
+    read_client_email = str(payload.get("read_client_email", current["read_client_email"])).strip()
     if property_id and not property_id.isdigit():
         raise ValueError("property_id must be numbers only.")
     if measurement_id and not measurement_id.startswith("G-"):
         raise ValueError("measurement_id must start with G-.")
+    if read_client_email and "@" not in read_client_email:
+        raise ValueError("read_client_email must look like an email address.")
 
     api_secret_provided = "api_secret" in payload
     api_secret = str(payload.get("api_secret", "")).strip() if api_secret_provided else None
+    read_private_key_provided = "read_private_key" in payload
+    read_private_key = str(payload.get("read_private_key", "")).strip() if read_private_key_provided else None
 
     geo_granularity = str(payload.get("geo_granularity", current["geo_granularity"])).strip()
     if geo_granularity not in {"none", "country", "country_region"}:
@@ -210,6 +234,8 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
         "behavior_enabled": _coerce_bool(payload.get("behavior_enabled", current["behavior_enabled"]), "behavior_enabled"),
         "property_id": property_id,
         "measurement_id": measurement_id,
+        "read_project_id": read_project_id,
+        "read_client_email": read_client_email,
         "sync_enabled": _coerce_bool(payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"),
         "sync_lookback_days": _coerce_int(payload.get("sync_lookback_days", current["sync_lookback_days"]), "sync_lookback_days", 1, 30),
         "event_schema": event_schema,
@@ -219,10 +245,20 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
         "impression_min_ms": _coerce_int(payload.get("impression_min_ms", current["impression_min_ms"]), "impression_min_ms", 250, 5000),
         "engaged_min_seconds": _coerce_int(payload.get("engaged_min_seconds", current["engaged_min_seconds"]), "engaged_min_seconds", 5, 60),
     }
-    if validated["sync_enabled"] and (not validated["measurement_id"] or not (api_secret_provided and api_secret or current["api_secret_configured"])):
-        raise ValueError("GA4 sync needs both measurement_id and api_secret.")
+    if validated["behavior_enabled"] and (not validated["measurement_id"] or not (api_secret_provided and api_secret or current["api_secret_configured"])):
+        raise ValueError("GA4 browser events need both measurement_id and api_secret.")
+    has_saved_read_key = bool(current["read_private_key_configured"])
+    has_new_read_key = bool(read_private_key_provided and read_private_key)
+    if validated["sync_enabled"] and (
+        not validated["property_id"]
+        or not validated["read_project_id"]
+        or not validated["read_client_email"]
+        or not (has_new_read_key or has_saved_read_key)
+    ):
+        raise ValueError("GA4 sync needs property_id, read_project_id, read_client_email, and read_private_key.")
     validated["api_secret"] = api_secret
-    return validated, api_secret_provided
+    validated["read_private_key"] = read_private_key
+    return validated, api_secret_provided or read_private_key_provided
 
 
 def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
@@ -274,8 +310,94 @@ def _ga4_secret() -> str:
     return (_read_setting("analytics.ga4_api_secret", "") or "").strip()
 
 
+def _ga4_read_private_key() -> str:
+    return (_read_setting("analytics.ga4_read_private_key", "") or "").strip()
+
+
 def _matomo_token() -> str:
     return (_read_setting("analytics.matomo_token_auth", "") or "").strip()
+
+
+def _sync_analytics_periodic_tasks(*, ga4_config: dict[str, object] | None = None, matomo_config: dict[str, object] | None = None) -> None:
+    from django_celery_beat.models import CrontabSchedule, PeriodicTask
+
+    if ga4_config is not None:
+        hourly_ga4, _ = CrontabSchedule.objects.get_or_create(
+            minute="20",
+            hour="*",
+            day_of_week="*",
+            day_of_month="*",
+            month_of_year="*",
+            timezone="UTC",
+        )
+        daily_ga4, _ = CrontabSchedule.objects.get_or_create(
+            minute="35",
+            hour="2",
+            day_of_week="*",
+            day_of_month="*",
+            month_of_year="*",
+            timezone="UTC",
+        )
+        ga4_enabled = bool(ga4_config["sync_enabled"]) and bool(ga4_config["property_id"]) and bool(ga4_config["read_project_id"]) and bool(ga4_config["read_client_email"]) and bool(ga4_config["read_private_key_configured"])
+        PeriodicTask.objects.update_or_create(
+            name="analytics-ga4-telemetry-hourly-restatement",
+            defaults={
+                "task": "analytics.schedule_ga4_telemetry_hourly",
+                "crontab": hourly_ga4,
+                "queue": "pipeline",
+                "enabled": ga4_enabled,
+                "description": "Hourly GA4 telemetry reread for the freshest FR-016 days.",
+            },
+        )
+        PeriodicTask.objects.update_or_create(
+            name="analytics-ga4-telemetry-daily-catchup",
+            defaults={
+                "task": "analytics.schedule_ga4_telemetry_daily",
+                "crontab": daily_ga4,
+                "queue": "pipeline",
+                "enabled": ga4_enabled,
+                "description": "Daily GA4 telemetry catch-up for delayed FR-016 rows.",
+            },
+        )
+
+    if matomo_config is not None:
+        hourly_matomo, _ = CrontabSchedule.objects.get_or_create(
+            minute="10",
+            hour="*",
+            day_of_week="*",
+            day_of_month="*",
+            month_of_year="*",
+            timezone="UTC",
+        )
+        daily_matomo, _ = CrontabSchedule.objects.get_or_create(
+            minute="25",
+            hour="2",
+            day_of_week="*",
+            day_of_month="*",
+            month_of_year="*",
+            timezone="UTC",
+        )
+        matomo_enabled = bool(matomo_config["enabled"]) and bool(matomo_config["sync_enabled"]) and bool(matomo_config["url"]) and bool(matomo_config["site_id_xenforo"]) and bool(matomo_config["token_auth_configured"])
+        PeriodicTask.objects.update_or_create(
+            name="analytics-matomo-telemetry-hourly",
+            defaults={
+                "task": "analytics.schedule_matomo_telemetry_hourly",
+                "crontab": hourly_matomo,
+                "queue": "pipeline",
+                "enabled": matomo_enabled,
+                "description": "Hourly Matomo telemetry reread for FR-016.",
+            },
+        )
+        PeriodicTask.objects.update_or_create(
+            name="analytics-matomo-telemetry-daily-catchup",
+            defaults={
+                "task": "analytics.schedule_matomo_telemetry_daily",
+                "crontab": daily_matomo,
+                "queue": "pipeline",
+                "enabled": matomo_enabled,
+                "description": "Daily Matomo telemetry catch-up for FR-016.",
+            },
+        )
 
 
 class AnalyticsTelemetryOverviewView(APIView):
@@ -352,13 +474,15 @@ class AnalyticsGA4SettingsView(APIView):
 
     def put(self, request):
         try:
-            validated, api_secret_provided = _validate_ga4_payload(request.data)
+            validated, _ = _validate_ga4_payload(request.data)
         except ValueError as exc:
             return Response({"detail": str(exc)}, status=400)
 
         _upsert_setting("analytics.ga4_behavior_enabled", "true" if validated["behavior_enabled"] else "false", "bool", "Whether browser-side GA4 telemetry events are enabled.")
         _upsert_setting("analytics.ga4_property_id", validated["property_id"], "str", "GA4 property ID used for telemetry reporting.")
         _upsert_setting("analytics.ga4_measurement_id", validated["measurement_id"], "str", "GA4 Measurement ID used by the site event bridge.")
+        _upsert_setting("analytics.ga4_read_project_id", validated["read_project_id"], "str", "Google Cloud project ID for GA4 Data API read access.")
+        _upsert_setting("analytics.ga4_read_client_email", validated["read_client_email"], "str", "Service-account client email for GA4 Data API read access.")
         _upsert_setting("analytics.ga4_sync_enabled", "true" if validated["sync_enabled"] else "false", "bool", "Whether scheduled GA4 telemetry sync is enabled.")
         _upsert_setting("analytics.ga4_sync_lookback_days", str(validated["sync_lookback_days"]), "int", "How many days each GA4 sync should reread.")
         _upsert_setting("analytics.telemetry_event_schema", validated["event_schema"], "str", "Telemetry event schema name for FR-016.")
@@ -367,8 +491,11 @@ class AnalyticsGA4SettingsView(APIView):
         _upsert_setting("analytics.telemetry_impression_visible_ratio", str(validated["impression_visible_ratio"]), "float", "Visible ratio needed before counting an impression.")
         _upsert_setting("analytics.telemetry_impression_min_ms", str(validated["impression_min_ms"]), "int", "How long a link must stay visible before it counts as an impression.")
         _upsert_setting("analytics.telemetry_engaged_min_seconds", str(validated["engaged_min_seconds"]), "int", "How many focused seconds count as engaged destination time.")
-        if api_secret_provided:
+        if "api_secret" in request.data:
             _upsert_setting("analytics.ga4_api_secret", validated["api_secret"] or "", "str", "GA4 Measurement Protocol API secret.", is_secret=True)
+        if "read_private_key" in request.data:
+            _upsert_setting("analytics.ga4_read_private_key", validated["read_private_key"] or "", "str", "Service-account private key for GA4 Data API read access.", is_secret=True)
+        _sync_analytics_periodic_tasks(ga4_config=get_ga4_telemetry_settings())
         return Response(get_ga4_telemetry_settings())
 
 
@@ -415,6 +542,40 @@ class AnalyticsGA4TestConnectionView(APIView):
         return Response({"status": "connected", "message": "GA4 accepted the test event."})
 
 
+class AnalyticsGA4ReadConnectionView(APIView):
+    """Run a lightweight GA4 Data API read test."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        current = get_ga4_telemetry_settings()
+        property_id = str(request.data.get("property_id") or current["property_id"] or "").strip()
+        project_id = str(request.data.get("read_project_id") or current["read_project_id"] or "").strip()
+        client_email = str(request.data.get("read_client_email") or current["read_client_email"] or "").strip()
+        private_key = str(request.data.get("read_private_key") or _ga4_read_private_key()).strip()
+        if not property_id or not project_id or not client_email or not private_key:
+            return Response(
+                {
+                    "status": "not_configured",
+                    "message": "Save the GA4 property ID, read project ID, client email, and private key first.",
+                },
+                status=400,
+            )
+
+        try:
+            service = build_ga4_data_service(
+                property_id=property_id,
+                project_id=project_id,
+                client_email=client_email,
+                private_key=private_key,
+            )
+            test_ga4_data_api_access(service=service, property_id=property_id)
+        except Exception as exc:
+            return Response({"status": "error", "message": f"GA4 read test failed: {exc}"}, status=502)
+
+        return Response({"status": "connected", "message": "GA4 Data API read access worked."})
+
+
 class AnalyticsMatomoSettingsView(APIView):
     """Get and save Matomo telemetry settings."""
 
@@ -437,6 +598,7 @@ class AnalyticsMatomoSettingsView(APIView):
         _upsert_setting("analytics.matomo_sync_lookback_days", str(validated["sync_lookback_days"]), "int", "How many days each Matomo sync should reread.")
         if token_provided:
             _upsert_setting("analytics.matomo_token_auth", validated["token_auth"] or "", "str", "Matomo API token auth value.", is_secret=True)
+        _sync_analytics_periodic_tasks(matomo_config=get_matomo_settings())
         return Response(get_matomo_settings())
 
 

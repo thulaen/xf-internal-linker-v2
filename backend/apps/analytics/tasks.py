@@ -13,6 +13,21 @@ def _load_sync_run(sync_run_id: int) -> AnalyticsSyncRun:
     return AnalyticsSyncRun.objects.get(pk=sync_run_id)
 
 
+def _queue_scheduled_sync(*, source: str, lookback_days: int, task_fn) -> dict[str, int | str]:
+    sync_run = AnalyticsSyncRun.objects.create(
+        source=source,
+        status="pending",
+        lookback_days=lookback_days,
+    )
+    task = task_fn.delay(sync_run.pk)
+    return {
+        "sync_run_id": sync_run.pk,
+        "task_id": task.id,
+        "source": source,
+        "lookback_days": lookback_days,
+    }
+
+
 @shared_task(bind=True, name="analytics.sync_matomo_telemetry")
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
@@ -83,3 +98,39 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
         ]
     )
     return {"sync_run_id": sync_run_id, **stats}
+
+
+@shared_task(name="analytics.schedule_ga4_telemetry_hourly")
+def schedule_ga4_telemetry_hourly() -> dict[str, int | str]:
+    return _queue_scheduled_sync(
+        source="ga4",
+        lookback_days=2,
+        task_fn=sync_ga4_telemetry,
+    )
+
+
+@shared_task(name="analytics.schedule_ga4_telemetry_daily")
+def schedule_ga4_telemetry_daily() -> dict[str, int | str]:
+    return _queue_scheduled_sync(
+        source="ga4",
+        lookback_days=7,
+        task_fn=sync_ga4_telemetry,
+    )
+
+
+@shared_task(name="analytics.schedule_matomo_telemetry_hourly")
+def schedule_matomo_telemetry_hourly() -> dict[str, int | str]:
+    return _queue_scheduled_sync(
+        source="matomo",
+        lookback_days=1,
+        task_fn=sync_matomo_telemetry,
+    )
+
+
+@shared_task(name="analytics.schedule_matomo_telemetry_daily")
+def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
+    return _queue_scheduled_sync(
+        source="matomo",
+        lookback_days=7,
+        task_fn=sync_matomo_telemetry,
+    )
