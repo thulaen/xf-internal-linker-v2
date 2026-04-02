@@ -400,6 +400,40 @@ def _sync_analytics_periodic_tasks(*, ga4_config: dict[str, object] | None = Non
         )
 
 
+def _telemetry_source_filter(request) -> str | None:
+    source = str(request.query_params.get("source") or "all").strip().lower()
+    if source in {"ga4", "matomo"}:
+        return source
+    return None
+
+
+def _telemetry_window_days(request, *, default: int = 30, minimum: int = 1, maximum: int = 90) -> int:
+    raw = request.query_params.get("days")
+    if raw in (None, ""):
+        return default
+    try:
+        value = int(raw)
+    except (TypeError, ValueError):
+        return default
+    return max(min(value, maximum), minimum)
+
+
+def _telemetry_queryset(request):
+    days = _telemetry_window_days(request)
+    start_date = timezone.now().date() - timedelta(days=days - 1)
+    queryset = SuggestionTelemetryDaily.objects.filter(date__gte=start_date)
+    source = _telemetry_source_filter(request)
+    if source:
+        queryset = queryset.filter(telemetry_source=source)
+    return queryset, days, source
+
+
+def _safe_rate(numerator: int | float, denominator: int | float) -> float:
+    if not denominator:
+        return 0.0
+    return round(float(numerator) / float(denominator), 4)
+
+
 class AnalyticsTelemetryOverviewView(APIView):
     """Small overview payload for the analytics page."""
 
@@ -438,6 +472,159 @@ class AnalyticsTelemetryOverviewView(APIView):
                         "observed_click_links",
                     ).first()
                 ),
+            }
+        )
+
+
+class AnalyticsTelemetryFunnelView(APIView):
+    """Return the simple FR-016 funnel for the selected source and time window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        totals = queryset.aggregate(
+            impressions=Sum("impressions"),
+            clicks=Sum("clicks"),
+            destination_views=Sum("destination_views"),
+            engaged_sessions=Sum("engaged_sessions"),
+            conversions=Sum("conversions"),
+        )
+        by_source_rows = (
+            queryset.values("telemetry_source")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                destination_views=Sum("destination_views"),
+                engaged_sessions=Sum("engaged_sessions"),
+                conversions=Sum("conversions"),
+            )
+            .order_by("telemetry_source")
+        )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "totals": {
+                    "impressions": int(totals["impressions"] or 0),
+                    "clicks": int(totals["clicks"] or 0),
+                    "destination_views": int(totals["destination_views"] or 0),
+                    "engaged_sessions": int(totals["engaged_sessions"] or 0),
+                    "conversions": int(totals["conversions"] or 0),
+                },
+                "by_source": [
+                    {
+                        "telemetry_source": row["telemetry_source"],
+                        "impressions": int(row["impressions"] or 0),
+                        "clicks": int(row["clicks"] or 0),
+                        "destination_views": int(row["destination_views"] or 0),
+                        "engaged_sessions": int(row["engaged_sessions"] or 0),
+                        "conversions": int(row["conversions"] or 0),
+                    }
+                    for row in by_source_rows
+                ],
+            }
+        )
+
+
+class AnalyticsTelemetryTrendView(APIView):
+    """Return a day-by-day telemetry trend for the selected source and time window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        rows = (
+            queryset.values("date")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                destination_views=Sum("destination_views"),
+                engaged_sessions=Sum("engaged_sessions"),
+                conversions=Sum("conversions"),
+            )
+            .order_by("date")
+        )
+        items = []
+        for row in rows:
+            impressions = int(row["impressions"] or 0)
+            clicks = int(row["clicks"] or 0)
+            destination_views = int(row["destination_views"] or 0)
+            engaged_sessions = int(row["engaged_sessions"] or 0)
+            conversions = int(row["conversions"] or 0)
+            items.append(
+                {
+                    "date": row["date"].isoformat(),
+                    "impressions": impressions,
+                    "clicks": clicks,
+                    "destination_views": destination_views,
+                    "engaged_sessions": engaged_sessions,
+                    "conversions": conversions,
+                    "ctr": _safe_rate(clicks, impressions),
+                    "engagement_rate": _safe_rate(engaged_sessions, destination_views),
+                }
+            )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "items": items,
+            }
+        )
+
+
+class AnalyticsTelemetryTopSuggestionsView(APIView):
+    """Return the strongest suggestion rows in the selected telemetry window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        rows = (
+            queryset.values(
+                "suggestion_id",
+                "suggestion__destination_title",
+                "suggestion__anchor_phrase",
+                "suggestion__status",
+                "telemetry_source",
+            )
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                destination_views=Sum("destination_views"),
+                engaged_sessions=Sum("engaged_sessions"),
+                conversions=Sum("conversions"),
+            )
+            .order_by("-clicks", "-engaged_sessions", "-impressions")[:8]
+        )
+        items = []
+        for row in rows:
+            impressions = int(row["impressions"] or 0)
+            clicks = int(row["clicks"] or 0)
+            destination_views = int(row["destination_views"] or 0)
+            engaged_sessions = int(row["engaged_sessions"] or 0)
+            conversions = int(row["conversions"] or 0)
+            items.append(
+                {
+                    "suggestion_id": str(row["suggestion_id"]),
+                    "telemetry_source": row["telemetry_source"],
+                    "destination_title": row["suggestion__destination_title"] or "Unknown destination",
+                    "anchor_phrase": row["suggestion__anchor_phrase"] or "",
+                    "status": row["suggestion__status"] or "unknown",
+                    "impressions": impressions,
+                    "clicks": clicks,
+                    "destination_views": destination_views,
+                    "engaged_sessions": engaged_sessions,
+                    "conversions": conversions,
+                    "ctr": _safe_rate(clicks, impressions),
+                    "engagement_rate": _safe_rate(engaged_sessions, destination_views),
+                }
+            )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "items": items,
             }
         )
 

@@ -16,6 +16,44 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         user = get_user_model().objects.create_user(username="analytics-user", password="pass")
         self.client.force_authenticate(user=user)
 
+    def _build_suggestion(self, *, host_id: int = 101, destination_id: int = 202, title: str = "Destination Thread"):
+        host = ContentItem.objects.create(
+            content_id=host_id,
+            content_type="thread",
+            title=f"Host {host_id}",
+            url=f"https://forum.example.com/host-{host_id}",
+        )
+        destination = ContentItem.objects.create(
+            content_id=destination_id,
+            content_type="thread",
+            title=title,
+            url=f"https://forum.example.com/destination-{destination_id}",
+        )
+        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text="Host sentence",
+            position=0,
+            char_count=13,
+            start_char=0,
+            end_char=13,
+            word_position=0,
+        )
+        pipeline_run = PipelineRun.objects.create(run_state="completed")
+        return Suggestion.objects.create(
+            pipeline_run=pipeline_run,
+            destination=destination,
+            destination_title=destination.title,
+            host=host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="host",
+            anchor_start=0,
+            anchor_end=4,
+            anchor_confidence="strong",
+        )
+
     def test_ga4_settings_round_trip_masks_secret_and_shared_values(self):
         response = self.client.put(
             "/api/analytics/settings/ga4/",
@@ -191,6 +229,65 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertIn("matomo", payload)
         self.assertEqual(payload["telemetry_row_count"], 0)
         self.assertEqual(payload["coverage_row_count"], 0)
+
+    def test_reporting_endpoints_return_funnel_trend_and_top_suggestions(self):
+        suggestion = self._build_suggestion()
+        SuggestionTelemetryDaily.objects.create(
+            date=PipelineRun.objects.first().created_at.date(),
+            telemetry_source="matomo",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            impressions=10,
+            clicks=4,
+            destination_views=3,
+            engaged_sessions=2,
+            conversions=1,
+            sessions=3,
+            event_count=20,
+        )
+        SuggestionTelemetryDaily.objects.create(
+            date=PipelineRun.objects.first().created_at.date(),
+            telemetry_source="ga4",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            device_category="desktop",
+            default_channel_group="Organic Search",
+            source_medium="google / organic",
+            country="United Kingdom",
+            impressions=5,
+            clicks=2,
+            destination_views=2,
+            engaged_sessions=1,
+            conversions=0,
+            sessions=2,
+            event_count=9,
+        )
+
+        funnel = self.client.get("/api/analytics/telemetry/funnel/?days=30")
+        trend = self.client.get("/api/analytics/telemetry/trend/?days=30")
+        top = self.client.get("/api/analytics/telemetry/top-suggestions/?days=30")
+
+        self.assertEqual(funnel.status_code, 200)
+        self.assertEqual(funnel.json()["totals"]["clicks"], 6)
+        self.assertEqual(len(funnel.json()["by_source"]), 2)
+
+        self.assertEqual(trend.status_code, 200)
+        self.assertEqual(len(trend.json()["items"]), 1)
+        self.assertEqual(trend.json()["items"][0]["ctr"], 0.4)
+
+        self.assertEqual(top.status_code, 200)
+        self.assertEqual(top.json()["items"][0]["destination_title"], "Destination Thread")
+        self.assertEqual(top.json()["items"][0]["clicks"], 4)
 
     def test_integration_view_returns_copy_ready_snippet_when_browser_events_enabled(self):
         AppSetting.objects.create(

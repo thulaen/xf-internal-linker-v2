@@ -3,6 +3,7 @@
 from django.urls import path
 
 from .views import (
+    AnalyticsTelemetryFunnelView,
     AnalyticsGA4SettingsView,
     AnalyticsGA4ReadConnectionView,
     AnalyticsGA4SyncView,
@@ -12,10 +13,15 @@ from .views import (
     AnalyticsMatomoTestConnectionView,
     AnalyticsTelemetryIntegrationView,
     AnalyticsTelemetryOverviewView,
+    AnalyticsTelemetryTopSuggestionsView,
+    AnalyticsTelemetryTrendView,
 )
 
 urlpatterns = [
     path("telemetry/overview/", AnalyticsTelemetryOverviewView.as_view(), name="analytics-telemetry-overview"),
+    path("telemetry/funnel/", AnalyticsTelemetryFunnelView.as_view(), name="analytics-telemetry-funnel"),
+    path("telemetry/trend/", AnalyticsTelemetryTrendView.as_view(), name="analytics-telemetry-trend"),
+    path("telemetry/top-suggestions/", AnalyticsTelemetryTopSuggestionsView.as_view(), name="analytics-telemetry-top-suggestions"),
     path("telemetry/integration/", AnalyticsTelemetryIntegrationView.as_view(), name="analytics-telemetry-integration"),
     path("telemetry/ga4-sync/", AnalyticsGA4SyncView.as_view(), name="analytics-ga4-sync"),
     path("telemetry/matomo-sync/", AnalyticsMatomoSyncView.as_view(), name="analytics-matomo-sync"),

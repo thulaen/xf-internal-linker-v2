@@ -6,6 +6,8 @@ export interface AnalyticsOverviewResponse {
   ga4: {
     connection_status: string;
     connection_message: string;
+    read_connection_status?: string;
+    read_connection_message?: string;
     last_sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null;
   };
   matomo: {
@@ -42,6 +44,64 @@ export interface AnalyticsIntegrationResponse {
   browser_snippet: string;
 }
 
+export interface AnalyticsFunnelResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  totals: {
+    impressions: number;
+    clicks: number;
+    destination_views: number;
+    engaged_sessions: number;
+    conversions: number;
+  };
+  by_source: Array<{
+    telemetry_source: 'ga4' | 'matomo';
+    impressions: number;
+    clicks: number;
+    destination_views: number;
+    engaged_sessions: number;
+    conversions: number;
+  }>;
+}
+
+export interface AnalyticsTrendPoint {
+  date: string;
+  impressions: number;
+  clicks: number;
+  destination_views: number;
+  engaged_sessions: number;
+  conversions: number;
+  ctr: number;
+  engagement_rate: number;
+}
+
+export interface AnalyticsTrendResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  items: AnalyticsTrendPoint[];
+}
+
+export interface AnalyticsTopSuggestion {
+  suggestion_id: string;
+  telemetry_source: 'ga4' | 'matomo';
+  destination_title: string;
+  anchor_phrase: string;
+  status: string;
+  impressions: number;
+  clicks: number;
+  destination_views: number;
+  engaged_sessions: number;
+  conversions: number;
+  ctr: number;
+  engagement_rate: number;
+}
+
+export interface AnalyticsTopSuggestionsResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  items: AnalyticsTopSuggestion[];
+}
+
 export interface AnalyticsSyncTriggerResponse {
   sync_run_id: number;
   task_id: string;
@@ -60,6 +120,18 @@ export class AnalyticsService {
 
   getIntegration(): Observable<AnalyticsIntegrationResponse> {
     return this.http.get<AnalyticsIntegrationResponse>('/api/analytics/telemetry/integration/');
+  }
+
+  getFunnel(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsFunnelResponse> {
+    return this.http.get<AnalyticsFunnelResponse>(`/api/analytics/telemetry/funnel/?source=${source}&days=${days}`);
+  }
+
+  getTrend(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTrendResponse> {
+    return this.http.get<AnalyticsTrendResponse>(`/api/analytics/telemetry/trend/?source=${source}&days=${days}`);
+  }
+
+  getTopSuggestions(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTopSuggestionsResponse> {
+    return this.http.get<AnalyticsTopSuggestionsResponse>(`/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}`);
   }
 
   runGa4Sync(): Observable<AnalyticsSyncTriggerResponse> {

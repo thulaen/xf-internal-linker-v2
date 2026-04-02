@@ -44,7 +44,7 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 19
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 now has a repo-side live-site bridge handoff, and Slice 3 now includes GUI-first GA4 read auth, a real GA4 importer, and scheduled sync wiring.
+- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has the repo-side browser-bridge handoff, Slice 3 sync plumbing is landed, and Slice 4 now has the first real local reporting layer on the Analytics page.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -271,32 +271,28 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Intentional files changed:
   - `AI-CONTEXT.md`
   - `FEATURE-REQUESTS.md`
-  - `backend/apps/analytics/ga4_client.py`
-  - `backend/apps/analytics/sync.py`
-  - `backend/apps/analytics/tasks.py`
   - `backend/apps/analytics/tests.py`
   - `backend/apps/analytics/urls.py`
   - `backend/apps/analytics/views.py`
-  - `frontend/src/app/settings/settings.component.html`
-  - `frontend/src/app/settings/settings.component.spec.ts`
-  - `frontend/src/app/settings/settings.component.ts`
-  - `frontend/src/app/settings/silo-settings.service.ts`
+  - `frontend/src/app/analytics/analytics.component.html`
+  - `frontend/src/app/analytics/analytics.component.scss`
+  - `frontend/src/app/analytics/analytics.component.spec.ts`
+  - `frontend/src/app/analytics/analytics.component.ts`
+  - `frontend/src/app/analytics/analytics.service.ts`
 - What changed:
-  - Replaced the old GA4 guarded failure with a real GUI-first read path: the settings API now stores a GA4 Data API project ID, client email, and write-only private key separately from the browser-event Measurement Protocol fields.
-  - Added a GA4 read-access test endpoint plus a small backend helper that builds a service-account-backed GA4 Data API client only when the read path is used.
-  - Landed the first real GA4 importer into `SuggestionTelemetryDaily` / `TelemetryCoverageDaily`, including per-event reads for impressions, clicks, destination views, engaged sessions, and conversions.
-  - Wired scheduled telemetry sync seeds through `django_celery_beat` for hourly and daily GA4 and Matomo restatement jobs so the manual sync path is no longer the only scheduler entry point.
-  - Updated the Angular settings card so operators can save and test GA4 browser-event credentials separately from GA4 read credentials in plain English.
-  - Added focused backend and frontend coverage for GA4 read settings, GA4 read test wiring, GA4 row-writing, and the updated settings card.
+  - Added the first real Slice 4 reporting endpoints on top of the local telemetry tables: funnel totals, day-by-day trend rows, and top suggestion rows, all filterable by telemetry source.
+  - Updated the Analytics page so it now shows a source toggle, a plain-English funnel, a simple daily click chart, and a top suggestions panel instead of only setup/status cards.
+  - Swapped the old GA4 “still guarded” wording on the page for the new reality: the page now reflects the landed GA4 read-import path and shows the read-sync status badge.
+  - Added focused backend and frontend coverage for the new reporting endpoints and the upgraded analytics page.
 - Verification that passed:
   - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics --settings=config.settings.test --verbosity 1`
-  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/settings/settings.component.spec.ts --include src/app/analytics/analytics.component.spec.ts`
+  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/analytics/analytics.component.spec.ts`
   - `docker-compose run --rm frontend npm run build`
   - `docker-compose build`
 - Verification still needed for a full FR-016 closeout:
   - actual XenForo or WordPress template installation of the snippet on the live sites
   - live GA4 property validation against a real operator-owned service account instead of mocked/local test coverage only
-  - broader Slice 4 charting/reporting work now that the GA4 and Matomo import plumbing exists
+  - broader Slice 4 charting/reporting work beyond the new funnel, trend, and top-suggestions panels
 - Commit/push state:
   - Pending at the time of this note update; commit after the verified slice is staged.
 

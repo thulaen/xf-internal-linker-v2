@@ -5,7 +5,15 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { forkJoin } from 'rxjs';
-import { AnalyticsIntegrationResponse, AnalyticsOverviewResponse, AnalyticsService } from './analytics.service';
+import {
+  AnalyticsFunnelResponse,
+  AnalyticsIntegrationResponse,
+  AnalyticsOverviewResponse,
+  AnalyticsService,
+  AnalyticsTopSuggestionsResponse,
+  AnalyticsTrendPoint,
+  AnalyticsTrendResponse,
+} from './analytics.service';
 
 @Component({
   selector: 'app-analytics',
@@ -22,17 +30,33 @@ export class AnalyticsComponent implements OnInit {
   error = '';
   overview: AnalyticsOverviewResponse | null = null;
   integration: AnalyticsIntegrationResponse | null = null;
+  funnel: AnalyticsFunnelResponse | null = null;
+  trend: AnalyticsTrendResponse | null = null;
+  topSuggestions: AnalyticsTopSuggestionsResponse | null = null;
   syncingGa4 = false;
   syncingMatomo = false;
+  selectedSource: 'all' | 'ga4' | 'matomo' = 'all';
 
   ngOnInit(): void {
+    this.loadData();
+  }
+
+  loadData(): void {
+    this.loading = true;
+    this.error = '';
     forkJoin({
       overview: this.analyticsSvc.getOverview(),
       integration: this.analyticsSvc.getIntegration(),
+      funnel: this.analyticsSvc.getFunnel(this.selectedSource),
+      trend: this.analyticsSvc.getTrend(this.selectedSource),
+      topSuggestions: this.analyticsSvc.getTopSuggestions(this.selectedSource),
     }).subscribe({
-      next: ({ overview, integration }) => {
+      next: ({ overview, integration, funnel, trend, topSuggestions }) => {
         this.overview = overview;
         this.integration = integration;
+        this.funnel = funnel;
+        this.trend = trend;
+        this.topSuggestions = topSuggestions;
         this.loading = false;
       },
       error: () => {
@@ -62,6 +86,56 @@ export class AnalyticsComponent implements OnInit {
     return status === 'ready' ? 'Ready to install' : 'Needs setup';
   }
 
+  sourceLabel(source: 'all' | 'ga4' | 'matomo'): string {
+    return {
+      all: 'Combined',
+      ga4: 'GA4 only',
+      matomo: 'Matomo only',
+    }[source];
+  }
+
+  chooseSource(source: 'all' | 'ga4' | 'matomo'): void {
+    if (this.selectedSource === source) {
+      return;
+    }
+    this.selectedSource = source;
+    this.loadData();
+  }
+
+  formatPercent(value: number): string {
+    return `${(value * 100).toFixed(1)}%`;
+  }
+
+  funnelSteps(): Array<{ label: string; value: number }> {
+    const totals = this.funnel?.totals;
+    if (!totals) {
+      return [];
+    }
+    return [
+      { label: 'Impressions', value: totals.impressions },
+      { label: 'Clicks', value: totals.clicks },
+      { label: 'Destination views', value: totals.destination_views },
+      { label: 'Engaged sessions', value: totals.engaged_sessions },
+      { label: 'Conversions', value: totals.conversions },
+    ];
+  }
+
+  funnelBarWidth(value: number): string {
+    const max = Math.max(...this.funnelSteps().map((step) => step.value), 0);
+    if (!max) {
+      return '0%';
+    }
+    return `${Math.max((value / max) * 100, 6)}%`;
+  }
+
+  trendClickHeight(point: AnalyticsTrendPoint): string {
+    const max = Math.max(...(this.trend?.items ?? []).map((item) => item.clicks), 0);
+    if (!max) {
+      return '8%';
+    }
+    return `${Math.max((point.clicks / max) * 100, 8)}%`;
+  }
+
   async copySnippet(): Promise<void> {
     const snippet = this.integration?.browser_snippet ?? '';
     if (!snippet) {
@@ -86,6 +160,7 @@ export class AnalyticsComponent implements OnInit {
       next: (response) => {
         this.syncingGa4 = false;
         this.snack.open(response.message, undefined, { duration: 3000 });
+        this.loadData();
       },
       error: (error) => {
         this.syncingGa4 = false;
@@ -100,6 +175,7 @@ export class AnalyticsComponent implements OnInit {
       next: (response) => {
         this.syncingMatomo = false;
         this.snack.open(response.message, undefined, { duration: 3000 });
+        this.loadData();
       },
       error: (error) => {
         this.syncingMatomo = false;

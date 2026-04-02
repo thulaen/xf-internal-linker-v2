@@ -11,6 +11,8 @@ describe('AnalyticsComponent', () => {
       ga4: {
         connection_status: 'saved',
         connection_message: 'Saved.',
+        read_connection_status: 'connected',
+        read_connection_message: 'Read sync worked.',
         last_sync: null,
       },
       matomo: {
@@ -39,6 +41,63 @@ describe('AnalyticsComponent', () => {
       install_steps: ['Paste the script.'],
       browser_snippet: '<script>window.test=true;</script>',
     }),
+    getFunnel: jasmine.createSpy('getFunnel').and.returnValue(of({
+      days: 30,
+      selected_source: 'all' as const,
+      totals: {
+        impressions: 10,
+        clicks: 4,
+        destination_views: 3,
+        engaged_sessions: 2,
+        conversions: 1,
+      },
+      by_source: [
+        {
+          telemetry_source: 'ga4' as const,
+          impressions: 5,
+          clicks: 2,
+          destination_views: 2,
+          engaged_sessions: 1,
+          conversions: 0,
+        },
+      ],
+    })),
+    getTrend: jasmine.createSpy('getTrend').and.returnValue(of({
+      days: 30,
+      selected_source: 'all' as const,
+      items: [
+        {
+          date: '2026-04-02',
+          impressions: 10,
+          clicks: 4,
+          destination_views: 3,
+          engaged_sessions: 2,
+          conversions: 1,
+          ctr: 0.4,
+          engagement_rate: 0.6667,
+        },
+      ],
+    })),
+    getTopSuggestions: jasmine.createSpy('getTopSuggestions').and.returnValue(of({
+      days: 30,
+      selected_source: 'all' as const,
+      items: [
+        {
+          suggestion_id: '11111111-1111-1111-1111-111111111111',
+          telemetry_source: 'matomo' as const,
+          destination_title: 'Destination Thread',
+          anchor_phrase: 'host',
+          status: 'pending',
+          impressions: 10,
+          clicks: 4,
+          destination_views: 3,
+          engaged_sessions: 2,
+          conversions: 1,
+          ctr: 0.4,
+          engagement_rate: 0.6667,
+        },
+      ],
+    })),
     runGa4Sync: jasmine.createSpy('runGa4Sync').and.returnValue(of({
       sync_run_id: 1,
       task_id: 'task-ga4',
@@ -58,6 +117,9 @@ describe('AnalyticsComponent', () => {
   beforeEach(() => {
     analyticsServiceStub.runGa4Sync.calls.reset();
     analyticsServiceStub.runMatomoSync.calls.reset();
+    analyticsServiceStub.getFunnel.calls.reset();
+    analyticsServiceStub.getTrend.calls.reset();
+    analyticsServiceStub.getTopSuggestions.calls.reset();
   });
 
   it('shows the live-site browser bridge card', async () => {
@@ -79,6 +141,8 @@ describe('AnalyticsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Copy browser snippet');
     expect(fixture.nativeElement.textContent).toContain('Run Matomo sync');
     expect(fixture.nativeElement.textContent).toContain('Run GA4 sync');
+    expect(fixture.nativeElement.textContent).toContain('Funnel for the last 30 days');
+    expect(fixture.nativeElement.textContent).toContain('Top suggestion rows');
   });
 
   it('queues manual syncs from the page buttons', async () => {
@@ -104,5 +168,28 @@ describe('AnalyticsComponent', () => {
 
     expect(analyticsServiceStub.runMatomoSync).toHaveBeenCalled();
     expect(analyticsServiceStub.runGa4Sync).toHaveBeenCalled();
+  });
+
+  it('reloads report queries when the source filter changes', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AnalyticsComponent, NoopAnimationsModule],
+      providers: [
+        {
+          provide: AnalyticsService,
+          useValue: analyticsServiceStub,
+        },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AnalyticsComponent);
+    fixture.detectChanges();
+
+    const buttons = Array.from(fixture.nativeElement.querySelectorAll('.source-filter button')) as HTMLButtonElement[];
+    const ga4Button = buttons.find((button) => button.textContent?.includes('GA4 only'));
+    ga4Button?.click();
+
+    expect(analyticsServiceStub.getFunnel).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getTrend).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4');
   });
 });
