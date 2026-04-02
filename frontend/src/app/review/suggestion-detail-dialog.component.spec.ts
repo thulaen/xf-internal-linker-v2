@@ -48,6 +48,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_rare_term_propagation: 0.88,
     score_field_aware_relevance: 0.86,
     score_click_distance: 0.7,
+    score_slate_diversity: 0.64,
     host_sentence: 10,
     anchor_start: 22,
     anchor_end: 33,
@@ -210,6 +211,22 @@ describe('SuggestionDetailDialogComponent', () => {
       ranking_weight: 0.08,
       exploration_rate: 1.41
     },
+    slate_diversity_diagnostics: {
+      mmr_applied: true,
+      lambda: 0.65,
+      score_window: 0.3,
+      slot: 1,
+      relevance_normalized: 0.8,
+      max_similarity_to_selected: 0.23,
+      mmr_score: 0.45,
+      swapped_from_rank: 1,
+      similarity_cap: 0.9,
+      flagged_redundant: false,
+      window_source: 'score_window',
+      runtime_path: 'python_fallback',
+      runtime_reason: 'Python fallback is active because the native C++ MMR kernel is not compiled or could not be loaded.',
+      algorithm_version: 'fr015-v1',
+    },
     updated_at: '2026-03-25T00:00:00Z',
   };
 
@@ -241,7 +258,9 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('Learned Anchor Corroboration');
     expect(text).toContain('Rare-Term Propagation');
     expect(text).toContain('Field-Aware Relevance');
+    expect(text).toContain('Slate Diversity');
     expect(text).toContain('Matched borrowed terms: xenforo (2 pages)');
     expect(text).toContain('Top title terms: destination');
+    expect(text).toContain('Promoted for variety');
   });
 });

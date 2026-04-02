@@ -432,6 +432,35 @@ def check_native_scoring():
         )
 
 
+def check_slate_diversity_runtime():
+    from apps.pipeline.services.slate_diversity import get_slate_diversity_runtime_status
+
+    runtime = get_slate_diversity_runtime_status()
+    metadata = {
+        "runtime_path": runtime["path"],
+        "cpp_fast_path_active": bool(runtime["available"]),
+        "python_fallback_active": not bool(runtime["available"]),
+    }
+
+    if runtime["available"]:
+        return _result(
+            "healthy",
+            "FR-015 slate diversity can use the native C++ MMR kernel for the final reranking step.",
+            "No action needed.",
+            metadata,
+        )
+
+    return _result(
+        "degraded",
+        "FR-015 slate diversity is running on the Python fallback path right now.",
+        "Rebuild the native extensions if you want the FR-015 C++ fast path back.",
+        {
+            **metadata,
+            "fallback_reason": runtime["reason"],
+        },
+    )
+
+
 def check_embedding_specialist():
     return _result(
         "disabled",
@@ -558,6 +587,7 @@ def run_health_checks():
         "runtime_lanes": check_runtime_lanes,
         "scheduler_lane": check_scheduler_lane,
         "native_scoring": check_native_scoring,
+        "slate_diversity_runtime": check_slate_diversity_runtime,
         "embedding_specialist": check_embedding_specialist,
         "ga4": check_ga4,
         "gsc": check_gsc,

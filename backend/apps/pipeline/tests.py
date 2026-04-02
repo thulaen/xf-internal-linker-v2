@@ -80,6 +80,7 @@ from apps.pipeline.services.ranker import (
     score_destination_matches,
 )
 from apps.pipeline.services.slate_diversity import SlateDiversitySettings
+from apps.pipeline.services.slate_diversity import apply_slate_diversity, get_slate_diversity_runtime_status
 from apps.pipeline.services.weighted_pagerank import (
     _WeightedEdge,
     _normalize_source_edges,
@@ -280,6 +281,47 @@ class ScoringExtensionTests(TestCase):
 
     def test_full_batch_scoring_matches_python_reference_with_5_columns(self):
         self._assert_full_batch_matches_reference(component_count=5)
+
+    def test_feedrerank_mmr_batch_matches_python_reference(self):
+        if feedrerank_ext is None or not hasattr(feedrerank_ext, "calculate_mmr_scores_batch"):
+            self.skipTest("C++ feed rerank extension not compiled")
+
+        relevance = np.array([0.95, 0.8, 0.6], dtype=np.float64)
+        candidate_embeddings = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.9, 0.1, 0.0],
+                [0.0, 1.0, 0.0],
+            ],
+            dtype=np.float64,
+        )
+        selected_embeddings = np.array(
+            [
+                [1.0, 0.0, 0.0],
+                [0.0, 0.0, 1.0],
+            ],
+            dtype=np.float64,
+        )
+        diversity_lambda = 0.65
+
+        cpp_scores, cpp_max_sims = feedrerank_ext.calculate_mmr_scores_batch(
+            relevance,
+            candidate_embeddings,
+            selected_embeddings,
+            diversity_lambda,
+        )
+
+        py_max_sims = np.array(
+            [
+                max(float(np.dot(candidate, selected)) for selected in selected_embeddings)
+                for candidate in candidate_embeddings
+            ],
+            dtype=np.float64,
+        )
+        py_scores = (diversity_lambda * relevance) - ((1.0 - diversity_lambda) * py_max_sims)
+
+        np.testing.assert_allclose(cpp_max_sims, py_max_sims, atol=1e-9, rtol=0.0)
+        np.testing.assert_allclose(cpp_scores, py_scores, atol=1e-9, rtol=0.0)
 
 
 class TextTokenizerExtensionTests(TestCase):
@@ -3052,6 +3094,70 @@ class Stage2RegressionTests(TestCase):
         self.assertAlmostEqual(optimized[0].score_semantic, 1.0)
         self.assertAlmostEqual(optimized[1].score_semantic, 0.8)
         self.assertAlmostEqual(optimized[2].score_semantic, 0.6)
+
+
+class SlateDiversityServiceTests(TestCase):
+    def test_apply_slate_diversity_swaps_in_more_varied_candidate_for_same_host(self):
+        host_key = (900, "thread")
+        candidates_by_destination = {
+            (101, "thread"): [_scored_candidate(destination_content_id=101, host_content_id=900, host_sentence_id=1, score_final=0.95)],
+            (102, "thread"): [_scored_candidate(destination_content_id=102, host_content_id=900, host_sentence_id=2, score_final=0.93)],
+            (103, "thread"): [_scored_candidate(destination_content_id=103, host_content_id=900, host_sentence_id=3, score_final=0.91)],
+        }
+        embedding_lookup = {
+            (101, "thread"): np.array([1.0, 0.0], dtype=np.float32),
+            (102, "thread"): np.array([0.99, 0.01], dtype=np.float32),
+            (103, "thread"): np.array([0.0, 1.0], dtype=np.float32),
+        }
+
+        selected = apply_slate_diversity(
+            candidates_by_destination=candidates_by_destination,
+            embedding_lookup=embedding_lookup,
+            settings=SlateDiversitySettings(
+                enabled=True,
+                diversity_lambda=0.65,
+                score_window=0.30,
+                similarity_cap=0.90,
+            ),
+            max_per_host=2,
+        )
+
+        self.assertEqual(
+            [candidate.destination_content_id for candidate in selected],
+            [101, 103],
+        )
+        self.assertEqual(selected[0].slate_diversity_diagnostics["slot"], 0)
+        self.assertEqual(selected[1].slate_diversity_diagnostics["slot"], 1)
+        self.assertEqual(selected[1].slate_diversity_diagnostics["swapped_from_rank"], 1)
+        self.assertFalse(selected[1].slate_diversity_diagnostics["flagged_redundant"])
+
+    def test_apply_slate_diversity_uses_content_key_embedding_lookup(self):
+        candidates_by_destination = {
+            (101, "thread"): [_scored_candidate(destination_content_id=101, host_content_id=800, host_sentence_id=1, score_final=0.95)],
+            (102, "thread"): [_scored_candidate(destination_content_id=102, host_content_id=800, host_sentence_id=2, score_final=0.92)],
+        }
+        embedding_lookup = {
+            (101, "thread"): np.array([1.0, 0.0], dtype=np.float32),
+            (102, "thread"): np.array([0.0, 1.0], dtype=np.float32),
+        }
+
+        selected = apply_slate_diversity(
+            candidates_by_destination=candidates_by_destination,
+            embedding_lookup=embedding_lookup,
+            settings=SlateDiversitySettings(enabled=True),
+            max_per_host=2,
+        )
+
+        self.assertEqual(len(selected), 2)
+        self.assertIn("runtime_path", selected[0].slate_diversity_diagnostics)
+        self.assertIn("runtime_reason", selected[1].slate_diversity_diagnostics)
+
+    def test_slate_diversity_runtime_status_reports_plain_english_reason(self):
+        runtime = get_slate_diversity_runtime_status()
+
+        self.assertIn(runtime["path"], {"cpp_extension", "python_fallback"})
+        self.assertIsInstance(runtime["reason"], str)
+        self.assertTrue(runtime["reason"])
 
 
 class PipelineTaskRunStatsTests(TestCase):

@@ -142,6 +142,17 @@
           <mat-progress-bar mode="determinate" [value]="scorePercent(detail.score_explore_exploit)" color="accent"></mat-progress-bar>
           <span class="score-val">{{ (detail.score_explore_exploit * 100).toFixed(0) }}</span>
         </div>
+        <div class="score-item">
+          <span class="score-name">Slate Diversity</span>
+          <mat-progress-bar
+            mode="determinate"
+            [value]="scorePercent(detail.score_slate_diversity ?? 0)"
+            color="accent"
+          ></mat-progress-bar>
+          <span class="score-val">
+            {{ detail.score_slate_diversity === null ? 'n/a' : (detail.score_slate_diversity * 100).toFixed(0) }}
+          </span>
+        </div>
       </div>
 
       @if (detail.phrase_match_diagnostics) {
@@ -299,6 +310,27 @@
           - Explore (UCB1): {{ detail.explore_exploit_diagnostics.explore_score.toFixed(3) }}
           - Pairs found: {{ detail.explore_exploit_diagnostics.total_attempts }}
           - Pairs approved: {{ detail.explore_exploit_diagnostics.successes }}
+        </p>
+      }
+
+      @if (detail.slate_diversity_diagnostics.mmr_applied) {
+        <p class="meta-line">
+          <mat-icon>view_stream</mat-icon>
+          {{ slateDiversityStateLabel() }}.
+        </p>
+        <p class="meta-line">
+          {{ slateDiversitySummary() }}
+        </p>
+        <p class="meta-line">
+          Slot {{ (detail.slate_diversity_diagnostics.slot ?? 0) + 1 }}
+          - Runtime: {{ slateDiversityRuntimeLabel() }}
+          - MMR {{ (detail.slate_diversity_diagnostics.mmr_score ?? 0).toFixed(3) }}
+          @if (detail.slate_diversity_diagnostics.max_similarity_to_selected !== null) {
+            - Max similarity {{ (detail.slate_diversity_diagnostics.max_similarity_to_selected ?? 0).toFixed(3) }}
+          }
+        </p>
+        <p class="meta-line">
+          {{ detail.slate_diversity_diagnostics.runtime_reason }}
         </p>
       }
     </section>

@@ -26,6 +26,7 @@ class ServiceStatusSnapshot(TimestampedModel):
         ('runtime_lanes', 'Runtime Lanes'),
         ('scheduler_lane', 'C# Scheduler Lane'),
         ('native_scoring', 'Native C++ Scoring'),
+        ('slate_diversity_runtime', 'Slate Diversity Runtime'),
         ('embedding_specialist', 'Python Embedding Specialist'),
     ]
 

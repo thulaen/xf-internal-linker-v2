@@ -22,9 +22,27 @@ Important:
 - 2026-03-26: a one-off supporting infrastructure exception added the `.NET 8` `HttpWorker` helper microservice under `services/http-worker/`.
 - `HttpWorker` is only for HTTP-heavy helper work: BrokenLinkChecker, UrlFetcher, HealthChecker, and SitemapCrawler.
 - `HttpWorker` does not replace Django as the main app, does not take over DB writes or product business logic, and does not replace Celery across the repo.
-- Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 15 / `FR-012`.
+- Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 19 / `FR-016`.
 
 ## COMPLETED
+
+### FR-015 - Final Slate Diversity Reranking
+**Requested:** 2026-03-24
+**Target phase:** Phase 18
+**Completed phase:** Phase 18
+**Priority:** Medium
+**Patent inspiration:** `US20070294225A1`
+**Completed:** 2026-04-02
+
+- Implemented exactly against `docs/specs/fr015-final-slate-diversity-reranking.md`.
+- Added the final host-level MMR diversity pass after hard constraints, FR-014 clustering, and FR-013 feedback reranking.
+- Added a C++ FR-015 fast path in `backend/extensions/feedrerank.cpp` with a matching Python fallback plus correctness coverage.
+- `Suggestion.score_slate_diversity` and `Suggestion.slate_diversity_diagnostics` now store explainable FR-015 slot-selection details.
+- Angular review detail and system diagnostics now show plain-English FR-015 runtime status and diversity diagnostics.
+- Repo-local wrappers now cover native extension rebuilds, frontend builds, and full verification without relying on PATH state.
+- Local verification passed through `scripts/verify.ps1`, including native rebuild, full backend Django tests, Angular build, and Angular `test:ci`.
+
+---
 
 ### FR-011 - Field-Aware Relevance Scoring
 **Requested:** 2026-03-24
@@ -183,20 +201,6 @@ Important:
 ---
 
 ## PENDING
-
-### FR-015 - Final Slate Diversity Reranking
-**Requested:** 2026-03-24
-**Target phase:** Phase 18
-**Priority:** Medium
-**Patent inspiration:** `US20070294225A1`
-
-- Apply a late diversity reranker only after hard constraints and duplicate-family normalization.
-- Stay inside a close-score window and never override hard suppression rules.
-- Use C++ as the default execution path for the hot reranking math when a hot inner loop exists, but keep a pure-Python fallback with matching behavior.
-- Add diagnostics that say, in plain English, whether the C++ path ran and, if not, why not.
-- Show that C++ status on the dashboard or diagnostics UI, including whether fallback was used and whether the C++ path gave a real speed benefit.
-
----
 
 ### FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
 **Requested:** 2026-03-25
@@ -900,4 +904,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-03-28 (Phase 17 / FR-014 is complete. Next target: Phase 18 / FR-015. FR-021 through FR-030 added to backlog.)*
+*Last updated: 2026-04-02 (Phase 18 / FR-015 is complete. Next target: Phase 19 / FR-016. Repo-local verification wrappers added and passing.)*

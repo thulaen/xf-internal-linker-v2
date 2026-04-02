@@ -52,6 +52,7 @@ export interface SuggestionDetail extends Suggestion {
   score_rare_term_propagation: number;
   score_field_aware_relevance: number;
   score_click_distance: number;
+  score_slate_diversity: number | null;
   host_sentence: number;
   anchor_start: number | null;
   anchor_end: number | null;
@@ -70,6 +71,7 @@ export interface SuggestionDetail extends Suggestion {
   cluster_diagnostics: ClusterDiagnostics;
   score_explore_exploit: number;
   explore_exploit_diagnostics: FeedbackRerankDiagnostics;
+  slate_diversity_diagnostics: SlateDiversityDiagnostics;
   updated_at: string;
 }
 
@@ -263,6 +265,23 @@ export interface FeedbackRerankDiagnostics {
   global_attempts: number;
   ranking_weight: number;
   exploration_rate: number;
+}
+
+export interface SlateDiversityDiagnostics {
+  mmr_applied?: boolean;
+  lambda?: number;
+  score_window?: number;
+  slot?: number;
+  relevance_normalized?: number;
+  max_similarity_to_selected?: number | null;
+  mmr_score?: number;
+  swapped_from_rank?: number | null;
+  similarity_cap?: number;
+  flagged_redundant?: boolean;
+  window_source?: 'score_window' | 'fallback_pool';
+  runtime_path?: 'cpp_extension' | 'python_fallback';
+  runtime_reason?: string;
+  algorithm_version?: string;
 }
 
 export interface PaginatedResult<T> {

@@ -126,9 +126,9 @@ describe('SettingsComponent', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
-    expect(text).toContain('Load Recommended');
+    expect(text).toContain('WordPress Sync');
     expect(text).toContain('GA4 + Search Console');
-    expect(text).toContain('WordPress site URL');
+    expect(text).toContain('Slate Diversity');
     expect(text).toContain('Rare-Term Propagation');
   });
 });

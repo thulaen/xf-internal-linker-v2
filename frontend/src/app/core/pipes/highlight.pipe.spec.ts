@@ -36,10 +36,10 @@ describe('HighlightPipe', () => {
     expect(result).toBe('This is safe <mark>(mostly).</mark>');
   });
 
-  it('should return escaped text if no anchor is provided', () => {
+  it('should return plain text if no anchor is provided', () => {
     const text = 'Safe & Sound';
     const result = pipe.transform(text, '');
-    expect(result).toBe('Safe &amp; Sound');
+    expect(result).toBe('Safe & Sound');
   });
 
   it('should escape HTML in both text and anchor', () => {

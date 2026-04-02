@@ -95,3 +95,7 @@ foreach ($requirement in $requirements) {
 
 Write-Host "Backend environment is ready."
 Write-Host "Interpreter: $venvPython"
+Write-Host "Tip: frontend and native builds now use repo-local wrappers:"
+Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\build-frontend.ps1"
+Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1"
+Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\verify.ps1"

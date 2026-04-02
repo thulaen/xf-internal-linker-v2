@@ -150,6 +150,15 @@ class HttpWorkerHealthTests(TestCase):
         self.assertIn("retired", explanation)
         self.assertFalse(metadata["runtime_enabled"])
 
+    def test_check_slate_diversity_runtime_reports_plain_english_status(self):
+        state, explanation, next_step, metadata = health.check_slate_diversity_runtime()
+
+        self.assertIn(state, {"healthy", "degraded"})
+        self.assertIn("FR-015 slate diversity", explanation)
+        self.assertIn("runtime_path", metadata)
+        self.assertIn("cpp_fast_path_active", metadata)
+        self.assertIn("python_fallback_active", metadata)
+
 
 @override_settings(SCHEDULER_CONTROL_TOKEN="scheduler-secret")
 class SchedulerDispatchViewTests(TestCase):

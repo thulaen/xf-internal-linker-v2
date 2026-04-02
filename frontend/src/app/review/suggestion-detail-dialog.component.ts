@@ -83,7 +83,7 @@ export class SuggestionDetailDialogComponent implements OnInit {
 
 
   scorePercent(val: number): number {
-    return Math.round(val * 100);
+    return Math.max(0, Math.min(100, Math.round(val * 100)));
   }
 
   phraseSummary(): string {
@@ -408,6 +408,39 @@ export class SuggestionDetailDialogComponent implements OnInit {
       case 'neutral_processing_error': return 'Neutral / processing error';
       default: return 'Neutral / no historical data';
     }
+  }
+
+  slateDiversitySummary(): string {
+    const diagnostics = this.detail?.slate_diversity_diagnostics;
+    if (!diagnostics?.mmr_applied) {
+      return 'This suggestion did not go through the final diversity reranker.';
+    }
+    if ((diagnostics.slot ?? 0) === 0) {
+      return 'This was the first pick for its host, so it won on raw relevance before any diversity penalty was needed.';
+    }
+    if (diagnostics.swapped_from_rank) {
+      return 'The diversity pass moved this suggestion up because it gave the host thread a more varied final set of links.';
+    }
+    return 'The diversity pass checked this suggestion against already-picked destinations for the same host thread.';
+  }
+
+  slateDiversityStateLabel(): string {
+    const diagnostics = this.detail?.slate_diversity_diagnostics;
+    if (!diagnostics?.mmr_applied) {
+      return 'Diversity reranker not applied';
+    }
+    if ((diagnostics.slot ?? 0) === 0) {
+      return 'Top relevance pick';
+    }
+    if (diagnostics.swapped_from_rank) {
+      return 'Promoted for variety';
+    }
+    return 'Kept after diversity check';
+  }
+
+  slateDiversityRuntimeLabel(): string {
+    const runtimePath = this.detail?.slate_diversity_diagnostics?.runtime_path;
+    return runtimePath === 'cpp_extension' ? 'C++ fast path' : 'Python fallback';
   }
 
   approve(): void {

@@ -42,22 +42,22 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 18
-- FR cross-reference: `FR-015 - Final Slate Diversity Reranking`
-- Status: Phase 17 / FR-014 is complete. Phase 18 is the next target.
+- Active target for the next session: Phase 19
+- FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
+- Status: Phase 18 / FR-015 is complete. Phase 19 is the next target.
 
-- Session target: Restore Theme, Polish Link Health UI, Fix 403 Forbidden
+- Session target: Finish FR-015, add repeatable local verification wrappers, and make the native/frontend build path reliable without PATH assumptions.
 - What changed:
-  - Restored the professional Azure/Bing theme in `default-theme.scss`.
-  - Removed conflicting global CSS overrides in `styles.scss`.
-  - Updated Link Health UI to use `mat-card` and `appearance="outline"`.
-  - Added `permission_classes = [AllowAny]` to ~20 backend settings/dashboard views.
+  - Finished FR-015 final-slate diversity reranking with per-slot diagnostics, content-key-safe embedding lookup, and a native C++ MMR fast path plus Python fallback.
+  - Exposed FR-015 runtime status in diagnostics and FR-015 score/details in the review dialog.
+  - Added missing Slate Diversity settings controls for `score_window` and `similarity_cap`.
+  - Added repo-local wrappers: `scripts/build-frontend.ps1`, `scripts/build-native-extensions.ps1`, and `scripts/verify.ps1`.
+  - Fixed stale backend/frontend tests so the full wrapper now passes.
 - Continuity note:
-  - Strict Theme Rule is active and enforced.
-  - Data visibility issue (403s) is resolved for read-only settings/dashboard.
+  - Use the repo wrappers instead of assuming `npm` is on PATH.
+  - Use `scripts/verify.ps1` for the repeatable “build extensions + backend tests + frontend build + frontend unit tests” path.
 - Verification completed:
-  - Browser subagent verified UI restoration and data population.
-  - Docker logs confirmed backend reload and successful API responses.
+  - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
 
 ## AI Handoff And Git Hygiene
 
@@ -180,17 +180,17 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 15 | FR-012 | Complete | Click-Distance Structural Prior shipped with separate backend scoring, settings/snapshot wiring, review/settings exposure, and unit verification |
 | 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
-| 18 | FR-015 | Queued | Final Slate Diversity Reranking |
+| 18 | FR-015 | Complete | Final Slate Diversity Reranking |
 | 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
 | 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
-- Next exact target: Phase 18 / `FR-015 - Final Slate Diversity Reranking`
-- Phase 17 reference: `FR-014` shipped as a separate content clustering layer and stays separate from FR-012, FR-013, and FR-015
-- Current continuity state: FR-014 is complete and verified against its updated spec.
-- Next session type: implement FR-015 against its spec.
+- Next exact target: Phase 19 / `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
+- Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
+- Current continuity state: FR-015 is complete and verified against its updated spec.
+- Next session type: implement FR-016 against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
@@ -263,6 +263,50 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - If you discover that an earlier session implemented code but forgot the matching spec doc, fix that gap before calling the phase workflow clean.
 
 ## Pending Configuration
+
+## Current Session Note
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `scripts/dev-tools.ps1`
+  - `scripts/build-frontend.ps1`
+  - `scripts/build-native-extensions.ps1`
+  - `scripts/verify.ps1`
+  - `scripts/setup-dev.ps1`
+  - `docs/ui-testing.md`
+  - `backend/apps/pipeline/services/slate_diversity.py`
+  - `backend/apps/pipeline/services/pipeline.py`
+  - `backend/extensions/feedrerank.cpp`
+  - `backend/apps/diagnostics/health.py`
+  - `backend/apps/diagnostics/models.py`
+  - `backend/apps/diagnostics/tests.py`
+  - `backend/apps/content/tests.py`
+  - `backend/apps/core/tests.py`
+  - `backend/apps/suggestions/serializers.py`
+  - `backend/apps/pipeline/tests.py`
+  - `frontend/src/app/core/pipes/highlight.pipe.spec.ts`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.html`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.spec.ts`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.ts`
+  - `frontend/src/app/review/suggestion.service.ts`
+  - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/settings/settings.component.spec.ts`
+- What changed:
+  - Implemented the FR-015 final slate diversity selection pass with content-key-safe embedding lookup, per-slot MMR diagnostics, and a C++ fast-path hook backed by a Python fallback.
+  - Added an operator-facing diagnostics health check for the FR-015 runtime path so the UI can show whether C++ or Python is handling the diversity pass.
+  - Exposed FR-015 score and diagnostics in the suggestion detail API and review dialog, and added the missing `score_window` / `similarity_cap` controls to the settings page.
+  - Added repo-local wrappers so future sessions can rebuild native extensions, build Angular, and run verification without depending on PATH.
+  - Fixed stale backend/frontend tests so the full verification wrapper now passes.
+- Verification that passed:
+  - `powershell -ExecutionPolicy Bypass -File scripts/build-native-extensions.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/build-frontend.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
+  - Focused reruns for FR-015 backend tests and Angular unit tests also passed during the session.
+- Verification still missing:
+  - None for the repo-local verification path added in this session.
+- Commit/push state:
+  - Not committed.
+  - Working tree is intentionally left dirty only because this session did not create a commit.
 
 | Item | Why needed | State |
 |---|---|---|

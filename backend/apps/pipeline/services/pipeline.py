@@ -321,8 +321,8 @@ def run_pipeline(
             _progress(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
 
     # Build embedding lookup before freeing the numpy arrays (used by FR-015)
-    embedding_lookup: dict[int, np.ndarray] = {
-        dest_key[0]: dest_embeddings[i]
+    embedding_lookup: dict[ContentKey, np.ndarray] = {
+        dest_key: dest_embeddings[i]
         for i, dest_key in enumerate(destination_keys)
     }
 

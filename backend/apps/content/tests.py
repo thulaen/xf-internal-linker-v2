@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from rest_framework.test import APITestCase
 
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.suggestions.recommended_weights import recommended_float, recommended_str
 
 
 class SiloApiTests(APITestCase):
@@ -71,9 +72,9 @@ class SiloApiTests(APITestCase):
         self.assertEqual(
             response.json(),
             {
-                "mode": "disabled",
-                "same_silo_boost": 0.0,
-                "cross_silo_penalty": 0.0,
+                "mode": recommended_str("silo.mode"),
+                "same_silo_boost": recommended_float("silo.same_silo_boost"),
+                "cross_silo_penalty": recommended_float("silo.cross_silo_penalty"),
             },
         )
 

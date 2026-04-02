@@ -14,6 +14,12 @@ Run these from:
 C:\Users\goldm\Dev\xf-internal-linker-v2\frontend
 ```
 
+If `npm` is missing on PATH in a shell, use the repo wrapper instead:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File ..\scripts\build-frontend.ps1
+```
+
 ## Fast UI checks
 
 This uses fake API replies.

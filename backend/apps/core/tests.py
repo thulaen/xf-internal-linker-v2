@@ -6,6 +6,7 @@ from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
+from apps.suggestions.recommended_weights import recommended_bool, recommended_float, recommended_int
 from apps.sync.models import SyncJob
 
 
@@ -121,12 +122,12 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.2,
-                "position_bias": 0.5,
-                "empty_anchor_factor": 0.6,
-                "bare_url_factor": 0.35,
-                "weak_context_factor": 0.75,
-                "isolated_context_factor": 0.45,
+                "ranking_weight": recommended_float("weighted_authority.ranking_weight"),
+                "position_bias": recommended_float("weighted_authority.position_bias"),
+                "empty_anchor_factor": recommended_float("weighted_authority.empty_anchor_factor"),
+                "bare_url_factor": recommended_float("weighted_authority.bare_url_factor"),
+                "weak_context_factor": recommended_float("weighted_authority.weak_context_factor"),
+                "isolated_context_factor": recommended_float("weighted_authority.isolated_context_factor"),
             },
         )
 
@@ -186,14 +187,14 @@ class LinkFreshnessSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.0,
-                "recent_window_days": 30,
-                "newest_peer_percent": 0.25,
-                "min_peer_count": 3,
-                "w_recent": 0.35,
-                "w_growth": 0.35,
-                "w_cohort": 0.2,
-                "w_loss": 0.1,
+                "ranking_weight": recommended_float("link_freshness.ranking_weight"),
+                "recent_window_days": recommended_int("link_freshness.recent_window_days"),
+                "newest_peer_percent": recommended_float("link_freshness.newest_peer_percent"),
+                "min_peer_count": recommended_int("link_freshness.min_peer_count"),
+                "w_recent": recommended_float("link_freshness.w_recent"),
+                "w_growth": recommended_float("link_freshness.w_growth"),
+                "w_cohort": recommended_float("link_freshness.w_cohort"),
+                "w_loss": recommended_float("link_freshness.w_loss"),
             },
         )
 
@@ -258,10 +259,10 @@ class PhraseMatchingSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.0,
-                "enable_anchor_expansion": True,
-                "enable_partial_matching": True,
-                "context_window_tokens": 8,
+                "ranking_weight": recommended_float("phrase_matching.ranking_weight"),
+                "enable_anchor_expansion": recommended_bool("phrase_matching.enable_anchor_expansion"),
+                "enable_partial_matching": recommended_bool("phrase_matching.enable_partial_matching"),
+                "context_window_tokens": recommended_int("phrase_matching.context_window_tokens"),
             },
         )
 
@@ -311,10 +312,10 @@ class LearnedAnchorSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.0,
-                "minimum_anchor_sources": 2,
-                "minimum_family_support_share": 0.15,
-                "enable_noise_filter": True,
+                "ranking_weight": recommended_float("learned_anchor.ranking_weight"),
+                "minimum_anchor_sources": recommended_int("learned_anchor.minimum_anchor_sources"),
+                "minimum_family_support_share": recommended_float("learned_anchor.minimum_family_support_share"),
+                "enable_noise_filter": recommended_bool("learned_anchor.enable_noise_filter"),
             },
         )
 
@@ -363,10 +364,10 @@ class RareTermPropagationSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "enabled": True,
-                "ranking_weight": 0.0,
-                "max_document_frequency": 3,
-                "minimum_supporting_related_pages": 2,
+                "enabled": recommended_bool("rare_term_propagation.enabled"),
+                "ranking_weight": recommended_float("rare_term_propagation.ranking_weight"),
+                "max_document_frequency": recommended_int("rare_term_propagation.max_document_frequency"),
+                "minimum_supporting_related_pages": recommended_int("rare_term_propagation.minimum_supporting_related_pages"),
             },
         )
 
@@ -420,11 +421,11 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": 0.0,
-                "title_field_weight": 0.4,
-                "body_field_weight": 0.3,
-                "scope_field_weight": 0.15,
-                "learned_anchor_field_weight": 0.15,
+                "ranking_weight": recommended_float("field_aware_relevance.ranking_weight"),
+                "title_field_weight": recommended_float("field_aware_relevance.title_field_weight"),
+                "body_field_weight": recommended_float("field_aware_relevance.body_field_weight"),
+                "scope_field_weight": recommended_float("field_aware_relevance.scope_field_weight"),
+                "learned_anchor_field_weight": recommended_float("field_aware_relevance.learned_anchor_field_weight"),
             },
         )
 

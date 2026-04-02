@@ -26,6 +26,14 @@ from apps.suggestions.recommended_weights import recommended_bool, recommended_f
 if TYPE_CHECKING:
     from .ranker import ContentKey, ScoredCandidate
 
+try:
+    from extensions import feedrerank
+
+    HAS_CPP_DIVERSITY = hasattr(feedrerank, "calculate_mmr_scores_batch")
+except ImportError:
+    feedrerank = None
+    HAS_CPP_DIVERSITY = False
+
 
 @dataclass(frozen=True, slots=True)
 class SlateDiversitySettings:
@@ -40,7 +48,7 @@ class SlateDiversitySettings:
 
 def apply_slate_diversity(
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
-    embedding_lookup: dict[int, np.ndarray],
+    embedding_lookup: dict[ContentKey, np.ndarray],
     settings: SlateDiversitySettings,
     max_per_host: int = 3,
 ) -> list[ScoredCandidate]:
@@ -102,12 +110,21 @@ def apply_slate_diversity(
 
         result.extend(selected)
 
-    return sorted(result, key=lambda c: (-(c.score_slate_diversity or 0.0), -c.score_final))
+    return sorted(
+        result,
+        key=lambda c: (
+            c.host_content_id,
+            c.host_content_type,
+            c.slate_diversity_diagnostics.get("slot", 999),
+            -c.score_final,
+            -c.score_semantic,
+        ),
+    )
 
 
 def _mmr_select_for_host(
     host_candidates: list[ScoredCandidate],
-    embedding_lookup: dict[int, np.ndarray],
+    embedding_lookup: dict[ContentKey, np.ndarray],
     settings: SlateDiversitySettings,
     k: int,
     claimed: set[ContentKey],
@@ -149,6 +166,9 @@ def _mmr_select_for_host(
 
     selected: list[ScoredCandidate] = []
     selected_embeddings: list[np.ndarray] = []
+    runtime_status = get_slate_diversity_runtime_status()
+    runtime_path = runtime_status["path"]
+    runtime_reason = runtime_status["reason"]
 
     for slot_idx in range(k):
         pool = window_pool if window_pool else fallback_pool
@@ -158,7 +178,7 @@ def _mmr_select_for_host(
         if not selected_embeddings:
             # First slot: highest score_final, no diversity penalty yet
             pick = pool.pop(0)
-            emb = embedding_lookup.get(pick.destination_content_id)
+            emb = embedding_lookup.get(pick.destination_key)
             diag: dict = {
                 "mmr_applied": True,
                 "lambda": settings.diversity_lambda,
@@ -168,6 +188,9 @@ def _mmr_select_for_host(
                 "max_similarity_to_selected": None,
                 "mmr_score": round(normalize(pick.score_final), 4),
                 "swapped_from_rank": None,
+                "window_source": "score_window" if pick in window_pool else "fallback_pool",
+                "runtime_path": runtime_path,
+                "runtime_reason": runtime_reason,
                 "algorithm_version": settings.algorithm_version,
             }
             updated = replace(
@@ -181,39 +204,53 @@ def _mmr_select_for_host(
 
         else:
             # Subsequent slots: apply the MMR penalty
-            best_mmr: float | None = None
-            best_pick: ScoredCandidate | None = None
-            best_pool_idx: int | None = None
-            best_max_sim: float = 0.0
-            best_original_rank: int = 0
+            relevance = np.asarray(
+                [normalize(candidate.score_final) for candidate in pool],
+                dtype=np.float64,
+            )
+            candidate_embeddings = np.asarray(
+                [
+                    embedding_lookup.get(candidate.destination_key, np.zeros(0, dtype=np.float32))
+                    for candidate in pool
+                ],
+                dtype=object,
+            )
+            usable_cpp = HAS_CPP_DIVERSITY and all(embedding.size > 0 for embedding in candidate_embeddings)
 
-            for i, c in enumerate(pool):
-                emb = embedding_lookup.get(c.destination_content_id)
-                relevance = normalize(c.score_final)
-
-                if emb is not None and selected_embeddings:
-                    sims = [float(np.dot(emb, se)) for se in selected_embeddings]
-                    max_sim = max(sims)
-                else:
-                    max_sim = 0.0
-
-                mmr = (
-                    settings.diversity_lambda * relevance
-                    - (1.0 - settings.diversity_lambda) * max_sim
+            if usable_cpp:
+                mmr_scores, max_similarities = feedrerank.calculate_mmr_scores_batch(
+                    relevance,
+                    np.vstack(candidate_embeddings).astype(np.float64, copy=False),
+                    np.vstack(selected_embeddings).astype(np.float64, copy=False),
+                    float(settings.diversity_lambda),
                 )
+            else:
+                mmr_scores = np.empty(len(pool), dtype=np.float64)
+                max_similarities = np.empty(len(pool), dtype=np.float64)
+                for i, candidate in enumerate(pool):
+                    emb = embedding_lookup.get(candidate.destination_key)
+                    if emb is not None and selected_embeddings:
+                        sims = [float(np.dot(emb, selected_emb)) for selected_emb in selected_embeddings]
+                        max_sim = max(sims)
+                    else:
+                        max_sim = 0.0
+                    max_similarities[i] = max_sim
+                    mmr_scores[i] = (
+                        settings.diversity_lambda * relevance[i]
+                        - (1.0 - settings.diversity_lambda) * max_sim
+                    )
 
-                if best_mmr is None or mmr > best_mmr:
-                    best_mmr = mmr
-                    best_pick = c
-                    best_pool_idx = i
-                    best_max_sim = max_sim
-                    best_original_rank = i
+            best_pool_idx = int(np.argmax(mmr_scores))
+            best_pick = pool[best_pool_idx]
+            best_mmr = float(mmr_scores[best_pool_idx])
+            best_max_sim = float(max_similarities[best_pool_idx])
+            best_original_rank = best_pool_idx
 
             if best_pick is None or best_pool_idx is None:
                 break
 
             pool.pop(best_pool_idx)
-            emb = embedding_lookup.get(best_pick.destination_content_id)
+            emb = embedding_lookup.get(best_pick.destination_key)
             diag = {
                 "mmr_applied": True,
                 "lambda": settings.diversity_lambda,
@@ -225,6 +262,13 @@ def _mmr_select_for_host(
                 "swapped_from_rank": best_original_rank if best_original_rank > 0 else None,
                 "similarity_cap": settings.similarity_cap,
                 "flagged_redundant": best_max_sim >= settings.similarity_cap,
+                "window_source": "score_window" if pool is window_pool else "fallback_pool",
+                "runtime_path": "cpp_extension" if usable_cpp else runtime_path,
+                "runtime_reason": (
+                    "Native C++ MMR kernel handled this slot."
+                    if usable_cpp
+                    else runtime_reason
+                ),
                 "algorithm_version": settings.algorithm_version,
             }
             updated = replace(
@@ -237,3 +281,18 @@ def _mmr_select_for_host(
                 selected_embeddings.append(emb)
 
     return selected
+
+
+def get_slate_diversity_runtime_status() -> dict[str, object]:
+    """Return plain-English runtime status for the FR-015 fast path."""
+    if HAS_CPP_DIVERSITY:
+        return {
+            "available": True,
+            "path": "cpp_extension",
+            "reason": "Native C++ MMR kernel is available for the FR-015 diversity step.",
+        }
+    return {
+        "available": False,
+        "path": "python_fallback",
+        "reason": "Python fallback is active because the native C++ MMR kernel is not compiled or could not be loaded.",
+    }
