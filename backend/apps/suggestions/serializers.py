@@ -10,6 +10,7 @@ from rest_framework import serializers
 from apps.pipeline.services.link_freshness import get_destination_link_freshness_diagnostics
 
 from .models import PipelineDiagnostic, PipelineRun, Suggestion, WeightAdjustmentHistory, WeightPreset
+from .telemetry_markup import build_suggestion_telemetry_payload
 
 
 class WeightPresetSerializer(serializers.ModelSerializer):
@@ -73,7 +74,9 @@ class _SuggestionSerializerMixin:
             return False
         if destination_scope.silo_group_id is None or host_scope.silo_group_id is None:
             return False
-        return destination_scope.silo_group_id == host_scope.silo_group_id
+        same_silo = destination_scope.silo_group_id == host_scope.silo_group_id
+        setattr(obj, "_same_silo_cached", same_silo)
+        return same_silo
 
     def get_destination_source_label(self, obj) -> str:
         return _content_source_label(getattr(obj.destination, "content_type", ""))
@@ -130,6 +133,7 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
     host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
     same_silo = serializers.SerializerMethodField()
     link_freshness_diagnostics = serializers.SerializerMethodField()
+    telemetry_instrumentation = serializers.SerializerMethodField()
 
     class Meta:
         model = Suggestion
@@ -157,6 +161,7 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
             "explore_exploit_diagnostics", "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            "telemetry_instrumentation",
             "created_at", "updated_at",
         ]
         read_only_fields = [
@@ -181,11 +186,15 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
             "explore_exploit_diagnostics", "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            "telemetry_instrumentation",
             "created_at", "updated_at",
         ]
 
     def get_link_freshness_diagnostics(self, obj: Suggestion) -> dict[str, object]:
         return get_destination_link_freshness_diagnostics(obj.destination_id).as_dict()
+
+    def get_telemetry_instrumentation(self, obj: Suggestion) -> dict[str, object]:
+        return build_suggestion_telemetry_payload(obj)
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):
     """

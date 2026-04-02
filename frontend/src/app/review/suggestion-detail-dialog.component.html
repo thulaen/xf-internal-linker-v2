@@ -75,6 +75,33 @@
     <mat-divider></mat-divider>
 
     <section class="section">
+      <p class="section-title">Telemetry markup</p>
+      <p class="meta-line">
+        <mat-icon>ads_click</mat-icon>
+        {{ telemetryStatusLabel() }}.
+      </p>
+      @if (detail.telemetry_instrumentation.status === 'instrumented') {
+        <p class="meta-line">
+          Schema {{ detail.telemetry_instrumentation.event_schema }}
+          - anchor hash {{ detail.telemetry_instrumentation.anchor_hash }}
+          - anchor length {{ detail.telemetry_instrumentation.anchor_length }}
+        </p>
+        <div class="reject-actions">
+          <button mat-stroked-button color="primary" (click)="copyInstrumentedMarkup()">
+            <mat-icon>content_copy</mat-icon>
+            Copy Instrumented Markup
+          </button>
+        </div>
+      } @else {
+        <p class="meta-line">
+          This one is still plain-manual only, so the app cannot build telemetry-ready markup for it yet.
+        </p>
+      }
+    </section>
+
+    <mat-divider></mat-divider>
+
+    <section class="section">
       <p class="section-title">Score breakdown</p>
       <div class="scores-grid">
         <div class="score-item">

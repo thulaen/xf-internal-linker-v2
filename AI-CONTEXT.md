@@ -270,42 +270,33 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - AI/tool: Codex
 - Intentional files changed:
   - `AI-CONTEXT.md`
-  - `backend/apps/analytics/admin.py`
-  - `backend/apps/analytics/models.py`
-  - `backend/apps/analytics/tests.py`
-  - `backend/apps/analytics/urls.py`
-  - `backend/apps/analytics/views.py`
-  - `backend/apps/analytics/migrations/0003_analyticssyncrun_telemetrycoveragedaily_and_more.py`
-  - `backend/apps/api/urls.py`
-  - `backend/apps/core/models.py`
-  - `backend/apps/core/tests.py`
-  - `backend/apps/core/migrations/0004_alter_appsetting_category.py`
-  - `backend/apps/suggestions/migrations/0018_alter_weightadjustmenthistory_reason.py`
-  - `frontend/src/app/analytics/analytics.component.html`
-  - `frontend/src/app/analytics/analytics.component.scss`
-  - `frontend/src/app/analytics/analytics.component.ts`
-  - `frontend/src/app/analytics/analytics.service.ts`
-  - `frontend/src/app/settings/settings.component.html`
-  - `frontend/src/app/settings/settings.component.scss`
+  - `backend/apps/suggestions/serializers.py`
+  - `backend/apps/suggestions/telemetry_markup.py`
+  - `backend/apps/suggestions/tests.py`
+  - `frontend/Dockerfile`
+  - `frontend/angular.json`
+  - `frontend/karma.conf.cjs`
+  - `frontend/package.json`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.html`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.spec.ts`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.ts`
+  - `frontend/src/app/review/suggestion.service.ts`
   - `frontend/src/app/settings/settings.component.spec.ts`
-  - `frontend/src/app/settings/settings.component.ts`
-  - `frontend/src/app/settings/silo-settings.service.ts`
 - What changed:
-  - Started FR-016 by landing Slice 1: the new telemetry rollup models, sync-run audit rows, and settings storage for GA4 and Matomo.
-  - Added masked credential save flows plus live `Test Connection` endpoints for GA4 and Matomo.
-  - Replaced the placeholder analytics page with a first-pass overview that shows setup state, last sync status, and simple telemetry counts.
-  - Expanded the Angular settings page with GA4 and Matomo telemetry cards, inline status badges, and last-sync summaries.
-  - Added focused backend tests for the new analytics settings/test/overview endpoints.
+  - Closed the frontend test reliability gap so Angular unit tests no longer fail in Docker from missing ChromeHeadless or low Node memory.
+  - Added a checked-in Karma launcher that points to Chromium in the frontend container and runs with safe CI flags.
+  - Raised the frontend test/build Node memory ceiling to 4 GB in the Docker image and `test:ci` script.
+  - Started the next FR-016 slice by adding a telemetry markup helper for suggestion details, including copy-ready instrumented anchor HTML and plain-English instrumentation status.
+  - Expanded review detail coverage so operators can see and copy the exact markup needed for later live-site attribution wiring.
 - Verification that passed:
-  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics apps.core --settings=config.settings.test --verbosity 2`
+  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics apps.core apps.suggestions --settings=config.settings.test --verbosity 1`
   - `.\\.venv\\Scripts\\python.exe backend\\manage.py makemigrations --check --dry-run --settings=config.settings.test`
   - `docker-compose build`
   - `docker-compose run --rm frontend npm run build`
-- Verification still missing:
-  - `docker-compose run --rm -e NODE_OPTIONS=--max-old-space-size=4096 frontend npm run test:ci` still failed because the container does not have a ChromeHeadless binary. The first run also hit a Node memory limit before the browser check.
+  - `docker-compose run --rm frontend npm run test:ci`
 - Commit/push state:
-  - Committed as `6475b38` (`Start FR-016 telemetry settings slice`).
-  - Pushed to `origin/master`.
+  - Slice 1 from the earlier session remains committed as `6475b38` and `6c956ed`.
+  - This session's changes are not committed yet in this note. Commit and push them before ending the session if the tree is clean.
 
 | Item | Why needed | State |
 |---|---|---|

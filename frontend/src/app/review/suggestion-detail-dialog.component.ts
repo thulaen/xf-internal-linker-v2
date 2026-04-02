@@ -10,6 +10,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { SuggestionService, SuggestionDetail, REJECTION_REASONS } from './suggestion.service';
 import { HighlightPipe } from '../core/pipes/highlight.pipe';
@@ -38,6 +39,7 @@ export type DialogResult =
     MatInputModule,
     MatProgressBarModule,
     MatSelectModule,
+    MatSnackBarModule,
     MatTooltipModule,
     HighlightPipe,
   ],
@@ -61,6 +63,7 @@ export class SuggestionDetailDialogComponent implements OnInit {
   readonly dialogRef = inject(MatDialogRef) as MatDialogRef<SuggestionDetailDialogComponent, DialogResult>;
   readonly data: DialogData = inject(MAT_DIALOG_DATA);
   private svc = inject(SuggestionService);
+  private snack = inject(MatSnackBar);
 
   ngOnInit(): void {
     this.svc.getDetail(this.data.suggestionId).subscribe({
@@ -441,6 +444,39 @@ export class SuggestionDetailDialogComponent implements OnInit {
   slateDiversityRuntimeLabel(): string {
     const runtimePath = this.detail?.slate_diversity_diagnostics?.runtime_path;
     return runtimePath === 'cpp_extension' ? 'C++ fast path' : 'Python fallback';
+  }
+
+  telemetryStatusLabel(): string {
+    const status = this.detail?.telemetry_instrumentation?.status ?? 'unknown';
+    if (status === 'instrumented') return 'Instrumented markup ready';
+    if (status === 'plain_manual') return 'Plain manual only';
+    return 'Unknown';
+  }
+
+  async copyInstrumentedMarkup(): Promise<void> {
+    const markup = this.detail?.telemetry_instrumentation?.instrumented_markup ?? '';
+    if (!markup) {
+      this.snack.open('This suggestion does not have enough data to build telemetry-ready markup yet.', 'Dismiss', { duration: 4000 });
+      return;
+    }
+
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(markup);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = markup;
+        textarea.style.position = 'fixed';
+        textarea.style.opacity = '0';
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      this.snack.open('Telemetry-ready link markup copied.', undefined, { duration: 2500 });
+    } catch {
+      this.snack.open('Could not copy the markup automatically.', 'Dismiss', { duration: 4000 });
+    }
   }
 
   approve(): void {

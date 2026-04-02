@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
+import { MatSnackBar } from '@angular/material/snack-bar';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
 
@@ -227,6 +228,17 @@ describe('SuggestionDetailDialogComponent', () => {
       runtime_reason: 'Python fallback is active because the native C++ MMR kernel is not compiled or could not be loaded.',
       algorithm_version: 'fr015-v1',
     },
+    telemetry_instrumentation: {
+      status: 'instrumented',
+      event_schema: 'fr016_v1',
+      attributes: {
+        'data-xfil-schema': 'fr016_v1',
+        'data-xfil-suggestion-id': 'suggestion-1',
+      },
+      anchor_hash: 'abc123def456',
+      anchor_length: 11,
+      instrumented_markup: '<a href="https://example.com/destination" data-xfil-schema="fr016_v1">Destination</a>',
+    },
     updated_at: '2026-03-25T00:00:00Z',
   };
 
@@ -245,6 +257,7 @@ describe('SuggestionDetailDialogComponent', () => {
         },
         { provide: MAT_DIALOG_DATA, useValue: { suggestionId: detail.suggestion_id } },
         { provide: MatDialogRef, useValue: { close: jasmine.createSpy('close') } },
+        { provide: MatSnackBar, useValue: { open: jasmine.createSpy('open') } },
       ],
     }).compileComponents();
 
@@ -262,5 +275,6 @@ describe('SuggestionDetailDialogComponent', () => {
     expect(text).toContain('Matched borrowed terms: xenforo (2 pages)');
     expect(text).toContain('Top title terms: destination');
     expect(text).toContain('Promoted for variety');
+    expect(text).toContain('Copy Instrumented Markup');
   });
 });

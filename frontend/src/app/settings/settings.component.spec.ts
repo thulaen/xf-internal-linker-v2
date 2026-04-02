@@ -6,7 +6,9 @@ import { SettingsComponent } from './settings.component';
 import { SiloSettingsService } from './silo-settings.service';
 
 describe('SettingsComponent', () => {
-  it('renders the recommended preset guidance and the newer ranking cards', async () => {
+  it('renders the telemetry settings cards on the WordPress sync tab', async () => {
+    localStorage.setItem('settings_active_tab', '2');
+
     await TestBed.configureTestingModule({
       imports: [SettingsComponent, NoopAnimationsModule],
       providers: [
@@ -152,14 +154,18 @@ describe('SettingsComponent', () => {
 
     const fixture = TestBed.createComponent(SettingsComponent);
     fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
     expect(text).toContain('WordPress Sync');
-    expect(text).toContain('GA4 + Search Console');
     expect(text).toContain('GA4 Telemetry');
     expect(text).toContain('Matomo Telemetry');
-    expect(text).toContain('Slate Diversity');
-    expect(text).toContain('Rare-Term Propagation');
+    expect(text).toContain('WordPress Connection');
+    expect(text).toContain('Telemetry Rules');
+    expect(text).toContain('Sync Rules');
+
+    localStorage.removeItem('settings_active_tab');
   });
 });

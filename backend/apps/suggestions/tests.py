@@ -29,7 +29,13 @@ class SuggestionSiloApiTests(APITestCase):
         scope_b = ScopeItem.objects.create(scope_id=3, scope_type="node", title="B", silo_group=silo_b)
         scope_unassigned = ScopeItem.objects.create(scope_id=4, scope_type="node", title="Loose")
 
-        dest_same = ContentItem.objects.create(content_id=10, content_type="thread", title="Dest Same", scope=scope_a)
+        dest_same = ContentItem.objects.create(
+            content_id=10,
+            content_type="thread",
+            title="Dest Same",
+            url="https://example.test/dest-same",
+            scope=scope_a,
+        )
         host_same = ContentItem.objects.create(content_id=11, content_type="thread", title="Host Same", scope=scope_a_host)
         host_cross = ContentItem.objects.create(content_id=12, content_type="thread", title="Host Cross", scope=scope_b)
         host_unassigned = ContentItem.objects.create(content_id=13, content_type="thread", title="Host Loose", scope=scope_unassigned)
@@ -272,6 +278,11 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertEqual(payload["field_aware_diagnostics"]["field_aware_state"], "computed_match")
         self.assertIn("link_freshness_diagnostics", payload)
         self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
+        self.assertIn("telemetry_instrumentation", payload)
+        self.assertEqual(payload["telemetry_instrumentation"]["status"], "instrumented")
+        self.assertEqual(payload["telemetry_instrumentation"]["event_schema"], "fr016_v1")
+        self.assertIn("data-xfil-suggestion-id", payload["telemetry_instrumentation"]["attributes"])
+        self.assertIn(str(suggestion.suggestion_id), payload["telemetry_instrumentation"]["instrumented_markup"])
 
 
 class PipelineRunWeightedSnapshotTests(APITestCase):

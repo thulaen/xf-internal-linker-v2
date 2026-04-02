@@ -9,7 +9,7 @@
     "build:prod": "ng build --configuration=production",
     "watch": "ng build --watch --configuration=development",
     "test": "ng test",
-    "test:ci": "ng test --no-watch --no-progress --browsers=ChromeHeadless",
+    "test:ci": "node --max-old-space-size=4096 ./node_modules/@angular/cli/bin/ng test --no-watch --no-progress --browsers=ChromeHeadlessNoSandbox",
     "lint": "ng lint",
     "ui:test": "playwright test",
     "ui:test:headed": "playwright test --headed",

@@ -72,7 +72,17 @@ export interface SuggestionDetail extends Suggestion {
   score_explore_exploit: number;
   explore_exploit_diagnostics: FeedbackRerankDiagnostics;
   slate_diversity_diagnostics: SlateDiversityDiagnostics;
+  telemetry_instrumentation: SuggestionTelemetryInstrumentation;
   updated_at: string;
+}
+
+export interface SuggestionTelemetryInstrumentation {
+  status: 'instrumented' | 'plain_manual' | 'unknown';
+  event_schema: string;
+  attributes: Record<string, string>;
+  anchor_hash: string;
+  anchor_length: number;
+  instrumented_markup: string;
 }
 
 export interface PhraseMatchDiagnostics {
