@@ -108,8 +108,8 @@ DATABASES = {
         "PASSWORD": env("POSTGRES_PASSWORD", default="changeme"),
         "HOST": env("POSTGRES_HOST", default="postgres"),
         "PORT": env("POSTGRES_PORT", default="5432"),
+        "CONN_MAX_AGE": 600,
         "OPTIONS": {
-            "CONN_MAX_AGE": 600,
             "connect_timeout": 10,
         },
     }
