@@ -109,6 +109,78 @@ export interface GA4GSCSettings {
   ranking_weight: number;
 }
 
+export interface AnalyticsSyncSummary {
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  rows_read: number;
+  rows_written: number;
+  rows_updated: number;
+  lookback_days: number;
+  error_message: string;
+}
+
+export interface GA4TelemetrySettings {
+  behavior_enabled: boolean;
+  property_id: string;
+  measurement_id: string;
+  api_secret_configured: boolean;
+  sync_enabled: boolean;
+  sync_lookback_days: number;
+  event_schema: string;
+  geo_granularity: 'none' | 'country' | 'country_region';
+  retention_days: number;
+  impression_visible_ratio: number;
+  impression_min_ms: number;
+  engaged_min_seconds: number;
+  connection_status: string;
+  connection_message: string;
+  last_sync: AnalyticsSyncSummary | null;
+}
+
+export interface GA4TelemetryUpdate {
+  behavior_enabled: boolean;
+  property_id: string;
+  measurement_id: string;
+  sync_enabled: boolean;
+  sync_lookback_days: number;
+  event_schema: string;
+  geo_granularity: 'none' | 'country' | 'country_region';
+  retention_days: number;
+  impression_visible_ratio: number;
+  impression_min_ms: number;
+  engaged_min_seconds: number;
+  api_secret?: string;
+}
+
+export interface MatomoTelemetrySettings {
+  enabled: boolean;
+  url: string;
+  site_id_xenforo: string;
+  site_id_wordpress: string;
+  token_auth_configured: boolean;
+  sync_enabled: boolean;
+  sync_lookback_days: number;
+  connection_status: string;
+  connection_message: string;
+  last_sync: AnalyticsSyncSummary | null;
+}
+
+export interface MatomoTelemetryUpdate {
+  enabled: boolean;
+  url: string;
+  site_id_xenforo: string;
+  site_id_wordpress: string;
+  sync_enabled: boolean;
+  sync_lookback_days: number;
+  token_auth?: string;
+}
+
+export interface AnalyticsConnectionResult {
+  status: string;
+  message: string;
+}
+
 export interface ClickDistanceSettings {
   ranking_weight: number;
   k_cd: number;
@@ -245,6 +317,14 @@ export class SiloSettingsService {
     return this.http.get<GA4GSCSettings>('/api/settings/ga4-gsc/');
   }
 
+  getGA4TelemetrySettings(): Observable<GA4TelemetrySettings> {
+    return this.http.get<GA4TelemetrySettings>('/api/analytics/settings/ga4/');
+  }
+
+  getMatomoTelemetrySettings(): Observable<MatomoTelemetrySettings> {
+    return this.http.get<MatomoTelemetrySettings>('/api/analytics/settings/matomo/');
+  }
+
   getClickDistanceSettings(): Observable<ClickDistanceSettings> {
     return this.http.get<ClickDistanceSettings>('/api/settings/click-distance/');
   }
@@ -291,6 +371,22 @@ export class SiloSettingsService {
 
   updateGA4GSCSettings(payload: GA4GSCSettings): Observable<GA4GSCSettings> {
     return this.http.put<GA4GSCSettings>('/api/settings/ga4-gsc/', payload);
+  }
+
+  updateGA4TelemetrySettings(payload: GA4TelemetryUpdate): Observable<GA4TelemetrySettings> {
+    return this.http.put<GA4TelemetrySettings>('/api/analytics/settings/ga4/', payload);
+  }
+
+  testGA4TelemetryConnection(payload: { measurement_id?: string; api_secret?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-connection/', payload);
+  }
+
+  updateMatomoTelemetrySettings(payload: MatomoTelemetryUpdate): Observable<MatomoTelemetrySettings> {
+    return this.http.put<MatomoTelemetrySettings>('/api/analytics/settings/matomo/', payload);
+  }
+
+  testMatomoTelemetryConnection(payload: { url?: string; site_id_xenforo?: string; token_auth?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/matomo/test-connection/', payload);
   }
 
   updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {

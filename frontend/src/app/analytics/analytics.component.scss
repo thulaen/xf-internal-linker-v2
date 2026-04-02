@@ -1,24 +1,93 @@
 .page-header {
   margin-bottom: 24px;
-
-  .page-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 24px;
-    font-weight: 500;
-    color: var(--color-text-dark-1);
-    margin: 0;
-
-    mat-icon {
-      color: var(--color-primary);
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
-    }
-  }
 }
 
+.page-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 24px;
+  font-weight: 600;
+  color: var(--color-text-dark-1);
+  margin: 0 0 8px;
+}
+
+.page-title mat-icon {
+  color: var(--color-primary);
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--color-text-muted, #6b7280);
+  font-size: 14px;
+}
+
+.overview-grid,
+.status-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.stat-card,
+.status-card,
+.coverage-card,
 .placeholder-card {
-  max-width: 600px;
+  border: 1px solid var(--cf-gray-8);
+  box-shadow: none;
+}
+
+.stat-card__label {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--cf-newGray-4);
+  margin-bottom: 8px;
+}
+
+.stat-card strong {
+  display: block;
+  font-size: 28px;
+  line-height: 1.1;
+  color: var(--cf-gray-0);
+}
+
+.stat-card p,
+.status-card p,
+.coverage-card p {
+  margin: 8px 0 0;
+  color: var(--cf-newGray-3);
+}
+
+.status-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.status-card__top h3,
+.coverage-card h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--cf-gray-0);
+}
+
+.status-badge {
+  display: inline-flex;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--cf-blue-9);
+  color: var(--cf-blue-4);
+}
+
+.status-card__meta {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--cf-newGray-4);
 }

@@ -321,6 +321,58 @@
   }
 }
 
+.integration-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.integration-status__message {
+  color: var(--s-text-secondary);
+  font-size: 12px;
+}
+
+.last-sync-box {
+  padding: 12px 14px;
+  border: 1px solid var(--s-border);
+  border-radius: var(--s-radius);
+  background: var(--cf-gray-9);
+  color: var(--s-text-secondary);
+  font-size: 12px;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.status-pill--success {
+  background: var(--cf-green-8);
+  color: var(--cf-green-2);
+}
+
+.status-pill--danger {
+  background: var(--cf-red-9);
+  color: var(--cf-red-4);
+}
+
+.status-pill--status {
+  background: var(--cf-blue-9);
+  color: var(--cf-blue-4);
+}
+
+.status-pill--muted {
+  background: var(--cf-gray-8);
+  color: var(--cf-newGray-4);
+}
+
 // ── Silo Architecture ─────────────────────────────────────────────
 .group-create-form {
   display: flex;

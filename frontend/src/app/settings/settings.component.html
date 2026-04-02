@@ -673,6 +673,171 @@
               </div>
             </mat-card-content>
           </mat-card>
+
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>GA4 Telemetry</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">This is the part that watches if people saw or clicked a suggested link.</p>
+              <div class="integration-status">
+                <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Telemetry.connection_status)">{{ telemetryStatusLabel(ga4Telemetry.connection_status) }}</span>
+                <span class="integration-status__message">{{ ga4Telemetry.connection_message }}</span>
+              </div>
+
+              <div class="wordpress-form">
+                <mat-form-field appearance="outline">
+                  <mat-label>GA4 Property ID</mat-label>
+                  <input matInput [(ngModel)]="ga4Telemetry.property_id" placeholder="123456789" />
+                </mat-form-field>
+
+                <div class="form-row">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Measurement ID</mat-label>
+                    <input matInput [(ngModel)]="ga4Telemetry.measurement_id" placeholder="G-ABC123XYZ" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>API Secret</mat-label>
+                    <input matInput type="password" [(ngModel)]="ga4TelemetrySecret" />
+                    <mat-hint>
+                      @if (ga4Telemetry.api_secret_configured) {
+                        Secret stored. Leave blank to keep it.
+                      } @else {
+                        Paste the GA4 Measurement Protocol API secret.
+                      }
+                    </mat-hint>
+                  </mat-form-field>
+                </div>
+
+                <div class="sync-schedule-box">
+                  <div class="schedule-header">
+                    <h3>Telemetry Rules</h3>
+                    <mat-checkbox [(ngModel)]="ga4Telemetry.behavior_enabled">Enable browser events</mat-checkbox>
+                  </div>
+                  <div class="form-row">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Sync lookback days</mat-label>
+                      <input matInput type="number" min="1" max="30" [(ngModel)]="ga4Telemetry.sync_lookback_days" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Geo granularity</mat-label>
+                      <mat-select [(ngModel)]="ga4Telemetry.geo_granularity">
+                        <mat-option value="none">Do not store geography</mat-option>
+                        <mat-option value="country">Country only</mat-option>
+                        <mat-option value="country_region">Country and region</mat-option>
+                      </mat-select>
+                    </mat-form-field>
+                  </div>
+                  <div class="form-row">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Event schema</mat-label>
+                      <input matInput [(ngModel)]="ga4Telemetry.event_schema" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Retention days</mat-label>
+                      <input matInput type="number" min="1" max="800" [(ngModel)]="ga4Telemetry.retention_days" />
+                    </mat-form-field>
+                  </div>
+                  <div class="form-row">
+                    <mat-form-field appearance="outline">
+                      <mat-label>Impression visible ratio</mat-label>
+                      <input matInput type="number" min="0.25" max="1" step="0.05" [(ngModel)]="ga4Telemetry.impression_visible_ratio" />
+                    </mat-form-field>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Impression time (ms)</mat-label>
+                      <input matInput type="number" min="250" max="5000" step="50" [(ngModel)]="ga4Telemetry.impression_min_ms" />
+                    </mat-form-field>
+                  </div>
+                  <div class="form-row">
+                    <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled">Enable GA4 sync</mat-checkbox>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Engaged seconds</mat-label>
+                      <input matInput type="number" min="5" max="60" [(ngModel)]="ga4Telemetry.engaged_min_seconds" />
+                    </mat-form-field>
+                  </div>
+                </div>
+
+                <div class="last-sync-box">Last sync: {{ lastSyncLabel(ga4Telemetry.last_sync) }}</div>
+
+                <div class="action-buttons">
+                  <button mat-stroked-button color="primary" [disabled]="testingGA4Telemetry" (click)="testGA4TelemetryConnection()">
+                    <mat-icon>wifi_tethering</mat-icon> {{ testingGA4Telemetry ? 'Testing...' : 'Test Connection' }}
+                  </button>
+                  <button mat-flat-button color="primary" [disabled]="savingGA4Telemetry" (click)="saveGA4TelemetrySettings()">
+                    <mat-icon>save</mat-icon> {{ savingGA4Telemetry ? 'Saving...' : 'Save GA4' }}
+                  </button>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Matomo Telemetry</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">This is the on-site copy that keeps the small-count click data from getting blurred away.</p>
+              <div class="integration-status">
+                <span class="status-pill" [ngClass]="telemetryStatusClass(matomoTelemetry.connection_status)">{{ telemetryStatusLabel(matomoTelemetry.connection_status) }}</span>
+                <span class="integration-status__message">{{ matomoTelemetry.connection_message }}</span>
+              </div>
+
+              <div class="wordpress-form">
+                <mat-form-field appearance="outline">
+                  <mat-label>Matomo URL</mat-label>
+                  <input matInput [(ngModel)]="matomoTelemetry.url" placeholder="https://matomo.example.com" />
+                </mat-form-field>
+
+                <div class="form-row">
+                  <mat-form-field appearance="outline">
+                    <mat-label>XenForo site ID</mat-label>
+                    <input matInput [(ngModel)]="matomoTelemetry.site_id_xenforo" placeholder="7" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>WordPress site ID</mat-label>
+                    <input matInput [(ngModel)]="matomoTelemetry.site_id_wordpress" placeholder="Optional" />
+                  </mat-form-field>
+                </div>
+
+                <mat-form-field appearance="outline">
+                  <mat-label>Token Auth</mat-label>
+                  <input matInput type="password" [(ngModel)]="matomoTelemetryToken" />
+                  <mat-hint>
+                    @if (matomoTelemetry.token_auth_configured) {
+                      Token stored. Leave blank to keep it.
+                    } @else {
+                      Paste the Matomo API token.
+                    }
+                  </mat-hint>
+                </mat-form-field>
+
+                <div class="sync-schedule-box">
+                  <div class="schedule-header">
+                    <h3>Sync Rules</h3>
+                    <mat-checkbox [(ngModel)]="matomoTelemetry.enabled">Enable Matomo collection</mat-checkbox>
+                  </div>
+                  <div class="form-row">
+                    <mat-checkbox [(ngModel)]="matomoTelemetry.sync_enabled">Enable Matomo sync</mat-checkbox>
+                    <mat-form-field appearance="outline">
+                      <mat-label>Sync lookback days</mat-label>
+                      <input matInput type="number" min="1" max="30" [(ngModel)]="matomoTelemetry.sync_lookback_days" />
+                    </mat-form-field>
+                  </div>
+                </div>
+
+                <div class="last-sync-box">Last sync: {{ lastSyncLabel(matomoTelemetry.last_sync) }}</div>
+
+                <div class="action-buttons">
+                  <button mat-stroked-button color="primary" [disabled]="testingMatomoTelemetry" (click)="testMatomoTelemetryConnection()">
+                    <mat-icon>wifi_tethering</mat-icon> {{ testingMatomoTelemetry ? 'Testing...' : 'Test Connection' }}
+                  </button>
+                  <button mat-flat-button color="primary" [disabled]="savingMatomoTelemetry" (click)="saveMatomoTelemetrySettings()">
+                    <mat-icon>save</mat-icon> {{ savingMatomoTelemetry ? 'Saving...' : 'Save Matomo' }}
+                  </button>
+                </div>
+              </div>
+            </mat-card-content>
+          </mat-card>
         </div>
       </div>
     </mat-tab>

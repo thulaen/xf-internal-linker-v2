@@ -44,7 +44,7 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 19
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 18 / FR-015 is complete. Phase 19 is the next target.
+- Status: Phase 19 / FR-016 has started. Slice 1 is landed; later FR-016 slices still remain.
 
 - Session target: Finish FR-015, add repeatable local verification wrappers, and make the native/frontend build path reliable without PATH assumptions.
 - What changed:
@@ -268,45 +268,43 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 - AI/tool: Codex
 - Intentional files changed:
-  - `scripts/dev-tools.ps1`
-  - `scripts/build-frontend.ps1`
-  - `scripts/build-native-extensions.ps1`
-  - `scripts/verify.ps1`
-  - `scripts/setup-dev.ps1`
-  - `docs/ui-testing.md`
-  - `backend/apps/pipeline/services/slate_diversity.py`
-  - `backend/apps/pipeline/services/pipeline.py`
-  - `backend/extensions/feedrerank.cpp`
-  - `backend/apps/diagnostics/health.py`
-  - `backend/apps/diagnostics/models.py`
-  - `backend/apps/diagnostics/tests.py`
-  - `backend/apps/content/tests.py`
+  - `AI-CONTEXT.md`
+  - `backend/apps/analytics/admin.py`
+  - `backend/apps/analytics/models.py`
+  - `backend/apps/analytics/tests.py`
+  - `backend/apps/analytics/urls.py`
+  - `backend/apps/analytics/views.py`
+  - `backend/apps/analytics/migrations/0003_analyticssyncrun_telemetrycoveragedaily_and_more.py`
+  - `backend/apps/api/urls.py`
+  - `backend/apps/core/models.py`
   - `backend/apps/core/tests.py`
-  - `backend/apps/suggestions/serializers.py`
-  - `backend/apps/pipeline/tests.py`
-  - `frontend/src/app/core/pipes/highlight.pipe.spec.ts`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.html`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.spec.ts`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.ts`
-  - `frontend/src/app/review/suggestion.service.ts`
+  - `backend/apps/core/migrations/0004_alter_appsetting_category.py`
+  - `backend/apps/suggestions/migrations/0018_alter_weightadjustmenthistory_reason.py`
+  - `frontend/src/app/analytics/analytics.component.html`
+  - `frontend/src/app/analytics/analytics.component.scss`
+  - `frontend/src/app/analytics/analytics.component.ts`
+  - `frontend/src/app/analytics/analytics.service.ts`
   - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/settings/settings.component.scss`
   - `frontend/src/app/settings/settings.component.spec.ts`
+  - `frontend/src/app/settings/settings.component.ts`
+  - `frontend/src/app/settings/silo-settings.service.ts`
 - What changed:
-  - Implemented the FR-015 final slate diversity selection pass with content-key-safe embedding lookup, per-slot MMR diagnostics, and a C++ fast-path hook backed by a Python fallback.
-  - Added an operator-facing diagnostics health check for the FR-015 runtime path so the UI can show whether C++ or Python is handling the diversity pass.
-  - Exposed FR-015 score and diagnostics in the suggestion detail API and review dialog, and added the missing `score_window` / `similarity_cap` controls to the settings page.
-  - Added repo-local wrappers so future sessions can rebuild native extensions, build Angular, and run verification without depending on PATH.
-  - Fixed stale backend/frontend tests so the full verification wrapper now passes.
+  - Started FR-016 by landing Slice 1: the new telemetry rollup models, sync-run audit rows, and settings storage for GA4 and Matomo.
+  - Added masked credential save flows plus live `Test Connection` endpoints for GA4 and Matomo.
+  - Replaced the placeholder analytics page with a first-pass overview that shows setup state, last sync status, and simple telemetry counts.
+  - Expanded the Angular settings page with GA4 and Matomo telemetry cards, inline status badges, and last-sync summaries.
+  - Added focused backend tests for the new analytics settings/test/overview endpoints.
 - Verification that passed:
-  - `powershell -ExecutionPolicy Bypass -File scripts/build-native-extensions.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/build-frontend.ps1`
-  - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
-  - Focused reruns for FR-015 backend tests and Angular unit tests also passed during the session.
+  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics apps.core --settings=config.settings.test --verbosity 2`
+  - `.\\.venv\\Scripts\\python.exe backend\\manage.py makemigrations --check --dry-run --settings=config.settings.test`
+  - `docker-compose build`
+  - `docker-compose run --rm frontend npm run build`
 - Verification still missing:
-  - None for the repo-local verification path added in this session.
+  - `docker-compose run --rm -e NODE_OPTIONS=--max-old-space-size=4096 frontend npm run test:ci` still failed because the container does not have a ChromeHeadless binary. The first run also hit a Node memory limit before the browser check.
 - Commit/push state:
   - Not committed.
-  - Working tree is intentionally left dirty only because this session did not create a commit.
+  - Working tree is intentionally left dirty until this FR-016 Slice 1 review is accepted and committed.
 
 | Item | Why needed | State |
 |---|---|---|

@@ -41,6 +41,7 @@ class AppSetting(TimestampedModel):
         ("sync", "Sync"),
         ("performance", "Performance"),
         ("api", "API Keys"),
+        ("analytics", "Analytics"),
         ("anchor", "Anchor Policy"),
         ("appearance", "Appearance"),
     ]

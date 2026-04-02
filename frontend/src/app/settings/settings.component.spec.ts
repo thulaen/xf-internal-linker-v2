@@ -60,6 +60,35 @@ describe('SettingsComponent', () => {
             getGA4GSCSettings: () => of({
               ranking_weight: 0.05,
             }),
+            getGA4TelemetrySettings: () => of({
+              behavior_enabled: false,
+              property_id: '',
+              measurement_id: '',
+              api_secret_configured: false,
+              sync_enabled: false,
+              sync_lookback_days: 7,
+              event_schema: 'fr016_v1',
+              geo_granularity: 'country',
+              retention_days: 400,
+              impression_visible_ratio: 0.5,
+              impression_min_ms: 1000,
+              engaged_min_seconds: 10,
+              connection_status: 'not_configured',
+              connection_message: 'Fill in the GA4 fields and test the connection.',
+              last_sync: null,
+            }),
+            getMatomoTelemetrySettings: () => of({
+              enabled: false,
+              url: '',
+              site_id_xenforo: '',
+              site_id_wordpress: '',
+              token_auth_configured: false,
+              sync_enabled: false,
+              sync_lookback_days: 7,
+              connection_status: 'not_configured',
+              connection_message: 'Fill in the Matomo fields and test the connection.',
+              last_sync: null,
+            }),
             getWordPressSettings: () => of({
               base_url: '',
               username: '',
@@ -128,6 +157,8 @@ describe('SettingsComponent', () => {
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
     expect(text).toContain('WordPress Sync');
     expect(text).toContain('GA4 + Search Console');
+    expect(text).toContain('GA4 Telemetry');
+    expect(text).toContain('Matomo Telemetry');
     expect(text).toContain('Slate Diversity');
     expect(text).toContain('Rare-Term Propagation');
   });

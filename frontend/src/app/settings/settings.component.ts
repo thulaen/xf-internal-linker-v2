@@ -33,6 +33,11 @@ import {
   SlateDiversitySettings,
   WeightPreset,
   WeightAdjustmentHistory,
+  AnalyticsConnectionResult,
+  GA4TelemetrySettings,
+  GA4TelemetryUpdate,
+  MatomoTelemetrySettings,
+  MatomoTelemetryUpdate,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -639,6 +644,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   savingRareTermPropagation = false;
   savingFieldAwareRelevance = false;
   savingGA4GSC = false;
+  savingGA4Telemetry = false;
+  savingMatomoTelemetry = false;
   savingClickDistance = false;
   savingFeedbackRerank = false;
   savingClustering = false;
@@ -650,6 +657,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   recalculatingClustering = false;
   runningWordPressSync = false;
   creatingGroup = false;
+  testingGA4Telemetry = false;
+  testingMatomoTelemetry = false;
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -710,6 +719,37 @@ export class SettingsComponent implements OnInit, OnDestroy {
   ga4Gsc: GA4GSCSettings = {
     ranking_weight: 0.05,
   };
+  ga4Telemetry: GA4TelemetrySettings = {
+    behavior_enabled: false,
+    property_id: '',
+    measurement_id: '',
+    api_secret_configured: false,
+    sync_enabled: false,
+    sync_lookback_days: 7,
+    event_schema: 'fr016_v1',
+    geo_granularity: 'country',
+    retention_days: 400,
+    impression_visible_ratio: 0.5,
+    impression_min_ms: 1000,
+    engaged_min_seconds: 10,
+    connection_status: 'not_configured',
+    connection_message: 'Fill in the GA4 fields and test the connection.',
+    last_sync: null,
+  };
+  ga4TelemetrySecret = '';
+  matomoTelemetry: MatomoTelemetrySettings = {
+    enabled: false,
+    url: '',
+    site_id_xenforo: '',
+    site_id_wordpress: '',
+    token_auth_configured: false,
+    sync_enabled: false,
+    sync_lookback_days: 7,
+    connection_status: 'not_configured',
+    connection_message: 'Fill in the Matomo fields and test the connection.',
+    last_sync: null,
+  };
+  matomoTelemetryToken = '';
   clickDistance: ClickDistanceSettings = {
     ranking_weight: 0.07,
     k_cd: 4,
@@ -914,6 +954,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return String(a) === String(b);
   }
 
+  telemetryStatusLabel(status: string): string {
+    return {
+      connected: 'Connected',
+      saved: 'Saved',
+      error: 'Error',
+      not_configured: 'Not set up',
+    }[status] ?? 'Unknown';
+  }
+
+  telemetryStatusClass(status: string): string {
+    return `status-pill--${status === 'connected' ? 'success' : status === 'error' ? 'danger' : status === 'saved' ? 'status' : 'muted'}`;
+  }
+
+  lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {
+    if (!sync) return 'Never synced';
+    const stamp = sync.completed_at || sync.started_at;
+    if (!stamp) return `${sync.rows_written} rows written`;
+    return `${new Date(stamp).toLocaleString()} • ${sync.rows_written} rows written`;
+  }
+
   private presetMatchesCurrent(preset: WeightPreset): boolean {
     const presetEntries = Object.entries(preset.weights ?? {});
     if (!presetEntries.length) return false;
@@ -983,6 +1043,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       rareTermPropagation: this.siloSvc.getRareTermPropagationSettings(),
       fieldAwareRelevance: this.siloSvc.getFieldAwareRelevanceSettings(),
       ga4Gsc: this.siloSvc.getGA4GSCSettings(),
+      ga4Telemetry: this.siloSvc.getGA4TelemetrySettings(),
+      matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
@@ -1003,6 +1065,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
         this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
         this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
+        this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
+        this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
         this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
@@ -1270,6 +1334,124 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  saveGA4TelemetrySettings(): void {
+    this.savingGA4Telemetry = true;
+    const payload: GA4TelemetryUpdate = {
+      behavior_enabled: this.ga4Telemetry.behavior_enabled,
+      property_id: this.ga4Telemetry.property_id.trim(),
+      measurement_id: this.ga4Telemetry.measurement_id.trim(),
+      sync_enabled: this.ga4Telemetry.sync_enabled,
+      sync_lookback_days: Number(this.ga4Telemetry.sync_lookback_days),
+      event_schema: this.ga4Telemetry.event_schema.trim(),
+      geo_granularity: this.ga4Telemetry.geo_granularity,
+      retention_days: Number(this.ga4Telemetry.retention_days),
+      impression_visible_ratio: Number(this.ga4Telemetry.impression_visible_ratio),
+      impression_min_ms: Number(this.ga4Telemetry.impression_min_ms),
+      engaged_min_seconds: Number(this.ga4Telemetry.engaged_min_seconds),
+    };
+    if (this.ga4TelemetrySecret.trim()) {
+      payload.api_secret = this.ga4TelemetrySecret.trim();
+    }
+
+    this.siloSvc.updateGA4TelemetrySettings(payload).subscribe({
+      next: (ga4Telemetry) => {
+        this.ga4Telemetry = ga4Telemetry;
+        this.ga4TelemetrySecret = '';
+        this.savingGA4Telemetry = false;
+        this.snack.open('GA4 telemetry settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingGA4Telemetry = false;
+        this.snack.open(error?.error?.detail || 'Failed to save GA4 telemetry settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  testGA4TelemetryConnection(): void {
+    this.testingGA4Telemetry = true;
+    this.siloSvc.testGA4TelemetryConnection({
+      measurement_id: this.ga4Telemetry.measurement_id.trim() || undefined,
+      api_secret: this.ga4TelemetrySecret.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingGA4Telemetry = false;
+        this.ga4Telemetry = {
+          ...this.ga4Telemetry,
+          connection_status: result.status,
+          connection_message: result.message,
+        };
+        this.snack.open(result.message, undefined, { duration: 3000 });
+      },
+      error: (error) => {
+        this.testingGA4Telemetry = false;
+        const message = error?.error?.message || error?.error?.detail || 'GA4 connection test failed';
+        this.ga4Telemetry = {
+          ...this.ga4Telemetry,
+          connection_status: 'error',
+          connection_message: message,
+        };
+        this.snack.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveMatomoTelemetrySettings(): void {
+    this.savingMatomoTelemetry = true;
+    const payload: MatomoTelemetryUpdate = {
+      enabled: this.matomoTelemetry.enabled,
+      url: this.matomoTelemetry.url.trim(),
+      site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim(),
+      site_id_wordpress: this.matomoTelemetry.site_id_wordpress.trim(),
+      sync_enabled: this.matomoTelemetry.sync_enabled,
+      sync_lookback_days: Number(this.matomoTelemetry.sync_lookback_days),
+    };
+    if (this.matomoTelemetryToken.trim()) {
+      payload.token_auth = this.matomoTelemetryToken.trim();
+    }
+
+    this.siloSvc.updateMatomoTelemetrySettings(payload).subscribe({
+      next: (matomoTelemetry) => {
+        this.matomoTelemetry = matomoTelemetry;
+        this.matomoTelemetryToken = '';
+        this.savingMatomoTelemetry = false;
+        this.snack.open('Matomo telemetry settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingMatomoTelemetry = false;
+        this.snack.open(error?.error?.detail || 'Failed to save Matomo telemetry settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  testMatomoTelemetryConnection(): void {
+    this.testingMatomoTelemetry = true;
+    this.siloSvc.testMatomoTelemetryConnection({
+      url: this.matomoTelemetry.url.trim() || undefined,
+      site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim() || undefined,
+      token_auth: this.matomoTelemetryToken.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingMatomoTelemetry = false;
+        this.matomoTelemetry = {
+          ...this.matomoTelemetry,
+          connection_status: result.status,
+          connection_message: result.message,
+        };
+        this.snack.open(result.message, undefined, { duration: 3000 });
+      },
+      error: (error) => {
+        this.testingMatomoTelemetry = false;
+        const message = error?.error?.message || error?.error?.detail || 'Matomo connection test failed';
+        this.matomoTelemetry = {
+          ...this.matomoTelemetry,
+          connection_status: 'error',
+          connection_message: message,
+        };
+        this.snack.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   saveLinkFreshnessSettings(): void {
     this.savingLinkFreshness = true;
     this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness).subscribe({
@@ -1501,6 +1683,35 @@ export class SettingsComponent implements OnInit, OnDestroy {
       wordpressPayload.app_password = this.wordpressPassword.trim();
     }
 
+    const ga4TelemetryPayload: GA4TelemetryUpdate = {
+      behavior_enabled: this.ga4Telemetry.behavior_enabled,
+      property_id: this.ga4Telemetry.property_id.trim(),
+      measurement_id: this.ga4Telemetry.measurement_id.trim(),
+      sync_enabled: this.ga4Telemetry.sync_enabled,
+      sync_lookback_days: Number(this.ga4Telemetry.sync_lookback_days),
+      event_schema: this.ga4Telemetry.event_schema.trim(),
+      geo_granularity: this.ga4Telemetry.geo_granularity,
+      retention_days: Number(this.ga4Telemetry.retention_days),
+      impression_visible_ratio: Number(this.ga4Telemetry.impression_visible_ratio),
+      impression_min_ms: Number(this.ga4Telemetry.impression_min_ms),
+      engaged_min_seconds: Number(this.ga4Telemetry.engaged_min_seconds),
+    };
+    if (this.ga4TelemetrySecret.trim()) {
+      ga4TelemetryPayload.api_secret = this.ga4TelemetrySecret.trim();
+    }
+
+    const matomoTelemetryPayload: MatomoTelemetryUpdate = {
+      enabled: this.matomoTelemetry.enabled,
+      url: this.matomoTelemetry.url.trim(),
+      site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim(),
+      site_id_wordpress: this.matomoTelemetry.site_id_wordpress.trim(),
+      sync_enabled: this.matomoTelemetry.sync_enabled,
+      sync_lookback_days: Number(this.matomoTelemetry.sync_lookback_days),
+    };
+    if (this.matomoTelemetryToken.trim()) {
+      matomoTelemetryPayload.token_auth = this.matomoTelemetryToken.trim();
+    }
+
     forkJoin({
       settings: this.siloSvc.updateSettings(this.settings),
       authority: this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority),
@@ -1510,6 +1721,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       rare: this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation),
       relevance: this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance),
       ga4: this.siloSvc.updateGA4GSCSettings(this.ga4Gsc),
+      ga4Telemetry: this.siloSvc.updateGA4TelemetrySettings(ga4TelemetryPayload),
+      matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
       explore: this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank),
       clustering: this.siloSvc.updateClusteringSettings(this.clustering),
@@ -1525,12 +1738,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = results.rare;
         this.fieldAwareRelevance = results.relevance;
         this.ga4Gsc = results.ga4;
+        this.ga4Telemetry = results.ga4Telemetry;
+        this.matomoTelemetry = results.matomoTelemetry;
         this.clickDistance = results.click;
         this.feedbackRerank = results.explore;
         this.clustering = results.clustering;
         this.slateDiversity = results.slate;
         this.wordpress = results.wordpress;
         this.wordpressPassword = '';
+        this.ga4TelemetrySecret = '';
+        this.matomoTelemetryToken = '';
         
         this.savingSettings = false;
         this.snack.open('All settings saved successfully', undefined, { duration: 3000 });

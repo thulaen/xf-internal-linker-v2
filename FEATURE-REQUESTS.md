@@ -222,6 +222,7 @@ Important:
 
 ### Specific controls / behaviour
 - **Slice 1 (build first):** Angular credentials settings card for GA4 (property ID, measurement ID, API secret) and Matomo (URL, XenForo site ID, WordPress site ID, API token). Each section has a "Test Connection" button, inline status badge, and last-sync display. Nothing else in this FR can run without valid credentials.
+- **Progress (2026-04-02):** Slice 1 is now landed in code: new telemetry rollup models, sync-run audit rows, GA4/Matomo settings APIs, masked secret storage, live test-connection endpoints, settings-page cards, and a small analytics overview page. The later instrumentation, sync, and richer chart slices are still pending.
 - Add a versioned analytics event schema for suggestion-linked traffic.
 - Track at minimum: `suggestion_link_impression`, `suggestion_link_click`, `suggestion_destination_view`, `suggestion_destination_engaged`, `suggestion_destination_conversion`
 - Two parallel collection sources: GA4 (cloud, sampled at scale) and Matomo (on-premise, unsampled, full cardinality). Both feed the same `SuggestionTelemetryDaily` model via a `telemetry_source` field.

@@ -5,7 +5,7 @@ Analytics admin — SearchMetric and ImpactReport.
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import ImpactReport, SearchMetric
+from .models import AnalyticsSyncRun, ImpactReport, SearchMetric, SuggestionTelemetryDaily, TelemetryCoverageDaily
 
 
 @admin.register(SearchMetric)
@@ -53,4 +53,66 @@ class ImpactReportAdmin(ModelAdmin):
         return f"{sign}{obj.delta_percent:.1f}%"
 
     def has_add_permission(self, request) -> bool:
+        return False
+
+
+@admin.register(SuggestionTelemetryDaily)
+class SuggestionTelemetryDailyAdmin(ModelAdmin):
+    """Admin for daily suggestion telemetry rollups."""
+
+    list_display = [
+        "date", "telemetry_source", "suggestion", "clicks", "impressions",
+        "destination_views", "engaged_sessions", "is_attributed",
+    ]
+    list_filter = ["telemetry_source", "date", "is_attributed", "device_category", "default_channel_group"]
+    search_fields = ["suggestion__anchor_phrase", "algorithm_version_slug", "source_label"]
+    readonly_fields = [field.name for field in SuggestionTelemetryDaily._meta.fields]
+    ordering = ["-date", "telemetry_source", "-clicks"]
+    date_hierarchy = "date"
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(TelemetryCoverageDaily)
+class TelemetryCoverageDailyAdmin(ModelAdmin):
+    """Admin for telemetry health rollups."""
+
+    list_display = [
+        "date", "source_label", "algorithm_version_slug", "coverage_state",
+        "expected_instrumented_links", "observed_click_links",
+    ]
+    list_filter = ["coverage_state", "date", "source_label"]
+    search_fields = ["algorithm_version_slug", "source_label", "event_schema"]
+    readonly_fields = [field.name for field in TelemetryCoverageDaily._meta.fields]
+    ordering = ["-date"]
+    date_hierarchy = "date"
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(AnalyticsSyncRun)
+class AnalyticsSyncRunAdmin(ModelAdmin):
+    """Admin for telemetry sync runs."""
+
+    list_display = [
+        "source", "status", "started_at", "completed_at",
+        "lookback_days", "rows_read", "rows_written", "rows_updated",
+    ]
+    list_filter = ["source", "status"]
+    search_fields = ["error_message"]
+    readonly_fields = [field.name for field in AnalyticsSyncRun._meta.fields]
+    ordering = ["-started_at"]
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
         return False

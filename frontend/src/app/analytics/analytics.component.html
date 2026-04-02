@@ -1,17 +1,90 @@
-<!-- Analytics page — full implementation in a future phase -->
 <div class="page-header">
   <h1 class="page-title">
     <mat-icon>bar_chart</mat-icon>
     Analytics
   </h1>
+  <p class="page-subtitle">This page now shows whether the telemetry pipes are set up and whether any data has started flowing.</p>
 </div>
 
-<mat-card class="placeholder-card">
-  <mat-card-content>
-    <div class="empty-state">
-      <mat-icon>bar_chart</mat-icon>
-      <h3>Analytics</h3>
-      <p>This section will be fully built in a future phase. The scaffolding is in place and ready.</p>
-    </div>
-  </mat-card-content>
-</mat-card>
+@if (loading) {
+  <mat-card class="placeholder-card">
+    <mat-card-content>Loading telemetry overview...</mat-card-content>
+  </mat-card>
+} @else if (error) {
+  <mat-card class="placeholder-card">
+    <mat-card-content>{{ error }}</mat-card-content>
+  </mat-card>
+} @else if (overview; as data) {
+  <div class="overview-grid">
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <span class="stat-card__label">Telemetry rows</span>
+        <strong>{{ data.telemetry_row_count }}</strong>
+        <p>Stored in the last 30 days.</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <span class="stat-card__label">Coverage rows</span>
+        <strong>{{ data.coverage_row_count }}</strong>
+        <p>Health snapshots in the last 30 days.</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <span class="stat-card__label">Clicks</span>
+        <strong>{{ data.totals_last_30_days.clicks }}</strong>
+        <p>Tracked suggestion-link clicks.</p>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="stat-card">
+      <mat-card-content>
+        <span class="stat-card__label">Engaged sessions</span>
+        <strong>{{ data.totals_last_30_days.engaged_sessions }}</strong>
+        <p>People who stayed and interacted.</p>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <div class="status-grid">
+    <mat-card class="status-card">
+      <mat-card-content>
+        <div class="status-card__top">
+          <h3>GA4</h3>
+          <span class="status-badge">{{ statusLabel(data.ga4.connection_status) }}</span>
+        </div>
+        <p>{{ data.ga4.connection_message }}</p>
+        <div class="status-card__meta">Last sync: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
+      </mat-card-content>
+    </mat-card>
+
+    <mat-card class="status-card">
+      <mat-card-content>
+        <div class="status-card__top">
+          <h3>Matomo</h3>
+          <span class="status-badge">{{ statusLabel(data.matomo.connection_status) }}</span>
+        </div>
+        <p>{{ data.matomo.connection_message }}</p>
+        <div class="status-card__meta">Last sync: {{ lastSyncLabel(data.matomo.last_sync) }}</div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <mat-card class="coverage-card">
+    <mat-card-content>
+      <h3>Latest coverage check</h3>
+      @if (data.latest_coverage) {
+        <p>State: <strong>{{ data.latest_coverage.coverage_state }}</strong></p>
+        <p>Date: {{ data.latest_coverage.date }}</p>
+        <p>Expected instrumented links: {{ data.latest_coverage.expected_instrumented_links }}</p>
+        <p>Observed impression links: {{ data.latest_coverage.observed_impression_links }}</p>
+        <p>Observed click links: {{ data.latest_coverage.observed_click_links }}</p>
+      } @else {
+        <p>No coverage rows yet. Once sync starts writing telemetry health rows, they will show up here.</p>
+      }
+    </mat-card-content>
+  </mat-card>
+}

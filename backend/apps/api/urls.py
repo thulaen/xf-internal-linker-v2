@@ -62,6 +62,7 @@ router.register(r"weight-history", WeightAdjustmentHistoryViewSet, basename="wei
 
 urlpatterns = [
     path("", include("apps.core.urls")),
+    path("analytics/", include("apps.analytics.urls")),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"),

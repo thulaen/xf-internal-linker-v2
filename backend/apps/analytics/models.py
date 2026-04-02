@@ -151,3 +151,166 @@ class ImpactReport(models.Model):
     def __str__(self) -> str:
         sign = "+" if self.delta_percent >= 0 else ""
         return f"{self.metric_type} {sign}{self.delta_percent:.1f}% for {self.suggestion}"
+
+
+class SuggestionTelemetryDaily(models.Model):
+    """Daily FR-016 telemetry rollup for one suggestion or unattributed bucket."""
+
+    TELEMETRY_SOURCE_CHOICES = [
+        ("ga4", "Google Analytics 4"),
+        ("matomo", "Matomo"),
+    ]
+
+    date = models.DateField(db_index=True)
+    telemetry_source = models.CharField(max_length=20, choices=TELEMETRY_SOURCE_CHOICES, db_index=True)
+    suggestion = models.ForeignKey(
+        "suggestions.Suggestion",
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name="telemetry_rows",
+    )
+    destination = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="telemetry_as_destination",
+    )
+    host = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="telemetry_as_host",
+    )
+    algorithm_key = models.CharField(max_length=100, blank=True)
+    algorithm_version_date = models.DateField(null=True, blank=True)
+    algorithm_version_slug = models.CharField(max_length=100, blank=True)
+    event_schema = models.CharField(max_length=50, default="fr016_v1")
+    device_category = models.CharField(max_length=50, blank=True)
+    default_channel_group = models.CharField(max_length=120, blank=True)
+    source_medium = models.CharField(max_length=120, blank=True)
+    country = models.CharField(max_length=120, blank=True)
+    region = models.CharField(max_length=120, blank=True)
+    source_label = models.CharField(max_length=50, blank=True)
+    same_silo = models.BooleanField(null=True, blank=True)
+    impressions = models.IntegerField(default=0)
+    clicks = models.IntegerField(default=0)
+    destination_views = models.IntegerField(default=0)
+    engaged_sessions = models.IntegerField(default=0)
+    conversions = models.IntegerField(default=0)
+    sessions = models.IntegerField(default=0)
+    bounce_sessions = models.IntegerField(default=0)
+    avg_engagement_time_seconds = models.FloatField(default=0.0)
+    total_engagement_time_seconds = models.FloatField(default=0.0)
+    event_count = models.IntegerField(default=0)
+    is_attributed = models.BooleanField(default=True)
+    last_synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Suggestion Telemetry Daily"
+        verbose_name_plural = "Suggestion Telemetry Daily"
+        ordering = ["-date", "telemetry_source", "-clicks"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=[
+                    "date",
+                    "telemetry_source",
+                    "suggestion",
+                    "algorithm_version_slug",
+                    "device_category",
+                    "default_channel_group",
+                    "source_medium",
+                    "country",
+                    "region",
+                    "is_attributed",
+                ],
+                name="analytics_telemetry_daily_unique_rollup",
+            )
+        ]
+        indexes = [
+            models.Index(fields=["algorithm_version_slug", "date"]),
+            models.Index(fields=["telemetry_source", "date"]),
+            models.Index(fields=["suggestion", "-date"]),
+            models.Index(fields=["destination", "-date"]),
+            models.Index(fields=["device_category", "date"]),
+            models.Index(fields=["default_channel_group", "date"]),
+        ]
+
+    def __str__(self) -> str:
+        target = self.suggestion_id or "unattributed"
+        return f"[{self.telemetry_source}] {target} on {self.date}"
+
+
+class TelemetryCoverageDaily(models.Model):
+    """Daily health rollup that shows whether telemetry is trustworthy."""
+
+    COVERAGE_STATE_CHOICES = [
+        ("healthy", "Healthy"),
+        ("partial", "Partial"),
+        ("degraded", "Degraded"),
+    ]
+
+    date = models.DateField(db_index=True)
+    event_schema = models.CharField(max_length=50, default="fr016_v1")
+    source_label = models.CharField(max_length=50, blank=True)
+    algorithm_version_slug = models.CharField(max_length=100, blank=True)
+    expected_instrumented_links = models.IntegerField(default=0)
+    observed_impression_links = models.IntegerField(default=0)
+    observed_click_links = models.IntegerField(default=0)
+    attributed_destination_sessions = models.IntegerField(default=0)
+    unattributed_destination_sessions = models.IntegerField(default=0)
+    duplicate_event_drops = models.IntegerField(default=0)
+    missing_metadata_events = models.IntegerField(default=0)
+    delayed_rows_rewritten = models.IntegerField(default=0)
+    coverage_state = models.CharField(max_length=20, choices=COVERAGE_STATE_CHOICES, default="partial")
+    last_synced_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "Telemetry Coverage Daily"
+        verbose_name_plural = "Telemetry Coverage Daily"
+        ordering = ["-date", "source_label", "algorithm_version_slug"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["date", "event_schema", "source_label", "algorithm_version_slug"],
+                name="analytics_coverage_daily_unique_rollup",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.date} {self.coverage_state}"
+
+
+class AnalyticsSyncRun(models.Model):
+    """Audit row for one analytics import or restatement run."""
+
+    SOURCE_CHOICES = [
+        ("ga4", "Google Analytics 4"),
+        ("matomo", "Matomo"),
+        ("gsc", "Google Search Console"),
+    ]
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("running", "Running"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
+    started_at = models.DateTimeField(auto_now_add=True, db_index=True)
+    completed_at = models.DateTimeField(null=True, blank=True)
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    lookback_days = models.IntegerField(default=7)
+    rows_read = models.IntegerField(default=0)
+    rows_written = models.IntegerField(default=0)
+    rows_updated = models.IntegerField(default=0)
+    error_message = models.TextField(blank=True)
+
+    class Meta:
+        verbose_name = "Analytics Sync Run"
+        verbose_name_plural = "Analytics Sync Runs"
+        ordering = ["-started_at"]
+        indexes = [
+            models.Index(fields=["source", "-started_at"]),
+            models.Index(fields=["status", "-started_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.source} {self.status} at {self.started_at}"
