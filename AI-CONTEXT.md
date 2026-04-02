@@ -93,6 +93,13 @@ Do not leave mystery changes behind.
 - **No New Themes**: Never create a new CSS/SCSS theme file.
 - **Default Theme Only**: All styling must use or extend `frontend/src/styles/default-theme.scss`. This rule applies to ALL AI models (Antigravity, Claude, Codex, etc.) without exception.
 
+### Visual Design Principles (User-First Design)
+- **Readability is Non-Negotiable**: Prioritize high-contrast text and clean, neutral backgrounds. Avoid dark, vibrant gradients for large headers (e.g., deep blue gradients with white text) as they are physically straining to read and feel overbearing.
+- **Subtle Professionalism**: Use soft grays, thin borders (1px solid var(--cf-newGray-8)), and ample whitespace. "Premium" means refined and easy to use, not "loud" or "flashy."
+- **Accessibility**: Ensure all text meets WCAG contrast standards. When in doubt, black text on a white/light-gray background is the gold standard.
+- **User-Centric Spacing**: Ensure data visualizations, tables, and metrics have clear labels and enough breathing room. Never allow text to "jumble" or overlap.
+- **Consistency**: Stick to Material Design patterns and existing `default-theme.scss` variables.
+
 - When explaining blockers, risks, test results, or architecture, lead with the simple version first.
 - Avoid unnecessary jargon; if a technical term matters, define it briefly in the same reply.
 - Keep answers simple, direct, and practical.

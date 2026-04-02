@@ -1,470 +1,384 @@
 <div class="page-header">
-  <h1 class="page-title">
-    <mat-icon>bar_chart</mat-icon>
-    Analytics
-  </h1>
-  <p class="page-subtitle">This page now shows what people saw, clicked, and stayed with after the telemetry sync pulls local daily totals.</p>
+  <div class="page-header__content">
+    <h1 class="page-title">
+      <mat-icon>analytics</mat-icon>
+      Analytics & Insights
+    </h1>
+    <p class="page-subtitle">Monitor your link performance, algorithm uplift, and telemetry health in real-time.</p>
+  </div>
 </div>
 
-@if (loading) {
-  <mat-card class="placeholder-card">
-    <mat-card-content>Loading telemetry overview...</mat-card-content>
-  </mat-card>
-} @else if (error) {
-  <mat-card class="placeholder-card">
-    <mat-card-content>{{ error }}</mat-card-content>
-  </mat-card>
-} @else if (overview; as data) {
-  <div class="source-filter">
-    <button mat-stroked-button type="button" [class.is-active]="selectedSource === 'all'" (click)="chooseSource('all')">Combined</button>
-    <button mat-stroked-button type="button" [class.is-active]="selectedSource === 'ga4'" (click)="chooseSource('ga4')">GA4 only</button>
-    <button mat-stroked-button type="button" [class.is-active]="selectedSource === 'matomo'" (click)="chooseSource('matomo')">Matomo only</button>
-  </div>
-
-  <div class="overview-grid">
-    <mat-card class="stat-card">
+<div class="page-container">
+  @if (loading) {
+    <div class="loading-state">
+      <mat-spinner diameter="40"></mat-spinner>
+      <p>Loading telemetry overview...</p>
+    </div>
+  } @else if (error) {
+    <mat-card class="error-card">
       <mat-card-content>
-        <span class="stat-card__label">Telemetry rows</span>
-        <strong>{{ data.telemetry_row_count }}</strong>
-        <p>Stored in the last 30 days.</p>
+        <mat-icon>error_outline</mat-icon>
+        <span>{{ error }}</span>
       </mat-card-content>
     </mat-card>
+  } @else if (overview; as data) {
+    <div class="toolbar">
+      <mat-button-toggle-group [value]="selectedSource" (change)="onSourceChange($event)" class="source-toggle">
+        <mat-button-toggle value="all">Combined View</mat-button-toggle>
+        <mat-button-toggle value="ga4">Google Analytics 4</mat-button-toggle>
+        <mat-button-toggle value="matomo">Matomo Analytics</mat-button-toggle>
+      </mat-button-toggle-group>
+    </div>
 
-    <mat-card class="stat-card">
-      <mat-card-content>
-        <span class="stat-card__label">Coverage rows</span>
-        <strong>{{ data.coverage_row_count }}</strong>
-        <p>Health snapshots in the last 30 days.</p>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card class="stat-card">
-      <mat-card-content>
-        <span class="stat-card__label">Clicks</span>
-        <strong>{{ data.totals_last_30_days.clicks }}</strong>
-        <p>Tracked suggestion-link clicks.</p>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card class="stat-card">
-      <mat-card-content>
-        <span class="stat-card__label">Engaged sessions</span>
-        <strong>{{ data.totals_last_30_days.engaged_sessions }}</strong>
-        <p>People who stayed and interacted.</p>
-      </mat-card-content>
-    </mat-card>
-  </div>
-
-  @if (funnel; as funnelData) {
-    <mat-card class="report-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Funnel for the last {{ funnelData.days }} days</h3>
-          <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
-        </div>
-        <div class="funnel-container">
-          @if (funnelChartData) {
-            <canvas
-              baseChart
-              [data]="funnelChartData"
-              [options]="funnelChartOptions"
-              [type]="'bar'">
-            </canvas>
-          }
-        </div>
-        <div class="source-mini-grid">
-          @for (row of funnelData.by_source; track row.telemetry_source) {
-            <div class="source-mini-card">
-              <strong>{{ row.telemetry_source | uppercase }}</strong>
-              <span>{{ row.clicks }} clicks</span>
-              <span>{{ row.engaged_sessions }} engaged</span>
-            </div>
-          }
-        </div>
-      </mat-card-content>
-    </mat-card>
-  }
-
-  @if (versionComparison; as versionData) {
-    <mat-card class="report-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Algorithm performance comparison</h3>
-          <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
-        </div>
-        @if (versionChartData) {
-          <div class="chart-container-md">
-            <canvas
-              baseChart
-              [data]="versionChartData"
-              [options]="versionChartOptions"
-              [type]="'bar'">
-            </canvas>
-          </div>
-        }
-        <div class="status-card__top mt-md">
-          <h3>Detailed version metrics ({{ versionData.days }} days)</h3>
-        </div>
-        @if (versionData.items.length) {
-          <div class="table-container">
-            <table class="report-table">
-              <thead>
-                <tr>
-                  <th>Version</th>
-                  <th>CTR</th>
-                  <th>Uplift</th>
-                  <th>Engagement</th>
-                  <th>Conv.</th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of versionData.items; track row.version_slug) {
-                  <tr>
-                    <td>
-                      <div class="version-label">
-                        <strong>{{ row.version_slug }}</strong>
-                        <span>{{ row.clicks }} clicks / {{ row.impressions }} views</span>
-                      </div>
-                    </td>
-                    <td><strong>{{ formatPercent(row.ctr) }}</strong></td>
-                    <td>
-                      @if (calculateUplift(row); as uplift) {
-                        <span class="uplift-badge" [class.uplift-badge--negative]="uplift.startsWith('-')">{{ uplift }}</span>
-                      } @else {
-                        —
-                      }
-                    </td>
-                    <td>{{ formatPercent(row.engagement_rate) }}</td>
-                    <td>{{ formatPercent(row.conversion_rate) }}</td>
-                  </tr>
-                }
-              </tbody>
-            </table>
-          </div>
-        } @else {
-          <p>No version data yet. This requires suggestions to be generated with an algorithm version slug.</p>
-        }
-      </mat-card-content>
-    </mat-card>
-  }
-
-  @if (health; as healthData) {
-    <mat-card class="report-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Telemetry health for the last {{ healthData.days }} days</h3>
-          <span class="status-badge" [ngClass]="coverageStateClass(healthData.overall.latest_state)">{{ coverageStateLabel(healthData.overall.latest_state) }}</span>
-        </div>
-        <div class="health-grid">
-          <div class="health-metric">
-            <span>Impression coverage</span>
-            <strong>{{ formatPercent(healthData.overall.impression_coverage_rate) }}</strong>
-            <p>{{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} expected links</p>
-          </div>
-          <div class="health-metric">
-            <span>Click coverage</span>
-            <strong>{{ formatPercent(healthData.overall.click_coverage_rate) }}</strong>
-            <p>{{ healthData.overall.observed_click_links }} click-carrying links were matched</p>
-          </div>
-          <div class="health-metric">
-            <span>Attribution rate</span>
-            <strong>{{ formatPercent(healthData.overall.attribution_rate) }}</strong>
-            <p>{{ healthData.overall.attributed_destination_sessions }} of {{ healthData.overall.attributed_destination_sessions + healthData.overall.unattributed_destination_sessions }} sessions were attributed</p>
-          </div>
-          <div class="health-metric">
-            <span>Cleanup work</span>
-            <strong>{{ healthData.overall.duplicate_event_drops + healthData.overall.missing_metadata_events }}</strong>
-            <p>{{ healthData.overall.duplicate_event_drops }} duplicates dropped, {{ healthData.overall.missing_metadata_events }} missing-metadata events</p>
-          </div>
-        </div>
-        <div class="health-days">
-          <span>{{ healthData.overall.healthy_days }} healthy day{{ healthData.overall.healthy_days === 1 ? '' : 's' }}</span>
-          <span>{{ healthData.overall.partial_days }} partial day{{ healthData.overall.partial_days === 1 ? '' : 's' }}</span>
-          <span>{{ healthData.overall.degraded_days }} degraded day{{ healthData.overall.degraded_days === 1 ? '' : 's' }}</span>
-          @if (healthData.overall.latest_date) {
-            <span>Latest check: {{ healthData.overall.latest_date }}</span>
-          }
-        </div>
-
-        @if (healthData.sources.length) {
-          <div class="source-mini-grid">
-            @for (row of healthData.sources; track row.source_label) {
-              <div class="source-mini-card source-mini-card--health" [ngClass]="coverageStateClass(row.latest_state)">
-                <div class="status-card__top">
-                  <strong>{{ sourceName(row.source_label) }}</strong>
-                  <span class="status-badge" [ngClass]="coverageStateClass(row.latest_state)">{{ coverageStateLabel(row.latest_state) }}</span>
-                </div>
-                <span>{{ formatPercent(row.impression_coverage_rate) }} impression coverage</span>
-                <span>{{ formatPercent(row.attribution_rate) }} attributed sessions</span>
-                <span>{{ row.delayed_rows_rewritten }} delayed row{{ row.delayed_rows_rewritten === 1 ? '' : 's' }} rewritten</span>
-              </div>
-            }
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
-  }
-
-  @if (trend; as trendData) {
-    <mat-card class="report-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Engagement trend</h3>
-          <span class="status-badge">{{ trendData.items.length }} day{{ trendData.items.length === 1 ? '' : 's' }}</span>
-        </div>
-        @if (trendData.items.length) {
-          @if (trendChartData) {
-            <div class="chart-container-lg">
-              <canvas
-                baseChart
-                [data]="trendChartData"
-                [options]="trendChartOptions"
-                [type]="'line'">
-              </canvas>
-            </div>
-          }
-          <div class="trend-summary">
-            <p>Newest CTR: <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].ctr) }}</strong></p>
-            <p>Newest engaged-view rate: <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].engagement_rate) }}</strong></p>
-          </div>
-        } @else {
-          <p>No trend rows yet. Run a sync after live telemetry starts landing.</p>
-        }
-      </mat-card-content>
-    </mat-card>
-  }
-
-  @if (breakdowns; as breakdownData) {
-    <div class="report-split-grid">
-      <mat-card class="report-card">
-        <mat-card-content>
-          <div class="status-card__top">
-            <h3>Device mix</h3>
-            <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
-          </div>
-          @if (deviceChartData && breakdownData.device_categories.length) {
-            <div class="chart-container-sm">
-              <canvas
-                baseChart
-                [data]="deviceChartData"
-                [options]="doughnutOptions"
-                [type]="'doughnut'">
-              </canvas>
-            </div>
-          } @else {
-            <p>No device rows yet.</p>
-          }
+    <div class="overview-grid">
+      <mat-card class="stat-card">
+        <mat-icon class="stat-card__icon">database</mat-icon>
+        <mat-card-content class="stat-card__content">
+          <span class="stat-card__label">Telemetry Records</span>
+          <span class="stat-card__value">{{ data.telemetry_row_count | number }}</span>
+          <span class="stat-card__subtext">Stored in the last 30 days</span>
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="report-card">
-        <mat-card-content>
-          <div class="status-card__top">
-            <h3>Channel mix</h3>
-            <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
-          </div>
-          @if (channelChartData && breakdownData.channel_groups.length) {
-            <div class="chart-container-sm">
-              <canvas
-                baseChart
-                [data]="channelChartData"
-                [options]="doughnutOptions"
-                [type]="'doughnut'">
-              </canvas>
-            </div>
-          } @else {
-            <p>No channel rows yet.</p>
-          }
+      <mat-card class="stat-card">
+        <mat-icon class="stat-card__icon">health_and_safety</mat-icon>
+        <mat-card-content class="stat-card__content">
+          <span class="stat-card__label">Coverage Snapshots</span>
+          <span class="stat-card__value">{{ data.coverage_row_count | number }}</span>
+          <span class="stat-card__subtext">Health checks performed</span>
         </mat-card-content>
       </mat-card>
 
-      <mat-card class="report-card">
-        <mat-card-content>
-          <div class="status-card__top">
-            <h3>Country mix</h3>
-            <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
-          </div>
-          @if (geoChartData && breakdownData.countries.length) {
-            <div class="chart-container-sm">
-              <canvas
-                baseChart
-                [data]="geoChartData"
-                [options]="funnelChartOptions"
-                [type]="'bar'">
-              </canvas>
-            </div>
-            <div class="card-actions">
-              <button mat-button type="button" (click)="toggleFullGeo()">
-                {{ showFullGeo ? 'Hide detail' : 'Show full geo breakdown' }}
-              </button>
-            </div>
-          } @else {
-            <p>No country rows yet.</p>
-          }
+      <mat-card class="stat-card">
+        <mat-icon class="stat-card__icon">ads_click</mat-icon>
+        <mat-card-content class="stat-card__content">
+          <span class="stat-card__label">Total Clicks</span>
+          <span class="stat-card__value">{{ data.totals_last_30_days.clicks | number }}</span>
+          <span class="stat-card__subtext">Tracked suggestion interactions</span>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="stat-card">
+        <mat-icon class="stat-card__icon">person_celebrating</mat-icon>
+        <mat-card-content class="stat-card__content">
+          <span class="stat-card__label">Engaged Sessions</span>
+          <span class="stat-card__value">{{ data.totals_last_30_days.engaged_sessions | number }}</span>
+          <span class="stat-card__subtext">High-intent user sessions</span>
         </mat-card-content>
       </mat-card>
     </div>
-  }
 
-  @if (showFullGeo && geoDetail; as geoData) {
-    <mat-card class="report-card geo-detail-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Full Geographic Breakdown ({{ geoData.items.length }} regions)</h3>
-          <button mat-icon-button type="button" (click)="toggleFullGeo()"><mat-icon>close</mat-icon></button>
-        </div>
-        <div class="table-container">
-          <table class="report-table">
-            <thead>
-              <tr>
-                <th>Region</th>
-                <th>Country</th>
-                <th>Clicks</th>
-                <th>CTR</th>
-                <th>Engaged</th>
-                <th>Conv.</th>
-              </tr>
-            </thead>
-            <tbody>
-              @for (row of geoData.items; track row.country + row.region) {
-                <tr>
-                  <td>{{ row.region }}</td>
-                  <td>{{ row.country }}</td>
-                  <td>{{ row.clicks }}</td>
-                  <td>{{ formatPercent(row.ctr) }}</td>
-                  <td>{{ row.engaged_sessions }}</td>
-                  <td>{{ row.conversions }}</td>
-                </tr>
+    <div class="main-reports">
+      @if (funnel; as funnelData) {
+        <mat-card class="report-card">
+          <mat-card-header>
+            <mat-card-title>Funnel Performance</mat-card-title>
+            <mat-card-subtitle>Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="funnel-container">
+              @if (funnelChartData) {
+                <canvas baseChart [data]="funnelChartData" [options]="funnelChartOptions" [type]="'bar'"></canvas>
+              } @else {
+                <div class="empty-chart">
+                  <mat-icon>bar_chart</mat-icon>
+                  <p>No funnel data available for the selected period.</p>
+                </div>
               }
-            </tbody>
-          </table>
-        </div>
-      </mat-card-content>
-    </mat-card>
-  }
+            </div>
+            <div class="source-breakdown">
+              @for (row of funnelData.by_source; track row.telemetry_source) {
+                <div class="breakdown-item">
+                  <span class="breakdown-item__name">{{ row.telemetry_source | uppercase }}</span>
+                  <div class="breakdown-item__metrics">
+                    <span><strong>{{ row.clicks }}</strong> clicks</span>
+                    <span><strong>{{ row.engaged_sessions }}</strong> engaged</span>
+                  </div>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
 
-  @if (topSuggestions; as topData) {
-    <mat-card class="report-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Top suggestion rows</h3>
-          <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
-        </div>
-        @if (topData.items.length) {
-          <div class="top-list">
-            @for (item of topData.items; track item.suggestion_id + item.telemetry_source) {
-              <div class="top-row">
-                <div class="top-row__main">
-                  <strong>{{ item.destination_title }}</strong>
-                  <span>Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
-                  <span>Source: {{ item.telemetry_source | uppercase }} | Status: {{ item.status }}</span>
-                </div>
-                <div class="top-row__metrics">
-                  <span>{{ item.clicks }} clicks</span>
-                  <span>{{ formatPercent(item.ctr) }} CTR</span>
-                  <span>{{ formatPercent(item.engagement_rate) }} engaged</span>
-                </div>
+      @if (versionComparison; as versionData) {
+        <mat-card class="report-card">
+          <mat-card-header>
+            <mat-card-title>Algorithm Performance</mat-card-title>
+            <mat-card-subtitle>Comparison across different model versions</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (versionChartData) {
+              <div class="chart-wrapper chart-wrapper--md">
+                <canvas baseChart [data]="versionChartData" [options]="versionChartOptions" [type]="'bar'"></canvas>
               </div>
             }
-          </div>
-        } @else {
-          <p>No suggestion rows yet. Once sync writes local telemetry, the top performers will show here.</p>
-        }
-      </mat-card-content>
-    </mat-card>
-  }
-
-  <div class="status-grid">
-    <mat-card class="status-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>GA4</h3>
-          <span class="status-badge">{{ ga4StatusLabel() }}</span>
-        </div>
-        <p>{{ ga4StatusMessage() }}</p>
-        <div class="status-card__meta">Last sync: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
-      </mat-card-content>
-    </mat-card>
-
-    <mat-card class="status-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Matomo</h3>
-          <span class="status-badge">{{ statusLabel(data.matomo.connection_status) }}</span>
-        </div>
-        <p>{{ data.matomo.connection_message }}</p>
-        <div class="status-card__meta">Last sync: {{ lastSyncLabel(data.matomo.last_sync) }}</div>
-      </mat-card-content>
-    </mat-card>
-  </div>
-
-  <mat-card class="sync-card">
-    <mat-card-content>
-      <div class="status-card__top">
-        <h3>Manual sync</h3>
-      </div>
-      <p>Use this when you want to pull fresh telemetry into the local database right now.</p>
-      <div class="sync-actions">
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="syncingMatomo"
-          (click)="runMatomoSync()"
-        >
-          {{ syncingMatomo ? 'Queuing Matomo sync...' : 'Run Matomo sync' }}
-        </button>
-        <button
-          mat-stroked-button
-          type="button"
-          [disabled]="syncingGa4"
-          (click)="runGa4Sync()"
-        >
-          {{ syncingGa4 ? 'Queuing GA4 sync...' : 'Run GA4 sync' }}
-        </button>
-      </div>
-    </mat-card-content>
-  </mat-card>
-
-  <mat-card class="coverage-card">
-    <mat-card-content>
-      <h3>Latest coverage check</h3>
-      @if (data.latest_coverage) {
-        <p>State: <strong>{{ data.latest_coverage.coverage_state }}</strong></p>
-        <p>Date: {{ data.latest_coverage.date }}</p>
-        <p>Expected instrumented links: {{ data.latest_coverage.expected_instrumented_links }}</p>
-        <p>Observed impression links: {{ data.latest_coverage.observed_impression_links }}</p>
-        <p>Observed click links: {{ data.latest_coverage.observed_click_links }}</p>
-      } @else {
-        <p>No coverage rows yet. Once sync starts writing telemetry health rows, they will show up here.</p>
+            
+            <div class="table-section">
+              <h3>Detailed Version Metrics</h3>
+              @if (versionData.items.length) {
+                <div class="table-container">
+                  <table class="premium-table">
+                    <thead>
+                      <tr>
+                        <th>Algorithm Version</th>
+                        <th class="text-right">CTR</th>
+                        <th class="text-center">Uplift</th>
+                        <th class="text-right">Engagement</th>
+                        <th class="text-right">Conv.</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (row of versionData.items; track row.version_slug) {
+                        <tr>
+                          <td>
+                            <div class="version-info">
+                              <span class="version-info__slug">{{ row.version_slug }}</span>
+                              <span class="version-info__meta">{{ row.clicks }} clicks / {{ row.impressions }} views</span>
+                            </div>
+                          </td>
+                          <td class="text-right"><strong>{{ formatPercent(row.ctr) }}</strong></td>
+                          <td class="text-center">
+                            @if (calculateUplift(row); as uplift) {
+                              <span class="uplift-badge" [class.uplift-badge--negative]="uplift.startsWith('-')">{{ uplift }}</span>
+                            } @else {
+                              <span class="text-muted">—</span>
+                            }
+                          </td>
+                          <td class="text-right">{{ formatPercent(row.engagement_rate) }}</td>
+                          <td class="text-right">{{ formatPercent(row.conversion_rate) }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              } @else {
+                <div class="empty-state-mini">
+                  <p>No version data yet. Suggestions require algorithm version slugs to track performance.</p>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
       }
-    </mat-card-content>
-  </mat-card>
 
-  @if (integration; as setup) {
-    <mat-card class="integration-card">
-      <mat-card-content>
-        <div class="status-card__top">
-          <h3>Live-site browser bridge</h3>
-          <span class="status-badge">{{ integrationStatusLabel(setup.status) }}</span>
+      @if (health; as healthData) {
+        <mat-card class="report-card health-card">
+          <mat-card-header>
+            <mat-card-title>System Health</mat-card-title>
+            <mat-card-subtitle>Telemetry integrity and tracking coverage</mat-card-subtitle>
+            <span class="status-badge-lg" [ngClass]="coverageStateClass(healthData.overall.latest_state)">
+              {{ coverageStateLabel(healthData.overall.latest_state) }}
+            </span>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="health-grid">
+              <div class="health-metric">
+                <span class="health-metric__label">Impression Coverage</span>
+                <span class="health-metric__value">{{ formatPercent(healthData.overall.impression_coverage_rate) }}</span>
+                <p class="health-metric__desc">{{ healthData.overall.observed_impression_links }} of {{ healthData.overall.expected_instrumented_links }} links</p>
+              </div>
+              <div class="health-metric">
+                <span class="health-metric__label">Click Coverage</span>
+                <span class="health-metric__value">{{ formatPercent(healthData.overall.click_coverage_rate) }}</span>
+                <p class="health-metric__desc">{{ healthData.overall.observed_click_links }} links matched</p>
+              </div>
+              <div class="health-metric">
+                <span class="health-metric__label">Attribution Rate</span>
+                <span class="health-metric__value">{{ formatPercent(healthData.overall.attribution_rate) }}</span>
+                <p class="health-metric__desc">{{ healthData.overall.attributed_destination_sessions }} sessions attributed</p>
+              </div>
+              <div class="health-metric">
+                <span class="health-metric__label">Data Integrity</span>
+                <span class="health-metric__value">{{ healthData.overall.duplicate_event_drops + healthData.overall.missing_metadata_events }}</span>
+                <p class="health-metric__desc">Cleanup actions performed</p>
+              </div>
+            </div>
+
+            <div class="health-status-bar">
+              <div class="day-tracker">
+                <span class="day-badge day-badge--healthy">
+                  <mat-icon>check_circle</mat-icon>
+                  {{ healthData.overall.healthy_days }} Healthy
+                </span>
+                <span class="day-badge day-badge--partial">
+                  <mat-icon>warning</mat-icon>
+                  {{ healthData.overall.partial_days }} Partial
+                </span>
+                <span class="day-badge day-badge--degraded">
+                  <mat-icon>error</mat-icon>
+                  {{ healthData.overall.degraded_days }} Degraded
+                </span>
+              </div>
+              @if (healthData.overall.latest_date) {
+                <span class="last-check">Latest Check: {{ healthData.overall.latest_date }}</span>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (trend; as trendData) {
+        <mat-card class="report-card">
+          <mat-card-header>
+            <mat-card-title>Engagement Trend</mat-card-title>
+            <mat-card-subtitle>User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <div class="trend-section">
+              @if (trendData.items.length && trendChartData) {
+                <div class="chart-wrapper chart-wrapper--lg">
+                  <canvas baseChart [data]="trendChartData" [options]="trendChartOptions" [type]="'line'"></canvas>
+                </div>
+                <div class="trend-footer">
+                  <div class="trend-stat">
+                    <span>Current CTR</span>
+                    <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].ctr) }}</strong>
+                  </div>
+                  <div class="trend-stat">
+                    <span>Engaged View Rate</span>
+                    <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].engagement_rate) }}</strong>
+                  </div>
+                </div>
+              } @else {
+                <div class="empty-chart">
+                  <mat-icon>show_chart</mat-icon>
+                  <p>Insufficient trend data. Run a sync to populate interaction history.</p>
+                </div>
+              }
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+
+      @if (breakdowns; as breakdownData) {
+        <div class="breakdown-grid">
+          <mat-card class="report-card">
+            <mat-card-header><mat-card-title>Device Mix</mat-card-title></mat-card-header>
+            <mat-card-content>
+              @if (deviceChartData && breakdownData.device_categories.length) {
+                <div class="chart-wrapper chart-wrapper--sm">
+                  <canvas baseChart [data]="deviceChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
+                </div>
+              } @else {
+                <div class="empty-state-mini"><p>No device data.</p></div>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="report-card">
+            <mat-card-header><mat-card-title>Channel Mix</mat-card-title></mat-card-header>
+            <mat-card-content>
+              @if (channelChartData && breakdownData.channel_groups.length) {
+                <div class="chart-wrapper chart-wrapper--sm">
+                  <canvas baseChart [data]="channelChartData" [options]="doughnutOptions" [type]="'doughnut'"></canvas>
+                </div>
+              } @else {
+                <div class="empty-state-mini"><p>No channel data.</p></div>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="report-card">
+            <mat-card-header><mat-card-title>Geographic Mix</mat-card-title></mat-card-header>
+            <mat-card-content>
+              @if (geoChartData && breakdownData.countries.length) {
+                <div class="chart-wrapper chart-wrapper--sm">
+                  <canvas baseChart [data]="geoChartData" [options]="funnelChartOptions" [type]="'bar'"></canvas>
+                </div>
+                <div class="card-footer">
+                  <button mat-button color="primary" (click)="toggleFullGeo()">
+                    {{ showFullGeo ? 'Hide Details' : 'View Full Breakdown' }}
+                  </button>
+                </div>
+              } @else {
+                <div class="empty-state-mini"><p>No country data.</p></div>
+              }
+            </mat-card-content>
+          </mat-card>
         </div>
-        <p>{{ setup.message }}</p>
-        <p>Schema: <strong>{{ setup.event_schema }}</strong></p>
-        <p>Session handoff window: {{ setup.session_ttl_minutes }} minutes.</p>
-        <p>GA4 browser events: <strong>{{ setup.ga4_browser_ready ? 'ready' : 'not ready' }}</strong></p>
-        <p>Matomo browser events: <strong>{{ setup.matomo_browser_ready ? 'ready' : 'not ready' }}</strong></p>
+      }
 
-        <div class="integration-steps">
-          @for (step of setup.install_steps; track step) {
-            <p>{{ step }}</p>
-          }
-        </div>
+      @if (topSuggestions; as topData) {
+        <mat-card class="report-card">
+          <mat-card-header>
+            <mat-card-title>Top suggestion rows</mat-card-title>
+            <mat-card-subtitle>Highest performing link suggestions by engagement</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (topData.items.length) {
+              <div class="top-list">
+                @for (item of topData.items; track item.suggestion_id + item.telemetry_source) {
+                  <div class="top-row">
+                    <div class="top-row__main">
+                      <span class="top-row__title">{{ item.destination_title }}</span>
+                      <span class="top-row__meta">Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
+                      <span class="top-row__source">{{ item.telemetry_source | uppercase }} • Status: {{ item.status }}</span>
+                    </div>
+                    <div class="top-row__metrics">
+                      <div class="top-metric">
+                        <span class="top-metric__label">Clicks</span>
+                        <span class="top-metric__value">{{ item.clicks }}</span>
+                      </div>
+                      <div class="top-metric">
+                        <span class="top-metric__label">CTR</span>
+                        <span class="top-metric__value">{{ formatPercent(item.ctr) }}</span>
+                      </div>
+                      <div class="top-metric">
+                        <span class="top-metric__label">Engaged</span>
+                        <span class="top-metric__value">{{ formatPercent(item.engagement_rate) }}</span>
+                      </div>
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else {
+              <div class="empty-state-mini"><p>No suggestion rows yet. Perform a sync to see top performers.</p></div>
+            }
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
 
-        <div class="integration-actions">
-          <button mat-stroked-button type="button" (click)="copySnippet()">Copy browser snippet</button>
-        </div>
+    <div class="system-footer">
+      <div class="footer-grid">
+        <mat-card class="connection-card">
+          <mat-card-header>
+            <mat-card-title>GA4 Integration</mat-card-title>
+            <span class="status-chip" [ngClass]="ga4StatusLabel().toLowerCase()">{{ ga4StatusLabel() }}</span>
+          </mat-card-header>
+          <mat-card-content>
+            <p>{{ ga4StatusMessage() }}</p>
+            <div class="sync-meta">Last synchronized: {{ lastSyncLabel(data.ga4.last_sync) }}</div>
+          </mat-card-content>
+        </mat-card>
 
-        <pre class="snippet-box"><code>{{ setup.browser_snippet }}</code></pre>
-      </mat-card-content>
-    </mat-card>
+        <mat-card class="connection-card">
+          <mat-card-header>
+            <mat-card-title>Matomo Integration</mat-card-title>
+            <span class="status-chip" [ngClass]="statusLabel(data.matomo.connection_status).toLowerCase()">{{ statusLabel(data.matomo.connection_status) }}</span>
+          </mat-card-header>
+          <mat-card-content>
+            <p>{{ data.matomo.connection_message }}</p>
+            <div class="sync-meta">Last synchronized: {{ lastSyncLabel(data.matomo.last_sync) }}</div>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="action-card">
+          <mat-card-header><mat-card-title>Manual Synchronization</mat-card-title></mat-card-header>
+          <mat-card-content>
+            <p>Force a real-time data pull from external analytics providers.</p>
+            <div class="action-buttons">
+              <button mat-flat-button color="primary" [disabled]="syncingGa4" (click)="runGa4Sync()">
+                {{ syncingGa4 ? 'Syncing GA4...' : 'Sync GA4' }}
+              </button>
+              <button mat-flat-button color="accent" [disabled]="syncingMatomo" (click)="runMatomoSync()">
+                {{ syncingMatomo ? 'Syncing Matomo...' : 'Sync Matomo' }}
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </div>
   }
-}
+</div>

@@ -4,6 +4,9 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatButtonToggleChange, MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { forkJoin } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
@@ -26,7 +29,17 @@ import {
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, MatSnackBarModule, BaseChartDirective],
+  imports: [
+    CommonModule, 
+    MatButtonModule, 
+    MatCardModule, 
+    MatIconModule, 
+    MatSnackBarModule, 
+    MatButtonToggleModule,
+    MatProgressSpinnerModule,
+    MatTooltipModule,
+    BaseChartDirective
+  ],
   templateUrl: './analytics.component.html',
   styleUrls: ['./analytics.component.scss'],
 })
@@ -333,6 +346,10 @@ export class AnalyticsComponent implements OnInit {
       ga4: 'GA4 only',
       matomo: 'Matomo only',
     }[source];
+  }
+
+  onSourceChange(event: MatButtonToggleChange): void {
+    this.chooseSource(event.value);
   }
 
   chooseSource(source: 'all' | 'ga4' | 'matomo'): void {
