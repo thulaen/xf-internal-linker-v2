@@ -32,7 +32,9 @@
 
 .stat-card,
 .status-card,
+.sync-card,
 .coverage-card,
+.integration-card,
 .placeholder-card {
   border: 1px solid var(--cf-gray-8);
   box-shadow: none;
@@ -56,7 +58,8 @@
 
 .stat-card p,
 .status-card p,
-.coverage-card p {
+.coverage-card p,
+.integration-card p {
   margin: 8px 0 0;
   color: var(--cf-newGray-3);
 }
@@ -69,7 +72,8 @@
 }
 
 .status-card__top h3,
-.coverage-card h3 {
+.coverage-card h3,
+.integration-card h3 {
   margin: 0;
   font-size: 16px;
   color: var(--cf-gray-0);
@@ -90,4 +94,46 @@
   margin-top: 12px;
   font-size: 12px;
   color: var(--cf-newGray-4);
+}
+
+.integration-card {
+  margin-top: 16px;
+}
+
+.sync-card {
+  margin-bottom: 16px;
+}
+
+.sync-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.sync-note {
+  font-size: 12px;
+  color: var(--cf-newGray-4);
+}
+
+.integration-steps {
+  margin-top: 16px;
+}
+
+.integration-actions {
+  margin-top: 16px;
+}
+
+.snippet-box {
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--cf-gray-9);
+  border: 1px solid var(--cf-gray-8);
+  color: var(--cf-newGray-5);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 12px;
+  line-height: 1.5;
 }

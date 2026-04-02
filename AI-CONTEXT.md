@@ -44,7 +44,7 @@ Execution order and FR IDs are decoupled.
 
 - Active target for the next session: Phase 19
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 19 / FR-016 has started. Slice 1 is landed; later FR-016 slices still remain.
+- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 now has a repo-side live-site bridge handoff, and the first safe Slice 3 plumbing is now in code.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -182,7 +182,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Complete | Final Slate Diversity Reranking |
-| 19 | FR-016 | Queued | GA4 Suggestion Attribution & User-Behavior Telemetry |
+| 19 | FR-016 | In Progress | GA4 + Matomo telemetry settings and browser-bridge handoff are landed; safe Slice 3 sync plumbing has started |
 | 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
@@ -270,33 +270,40 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - AI/tool: Codex
 - Intentional files changed:
   - `AI-CONTEXT.md`
-  - `backend/apps/suggestions/serializers.py`
-  - `backend/apps/suggestions/telemetry_markup.py`
-  - `backend/apps/suggestions/tests.py`
-  - `frontend/Dockerfile`
-  - `frontend/angular.json`
-  - `frontend/karma.conf.cjs`
-  - `frontend/package.json`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.html`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.spec.ts`
-  - `frontend/src/app/review/suggestion-detail-dialog.component.ts`
-  - `frontend/src/app/review/suggestion.service.ts`
-  - `frontend/src/app/settings/settings.component.spec.ts`
+  - `FEATURE-REQUESTS.md`
+  - `backend/apps/analytics/integration_snippet.py`
+  - `backend/apps/analytics/sync.py`
+  - `backend/apps/analytics/tasks.py`
+  - `backend/apps/analytics/tests.py`
+  - `backend/apps/analytics/urls.py`
+  - `backend/apps/analytics/views.py`
+  - `docker-compose.yml`
+  - `frontend/src/app/analytics/analytics.component.html`
+  - `frontend/src/app/analytics/analytics.component.scss`
+  - `frontend/src/app/analytics/analytics.component.spec.ts`
+  - `frontend/src/app/analytics/analytics.component.ts`
+  - `frontend/src/app/analytics/analytics.service.ts`
+  - `postgres/postgresql.conf`
 - What changed:
-  - Closed the frontend test reliability gap so Angular unit tests no longer fail in Docker from missing ChromeHeadless or low Node memory.
-  - Added a checked-in Karma launcher that points to Chromium in the frontend container and runs with safe CI flags.
-  - Raised the frontend test/build Node memory ceiling to 4 GB in the Docker image and `test:ci` script.
-  - Started the next FR-016 slice by adding a telemetry markup helper for suggestion details, including copy-ready instrumented anchor HTML and plain-English instrumentation status.
-  - Expanded review detail coverage so operators can see and copy the exact markup needed for later live-site attribution wiring.
+  - Repaired the local server stack before continuing FR-016: Postgres now listens on the Docker network, backend startup retries migrations until Postgres is ready, and the Celery worker uses the correct prefetch flag again.
+  - Continued FR-016 Slice 2 with a repo-side live-site bridge helper instead of pretending this app can inject tracking into XenForo or WordPress by itself.
+  - Added a new read-only telemetry integration API that returns plain-English setup status, install steps, and a copy-ready browser snippet for impression, click, destination-view, and engaged-session events.
+  - Added the browser bridge card to the Analytics page so operators can copy the live-site snippet, run manual syncs, and see whether GA4 and/or Matomo browser events are ready.
+  - Started the safest Slice 3 backend path: new manual sync endpoints, Celery task plumbing, a real Matomo daily-rollup importer into `SuggestionTelemetryDaily` / `TelemetryCoverageDaily`, and an honest GA4 guard that fails with a clear message until Data API read auth is added through the GUI-first flow.
+  - Fixed a daily coverage-rollup bug in the Matomo sync helper so each day's health row is calculated per day instead of accidentally accumulating across the whole lookback window.
+  - Added focused backend and frontend coverage for the integration payload, manual sync wiring, GA4 guard behavior, and Matomo row-writing path.
 - Verification that passed:
-  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics apps.core apps.suggestions --settings=config.settings.test --verbosity 1`
-  - `.\\.venv\\Scripts\\python.exe backend\\manage.py makemigrations --check --dry-run --settings=config.settings.test`
-  - `docker-compose build`
+  - backend stack health after server fix: backend can reach Postgres on Docker TCP, migrations run, and the main services come up again
+  - `.\\.venv\\Scripts\\python.exe backend\\manage.py test apps.analytics --settings=config.settings.test --verbosity 1`
+  - `docker-compose run --rm frontend npm run test:ci -- --include src/app/analytics/analytics.component.spec.ts`
   - `docker-compose run --rm frontend npm run build`
-  - `docker-compose run --rm frontend npm run test:ci`
+- Verification still needed for a full FR-016 closeout:
+  - actual XenForo or WordPress template installation of the snippet on the live sites
+  - full scheduled sync / restatement flow, not just the new manual sync trigger path
+  - GA4 Data API read-auth wiring through the GUI-first path so GA4 read sync can move from guarded failure to real imports
+  - broader Slice 3 charting/reporting work beyond the current manual-sync plumbing and Matomo local rollups
 - Commit/push state:
-  - Slice 1 from the earlier session remains committed as `6475b38` and `6c956ed`.
-  - This session's changes are not committed yet in this note. Commit and push them before ending the session if the tree is clean.
+  - This session's changes are not committed yet in this note.
 
 | Item | Why needed | State |
 |---|---|---|

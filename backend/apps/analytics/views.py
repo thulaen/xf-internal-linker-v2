@@ -14,7 +14,9 @@ from rest_framework.views import APIView
 
 from apps.core.models import AppSetting
 
+from .integration_snippet import build_integration_payload
 from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
+from .tasks import sync_ga4_telemetry, sync_matomo_telemetry
 
 GA4_DEFAULTS = {
     "behavior_enabled": False,
@@ -318,6 +320,28 @@ class AnalyticsTelemetryOverviewView(APIView):
         )
 
 
+class AnalyticsTelemetryIntegrationView(APIView):
+    """Return copy-ready browser bridge instructions for FR-016 Slice 2."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(
+            build_integration_payload(
+                ga4_settings=get_ga4_telemetry_settings(),
+                matomo_settings=get_matomo_settings(),
+            )
+        )
+
+
+def _queue_sync_run(*, source: str, lookback_days: int) -> AnalyticsSyncRun:
+    return AnalyticsSyncRun.objects.create(
+        source=source,
+        status="pending",
+        lookback_days=lookback_days,
+    )
+
+
 class AnalyticsGA4SettingsView(APIView):
     """Get and save GA4 telemetry settings."""
 
@@ -444,3 +468,51 @@ class AnalyticsMatomoTestConnectionView(APIView):
             return Response({"status": "error", "message": payload.get("message") or "Matomo rejected the credentials."}, status=400)
 
         return Response({"status": "connected", "message": "Matomo returned site details successfully."})
+
+
+class AnalyticsGA4SyncView(APIView):
+    """Queue a GA4 telemetry sync run."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        settings = get_ga4_telemetry_settings()
+        sync_run = _queue_sync_run(
+            source="ga4",
+            lookback_days=int(settings["sync_lookback_days"]),
+        )
+        task = sync_ga4_telemetry.delay(sync_run.pk)
+        return Response(
+            {
+                "sync_run_id": sync_run.pk,
+                "task_id": task.id,
+                "source": "ga4",
+                "status": "queued",
+                "message": "GA4 telemetry sync queued.",
+            },
+            status=202,
+        )
+
+
+class AnalyticsMatomoSyncView(APIView):
+    """Queue a Matomo telemetry sync run."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        settings = get_matomo_settings()
+        sync_run = _queue_sync_run(
+            source="matomo",
+            lookback_days=int(settings["sync_lookback_days"]),
+        )
+        task = sync_matomo_telemetry.delay(sync_run.pk)
+        return Response(
+            {
+                "sync_run_id": sync_run.pk,
+                "task_id": task.id,
+                "source": "matomo",
+                "status": "queued",
+                "message": "Matomo telemetry sync queued.",
+            },
+            status=202,
+        )

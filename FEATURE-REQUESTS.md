@@ -224,6 +224,8 @@ Important:
 - **Slice 1 (build first):** Angular credentials settings card for GA4 (property ID, measurement ID, API secret) and Matomo (URL, XenForo site ID, WordPress site ID, API token). Each section has a "Test Connection" button, inline status badge, and last-sync display. Nothing else in this FR can run without valid credentials.
 - **Progress (2026-04-02):** Slice 1 is now landed in code: new telemetry rollup models, sync-run audit rows, GA4/Matomo settings APIs, masked secret storage, live test-connection endpoints, settings-page cards, and a small analytics overview page. The later instrumentation, sync, and richer chart slices are still pending.
 - **Progress (2026-04-02, later session):** The frontend Docker test path is now hardened so Angular `test:ci` uses Chromium reliably inside the container and no longer falls over from the old ChromeHeadless/memory setup. A small FR-016 follow-on slice also landed in review: each suggestion detail can now expose copy-ready telemetry markup plus the event-schema/status fields needed for later live-site instrumentation.
+- **Progress (2026-04-02, this session):** Slice 2 now has a repo-side handoff path: the Analytics page exposes plain-English install steps plus a copy-ready browser bridge snippet that handles impression/click dedupe and session-storage destination attribution. The real site templates still need that snippet pasted into XenForo and WordPress before live events can flow.
+- **Progress (2026-04-02, safest Slice 3 follow-on):** The local stack errors blocking telemetry work were fixed first. FR-016 now also has the first safe Slice 3 plumbing in code: manual sync endpoints/buttons, Celery task wiring, a real Matomo importer that writes `SuggestionTelemetryDaily` and `TelemetryCoverageDaily` rows, and an honest GA4 guard that fails clearly until GUI-safe Data API read auth is added.
 - Add a versioned analytics event schema for suggestion-linked traffic.
 - Track at minimum: `suggestion_link_impression`, `suggestion_link_click`, `suggestion_destination_view`, `suggestion_destination_engaged`, `suggestion_destination_conversion`
 - Two parallel collection sources: GA4 (cloud, sampled at scale) and Matomo (on-premise, unsampled, full cardinality). Both feed the same `SuggestionTelemetryDaily` model via a `telemetry_source` field.
@@ -906,4 +908,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-02 (Phase 18 / FR-015 is complete. Next target: Phase 19 / FR-016. Repo-local verification wrappers added and passing.)*
+*Last updated: 2026-04-02 (Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has a repo-side live-site bridge handoff, and the first safe Slice 3 sync plumbing is now in code.)*

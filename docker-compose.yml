@@ -89,7 +89,10 @@ services:
     command: >
       sh -c "pip install --no-cache-dir -r requirements.txt &&
              (cd extensions && python setup.py build_ext --inplace) &&
-             python manage.py migrate --noinput &&
+             until python manage.py migrate --noinput; do
+               echo 'Postgres is not ready yet. Waiting 5 seconds...';
+               sleep 5;
+             done &&
              python manage.py collectstatic --noinput &&
              python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload --workers 2"
 
@@ -129,7 +132,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --worker-prefetch-multiplier 1 -Q default,pipeline,embeddings
+    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --prefetch-multiplier 1 -Q default,pipeline,embeddings
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)

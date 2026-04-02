@@ -31,11 +31,42 @@ export interface AnalyticsOverviewResponse {
   } | null;
 }
 
+export interface AnalyticsIntegrationResponse {
+  status: 'ready' | 'needs_settings';
+  message: string;
+  event_schema: string;
+  ga4_browser_ready: boolean;
+  matomo_browser_ready: boolean;
+  session_ttl_minutes: number;
+  install_steps: string[];
+  browser_snippet: string;
+}
+
+export interface AnalyticsSyncTriggerResponse {
+  sync_run_id: number;
+  task_id: string;
+  source: 'ga4' | 'matomo';
+  status: string;
+  message: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   private http = inject(HttpClient);
 
   getOverview(): Observable<AnalyticsOverviewResponse> {
     return this.http.get<AnalyticsOverviewResponse>('/api/analytics/telemetry/overview/');
+  }
+
+  getIntegration(): Observable<AnalyticsIntegrationResponse> {
+    return this.http.get<AnalyticsIntegrationResponse>('/api/analytics/telemetry/integration/');
+  }
+
+  runGa4Sync(): Observable<AnalyticsSyncTriggerResponse> {
+    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/ga4-sync/', {});
+  }
+
+  runMatomoSync(): Observable<AnalyticsSyncTriggerResponse> {
+    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/matomo-sync/', {});
   }
 }

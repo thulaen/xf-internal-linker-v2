@@ -73,6 +73,36 @@
     </mat-card>
   </div>
 
+  <mat-card class="sync-card">
+    <mat-card-content>
+      <div class="status-card__top">
+        <h3>Manual sync</h3>
+      </div>
+      <p>Use this when you want to pull fresh telemetry into the local database right now.</p>
+      <div class="sync-actions">
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="syncingMatomo"
+          (click)="runMatomoSync()"
+        >
+          {{ syncingMatomo ? 'Queuing Matomo sync...' : 'Run Matomo sync' }}
+        </button>
+        <button
+          mat-stroked-button
+          type="button"
+          [disabled]="syncingGa4"
+          (click)="runGa4Sync()"
+        >
+          {{ syncingGa4 ? 'Queuing GA4 sync...' : 'Run GA4 sync' }}
+        </button>
+      </div>
+      <p class="sync-note">
+        GA4 read sync is still guarded. If you queue it now, the run will fail with a plain-English message until the read-auth setup is added.
+      </p>
+    </mat-card-content>
+  </mat-card>
+
   <mat-card class="coverage-card">
     <mat-card-content>
       <h3>Latest coverage check</h3>
@@ -87,4 +117,32 @@
       }
     </mat-card-content>
   </mat-card>
+
+  @if (integration; as setup) {
+    <mat-card class="integration-card">
+      <mat-card-content>
+        <div class="status-card__top">
+          <h3>Live-site browser bridge</h3>
+          <span class="status-badge">{{ integrationStatusLabel(setup.status) }}</span>
+        </div>
+        <p>{{ setup.message }}</p>
+        <p>Schema: <strong>{{ setup.event_schema }}</strong></p>
+        <p>Session handoff window: {{ setup.session_ttl_minutes }} minutes.</p>
+        <p>GA4 browser events: <strong>{{ setup.ga4_browser_ready ? 'ready' : 'not ready' }}</strong></p>
+        <p>Matomo browser events: <strong>{{ setup.matomo_browser_ready ? 'ready' : 'not ready' }}</strong></p>
+
+        <div class="integration-steps">
+          @for (step of setup.install_steps; track step) {
+            <p>{{ step }}</p>
+          }
+        </div>
+
+        <div class="integration-actions">
+          <button mat-stroked-button type="button" (click)="copySnippet()">Copy browser snippet</button>
+        </div>
+
+        <pre class="snippet-box"><code>{{ setup.browser_snippet }}</code></pre>
+      </mat-card-content>
+    </mat-card>
+  }
 }
