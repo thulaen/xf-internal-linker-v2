@@ -607,7 +607,10 @@ class PipelineDiagnostic(models.Model):
         verbose_name = "Pipeline Diagnostic"
         verbose_name_plural = "Pipeline Diagnostics"
         indexes = [
-            models.Index(fields=["pipeline_run", "skip_reason"]),
+            models.Index(
+                fields=["pipeline_run", "skip_reason"],
+                name="suggestions_pipelin_a2cf09_idx",
+            ),
         ]
 
     def __str__(self) -> str:
