@@ -1,6 +1,7 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
 ARG CONFIGURATION=Release
+ARG RUN_BENCHMARKS=0
 
 COPY HttpWorker.sln ./
 COPY src/HttpWorker.Api/HttpWorker.Api.csproj src/HttpWorker.Api/
@@ -13,6 +14,8 @@ RUN dotnet restore HttpWorker.sln
 
 COPY . .
 FROM build AS test
+ARG RUN_BENCHMARKS=0
+ENV HTTPWORKER_RUN_BENCHMARKS=${RUN_BENCHMARKS}
 RUN dotnet test HttpWorker.sln -c ${CONFIGURATION} --no-restore --logger "console;verbosity=minimal"
 
 FROM build AS publish

@@ -290,10 +290,13 @@ def import_content(
 
     from apps.content.models import ContentItem, Post, ScopeItem, Sentence
     from apps.core.views import get_wordpress_runtime_config
-    from apps.graph.services.graph_sync import refresh_existing_links, sync_existing_links
+    from apps.graph.services.graph_sync import (
+        refresh_existing_links,
+        sync_existing_links_for_content_item,
+    )
     from apps.pipeline.services.distiller import distill_body
     from apps.pipeline.services.embeddings import generate_all_embeddings
-    from apps.pipeline.services.link_parser import extract_internal_links, normalize_internal_url
+    from apps.pipeline.services.link_parser import normalize_internal_url
     from apps.pipeline.services.sentence_splitter import split_sentence_spans
     from apps.pipeline.services.text_cleaner import clean_bbcode, clean_import_text, generate_content_hash
     from apps.sync.models import SyncJob
@@ -325,17 +328,6 @@ def import_content(
     updated_pks: list[int] = []
     touched_scope_ids: set[int] = set()
     xf_client: XenForoAPIClient | None = None
-
-    def _configured_domains() -> list[str]:
-        domains: list[str] = []
-        for raw_url in [
-            getattr(settings, "XENFORO_BASE_URL", ""),
-            get_wordpress_runtime_config().get("base_url", ""),
-        ]:
-            host = urlparse(raw_url).netloc.strip().lower()
-            if host and host not in domains:
-                domains.append(host)
-        return domains
 
     def _plain_title(value: Any) -> str:
         if isinstance(value, dict):
@@ -476,15 +468,9 @@ def import_content(
         new_hash = generate_content_hash(title, clean_text)
         if content_item.content_hash == new_hash:
             if mode == "full":
-                edges = extract_internal_links(
-                    raw_body,
-                    int(c_id),
-                    c_type,
-                    forum_domains=_configured_domains(),
-                )
-                sync_existing_links(
+                sync_existing_links_for_content_item(
                     content_item,
-                    edges,
+                    raw_body,
                     allow_disappearance=True,
                 )
             return None
@@ -520,17 +506,11 @@ def import_content(
             content_item.distilled_text = distill_body([item.text for item in sentence_objs], max_sentences=5)
             content_item.save(update_fields=["content_hash", "distilled_text", "updated_at"])
 
-            edges = extract_internal_links(
-                raw_body,
-                int(c_id),
-                c_type,
-                forum_domains=_configured_domains(),
-            )
-            sync_existing_links(
-                content_item,
-                edges,
-                allow_disappearance=(mode == "full"),
-            )
+        sync_existing_links_for_content_item(
+            content_item,
+            raw_body,
+            allow_disappearance=(mode == "full"),
+        )
 
         return content_item.pk
 

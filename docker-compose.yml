@@ -67,6 +67,7 @@ services:
       HTTP_WORKER_SCHEMA_VERSION: v1
       HEAVY_RUNTIME_OWNER: celery
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
@@ -109,6 +110,7 @@ services:
       HTTP_WORKER_SCHEMA_VERSION: v1
       HEAVY_RUNTIME_OWNER: celery
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
@@ -135,6 +137,7 @@ services:
       HTTP_WORKER_SCHEMA_VERSION: v1
       HEAVY_RUNTIME_OWNER: celery
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app

@@ -29,6 +29,8 @@ public static class ServiceCollectionExtensions
         });
         services.AddSingleton<IBrokenLinkService, BrokenLinkService>();
         services.AddSingleton<IBrokenLinkScanService, BrokenLinkScanService>();
+        services.AddSingleton<IGraphSyncStore, PostgresGraphSyncStore>();
+        services.AddSingleton<IGraphSyncService, GraphSyncService>();
         services.AddSingleton<IUrlFetchService, UrlFetchService>();
         services.AddSingleton<IHealthCheckService, HealthCheckService>();
         services.AddSingleton<ISitemapService, SitemapService>();

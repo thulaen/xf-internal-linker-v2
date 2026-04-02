@@ -121,3 +121,42 @@ def queue_job(job_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, 
         request_payload,
         accepted_status_codes={202},
     )
+
+
+def sync_graph_content(
+    *,
+    content_item_pk: int,
+    content_id: int,
+    content_type: str,
+    raw_bbcode: str,
+    forum_domains: list[str],
+    allow_disappearance: bool = True,
+    tracked_at: datetime | None = None,
+) -> dict[str, Any]:
+    payload = {
+        "content_item_pk": content_item_pk,
+        "content_id": content_id,
+        "content_type": content_type,
+        "raw_bbcode": raw_bbcode,
+        "forum_domains": forum_domains,
+        "allow_disappearance": allow_disappearance,
+    }
+    if tracked_at is not None:
+        payload["tracked_at"] = tracked_at.astimezone(timezone.utc).isoformat()
+    return _post_json("/api/v1/graph-sync/content", payload)
+
+
+def refresh_graph_links(
+    *,
+    forum_domains: list[str],
+    content_item_pks: list[int] | None = None,
+    tracked_at: datetime | None = None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "forum_domains": forum_domains,
+    }
+    if content_item_pks:
+        payload["content_item_pks"] = content_item_pks
+    if tracked_at is not None:
+        payload["tracked_at"] = tracked_at.astimezone(timezone.utc).isoformat()
+    return _post_json("/api/v1/graph-sync/refresh", payload)

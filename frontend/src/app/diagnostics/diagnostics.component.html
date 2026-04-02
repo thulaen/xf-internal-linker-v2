@@ -43,6 +43,52 @@
       </div>
     </section>
 
+    <section class="runtime-lanes-section" *ngIf="runtimeLaneCards.length > 0">
+      <div class="section-heading">
+        <h2>Heavy Runtime Owners</h2>
+        <p>These cards show who owns each big lane right now.</p>
+      </div>
+
+      <div class="runtime-lane-grid">
+        <article
+          class="runtime-lane-card"
+          *ngFor="let lane of runtimeLaneCards; trackBy: runtimeLaneTrackBy"
+          [class.state-healthy]="lane.state === 'healthy'"
+          [class.state-degraded]="lane.state === 'degraded'"
+          [class.state-failed]="lane.state === 'failed'"
+          [class.owner-csharp]="lane.owner === 'csharp'"
+          [class.owner-celery]="lane.owner === 'celery'">
+          <div class="lane-header">
+            <div>
+              <h3>{{ lane.title }}</h3>
+              <p class="owner-label">Owner: {{ lane.owner === 'unknown' ? 'Unknown' : (lane.owner | uppercase) }}</p>
+            </div>
+            <span class="lane-state">{{ lane.state | titlecase }}</span>
+          </div>
+
+          <p class="lane-status-line">{{ lane.statusLine }}</p>
+          <p class="lane-explanation">{{ lane.explanation }}</p>
+
+          <div class="lane-badges">
+            <div
+              class="lane-badge"
+              *ngFor="let badge of lane.badges"
+              [class.tone-good]="badge.tone === 'good'"
+              [class.tone-warn]="badge.tone === 'warn'"
+              [class.tone-bad]="badge.tone === 'bad'">
+              <span class="badge-label">{{ badge.label }}</span>
+              <span class="badge-value">{{ badge.value }}</span>
+            </div>
+          </div>
+
+          <div class="lane-next-step">
+            <label>Next Step</label>
+            <p>{{ lane.nextStep }}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <div class="main-grid">
       <!-- Left Column: Services -->
       <div class="grid-column">
