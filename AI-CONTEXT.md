@@ -46,7 +46,7 @@ Execution order and FR IDs are decoupled.
 - FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
 - Status: Phase 19 / FR-016 has started. Slice 1 is landed; later FR-016 slices still remain.
 
-- Session target: Finish FR-015, add repeatable local verification wrappers, and make the native/frontend build path reliable without PATH assumptions.
+- Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
   - Finished FR-015 final-slate diversity reranking with per-slot diagnostics, content-key-safe embedding lookup, and a native C++ MMR fast path plus Python fallback.
   - Exposed FR-015 runtime status in diagnostics and FR-015 score/details in the review dialog.
@@ -58,6 +58,7 @@ Execution order and FR IDs are decoupled.
   - Use `scripts/verify.ps1` for the repeatable “build extensions + backend tests + frontend build + frontend unit tests” path.
 - Verification completed:
   - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
+  - Update: FR-016 Slice 1 has now landed too. See `Current Session Note` below for the newer session details.
 
 ## AI Handoff And Git Hygiene
 
@@ -303,8 +304,8 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Verification still missing:
   - `docker-compose run --rm -e NODE_OPTIONS=--max-old-space-size=4096 frontend npm run test:ci` still failed because the container does not have a ChromeHeadless binary. The first run also hit a Node memory limit before the browser check.
 - Commit/push state:
-  - Not committed.
-  - Working tree is intentionally left dirty until this FR-016 Slice 1 review is accepted and committed.
+  - Committed as `6475b38` (`Start FR-016 telemetry settings slice`).
+  - Pushed to `origin/master`.
 
 | Item | Why needed | State |
 |---|---|---|
