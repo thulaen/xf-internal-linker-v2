@@ -82,6 +82,7 @@ celerybeat.pid
 # Test artifacts
 .pytest_cache/
 .tox/
+pytest-cache-files-*/
 
 # Django staticfiles (collected at runtime)
 backend/staticfiles/
