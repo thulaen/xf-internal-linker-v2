@@ -53,7 +53,7 @@
         <p>People who stayed and interacted.</p>
       </mat-card-content>
     </mat-card>
-  </div> <!-- End of overview-grid -->
+  </div>
 
   @if (funnel; as funnelData) {
     <mat-card class="report-card">
@@ -62,15 +62,14 @@
           <h3>Funnel for the last {{ funnelData.days }} days</h3>
           <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
         </div>
-        <div class="funnel-list">
-          @for (step of funnelSteps(); track step.label) {
-            <div class="funnel-row">
-              <div class="funnel-row__label">{{ step.label }}</div>
-              <div class="funnel-row__bar">
-                <div class="funnel-row__fill" [style.width]="funnelBarWidth(step.value)"></div>
-              </div>
-              <div class="funnel-row__value">{{ step.value }}</div>
-            </div>
+        <div class="funnel-container">
+          @if (funnelChartData) {
+            <canvas
+              baseChart
+              [data]="funnelChartData"
+              [options]="funnelChartOptions"
+              [type]="'bar'">
+            </canvas>
           }
         </div>
         <div class="source-mini-grid">
@@ -90,8 +89,21 @@
     <mat-card class="report-card">
       <mat-card-content>
         <div class="status-card__top">
-          <h3>Algorithm comparison ({{ versionData.days }} days)</h3>
+          <h3>Algorithm performance comparison</h3>
           <span class="status-badge">{{ sourceLabel(selectedSource) }}</span>
+        </div>
+        @if (versionChartData) {
+          <div class="chart-container-md">
+            <canvas
+              baseChart
+              [data]="versionChartData"
+              [options]="versionChartOptions"
+              [type]="'bar'">
+            </canvas>
+          </div>
+        }
+        <div class="status-card__top mt-md">
+          <h3>Detailed version metrics ({{ versionData.days }} days)</h3>
         </div>
         @if (versionData.items.length) {
           <div class="table-container">
@@ -177,7 +189,7 @@
         @if (healthData.sources.length) {
           <div class="source-mini-grid">
             @for (row of healthData.sources; track row.source_label) {
-              <div class="source-mini-card source-mini-card--health">
+              <div class="source-mini-card source-mini-card--health" [ngClass]="coverageStateClass(row.latest_state)">
                 <div class="status-card__top">
                   <strong>{{ sourceName(row.source_label) }}</strong>
                   <span class="status-badge" [ngClass]="coverageStateClass(row.latest_state)">{{ coverageStateLabel(row.latest_state) }}</span>
@@ -197,19 +209,20 @@
     <mat-card class="report-card">
       <mat-card-content>
         <div class="status-card__top">
-          <h3>Daily click trend</h3>
+          <h3>Engagement trend</h3>
           <span class="status-badge">{{ trendData.items.length }} day{{ trendData.items.length === 1 ? '' : 's' }}</span>
         </div>
         @if (trendData.items.length) {
-          <div class="trend-chart">
-            @for (point of trendData.items; track point.date) {
-              <div class="trend-bar">
-                <div class="trend-bar__fill" [style.height]="trendClickHeight(point)"></div>
-                <span class="trend-bar__value">{{ point.clicks }}</span>
-                <span class="trend-bar__label">{{ point.date.slice(5) }}</span>
-              </div>
-            }
-          </div>
+          @if (trendChartData) {
+            <div class="chart-container-lg">
+              <canvas
+                baseChart
+                [data]="trendChartData"
+                [options]="trendChartOptions"
+                [type]="'line'">
+              </canvas>
+            </div>
+          }
           <div class="trend-summary">
             <p>Newest CTR: <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].ctr) }}</strong></p>
             <p>Newest engaged-view rate: <strong>{{ formatPercent(trendData.items[trendData.items.length - 1].engagement_rate) }}</strong></p>
@@ -229,19 +242,14 @@
             <h3>Device mix</h3>
             <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
           </div>
-          @if (breakdownData.device_categories.length) {
-            <div class="breakdown-list">
-              @for (row of breakdownData.device_categories; track row.label) {
-                <div class="breakdown-row">
-                  <div class="breakdown-row__main">
-                    <strong>{{ row.label }}</strong>
-                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
-                  </div>
-                  <div class="breakdown-row__bar">
-                    <div class="breakdown-row__fill" [style.width]="breakdownBarWidth(row.clicks, breakdownData.device_categories)"></div>
-                  </div>
-                </div>
-              }
+          @if (deviceChartData && breakdownData.device_categories.length) {
+            <div class="chart-container-sm">
+              <canvas
+                baseChart
+                [data]="deviceChartData"
+                [options]="doughnutOptions"
+                [type]="'doughnut'">
+              </canvas>
             </div>
           } @else {
             <p>No device rows yet.</p>
@@ -255,19 +263,14 @@
             <h3>Channel mix</h3>
             <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
           </div>
-          @if (breakdownData.channel_groups.length) {
-            <div class="breakdown-list">
-              @for (row of breakdownData.channel_groups; track row.label) {
-                <div class="breakdown-row">
-                  <div class="breakdown-row__main">
-                    <strong>{{ row.label }}</strong>
-                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
-                  </div>
-                  <div class="breakdown-row__bar">
-                    <div class="breakdown-row__fill breakdown-row__fill--channel" [style.width]="breakdownBarWidth(row.clicks, breakdownData.channel_groups)"></div>
-                  </div>
-                </div>
-              }
+          @if (channelChartData && breakdownData.channel_groups.length) {
+            <div class="chart-container-sm">
+              <canvas
+                baseChart
+                [data]="channelChartData"
+                [options]="doughnutOptions"
+                [type]="'doughnut'">
+              </canvas>
             </div>
           } @else {
             <p>No channel rows yet.</p>
@@ -281,19 +284,14 @@
             <h3>Country mix</h3>
             <span class="status-badge">{{ sourceLabel(breakdownData.selected_source) }}</span>
           </div>
-          @if (breakdownData.countries.length) {
-            <div class="breakdown-list">
-              @for (row of breakdownData.countries; track row.label) {
-                <div class="breakdown-row">
-                  <div class="breakdown-row__main">
-                    <strong>{{ row.label }}</strong>
-                    <span>{{ row.clicks }} clicks - {{ formatPercent(row.ctr) }} CTR</span>
-                  </div>
-                  <div class="breakdown-row__bar">
-                    <div class="breakdown-row__fill breakdown-row__fill--country" [style.width]="breakdownBarWidth(row.clicks, breakdownData.countries)"></div>
-                  </div>
-                </div>
-              }
+          @if (geoChartData && breakdownData.countries.length) {
+            <div class="chart-container-sm">
+              <canvas
+                baseChart
+                [data]="geoChartData"
+                [options]="funnelChartOptions"
+                [type]="'bar'">
+              </canvas>
             </div>
             <div class="card-actions">
               <button mat-button type="button" (click)="toggleFullGeo()">

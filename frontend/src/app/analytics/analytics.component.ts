@@ -5,6 +5,8 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { forkJoin } from 'rxjs';
+import { BaseChartDirective } from 'ng2-charts';
+import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
 import {
   AnalyticsBreakdownsResponse,
   AnalyticsFunnelResponse,
@@ -24,7 +26,7 @@ import {
 @Component({
   selector: 'app-analytics',
   standalone: true,
-  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, MatSnackBarModule],
+  imports: [CommonModule, MatButtonModule, MatCardModule, MatIconModule, MatSnackBarModule, BaseChartDirective],
   templateUrl: './analytics.component.html',
   styleUrls: ['./analytics.component.scss'],
 })
@@ -48,6 +50,84 @@ export class AnalyticsComponent implements OnInit {
   syncingGa4 = false;
   syncingMatomo = false;
   selectedSource: 'all' | 'ga4' | 'matomo' = 'all';
+
+  // Chart Data
+  funnelChartData: ChartData<'bar'> | null = null;
+  funnelChartOptions: ChartConfiguration<'bar'>['options'] = {
+    indexAxis: 'y',
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      tooltip: {
+        backgroundColor: 'rgba(15, 20, 25, 0.9)',
+        padding: 12,
+        cornerRadius: 4,
+      }
+    },
+    scales: {
+      x: { display: false, grid: { display: false } },
+      y: { grid: { display: false }, ticks: { color: '#666', font: { size: 13 } } }
+    }
+  };
+
+  trendChartData: ChartData<'line'> | null = null;
+  trendChartOptions: ChartConfiguration<'line'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, padding: 20 } },
+      tooltip: {
+        backgroundColor: 'rgba(15, 20, 25, 0.9)',
+        padding: 12,
+        cornerRadius: 4,
+      }
+    },
+    scales: {
+      y: {
+        type: 'linear',
+        display: true,
+        position: 'left',
+        title: { display: true, text: 'Clicks' },
+        grid: { color: 'rgba(0,0,0,0.05)' }
+      },
+      y1: {
+        type: 'linear',
+        display: true,
+        position: 'right',
+        title: { display: true, text: 'Rate (%)' },
+        min: 0,
+        max: 100,
+        grid: { drawOnChartArea: false }
+      },
+      x: { grid: { display: false } }
+    }
+  };
+
+  versionChartData: ChartData<'bar'> | null = null;
+  versionChartOptions: ChartConfiguration<'bar'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { position: 'bottom' },
+    },
+    scales: {
+      y: { min: 0, max: 100, title: { display: true, text: 'Performance (%)' } }
+    }
+  };
+
+  deviceChartData: ChartData<'doughnut'> | null = null;
+  channelChartData: ChartData<'doughnut'> | null = null;
+  geoChartData: ChartData<'bar'> | null = null;
+  doughnutOptions: ChartConfiguration<'doughnut'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '70%',
+    plugins: {
+      legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15 } }
+    }
+  };
 
   ngOnInit(): void {
     this.loadData();
@@ -77,6 +157,8 @@ export class AnalyticsComponent implements OnInit {
         this.topSuggestions = topSuggestions;
         this.versionComparison = versionComparison;
         this.geoDetail = geoDetail;
+        
+        this.prepareCharts();
         this.loading = false;
       },
       error: () => {
@@ -84,6 +166,135 @@ export class AnalyticsComponent implements OnInit {
         this.loading = false;
       },
     });
+  }
+
+  private prepareCharts(): void {
+    this.prepareFunnelChart();
+    this.prepareTrendChart();
+    this.prepareVersionChart();
+    this.prepareBreakdownCharts();
+  }
+
+  private prepareFunnelChart(): void {
+    const totals = this.funnel?.totals;
+    if (!totals) return;
+
+    this.funnelChartData = {
+      labels: ['Impressions', 'Clicks', 'Views', 'Engaged', 'Conversions'],
+      datasets: [{
+        data: [
+          totals.impressions,
+          totals.clicks,
+          totals.destination_views,
+          totals.engaged_sessions,
+          totals.conversions
+        ],
+        backgroundColor: [
+          'rgba(238, 115, 10, 0.85)',
+          'rgba(238, 115, 10, 0.7)',
+          'rgba(238, 115, 10, 0.55)',
+          'rgba(238, 115, 10, 0.4)',
+          'rgba(238, 115, 10, 0.25)',
+        ],
+        borderColor: '#ee730a',
+        borderWidth: 1,
+        borderRadius: 4,
+        barThickness: 32
+      }]
+    };
+  }
+
+  private prepareTrendChart(): void {
+    if (!this.trend?.items.length) return;
+
+    const labels = this.trend.items.map(i => i.date.slice(5));
+    this.trendChartData = {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Clicks',
+          data: this.trend.items.map(i => i.clicks),
+          borderColor: '#ee730a',
+          backgroundColor: 'rgba(238, 115, 10, 0.1)',
+          fill: true,
+          tension: 0.4,
+          yAxisID: 'y'
+        },
+        {
+          label: 'CTR (%)',
+          data: this.trend.items.map(i => i.ctr * 100),
+          borderColor: '#086fff',
+          backgroundColor: 'transparent',
+          borderDash: [5, 5],
+          tension: 0.4,
+          yAxisID: 'y1'
+        },
+        {
+          label: 'Engagement (%)',
+          data: this.trend.items.map(i => i.engagement_rate * 100),
+          borderColor: '#228747',
+          backgroundColor: 'transparent',
+          tension: 0.4,
+          yAxisID: 'y1'
+        }
+      ]
+    };
+  }
+
+  private prepareVersionChart(): void {
+    if (!this.versionComparison?.items.length) return;
+
+    this.versionChartData = {
+      labels: this.versionComparison.items.map(i => i.version_slug),
+      datasets: [
+        {
+          label: 'CTR (%)',
+          data: this.versionComparison.items.map(i => i.ctr * 100),
+          backgroundColor: 'rgba(238, 115, 10, 0.8)',
+          borderRadius: 4
+        },
+        {
+          label: 'Engagement (%)',
+          data: this.versionComparison.items.map(i => i.engagement_rate * 100),
+          backgroundColor: 'rgba(8, 111, 255, 0.8)',
+          borderRadius: 4
+        }
+      ]
+    };
+  }
+
+  private prepareBreakdownCharts(): void {
+    if (!this.breakdowns) return;
+
+    // Device Doughnut
+    this.deviceChartData = {
+      labels: this.breakdowns.device_categories.map(i => i.label),
+      datasets: [{
+        data: this.breakdowns.device_categories.map(i => i.clicks),
+        backgroundColor: ['#ee730a', '#086fff', '#3524cd', '#999']
+      }]
+    };
+
+    // Channel Doughnut
+    this.channelChartData = {
+      labels: this.breakdowns.channel_groups.map(i => i.label),
+      datasets: [{
+        data: this.breakdowns.channel_groups.map(i => i.clicks),
+        backgroundColor: ['#ee730a', '#228747', '#086fff', '#3524cd', '#e80954', '#999']
+      }]
+    };
+
+    // Country Bar (Top 10)
+    const topCountries = this.breakdowns.countries.slice(0, 10);
+    this.geoChartData = {
+      labels: topCountries.map(i => i.label),
+      datasets: [{
+        label: 'Clicks',
+        data: topCountries.map(i => i.clicks),
+        backgroundColor: 'rgba(53, 36, 205, 0.7)',
+        borderRadius: 4
+      }]
+    };
   }
 
   statusLabel(status: string): string {
