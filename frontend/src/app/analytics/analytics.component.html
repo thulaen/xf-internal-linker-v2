@@ -76,7 +76,7 @@
         <div class="source-mini-grid">
           @for (row of funnelData.by_source; track row.telemetry_source) {
             <div class="source-mini-card">
-              <strong>{{ row.telemetry_source.toUpperCase() }}</strong>
+              <strong>{{ row.telemetry_source | uppercase }}</strong>
               <span>{{ row.clicks }} clicks</span>
               <span>{{ row.engaged_sessions }} engaged</span>
             </div>
@@ -359,7 +359,7 @@
                 <div class="top-row__main">
                   <strong>{{ item.destination_title }}</strong>
                   <span>Anchor: {{ item.anchor_phrase || 'No saved anchor' }}</span>
-                  <span>Source: {{ item.telemetry_source.toUpperCase() }} | Status: {{ item.status }}</span>
+                  <span>Source: {{ item.telemetry_source | uppercase }} | Status: {{ item.status }}</span>
                 </div>
                 <div class="top-row__metrics">
                   <span>{{ item.clicks }} clicks</span>
