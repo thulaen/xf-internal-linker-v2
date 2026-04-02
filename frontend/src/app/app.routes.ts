@@ -6,6 +6,7 @@
  */
 
 import { Routes } from '@angular/router';
+import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 export const routes: Routes = [
   {
@@ -41,6 +42,7 @@ export const routes: Routes = [
     path: 'analytics',
     loadComponent: () =>
       import('./analytics/analytics.component').then((m) => m.AnalyticsComponent),
+    providers: [provideCharts(withDefaultRegisterables())],
     title: 'Analytics — XF Internal Linker',
   },
   {

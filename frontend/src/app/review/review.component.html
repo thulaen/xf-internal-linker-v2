@@ -36,9 +36,10 @@
       @if (startingPipeline) {
         <mat-spinner diameter="16"></mat-spinner>
       } @else {
-        <mat-icon>play_arrow</mat-icon>
+        <mat-icon>bolt</mat-icon>
       }
       Run Pipeline
+      <mat-icon class="icon-right">chevron_right</mat-icon>
     </button>
   </section>
 
@@ -121,8 +122,9 @@
     </p>
     @if (statusFilter === 'pending' && !searchQuery) {
       <button mat-flat-button color="primary" (click)="runPipeline()">
-        <mat-icon>play_arrow</mat-icon>
+        <mat-icon>bolt</mat-icon>
         Run Pipeline Now
+        <mat-icon class="icon-right">chevron_right</mat-icon>
       </button>
     }
   </div>

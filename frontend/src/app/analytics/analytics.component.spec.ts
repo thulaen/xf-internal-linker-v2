@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { of } from 'rxjs';
+import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
 import { AnalyticsComponent } from './analytics.component';
 import { AnalyticsService } from './analytics.service';
@@ -189,6 +190,38 @@ describe('AnalyticsComponent', () => {
       status: 'queued',
       message: 'Matomo telemetry sync queued.',
     })),
+    getTelemetryByVersion: jasmine.createSpy('getTelemetryByVersion').and.returnValue(of({
+      days: 30,
+      selected_source: 'all',
+      items: [
+        {
+          version_slug: 'v1',
+          impressions: 100,
+          clicks: 10,
+          destination_views: 5,
+          engaged_sessions: 3,
+          conversions: 1,
+          ctr: 0.1,
+          engagement_rate: 0.6,
+          conversion_rate: 0.2
+        }
+      ]
+    })),
+    getTelemetryGeoDetail: jasmine.createSpy('getTelemetryGeoDetail').and.returnValue(of({
+      days: 30,
+      selected_source: 'all',
+      items: [
+        {
+          country: 'UK',
+          region: 'London',
+          impressions: 50,
+          clicks: 5,
+          engaged_sessions: 2,
+          conversions: 1,
+          ctr: 0.1
+        }
+      ]
+    })),
   };
 
   beforeEach(() => {
@@ -199,6 +232,8 @@ describe('AnalyticsComponent', () => {
     analyticsServiceStub.getBreakdowns.calls.reset();
     analyticsServiceStub.getTrend.calls.reset();
     analyticsServiceStub.getTopSuggestions.calls.reset();
+    analyticsServiceStub.getTelemetryByVersion.calls.reset();
+    analyticsServiceStub.getTelemetryGeoDetail.calls.reset();
   });
 
   it('shows the live-site browser bridge card', async () => {
@@ -209,6 +244,7 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -237,6 +273,7 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -262,6 +299,7 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
 
@@ -276,5 +314,7 @@ describe('AnalyticsComponent', () => {
     expect(analyticsServiceStub.getBreakdowns).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTrend).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getTelemetryByVersion).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getTelemetryGeoDetail).toHaveBeenCalledWith('ga4');
   });
 });

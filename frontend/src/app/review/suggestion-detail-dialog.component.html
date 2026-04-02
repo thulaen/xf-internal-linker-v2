@@ -191,10 +191,10 @@
           {{ phraseSummary() }}
         </p>
         <p class="meta-line">
-          {{ detail.phrase_match_diagnostics?.selected_match_type | titlecase }}
-          - {{ detail.phrase_match_diagnostics?.selected_phrase_source | titlecase }}
-          - {{ detail.phrase_match_diagnostics?.destination_phrase_count }} destination phrases
-          - {{ detail.phrase_match_diagnostics?.context_corroborating_hits }} local support hits
+          {{ detail.phrase_match_diagnostics.selected_match_type | titlecase }}
+          - {{ detail.phrase_match_diagnostics.selected_phrase_source | titlecase }}
+          - {{ detail.phrase_match_diagnostics.destination_phrase_count }} destination phrases
+          - {{ detail.phrase_match_diagnostics.context_corroborating_hits }} local support hits
         </p>
       }
 
@@ -207,11 +207,11 @@
           {{ linkFreshnessSummary() }}
         </p>
         <p class="meta-line">
-          {{ detail.link_freshness_diagnostics?.freshness_bucket | titlecase }}
-          - {{ detail.link_freshness_diagnostics?.total_peer_count }} peer links
-          - {{ detail.link_freshness_diagnostics?.recent_new_peer_count }} recent new
-          - {{ detail.link_freshness_diagnostics?.previous_new_peer_count }} previous new
-          - {{ detail.link_freshness_diagnostics?.recent_lost_peer_count }} recent lost
+          {{ detail.link_freshness_diagnostics.freshness_bucket | titlecase }}
+          - {{ detail.link_freshness_diagnostics.total_peer_count }} peer links
+          - {{ detail.link_freshness_diagnostics.recent_new_peer_count }} recent new
+          - {{ detail.link_freshness_diagnostics.previous_new_peer_count }} previous new
+          - {{ detail.link_freshness_diagnostics.recent_lost_peer_count }} recent lost
         </p>
       }
 
@@ -224,17 +224,17 @@
           {{ learnedAnchorSummary() }}
         </p>
         <p class="meta-line">
-          {{ detail.learned_anchor_diagnostics?.usable_inbound_anchor_sources }} clean anchor sources
-          - {{ detail.learned_anchor_diagnostics?.learned_family_count }} learned families
-          @if (detail.learned_anchor_diagnostics?.matched_family_canonical) {
-            - Canonical: {{ detail.learned_anchor_diagnostics?.matched_family_canonical }}
+          {{ detail.learned_anchor_diagnostics.usable_inbound_anchor_sources }} clean anchor sources
+          - {{ detail.learned_anchor_diagnostics.learned_family_count }} learned families
+          @if (detail.learned_anchor_diagnostics.matched_family_canonical) {
+            - Canonical: {{ detail.learned_anchor_diagnostics.matched_family_canonical }}
           }
-          @if (detail.learned_anchor_diagnostics?.recommended_canonical_anchor
-            && detail.learned_anchor_diagnostics?.recommended_canonical_anchor !== detail.learned_anchor_diagnostics?.matched_family_canonical) {
-            - Recommended: {{ detail.learned_anchor_diagnostics?.recommended_canonical_anchor }}
+          @if (detail.learned_anchor_diagnostics.recommended_canonical_anchor
+            && detail.learned_anchor_diagnostics.recommended_canonical_anchor !== detail.learned_anchor_diagnostics.matched_family_canonical) {
+            - Recommended: {{ detail.learned_anchor_diagnostics.recommended_canonical_anchor }}
           }
         </p>
-        @if (detail.learned_anchor_diagnostics?.top_learned_families?.length) {
+        @if (detail.learned_anchor_diagnostics.top_learned_families.length) {
           <p class="meta-line">
             Top learned anchors: {{ learnedAnchorFamiliesSummary() }}
           </p>
@@ -253,15 +253,15 @@
           Borrowed words stay separate from the destination's own text.
         </p>
         <p class="meta-line">
-          {{ detail.rare_term_diagnostics?.eligible_related_page_count ?? 0 }} eligible related pages
-          - min support {{ detail.rare_term_diagnostics?.minimum_supporting_related_pages ?? 0 }}
-          - max document frequency {{ detail.rare_term_diagnostics?.max_document_frequency ?? 0 }}
+          {{ detail.rare_term_diagnostics.eligible_related_page_count ?? 0 }} eligible related pages
+          - min support {{ detail.rare_term_diagnostics.minimum_supporting_related_pages ?? 0 }}
+          - max document frequency {{ detail.rare_term_diagnostics.max_document_frequency ?? 0 }}
         </p>
-        @if ((detail.rare_term_diagnostics?.matched_propagated_terms?.length ?? 0) > 0) {
+        @if ((detail.rare_term_diagnostics.matched_propagated_terms?.length ?? 0) > 0) {
           <p class="meta-line">
             Matched borrowed terms: {{ rareTermMatchedTermsSummary() }}
           </p>
-        } @else if ((detail.rare_term_diagnostics?.top_propagated_terms?.length ?? 0) > 0) {
+        } @else if ((detail.rare_term_diagnostics.top_propagated_terms?.length ?? 0) > 0) {
           <p class="meta-line">
             Top borrowed terms: {{ rareTermTopTermsSummary() }}
           </p>
@@ -277,7 +277,7 @@
           {{ fieldAwareSummary() }}
         </p>
         <p class="meta-line">
-          {{ detail.field_aware_diagnostics?.matched_field_count }} matched fields
+          {{ detail.field_aware_diagnostics.matched_field_count }} matched fields
           @if (fieldAwareMatchedFieldsSummary()) {
             - {{ fieldAwareMatchedFieldsSummary() }}
           }
