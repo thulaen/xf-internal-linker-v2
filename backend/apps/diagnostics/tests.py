@@ -31,6 +31,7 @@ class HttpWorkerHealthTests(TestCase):
             "schema_version": "v1",
             "build_version": "1.2.3",
             "redis_connected": True,
+            "database_connected": True,
             "queue_depth": 4,
             "worker_online": True,
             "worker_heartbeat_age_seconds": 2.5,
@@ -70,6 +71,7 @@ class HttpWorkerHealthTests(TestCase):
             "status": "ok",
             "schema_version": "v1",
             "redis_connected": False,
+            "database_connected": True,
             "worker_online": False,
             "queue_depth": 9,
         }
@@ -99,6 +101,7 @@ class HttpWorkerHealthTests(TestCase):
             "status": "ok",
             "schema_version": "v1",
             "redis_connected": True,
+            "database_connected": True,
             "queue_depth": 13,
             "worker_online": False,
             "worker_heartbeat_age_seconds": 88,
@@ -112,3 +115,28 @@ class HttpWorkerHealthTests(TestCase):
         self.assertIn("http-worker-queue", next_step)
         self.assertTrue(metadata["python_fallback_active"])
         self.assertEqual(metadata["queue_depth"], 13)
+
+    @override_settings(
+        HTTP_WORKER_ENABLED=True,
+        HTTP_WORKER_URL="http://http-worker-api:8080",
+    )
+    @patch("apps.diagnostics.health.requests.get")
+    def test_check_http_worker_marks_degraded_when_database_is_down(self, mock_get):
+        response = MagicMock(status_code=200)
+        response.json.return_value = {
+            "status": "ok",
+            "schema_version": "v1",
+            "redis_connected": True,
+            "database_connected": False,
+            "queue_depth": 2,
+            "worker_online": True,
+            "worker_heartbeat_age_seconds": 1.0,
+        }
+        mock_get.return_value = response
+
+        state, explanation, next_step, metadata = health.check_http_worker()
+
+        self.assertEqual(state, "degraded")
+        self.assertIn("PostgreSQL lane is not healthy", explanation)
+        self.assertIn("Postgres connection string", next_step)
+        self.assertFalse(metadata["database_connected"])

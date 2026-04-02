@@ -18,9 +18,14 @@ Message format sent to the client:
 }
 """
 
+import asyncio
+import json
 import logging
+from contextlib import suppress
 
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
+from django.conf import settings
+import redis.asyncio as redis_asyncio
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +45,7 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
         """Accept the WebSocket connection and join the job's channel group."""
         self.job_id = self.scope["url_route"]["kwargs"]["job_id"]
         self.group_name = f"job_{self.job_id}"
+        self._stream_task: asyncio.Task | None = None
 
         # Join the job-specific channel group
         await self.channel_layer.group_add(self.group_name, self.channel_name)
@@ -53,10 +59,15 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
             "job_id": self.job_id,
             "message": "Connected. Waiting for job progress events.",
         })
+        self._stream_task = asyncio.create_task(self._bridge_runtime_progress())
 
     async def disconnect(self, close_code: int) -> None:
         """Leave the job's channel group on disconnect."""
         await self.channel_layer.group_discard(self.group_name, self.channel_name)
+        if self._stream_task is not None:
+            self._stream_task.cancel()
+            with suppress(asyncio.CancelledError):
+                await self._stream_task
         logger.debug("WebSocket client disconnected from job %s (code=%s)", self.job_id, close_code)
 
     async def receive_json(self, content: dict, **kwargs) -> None:
@@ -82,3 +93,48 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
     async def job_failed(self, event: dict) -> None:
         """Forward a job.failed event from Celery."""
         await self.send_json(event)
+
+    async def _bridge_runtime_progress(self) -> None:
+        """Forward Redis Stream runtime progress events for C#-owned jobs."""
+        redis_client = redis_asyncio.from_url(
+            settings.REDIS_URL,
+            decode_responses=True,
+        )
+        stream_key = f"{settings.RUNTIME_PROGRESS_STREAM_PREFIX}:{self.job_id}"
+        last_id = "0-0"
+
+        try:
+            while True:
+                entries = await redis_client.xread(
+                    {stream_key: last_id},
+                    count=25,
+                    block=int(getattr(settings, "RUNTIME_PROGRESS_STREAM_BLOCK_MS", 5000)),
+                )
+                if not entries:
+                    continue
+
+                for _stream_name, stream_entries in entries:
+                    for entry_id, fields in stream_entries:
+                        last_id = entry_id
+                        payload_json = fields.get("payload", "")
+                        if not payload_json:
+                            continue
+
+                        try:
+                            payload = json.loads(payload_json)
+                        except json.JSONDecodeError:
+                            logger.warning(
+                                "Ignoring invalid runtime progress payload for job %s",
+                                self.job_id,
+                            )
+                            continue
+
+                        await self.send_json(payload)
+                        if payload.get("state") in {"completed", "failed", "cancelled"}:
+                            return
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Runtime progress bridge failed for job %s", self.job_id)
+        finally:
+            await redis_client.aclose()

@@ -17,6 +17,9 @@ public sealed class JobResult
     [JsonPropertyName("completed_at")]
     public DateTimeOffset CompletedAt { get; set; }
 
+    [JsonPropertyName("duration_ms")]
+    public long DurationMs { get; set; }
+
     [JsonPropertyName("success")]
     public bool Success { get; set; }
 
@@ -43,6 +46,9 @@ public sealed class DeadLetterRecord
 
     [JsonPropertyName("attempt_count")]
     public int AttemptCount { get; set; }
+
+    [JsonPropertyName("duration_ms")]
+    public long DurationMs { get; set; }
 
     [JsonPropertyName("error")]
     public string Error { get; set; } = string.Empty;

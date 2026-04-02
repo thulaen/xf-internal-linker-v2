@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 import json
 from typing import Any
 from urllib import error, request
@@ -27,14 +28,20 @@ def _base_url() -> str:
     return base_url
 
 
-def _post_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:
+def _request_json(
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    *,
+    accepted_status_codes: set[int] | None = None,
+) -> dict[str, Any]:
     url = f"{_base_url()}{path}"
-    body = json.dumps(payload).encode("utf-8")
+    body = json.dumps(payload).encode("utf-8") if payload is not None else None
     http_request = request.Request(
         url,
         data=body,
         headers={"Content-Type": "application/json"},
-        method="POST",
+        method=method,
     )
     try:
         with request.urlopen(http_request, timeout=60) as response:
@@ -45,13 +52,28 @@ def _post_json(path: str, payload: dict[str, Any]) -> dict[str, Any]:
     except error.URLError as exc:
         raise HttpWorkerError(f"HttpWorker request failed: {exc}") from exc
 
-    if status_code != 200:
+    accepted_status_codes = accepted_status_codes or {200}
+    if status_code not in accepted_status_codes:
         raise HttpWorkerError(f"HttpWorker returned status {status_code}")
 
     try:
         return json.loads(response_body)
     except json.JSONDecodeError as exc:
         raise HttpWorkerError("HttpWorker returned invalid JSON") from exc
+
+
+def _post_json(
+    path: str,
+    payload: dict[str, Any],
+    *,
+    accepted_status_codes: set[int] | None = None,
+) -> dict[str, Any]:
+    return _request_json(
+        "POST",
+        path,
+        payload,
+        accepted_status_codes=accepted_status_codes,
+    )
 
 
 def check_broken_links(items: list[dict]) -> list[dict]:
@@ -84,3 +106,18 @@ def crawl_sitemap(sitemap_url: str, max_urls: int = 10000) -> list[dict]:
     }
     data = _post_json("/api/v1/sitemaps/crawl", payload)
     return data.get("discovered_urls", [])
+
+
+def queue_job(job_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, Any]:
+    request_payload = {
+        "schema_version": getattr(settings, "HTTP_WORKER_SCHEMA_VERSION", "v1"),
+        "job_id": job_id,
+        "job_type": job_type,
+        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        "payload": payload,
+    }
+    return _post_json(
+        "/api/v1/jobs",
+        request_payload,
+        accepted_status_codes={202},
+    )

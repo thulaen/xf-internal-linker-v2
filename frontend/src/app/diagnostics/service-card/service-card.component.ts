@@ -35,6 +35,10 @@ export class ServiceCardComponent implements OnChanges {
       case 'failed': return 'error';
       case 'disabled': return 'block';
       case 'not_configured': return 'settings_input_component';
+      case 'not_installed': return 'extension_off';
+      case 'partial_or_conflicting': return 'merge_type';
+      case 'spec_missing': return 'help_center';
+      case 'spec_exists_not_implemented': return 'pending_actions';
       case 'planned_only': return 'event_note';
       default: return 'help_outline';
     }
@@ -42,6 +46,10 @@ export class ServiceCardComponent implements OnChanges {
 
   formatState(state: string): string {
     return state.replace(/_/g, ' ');
+  }
+
+  formatServiceName(name: string): string {
+    return name.replace(/_/g, ' ');
   }
 
   private buildMetadataEntries(): MetadataEntry[] {

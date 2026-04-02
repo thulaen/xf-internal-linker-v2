@@ -21,6 +21,13 @@ _MAX_BROKEN_LINK_SCAN_URLS = 10_000
 _BROKEN_LINK_SCAN_DELAY_SECONDS = 0.1
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
 
+_RUNTIME_OWNER_OVERRIDE_BY_LANE = {
+    "broken_link_scan": "RUNTIME_OWNER_BROKEN_LINK_SCAN",
+    "graph_sync": "RUNTIME_OWNER_GRAPH_SYNC",
+    "import": "RUNTIME_OWNER_IMPORT",
+    "pipeline": "RUNTIME_OWNER_PIPELINE",
+}
+
 
 def _publish_progress(job_id: str, state: str, progress: float, message: str, **extra: Any) -> None:
     """Publish a job progress event to the WebSocket channel group."""
@@ -40,6 +47,70 @@ def _publish_progress(job_id: str, state: str, progress: float, message: str, **
         async_to_sync(channel_layer.group_send)(f"job_{job_id}", event)
     except Exception:
         logger.exception("Failed to publish progress event for job %s", job_id)
+
+
+def _runtime_owner_for_lane(lane: str) -> str:
+    from django.conf import settings
+
+    owner = getattr(settings, _RUNTIME_OWNER_OVERRIDE_BY_LANE.get(lane, ""), "") or getattr(
+        settings,
+        "HEAVY_RUNTIME_OWNER",
+        "celery",
+    )
+    owner = str(owner).strip().lower()
+    return owner if owner in {"celery", "csharp"} else "celery"
+
+
+def _broken_link_allowed_domains() -> list[str]:
+    from django.conf import settings
+
+    allowed_domains: list[str] = []
+    for raw_url in [
+        getattr(settings, "XENFORO_BASE_URL", ""),
+        getattr(settings, "WORDPRESS_BASE_URL", ""),
+    ]:
+        host = urlparse(raw_url).netloc.strip().lower()
+        if host and host not in allowed_domains:
+            allowed_domains.append(host)
+    return allowed_domains
+
+
+def _broken_link_scan_queue_payload() -> dict[str, Any]:
+    from django.conf import settings
+
+    return {
+        "allowed_domains": _broken_link_allowed_domains(),
+        "scan_cap": _MAX_BROKEN_LINK_SCAN_URLS,
+        "batch_size": int(getattr(settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", 250)),
+        "timeout_seconds": _BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
+        "max_concurrency": int(getattr(settings, "HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", 50)),
+        "user_agent": "XF Internal Linker V2 Broken Link Scanner",
+    }
+
+
+def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
+    from apps.graph.services.http_worker_client import queue_job
+
+    owner = _runtime_owner_for_lane("broken_link_scan")
+    job_id = job_id or str(uuid.uuid4())
+    if owner == "csharp":
+        queue_job(
+            job_id=job_id,
+            job_type="broken_link_scan",
+            payload=_broken_link_scan_queue_payload(),
+        )
+        return {
+            "job_id": job_id,
+            "message": "Broken link scan started.",
+            "runtime_owner": "csharp",
+        }
+
+    scan_broken_links.delay(job_id=job_id)
+    return {
+        "job_id": job_id,
+        "message": "Broken link scan started.",
+        "runtime_owner": "celery",
+    }
 
 
 @shared_task(bind=True, name="pipeline.run_pipeline")

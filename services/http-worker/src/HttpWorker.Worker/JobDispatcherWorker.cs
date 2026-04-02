@@ -12,6 +12,7 @@ namespace HttpWorker.Worker;
 public sealed class JobDispatcherWorker(
     IJobQueueService jobQueueService,
     JobProcessor jobProcessor,
+    IProgressStreamService progressStreamService,
     IRuntimeTelemetryService runtimeTelemetryService,
     IOptions<HttpWorkerOptions> options,
     ILogger<JobDispatcherWorker> logger) : BackgroundService
@@ -49,11 +50,13 @@ public sealed class JobDispatcherWorker(
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
+            var startedAt = DateTimeOffset.UtcNow;
             try
             {
                 parsedRequest ??= JsonSerializer.Deserialize<JobRequest>(rawJob, JsonOptions)
                     ?? throw new ValidationException("request body is required");
                 var result = await jobProcessor.ProcessAsync(parsedRequest, cancellationToken);
+                result.DurationMs = Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds);
                 await WriteResultAsync(result, attempt - 1, cancellationToken);
                 return;
             }
@@ -67,21 +70,33 @@ public sealed class JobDispatcherWorker(
                         JobId = parsedRequest.JobId,
                         JobType = parsedRequest.JobType,
                         CompletedAt = DateTimeOffset.UtcNow,
+                        DurationMs = Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
                         Success = false,
                         Error = ex.Message,
                         Results = null,
                     }, attempt - 1, cancellationToken);
+                    await PublishFailureProgressAsync(parsedRequest.JobId, ex.Message, cancellationToken);
                     return;
                 }
 
-                await WriteDeadLetterAsync(rawJob, attempt, ex.Message, cancellationToken);
+                await WriteDeadLetterAsync(
+                    rawJob,
+                    attempt,
+                    ex.Message,
+                    Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
+                    cancellationToken);
                 return;
             }
             catch (BlockedUrlException)
             {
                 if (parsedRequest is null)
                 {
-                    await WriteDeadLetterAsync(rawJob, attempt, "blocked url", cancellationToken);
+                    await WriteDeadLetterAsync(
+                        rawJob,
+                        attempt,
+                        "blocked url",
+                        Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
+                        cancellationToken);
                     return;
                 }
 
@@ -91,17 +106,24 @@ public sealed class JobDispatcherWorker(
                     JobId = parsedRequest.JobId,
                     JobType = parsedRequest.JobType,
                     CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMs = Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
                     Success = false,
                     Error = "blocked url",
                     Results = null,
                 }, attempt - 1, cancellationToken);
+                await PublishFailureProgressAsync(parsedRequest.JobId, "blocked url", cancellationToken);
                 return;
             }
             catch (MalformedSitemapException)
             {
                 if (parsedRequest is null)
                 {
-                    await WriteDeadLetterAsync(rawJob, attempt, "malformed sitemap xml", cancellationToken);
+                    await WriteDeadLetterAsync(
+                        rawJob,
+                        attempt,
+                        "malformed sitemap xml",
+                        Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
+                        cancellationToken);
                     return;
                 }
 
@@ -111,10 +133,12 @@ public sealed class JobDispatcherWorker(
                     JobId = parsedRequest.JobId,
                     JobType = parsedRequest.JobType,
                     CompletedAt = DateTimeOffset.UtcNow,
+                    DurationMs = Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
                     Success = false,
                     Error = "malformed sitemap xml",
                     Results = null,
                 }, attempt - 1, cancellationToken);
+                await PublishFailureProgressAsync(parsedRequest.JobId, "malformed sitemap xml", cancellationToken);
                 return;
             }
             catch (Exception ex) when (attempt < 4)
@@ -125,7 +149,17 @@ public sealed class JobDispatcherWorker(
             catch (Exception ex)
             {
                 logger.LogError(ex, "HttpWorker job failed permanently");
-                await WriteDeadLetterAsync(rawJob, 4, ex.Message, cancellationToken, parsedRequest);
+                await WriteDeadLetterAsync(
+                    rawJob,
+                    4,
+                    ex.Message,
+                    Math.Max(0, (long)(DateTimeOffset.UtcNow - startedAt).TotalMilliseconds),
+                    cancellationToken,
+                    parsedRequest);
+                if (parsedRequest is not null)
+                {
+                    await PublishFailureProgressAsync(parsedRequest.JobId, ex.Message, cancellationToken);
+                }
                 return;
             }
         }
@@ -135,6 +169,7 @@ public sealed class JobDispatcherWorker(
         string rawJob,
         int attemptCount,
         string error,
+        long durationMs,
         CancellationToken cancellationToken,
         JobRequest? parsedRequest = null)
     {
@@ -156,6 +191,7 @@ public sealed class JobDispatcherWorker(
             JobType = parsedRequest?.JobType ?? "unknown",
             FailedAt = DateTimeOffset.UtcNow,
             AttemptCount = attemptCount,
+            DurationMs = durationMs,
             Error = error,
             OriginalRequest = originalRequest,
         };
@@ -174,6 +210,32 @@ public sealed class JobDispatcherWorker(
         catch (Exception ex)
         {
             logger.LogWarning(ex, "HttpWorker telemetry write failed for dead-lettered job");
+        }
+    }
+
+    private async Task PublishFailureProgressAsync(
+        string jobId,
+        string error,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await progressStreamService.PublishAsync(
+                jobId,
+                new
+                {
+                    type = "job.progress",
+                    job_id = jobId,
+                    state = "failed",
+                    progress = 0.0,
+                    message = $"Job failed: {error}",
+                    error,
+                },
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "HttpWorker failure progress publish failed");
         }
     }
 

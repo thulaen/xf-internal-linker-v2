@@ -366,10 +366,49 @@ WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 
 HTTP_WORKER_ENABLED = env.bool("HTTP_WORKER_ENABLED", default=False)
 HTTP_WORKER_URL = env("HTTP_WORKER_URL", default="http://http-worker-api:8080").rstrip("/")
+HTTP_WORKER_SCHEMA_VERSION = env("HTTP_WORKER_SCHEMA_VERSION", default="v1").strip() or "v1"
 HTTP_WORKER_BROKEN_LINK_BATCH_SIZE = min(
     max(env.int("HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", default=250), 1),
     1000,
 )
+HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY = min(
+    max(env.int("HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", default=50), 1),
+    200,
+)
+RUNTIME_PROGRESS_STREAM_PREFIX = env("RUNTIME_PROGRESS_STREAM_PREFIX", default="runtime:progress").strip() or "runtime:progress"
+RUNTIME_PROGRESS_STREAM_BLOCK_MS = max(env.int("RUNTIME_PROGRESS_STREAM_BLOCK_MS", default=5000), 1000)
+
+HEAVY_RUNTIME_OWNER = env("HEAVY_RUNTIME_OWNER", default="celery").strip().lower()
+if HEAVY_RUNTIME_OWNER not in {"celery", "csharp"}:
+    HEAVY_RUNTIME_OWNER = "celery"
+
+RUNTIME_OWNER_BROKEN_LINK_SCAN = env(
+    "RUNTIME_OWNER_BROKEN_LINK_SCAN",
+    default=HEAVY_RUNTIME_OWNER,
+).strip().lower()
+if RUNTIME_OWNER_BROKEN_LINK_SCAN not in {"celery", "csharp"}:
+    RUNTIME_OWNER_BROKEN_LINK_SCAN = HEAVY_RUNTIME_OWNER
+
+RUNTIME_OWNER_GRAPH_SYNC = env(
+    "RUNTIME_OWNER_GRAPH_SYNC",
+    default=HEAVY_RUNTIME_OWNER,
+).strip().lower()
+if RUNTIME_OWNER_GRAPH_SYNC not in {"celery", "csharp"}:
+    RUNTIME_OWNER_GRAPH_SYNC = HEAVY_RUNTIME_OWNER
+
+RUNTIME_OWNER_IMPORT = env(
+    "RUNTIME_OWNER_IMPORT",
+    default=HEAVY_RUNTIME_OWNER,
+).strip().lower()
+if RUNTIME_OWNER_IMPORT not in {"celery", "csharp"}:
+    RUNTIME_OWNER_IMPORT = HEAVY_RUNTIME_OWNER
+
+RUNTIME_OWNER_PIPELINE = env(
+    "RUNTIME_OWNER_PIPELINE",
+    default=HEAVY_RUNTIME_OWNER,
+).strip().lower()
+if RUNTIME_OWNER_PIPELINE not in {"celery", "csharp"}:
+    RUNTIME_OWNER_PIPELINE = HEAVY_RUNTIME_OWNER
 
 
 # ── ML / AI Settings ─────────────────────────────────────────────

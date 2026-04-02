@@ -49,17 +49,23 @@ class BrokenLinkViewSet(viewsets.ModelViewSet):
 
     @action(detail=False, methods=["post"])
     def scan(self, request) -> Response:
-        from apps.pipeline.tasks import scan_broken_links
+        from apps.graph.services.http_worker_client import HttpWorkerError
+        from apps.pipeline.tasks import dispatch_broken_link_scan
 
-        job_id = str(uuid.uuid4())
-        scan_broken_links.delay(job_id=job_id)
-        return Response(
-            {
-                "job_id": job_id,
-                "message": "Broken link scan started.",
-            },
-            status=status.HTTP_202_ACCEPTED,
-        )
+        try:
+            payload = dispatch_broken_link_scan(job_id=str(uuid.uuid4()))
+            return Response(payload, status=status.HTTP_202_ACCEPTED)
+        except HttpWorkerError as exc:
+            return Response(
+                {
+                    "detail": (
+                        "The broken-link scan could not start because the C# worker lane is unavailable. "
+                        "The system did not silently fall back to Celery."
+                    ),
+                    "error": str(exc),
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
     @action(detail=False, methods=["get"], url_path="export-csv")
     def export_csv(self, request) -> StreamingHttpResponse:

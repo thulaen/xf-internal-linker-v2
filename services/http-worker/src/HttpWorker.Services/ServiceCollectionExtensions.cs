@@ -28,10 +28,13 @@ public static class ServiceCollectionExtensions
             return ConnectionMultiplexer.Connect(redisOptions);
         });
         services.AddSingleton<IBrokenLinkService, BrokenLinkService>();
+        services.AddSingleton<IBrokenLinkScanService, BrokenLinkScanService>();
         services.AddSingleton<IUrlFetchService, UrlFetchService>();
         services.AddSingleton<IHealthCheckService, HealthCheckService>();
         services.AddSingleton<ISitemapService, SitemapService>();
         services.AddSingleton<IJobQueueService, RedisJobQueueService>();
+        services.AddSingleton<IProgressStreamService, RedisProgressStreamService>();
+        services.AddSingleton<IPostgresRuntimeStore, PostgresRuntimeStore>();
         services.AddSingleton<IRuntimeTelemetryService, RedisRuntimeTelemetryService>();
         services.AddSingleton<JobProcessor>();
         return services;

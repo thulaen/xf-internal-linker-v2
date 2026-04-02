@@ -22,6 +22,11 @@ class ServiceStatusSnapshot(TimestampedModel):
         ('r_analytics', 'R Analytics Service'),
         ('r_weight_tuning', 'R Auto-Weight Tuning'),
         ('local_model', 'Local Embedding/Model Runtime'),
+        ('matomo', 'Matomo'),
+        ('runtime_lanes', 'Runtime Lanes'),
+        ('scheduler_lane', 'C# Scheduler Lane'),
+        ('native_scoring', 'Native C++ Scoring'),
+        ('embedding_specialist', 'Python Embedding Specialist'),
     ]
 
     STATE_CHOICES = [

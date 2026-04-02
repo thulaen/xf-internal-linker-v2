@@ -1,8 +1,12 @@
+import ctypes
+import json
 import math
+import os
 from collections import Counter
 from contextlib import ExitStack
 from dataclasses import replace
 from datetime import timedelta
+from time import perf_counter
 from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
@@ -59,6 +63,8 @@ from apps.pipeline.services.rare_term_propagation import (
 from apps.pipeline.services.pipeline import (
     DEFAULT_WEIGHTS,
     PipelineResult,
+    _load_sentence_embeddings,
+    _load_sentence_records,
     _load_weights,
     _persist_diagnostics,
     _persist_suggestions,
@@ -125,6 +131,45 @@ try:
     from extensions import feedrerank as feedrerank_ext
 except ImportError:
     feedrerank_ext = None
+
+
+def _peak_working_set_bytes() -> int:
+    if os.name == "nt":
+        class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
+            _fields_ = [
+                ("cb", ctypes.c_uint32),
+                ("PageFaultCount", ctypes.c_uint32),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+                ("PrivateUsage", ctypes.c_size_t),
+            ]
+
+        psapi = ctypes.WinDLL("psapi")
+        counters = PROCESS_MEMORY_COUNTERS_EX()
+        counters.cb = ctypes.sizeof(PROCESS_MEMORY_COUNTERS_EX)
+        ok = psapi.GetProcessMemoryInfo(
+            ctypes.windll.kernel32.GetCurrentProcess(),
+            ctypes.byref(counters),
+            counters.cb,
+        )
+        if ok:
+            return max(int(counters.PeakWorkingSetSize), int(counters.WorkingSetSize))
+        return 0
+
+    try:
+        import resource
+
+        usage = resource.getrusage(resource.RUSAGE_SELF)
+        peak = int(usage.ru_maxrss)
+        return peak if peak > 10_000_000 else peak * 1024
+    except Exception:
+        return 0
 
 
 def _content_record(
@@ -286,6 +331,60 @@ class TextTokenizerServiceTests(TestCase):
             result,
             frozenset({"stop", "internal", "linking", "guide"}),
         )
+
+
+class PipelineLoaderTests(TestCase):
+    @override_settings(HOST_SCAN_WORD_LIMIT=20)
+    def test_sentence_loaders_honor_word_limit_without_loading_extra_rows(self):
+        scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Scope")
+        content = ContentItem.objects.create(
+            content_id=101,
+            content_type="thread",
+            title="Thread",
+            scope=scope,
+            distilled_text="Body",
+        )
+        post = Post.objects.create(
+            content_item=content,
+            raw_bbcode="[b]Body[/b]",
+            clean_text="Short sentence. This one is out of range.",
+            char_count=39,
+        )
+        first_sentence = Sentence.objects.create(
+            content_item=content,
+            post=post,
+            text="Short sentence.",
+            position=0,
+            char_count=15,
+            start_char=0,
+            end_char=15,
+            word_position=5,
+            embedding=[0.25] * 1024,
+        )
+        Sentence.objects.create(
+            content_item=content,
+            post=post,
+            text="This one is out of range.",
+            position=1,
+            char_count=25,
+            start_char=16,
+            end_char=41,
+            word_position=50,
+            embedding=[0.75] * 1024,
+        )
+
+        content_keys = {(content.pk, content.content_type)}
+
+        sentence_records, content_to_sentence_ids = _load_sentence_records(content_keys)
+        sentence_ids, sentence_embeddings = _load_sentence_embeddings(content_keys)
+
+        self.assertEqual(list(sentence_records.keys()), [first_sentence.pk])
+        self.assertEqual(
+            list(content_to_sentence_ids[(content.pk, content.content_type)]),
+            [first_sentence.pk],
+        )
+        self.assertEqual(sentence_ids, [first_sentence.pk])
+        self.assertEqual(sentence_embeddings.shape, (1, 1024))
 
 
 class SimsearchExtensionTests(TestCase):
@@ -2985,6 +3084,113 @@ class PipelineTaskRunStatsTests(TestCase):
         self.assertEqual(result["state"], "completed")
 
 
+class BrokenLinkScanBenchmarkTests(TestCase):
+    @override_settings(
+        HTTP_WORKER_ENABLED=False,
+        XENFORO_BASE_URL="https://forum.example.com",
+    )
+    def test_python_broken_link_scan_reports_benchmark_metrics(self):
+        if os.environ.get("PIPELINE_RUN_BENCHMARKS") != "1":
+            self.skipTest("Set PIPELINE_RUN_BENCHMARKS=1 to run benchmark harness.")
+
+        scope = ScopeItem.objects.create(scope_id=77, scope_type="node", title="Benchmark Scope")
+        source = ContentItem.objects.create(
+            content_id=7700,
+            content_type="thread",
+            title="Benchmark Source",
+            scope=scope,
+        )
+
+        destinations: list[ContentItem] = []
+        existing_issues: list[BrokenLink] = []
+        for index in range(1000):
+            if index < 100:
+                url = f"https://forum.example.com/broken/{index}"
+            elif index < 200:
+                url = f"https://forum.example.com/redirect/{index}"
+            elif index < 300:
+                url = f"https://forum.example.com/fixed/{index}"
+            else:
+                url = f"https://forum.example.com/ok/{index}"
+
+            destinations.append(
+                ContentItem(
+                    content_id=20_000 + index,
+                    content_type="thread",
+                    title=f"Destination {index}",
+                    scope=scope,
+                    url=url,
+                )
+            )
+
+        created_destinations = ContentItem.objects.bulk_create(destinations)
+        ExistingLink.objects.bulk_create(
+            [
+                ExistingLink(
+                    from_content_item=source,
+                    to_content_item=destination,
+                    anchor_text="bench",
+                    extraction_method="html_anchor",
+                    link_ordinal=index,
+                    source_internal_link_count=1,
+                    context_class="contextual",
+                )
+                for index, destination in enumerate(created_destinations)
+            ]
+        )
+
+        for destination in created_destinations[200:300]:
+            existing_issues.append(
+                BrokenLink(
+                    source_content=source,
+                    url=destination.url,
+                    http_status=404,
+                    status=BrokenLink.STATUS_OPEN,
+                    notes="benchmark existing issue",
+                )
+            )
+        BrokenLink.objects.bulk_create(existing_issues)
+
+        def _benchmark_probe(_session, url: str) -> tuple[int, str]:
+            if "/broken/" in url:
+                return 404, ""
+            if "/redirect/" in url:
+                return 301, url.replace("/redirect/", "/redirected/")
+            return 200, ""
+
+        started_at = perf_counter()
+        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
+            pipeline_tasks,
+            "_probe_link_health",
+            side_effect=_benchmark_probe,
+        ), patch("apps.pipeline.tasks.time.sleep"):
+            result = pipeline_tasks.scan_broken_links.run(job_id="benchmark-python-broken-links")
+        wall_time_ms = round((perf_counter() - started_at) * 1000, 2)
+        peak_working_set_bytes = _peak_working_set_bytes()
+
+        metrics = {
+            "lane": "broken_link_scan",
+            "owner": "python_celery_baseline",
+            "dataset_size": 1000,
+            "wall_time_ms": wall_time_ms,
+            "peak_working_set_bytes": peak_working_set_bytes or None,
+            "memory_note": (
+                "Use an external parent-process sampler on Windows when peak_working_set_bytes is null."
+                if peak_working_set_bytes <= 0
+                else ""
+            ),
+            "throughput_urls_per_second": round(1000 / max(wall_time_ms / 1000, 0.001), 2),
+            "scanned_urls": result["scanned_urls"],
+            "flagged_urls": result["flagged_urls"],
+            "fixed_urls": result["fixed_urls"],
+        }
+        print(f"BROKEN_LINK_BENCHMARK_JSON:{json.dumps(metrics, sort_keys=True)}")
+
+        self.assertEqual(result["scanned_urls"], 1000)
+        self.assertEqual(result["flagged_urls"], 200)
+        self.assertEqual(result["fixed_urls"], 100)
+
+
 class BrokenLinkScanTaskRegressionTests(TestCase):
     def setUp(self):
         self.scope = ScopeItem.objects.create(scope_id=5, scope_type="node", title="Forum")
@@ -3135,6 +3341,54 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         self.assertEqual(result["flagged_urls"], 1)
         self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
         probe_health.assert_called_once_with(ANY, destination.url)
+
+
+class BrokenLinkScanDispatchTests(TestCase):
+    @override_settings(
+        HEAVY_RUNTIME_OWNER="celery",
+        RUNTIME_OWNER_BROKEN_LINK_SCAN="csharp",
+        HTTP_WORKER_ENABLED=True,
+        XENFORO_BASE_URL="https://forum.example.com",
+        WORDPRESS_BASE_URL="https://content.example.com",
+        HTTP_WORKER_BROKEN_LINK_BATCH_SIZE=200,
+        HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY=40,
+    )
+    def test_dispatch_broken_link_scan_queues_csharp_job_when_owner_is_csharp(self):
+        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, patch.object(
+            pipeline_tasks.scan_broken_links,
+            "delay",
+        ) as delay_task:
+            result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-123")
+
+        self.assertEqual(result["runtime_owner"], "csharp")
+        queue_job.assert_called_once_with(
+            job_id="job-123",
+            job_type="broken_link_scan",
+            payload={
+                "allowed_domains": ["forum.example.com", "content.example.com"],
+                "scan_cap": 10_000,
+                "batch_size": 200,
+                "timeout_seconds": 10,
+                "max_concurrency": 40,
+                "user_agent": "XF Internal Linker V2 Broken Link Scanner",
+            },
+        )
+        delay_task.assert_not_called()
+
+    @override_settings(
+        HEAVY_RUNTIME_OWNER="celery",
+        RUNTIME_OWNER_BROKEN_LINK_SCAN="celery",
+    )
+    def test_dispatch_broken_link_scan_queues_celery_task_when_owner_is_celery(self):
+        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, patch.object(
+            pipeline_tasks.scan_broken_links,
+            "delay",
+        ) as delay_task:
+            result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-456")
+
+        self.assertEqual(result["runtime_owner"], "celery")
+        delay_task.assert_called_once_with(job_id="job-456")
+        queue_job.assert_not_called()
 
 
 class PipelineSettingsFallbackLoggingTests(TestCase):

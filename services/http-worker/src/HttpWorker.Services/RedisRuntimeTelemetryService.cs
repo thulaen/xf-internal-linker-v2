@@ -10,16 +10,23 @@ namespace HttpWorker.Services;
 public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
 {
     private const int WorkerStateTtlSeconds = 300;
+    private const int SchedulerStateTtlSeconds = 300;
+    private const int DurationSampleLimit = 512;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly IDatabase _database;
     private readonly string _workerStateKey;
+    private readonly string _schedulerStateKey;
+    private readonly string _durationSamplesKey;
 
     public RedisRuntimeTelemetryService(
         ConnectionMultiplexer connection,
         IOptions<HttpWorkerOptions> options)
     {
         _database = connection.GetDatabase();
-        _workerStateKey = $"{GetRuntimePrefix(options.Value.Redis.JobQueueKey)}:runtime:worker";
+        var runtimePrefix = GetRuntimePrefix(options.Value.Redis.JobQueueKey);
+        _workerStateKey = $"{runtimePrefix}:runtime:worker";
+        _schedulerStateKey = $"{runtimePrefix}:runtime:scheduler";
+        _durationSamplesKey = $"{runtimePrefix}:runtime:durations";
     }
 
     public Task WriteHeartbeatAsync(
@@ -50,6 +57,7 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
             RecordedAt = result.CompletedAt,
             Error = result.Error,
             RetryCount = retryCount,
+            DurationMs = result.DurationMs,
         };
 
         return UpdateWorkerStateAsync(
@@ -75,6 +83,7 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
             RecordedAt = deadLetter.FailedAt,
             Error = deadLetter.Error,
             RetryCount = retryCount,
+            DurationMs = deadLetter.DurationMs,
         };
 
         return UpdateWorkerStateAsync(
@@ -85,6 +94,32 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
             lastFailed: snapshot,
             retryCountDelta: retryCount,
             deadLetterDelta: 1);
+    }
+
+    public async Task WriteSchedulerHeartbeatAsync(
+        string instanceId,
+        DateTimeOffset startedAt,
+        string ownershipMode,
+        string status,
+        int enabledPeriodicTasks,
+        string note,
+        CancellationToken cancellationToken)
+    {
+        var fields = new[]
+        {
+            new HashEntry("instance_id", instanceId),
+            new HashEntry("started_at", startedAt.ToString("O", CultureInfo.InvariantCulture)),
+            new HashEntry("heartbeat_at", DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture)),
+            new HashEntry("ownership_mode", ownershipMode),
+            new HashEntry("enabled_periodic_tasks", enabledPeriodicTasks),
+            new HashEntry("status", status),
+            new HashEntry("note", note),
+        };
+
+        var transaction = _database.CreateTransaction();
+        _ = transaction.HashSetAsync(_schedulerStateKey, fields);
+        _ = transaction.KeyExpireAsync(_schedulerStateKey, TimeSpan.FromSeconds(SchedulerStateTtlSeconds));
+        await transaction.ExecuteAsync();
     }
 
     public async Task<HttpWorkerWorkerSnapshot?> GetWorkerSnapshotAsync(CancellationToken cancellationToken)
@@ -110,6 +145,64 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
             LastFailed = ParseSnapshot(map, "last_failed"),
             RetryCountTotal = ParseInt64(map, "retry_count_total"),
             DeadLetterCount = ParseInt64(map, "dead_letter_count"),
+        };
+    }
+
+    public async Task<HttpWorkerSchedulerSnapshot?> GetSchedulerSnapshotAsync(CancellationToken cancellationToken)
+    {
+        var entries = await _database.HashGetAllAsync(_schedulerStateKey);
+        if (entries.Length == 0)
+        {
+            return null;
+        }
+
+        var map = entries.ToDictionary(entry => entry.Name.ToString(), entry => entry.Value);
+        if (!map.TryGetValue("instance_id", out var instanceId) || instanceId.IsNullOrEmpty)
+        {
+            return null;
+        }
+
+        return new HttpWorkerSchedulerSnapshot
+        {
+            InstanceId = instanceId.ToString(),
+            StartedAt = ParseDateTimeOffset(map, "started_at"),
+            HeartbeatAt = ParseDateTimeOffset(map, "heartbeat_at"),
+            OwnershipMode = ParseString(map, "ownership_mode"),
+            EnabledPeriodicTasks = (int)ParseInt64(map, "enabled_periodic_tasks"),
+            Status = ParseString(map, "status"),
+            Note = ParseString(map, "note"),
+        };
+    }
+
+    public async Task<HttpWorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(CancellationToken cancellationToken)
+    {
+        var entries = await _database.ListRangeAsync(_durationSamplesKey, 0, DurationSampleLimit - 1);
+        if (entries.Length == 0)
+        {
+            return new HttpWorkerPerformanceSnapshot();
+        }
+
+        var samples = entries
+            .Select(static value => TryDeserializeSample(value))
+            .Where(static sample => sample is not null)
+            .Select(static sample => sample!)
+            .OrderBy(static sample => sample.DurationMs)
+            .ToList();
+        if (samples.Count == 0)
+        {
+            return new HttpWorkerPerformanceSnapshot();
+        }
+
+        var oneMinuteAgo = DateTimeOffset.UtcNow.AddMinutes(-1);
+        var drainRate = samples.Count(sample => sample.CompletedAt >= oneMinuteAgo);
+
+        return new HttpWorkerPerformanceSnapshot
+        {
+            CompletedJobsTracked = samples.Count,
+            LatencyP50Ms = Percentile(samples, 0.50),
+            LatencyP95Ms = Percentile(samples, 0.95),
+            LatencyP99Ms = Percentile(samples, 0.99),
+            DrainRatePerMinute = drainRate,
         };
     }
 
@@ -143,14 +236,25 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
         _ = transaction.HashSetAsync(_workerStateKey, fields.ToArray());
         _ = transaction.KeyExpireAsync(_workerStateKey, TimeSpan.FromSeconds(WorkerStateTtlSeconds));
 
-        if (retryCountDelta.GetValueOrDefault() > 0)
+        var retryDelta = retryCountDelta.GetValueOrDefault();
+        if (retryDelta > 0)
         {
-            _ = transaction.HashIncrementAsync(_workerStateKey, "retry_count_total", retryCountDelta.Value);
+            _ = transaction.HashIncrementAsync(_workerStateKey, "retry_count_total", retryDelta);
         }
 
-        if (deadLetterDelta.GetValueOrDefault() > 0)
+        var deadLetterIncrement = deadLetterDelta.GetValueOrDefault();
+        if (deadLetterIncrement > 0)
         {
-            _ = transaction.HashIncrementAsync(_workerStateKey, "dead_letter_count", deadLetterDelta.Value);
+            _ = transaction.HashIncrementAsync(_workerStateKey, "dead_letter_count", deadLetterIncrement);
+        }
+
+        if (lastCompleted is not null && lastCompleted.DurationMs > 0)
+        {
+            var sample = JsonSerializer.Serialize(
+                new DurationSample(lastCompleted.RecordedAt, lastCompleted.DurationMs),
+                JsonOptions);
+            _ = transaction.ListLeftPushAsync(_durationSamplesKey, sample);
+            _ = transaction.ListTrimAsync(_durationSamplesKey, 0, DurationSampleLimit - 1);
         }
 
         await transaction.ExecuteAsync();
@@ -197,4 +301,45 @@ public sealed class RedisRuntimeTelemetryService : IRuntimeTelemetryService
 
         return long.TryParse(value.ToString(), out var parsedValue) ? parsedValue : 0;
     }
+
+    private static string ParseString(
+        IReadOnlyDictionary<string, RedisValue> map,
+        string key)
+    {
+        return map.TryGetValue(key, out var value) && !value.IsNullOrEmpty
+            ? value.ToString()
+            : string.Empty;
+    }
+
+    private static DurationSample? TryDeserializeSample(RedisValue value)
+    {
+        if (value.IsNullOrEmpty)
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonSerializer.Deserialize<DurationSample>(value!, JsonOptions);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static double Percentile(
+        IReadOnlyList<DurationSample> samples,
+        double percentile)
+    {
+        if (samples.Count == 0)
+        {
+            return 0;
+        }
+
+        var index = Math.Clamp((int)Math.Ceiling(samples.Count * percentile) - 1, 0, samples.Count - 1);
+        return samples[index].DurationMs;
+    }
+
+    private sealed record DurationSample(DateTimeOffset CompletedAt, long DurationMs);
 }

@@ -64,6 +64,10 @@ services:
       HOME: /tmp
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
+      HTTP_WORKER_SCHEMA_VERSION: v1
+      HEAVY_RUNTIME_OWNER: celery
+      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
       - media_files:/app/media
@@ -102,6 +106,10 @@ services:
       HOME: /tmp
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
+      HTTP_WORKER_SCHEMA_VERSION: v1
+      HEAVY_RUNTIME_OWNER: celery
+      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
     depends_on:
@@ -124,6 +132,10 @@ services:
       HOME: /tmp
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
+      HTTP_WORKER_SCHEMA_VERSION: v1
+      HEAVY_RUNTIME_OWNER: celery
+      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
     depends_on:
@@ -188,6 +200,13 @@ services:
       HttpWorker__Http__MaxConcurrency: 100
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
+      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
+      HttpWorker__Scheduler__Enabled: "true"
+      HttpWorker__Scheduler__OwnershipMode: shadow
+      HttpWorker__Scheduler__PollSeconds: 30
+      HttpWorker__Progress__StreamPrefix: runtime:progress
+      HttpWorker__Progress__StreamTtlSeconds: 3600
+      HttpWorker__Progress__MaxLen: 512
       HttpWorker__SchemaVersion: v1
     ports:
       - "8081:8080"
@@ -209,6 +228,13 @@ services:
       HttpWorker__Http__MaxConcurrency: 100
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
+      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
+      HttpWorker__Scheduler__Enabled: "true"
+      HttpWorker__Scheduler__OwnershipMode: shadow
+      HttpWorker__Scheduler__PollSeconds: 30
+      HttpWorker__Progress__StreamPrefix: runtime:progress
+      HttpWorker__Progress__StreamTtlSeconds: 3600
+      HttpWorker__Progress__MaxLen: 512
       HttpWorker__SchemaVersion: v1
     depends_on:
       redis:

@@ -15,6 +15,9 @@ public sealed class HttpWorkerTaskSnapshot
 
     [JsonPropertyName("retry_count")]
     public int RetryCount { get; set; }
+
+    [JsonPropertyName("duration_ms")]
+    public long DurationMs { get; set; }
 }
 
 public sealed class HttpWorkerWorkerSnapshot
@@ -41,6 +44,48 @@ public sealed class HttpWorkerWorkerSnapshot
     public long DeadLetterCount { get; set; }
 }
 
+public sealed class HttpWorkerSchedulerSnapshot
+{
+    [JsonPropertyName("instance_id")]
+    public string InstanceId { get; set; } = string.Empty;
+
+    [JsonPropertyName("started_at")]
+    public DateTimeOffset StartedAt { get; set; }
+
+    [JsonPropertyName("heartbeat_at")]
+    public DateTimeOffset HeartbeatAt { get; set; }
+
+    [JsonPropertyName("ownership_mode")]
+    public string OwnershipMode { get; set; } = "shadow";
+
+    [JsonPropertyName("enabled_periodic_tasks")]
+    public int EnabledPeriodicTasks { get; set; }
+
+    [JsonPropertyName("status")]
+    public string Status { get; set; } = "disabled";
+
+    [JsonPropertyName("note")]
+    public string Note { get; set; } = string.Empty;
+}
+
+public sealed class HttpWorkerPerformanceSnapshot
+{
+    [JsonPropertyName("completed_jobs_tracked")]
+    public int CompletedJobsTracked { get; set; }
+
+    [JsonPropertyName("latency_p50_ms")]
+    public double? LatencyP50Ms { get; set; }
+
+    [JsonPropertyName("latency_p95_ms")]
+    public double? LatencyP95Ms { get; set; }
+
+    [JsonPropertyName("latency_p99_ms")]
+    public double? LatencyP99Ms { get; set; }
+
+    [JsonPropertyName("drain_rate_per_minute")]
+    public double DrainRatePerMinute { get; set; }
+}
+
 public sealed class HttpWorkerStatusResponse
 {
     [JsonPropertyName("status")]
@@ -63,6 +108,18 @@ public sealed class HttpWorkerStatusResponse
 
     [JsonPropertyName("worker")]
     public HttpWorkerWorkerSnapshot? Worker { get; set; }
+
+    [JsonPropertyName("database_connected")]
+    public bool DatabaseConnected { get; set; }
+
+    [JsonPropertyName("scheduler_heartbeat_age_seconds")]
+    public double? SchedulerHeartbeatAgeSeconds { get; set; }
+
+    [JsonPropertyName("scheduler")]
+    public HttpWorkerSchedulerSnapshot? Scheduler { get; set; }
+
+    [JsonPropertyName("performance")]
+    public HttpWorkerPerformanceSnapshot? Performance { get; set; }
 
     [JsonPropertyName("build_version")]
     public string BuildVersion { get; set; } = string.Empty;

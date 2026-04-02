@@ -59,7 +59,7 @@ public sealed class StatusControllerTests
 
         var ok = Assert.IsType<OkObjectResult>(action.Result);
         var payload = Assert.IsType<HttpWorkerStatusResponse>(ok.Value);
-        Assert.Equal("ok", payload.Status);
+        Assert.Equal("degraded", payload.Status);
         Assert.True(payload.RedisConnected);
         Assert.False(payload.WorkerOnline);
         Assert.NotNull(payload.WorkerHeartbeatAgeSeconds);
@@ -75,6 +75,10 @@ public sealed class StatusControllerTests
             {
                 RedisConnected = true,
                 QueueDepth = queueDepth,
+            },
+            new FakePostgresRuntimeStore
+            {
+                DatabaseConnected = true,
             },
             new FakeRuntimeTelemetryService
             {
@@ -125,4 +129,25 @@ internal sealed class FakeRuntimeTelemetryService : IRuntimeTelemetryService
     public Task RecordDeadLetterAsync(string instanceId, DateTimeOffset startedAt, DeadLetterRecord deadLetter, int retryCount, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<HttpWorkerWorkerSnapshot?> GetWorkerSnapshotAsync(CancellationToken cancellationToken) => Task.FromResult(Snapshot);
+
+    public Task WriteSchedulerHeartbeatAsync(string instanceId, DateTimeOffset startedAt, string ownershipMode, string status, int enabledPeriodicTasks, string note, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<HttpWorkerSchedulerSnapshot?> GetSchedulerSnapshotAsync(CancellationToken cancellationToken) => Task.FromResult<HttpWorkerSchedulerSnapshot?>(null);
+
+    public Task<HttpWorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(CancellationToken cancellationToken) => Task.FromResult(new HttpWorkerPerformanceSnapshot());
+}
+
+internal sealed class FakePostgresRuntimeStore : IPostgresRuntimeStore
+{
+    public bool DatabaseConnected { get; set; }
+
+    public Task<bool> CanConnectAsync(CancellationToken cancellationToken) => Task.FromResult(DatabaseConnected);
+
+    public Task<BrokenLinkScanWorkload> LoadBrokenLinkScanWorkloadAsync(BrokenLinkScanRequest request, CancellationToken cancellationToken) => Task.FromResult(new BrokenLinkScanWorkload());
+
+    public Task<Dictionary<(int SourceContentId, string Url), BrokenLinkExistingRecord>> LoadExistingBrokenLinkRecordsAsync(IReadOnlyList<BrokenLinkUrlRequest> items, CancellationToken cancellationToken) => Task.FromResult(new Dictionary<(int SourceContentId, string Url), BrokenLinkExistingRecord>());
+
+    public Task PersistBrokenLinkBatchAsync(IReadOnlyList<BrokenLinkBatchMutation> mutations, CancellationToken cancellationToken) => Task.CompletedTask;
+
+    public Task<int> GetEnabledPeriodicTaskCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
 }

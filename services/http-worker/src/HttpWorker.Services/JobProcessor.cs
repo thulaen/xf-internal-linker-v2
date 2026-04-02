@@ -8,6 +8,7 @@ namespace HttpWorker.Services;
 
 public sealed class JobProcessor(
     IBrokenLinkService brokenLinkService,
+    IBrokenLinkScanService brokenLinkScanService,
     IUrlFetchService urlFetchService,
     IHealthCheckService healthCheckService,
     ISitemapService sitemapService,
@@ -24,6 +25,12 @@ public sealed class JobProcessor(
         {
             JsonNode? results = request.JobType switch
             {
+                "broken_link_scan" => JsonSerializer.SerializeToNode(
+                    await brokenLinkScanService.ExecuteAsync(
+                        request.JobId,
+                        DeserializePayload<BrokenLinkScanRequest>(request.Payload),
+                        cancellationToken),
+                    JsonOptions),
                 "broken_link_check" => JsonSerializer.SerializeToNode(
                     await brokenLinkService.CheckAsync(
                         DeserializePayload<BrokenLinkCheckRequest>(request.Payload),
@@ -95,7 +102,7 @@ public sealed class JobProcessor(
             throw new ValidationException("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl"))
         {
             throw new ValidationException("unknown job_type");
         }

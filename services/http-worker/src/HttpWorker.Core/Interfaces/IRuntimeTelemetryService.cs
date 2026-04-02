@@ -23,5 +23,18 @@ public interface IRuntimeTelemetryService
         int retryCount,
         CancellationToken cancellationToken);
 
+    Task WriteSchedulerHeartbeatAsync(
+        string instanceId,
+        DateTimeOffset startedAt,
+        string ownershipMode,
+        string status,
+        int enabledPeriodicTasks,
+        string note,
+        CancellationToken cancellationToken);
+
     Task<HttpWorkerWorkerSnapshot?> GetWorkerSnapshotAsync(CancellationToken cancellationToken);
+
+    Task<HttpWorkerSchedulerSnapshot?> GetSchedulerSnapshotAsync(CancellationToken cancellationToken);
+
+    Task<HttpWorkerPerformanceSnapshot> GetPerformanceSnapshotAsync(CancellationToken cancellationToken);
 }

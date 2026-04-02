@@ -1,7 +1,7 @@
 <div class="service-card" [ngClass]="getStatusClass()">
   <div class="card-header">
     <span class="material-icons status-icon">{{ getStatusIcon() }}</span>
-    <h3 class="service-name">{{ service.service_name | titlecase }}</h3>
+    <h3 class="service-name">{{ formatServiceName(service.service_name) | titlecase }}</h3>
     <span class="status-badge">{{ formatState(service.state) | titlecase }}</span>
   </div>
   

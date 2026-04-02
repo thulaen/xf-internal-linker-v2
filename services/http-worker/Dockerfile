@@ -1,5 +1,6 @@
 FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
 WORKDIR /src
+ARG CONFIGURATION=Release
 
 COPY HttpWorker.sln ./
 COPY src/HttpWorker.Api/HttpWorker.Api.csproj src/HttpWorker.Api/
@@ -11,12 +12,16 @@ COPY tests/HttpWorker.Tests/HttpWorker.Tests.csproj tests/HttpWorker.Tests/
 RUN dotnet restore HttpWorker.sln
 
 COPY . .
-RUN dotnet publish src/HttpWorker.Api/HttpWorker.Api.csproj -c Release -o /app/api /p:UseAppHost=false
-RUN dotnet publish src/HttpWorker.Worker/HttpWorker.Worker.csproj -c Release -o /app/worker /p:UseAppHost=false
+FROM build AS test
+RUN dotnet test HttpWorker.sln -c ${CONFIGURATION} --no-restore --logger "console;verbosity=minimal"
+
+FROM build AS publish
+RUN dotnet publish src/HttpWorker.Api/HttpWorker.Api.csproj -c ${CONFIGURATION} -o /app/api /p:UseAppHost=false
+RUN dotnet publish src/HttpWorker.Worker/HttpWorker.Worker.csproj -c ${CONFIGURATION} -o /app/worker /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
-COPY --from=build /app /app
+COPY --from=publish /app /app
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV SERVICE_MODE=api
 EXPOSE 8080
