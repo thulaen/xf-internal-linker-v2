@@ -109,6 +109,7 @@ DATABASES = {
         "HOST": env("POSTGRES_HOST", default="postgres"),
         "PORT": env("POSTGRES_PORT", default="5432"),
         "OPTIONS": {
+            "CONN_MAX_AGE": 600,
             "connect_timeout": 10,
         },
     }
@@ -417,7 +418,7 @@ if RUNTIME_OWNER_PIPELINE not in {"celery", "csharp"}:
 
 ML_PERFORMANCE_MODE = env("ML_PERFORMANCE_MODE", default="BALANCED")
 EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="BAAI/bge-m3")
-EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
+EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=64)
 SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 
 # Pipeline guardrails (non-negotiable product rules)

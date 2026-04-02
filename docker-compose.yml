@@ -8,12 +8,15 @@ services:
     image: pgvector/pgvector:pg17
     container_name: xf_linker_postgres
     restart: unless-stopped
+    mem_limit: 5g
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xf_linker}
       POSTGRES_USER: ${POSTGRES_USER:-xf_linker_user}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
     volumes:
       - pgdata:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     ports:
       - "5432:5432"
     healthcheck:
@@ -29,7 +32,8 @@ services:
     image: redis:7.4-alpine
     container_name: xf_linker_redis
     restart: unless-stopped
-    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    mem_limit: 512m
+    command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
     ports:
@@ -51,6 +55,7 @@ services:
     image: xf-linker-backend:latest
     container_name: xf_linker_backend
     restart: unless-stopped
+    mem_limit: 3g
     env_file: .env
     deploy:
       resources:
@@ -86,7 +91,7 @@ services:
              (cd extensions && python setup.py build_ext --inplace) &&
              python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
-             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload"
+             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload --workers 2"
 
   # ─────────────────────────────────────────────
   # Celery worker — CPU-bound ML jobs (default)
@@ -96,6 +101,7 @@ services:
     image: xf-linker-backend:latest
     container_name: xf_linker_celery_worker
     restart: unless-stopped
+    mem_limit: 4g
     env_file: .env
     deploy:
       resources:
@@ -123,7 +129,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} -Q default,pipeline,embeddings
+    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --worker-prefetch-multiplier 1 -Q default,pipeline,embeddings
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
@@ -138,6 +144,7 @@ services:
       dockerfile: Dockerfile
     container_name: xf_linker_nginx
     restart: unless-stopped
+    mem_limit: 256m
     ports:
       - "80:80"
     volumes:
@@ -156,6 +163,7 @@ services:
       dockerfile: Dockerfile
     container_name: xf_linker_frontend
     restart: unless-stopped
+    mem_limit: 1g
     environment:
       - CHOKIDAR_USEPOLLING=1
     ports:
@@ -173,6 +181,7 @@ services:
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_api
     restart: unless-stopped
+    mem_limit: 512m
     environment:
       SERVICE_MODE: api
       HttpWorker__Redis__ConnectionString: redis:6379
@@ -180,10 +189,10 @@ services:
       HttpWorker__Redis__ResultTtlSeconds: 3600
       HttpWorker__Redis__DeadLetterTtlSeconds: 86400
       HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 100
+      HttpWorker__Http__MaxConcurrency: 50
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
-      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
+      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
       HttpWorker__Scheduler__Enabled: "true"
       HttpWorker__Scheduler__OwnershipMode: active
       HttpWorker__Scheduler__PollSeconds: 30
@@ -203,6 +212,7 @@ services:
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_queue
     restart: unless-stopped
+    mem_limit: 1g
     environment:
       SERVICE_MODE: worker
       HttpWorker__Redis__ConnectionString: redis:6379
@@ -210,10 +220,10 @@ services:
       HttpWorker__Redis__ResultTtlSeconds: 3600
       HttpWorker__Redis__DeadLetterTtlSeconds: 86400
       HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 100
+      HttpWorker__Http__MaxConcurrency: 50
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
-      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
+      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
       HttpWorker__Scheduler__Enabled: "true"
       HttpWorker__Scheduler__OwnershipMode: active
       HttpWorker__Scheduler__PollSeconds: 30
