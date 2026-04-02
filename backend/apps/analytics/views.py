@@ -476,6 +476,134 @@ class AnalyticsTelemetryOverviewView(APIView):
         )
 
 
+def _summarize_coverage_queryset(queryset) -> dict:
+    totals = queryset.aggregate(
+        expected_instrumented_links=Sum("expected_instrumented_links"),
+        observed_impression_links=Sum("observed_impression_links"),
+        observed_click_links=Sum("observed_click_links"),
+        attributed_destination_sessions=Sum("attributed_destination_sessions"),
+        unattributed_destination_sessions=Sum("unattributed_destination_sessions"),
+        duplicate_event_drops=Sum("duplicate_event_drops"),
+        missing_metadata_events=Sum("missing_metadata_events"),
+        delayed_rows_rewritten=Sum("delayed_rows_rewritten"),
+    )
+    healthy_days = queryset.filter(coverage_state="healthy").count()
+    partial_days = queryset.filter(coverage_state="partial").count()
+    degraded_days = queryset.filter(coverage_state="degraded").count()
+    latest_row = queryset.values("date", "coverage_state", "event_schema").first()
+    expected_links = int(totals["expected_instrumented_links"] or 0)
+    observed_impressions = int(totals["observed_impression_links"] or 0)
+    observed_clicks = int(totals["observed_click_links"] or 0)
+    attributed_sessions = int(totals["attributed_destination_sessions"] or 0)
+    unattributed_sessions = int(totals["unattributed_destination_sessions"] or 0)
+    total_sessions = attributed_sessions + unattributed_sessions
+    return {
+        "row_count": queryset.count(),
+        "latest_state": latest_row["coverage_state"] if latest_row else "no_data",
+        "latest_date": latest_row["date"].isoformat() if latest_row and latest_row["date"] else None,
+        "event_schema": latest_row["event_schema"] if latest_row else "",
+        "healthy_days": healthy_days,
+        "partial_days": partial_days,
+        "degraded_days": degraded_days,
+        "expected_instrumented_links": expected_links,
+        "observed_impression_links": observed_impressions,
+        "observed_click_links": observed_clicks,
+        "attributed_destination_sessions": attributed_sessions,
+        "unattributed_destination_sessions": unattributed_sessions,
+        "duplicate_event_drops": int(totals["duplicate_event_drops"] or 0),
+        "missing_metadata_events": int(totals["missing_metadata_events"] or 0),
+        "delayed_rows_rewritten": int(totals["delayed_rows_rewritten"] or 0),
+        "impression_coverage_rate": _safe_rate(observed_impressions, expected_links),
+        "click_coverage_rate": _safe_rate(observed_clicks, expected_links),
+        "attribution_rate": _safe_rate(attributed_sessions, total_sessions),
+    }
+
+
+class AnalyticsTelemetryHealthView(APIView):
+    """Return simple telemetry-health rollups for the selected time window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        days = _telemetry_window_days(request)
+        start_date = timezone.now().date() - timedelta(days=days - 1)
+        queryset = TelemetryCoverageDaily.objects.filter(date__gte=start_date)
+        source_rows = []
+        for source in queryset.order_by("source_label").values_list("source_label", flat=True).distinct():
+            source_key = source or "unknown"
+            source_rows.append(
+                {
+                    "source_label": source_key,
+                    **_summarize_coverage_queryset(queryset.filter(source_label=source)),
+                }
+            )
+        return Response(
+            {
+                "days": days,
+                "overall": _summarize_coverage_queryset(queryset),
+                "sources": source_rows,
+            }
+        )
+
+
+def _label_or_unknown(value: str | None) -> str:
+    cleaned = (value or "").strip()
+    return cleaned or "Unknown"
+
+
+class AnalyticsTelemetryBreakdownView(APIView):
+    """Return simple device and channel breakdowns for the selected telemetry window."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        device_rows = (
+            queryset.values("device_category")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                engaged_sessions=Sum("engaged_sessions"),
+            )
+            .order_by("-clicks", "-impressions", "device_category")[:6]
+        )
+        channel_rows = (
+            queryset.values("default_channel_group")
+            .annotate(
+                impressions=Sum("impressions"),
+                clicks=Sum("clicks"),
+                engaged_sessions=Sum("engaged_sessions"),
+            )
+            .order_by("-clicks", "-impressions", "default_channel_group")[:6]
+        )
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "device_categories": [
+                    {
+                        "label": _label_or_unknown(row["device_category"]),
+                        "impressions": int(row["impressions"] or 0),
+                        "clicks": int(row["clicks"] or 0),
+                        "engaged_sessions": int(row["engaged_sessions"] or 0),
+                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
+                    }
+                    for row in device_rows
+                ],
+                "channel_groups": [
+                    {
+                        "label": _label_or_unknown(row["default_channel_group"]),
+                        "impressions": int(row["impressions"] or 0),
+                        "clicks": int(row["clicks"] or 0),
+                        "engaged_sessions": int(row["engaged_sessions"] or 0),
+                        "ctr": _safe_rate(row["clicks"] or 0, row["impressions"] or 0),
+                    }
+                    for row in channel_rows
+                ],
+            }
+        )
+
+
 class AnalyticsTelemetryFunnelView(APIView):
     """Return the simple FR-016 funnel for the selected source and time window."""
 

@@ -41,6 +41,74 @@ describe('AnalyticsComponent', () => {
       install_steps: ['Paste the script.'],
       browser_snippet: '<script>window.test=true;</script>',
     }),
+    getHealth: jasmine.createSpy('getHealth').and.returnValue(of({
+      days: 30,
+      overall: {
+        row_count: 2,
+        latest_state: 'partial' as const,
+        latest_date: '2026-04-02',
+        event_schema: 'fr016_v1',
+        healthy_days: 1,
+        partial_days: 1,
+        degraded_days: 0,
+        expected_instrumented_links: 20,
+        observed_impression_links: 15,
+        observed_click_links: 10,
+        attributed_destination_sessions: 9,
+        unattributed_destination_sessions: 3,
+        duplicate_event_drops: 2,
+        missing_metadata_events: 1,
+        delayed_rows_rewritten: 4,
+        impression_coverage_rate: 0.75,
+        click_coverage_rate: 0.5,
+        attribution_rate: 0.75,
+      },
+      sources: [
+        {
+          source_label: 'ga4',
+          row_count: 1,
+          latest_state: 'partial' as const,
+          latest_date: '2026-04-02',
+          event_schema: 'fr016_v1',
+          healthy_days: 0,
+          partial_days: 1,
+          degraded_days: 0,
+          expected_instrumented_links: 10,
+          observed_impression_links: 8,
+          observed_click_links: 5,
+          attributed_destination_sessions: 6,
+          unattributed_destination_sessions: 2,
+          duplicate_event_drops: 2,
+          missing_metadata_events: 1,
+          delayed_rows_rewritten: 3,
+          impression_coverage_rate: 0.8,
+          click_coverage_rate: 0.5,
+          attribution_rate: 0.75,
+        },
+      ],
+    })),
+    getBreakdowns: jasmine.createSpy('getBreakdowns').and.returnValue(of({
+      days: 30,
+      selected_source: 'all' as const,
+      device_categories: [
+        {
+          label: 'mobile',
+          impressions: 12,
+          clicks: 5,
+          engaged_sessions: 3,
+          ctr: 0.4167,
+        },
+      ],
+      channel_groups: [
+        {
+          label: 'Organic Search',
+          impressions: 12,
+          clicks: 5,
+          engaged_sessions: 3,
+          ctr: 0.4167,
+        },
+      ],
+    })),
     getFunnel: jasmine.createSpy('getFunnel').and.returnValue(of({
       days: 30,
       selected_source: 'all' as const,
@@ -118,6 +186,8 @@ describe('AnalyticsComponent', () => {
     analyticsServiceStub.runGa4Sync.calls.reset();
     analyticsServiceStub.runMatomoSync.calls.reset();
     analyticsServiceStub.getFunnel.calls.reset();
+    analyticsServiceStub.getHealth.calls.reset();
+    analyticsServiceStub.getBreakdowns.calls.reset();
     analyticsServiceStub.getTrend.calls.reset();
     analyticsServiceStub.getTopSuggestions.calls.reset();
   });
@@ -142,6 +212,10 @@ describe('AnalyticsComponent', () => {
     expect(fixture.nativeElement.textContent).toContain('Run Matomo sync');
     expect(fixture.nativeElement.textContent).toContain('Run GA4 sync');
     expect(fixture.nativeElement.textContent).toContain('Funnel for the last 30 days');
+    expect(fixture.nativeElement.textContent).toContain('Telemetry health for the last 30 days');
+    expect(fixture.nativeElement.textContent).toContain('Impression coverage');
+    expect(fixture.nativeElement.textContent).toContain('Device mix');
+    expect(fixture.nativeElement.textContent).toContain('Channel mix');
     expect(fixture.nativeElement.textContent).toContain('Top suggestion rows');
   });
 
@@ -189,6 +263,7 @@ describe('AnalyticsComponent', () => {
     ga4Button?.click();
 
     expect(analyticsServiceStub.getFunnel).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getBreakdowns).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTrend).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4');
   });

@@ -6,7 +6,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { forkJoin } from 'rxjs';
 import {
+  AnalyticsBreakdownsResponse,
   AnalyticsFunnelResponse,
+  AnalyticsHealthResponse,
+  AnalyticsHealthSummary,
   AnalyticsIntegrationResponse,
   AnalyticsOverviewResponse,
   AnalyticsService,
@@ -30,6 +33,8 @@ export class AnalyticsComponent implements OnInit {
   error = '';
   overview: AnalyticsOverviewResponse | null = null;
   integration: AnalyticsIntegrationResponse | null = null;
+  health: AnalyticsHealthResponse | null = null;
+  breakdowns: AnalyticsBreakdownsResponse | null = null;
   funnel: AnalyticsFunnelResponse | null = null;
   trend: AnalyticsTrendResponse | null = null;
   topSuggestions: AnalyticsTopSuggestionsResponse | null = null;
@@ -47,13 +52,17 @@ export class AnalyticsComponent implements OnInit {
     forkJoin({
       overview: this.analyticsSvc.getOverview(),
       integration: this.analyticsSvc.getIntegration(),
+      health: this.analyticsSvc.getHealth(),
+      breakdowns: this.analyticsSvc.getBreakdowns(this.selectedSource),
       funnel: this.analyticsSvc.getFunnel(this.selectedSource),
       trend: this.analyticsSvc.getTrend(this.selectedSource),
       topSuggestions: this.analyticsSvc.getTopSuggestions(this.selectedSource),
     }).subscribe({
-      next: ({ overview, integration, funnel, trend, topSuggestions }) => {
+      next: ({ overview, integration, health, breakdowns, funnel, trend, topSuggestions }) => {
         this.overview = overview;
         this.integration = integration;
+        this.health = health;
+        this.breakdowns = breakdowns;
         this.funnel = funnel;
         this.trend = trend;
         this.topSuggestions = topSuggestions;
@@ -104,6 +113,34 @@ export class AnalyticsComponent implements OnInit {
 
   formatPercent(value: number): string {
     return `${(value * 100).toFixed(1)}%`;
+  }
+
+  coverageStateLabel(state: AnalyticsHealthSummary['latest_state']): string {
+    return {
+      healthy: 'Healthy',
+      partial: 'Partial',
+      degraded: 'Degraded',
+      no_data: 'No data',
+    }[state];
+  }
+
+  coverageStateClass(state: AnalyticsHealthSummary['latest_state']): string {
+    return `status-badge--${state}`;
+  }
+
+  sourceName(source: string): string {
+    if (source === 'ga4') return 'GA4';
+    if (source === 'matomo') return 'Matomo';
+    if (source === 'unknown') return 'Unknown';
+    return source;
+  }
+
+  breakdownBarWidth(value: number, rows: Array<{ clicks: number }>): string {
+    const max = Math.max(...rows.map((row) => row.clicks), 0);
+    if (!max) {
+      return '0%';
+    }
+    return `${Math.max((value / max) * 100, 8)}%`;
   }
 
   funnelSteps(): Array<{ label: string; value: number }> {

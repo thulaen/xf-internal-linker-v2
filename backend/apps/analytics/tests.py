@@ -289,6 +289,100 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(top.json()["items"][0]["destination_title"], "Destination Thread")
         self.assertEqual(top.json()["items"][0]["clicks"], 4)
 
+    def test_health_endpoint_summarizes_coverage_by_source(self):
+        TelemetryCoverageDaily.objects.create(
+            date=PipelineRun.objects.create(run_state="completed").created_at.date(),
+            event_schema="fr016_v1",
+            source_label="ga4",
+            expected_instrumented_links=10,
+            observed_impression_links=8,
+            observed_click_links=5,
+            attributed_destination_sessions=7,
+            unattributed_destination_sessions=3,
+            duplicate_event_drops=2,
+            missing_metadata_events=1,
+            delayed_rows_rewritten=4,
+            coverage_state="partial",
+        )
+        TelemetryCoverageDaily.objects.create(
+            date=PipelineRun.objects.create(run_state="completed").created_at.date(),
+            event_schema="fr016_v1",
+            source_label="matomo",
+            expected_instrumented_links=6,
+            observed_impression_links=6,
+            observed_click_links=4,
+            attributed_destination_sessions=5,
+            unattributed_destination_sessions=1,
+            duplicate_event_drops=0,
+            missing_metadata_events=0,
+            delayed_rows_rewritten=1,
+            coverage_state="healthy",
+        )
+
+        response = self.client.get("/api/analytics/telemetry/health/?days=30")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["overall"]["row_count"], 2)
+        self.assertEqual(payload["overall"]["healthy_days"], 1)
+        self.assertEqual(payload["overall"]["partial_days"], 1)
+        self.assertEqual(payload["overall"]["degraded_days"], 0)
+        self.assertEqual(payload["overall"]["expected_instrumented_links"], 16)
+        self.assertEqual(payload["overall"]["observed_impression_links"], 14)
+        self.assertEqual(payload["overall"]["observed_click_links"], 9)
+        self.assertEqual(payload["overall"]["attribution_rate"], 0.75)
+        self.assertEqual(len(payload["sources"]), 2)
+        self.assertEqual(payload["sources"][0]["source_label"], "ga4")
+        self.assertEqual(payload["sources"][0]["impression_coverage_rate"], 0.8)
+        self.assertEqual(payload["sources"][1]["source_label"], "matomo")
+        self.assertEqual(payload["sources"][1]["latest_state"], "healthy")
+
+    def test_breakdown_endpoint_returns_device_and_channel_rows(self):
+        suggestion = self._build_suggestion()
+        today = PipelineRun.objects.create(run_state="completed").created_at.date()
+        SuggestionTelemetryDaily.objects.create(
+            date=today,
+            telemetry_source="ga4",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            device_category="mobile",
+            default_channel_group="Organic Search",
+            impressions=12,
+            clicks=5,
+            engaged_sessions=3,
+        )
+        SuggestionTelemetryDaily.objects.create(
+            date=today,
+            telemetry_source="ga4",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            device_category="desktop",
+            default_channel_group="Direct",
+            impressions=8,
+            clicks=2,
+            engaged_sessions=1,
+        )
+
+        response = self.client.get("/api/analytics/telemetry/breakdowns/?source=ga4&days=30")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["selected_source"], "ga4")
+        self.assertEqual(payload["device_categories"][0]["label"], "mobile")
+        self.assertEqual(payload["device_categories"][0]["clicks"], 5)
+        self.assertEqual(payload["channel_groups"][0]["label"], "Organic Search")
+        self.assertEqual(payload["channel_groups"][0]["ctr"], 0.4167)
+
     def test_integration_view_returns_copy_ready_snippet_when_browser_events_enabled(self):
         AppSetting.objects.create(
             key="analytics.ga4_behavior_enabled",

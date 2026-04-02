@@ -102,6 +102,48 @@ export interface AnalyticsTopSuggestionsResponse {
   items: AnalyticsTopSuggestion[];
 }
 
+export interface AnalyticsHealthSummary {
+  row_count: number;
+  latest_state: 'healthy' | 'partial' | 'degraded' | 'no_data';
+  latest_date: string | null;
+  event_schema: string;
+  healthy_days: number;
+  partial_days: number;
+  degraded_days: number;
+  expected_instrumented_links: number;
+  observed_impression_links: number;
+  observed_click_links: number;
+  attributed_destination_sessions: number;
+  unattributed_destination_sessions: number;
+  duplicate_event_drops: number;
+  missing_metadata_events: number;
+  delayed_rows_rewritten: number;
+  impression_coverage_rate: number;
+  click_coverage_rate: number;
+  attribution_rate: number;
+}
+
+export interface AnalyticsHealthResponse {
+  days: number;
+  overall: AnalyticsHealthSummary;
+  sources: Array<AnalyticsHealthSummary & { source_label: string }>;
+}
+
+export interface AnalyticsBreakdownRow {
+  label: string;
+  impressions: number;
+  clicks: number;
+  engaged_sessions: number;
+  ctr: number;
+}
+
+export interface AnalyticsBreakdownsResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  device_categories: AnalyticsBreakdownRow[];
+  channel_groups: AnalyticsBreakdownRow[];
+}
+
 export interface AnalyticsSyncTriggerResponse {
   sync_run_id: number;
   task_id: string;
@@ -132,6 +174,14 @@ export class AnalyticsService {
 
   getTopSuggestions(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTopSuggestionsResponse> {
     return this.http.get<AnalyticsTopSuggestionsResponse>(`/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}`);
+  }
+
+  getHealth(days = 30): Observable<AnalyticsHealthResponse> {
+    return this.http.get<AnalyticsHealthResponse>(`/api/analytics/telemetry/health/?days=${days}`);
+  }
+
+  getBreakdowns(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsBreakdownsResponse> {
+    return this.http.get<AnalyticsBreakdownsResponse>(`/api/analytics/telemetry/breakdowns/?source=${source}&days=${days}`);
   }
 
   runGa4Sync(): Observable<AnalyticsSyncTriggerResponse> {
