@@ -161,6 +161,76 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         }
     }
 
+    public async Task<IReadOnlyList<PeriodicTaskRecord>> LoadEnabledPeriodicTasksAsync(CancellationToken cancellationToken)
+    {
+        var tasks = new List<PeriodicTaskRecord>();
+        if (string.IsNullOrWhiteSpace(_connectionString))
+        {
+            return tasks;
+        }
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT pt.id,
+                   pt.name,
+                   pt.task,
+                   COALESCE(pt.kwargs, '{}'),
+                   cs.minute,
+                   cs.hour,
+                   cs.day_of_week,
+                   cs.day_of_month,
+                   cs.month_of_year,
+                   pt.last_run_at,
+                   pt.one_off
+            FROM django_celery_beat_periodictask pt
+            JOIN django_celery_beat_crontabschedule cs ON cs.id = pt.crontab_id
+            WHERE pt.enabled = TRUE
+              AND pt.task <> ''
+            ORDER BY pt.id
+            """,
+            connection);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            tasks.Add(new PeriodicTaskRecord
+            {
+                Id = reader.GetInt32(0),
+                Name = reader.GetString(1),
+                Task = reader.GetString(2),
+                KwargsJson = reader.GetString(3),
+                Minute = reader.GetString(4),
+                Hour = reader.GetString(5),
+                DayOfWeek = reader.GetString(6),
+                DayOfMonth = reader.GetString(7),
+                MonthOfYear = reader.GetString(8),
+                LastRunAt = reader.IsDBNull(9) ? null : new DateTimeOffset(DateTime.SpecifyKind(reader.GetDateTime(9), DateTimeKind.Utc)),
+                OneOff = !reader.IsDBNull(10) && reader.GetBoolean(10),
+            });
+        }
+
+        return tasks;
+    }
+
+    public async Task MarkPeriodicTaskTriggeredAsync(int periodicTaskId, DateTimeOffset triggeredAt, CancellationToken cancellationToken)
+    {
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            UPDATE django_celery_beat_periodictask
+            SET last_run_at = @last_run_at,
+                total_run_count = total_run_count + 1,
+                date_changed = @date_changed
+            WHERE id = @id
+            """,
+            connection);
+        command.Parameters.AddWithValue("id", periodicTaskId);
+        command.Parameters.AddWithValue("last_run_at", triggeredAt.UtcDateTime);
+        command.Parameters.AddWithValue("date_changed", triggeredAt.UtcDateTime);
+        await command.ExecuteNonQueryAsync(cancellationToken);
+    }
+
     private async Task LoadExistingLinkUrlsAsync(
         NpgsqlConnection connection,
         BrokenLinkScanRequest request,

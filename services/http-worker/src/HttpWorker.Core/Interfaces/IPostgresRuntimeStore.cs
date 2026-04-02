@@ -19,4 +19,8 @@ public interface IPostgresRuntimeStore
         CancellationToken cancellationToken);
 
     Task<int> GetEnabledPeriodicTaskCountAsync(CancellationToken cancellationToken);
+
+    Task<IReadOnlyList<PeriodicTaskRecord>> LoadEnabledPeriodicTasksAsync(CancellationToken cancellationToken);
+
+    Task MarkPeriodicTaskTriggeredAsync(int periodicTaskId, DateTimeOffset triggeredAt, CancellationToken cancellationToken);
 }

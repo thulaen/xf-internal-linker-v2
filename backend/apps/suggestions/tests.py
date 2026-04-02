@@ -279,8 +279,8 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
         user = get_user_model().objects.create_user(username="pipeline-user", password="pass")
         self.client.force_authenticate(user=user)
 
-    @patch("apps.pipeline.tasks.run_pipeline.delay")
-    def test_start_pipeline_persists_weighted_authority_snapshot(self, delay_mock):
+    @patch("apps.pipeline.tasks.dispatch_pipeline_run")
+    def test_start_pipeline_persists_weighted_authority_snapshot(self, dispatch_pipeline_mock):
         AppSetting.objects.create(
             key="weighted_authority.ranking_weight",
             value="0.2",
@@ -379,7 +379,7 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             run.config_snapshot["algorithm_versions"]["field_aware_relevance"],
             FIELD_AWARE_RELEVANCE_VERSION,
         )
-        delay_mock.assert_called_once()
+        dispatch_pipeline_mock.assert_called_once()
 
 
 class SuggestionBatchActionApiTests(APITestCase):

@@ -1,4 +1,7 @@
-from rest_framework import viewsets, response, views
+import hmac
+
+from django.conf import settings
+from rest_framework import status, viewsets, response, views
 from rest_framework.decorators import action
 from .models import ServiceStatusSnapshot, SystemConflict
 from .serializers import ServiceStatusSerializer, SystemConflictSerializer, ErrorLogSerializer
@@ -73,3 +76,96 @@ class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
         error.acknowledged = True
         error.save()
         return response.Response({"status": "acknowledged"})
+
+
+class SchedulerDispatchView(views.APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        configured_token = getattr(settings, "SCHEDULER_CONTROL_TOKEN", "")
+        request_token = request.headers.get("X-Scheduler-Token", "")
+
+        if not configured_token:
+            return response.Response(
+                {
+                    "detail": "Scheduler control token is missing, so Django cannot trust scheduler-triggered dispatch.",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not hmac.compare_digest(configured_token, request_token):
+            return response.Response(
+                {
+                    "detail": "Scheduler control token did not match.",
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        task_name = str(request.data.get("task") or "").strip()
+        kwargs = request.data.get("kwargs") or {}
+        periodic_task_name = str(request.data.get("periodic_task_name") or "").strip()
+
+        if not isinstance(kwargs, dict):
+            return response.Response(
+                {"detail": "Scheduler kwargs must be a JSON object."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if task_name == "pipeline.import_content":
+            from apps.pipeline.tasks import dispatch_import_content
+
+            result = dispatch_import_content(
+                scope_ids=kwargs.get("scope_ids"),
+                mode=str(kwargs.get("mode") or "full"),
+                source=str(kwargs.get("source") or "api"),
+                file_path=kwargs.get("file_path"),
+                job_id=kwargs.get("job_id"),
+            )
+            return response.Response(
+                {
+                    "status": "queued",
+                    "task": task_name,
+                    "periodic_task_name": periodic_task_name,
+                    **result,
+                },
+                status=status.HTTP_202_ACCEPTED,
+            )
+
+        if task_name == "pipeline.monthly_r_auto_tune":
+            from apps.pipeline.tasks import monthly_r_auto_tune
+
+            result = monthly_r_auto_tune.run()
+            return response.Response(
+                {
+                    "status": "completed",
+                    "task": task_name,
+                    "periodic_task_name": periodic_task_name,
+                    "result": result,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        if task_name == "pipeline.nightly_data_retention":
+            from apps.pipeline.tasks import nightly_data_retention
+
+            result = nightly_data_retention.run()
+            return response.Response(
+                {
+                    "status": "completed",
+                    "task": task_name,
+                    "periodic_task_name": periodic_task_name,
+                    "result": result,
+                },
+                status=status.HTTP_200_OK,
+            )
+
+        return response.Response(
+            {
+                "detail": (
+                    f"Scheduler task '{task_name}' is not supported by the Django control plane yet. "
+                    "Add an explicit dispatcher before letting the C# scheduler own it."
+                ),
+            },
+            status=status.HTTP_400_BAD_REQUEST,
+        )

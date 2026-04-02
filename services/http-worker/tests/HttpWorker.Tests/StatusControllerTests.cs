@@ -150,4 +150,10 @@ internal sealed class FakePostgresRuntimeStore : IPostgresRuntimeStore
     public Task PersistBrokenLinkBatchAsync(IReadOnlyList<BrokenLinkBatchMutation> mutations, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public Task<int> GetEnabledPeriodicTaskCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+
+    public Task<IReadOnlyList<PeriodicTaskRecord>> LoadEnabledPeriodicTasksAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<PeriodicTaskRecord>>([]);
+
+    public Task MarkPeriodicTaskTriggeredAsync(int periodicTaskId, DateTimeOffset triggeredAt, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }

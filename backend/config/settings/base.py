@@ -172,10 +172,10 @@ CELERY_TASK_ROUTES = {
     "apps.content.tasks.*": {"queue": "embeddings"},
 }
 
-# ── Celery Beat — Scheduled Tasks ─────────────────────────────────
+# ── Stored Periodic Schedule Seeds ────────────────────────────────
 # Nightly auto-sync from XenForo API at 02:00 UTC.
 # Only runs when XENFORO_API_KEY and XENFORO_BASE_URL are configured.
-# Override schedule via Django admin → Periodic Tasks (django-celery-beat).
+# The C# scheduler may read these django_celery_beat rows directly during migration.
 
 from celery.schedules import crontab  # noqa: E402
 
@@ -377,6 +377,8 @@ HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY = min(
 )
 RUNTIME_PROGRESS_STREAM_PREFIX = env("RUNTIME_PROGRESS_STREAM_PREFIX", default="runtime:progress").strip() or "runtime:progress"
 RUNTIME_PROGRESS_STREAM_BLOCK_MS = max(env.int("RUNTIME_PROGRESS_STREAM_BLOCK_MS", default=5000), 1000)
+SCHEDULER_CONTROL_TOKEN = env("SCHEDULER_CONTROL_TOKEN", default="").strip()
+CELERY_BEAT_RUNTIME_ENABLED = env.bool("CELERY_BEAT_RUNTIME_ENABLED", default=True)
 
 HEAVY_RUNTIME_OWNER = env("HEAVY_RUNTIME_OWNER", default="celery").strip().lower()
 if HEAVY_RUNTIME_OWNER not in {"celery", "csharp"}:

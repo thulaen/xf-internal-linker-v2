@@ -150,6 +150,16 @@ def check_celery():
 
 
 def check_celery_beat():
+    if not getattr(settings, "CELERY_BEAT_RUNTIME_ENABLED", True):
+        return _result(
+            "disabled",
+            "Celery Beat is retired in this runtime shape, and the C# scheduler lane is expected to own live periodic execution.",
+            "No action needed unless the C# scheduler lane loses heartbeat or stops dispatching due work.",
+            {
+                "runtime_enabled": False,
+            },
+        )
+
     try:
         from django_celery_beat.models import PeriodicTask
 
@@ -331,9 +341,9 @@ def check_runtime_lanes():
     if "graph_sync_owner" in celery_owned:
         next_step = "Move graph_sync next, then import and pipeline, so Celery stops owning the remaining heavy lanes."
     elif "import_owner" in celery_owned:
-        next_step = "Move import next, then pipeline, and only retire Celery Beat after the scheduled heavy jobs have a real C# owner."
+        next_step = "Move import next, then pipeline, so the C# scheduler is no longer dispatching Celery-owned heavy work."
     elif "pipeline_owner" in celery_owned:
-        next_step = "Move pipeline next, then retire Celery Beat once scheduled execution is no longer pointing at Celery-owned heavy work."
+        next_step = "Move pipeline next, then keep trimming the remaining Celery-owned support lanes."
     else:
         next_step = "Finish moving the remaining Celery-owned lanes before calling the heavy runtime cutover complete."
     return _result(

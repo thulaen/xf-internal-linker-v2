@@ -75,8 +75,9 @@ class ImportUploadView(APIView):
         )
         job_id = str(job.job_id)
 
-        from apps.pipeline.tasks import import_content
-        import_content.delay(
+        from apps.pipeline.tasks import dispatch_import_content
+
+        dispatch_import_content(
             mode=mode,
             source="jsonl",
             file_path=str(dest_path),

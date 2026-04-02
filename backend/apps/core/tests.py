@@ -66,8 +66,8 @@ class WordPressSettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("base_url", response.json()["detail"])
 
-    @patch("apps.pipeline.tasks.import_content.delay")
-    def test_manual_wordpress_sync_starts_sync_job(self, delay_mock):
+    @patch("apps.pipeline.tasks.dispatch_import_content")
+    def test_manual_wordpress_sync_starts_sync_job(self, dispatch_import_mock):
         AppSetting.objects.create(
             key="wordpress.base_url",
             value="https://blog.example.com",
@@ -83,7 +83,7 @@ class WordPressSettingsApiTests(APITestCase):
         job = SyncJob.objects.get(job_id=payload["job_id"])
         self.assertEqual(job.source, "wp")
         self.assertEqual(job.mode, "full")
-        delay_mock.assert_called_once()
+        dispatch_import_mock.assert_called_once()
 
 
 @override_settings(WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD="")

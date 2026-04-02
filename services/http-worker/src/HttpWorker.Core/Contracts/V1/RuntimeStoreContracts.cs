@@ -40,3 +40,28 @@ public sealed class BrokenLinkBatchMutation
 
     public DateTimeOffset CheckedAt { get; set; }
 }
+
+public sealed class PeriodicTaskRecord
+{
+    public int Id { get; set; }
+
+    public string Name { get; set; } = string.Empty;
+
+    public string Task { get; set; } = string.Empty;
+
+    public string KwargsJson { get; set; } = "{}";
+
+    public string Minute { get; set; } = "*";
+
+    public string Hour { get; set; } = "*";
+
+    public string DayOfWeek { get; set; } = "*";
+
+    public string DayOfMonth { get; set; } = "*";
+
+    public string MonthOfYear { get; set; } = "*";
+
+    public DateTimeOffset? LastRunAt { get; set; }
+
+    public bool OneOff { get; set; }
+}

@@ -120,6 +120,12 @@ internal sealed class FakePostgresRuntimeStoreForScan : IPostgresRuntimeStore
     }
 
     public Task<int> GetEnabledPeriodicTaskCountAsync(CancellationToken cancellationToken) => Task.FromResult(0);
+
+    public Task<IReadOnlyList<PeriodicTaskRecord>> LoadEnabledPeriodicTasksAsync(CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<PeriodicTaskRecord>>([]);
+
+    public Task MarkPeriodicTaskTriggeredAsync(int periodicTaskId, DateTimeOffset triggeredAt, CancellationToken cancellationToken)
+        => Task.CompletedTask;
 }
 
 internal sealed class FakeProgressStreamService : IProgressStreamService

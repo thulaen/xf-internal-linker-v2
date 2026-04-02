@@ -36,6 +36,8 @@ public sealed class SchedulerOptions
     public bool Enabled { get; set; } = false;
     public string OwnershipMode { get; set; } = "shadow";
     public int PollSeconds { get; set; } = 30;
+    public string ControlPlaneBaseUrl { get; set; } = "http://backend:8000";
+    public string ControlPlaneToken { get; set; } = string.Empty;
 }
 
 public sealed class ProgressOptions

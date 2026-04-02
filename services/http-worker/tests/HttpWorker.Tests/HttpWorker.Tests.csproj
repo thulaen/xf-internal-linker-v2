@@ -3,6 +3,7 @@
     <ProjectReference Include="..\..\src\HttpWorker.Api\HttpWorker.Api.csproj" />
     <ProjectReference Include="..\..\src\HttpWorker.Core\HttpWorker.Core.csproj" />
     <ProjectReference Include="..\..\src\HttpWorker.Services\HttpWorker.Services.csproj" />
+    <ProjectReference Include="..\..\src\HttpWorker.Worker\HttpWorker.Worker.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="8.0.0" />

@@ -1,6 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 from django.test import TestCase, override_settings
+from rest_framework.test import APIClient
 
 from apps.diagnostics import health
 
@@ -140,3 +141,55 @@ class HttpWorkerHealthTests(TestCase):
         self.assertIn("PostgreSQL lane is not healthy", explanation)
         self.assertIn("Postgres connection string", next_step)
         self.assertFalse(metadata["database_connected"])
+
+    @override_settings(CELERY_BEAT_RUNTIME_ENABLED=False)
+    def test_check_celery_beat_reports_disabled_when_csharp_scheduler_owns_it(self):
+        state, explanation, next_step, metadata = health.check_celery_beat()
+
+        self.assertEqual(state, "disabled")
+        self.assertIn("retired", explanation)
+        self.assertFalse(metadata["runtime_enabled"])
+
+
+@override_settings(SCHEDULER_CONTROL_TOKEN="scheduler-secret")
+class SchedulerDispatchViewTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+
+    @patch("apps.pipeline.tasks.dispatch_import_content", return_value={"job_id": "abc", "runtime_owner": "celery", "message": "queued"})
+    def test_scheduler_dispatch_accepts_import_job_with_token(self, dispatch_import_content):
+        response = self.client.post(
+            "/api/system/status/internal/scheduler/dispatch/",
+            {
+                "task": "pipeline.import_content",
+                "kwargs": {"source": "api", "mode": "full"},
+                "periodic_task_name": "nightly-xenforo-sync",
+            },
+            format="json",
+            HTTP_X_SCHEDULER_TOKEN="scheduler-secret",
+        )
+
+        self.assertEqual(response.status_code, 202)
+        self.assertEqual(response.json()["status"], "queued")
+        self.assertEqual(response.json()["periodic_task_name"], "nightly-xenforo-sync")
+        dispatch_import_content.assert_called_once_with(
+            scope_ids=None,
+            mode="full",
+            source="api",
+            file_path=None,
+            job_id=None,
+        )
+
+    def test_scheduler_dispatch_rejects_bad_token(self):
+        response = self.client.post(
+            "/api/system/status/internal/scheduler/dispatch/",
+            {
+                "task": "pipeline.import_content",
+                "kwargs": {"source": "api", "mode": "full"},
+            },
+            format="json",
+            HTTP_X_SCHEDULER_TOKEN="wrong-token",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertIn("did not match", response.json()["detail"])

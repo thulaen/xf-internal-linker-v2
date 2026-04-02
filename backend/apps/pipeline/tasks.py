@@ -113,6 +113,65 @@ def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
+def dispatch_import_content(
+    *,
+    scope_ids: list[int] | None = None,
+    mode: str = "full",
+    source: str = "api",
+    file_path: str | None = None,
+    job_id: str | None = None,
+) -> dict[str, Any]:
+    owner = _runtime_owner_for_lane("import")
+    job_id = job_id or str(uuid.uuid4())
+
+    if owner == "csharp":
+        raise RuntimeError(
+            "Import is set to C#, but this repo does not have a real C# import owner yet. "
+            "Set RUNTIME_OWNER_IMPORT=celery before dispatching imports."
+        )
+
+    import_content.delay(
+        scope_ids=scope_ids,
+        mode=mode,
+        source=source,
+        file_path=file_path,
+        job_id=job_id,
+    )
+    return {
+        "job_id": job_id,
+        "runtime_owner": "celery",
+        "message": f"{source} import queued.",
+    }
+
+
+def dispatch_pipeline_run(
+    *,
+    run_id: str,
+    host_scope: dict[str, Any],
+    destination_scope: dict[str, Any],
+    rerun_mode: str = "skip_pending",
+) -> dict[str, Any]:
+    owner = _runtime_owner_for_lane("pipeline")
+
+    if owner == "csharp":
+        raise RuntimeError(
+            "Pipeline is set to C#, but this repo does not have a real C# pipeline owner yet. "
+            "Set RUNTIME_OWNER_PIPELINE=celery before dispatching pipeline runs."
+        )
+
+    run_pipeline.delay(
+        run_id=run_id,
+        host_scope=host_scope,
+        destination_scope=destination_scope,
+        rerun_mode=rerun_mode,
+    )
+    return {
+        "job_id": run_id,
+        "runtime_owner": "celery",
+        "message": "Pipeline queued.",
+    }
+
+
 @shared_task(bind=True, name="pipeline.run_pipeline")
 def run_pipeline(
     self,

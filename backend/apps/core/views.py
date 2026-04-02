@@ -1193,7 +1193,7 @@ def _validate_feedback_rerank_settings(
 
 
 def _sync_wordpress_periodic_task(config: dict[str, object]) -> None:
-    """Keep the Celery Beat schedule aligned with the saved WordPress sync settings."""
+    """Keep the stored periodic schedule aligned with the saved WordPress sync settings."""
     from django_celery_beat.models import CrontabSchedule, PeriodicTask
 
     schedule, _ = CrontabSchedule.objects.get_or_create(
@@ -1781,7 +1781,7 @@ class WordPressSettingsView(APIView):
             "wordpress.sync_enabled": {
                 "value": "true" if validated["sync_enabled"] else "false",
                 "value_type": "bool",
-                "description": "Whether scheduled WordPress sync is enabled via Celery Beat.",
+                "description": "Whether scheduled WordPress sync is enabled for the active scheduler lane.",
                 "category": "sync",
                 "is_secret": False,
             },
@@ -1831,7 +1831,7 @@ class WordPressSyncRunView(APIView):
     def post(self, request):
         from django.utils import timezone
 
-        from apps.pipeline.tasks import import_content
+        from apps.pipeline.tasks import dispatch_import_content
         from apps.sync.models import SyncJob
 
         config = get_wordpress_settings()
@@ -1849,7 +1849,7 @@ class WordPressSyncRunView(APIView):
             started_at=timezone.now(),
         )
 
-        import_content.delay(
+        dispatch_import_content(
             mode="full",
             source="wp",
             job_id=str(job.job_id),

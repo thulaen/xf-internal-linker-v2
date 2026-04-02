@@ -91,8 +91,9 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
                 },
             },
         )
-        from apps.pipeline.tasks import run_pipeline as _task
-        _task.delay(
+        from apps.pipeline.tasks import dispatch_pipeline_run
+
+        dispatch_pipeline_run(
             run_id=str(run.run_id),
             host_scope=run.host_scope,
             destination_scope=run.destination_scope,

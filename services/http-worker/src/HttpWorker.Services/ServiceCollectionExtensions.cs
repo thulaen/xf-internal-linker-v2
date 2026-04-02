@@ -38,6 +38,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IProgressStreamService, RedisProgressStreamService>();
         services.AddSingleton<IPostgresRuntimeStore, PostgresRuntimeStore>();
         services.AddSingleton<IRuntimeTelemetryService, RedisRuntimeTelemetryService>();
+        services.AddSingleton<ISchedulerDispatchService, SchedulerDispatchService>();
         services.AddSingleton<JobProcessor>();
         return services;
     }

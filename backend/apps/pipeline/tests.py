@@ -3391,6 +3391,29 @@ class BrokenLinkScanDispatchTests(TestCase):
         queue_job.assert_not_called()
 
 
+class HeavyRuntimeDispatchGuardrailTests(TestCase):
+    @override_settings(
+        HEAVY_RUNTIME_OWNER="celery",
+        RUNTIME_OWNER_IMPORT="csharp",
+    )
+    def test_dispatch_import_content_refuses_fake_csharp_ownership(self):
+        with self.assertRaisesMessage(RuntimeError, "does not have a real C# import owner yet"):
+            pipeline_tasks.dispatch_import_content(mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111")
+
+    @override_settings(
+        HEAVY_RUNTIME_OWNER="celery",
+        RUNTIME_OWNER_PIPELINE="csharp",
+    )
+    def test_dispatch_pipeline_run_refuses_fake_csharp_ownership(self):
+        with self.assertRaisesMessage(RuntimeError, "does not have a real C# pipeline owner yet"):
+            pipeline_tasks.dispatch_pipeline_run(
+                run_id="11111111-1111-1111-1111-111111111111",
+                host_scope={},
+                destination_scope={},
+                rerun_mode="skip_pending",
+            )
+
+
 class PipelineSettingsFallbackLoggingTests(TestCase):
     def test_load_weights_logs_and_keeps_default_fallback(self):
         with patch("apps.core.models.AppSetting.objects.filter", side_effect=RuntimeError("boom")), patch.object(

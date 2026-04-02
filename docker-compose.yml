@@ -65,6 +65,8 @@ services:
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
+      SCHEDULER_CONTROL_TOKEN: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
+      CELERY_BEAT_RUNTIME_ENABLED: "false"
       HEAVY_RUNTIME_OWNER: celery
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
       RUNTIME_OWNER_GRAPH_SYNC: csharp
@@ -108,6 +110,8 @@ services:
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
+      SCHEDULER_CONTROL_TOKEN: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
+      CELERY_BEAT_RUNTIME_ENABLED: "false"
       HEAVY_RUNTIME_OWNER: celery
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
       RUNTIME_OWNER_GRAPH_SYNC: csharp
@@ -124,30 +128,6 @@ services:
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
   # ─────────────────────────────────────────────
-  celery-beat:
-    image: xf-linker-backend:latest
-    container_name: xf_linker_celery_beat
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
-      HOME: /tmp
-      HTTP_WORKER_ENABLED: "true"
-      HTTP_WORKER_URL: http://http-worker-api:8080
-      HTTP_WORKER_SCHEMA_VERSION: v1
-      HEAVY_RUNTIME_OWNER: celery
-      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
-      RUNTIME_OWNER_GRAPH_SYNC: csharp
-      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
-    volumes:
-      - ./backend:/app
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    command: celery -A config.celery beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-
   # ─────────────────────────────────────────────
   # Nginx — serves Angular production build
   # Proxies /api/ and /ws/ to Django backend
@@ -205,8 +185,10 @@ services:
       HttpWorker__Http__MaxRedirectHops: 3
       HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
       HttpWorker__Scheduler__Enabled: "true"
-      HttpWorker__Scheduler__OwnershipMode: shadow
+      HttpWorker__Scheduler__OwnershipMode: active
       HttpWorker__Scheduler__PollSeconds: 30
+      HttpWorker__Scheduler__ControlPlaneBaseUrl: http://backend:8000
+      HttpWorker__Scheduler__ControlPlaneToken: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
       HttpWorker__Progress__StreamPrefix: runtime:progress
       HttpWorker__Progress__StreamTtlSeconds: 3600
       HttpWorker__Progress__MaxLen: 512
@@ -233,8 +215,10 @@ services:
       HttpWorker__Http__MaxRedirectHops: 3
       HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=50
       HttpWorker__Scheduler__Enabled: "true"
-      HttpWorker__Scheduler__OwnershipMode: shadow
+      HttpWorker__Scheduler__OwnershipMode: active
       HttpWorker__Scheduler__PollSeconds: 30
+      HttpWorker__Scheduler__ControlPlaneBaseUrl: http://backend:8000
+      HttpWorker__Scheduler__ControlPlaneToken: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
       HttpWorker__Progress__StreamPrefix: runtime:progress
       HttpWorker__Progress__StreamTtlSeconds: 3600
       HttpWorker__Progress__MaxLen: 512
