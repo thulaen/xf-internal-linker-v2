@@ -12,6 +12,7 @@ import { AppearanceService } from './core/services/appearance.service';
 import { DashboardService } from './dashboard/dashboard.service';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
+import { environment } from '../environments/environment';
 
 interface NavItem {
   label: string;
@@ -137,6 +138,6 @@ export class AppComponent implements OnInit {
 
   goToAdmin(event: MouseEvent): void {
     event.preventDefault();
-    window.open('/admin/', '_blank');
+    window.open(environment.adminUrl, '_blank', 'noopener,noreferrer');
   }
 }

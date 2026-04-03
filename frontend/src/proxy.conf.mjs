@@ -26,4 +26,9 @@ export default {
     secure: false,
     changeOrigin: true,
   },
+  '/admin': {
+    target,
+    secure: false,
+    changeOrigin: true,
+  },
 };
