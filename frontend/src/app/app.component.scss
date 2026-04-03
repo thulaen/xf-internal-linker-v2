@@ -91,13 +91,12 @@
 
   mat-nav-list {
     padding-top: 0;
-    padding-left: 0;
 
     a[mat-list-item] {
       color: var(--color-text-secondary);
       border-radius: 0 44px 44px 0;
       overflow: hidden;
-      margin: 0 8px 2px 0;
+      margin: 0 8px 2px 8px;
       padding: 0 16px !important;
       height: 36px;
       min-height: 36px;
@@ -155,6 +154,12 @@
       &.active-link {
         background: #e8f0fe !important;
         color: #1967d2 !important;
+
+        // Kill MDC's state layer overlay — it was darkening our #e8f0fe background
+        .mdc-list-item__ripple::before,
+        .mat-mdc-list-item-ripple::before {
+          opacity: 0 !important;
+        }
 
         .nav-item-title, span, .mdc-list-item__primary-text {
           font-weight: 600 !important;
