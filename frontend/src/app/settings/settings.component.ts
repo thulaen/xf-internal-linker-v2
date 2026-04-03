@@ -360,14 +360,14 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   'silo.same_silo_boost': {
     definition: 'A score bonus added to destinations that belong to the same topic silo as the source page.',
     impact: 'Higher values make the system strongly prefer linking within the same silo group.',
-    default: '0',
+    default: '0.05',
     example: 'Raising to 0.2 noticeably prioritises same-silo links. Raising to 0.5 may nearly eliminate cross-silo suggestions.',
     range: '0 and above (no hard maximum)',
   },
   'silo.cross_silo_penalty': {
     definition: 'A score deduction applied to destinations that belong to a different silo from the source page.',
     impact: 'Higher values suppress cross-silo suggestions more aggressively.',
-    default: '0',
+    default: '0.05',
     example: 'Raising to 0.2 significantly reduces cross-silo suggestions. Raising to 0.5 makes them rare.',
     range: '0 and above (no hard maximum)',
   },
@@ -550,6 +550,64 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Save your "Black Friday" weights as a preset.',
     range: 'Presets and logs',
   },
+  // FR-038 — Information Gain Scoring
+  'informationGain.enabled': {
+    definition: 'Turns on information gain scoring, which rewards destinations that add new content the source page does not already cover.',
+    impact: 'Enabled computes gain silently alongside other signals. Disabled skips all gain computation and stores a neutral score.',
+    default: 'Enabled',
+    example: 'Keep enabled so diagnostics run even at weight 0. You can inspect sample novel tokens before raising the weight.',
+    range: 'Enabled / Disabled',
+  },
+  'informationGain.ranking_weight': {
+    definition: 'How much the information gain score influences the final ranking.',
+    impact: 'Higher values reward destinations that add genuinely new vocabulary the source page does not already contain. This is the complementary signal to semantic similarity — one rewards topic match, this rewards topic novelty.',
+    default: '0.03',
+    example: '0.03 acts as a light tie-breaker. Raise to 0.05 once diagnostics confirm the signal looks sensible on your content.',
+    range: '0 to 0.10',
+  },
+  'informationGain.min_source_chars': {
+    definition: 'The minimum character count the source page body must have before a gain score is computed.',
+    impact: 'Pages shorter than this threshold receive a neutral score. Prevents misleading gain scores from very thin source pages with only a few tokens.',
+    default: '200',
+    example: 'Keep at 200. Lowering below 100 risks gain scores on source pages that are too short to compare meaningfully.',
+    range: '50 to 1000',
+  },
+  // FR-039 — Entity Salience Match
+  'entitySalience.enabled': {
+    definition: 'Turns on entity salience matching, which rewards destinations that are built around the same core topics that define the source page.',
+    impact: 'Enabled computes salience silently alongside other signals. Disabled skips all salience computation and stores a neutral score.',
+    default: 'Enabled',
+    example: 'Keep enabled so diagnostics run even at weight 0. Inspect top_salient_terms before raising the weight.',
+    range: 'Enabled / Disabled',
+  },
+  'entitySalience.ranking_weight': {
+    definition: 'How much the entity salience match score influences the final ranking.',
+    impact: 'Higher values reward destinations that prominently feature the source page\'s most important and distinctive terms — not just topic-adjacent pages that mention the terms in passing.',
+    default: '0.04',
+    example: '0.04 gives a gentle boost to on-topic destinations. Raise to 0.06 once diagnostics confirm salient terms look meaningful.',
+    range: '0 to 0.10',
+  },
+  'entitySalience.max_salient_terms': {
+    definition: 'The maximum number of salient source-page terms extracted for comparison against the destination.',
+    impact: 'More terms give a broader signal but may dilute precision. Fewer terms focus only on the most distinctive source topics.',
+    default: '10',
+    example: 'Lowering to 5 focuses on only the strongest salient terms. Raising to 20 broadens the comparison but includes weaker signals.',
+    range: '3 to 25',
+  },
+  'entitySalience.max_site_document_frequency': {
+    definition: 'A term must appear in no more than this many pages site-wide to qualify as salient for the source page.',
+    impact: 'Lower values restrict salience to very distinctive terms. Higher values allow moderately common terms to qualify.',
+    default: '20',
+    example: 'Lowering to 5 extracts only very rare, highly distinctive terms. Raising to 50 includes terms that appear on many pages and may be too generic.',
+    range: '5 to 100',
+  },
+  'entitySalience.min_source_term_frequency': {
+    definition: 'A term must appear at least this many times within the source page itself to be considered salient.',
+    impact: 'Higher values require terms to be repeatedly emphasised in the source. Lower values pick up terms mentioned only once or twice.',
+    default: '2',
+    example: 'Raising to 3 requires terms to be mentioned at least three times. Lowering to 1 picks up any term that survives the site-frequency filter.',
+    range: '1 to 5',
+  },
 };
 
 const UI_TO_PRESET_KEY: Record<string, string> = {
@@ -602,6 +660,16 @@ const UI_TO_PRESET_KEY: Record<string, string> = {
   'slateDiversity.diversity_lambda': 'slate_diversity.diversity_lambda',
   'slateDiversity.score_window': 'slate_diversity.score_window',
   'slateDiversity.similarity_cap': 'slate_diversity.similarity_cap',
+  // FR-038 — Information Gain Scoring
+  'informationGain.enabled': 'information_gain.enabled',
+  'informationGain.ranking_weight': 'information_gain.ranking_weight',
+  'informationGain.min_source_chars': 'information_gain.min_source_chars',
+  // FR-039 — Entity Salience Match
+  'entitySalience.enabled': 'entity_salience.enabled',
+  'entitySalience.ranking_weight': 'entity_salience.ranking_weight',
+  'entitySalience.max_salient_terms': 'entity_salience.max_salient_terms',
+  'entitySalience.max_site_document_frequency': 'entity_salience.max_site_document_frequency',
+  'entitySalience.min_source_term_frequency': 'entity_salience.min_source_term_frequency',
 };
 
 const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number; dangerBelow?: number; dangerAbove?: number }> = {
@@ -646,6 +714,13 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
   'slateDiversity.diversity_lambda': { warnBelow: 0.4, dangerBelow: 0.2 },
   'slateDiversity.score_window': { warnAbove: 0.6, dangerAbove: 0.85 },
   'slateDiversity.similarity_cap': { warnBelow: 0.75, dangerBelow: 0.71 },
+  // FR-038 — Information Gain Scoring
+  'informationGain.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.10 },
+  'informationGain.min_source_chars': { warnBelow: 80, dangerBelow: 50 },
+  // FR-039 — Entity Salience Match
+  'entitySalience.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.10 },
+  'entitySalience.max_salient_terms': { warnAbove: 20, dangerAbove: 24 },
+  'entitySalience.max_site_document_frequency': { warnAbove: 60, dangerAbove: 80 },
 };
 
 @Component({

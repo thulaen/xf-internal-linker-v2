@@ -17,6 +17,25 @@ Important:
 - Those ranking requests must also expose a plain-English reason when the C++ speed path is not active or is not helping enough, for example: not compiled, import failed, disabled, unsupported input shape, small batch, or no real speedup measured.
 - That status must be visible on the dashboard or diagnostics UI so an operator can see whether C++ is active, whether fallback is being used, and whether the fast path is actually helping.
 
+## Ranking FR Checklist — Every New Ranking Signal Must Do All Five
+
+Every FR that introduces a new ranking signal must complete all five steps before it is considered done. No exceptions.
+
+**Step 1 — Spec**
+Write the spec file in `docs/specs/frXXX-*.md` before writing any code. The spec is the source of truth. The implementation must match the spec, not the other way around.
+
+**Step 2 — Researched recommended settings**
+Every new signal must have researched starting values. Add them to `backend/apps/suggestions/recommended_weights.py` using the same key naming convention as existing signals (`signal_name.setting_key`). Include an inline comment explaining *why* each value was chosen (patent basis, conservative vs aggressive, what to raise it to after validation). Do not just copy the model-level defaults — these must be deliberately chosen starting points that are safe and useful from day one.
+
+**Step 3 — Preset migration**
+The `Recommended` system preset is seeded in `migrations/0016_seed_recommended_preset.py`, which has already run on existing installs. Every new FR must ship a new data migration that upserts the new keys into the existing `WeightPreset` record where `is_system=True` and `name='Recommended'`. Without this, existing installs never see the new recommended values when they load the preset.
+
+**Step 4 — Tooltips and preset key map**
+Every new settings field must have an entry in `SETTING_TOOLTIPS` in `frontend/src/app/settings/settings.component.ts`. The entry must have all five fields: `definition`, `impact`, `default` (matching the recommended_weights.py value exactly, not the model-level Django default), `example`, and `range`. Every new field must also have an entry in `UI_TO_PRESET_KEY` (same file) mapping the Angular camelCase key to the backend snake_case AppSetting key. If the field has a sensible warning or danger threshold, add it to `ALERT_THRESHOLDS` too.
+
+**Step 5 — Settings card UI**
+Every new signal must have its own settings card in the Ranking Weights tab. Each field on the card must wire to its tooltip using the `tip('signal.key')` pattern already used by every other card. The card must include an enabled toggle and a ranking weight slider at minimum. The card must only appear in the UI when the feature is implemented — do not add placeholder cards for unimplemented features.
+
 ## Infrastructure Notes
 
 - 2026-03-26: a one-off supporting infrastructure exception added the `.NET 8` `HttpWorker` helper microservice under `services/http-worker/`.
@@ -1100,6 +1119,67 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-038 - Information Gain Scoring
+**Requested:** 2026-04-03
+**Target phase:** Phase 41
+**Priority:** Medium
+**Patent inspiration:** `US11354342B2` — *Contextual Estimation of Link Information Gain*
+**Spec draft:** `docs/specs/fr038-information-gain-scoring.md`
+
+### What's wanted
+- Score how much *new* information the destination page adds beyond what the source page already covers.
+- A destination that repeats the same ground as the source page is lower value than one that genuinely expands the reader's knowledge.
+- This is the complementary signal to `score_semantic`. Semantic rewards topical similarity. Information gain rewards topical novelty. Both should be relatively high for a great internal link.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_information_gain` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when source page text is unavailable or too short to compare.
+- Computed from token-level set difference between source page body and destination page body — what fraction of the destination's normalized tokens does the source page *not* already contain.
+- New `information_gain_diagnostics` JSON field on `Suggestion`.
+- New settings: `information_gain.enabled`, `information_gain.ranking_weight` (default `0.0`), `information_gain.min_source_chars` (default `200`).
+- `ranking_weight = 0.0` by default — diagnostics run silently until an operator validates the signal.
+
+### Implementation notes for the AI
+- Source page distilled text is already available at pipeline time via `PipelineRun` host page records.
+- Destination tokens are already normalized by `text_tokens.py` — reuse the same tokenizer for the source page.
+- Do not modify `score_semantic`, `score_keyword`, or any FR-008 through FR-015 logic.
+- Do not write propagated tokens back to any stored text or embedding field.
+- Keep strictly bounded: no penalty below `0.5`, no score above `1.0`.
+- Full spec: `docs/specs/fr038-information-gain-scoring.md`.
+
+---
+
+### FR-039 - Entity Salience Match
+**Requested:** 2026-04-03
+**Target phase:** Phase 42
+**Priority:** Medium
+**Patent inspiration:** `US9251473B2` — *Identifying Salient Items in Documents*
+**Spec draft:** `docs/specs/fr039-entity-salience-match.md`
+
+### What's wanted
+- Score how prominently the *most important terms of the source page* appear in the destination page.
+- A destination page that is genuinely *about* the source page's core topic is a stronger link target than one that merely mentions the topic in passing.
+- "Salient terms" are terms that appear frequently in the source page but are rare across the wider site — they represent what the source page is distinctly about.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_entity_salience_match` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when source page has no identifiable salient terms or data is unavailable.
+- Salient source terms are extracted using a term-frequency × inverse-document-frequency (TF-IDF) approach over the existing corpus of `ContentItem.distilled_text` fields.
+- A term is salient when it appears multiple times in the source page and infrequently across the rest of the site (site-wide document frequency ≤ a configurable threshold).
+- Score = proportion of the source page's top salient terms that appear in the destination page body.
+- New `entity_salience_diagnostics` JSON field on `Suggestion`.
+- New settings: `entity_salience.enabled`, `entity_salience.ranking_weight` (default `0.0`), `entity_salience.max_salient_terms` (default `10`), `entity_salience.max_site_document_frequency` (default `20`), `entity_salience.min_source_term_frequency` (default `2`).
+- `ranking_weight = 0.0` by default — diagnostics run silently until an operator validates the signal.
+
+### Implementation notes for the AI
+- Site-wide document frequency stats can be computed once per pipeline run from already-loaded `ContentRecord` tokens — the same pattern used by FR-010's rare-term frequency map.
+- Do not confuse with FR-010 rare-term propagation. FR-010 asks "what rare terms from *nearby pages* does the *destination* share?" FR-039 asks "what important terms of the *source page* appear in the *destination*?" Different direction, different purpose.
+- Do not use spaCy NER or any external NLP dependency. Use only the existing `tokenize_text()` normalizer plus frequency counting over the loaded corpus.
+- Do not modify any existing score fields or FR-010 through FR-015 logic.
+- Full spec: `docs/specs/fr039-entity-salience-match.md`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1123,4 +1203,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-03 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work.)*
+*Last updated: 2026-04-03 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42.)*

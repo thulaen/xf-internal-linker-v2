@@ -61,6 +61,27 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "learned_anchor.minimum_anchor_sources": "2",
     "learned_anchor.minimum_family_support_share": "0.15",
     "learned_anchor.enable_noise_filter": "true",
+    # FR-038 — Information Gain Scoring
+    # Forward-declared: these keys are inert until FR-038 is implemented and reads them.
+    # A new migration (or manual DB update) is needed to push these into the seeded preset.
+    # Research basis: US11354342B2. Starting weight is conservative (0.03) because this
+    # signal is unvalidated on real content. Run diagnostics first, then raise to 0.05
+    # once sample_novel_tokens look sensible across a live pipeline run.
+    "information_gain.enabled": "true",
+    "information_gain.ranking_weight": "0.03",
+    "information_gain.min_source_chars": "200",
+    # FR-039 — Entity Salience Match
+    # Forward-declared: same note as FR-038 above — inert until FR-039 is implemented.
+    # Research basis: US9251473B2. Starting weight is 0.04 — slightly higher than FR-038
+    # because entity salience is a well-established IR signal and TF-IDF arithmetic is
+    # deterministic and easy to inspect. max_site_document_frequency=20 allows moderately
+    # common terms to qualify as salient, which is appropriate for a forum site where even
+    # product names can appear on 10–15 pages.
+    "entity_salience.enabled": "true",
+    "entity_salience.ranking_weight": "0.04",
+    "entity_salience.max_salient_terms": "10",
+    "entity_salience.max_site_document_frequency": "20",
+    "entity_salience.min_source_term_frequency": "2",
 }
 
 
