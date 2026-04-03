@@ -23,6 +23,7 @@ body {
   padding: 0;
   font-family: var(--font-family);
   font-size: var(--font-size-base);
+  line-height: var(--line-height-base);
   color: var(--color-text-primary);
   background-color: var(--color-bg-page);
   -webkit-font-smoothing: antialiased;
@@ -101,11 +102,23 @@ mat-sidenav.app-sidenav,
     --mdc-filled-button-label-text-color: var(--cf-white) !important;
     --mdc-outlined-button-label-text-color: var(--cf-orange-6) !important;
     --mdc-outlined-button-outline-color: var(--cf-orange-6) !important;
+    --mdc-text-button-label-text-color: var(--cf-orange-6) !important;
     
     &:hover {
       --mdc-filled-button-container-color: var(--cf-orange-5) !important;
       background-color: var(--cf-orange-9) !important;
       --mdc-outlined-button-outline-color: var(--cf-orange-5) !important;
+    }
+  }
+  &.mat-warn:not(:disabled) {
+    --mdc-filled-button-container-color: var(--cf-red-5) !important;
+    --mdc-filled-button-label-text-color: var(--cf-white) !important;
+    --mdc-outlined-button-label-text-color: var(--cf-red-5) !important;
+    --mdc-outlined-button-outline-color: var(--cf-red-5) !important;
+    --mdc-text-button-label-text-color: var(--cf-red-5) !important;
+    
+    &:hover {
+      background-color: var(--cf-red-9) !important;
     }
   }
 }
@@ -328,3 +341,13 @@ mat-sidenav.app-sidenav,
 .bg-primary-light { background: var(--cf-blue-9) !important; }
 .bg-success-light { background: var(--cf-green-9) !important; }
 .bg-error-light   { background: var(--cf-red-9) !important; }
+ 
+// ── Spacing Utilities ───────────────────────────────────────────
+.stack-sm { gap: 8px !important; }
+.stack-md { gap: 16px !important; }
+.stack-lg { gap: 32px !important; }
+ 
+.mb-1 { margin-bottom: 8px !important; }
+.mb-2 { margin-bottom: 16px !important; }
+.mb-3 { margin-bottom: 24px !important; }
+.mb-4 { margin-bottom: 32px !important; }

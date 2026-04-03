@@ -211,7 +211,8 @@ $theme: mat.m2-define-light-theme((
 
   // ── Typography ─────────────────────────────────────────────────
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-size-base: 14px;
+  --font-size-base: 15px;
+  --line-height-base: 1.6;
 }
 
 // ── Global Setting Tooltip (Wall of text fix) ──────────────────────────

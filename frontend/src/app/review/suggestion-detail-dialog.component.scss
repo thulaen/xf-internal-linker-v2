@@ -14,11 +14,11 @@ h2[mat-dialog-title] {
   &.status-pending { background: var(--color-warning-light); color: var(--color-warning-dark); }
   &.status-approved { background: var(--color-success-light); color: var(--color-success-deeper); }
   &.status-rejected { background: var(--color-error-light); color: var(--color-error-dark); }
-  &.status-applied { background: var(--color-blue-100); color: var(--color-primary-dark); }
-  &.status-verified { background: var(--color-blue-200); color: var(--color-dark-blue); }
+  &.status-applied { background: var(--cf-blue-9); color: var(--cf-blue-5); }
+  &.status-verified { background: var(--cf-blue-8); color: var(--cf-blue-0); }
   &.status-stale, &.status-superseded { background: var(--color-bg-alt-1); color: var(--color-text-muted); }
 }
-.score-badge { background: var(--color-blue-50); color: var(--color-primary-dark); font-size: 12px; text-transform: none; }
+.score-badge { background: var(--cf-orange-9); color: var(--cf-orange-5); font-size: 12px; text-transform: none; }
 .warning-badge {
   display: flex; align-items: center; gap: 4px; background: var(--color-warning-light); color: var(--color-warning-dark); font-weight: 600;
   mat-icon { font-size: 14px; width: 14px; height: 14px; }
@@ -33,8 +33,8 @@ h2[mat-dialog-title] {
   .ext-icon { font-size: 14px; width: 14px; height: 14px; }
 }
 .host-sentence {
-  margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--color-primary); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 14px; line-height: 1.6; color: var(--color-text-dark-2);
-  mark { background: rgba(66, 133, 244, 0.2); color: var(--color-primary-dark); border-radius: 2px; padding: 1px 2px; }
+  margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--cf-orange-8); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 14px; line-height: 1.6; color: var(--color-text-dark-2);
+  mark { background: rgb(238 115 10 / .14); color: var(--cf-orange-4); border-radius: 2px; padding: 1px 2px; }
 }
 .anchor-row { display: flex; align-items: center; gap: 12px; }
 .anchor-field { flex: 1; }

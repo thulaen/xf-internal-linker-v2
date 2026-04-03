@@ -1372,14 +1372,26 @@ export class SettingsComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGSCConnection = false;
+        this.ga4Gsc = {
+          ...this.ga4Gsc,
+          connection_status: result.status,
+          connection_message: result.message,
+        };
         this.snack.open(result.message, undefined, { duration: 3500 });
       },
       error: (error) => {
         this.testingGSCConnection = false;
-        this.snack.open(error?.error?.message || error?.error?.detail || 'Search Console connection failed', 'Dismiss', { duration: 4500 });
+        const message = error?.error?.message || error?.error?.detail || 'Search Console connection failed';
+        this.ga4Gsc = {
+          ...this.ga4Gsc,
+          connection_status: 'error',
+          connection_message: message,
+        };
+        this.snack.open(message, 'Dismiss', { duration: 4500 });
       },
     });
   }
+
 
   saveGA4TelemetrySettings(): void {
     this.savingGA4Telemetry = true;

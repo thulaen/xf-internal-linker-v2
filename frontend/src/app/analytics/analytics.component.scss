@@ -497,3 +497,36 @@
 .text-right { text-align: right; }
 .text-center { text-align: center; }
 .text-muted { color: var(--cf-text-muted); }
+
+.geo-detail-section {
+  margin-top: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--cf-newGray-8);
+  animation: fadeIn 0.3s ease-out;
+}
+
+.table-container--geo {
+  max-height: 400px;
+  overflow-y: auto;
+  border-radius: 8px;
+  border: 1px solid var(--cf-newGray-8);
+}
+
+.premium-table--compact {
+  font-size: 0.9rem;
+  
+  th, td {
+    padding: 12px 16px;
+  }
+}
+
+.text-subtle {
+  color: var(--cf-text-muted);
+  font-size: 0.85rem;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+

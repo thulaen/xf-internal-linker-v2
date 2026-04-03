@@ -291,11 +291,37 @@
                     {{ showFullGeo ? 'Hide Details' : 'View Full Breakdown' }}
                   </button>
                 </div>
+
+                @if (showFullGeo && geoDetail) {
+                    <div class="table-container table-container--geo">
+                      <table class="premium-table premium-table--compact">
+                        <thead>
+                          <tr>
+                            <th>Country</th>
+                            <th>Region</th>
+                            <th class="text-right">Clicks</th>
+                            <th class="text-right">CTR</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          @for (row of geoDetail.items; track row.country + row.region) {
+                            <tr>
+                              <td>{{ row.country }}</td>
+                              <td><small class="text-subtle">{{ row.region }}</small></td>
+                              <td class="text-right"><strong>{{ row.clicks | number }}</strong></td>
+                              <td class="text-right">{{ formatPercent(row.ctr) }}</td>
+                            </tr>
+                          }
+                        </tbody>
+                      </table>
+                    </div>
+                }
               } @else {
                 <div class="empty-state-mini"><p>No country data.</p></div>
               }
             </mat-card-content>
           </mat-card>
+
         </div>
       }
 

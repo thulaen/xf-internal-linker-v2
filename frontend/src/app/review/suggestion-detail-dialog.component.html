@@ -383,7 +383,7 @@
         </mat-form-field>
         <div class="reject-actions">
           <button mat-flat-button color="warn" [disabled]="saving" (click)="confirmReject()">
-            <mat-icon>cancel</mat-icon>
+            <mat-icon>visibility_off</mat-icon>
             Confirm Reject
           </button>
           <button mat-button (click)="rejectionMode = false">Cancel</button>
@@ -423,7 +423,7 @@
   @if (detail?.status === 'pending' || detail?.status === 'approved') {
     @if (!rejectionMode) {
       <button mat-stroked-button color="warn" [disabled]="saving" (click)="startReject()">
-        <mat-icon>cancel</mat-icon>
+        <mat-icon>visibility_off</mat-icon>
         Reject
       </button>
     }

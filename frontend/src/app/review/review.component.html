@@ -36,10 +36,9 @@
       @if (startingPipeline) {
         <mat-spinner diameter="16"></mat-spinner>
       } @else {
-        <mat-icon>bolt</mat-icon>
+        <mat-icon>play_arrow</mat-icon>
       }
       Run Pipeline
-      <mat-icon class="icon-right">chevron_right</mat-icon>
     </button>
   </section>
 
@@ -83,8 +82,8 @@
       <mat-icon>check_circle</mat-icon>
       Approve All
     </button>
-    <button mat-button [matMenuTriggerFor]="batchRejectMenu">
-      <mat-icon>cancel</mat-icon>
+    <button mat-stroked-button color="warn" [matMenuTriggerFor]="batchRejectMenu">
+      <mat-icon>visibility_off</mat-icon>
       Reject All
       <mat-icon>arrow_drop_down</mat-icon>
     </button>
@@ -108,7 +107,7 @@
 @if (!loading && suggestions.length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
-      <mat-icon>rate_review</mat-icon>
+      <mat-icon class="empty-icon">rate_review</mat-icon>
     </div>
     <h3>No {{ statusFilter === 'all' ? '' : statusFilter }} suggestions</h3>
     <p>
@@ -122,9 +121,8 @@
     </p>
     @if (statusFilter === 'pending' && !searchQuery) {
       <button mat-flat-button color="primary" (click)="runPipeline()">
-        <mat-icon>bolt</mat-icon>
-        Run Pipeline Now
-        <mat-icon class="icon-right">chevron_right</mat-icon>
+        <mat-icon>play_arrow</mat-icon>
+        Run Pipeline
       </button>
     }
   </div>
@@ -233,10 +231,11 @@
           }
           @if (s.status === 'pending' || s.status === 'approved') {
             <button
-              mat-button
+              mat-stroked-button
+              color="warn"
               [matMenuTriggerFor]="rejectMenu"
             >
-              <mat-icon>cancel</mat-icon>
+              <mat-icon>visibility_off</mat-icon>
               Reject
               <mat-icon>arrow_drop_down</mat-icon>
             </button>
