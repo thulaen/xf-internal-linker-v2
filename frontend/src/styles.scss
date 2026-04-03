@@ -236,14 +236,24 @@ mat-sidenav.app-sidenav,
 }
 
 // ── Form Controls & Rings ───────────────────────────────────────
+// Single source of truth for all form field sizing — 13px across the board.
+// Sets both the Angular Material token AND the raw MDC variable so the
+// resting-position label and the input text both render at 13px without
+// needing !important anywhere in component stylesheets.
 .mat-mdc-form-field {
+  font-size: 13px;
+  --mat-form-field-container-text-size: 13px;
+  --mdc-outlined-text-field-label-text-size: 13px;
+  --mdc-outlined-text-field-input-text-size: 13px;
+  --mdc-floating-label-font-size: 13px;
+
   .mat-mdc-text-field-wrapper {
-    border-radius: var(--radius-md) !important;
+    border-radius: var(--radius-md);
   }
 
   &.mat-focused .mat-mdc-form-field-focus-indicator {
-    border-color: var(--cf-blue-5) !important;
-    box-shadow: 0 0 0 2px var(--cf-blue-8) !important;
+    border-color: var(--cf-blue-5);
+    box-shadow: 0 0 0 2px var(--cf-blue-8);
   }
 }
 
