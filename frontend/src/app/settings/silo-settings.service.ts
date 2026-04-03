@@ -105,7 +105,7 @@ export interface FieldAwareRelevanceSettings {
   learned_anchor_field_weight: number;
 }
 
-export interface GA4GSCSettings {
+export interface GSCSettings {
   ranking_weight: number;
   property_url: string;
   client_email: string;
@@ -114,21 +114,11 @@ export interface GA4GSCSettings {
   sync_lookback_days: number;
   connection_status: string;
   connection_message: string;
+  oauth_connected: boolean;
   last_sync: AnalyticsSyncSummary | null;
 }
 
-export interface AnalyticsSyncSummary {
-  status: string;
-  started_at: string | null;
-  completed_at: string | null;
-  rows_read: number;
-  rows_written: number;
-  rows_updated: number;
-  lookback_days: number;
-  error_message: string;
-}
-
-export interface GA4GSCSettingsUpdate {
+export interface GSCSettingsUpdate {
   ranking_weight: number;
   property_url: string;
   client_email: string;
@@ -158,6 +148,20 @@ export interface GA4TelemetrySettings {
   read_connection_status: string;
   read_connection_message: string;
   last_sync: AnalyticsSyncSummary | null;
+  oauth_connected: boolean;
+  google_oauth_client_id: string;
+  google_oauth_client_secret_configured: boolean;
+}
+
+export interface AnalyticsSyncSummary {
+  status: string;
+  started_at: string | null;
+  completed_at: string | null;
+  rows_read: number;
+  rows_written: number;
+  rows_updated: number;
+  lookback_days: number;
+  error_message: string;
 }
 
 export interface GA4TelemetryUpdate {
@@ -176,6 +180,8 @@ export interface GA4TelemetryUpdate {
   engaged_min_seconds: number;
   api_secret?: string;
   read_private_key?: string;
+  google_oauth_client_id?: string;
+  google_oauth_client_secret?: string;
 }
 
 export interface MatomoTelemetrySettings {
@@ -269,6 +275,7 @@ export interface WeightAdjustmentHistory {
 @Injectable({ providedIn: 'root' })
 export class SiloSettingsService {
   private http = inject(HttpClient);
+  private baseUrl = '/api';
 
   getSettings(): Observable<SiloSettings> {
     return this.http.get<SiloSettings>('/api/settings/silos/');
@@ -338,8 +345,8 @@ export class SiloSettingsService {
     return this.http.get<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/');
   }
 
-  getGA4GSCSettings(): Observable<GA4GSCSettings> {
-    return this.http.get<GA4GSCSettings>('/api/analytics/settings/gsc/');
+  getGSCSettings(): Observable<GSCSettings> {
+    return this.http.get<GSCSettings>('/api/analytics/settings/gsc/');
   }
 
   getGA4TelemetrySettings(): Observable<GA4TelemetrySettings> {
@@ -394,23 +401,31 @@ export class SiloSettingsService {
     return this.http.put<FieldAwareRelevanceSettings>('/api/settings/field-aware-relevance/', payload);
   }
 
-  updateGA4GSCSettings(payload: GA4GSCSettingsUpdate): Observable<GA4GSCSettings> {
-    return this.http.put<GA4GSCSettings>('/api/analytics/settings/gsc/', payload);
+  updateGSCSettings(payload: GSCSettingsUpdate): Observable<GSCSettings> {
+    return this.http.put<GSCSettings>('/api/analytics/settings/gsc/', payload);
   }
 
   testGSCConnection(payload: { property_url?: string; client_email?: string; private_key?: string }): Observable<AnalyticsConnectionResult> {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload);
   }
 
-  runGSCSync(): Observable<SyncRunResponse> {
-    return this.http.post<SyncRunResponse>('/api/analytics/telemetry/gsc-sync/', {});
+  runGSCSync(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, {});
+  }
+
+  getGoogleAuthUrl(): Observable<{ authorization_url: string }> {
+    return this.http.get<{ authorization_url: string }>(`${this.baseUrl}/analytics/oauth/authorize/`);
+  }
+
+  unlinkGoogleAccount(): Observable<any> {
+    return this.http.post(`${this.baseUrl}/analytics/oauth/unlink/`, {});
   }
 
   updateGA4TelemetrySettings(payload: GA4TelemetryUpdate): Observable<GA4TelemetrySettings> {
     return this.http.put<GA4TelemetrySettings>('/api/analytics/settings/ga4/', payload);
   }
 
-  testGA4TelemetryConnection(payload: { measurement_id?: string; api_secret?: string }): Observable<AnalyticsConnectionResult> {
+  testGA4TelemetryConnection(payload: { measurement_id?: string; api_secret?: string; google_oauth_client_id?: string; google_oauth_client_secret?: string }): Observable<AnalyticsConnectionResult> {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/ga4/test-connection/', payload);
   }
 

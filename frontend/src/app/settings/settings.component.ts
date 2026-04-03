@@ -13,6 +13,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { ActivatedRoute } from '@angular/router';
 import {
   FieldAwareRelevanceSettings,
   ClickDistanceSettings,
@@ -28,8 +29,8 @@ import {
   WeightedAuthoritySettings,
   WordPressSettings,
   WordPressSettingsUpdate,
-  GA4GSCSettings,
-  GA4GSCSettingsUpdate,
+  GSCSettings,
+  GSCSettingsUpdate,
   FeedbackRerankSettings,
   ClusteringSettings,
   SlateDiversitySettings,
@@ -671,6 +672,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
 export class SettingsComponent implements OnInit, OnDestroy {
   private siloSvc = inject(SiloSettingsService);
   private snack = inject(MatSnackBar);
+  private route = inject(ActivatedRoute);
   private destroy$ = new Subject<void>();
 
   loading = true;
@@ -757,7 +759,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     scope_field_weight: 0.15,
     learned_anchor_field_weight: 0.15,
   };
-  ga4Gsc: GA4GSCSettings = {
+  ga4Gsc: GSCSettings = {
     ranking_weight: 0.05,
     property_url: '',
     client_email: '',
@@ -765,10 +767,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
     sync_enabled: false,
     sync_lookback_days: 7,
     connection_status: 'not_configured',
-    connection_message: 'Fill in the Search Console property URL and service-account credentials.',
+    connection_message: 'Connect via Google OAuth or fill in service-account credentials.',
+    oauth_connected: false,
     last_sync: null,
   };
   gscPrivateKey = '';
+  googleAuthClientId = '';
+  googleAuthClientSecret = '';
   ga4Telemetry: GA4TelemetrySettings = {
     behavior_enabled: false,
     property_id: '',
@@ -790,6 +795,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
     read_connection_status: 'not_configured',
     read_connection_message: 'Fill in the GA4 read-access fields and test read access.',
     last_sync: null,
+    oauth_connected: false,
+    google_oauth_client_id: '',
+    google_oauth_client_secret_configured: false,
   };
   ga4TelemetrySecret = '';
   ga4TelemetryReadPrivateKey = '';
@@ -1085,6 +1093,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
+    // Check for OAuth status parameters
+    const query = this.route.snapshot.queryParams;
+    if (query['oauth_success']) {
+      this.snack.open('Google account authorized successfully.', 'Dismiss', { duration: 5000 });
+      // Clear query parameters
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (query['oauth_error']) {
+      this.snack.open(`Google authorization failed: ${query['oauth_error']}`, 'Dismiss', { duration: 6000 });
+      // Clear query parameters
+      window.history.replaceState({}, '', window.location.pathname);
+    }
     this.reload();
   }
 
@@ -1098,7 +1117,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       learnedAnchor: this.siloSvc.getLearnedAnchorSettings(),
       rareTermPropagation: this.siloSvc.getRareTermPropagationSettings(),
       fieldAwareRelevance: this.siloSvc.getFieldAwareRelevanceSettings(),
-      ga4Gsc: this.siloSvc.getGA4GSCSettings(),
+      ga4Gsc: this.siloSvc.getGSCSettings(),
       ga4Telemetry: this.siloSvc.getGA4TelemetrySettings(),
       matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
@@ -1374,31 +1393,56 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
-  saveGA4GSCSettings(): void {
+  updateGSCSettings(): void {
     this.savingGA4GSC = true;
-    const payload: GA4GSCSettingsUpdate = {
-      ranking_weight: Number(this.ga4Gsc.ranking_weight || 0.05),
-      property_url: this.ga4Gsc.property_url.trim(),
-      client_email: this.ga4Gsc.client_email.trim(),
+    const payload: GSCSettingsUpdate = {
+      ranking_weight: this.ga4Gsc.ranking_weight,
+      property_url: this.ga4Gsc.property_url,
+      client_email: this.ga4Gsc.client_email,
       sync_enabled: this.ga4Gsc.sync_enabled,
-      sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
+      sync_lookback_days: this.ga4Gsc.sync_lookback_days,
     };
-    if (this.gscPrivateKey.trim()) {
-      payload.private_key = this.gscPrivateKey.trim();
+    if (this.gscPrivateKey) {
+      payload.private_key = this.gscPrivateKey;
     }
 
-    this.siloSvc.updateGA4GSCSettings(payload).subscribe({
-      next: (ga4Gsc) => {
+    this.siloSvc.updateGSCSettings(payload).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (ga4Gsc: GSCSettings) => {
         this.ga4Gsc = ga4Gsc;
         this.gscPrivateKey = '';
-        this.refreshCurrentWeights();
         this.savingGA4GSC = false;
-        this.snack.open('Search Console settings saved', undefined, { duration: 2500 });
+        this.snack.open('Search Console settings saved.', undefined, { duration: 3000 });
       },
-      error: (error) => {
+      error: (error: any) => {
         this.savingGA4GSC = false;
-        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save GA4 and Search Console settings', 'Dismiss', { duration: 4000 });
+        this.snack.open(error?.error?.detail || 'Failed to save settings.', 'Dismiss', { duration: 4000 });
       },
+    });
+  }
+
+  authorizeGoogle(): void {
+    this.siloSvc.getGoogleAuthUrl().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        if (res.authorization_url) {
+          window.location.href = res.authorization_url;
+        }
+      },
+      error: (err) => {
+        this.snack.open('Failed to start Google authorization: ' + (err?.error?.detail || 'Unknown error'), 'Dismiss', { duration: 5000 });
+      }
+    });
+  }
+
+  unlinkGoogleAccount(): void {
+    if (!confirm('Are you sure you want to unlink your Google account? Access to GA4 and GSC via OAuth will be revoked.')) return;
+    this.siloSvc.unlinkGoogleAccount().pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.snack.open('Google account unlinked.', undefined, { duration: 3000 });
+        this.reload();
+      },
+      error: (err) => {
+        this.snack.open('Failed to unlink Google account: ' + (err?.error?.detail || 'Unknown error'), 'Dismiss', { duration: 5000 });
+      }
     });
   }
 
@@ -1470,6 +1514,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.ga4TelemetryReadPrivateKey.trim()) {
       payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
+    if (this.ga4Telemetry.google_oauth_client_id.trim()) {
+      payload.google_oauth_client_id = this.ga4Telemetry.google_oauth_client_id.trim();
+    }
+    if (this.ga4TelemetrySecret.trim()) {
+      payload.google_oauth_client_secret = this.ga4TelemetrySecret.trim();
+    }
 
     this.siloSvc.updateGA4TelemetrySettings(payload).subscribe({
       next: (ga4Telemetry) => {
@@ -1491,6 +1541,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.testGA4TelemetryConnection({
       measurement_id: this.ga4Telemetry.measurement_id.trim() || undefined,
       api_secret: this.ga4TelemetrySecret.trim() || undefined,
+      google_oauth_client_id: this.ga4Telemetry.google_oauth_client_id.trim() || undefined,
+      google_oauth_client_secret: this.ga4TelemetrySecret.trim() || undefined,
     }).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGA4Telemetry = false;
@@ -1853,6 +1905,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.ga4TelemetryReadPrivateKey.trim()) {
       ga4TelemetryPayload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
+    if (this.ga4Telemetry.google_oauth_client_id.trim()) {
+      ga4TelemetryPayload.google_oauth_client_id = this.ga4Telemetry.google_oauth_client_id.trim();
+    }
+    if (this.ga4TelemetrySecret.trim()) {
+      ga4TelemetryPayload.google_oauth_client_secret = this.ga4TelemetrySecret.trim();
+    }
 
     const matomoTelemetryPayload: MatomoTelemetryUpdate = {
       enabled: this.matomoTelemetry.enabled,
@@ -1866,7 +1924,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       matomoTelemetryPayload.token_auth = this.matomoTelemetryToken.trim();
     }
 
-    const ga4GscPayload: GA4GSCSettingsUpdate = {
+    const gscPayload: GSCSettingsUpdate = {
       ranking_weight: Number(this.ga4Gsc.ranking_weight),
       property_url: this.ga4Gsc.property_url.trim(),
       client_email: this.ga4Gsc.client_email.trim(),
@@ -1874,7 +1932,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
     };
     if (this.gscPrivateKey.trim()) {
-      ga4GscPayload.private_key = this.gscPrivateKey.trim();
+      gscPayload.private_key = this.gscPrivateKey.trim();
     }
 
     forkJoin({
@@ -1885,7 +1943,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       learned: this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor),
       rare: this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation),
       relevance: this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance),
-      ga4: this.siloSvc.updateGA4GSCSettings(ga4GscPayload),
+      ga4: this.siloSvc.updateGSCSettings(gscPayload),
       ga4Telemetry: this.siloSvc.updateGA4TelemetrySettings(ga4TelemetryPayload),
       matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),

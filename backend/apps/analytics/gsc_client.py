@@ -12,16 +12,36 @@ from googleapiclient.discovery import build, Resource
 logger = logging.getLogger(__name__)
 
 
-def build_gsc_service(*, client_email: str, private_key: str) -> Resource:
-    """Build a GSC service object using service account credentials."""
-    credentials = service_account.Credentials.from_service_account_info(
-        {
-            "client_email": client_email,
-            "private_key": private_key,
-            "token_uri": "https://oauth2.googleapis.com/token",
-        }
-    )
-    return build("searchconsole", "v1", credentials=credentials, cache_discovery=False)
+def build_gsc_service(
+    *, 
+    client_email: str = "", 
+    private_key: str = "",
+    refresh_token: str = "",
+    client_id: str = "",
+    client_secret: str = ""
+) -> Resource:
+    """Build a GSC service object using service account or OAuth credentials."""
+    from google.oauth2 import credentials
+
+    if refresh_token and client_id and client_secret:
+        # Build using OAuth credentials
+        creds = credentials.Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            client_id=client_id,
+            client_secret=client_secret,
+            token_uri="https://oauth2.googleapis.com/token",
+        )
+    else:
+        # Fall back to service account
+        creds = service_account.Credentials.from_service_account_info(
+            {
+                "client_email": client_email,
+                "private_key": private_key,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        )
+    return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
 def test_gsc_access(service: Resource, property_url: str) -> bool:

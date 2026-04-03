@@ -24,6 +24,9 @@ from .views import (
     AnalyticsTelemetryByVersionView,
     AnalyticsSearchImpactListView,
     AnalyticsSearchImpactDetailView,
+    AnalyticsGoogleOAuthStartView,
+    AnalyticsGoogleOAuthCallbackView,
+    AnalyticsGoogleOAuthUnlinkView,
 )
 
 urlpatterns = [
@@ -46,6 +49,9 @@ urlpatterns = [
     path("settings/matomo/test-connection/", AnalyticsMatomoTestConnectionView.as_view(), name="analytics-matomo-test-connection"),
     path("settings/gsc/", AnalyticsGSCSettingsView.as_view(), name="analytics-gsc-settings"),
     path("settings/gsc/test-connection/", AnalyticsGSCTestConnectionView.as_view(), name="analytics-gsc-test-connection"),
+    path("oauth/authorize/", AnalyticsGoogleOAuthStartView.as_view(), name="analytics-google-oauth-authorize"),
+    path("oauth/callback/", AnalyticsGoogleOAuthCallbackView.as_view(), name="analytics-google-oauth-callback"),
+    path("oauth/unlink/", AnalyticsGoogleOAuthUnlinkView.as_view(), name="analytics-google-oauth-unlink"),
     path("search-impact/", AnalyticsSearchImpactListView.as_view(), name="search-impact-list"),
     path("search-impact/<uuid:suggestion_id>/", AnalyticsSearchImpactDetailView.as_view(), name="search-impact-detail"),
 ]

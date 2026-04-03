@@ -393,27 +393,30 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
 
 
 def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
-    from .views import get_ga4_telemetry_settings, _ga4_read_private_key
+    # OAuth credentials
+    refresh_token = settings.get("oauth_connected") and _google_oauth_refresh_token()
+    client_id = settings.get("google_oauth_client_id")
+    client_secret = (_read_setting("analytics.google_oauth_client_secret", "") or "").strip()
 
-    settings = get_ga4_telemetry_settings()
-    if not settings.get("sync_enabled"):
-        raise RuntimeError("GA4 sync is disabled in settings.")
-    property_id = str(settings.get("property_id") or "").strip()
-    project_id = str(settings.get("read_project_id") or "").strip()
-    client_email = str(settings.get("read_client_email") or "").strip()
-    private_key = _ga4_read_private_key()
-    geo_granularity = str(settings.get("geo_granularity") or "country")
-    if not property_id or not project_id or not client_email or not private_key:
-        raise RuntimeError(
-            "GA4 sync needs the property ID plus saved GA4 read-access credentials on the settings page."
+    if refresh_token and client_id and client_secret:
+        service = build_ga4_data_service(
+            property_id=property_id,
+            refresh_token=refresh_token,
+            client_id=client_id,
+            client_secret=client_secret,
         )
+    else:
+        if not property_id or not project_id or not client_email or not private_key:
+            raise RuntimeError(
+                "GA4 sync needs the property ID plus saved GA4 read-access credentials on the settings page."
+            )
 
-    service = build_ga4_data_service(
-        property_id=property_id,
-        project_id=project_id,
-        client_email=client_email,
-        private_key=private_key,
-    )
+        service = build_ga4_data_service(
+            property_id=property_id,
+            project_id=project_id,
+            client_email=client_email,
+            private_key=private_key,
+        )
 
     rows_read = 0
     rows_written = 0
@@ -573,7 +576,7 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     These logs feed the attribution engine in Slice 4.
     """
     from .gsc_client import build_gsc_service, fetch_gsc_performance_data
-    from .views import get_gsc_settings, _gsc_private_key
+    from .views import get_gsc_settings, _gsc_private_key, _google_oauth_refresh_token, _google_oauth_client_id, _google_oauth_client_secret, _read_setting
     from apps.content.models import ContentItem
     from .models import GSCDailyPerformance, SearchMetric
 
@@ -582,13 +585,26 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         return {"rows_read": 0, "rows_written": 0, "rows_updated": 0, "error": "GSC sync is disabled."}
 
     property_url = settings.get("property_url")
-    client_email = settings.get("client_email")
-    private_key = _gsc_private_key()
+    
+    # OAuth credentials
+    refresh_token = settings.get("oauth_connected") and _google_oauth_refresh_token()
+    client_id = _google_oauth_client_id()
+    client_secret = _google_oauth_client_secret()
 
-    if not property_url or not client_email or not private_key:
-        raise RuntimeError("GSC sync needs property_url, client_email, and private_key.")
+    if refresh_token and client_id and client_secret:
+        service = build_gsc_service(
+            refresh_token=refresh_token,
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+    else:
+        client_email = settings.get("client_email")
+        private_key = _gsc_private_key()
 
-    service = build_gsc_service(client_email=client_email, private_key=private_key)
+        if not property_url or not client_email or not private_key:
+            raise RuntimeError("GSC sync needs property_url, client_email, and private_key.")
+
+        service = build_gsc_service(client_email=client_email, private_key=private_key)
 
     # Search Console data has a ~2-3 day processing lag.
     # We look back from 3 days ago to ensure we have data.

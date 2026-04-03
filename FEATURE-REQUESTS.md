@@ -66,6 +66,57 @@ Important:
 
 ---
 
+### FR-014 - Near-Duplicate Destination Clustering
+**Requested:** 2026-03-24
+**Target phase:** Phase 17
+**Completed phase:** Phase 17
+**Priority:** High
+**Patent inspiration:** `US7698317B2`
+**Completed:** 2026-03-28
+
+- Implemented exactly against `docs/specs/fr014-near-duplicate-destination-clustering.md`.
+- Added `ContentCluster` model and `ClusteringService` for grouping semantically redundant items (distance < 0.04).
+- Added soft suppression in `ranker.py` to prefer canonical versions while still allowing high-relevance subordinates.
+- Added background `recalculate_clusters` task and clustering settings API.
+- Re-themed Angular Settings and Review UI to include cluster badges and management controls.
+- Local verification passed for migration 0014, backend clustering units, and Angular build.
+
+---
+
+### FR-013 - Feedback-Driven Explore/Exploit Reranking
+**Requested:** 2026-03-24
+**Target phase:** Phase 16
+**Completed phase:** Phase 16
+**Priority:** High
+**Patent inspiration:** `US10102292B2`
+**Completed:** 2026-03-27
+
+- Implemented exactly against `docs/specs/fr013-feedback-driven-explore-exploit-reranking.md`.
+- Added UCB1-based reranking using Bayesian smoothing of historical reviewer approvals/rejections.
+- Added `feedback_rerank.py` with a C++ reinforcement-learning fast path and Python fallback.
+- `Suggestion.score_explore_exploit` and `explore_exploit_diagnostics` store the explainable feedback-driven boost.
+- Exposed exploration status and exploration-rate controls in Angular Review and Settings.
+- Local verification passed for Bayesian math units, C++ correctness tests, and Angular `test:ci`.
+
+---
+
+### FR-012 - Click-Distance Structural Prior Scoring
+**Requested:** 2026-03-24
+**Target phase:** Phase 15
+**Completed phase:** Phase 15
+**Priority:** Medium
+**Patent inspiration:** `US8037060B2`
+**Completed:** 2026-03-27
+
+- Implemented exactly against `docs/specs/fr012-click-distance-structural-prior.md`.
+- Added graph-based shortest-path structural prior scoring using inbound `ExistingLink` edges.
+- Added `click_distance.py` with multi-step cached BFS lookup and neutral fallback at `0.5`.
+- Added Click-Distance settings API, recalculation task, and suggestion-level scoring.
+- Suggestion detail and system diagnostics now show plain-English structural evidence and path distance.
+- Local verification passed for graph BFS units, migration drift, and Angular build.
+
+---
+
 ### FR-011 - Field-Aware Relevance Scoring
 **Requested:** 2026-03-24
 **Target phase:** Phase 14
@@ -214,7 +265,6 @@ Important:
 
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
-- Shipped separate Click-Distance service, recalculation task, and suggestion-level scoring.
  
  ---
  
@@ -231,8 +281,16 @@ Important:
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
-**Status:** Spec Pass Complete (Detailed Implementation Spec at `docs/specs/fr017-gsc-search-outcome-attribution.md`)
+**Status:** In Progress (Slice 2 Complete: Interactive Google OAuth 2.0 flow)
 **Priority:** High
+
+- **Slice 2 Completed (2026-04-03):**
+  - Implemented exactly against Interactive OAuth requirements.
+  - Added backend OAuth 2.0 handshake (Start, Callback, Unlink) for GA4 and GSC.
+  - Updated GA4 and GSC API clients to support both OAuth and Service Account credentials.
+  - Refined Angular Settings UI with "Sign in with Google" buttons and live connection status.
+  - Added administrative "Google Cloud App Credentials" configuration directly in the UI.
+  - Verified sync tasks automatically prefer OAuth tokens when available.
 
 ### GUI-first requirement (hard rule)
 - GSC credentials (OAuth client ID/secret, verified site URL) must be configured entirely through the settings page. No config files, no code, no environment variables.
@@ -895,4 +953,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-02 (Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has a repo-side live-site bridge handoff, and the first safe Slice 3 sync plumbing is now in code.)*
+*Last updated: 2026-04-03 (Phase 20 / FR-017 Slice 2 is in progress. FR-012, FR-013, and FR-014 are now correctly back-marked as COMPLETED.)*

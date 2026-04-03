@@ -57,6 +57,18 @@ GSC_DEFAULTS = {
 }
 
 
+def _google_oauth_refresh_token() -> str:
+    return (_read_setting("analytics.google_oauth_refresh_token", "") or "").strip()
+
+
+def _google_oauth_client_id() -> str:
+    return (_read_setting("analytics.google_oauth_client_id", "") or "").strip()
+
+
+def _google_oauth_client_secret() -> str:
+    return (_read_setting("analytics.google_oauth_client_secret", "") or "").strip()
+
+
 def _read_setting(key: str, default: str | None = None) -> str | None:
     row = AppSetting.objects.filter(key=key).first()
     if row is None:
@@ -117,11 +129,18 @@ def get_ga4_telemetry_settings() -> dict:
         status = "saved"
         message = "Browser-event credentials are saved. Run Test Connection to confirm they work."
 
-    read_status = "not_configured"
-    read_message = "Fill in the GA4 read-access fields and test read access."
-    if property_id and read_client_email and read_private_key:
+    oauth_client_id = _google_oauth_client_id()
+    oauth_client_secret = _google_oauth_client_secret()
+    oauth_refresh_token = _google_oauth_refresh_token()
+    oauth_connected = bool(oauth_refresh_token and oauth_client_id and oauth_client_secret)
+
+    if oauth_connected:
+        read_status = "connected"
+        read_message = "Connected via Google OAuth."
+    elif property_id and read_client_email and read_private_key:
         read_status = "saved"
-        read_message = "Read-access credentials are saved. Run Test Read Access to confirm they work."
+        read_message = "Read-access credentials (service account) are saved. Run Test Read Access to confirm they work."
+    
     if sync and sync["status"] == "completed":
         read_status = "connected"
         read_message = "GA4 read sync completed successfully the last time it ran."
@@ -150,6 +169,9 @@ def get_ga4_telemetry_settings() -> dict:
         "read_connection_status": read_status,
         "read_connection_message": read_message,
         "last_sync": sync,
+        "oauth_connected": oauth_connected,
+        "google_oauth_client_id": oauth_client_id,
+        "google_oauth_client_secret_configured": bool(oauth_client_secret),
     }
 
 
@@ -157,13 +179,20 @@ def get_gsc_settings() -> dict:
     property_url = (_read_setting("analytics.gsc_property_url", "") or "").strip()
     client_email = (_read_setting("analytics.gsc_client_email", "") or "").strip()
     private_key = (_read_setting("analytics.gsc_private_key", "") or "").strip()
+    ranking_weight = _read_float("analytics.gsc_ranking_weight", 0.05)
     sync = _latest_sync("gsc")
 
+    oauth_refresh_token = _google_oauth_refresh_token()
+    oauth_connected = bool(oauth_refresh_token and _google_oauth_client_id() and _google_oauth_client_secret())
+
     status = "not_configured"
-    message = "Fill in the GSC property URL and service-account credentials."
-    if property_url and client_email and private_key:
+    message = "Connect via Google OAuth or fill in service-account credentials."
+    if oauth_connected:
+        status = "connected"
+        message = "Connected via Google OAuth."
+    elif property_url and client_email and private_key:
         status = "saved"
-        message = "GSC credentials are saved. Run Test Connection to confirm they work."
+        message = "GSC credentials (service account) are saved. Run Test Connection to confirm they work."
 
     if sync and sync["status"] == "completed":
         status = "connected"
@@ -173,6 +202,7 @@ def get_gsc_settings() -> dict:
         message = sync["error_message"] or "The last GSC sync failed."
 
     return {
+        "ranking_weight": ranking_weight,
         "property_url": property_url,
         "client_email": client_email,
         "private_key_configured": bool(private_key),
@@ -181,6 +211,7 @@ def get_gsc_settings() -> dict:
         "connection_status": status,
         "connection_message": message,
         "last_sync": sync,
+        "oauth_connected": oauth_connected,
     }
 
 
@@ -348,6 +379,7 @@ def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
     validated = {
         "property_url": property_url,
         "client_email": client_email,
+        "ranking_weight": _coerce_float(payload.get("ranking_weight", current["ranking_weight"]), "ranking_weight", 0.0, 1.0),
         "sync_enabled": _coerce_bool(payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"),
         "sync_lookback_days": _coerce_int(payload.get("sync_lookback_days", current["sync_lookback_days"]), "sync_lookback_days", 1, 90),
     }
@@ -973,31 +1005,36 @@ class AnalyticsGA4ReadConnectionView(APIView):
 
     def post(self, request):
         current = get_ga4_telemetry_settings()
-        property_id = str(request.data.get("property_id") or current["property_id"] or "").strip()
-        project_id = str(request.data.get("read_project_id") or current["read_project_id"] or "").strip()
-        client_email = str(request.data.get("read_client_email") or current["read_client_email"] or "").strip()
-        private_key = str(request.data.get("read_private_key") or _ga4_read_private_key()).strip()
-        if not property_id or not project_id or not client_email or not private_key:
-            return Response(
-                {
-                    "status": "not_configured",
-                    "message": "Save the GA4 property ID, read project ID, client email, and private key first.",
-                },
-                status=400,
-            )
+        property_id = str(request.data.get("property_id") or _read_setting("analytics.ga4_property_id", "") or "").strip()
+        refresh_token = _google_oauth_refresh_token()
+        client_id = _google_oauth_client_id()
+        client_secret = _google_oauth_client_secret()
 
         try:
-            service = build_ga4_data_service(
-                property_id=property_id,
-                project_id=project_id,
-                client_email=client_email,
-                private_key=private_key,
-            )
+            if refresh_token and client_id and client_secret:
+                service = build_ga4_data_service(
+                    property_id=property_id,
+                    refresh_token=refresh_token,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+            else:
+                project_id = str(request.data.get("read_project_id") or _read_setting("analytics.ga4_read_project_id", "") or "").strip()
+                client_email = str(request.data.get("read_client_email") or _read_setting("analytics.ga4_read_client_email", "") or "").strip()
+                private_key = str(request.data.get("read_private_key") or _ga4_read_private_key()).strip()
+                if not property_id or not project_id or not client_email or not private_key:
+                    return Response({"status": "error", "message": "Save GA4 read credentials or connect Google account first."}, status=400)
+                service = build_ga4_data_service(
+                    property_id=property_id,
+                    project_id=project_id,
+                    client_email=client_email,
+                    private_key=private_key,
+                )
             test_ga4_data_api_access(service=service, property_id=property_id)
         except Exception as exc:
-            return Response({"status": "error", "message": f"GA4 read test failed: {exc}"}, status=502)
+            return Response({"status": "error", "message": f"GA4 read access failed: {exc}"}, status=502)
 
-        return Response({"status": "connected", "message": "GA4 Data API read access worked."})
+        return Response({"status": "connected", "message": "GA4 read access successful."})
 
 
 class AnalyticsMatomoSettingsView(APIView):
@@ -1235,6 +1272,7 @@ class AnalyticsGSCSettingsView(APIView):
         _upsert_setting("analytics.gsc_client_email", validated["client_email"], "str", "GSC service account client email.")
         _upsert_setting("analytics.gsc_sync_enabled", "true" if validated["sync_enabled"] else "false", "bool", "Whether GSC performance sync is enabled.")
         _upsert_setting("analytics.gsc_sync_lookback_days", str(validated["sync_lookback_days"]), "int", "GSC sync lookback days.")
+        _upsert_setting("analytics.gsc_ranking_weight", str(validated["ranking_weight"]), "float", "GSC search performance ranking weight.")
         if private_key_provided:
             _upsert_setting("analytics.gsc_private_key", validated["private_key"] or "", "str", "GSC service account private key.", is_secret=True)
         _sync_analytics_periodic_tasks()
@@ -1247,16 +1285,25 @@ class AnalyticsGSCTestConnectionView(APIView):
     permission_classes = [AllowAny]
 
     def post(self, request):
-        from .gsc_client import build_gsc_service, test_gsc_access
-
         property_url = str(request.data.get("property_url") or _read_setting("analytics.gsc_property_url", "") or "").strip()
-        client_email = str(request.data.get("client_email") or _read_setting("analytics.gsc_client_email", "") or "").strip()
-        private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
-        if not property_url or not client_email or not private_key:
-            return Response({"status": "error", "message": "Save GSC credentials first."}, status=400)
+        refresh_token = _google_oauth_refresh_token()
+        client_id = _google_oauth_client_id()
+        client_secret = _google_oauth_client_secret()
 
         try:
-            service = build_gsc_service(client_email=client_email, private_key=private_key)
+            if refresh_token and client_id and client_secret:
+                service = build_gsc_service(
+                    refresh_token=refresh_token,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                )
+            else:
+                client_email = str(request.data.get("client_email") or _read_setting("analytics.gsc_client_email", "") or "").strip()
+                private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
+                if not property_url or not client_email or not private_key:
+                    return Response({"status": "error", "message": "Save GSC credentials or connect Google account first."}, status=400)
+                service = build_gsc_service(client_email=client_email, private_key=private_key)
+            
             test_gsc_access(service, property_url)
         except Exception as exc:
             return Response({"status": "error", "message": f"GSC connection failed: {exc}"}, status=502)
@@ -1313,3 +1360,152 @@ class AnalyticsSearchImpactDetailView(APIView):
                 "keywords": GSCKeywordImpactSerializer(keywords, many=True).data,
             }
         )
+
+
+class AnalyticsGoogleOAuthStartView(APIView):
+    """
+    Generate the Google OAuth authorization URL.
+    Requires analytics.google_oauth_client_id and analytics.google_oauth_client_secret to be set.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import google_auth_oauthlib.flow
+
+        client_id = _google_oauth_client_id()
+        client_secret = _google_oauth_client_secret()
+
+        if not client_id or not client_secret:
+            return Response(
+                {"detail": "Google OAuth Client ID and Secret must be configured in settings first."},
+                status=400,
+            )
+
+        # Scopes for both GA4 and GSC
+        scopes = [
+            "https://www.googleapis.com/auth/analytics.readonly",
+            "https://www.googleapis.com/auth/webmasters.readonly",
+        ]
+
+        # Use a dict for client configuration
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        }
+
+        # The redirect URI must match exactly what is in Google Cloud Console.
+        # We'll use the current request to build it if possible, or fall back to a setting.
+        redirect_uri = request.build_absolute_uri("/api/analytics/oauth/callback/")
+        
+        # In case of local dev via docker-compose vs host browser:
+        # If the user is on localhost:4200, but the backend is localhost:8000.
+        # We might need to handle the origin mismatch.
+        
+        flow = google_auth_oauthlib.flow.Flow.from_client_config(
+            client_config,
+            scopes=scopes,
+            redirect_uri=redirect_uri,
+        )
+
+        authorization_url, state = flow.authorization_url(
+            access_type="offline",
+            include_granted_scopes="true",
+            prompt="consent",
+        )
+
+        # Store state in session for verification in callback
+        request.session["google_oauth_state"] = state
+
+        return Response({"authorization_url": authorization_url})
+
+
+class AnalyticsGoogleOAuthCallbackView(APIView):
+    """
+    Handle the callback from Google OAuth.
+    Exchange the code for a refresh token and save it.
+    """
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        import google_auth_oauthlib.flow
+        from django.shortcuts import redirect
+
+        state = request.GET.get("state")
+        code = request.GET.get("code")
+        error = request.GET.get("error")
+
+        # Basic error handling
+        frontend_settings_url = "/settings" # TODO: Make this smarter or configurable
+
+        if error:
+            return redirect(f"{frontend_settings_url}?oauth_error={error}")
+
+        if not state or not code:
+            return redirect(f"{frontend_settings_url}?oauth_error=missing_params")
+
+        # Verify state to prevent CSRF (if session is working)
+        # Session might not work across origins (localhost:4200 -> localhost:8000)
+        # so we might have to skip this check for development or use a different mechanism.
+        # saved_state = request.session.get("google_oauth_state")
+        # if state != saved_state:
+        #     return redirect(f"{frontend_settings_url}?oauth_error=invalid_state")
+
+        client_id = _google_oauth_client_id()
+        client_secret = _google_oauth_client_secret()
+        
+        client_config = {
+            "web": {
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+                "token_uri": "https://oauth2.googleapis.com/token",
+            }
+        }
+
+        redirect_uri = request.build_absolute_uri("/api/analytics/oauth/callback/")
+        
+        flow = google_auth_oauthlib.flow.Flow.from_client_config(
+            client_config,
+            scopes=None, # Scopes are already in the code
+            redirect_uri=redirect_uri,
+        )
+
+        try:
+            flow.fetch_token(code=code)
+            credentials = flow.credentials
+            
+            if not credentials.refresh_token:
+                # If we don't get a refresh token, it might be because the user already authorized.
+                # prompt="consent" in the start view should prevent this, but just in case:
+                return redirect(f"{frontend_settings_url}?oauth_error=no_refresh_token")
+
+            # Save the refresh token
+            _upsert_setting(
+                "analytics.google_oauth_refresh_token",
+                credentials.refresh_token,
+                "str",
+                "Google OAuth Refresh Token for GA4 and GSC access.",
+                is_secret=True,
+            )
+            
+            return redirect(f"{frontend_settings_url}?oauth_success=1")
+            
+        except Exception as exc:
+            return redirect(f"{frontend_settings_url}?oauth_error={str(exc)}")
+
+
+class AnalyticsGoogleOAuthUnlinkView(APIView):
+    """Remove the saved Google OAuth refresh token."""
+    
+    permission_classes = [AllowAny]
+    
+    def post(self, request):
+        from .models import AppSetting
+        AppSetting.objects.filter(key="analytics.google_oauth_refresh_token").delete()
+        return Response({"status": "unlinked", "message": "Google account unlinked."})

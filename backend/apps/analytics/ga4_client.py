@@ -12,22 +12,43 @@ def _normalize_private_key(private_key: str) -> str:
     return normalized
 
 
-def build_ga4_data_service(*, property_id: str, project_id: str, client_email: str, private_key: str):
-    from google.oauth2 import service_account
+def build_ga4_data_service(
+    *, 
+    property_id: str, 
+    project_id: str = "", 
+    client_email: str = "", 
+    private_key: str = "",
+    refresh_token: str = "",
+    client_id: str = "",
+    client_secret: str = ""
+):
+    from google.oauth2 import service_account, credentials
     from googleapiclient.discovery import build
 
-    credentials = service_account.Credentials.from_service_account_info(
-        {
-            "type": "service_account",
-            "project_id": project_id,
-            "private_key_id": "gui-saved-fr016",
-            "private_key": _normalize_private_key(private_key),
-            "client_email": client_email,
-            "token_uri": "https://oauth2.googleapis.com/token",
-        },
-        scopes=[GA4_READONLY_SCOPE],
-    )
-    return build("analyticsdata", "v1beta", credentials=credentials, cache_discovery=False)
+    if refresh_token and client_id and client_secret:
+        # Build using OAuth credentials
+        creds = credentials.Credentials(
+            token=None,  # Will be refreshed automatically
+            refresh_token=refresh_token,
+            client_id=client_id,
+            client_secret=client_secret,
+            token_uri="https://oauth2.googleapis.com/token",
+            scopes=[GA4_READONLY_SCOPE],
+        )
+    else:
+        # Fall back to service account
+        creds = service_account.Credentials.from_service_account_info(
+            {
+                "type": "service_account",
+                "project_id": project_id,
+                "private_key_id": "gui-saved-fr016",
+                "private_key": _normalize_private_key(private_key),
+                "client_email": client_email,
+                "token_uri": "https://oauth2.googleapis.com/token",
+            },
+            scopes=[GA4_READONLY_SCOPE],
+        )
+    return build("analyticsdata", "v1beta", credentials=creds, cache_discovery=False)
 
 
 def test_ga4_data_api_access(*, service, property_id: str) -> dict:
