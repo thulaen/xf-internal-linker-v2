@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 20 / FR-017 Slice 2 (GSC Settings UI)
+- Active target for the next session: Phase 20 / FR-017 Slice 3 (Performance Ingestion - Python)
 - FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
-- Status: Phase 20 / FR-017 Spec Pass and Slice 1 (Backend Models) are complete. GSCDailyPerformance and GSCImpactSnapshot models are established and verified. Next is implementing the Angular settings card.
+- Status: Phase 20 / FR-017 Slices 1 and 2 are complete. GSC Settings UI and OAuth logic are already natively implemented in the frontend. Next is implementing the Celery task for GSC performance ingestion.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -197,8 +197,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 - Next exact target: Phase 20 / `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
-- Current continuity state: FR-015 is complete and verified against its updated spec.
-- Next session type: implement FR-017 against its spec.
+- Current continuity state: FR-017 Slices 1 and 2 are complete and verified. 
+- Next session type: implement FR-017 Slice 3 (Performance Ingestion in Python) against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
@@ -276,21 +276,15 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 - AI/tool: Antigravity
 - Intentional files changed:
-  - `docs/specs/fr017-gsc-search-outcome-attribution.md`
-  - `backend/apps/analytics/models.py`
-  - `backend/apps/analytics/admin.py`
-  - `backend/apps/analytics/tests.py`
+  - `AI-CONTEXT.md`
 - What changed:
-  - Completed the **Detailed Spec Pass** for FR-017; formalized Bayesian smoothing (Beta-Binomial) and Causal Lift math.
-  - Executed **Slice 1: Backend Models and API**.
-  - Implemented `GSCDailyPerformance` and `GSCImpactSnapshot` Django models.
-  - Created and applied migrations in the Postgres environment (via Docker).
-  - Registered new models in the Django Admin as read-only.
-  - Added `GSCSlice1Tests` to verify GSC settings persistence and model integrity.
+  - Validated that FR-017 Slice 2 (GSC Settings UI & OAuth) was already fully implemented during the FR-016 (GA4+Matomo) phase directly in the frontend.
+  - Marked Slice 2 as complete.
+  - Set next target to FR-017 Slice 3 (Performance Ingestion Python Celery task).
 - Verification that passed:
-  - `docker-compose exec backend python manage.py test apps.analytics.tests.GSCSlice1Tests` (2 tests, OK).
+  - Manual code inspection of `frontend/src/app/settings/settings.component.html` confirmed completion.
 - Commit/push state:
-  - Committed and pushed spec, models, and tests to origin/master.
+  - Committed and pushed AI-CONTEXT.md updates to origin/master.
 
 | Item | Why needed | State |
 |---|---|---|
