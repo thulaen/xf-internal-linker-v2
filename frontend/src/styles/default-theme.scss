@@ -255,7 +255,7 @@ $theme: mat.m2-define-light-theme((
 
   // ── Typography ─────────────────────────────────────────────────
   --font-family:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-  --font-size-base:   13px;
+  --font-size-base:   14px;
   --line-height-base: 1.5;
 
   // ── CF variable aliases ────────────────────────────────────────
@@ -275,6 +275,31 @@ $theme: mat.m2-define-light-theme((
   --graph-tooltip-bg:     rgba(32, 33, 36, 0.9);
   --graph-tooltip-text:   #ffffff;
   --graph-selection-ring: rgba(26, 115, 232, 0.4);
+}
+
+// ── Shared UI Tokens (Consolidated for Design Uniformity) ──────────
+[data-ga4-panel] {
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--cf-white);
+  transition: all 0.2s ease;
+  overflow: hidden;
+
+  &:hover {
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+[data-ga4-chip] {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
 }
 
 // ── Global Setting Tooltip ─────────────────────────────────────────

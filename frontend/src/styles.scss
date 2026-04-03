@@ -165,16 +165,16 @@ mat-sidenav.app-sidenav,
     display: flex !important;
     align-items: center !important;
     gap: 10px !important;
-    font-size: 22px !important;
+    font-size: 24px !important;
     font-weight: 600 !important;
     color: var(--color-text-primary) !important;
     margin: 0 !important;
 
     mat-icon {
       color: var(--color-primary) !important;
-      font-size: 22px !important;
-      width: 22px !important;
-      height: 22px !important;
+      font-size: 24px !important;
+      width: 24px !important;
+      height: 24px !important;
     }
   }
 }
@@ -241,11 +241,19 @@ mat-sidenav.app-sidenav,
 // resting-position label and the input text both render at 13px without
 // needing !important anywhere in component stylesheets.
 .mat-mdc-form-field {
-  font-size: 13px;
-  --mat-form-field-container-text-size: 13px;
-  --mdc-outlined-text-field-label-text-size: 13px;
-  --mdc-outlined-text-field-input-text-size: 13px;
-  --mdc-floating-label-font-size: 13px;
+  font-size: 14px;
+  --mat-form-field-container-text-size: 14px;
+  --mdc-outlined-text-field-label-text-size: 14px;
+  --mdc-outlined-text-field-input-text-size: 14px;
+  --mdc-floating-label-font-size: 14px;
+
+  // Fix Truncation: Allow labels to wrap for better readability
+  .mdc-floating-label {
+    white-space: normal !important;
+    line-height: 1.2 !important;
+    overflow: visible !important;
+    max-width: calc(100% - 32px) !important;
+  }
 
   .mat-mdc-text-field-wrapper {
     border-radius: var(--radius-md);
@@ -270,7 +278,7 @@ mat-sidenav.app-sidenav,
   }
 
   .mat-mdc-header-cell {
-    font-size: 11px !important;
+    font-size: 12px !important;
     font-weight: 700 !important;
     color: var(--cf-newGray-4) !important;
     text-transform: uppercase !important;
@@ -288,7 +296,7 @@ mat-sidenav.app-sidenav,
   }
 
   .mat-mdc-cell {
-    font-size: 13px !important;
+    font-size: 14px !important;
     color: var(--cf-gray-0) !important;
     border-bottom: 1px solid var(--cf-gray-9) !important;
   }
