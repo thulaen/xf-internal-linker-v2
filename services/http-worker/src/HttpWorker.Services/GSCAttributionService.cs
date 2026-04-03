@@ -40,60 +40,73 @@ public sealed class GSCAttributionService
         _logger.LogDebug("Aggregated: Baseline Clicks={B}, Post Clicks={P}", baseline.Clicks, post.Clicks);
 
         // 3. Simple Check: Inconclusive if no traffic
-        if (baseline.Impressions < 100 && post.Impressions < 100)
+        if (baseline.Impressions < 50 && post.Impressions < 50)
         {
             return new GSCAttributionResult
             {
                 SuggestionId = payload.SuggestionId,
-                RewardLabel = "inconclusive"
+                RewardLabel = "inconclusive",
+                BaselineClicks = baseline.Clicks,
+                PostClicks = post.Clicks
             };
         }
 
-        // 4. Bayesian Smoothing (Hierarchical Prior)
-        // We use the Global Site CTR as the prior to smooth out low-traffic noise.
-        // We scale the prior to have a strength of '100' observations to avoid washing out real signal.
-        double priorStrength = 100.0;
+        // 4. Causal Normalization (Market Trend)
+        // We calculate how much the site grew/shrank to establish a "Counterfactual" baseline for this page.
         double globalCtrBaseline = (double)globalBaseline.Clicks / Math.Max(1, globalBaseline.Impressions);
         double globalCtrPost = (double)globalPost.Clicks / Math.Max(1, globalPost.Impressions);
-
-        double alpha0_baseline = globalCtrBaseline * priorStrength;
-        double beta0_baseline = (1.0 - globalCtrBaseline) * priorStrength;
         
-        double alpha0_post = globalCtrPost * priorStrength;
-        double beta0_post = (1.0 - globalCtrPost) * priorStrength;
+        // If site grew 10%, our control multiplier is 1.1. 
+        // We use this to adjust our "expectations" of the baseline.
+        double controlTrendMultiplier = globalCtrPost / Math.Max(0.001, globalCtrBaseline);
 
-        // 5. Build Beta Distributions (Posterior)
-        var baselineDist = new Beta(baseline.Clicks + alpha0_baseline, (baseline.Impressions - baseline.Clicks) + beta0_baseline);
-        var postDist = new Beta(post.Clicks + alpha0_post, (post.Impressions - post.Clicks) + beta0_post);
+        // 5. Bayesian Smoothing (Hierarchical Prior)
+        // We use the Global Site CTR as the prior to smooth out low-traffic noise.
+        double priorStrength = 100.0;
+        double alpha0 = globalCtrBaseline * priorStrength;
+        double beta0 = (1.0 - globalCtrBaseline) * priorStrength;
 
-        // 6. Monte Carlo Simulation for Probability of Uplift
+        // 6. Build Distributions
+        // Baseline: The smoothed CTR we observed before the change.
+        var baselineDist = new Beta(baseline.Clicks + alpha0, (baseline.Impressions - baseline.Clicks) + beta0);
+        
+        // Post: The actual CTR we observed after the change.
+        var postDist = new Beta(post.Clicks + alpha0, (post.Impressions - post.Clicks) + beta0);
+
+        // 7. Monte Carlo Simulation for Causal Lift
         int wins = 0;
+        double totalLift = 0;
         var rnd = new Random();
+        
         for (int i = 0; i < MonteCarloSamples; i++)
         {
-            double sampleBaseline = baselineDist.Sample();
-            double samplePost = postDist.Sample();
+            double sBaseline = baselineDist.Sample();
+            double sPost = postDist.Sample();
             
-            // We want to see if Post is better than Baseline
-            if (samplePost > sampleBaseline)
+            // Apply Causal Trend: "What would the baseline have been if it followed the site trend?"
+            double sCounterfactual = sBaseline * controlTrendMultiplier;
+            
+            if (sPost > sCounterfactual)
             {
                 wins++;
             }
+            
+            totalLift += (sPost - sCounterfactual) / Math.Max(1e-9, sCounterfactual);
         }
 
         double probSuccess = (double)wins / MonteCarloSamples;
-        double liftPct = ((double)post.Clicks / Math.Max(1, post.Impressions)) / ((double)baseline.Clicks / Math.Max(1, baseline.Impressions)) - 1.0;
+        double averageLift = totalLift / MonteCarloSamples;
 
-        _logger.LogInformation("GSC Results for {Id}: ProbSuccess={Prob:P1}, Lift={Lift:P1}", payload.SuggestionId, probSuccess, liftPct);
+        _logger.LogInformation("GSC Results for {Id}: ProbSuccess={Prob:P1}, CausalLift={Lift:P1}", payload.SuggestionId, probSuccess, averageLift);
 
         return new GSCAttributionResult
         {
             SuggestionId = payload.SuggestionId,
             BaselineClicks = baseline.Clicks,
             PostClicks = post.Clicks,
-            LiftClicksPct = liftPct,
+            LiftClicksPct = averageLift,
             ProbabilityOfUplift = probSuccess,
-            RewardLabel = AssignLabel(probSuccess, liftPct, post.Impressions)
+            RewardLabel = AssignLabel(probSuccess, averageLift, post.Impressions)
         };
     }
 
@@ -112,8 +125,11 @@ public sealed class GSCAttributionService
     {
         if (postImpressions < 50) return "inconclusive";
         
-        if (probability > 0.95) return "positive";
-        if (probability < 0.05) return "negative";
+        // Positive: 95% confidence AND at least meaningful lift
+        if (probability > 0.95 && lift > 0.02) return "positive";
+        
+        // Negative: 5% confidence (95% sure it dropped) OR severe drop
+        if (probability < 0.05 || (probability < 0.2 && lift < -0.2)) return "negative";
         
         return "neutral";
     }

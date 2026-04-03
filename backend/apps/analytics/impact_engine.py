@@ -51,7 +51,45 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
     baseline_end = post_start - timedelta(days=1)
     baseline_start = baseline_end - timedelta(days=actual_days - 1)
 
-    # 2. Control Group Normalization
+    # 2. Trigger Bayesian Attribution (C# Worker / Slice 4)
+    from apps.graph.services.http_worker_client import run_job
+    from .views import get_gsc_settings
+    from .models import GSCImpactSnapshot
+    
+    gsc_settings = get_gsc_settings()
+    property_url = gsc_settings.get("property_url")
+    
+    if property_url:
+        payload = {
+            "SuggestionId": str(suggestion.suggestion_id),
+            "PageUrl": suggestion.destination.url,
+            "PropertyUrl": property_url,
+            "ApplyDate": post_start.isoformat(),
+            "WindowDays": actual_days
+        }
+        try:
+            # Synchronous call to the refined C# worker
+            result = run_job("gsc_attribution", payload)
+            
+            if result and result.get("RewardLabel") != "inconclusive":
+                GSCImpactSnapshot.objects.update_or_create(
+                    suggestion=suggestion,
+                    window_type=f"{window_days}d",
+                    defaults={
+                        "apply_date": suggestion.applied_at,
+                        "baseline_clicks": result.get("BaselineClicks", 0),
+                        "post_clicks": result.get("PostClicks", 0),
+                        "lift_clicks_pct": result.get("LiftClicksPct", 0.0),
+                        "lift_clicks_absolute": result.get("PostClicks", 0) - result.get("BaselineClicks", 0),
+                        "probability_of_uplift": result.get("ProbabilityOfUplift", 0.0),
+                        "reward_label": result.get("RewardLabel", "inconclusive"),
+                    }
+                )
+                logger.info(f"Bayesian attribution complete for {suggestion.suggestion_id}: {result.get('RewardLabel')}")
+        except Exception as exc:
+            logger.error(f"Failed to run C# Bayesian attribution for {suggestion.suggestion_id}: {exc}")
+
+    # 3. Control Group Normalization (Legacy Python reporting)
     # Find similar items (same silo) that had NO links applied in the same whole window
     control_items = ContentItem.objects.filter(
         scope__silo_group=suggestion.destination.scope.silo_group_id
@@ -82,11 +120,7 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
         if control_base > 0:
             control_lift_multiplier = control_post / control_base
             
-        # C. Keyword/Query Attribution
-        # In future pass, we can specifically weigh queries matching anchor_text.
-        # For now, we normalize the target lift against the control lift.
-        
-        # Normalized Lift calculation:
+        # C. Normalized Lift calculation:
         # If site grew 10% (multiplier 1.1) and target grew 20%, target net lift is ~9%
         normalized_before = target_base * control_lift_multiplier
         

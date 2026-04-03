@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 import json
 from typing import Any
 from urllib import error, request
+import uuid
 
 from django.conf import settings
 
@@ -121,6 +122,23 @@ def queue_job(job_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, 
         request_payload,
         accepted_status_codes={202},
     )
+
+
+def run_job(job_type: str, payload: dict[str, Any], job_id: str | None = None) -> dict[str, Any]:
+    """Execute a job synchronously and return the results immediately."""
+    request_payload = {
+        "schema_version": getattr(settings, "HTTP_WORKER_SCHEMA_VERSION", "v1"),
+        "job_id": job_id or str(uuid.uuid4()),
+        "job_type": job_type,
+        "created_at": datetime.now(tz=timezone.utc).isoformat(),
+        "payload": payload,
+    }
+    data = _post_json(
+        "/api/v1/jobs?sync=true",
+        request_payload,
+        accepted_status_codes={200},
+    )
+    return data.get("results", {})
 
 
 def sync_graph_content(
