@@ -896,8 +896,8 @@
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <mat-label>Service-account email</mat-label>
-                  <input matInput [(ngModel)]="ga4Gsc.service_account_email" placeholder="search-console@project.iam.gserviceaccount.com" />
+                  <mat-label>Client email</mat-label>
+                  <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="search-console@project.iam.gserviceaccount.com" />
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
@@ -923,6 +923,10 @@
                       <input matInput type="number" min="1" max="30" [(ngModel)]="ga4Gsc.sync_lookback_days" />
                     </mat-form-field>
                   </div>
+                </div>
+
+                <div class="last-sync-box" *ngIf="ga4Gsc.last_sync">
+                  Last sync: {{ lastSyncLabel(ga4Gsc.last_sync) }}
                 </div>
 
                 <div class="action-buttons">

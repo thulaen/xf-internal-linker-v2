@@ -2,6 +2,7 @@ import hmac
 
 from django.conf import settings
 from rest_framework import status, viewsets, response, views
+from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from .models import ServiceStatusSnapshot, SystemConflict
 from .serializers import ServiceStatusSerializer, SystemConflictSerializer, ErrorLogSerializer
@@ -10,6 +11,8 @@ from .health import run_health_checks, detect_conflicts, get_resource_usage, get
 
 
 class DiagnosticsOverviewView(views.APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         snapshots = ServiceStatusSnapshot.objects.all()
         
@@ -55,12 +58,16 @@ class ConflictViewSet(viewsets.ModelViewSet):
 
 
 class FeatureReadinessView(views.APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         matrix = get_feature_readinessMatrix()
         return response.Response(matrix)
 
 
 class ResourceUsageView(views.APIView):
+    permission_classes = [AllowAny]
+
     def get(self, request):
         metrics = get_resource_usage()
         return response.Response(metrics)

@@ -565,3 +565,82 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         "rows_written": rows_written,
         "rows_updated": rows_updated,
     }
+
+
+def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    """Fetch search performance data from GSC and update SearchMetric rows."""
+    from .gsc_client import build_gsc_service, fetch_gsc_performance_data
+    from .views import get_gsc_settings, _gsc_private_key
+    from apps.content.models import ContentItem
+    from .models import SearchMetric
+
+    settings = get_gsc_settings()
+    if not settings.get("sync_enabled"):
+        return {"rows_read": 0, "rows_written": 0, "rows_updated": 0, "error": "GSC sync is disabled."}
+
+    property_url = settings.get("property_url")
+    client_email = settings.get("client_email")
+    private_key = _gsc_private_key()
+
+    if not property_url or not client_email or not private_key:
+        raise RuntimeError("GSC sync needs property_url, client_email, and private_key.")
+
+    service = build_gsc_service(client_email=client_email, private_key=private_key)
+
+    # Search Console data has a ~2-3 day processing lag.
+    # We look back from 3 days ago to ensure we have data.
+    end_date = timezone.now().date() - timedelta(days=3)
+    start_date = end_date - timedelta(days=sync_run.lookback_days)
+
+    rows = fetch_gsc_performance_data(
+        service=service,
+        property_url=property_url,
+        start_date=start_date,
+        end_date=end_date,
+        dimensions=["date", "page", "query"]
+    )
+
+    rows_read = len(rows)
+    rows_written = 0
+    rows_updated = 0
+
+    # Group by Page URL to find ContentItems efficiently
+    page_urls = list(set(row["keys"][1] for row in rows))
+    content_map = {
+        item.url: item 
+        for item in ContentItem.objects.filter(url__in=page_urls)
+    }
+
+    for row in rows:
+        # dimensions=['date', 'page', 'query']
+        dt_str = row["keys"][0]
+        page_url = row["keys"][1]
+        query = row["keys"][2]
+
+        item = content_map.get(page_url)
+        if not item:
+            continue
+
+        # GSC query API returns 'position' but our model expects 'average_position'
+        _, created = SearchMetric.objects.update_or_create(
+            content_item=item,
+            date=dt_str,
+            source="gsc",
+            query=query,
+            defaults={
+                "impressions": int(row.get("impressions", 0)),
+                "clicks": int(row.get("clicks", 0)),
+                "ctr": float(row.get("ctr", 0.0)),
+                "average_position": float(row.get("position", 0.0)),
+            }
+        )
+        if created:
+            rows_written += 1
+        else:
+            rows_updated += 1
+
+    return {
+        "rows_read": rows_read,
+        "rows_written": rows_written,
+        "rows_updated": rows_updated,
+    }

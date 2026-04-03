@@ -7,6 +7,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatButtonToggleChange, MatButtonToggleModule } from '@angular/material/button-toggle';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
@@ -38,7 +39,8 @@ import {
     MatButtonToggleModule,
     MatProgressSpinnerModule,
     MatTooltipModule,
-    BaseChartDirective
+    BaseChartDirective,
+    RouterLink
   ],
   templateUrl: './analytics.component.html',
   styleUrls: ['./analytics.component.scss'],
@@ -58,6 +60,8 @@ export class AnalyticsComponent implements OnInit {
   topSuggestions: AnalyticsTopSuggestionsResponse | null = null;
   versionComparison: AnalyticsVersionComparisonResponse | null = null;
   geoDetail: AnalyticsGeoDetailResponse | null = null;
+  searchImpacts: any[] = [];
+  loadingImpacts = false;
 
   showFullGeo = false;
   syncingGa4 = false;
@@ -144,6 +148,20 @@ export class AnalyticsComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadData();
+    this.loadSearchImpacts();
+  }
+
+  loadSearchImpacts(): void {
+    this.loadingImpacts = true;
+    this.analyticsSvc.getSearchImpactList().subscribe({
+      next: (res) => {
+        this.searchImpacts = res.items;
+        this.loadingImpacts = false;
+      },
+      error: () => {
+        this.loadingImpacts = false;
+      }
+    });
   }
 
   loadData(): void {
@@ -329,11 +347,17 @@ export class AnalyticsComponent implements OnInit {
     return ga4?.read_connection_message || ga4?.connection_message || 'Fill in the GA4 fields and test the connection.';
   }
 
-  lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {
+  lastSyncLabel(sync: any | null): string {
     if (!sync) return 'Never synced';
     const stamp = sync.completed_at || sync.started_at;
-    if (!stamp) return `${sync.rows_written} rows written`;
-    return `${new Date(stamp).toLocaleString()} - ${sync.rows_written} rows written`;
+    if (!stamp) return `${sync.rows_written || 0} rows written`;
+    
+    let summary = `${new Date(stamp).toLocaleString()}`;
+    if (sync.rows_written !== undefined) summary += ` - ${sync.rows_written} rows written`;
+    if (sync.rows_read !== undefined && sync.rows_read > 0) summary += ` (${sync.rows_read} read)`;
+    if (sync.status && sync.status === 'error') summary += ` [FAILED: ${sync.error_message || 'Unknown'}]`;
+    
+    return summary;
   }
 
   integrationStatusLabel(status: AnalyticsIntegrationResponse['status'] | undefined): string {

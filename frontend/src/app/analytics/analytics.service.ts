@@ -234,4 +234,12 @@ export class AnalyticsService {
   runMatomoSync(): Observable<AnalyticsSyncTriggerResponse> {
     return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/matomo-sync/', {});
   }
+
+  getSearchImpactList(): Observable<{ items: any[] }> {
+    return this.http.get<{ items: any[] }>('/api/analytics/search-impact/');
+  }
+
+  getSearchImpactDetail(suggestionId: string): Observable<any> {
+    return this.http.get<any>(`/api/analytics/search-impact/${suggestionId}/`);
+  }
 }

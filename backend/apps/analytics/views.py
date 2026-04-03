@@ -48,6 +48,15 @@ MATOMO_DEFAULTS = {
 }
 
 
+GSC_DEFAULTS = {
+    "property_url": "",
+    "client_email": "",
+    "private_key_configured": False,
+    "sync_enabled": False,
+    "sync_lookback_days": 14,
+}
+
+
 def _read_setting(key: str, default: str | None = None) -> str | None:
     row = AppSetting.objects.filter(key=key).first()
     if row is None:
@@ -140,6 +149,37 @@ def get_ga4_telemetry_settings() -> dict:
         "connection_message": message,
         "read_connection_status": read_status,
         "read_connection_message": read_message,
+        "last_sync": sync,
+    }
+
+
+def get_gsc_settings() -> dict:
+    property_url = (_read_setting("analytics.gsc_property_url", "") or "").strip()
+    client_email = (_read_setting("analytics.gsc_client_email", "") or "").strip()
+    private_key = (_read_setting("analytics.gsc_private_key", "") or "").strip()
+    sync = _latest_sync("gsc")
+
+    status = "not_configured"
+    message = "Fill in the GSC property URL and service-account credentials."
+    if property_url and client_email and private_key:
+        status = "saved"
+        message = "GSC credentials are saved. Run Test Connection to confirm they work."
+
+    if sync and sync["status"] == "completed":
+        status = "connected"
+        message = "GSC performance sync completed successfully the last time it ran."
+    elif sync and sync["status"] == "failed":
+        status = "error"
+        message = sync["error_message"] or "The last GSC sync failed."
+
+    return {
+        "property_url": property_url,
+        "client_email": client_email,
+        "private_key_configured": bool(private_key),
+        "sync_enabled": _read_bool("analytics.gsc_sync_enabled", GSC_DEFAULTS["sync_enabled"]),
+        "sync_lookback_days": _read_int("analytics.gsc_sync_lookback_days", GSC_DEFAULTS["sync_lookback_days"]),
+        "connection_status": status,
+        "connection_message": message,
         "last_sync": sync,
     }
 
@@ -293,6 +333,30 @@ def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
     return validated, token_provided
 
 
+def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
+    current = get_gsc_settings()
+    property_url = str(payload.get("property_url", current["property_url"])).strip().lower()
+    client_email = str(payload.get("client_email", current["client_email"])).strip()
+    if property_url and not (property_url.startswith("http") or property_url.startswith("sc-domain:")):
+        raise ValueError("property_url must start with http://, https://, or sc-domain:")
+    if client_email and "@" not in client_email:
+        raise ValueError("client_email must look like an email address.")
+
+    private_key_provided = "private_key" in payload
+    private_key = str(payload.get("private_key", "")).strip() if private_key_provided else None
+
+    validated = {
+        "property_url": property_url,
+        "client_email": client_email,
+        "sync_enabled": _coerce_bool(payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"),
+        "sync_lookback_days": _coerce_int(payload.get("sync_lookback_days", current["sync_lookback_days"]), "sync_lookback_days", 1, 90),
+    }
+    if validated["sync_enabled"] and (not validated["property_url"] or not validated["client_email"] or not (private_key_provided and private_key or current["private_key_configured"])):
+        raise ValueError("GSC sync needs property_url, client_email, and private_key.")
+    validated["private_key"] = private_key
+    return validated, private_key_provided
+
+
 def _upsert_setting(key: str, value: str, value_type: str, description: str, *, is_secret: bool = False) -> None:
     AppSetting.objects.update_or_create(
         key=key,
@@ -316,6 +380,10 @@ def _ga4_read_private_key() -> str:
 
 def _matomo_token() -> str:
     return (_read_setting("analytics.matomo_token_auth", "") or "").strip()
+
+
+def _gsc_private_key() -> str:
+    return (_read_setting("analytics.gsc_private_key", "") or "").strip()
 
 
 def _sync_analytics_periodic_tasks(*, ga4_config: dict[str, object] | None = None, matomo_config: dict[str, object] | None = None) -> None:
@@ -399,6 +467,27 @@ def _sync_analytics_periodic_tasks(*, ga4_config: dict[str, object] | None = Non
             },
         )
 
+    gsc_config = get_gsc_settings()
+    daily_gsc, _ = CrontabSchedule.objects.get_or_create(
+        minute="50",
+        hour="2",
+        day_of_week="*",
+        day_of_month="*",
+        month_of_year="*",
+        timezone="UTC",
+    )
+    gsc_enabled = bool(gsc_config["sync_enabled"]) and bool(gsc_config["property_url"]) and bool(gsc_config["client_email"]) and bool(gsc_config["private_key_configured"])
+    PeriodicTask.objects.update_or_create(
+        name="analytics-gsc-performance-daily",
+        defaults={
+            "task": "analytics.sync_gsc_performance_daily",
+            "crontab": daily_gsc,
+            "queue": "pipeline",
+            "enabled": gsc_enabled,
+            "description": "Daily GSC search performance sync for FR-017.",
+        },
+    )
+
 
 def _telemetry_source_filter(request) -> str | None:
     source = str(request.query_params.get("source") or "all").strip().lower()
@@ -454,6 +543,7 @@ class AnalyticsTelemetryOverviewView(APIView):
             {
                 "ga4": get_ga4_telemetry_settings(),
                 "matomo": get_matomo_settings(),
+                "gsc": get_gsc_settings(),
                 "totals_last_30_days": {
                     "impressions": int(totals["impressions"] or 0),
                     "clicks": int(totals["clicks"] or 0),
@@ -1097,5 +1187,131 @@ class AnalyticsTelemetryGeoDetailView(APIView):
                 "days": days,
                 "selected_source": source or "all",
                 "items": items,
+            }
+        )
+
+
+class AnalyticsGSCSettingsView(APIView):
+    """Get and save GSC settings."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_gsc_settings())
+
+    def put(self, request):
+        try:
+            validated, private_key_provided = _validate_gsc_payload(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        _upsert_setting("analytics.gsc_property_url", validated["property_url"], "str", "Google Search Console property URL (e.g. sc-domain:example.com)")
+        _upsert_setting("analytics.gsc_client_email", validated["client_email"], "str", "GSC service account client email.")
+        _upsert_setting("analytics.gsc_sync_enabled", "true" if validated["sync_enabled"] else "false", "bool", "Whether GSC performance sync is enabled.")
+        _upsert_setting("analytics.gsc_sync_lookback_days", str(validated["sync_lookback_days"]), "int", "GSC sync lookback days.")
+        if private_key_provided:
+            _upsert_setting("analytics.gsc_private_key", validated["private_key"] or "", "str", "GSC service account private key.", is_secret=True)
+        _sync_analytics_periodic_tasks()
+        return Response(get_gsc_settings())
+
+
+class AnalyticsGSCTestConnectionView(APIView):
+    """Test GSC service account access."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from .gsc_client import build_gsc_service, test_gsc_access
+
+        property_url = str(request.data.get("property_url") or _read_setting("analytics.gsc_property_url", "") or "").strip()
+        client_email = str(request.data.get("client_email") or _read_setting("analytics.gsc_client_email", "") or "").strip()
+        private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
+        if not property_url or not client_email or not private_key:
+            return Response({"status": "error", "message": "Save GSC credentials first."}, status=400)
+
+        try:
+            service = build_gsc_service(client_email=client_email, private_key=private_key)
+            test_gsc_access(service, property_url)
+        except Exception as exc:
+            return Response({"status": "error", "message": f"GSC connection failed: {exc}"}, status=502)
+
+        return Response({"status": "connected", "message": "GSC connection successful."})
+
+
+class AnalyticsSearchImpactListView(APIView):
+    """List applied suggestions with impact reports."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from apps.suggestions.models import Suggestion
+
+        # Suggestions with at least one impact report
+        qs = Suggestion.objects.filter(status="applied", impact_reports__isnull=False).distinct().order_by("-applied_at")
+
+        items = []
+        for sug in qs:
+            reports = sug.impact_reports.all()
+            metrics = {
+                r.metric_type: {
+                    "before": r.before_value,
+                    "after": r.after_value,
+                    "delta": r.delta_percent,
+                }
+                for r in reports
+            }
+            items.append(
+                {
+                    "suggestion_id": sug.suggestion_id,
+                    "destination_title": sug.destination_title,
+                    "anchor_phrase": sug.anchor_phrase,
+                    "applied_at": sug.applied_at,
+                    "metrics": metrics,
+                }
+            )
+
+        return Response({"items": items})
+
+
+class AnalyticsSearchImpactDetailView(APIView):
+    """Detailed keyword lift for one suggestion."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request, suggestion_id):
+        from django.shortcuts import get_object_or_404
+        from apps.suggestions.models import Suggestion
+
+        sug = get_object_or_404(Suggestion, pk=suggestion_id)
+        reports = sug.impact_reports.all()
+        keywords = sug.keyword_impacts.all().order_by("-lift_percent")[:50]
+
+        return Response(
+            {
+                "suggestion_id": sug.suggestion_id,
+                "destination_title": sug.destination_title,
+                "anchor_phrase": sug.anchor_phrase,
+                "applied_at": sug.applied_at,
+                "metrics": [
+                    {
+                        "metric_type": r.metric_type,
+                        "before_value": r.before_value,
+                        "after_value": r.after_value,
+                        "delta_percent": r.delta_percent,
+                        "before_date_range": r.before_date_range,
+                        "after_date_range": r.after_date_range,
+                    }
+                    for r in reports
+                ],
+                "keywords": [
+                    {
+                        "query": k.query,
+                        "clicks_baseline": k.clicks_baseline,
+                        "clicks_post": k.clicks_post,
+                        "lift_percent": k.lift_percent,
+                        "is_anchor_match": k.is_anchor_match,
+                    }
+                    for k in keywords
+                ],
             }
         )

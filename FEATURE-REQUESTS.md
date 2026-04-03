@@ -26,6 +26,28 @@ Important:
 
 ## COMPLETED
 
+### FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
+**Requested:** 2026-03-25
+**Target phase:** Phase 19
+**Completed phase:** Phase 19
+**Priority:** High
+**Spec draft:** `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
+**Completed:** 2026-04-03
+
+- Implemented exactly against `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`.
+- Added first-class GA4 and Matomo tracking for suggestion-driven internal-link behavior.
+- GA4/Matomo credentials configured entirely through the Angular settings page with live connection status.
+- Implemented dual-source telemetry sync (GA4 and Matomo) into a local daily aggregate storage.
+- Added a full interactive reporting layer using **Chart.js** (`ng2-charts`) on the Analytics page, including:
+  - Horizontal Bar Funnel (Impressions to Conversions)
+  - Multi-Axis Trend Line (Clicks, CTR, Engagement)
+  - Grouped Bar Algorithm Comparison
+  - Doughnut Breakdowns for Device, Channel, and Geography
+- Added telemetry-health reporting to monitor tracking coverage and data integrity.
+- Verified through `scripts/build-frontend.ps1` and manual browser checks.
+
+---
+
 ### FR-015 - Final Slate Diversity Reranking
 **Requested:** 2026-03-24
 **Target phase:** Phase 18
@@ -202,47 +224,7 @@ Important:
 
 ## PENDING
 
-### FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
-**Requested:** 2026-03-25
-**Target phase:** Phase 19
-**Priority:** High
-**Spec draft:** `docs/specs/fr016-ga4-suggestion-attribution-user-behavior-telemetry.md`
-
-### What's wanted
-- Add first-class GA4 and Matomo tracking for suggestion-driven internal-link behavior so the app can learn from real user activity instead of only reviewer decisions.
-- Track the full path from impression to click to destination engagement, while keeping the ranking system stable and off-by-default until telemetry quality is proven.
-- Make telemetry rich enough to support future automatic tuning without mixing raw analytics directly into the current ranker.
-
-### GUI-first requirement (hard rule)
-- The user must never touch a config file, environment variable, or code to configure credentials.
-- GA4, GSC, and Matomo must all be configured entirely through the settings page in the Angular UI.
-- Every credential field must show a live connection status badge and a "Test Connection" button.
-- Status must show clearly whether data is flowing or something is broken — in plain English on the settings card.
-- Secrets must be write-only — shown as `••••••` after saving, never in plain text.
-
-### Specific controls / behaviour
-- **Slice 1 (build first):** Angular credentials settings card for GA4 (property ID, measurement ID, API secret) and Matomo (URL, XenForo site ID, WordPress site ID, API token). Each section has a "Test Connection" button, inline status badge, and last-sync display. Nothing else in this FR can run without valid credentials.
-- **Progress (2026-04-02):** Slice 1 is now landed in code: new telemetry rollup models, sync-run audit rows, GA4/Matomo settings APIs, masked secret storage, live test-connection endpoints, settings-page cards, and a small analytics overview page. The later instrumentation, sync, and richer chart slices are still pending.
-- **Progress (2026-04-02, later session):** The frontend Docker test path is now hardened so Angular `test:ci` uses Chromium reliably inside the container and no longer falls over from the old ChromeHeadless/memory setup. A small FR-016 follow-on slice also landed in review: each suggestion detail can now expose copy-ready telemetry markup plus the event-schema/status fields needed for later live-site instrumentation.
-- **Progress (2026-04-02, this session):** Slice 2 now has a repo-side handoff path: the Analytics page exposes plain-English install steps plus a copy-ready browser bridge snippet that handles impression/click dedupe and session-storage destination attribution. The real site templates still need that snippet pasted into XenForo and WordPress before live events can flow.
-- **Progress (2026-04-02, safest Slice 3 follow-on):** The local stack errors blocking telemetry work were fixed first. FR-016 now also has the first safe Slice 3 plumbing in code: manual sync endpoints/buttons, Celery task wiring, a real Matomo importer that writes `SuggestionTelemetryDaily` and `TelemetryCoverageDaily` rows, and an honest GA4 guard that fails clearly until GUI-safe Data API read auth is added.
-- **Progress (2026-04-02, later same day):** The guarded GA4 gap is now closed for the repo slice: the settings UI stores separate GUI-first GA4 read credentials, the backend can test GA4 Data API read access, a real GA4 importer now writes daily telemetry rows, and hourly/daily Celery Beat seeds are created for both GA4 and Matomo telemetry rereads. The next unfinished FR-016 work is the richer reporting/chart layer and any live-site credential validation against the operator's real Google property.
-- **Progress (2026-04-02, reporting slice):** The Analytics page now has its first real local reporting layer on top of the synced telemetry tables: a source toggle, funnel totals, daily trend data, and top suggestion rows backed by new telemetry read endpoints. The larger comparison charts, device/channel/geo breakdowns, and deeper telemetry-health reporting are still pending.
-- **Progress (2026-04-02, later reporting slice):** FR-016 reporting now also includes telemetry-health summaries plus device and channel mix cards on the Analytics page, backed by new local read endpoints. The main reporting work still left is richer geo/comparison reporting and any live-site validation against the operator's real analytics properties.
-- **Progress (2026-04-02, follow-on reporting slice):** The Analytics page now also shows country mix, and the old analytics template type complaint was cleaned up by moving the GA4 read-status fallback into component helpers. The Settings sync tab now has a real Search Console credentials section too, so operators can save and test the property URL, service-account email, and private key in the app instead of keeping that part outside the UI.
-- Add a versioned analytics event schema for suggestion-linked traffic.
-- Track at minimum: `suggestion_link_impression`, `suggestion_link_click`, `suggestion_destination_view`, `suggestion_destination_engaged`, `suggestion_destination_conversion`
-- Two parallel collection sources: GA4 (cloud, sampled at scale) and Matomo (on-premise, unsampled, full cardinality). Both feed the same `SuggestionTelemetryDaily` model via a `telemetry_source` field.
-- Matomo preferred for per-suggestion click accuracy (no cardinality cap). GA4 preferred for device/channel/geographic segmentation.
-- Local daily aggregate storage — charts read from local DB only, not live from GA4/Matomo API.
-- Add diagnostics that show telemetry coverage quality.
-
-### Implementation notes for the AI
-- Do not let GA4 or Matomo metrics directly change `score_final` in the first implementation pass.
-- First pass is telemetry-only plus reporting-only.
-- Existing ranking, review flow, imports, and diagnostics must stay behaviorally identical.
-- Treat missing analytics as neutral, never as negative evidence.
-- Add rate-limiting, deduplication, and delayed-arrival handling.
+<br>
 
 ---
 

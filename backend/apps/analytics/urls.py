@@ -9,6 +9,8 @@ from .views import (
     AnalyticsGA4ReadConnectionView,
     AnalyticsGA4SyncView,
     AnalyticsGA4TestConnectionView,
+    AnalyticsGSCSettingsView,
+    AnalyticsGSCTestConnectionView,
     AnalyticsMatomoSettingsView,
     AnalyticsMatomoSyncView,
     AnalyticsMatomoTestConnectionView,
@@ -17,8 +19,10 @@ from .views import (
     AnalyticsTelemetryOverviewView,
     AnalyticsTelemetryTopSuggestionsView,
     AnalyticsTelemetryTrendView,
-    AnalyticsTelemetryByVersionView,
     AnalyticsTelemetryGeoDetailView,
+    AnalyticsTelemetryByVersionView,
+    AnalyticsSearchImpactListView,
+    AnalyticsSearchImpactDetailView,
 )
 
 urlpatterns = [
@@ -38,4 +42,8 @@ urlpatterns = [
     path("settings/ga4/test-read-connection/", AnalyticsGA4ReadConnectionView.as_view(), name="analytics-ga4-read-connection"),
     path("settings/matomo/", AnalyticsMatomoSettingsView.as_view(), name="analytics-matomo-settings"),
     path("settings/matomo/test-connection/", AnalyticsMatomoTestConnectionView.as_view(), name="analytics-matomo-test-connection"),
+    path("settings/gsc/", AnalyticsGSCSettingsView.as_view(), name="analytics-gsc-settings"),
+    path("settings/gsc/test-connection/", AnalyticsGSCTestConnectionView.as_view(), name="analytics-gsc-test-connection"),
+    path("search-impact/", AnalyticsSearchImpactListView.as_view(), name="search-impact-list"),
+    path("search-impact/<uuid:suggestion_id>/", AnalyticsSearchImpactDetailView.as_view(), name="search-impact-detail"),
 ]

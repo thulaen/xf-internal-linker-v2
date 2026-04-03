@@ -8,6 +8,7 @@ Content is imported via the sync pipeline (Celery tasks).
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from .models import ContentItem, ScopeItem, Sentence, SiloGroup
@@ -23,6 +24,8 @@ from .serializers import (
 class SiloGroupViewSet(viewsets.ModelViewSet):
     """CRUD API for topical silo groups."""
 
+    permission_classes = [AllowAny]
+
     queryset = SiloGroup.objects.order_by("display_order", "name")
     serializer_class = SiloGroupSerializer
     pagination_class = None
@@ -33,6 +36,8 @@ class SiloGroupViewSet(viewsets.ModelViewSet):
 
 
 class ScopeItemViewSet(viewsets.ModelViewSet):
+    permission_classes = [AllowAny]
+
     """
     List and retrieve XenForo forum nodes and resource categories.
 

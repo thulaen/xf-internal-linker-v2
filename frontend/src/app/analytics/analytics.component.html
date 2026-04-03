@@ -367,7 +367,109 @@
     </div>
 
     <div class="system-footer">
-      <div class="footer-grid">
+      <!-- Search Impact Section -->
+    <div class="report-section-header">
+      <h2 class="section-title">
+        <mat-icon>insights</mat-icon>
+        Search Outcome Attribution
+      </h2>
+      <p class="section-subtitle">Real-world SEO lift measured via Google Search Console (normalized by control groups).</p>
+    </div>
+
+    <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
+      <mat-card class="report-card impact-card--main">
+        <mat-card-header>
+          <mat-card-title>Applied Suggestions Performance Lift</mat-card-title>
+          <mat-card-subtitle>28-day baseline vs. post-apply performance (normalized)</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="table-container">
+            <table class="premium-table">
+              <thead>
+                <tr>
+                  <th>Suggestion</th>
+                  <th>Applied</th>
+                  <th class="text-right">Clicks (Base → Post)</th>
+                  <th class="text-right">Impressions (Base → Post)</th>
+                  <th class="text-right">Relative Lift</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (impact of searchImpacts; track impact.suggestion_id) {
+                  <tr>
+                    <td>
+                      <div class="version-info">
+                        <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
+                        <span class="version-info__meta">To: {{ impact.destination_title }}</span>
+                      </div>
+                    </td>
+                    <td class="text-muted">{{ impact.applied_at | date:'shortDate' }}</td>
+                    <td class="text-right">
+                      <span class="metric-transition">
+                        {{ impact.metrics.clicks?.before | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.metrics.clicks?.after | number }}
+                      </span>
+                    </td>
+                    <td class="text-right">
+                      <span class="metric-transition">
+                        {{ impact.metrics.impressions?.before | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.metrics.impressions?.after | number }}
+                      </span>
+                    </td>
+                    <td class="text-right">
+                      <span class="uplift-badge" [class.uplift-badge--negative]="impact.metrics.clicks?.delta < 0">
+                        {{ impact.metrics.clicks?.delta | number:'1.1-1' }}%
+                      </span>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="report-card impact-card--side">
+        <mat-card-header>
+          <mat-card-title>Top Keyword Winners</mat-card-title>
+          <mat-card-subtitle>Highest lift queries across all applied links</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="winners-list">
+            @for (impact of searchImpacts.slice(0, 5); track impact.suggestion_id) {
+              <!-- We'll just show the top one query per top suggestion for now since we don't have a global winners endpoint yet -->
+              <div class="winner-row">
+                <div class="winner-row__main">
+                  <span class="winner-query">"{{ impact.anchor_phrase }}"</span>
+                  <span class="winner-target">{{ impact.destination_title | slice:0:30 }}...</span>
+                </div>
+                <div class="winner-lift">
+                   <span class="uplift-badge">{{ impact.metrics.clicks?.delta | number:'1.0-0' }}%</span>
+                </div>
+              </div>
+            }
+          </div>
+          <div class="impact-cta">
+            <p class="text-subtle">GSC data has a 2-3 day lag. New applications will appear as enough data accumulates.</p>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <ng-template #noImpactData>
+      <mat-card class="empty-state-card">
+        <mat-card-content>
+          <mat-icon>query_stats</mat-icon>
+          <h3>Search Impact Data Pending</h3>
+          <p>We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
+          <div class="action-buttons">
+            <button mat-stroked-button color="primary" [routerLink]="['/settings']">
+              <mat-icon>settings</mat-icon> Check GSC Credentials
+            </button>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </ng-template>
+
+    <div class="footer-grid">
         <mat-card class="connection-card">
           <mat-card-header>
             <mat-card-title>GA4 Integration</mat-card-title>

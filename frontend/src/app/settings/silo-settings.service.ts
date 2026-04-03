@@ -108,12 +108,13 @@ export interface FieldAwareRelevanceSettings {
 export interface GA4GSCSettings {
   ranking_weight: number;
   property_url: string;
-  service_account_email: string;
+  client_email: string;
   private_key_configured: boolean;
   sync_enabled: boolean;
   sync_lookback_days: number;
   connection_status: string;
   connection_message: string;
+  last_sync: AnalyticsSyncSummary | null;
 }
 
 export interface AnalyticsSyncSummary {
@@ -125,6 +126,15 @@ export interface AnalyticsSyncSummary {
   rows_updated: number;
   lookback_days: number;
   error_message: string;
+}
+
+export interface GA4GSCSettingsUpdate {
+  ranking_weight: number;
+  property_url: string;
+  client_email: string;
+  sync_enabled: boolean;
+  sync_lookback_days: number;
+  private_key?: string;
 }
 
 export interface GA4TelemetrySettings {
@@ -194,15 +204,6 @@ export interface MatomoTelemetryUpdate {
 export interface AnalyticsConnectionResult {
   status: string;
   message: string;
-}
-
-export interface GA4GSCSettingsUpdate {
-  ranking_weight: number;
-  property_url: string;
-  service_account_email: string;
-  sync_enabled: boolean;
-  sync_lookback_days: number;
-  private_key?: string;
 }
 
 export interface ClickDistanceSettings {
@@ -338,7 +339,7 @@ export class SiloSettingsService {
   }
 
   getGA4GSCSettings(): Observable<GA4GSCSettings> {
-    return this.http.get<GA4GSCSettings>('/api/settings/ga4-gsc/');
+    return this.http.get<GA4GSCSettings>('/api/analytics/settings/gsc/');
   }
 
   getGA4TelemetrySettings(): Observable<GA4TelemetrySettings> {
@@ -394,11 +395,11 @@ export class SiloSettingsService {
   }
 
   updateGA4GSCSettings(payload: GA4GSCSettingsUpdate): Observable<GA4GSCSettings> {
-    return this.http.put<GA4GSCSettings>('/api/settings/ga4-gsc/', payload);
+    return this.http.put<GA4GSCSettings>('/api/analytics/settings/gsc/', payload);
   }
 
-  testGSCConnection(payload: { property_url?: string; service_account_email?: string; private_key?: string }): Observable<AnalyticsConnectionResult> {
-    return this.http.post<AnalyticsConnectionResult>('/api/settings/ga4-gsc/test-connection/', payload);
+  testGSCConnection(payload: { property_url?: string; client_email?: string; private_key?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload);
   }
 
   updateGA4TelemetrySettings(payload: GA4TelemetryUpdate): Observable<GA4TelemetrySettings> {

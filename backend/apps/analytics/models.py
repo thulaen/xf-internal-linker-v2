@@ -148,9 +148,50 @@ class ImpactReport(models.Model):
         verbose_name_plural = "Impact Reports"
         ordering = ["-created_at"]
 
+
+class GSCKeywordImpact(models.Model):
+    """
+    Stores keyword-level lift for a specific applied suggestion.
+    FR-017 implementation for query-level attribution.
+    """
+
+    suggestion = models.ForeignKey(
+        "suggestions.Suggestion",
+        on_delete=models.CASCADE,
+        related_name="keyword_impacts",
+        help_text="The suggestion this keyword lift is attributed to.",
+    )
+    query = models.CharField(
+        max_length=500,
+        help_text="The specific search query from GSC.",
+    )
+    clicks_baseline = models.IntegerField(default=0)
+    clicks_post = models.IntegerField(default=0)
+    impressions_baseline = models.IntegerField(default=0)
+    impressions_post = models.IntegerField(default=0)
+    position_baseline = models.FloatField(null=True, blank=True)
+    position_post = models.FloatField(null=True, blank=True)
+    lift_percent = models.FloatField(
+        default=0.0,
+        help_text="Percentage click lift (normalized).",
+    )
+    is_anchor_match = models.BooleanField(
+        default=False,
+        help_text="True if the query contains the suggestion's anchor text.",
+    )
+
+    class Meta:
+        verbose_name = "GSC Keyword Impact"
+        verbose_name_plural = "GSC Keyword Impacts"
+        unique_together = [["suggestion", "query"]]
+        ordering = ["-lift_percent", "-clicks_post"]
+        indexes = [
+            models.Index(fields=["suggestion", "lift_percent"]),
+            models.Index(fields=["is_anchor_match"]),
+        ]
+
     def __str__(self) -> str:
-        sign = "+" if self.delta_percent >= 0 else ""
-        return f"{self.metric_type} {sign}{self.delta_percent:.1f}% for {self.suggestion}"
+        return f"{self.query} (+{self.lift_percent:.1f}%) for {self.suggestion_id}"
 
 
 class SuggestionTelemetryDaily(models.Model):

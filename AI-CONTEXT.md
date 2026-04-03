@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 19
-- FR cross-reference: `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
-- Status: Phase 19 / FR-016 is in progress. Slice 1 is landed, Slice 2 has the repo-side browser-bridge handoff, Slice 3 sync plumbing is landed, and Slice 4 now includes local reporting, telemetry-health, and device/channel/country breakdown cards on the Analytics page.
+- Active target for the next session: Phase 20
+- FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
+- Status: Phase 19 / FR-016 is complete. Interactive Chart.js visualizations (funnel, trend, versions, breakdowns) and telemetry-health reporting are landed. Phase 20 / FR-017 is starting with the spec pass.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -189,16 +189,16 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 16 | FR-013 | Complete | Feedback-Driven Explore/Exploit Reranking |
 | 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Complete | Final Slate Diversity Reranking |
-| 19 | FR-016 | In Progress | GA4 + Matomo settings, browser-bridge, sync plumbing, health reporting, and interactive Chart.js visualizations (funnel, trend, versions, breakdowns) are landed. |
-| 20 | FR-017 | Queued | GSC Search Outcome Attribution & Delayed Reward Signals |
+| 19 | FR-016 | Complete | GA4 + Matomo settings, browser-bridge, sync plumbing, health reporting, and interactive Chart.js visualizations (funnel, trend, versions, breakdowns) are landed. |
+| 20 | FR-017 | In Progress | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
 | 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
-- Next exact target: Phase 19 / `FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry`
+- Next exact target: Phase 20 / `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
 - Current continuity state: FR-015 is complete and verified against its updated spec.
-- Next session type: implement FR-016 against its spec.
+- Next session type: implement FR-017 against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 

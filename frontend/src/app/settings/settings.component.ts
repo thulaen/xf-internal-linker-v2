@@ -722,12 +722,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
   ga4Gsc: GA4GSCSettings = {
     ranking_weight: 0.05,
     property_url: '',
-    service_account_email: '',
+    client_email: '',
     private_key_configured: false,
     sync_enabled: false,
     sync_lookback_days: 7,
     connection_status: 'not_configured',
     connection_message: 'Fill in the Search Console property URL and service-account credentials.',
+    last_sync: null,
   };
   gscPrivateKey = '';
   ga4Telemetry: GA4TelemetrySettings = {
@@ -1338,9 +1339,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
   saveGA4GSCSettings(): void {
     this.savingGA4GSC = true;
     const payload: GA4GSCSettingsUpdate = {
-      ranking_weight: Number(this.ga4Gsc.ranking_weight),
+      ranking_weight: Number(this.ga4Gsc.ranking_weight || 0.05),
       property_url: this.ga4Gsc.property_url.trim(),
-      service_account_email: this.ga4Gsc.service_account_email.trim(),
+      client_email: this.ga4Gsc.client_email.trim(),
       sync_enabled: this.ga4Gsc.sync_enabled,
       sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
     };
@@ -1367,7 +1368,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.testingGSCConnection = true;
     this.siloSvc.testGSCConnection({
       property_url: this.ga4Gsc.property_url.trim() || undefined,
-      service_account_email: this.ga4Gsc.service_account_email.trim() || undefined,
+      client_email: this.ga4Gsc.client_email.trim() || undefined,
       private_key: this.gscPrivateKey.trim() || undefined,
     }).subscribe({
       next: (result: AnalyticsConnectionResult) => {
@@ -1815,7 +1816,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     const ga4GscPayload: GA4GSCSettingsUpdate = {
       ranking_weight: Number(this.ga4Gsc.ranking_weight),
       property_url: this.ga4Gsc.property_url.trim(),
-      service_account_email: this.ga4Gsc.service_account_email.trim(),
+      client_email: this.ga4Gsc.client_email.trim(),
       sync_enabled: this.ga4Gsc.sync_enabled,
       sync_lookback_days: Number(this.ga4Gsc.sync_lookback_days),
     };
