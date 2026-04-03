@@ -2,6 +2,24 @@
 // Default Theme — Google Analytics 4 visual identity
 // Live-measured from analytics.google.com 2026-04-03
 // ═══════════════════════════════════════════════════════════════════
+//
+// ⚠️  AI AGENT GUARDRAIL — READ BEFORE EDITING ⚠️
+//
+// This file is the single source of truth for the entire design system.
+// Every component inherits from it. A change here affects every page.
+//
+// RULES:
+//   1. Never change an existing token value without a design review.
+//   2. New tokens go at the bottom, with a comment explaining their purpose.
+//   3. --cf-orange-* has been intentionally remapped to GA4 blues. Do not
+//      restore orange values — the primary colour is #1a73e8 (GA4 blue).
+//   4. No linear-gradient or radial-gradient anywhere in the UI.
+//   5. Cards: border only (var(--card-border)). box-shadow: none at rest.
+//   6. Font: system stack only. Do not import Google Fonts or Inter.
+//   7. Nav pill shape is border-radius: 0 44px 44px 0. Do not change.
+//
+// See CLAUDE.md and AGENTS.md at the repo root for the full design rules.
+// ═══════════════════════════════════════════════════════════════════
 
 @use '@angular/material' as mat;
 
