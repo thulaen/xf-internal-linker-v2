@@ -59,7 +59,7 @@ describe('SettingsComponent', () => {
               scope_field_weight: 0.15,
               learned_anchor_field_weight: 0.15,
             }),
-            getGA4GSCSettings: () => of({
+            getGSCSettings: () => of({
               ranking_weight: 0.05,
               property_url: '',
               client_email: '',
@@ -68,6 +68,8 @@ describe('SettingsComponent', () => {
               sync_lookback_days: 7,
               connection_status: 'not_configured',
               connection_message: 'Fill in the Search Console property URL and service-account credentials.',
+              oauth_connected: false,
+              last_sync: null,
             }),
             getGA4TelemetrySettings: () => of({
               behavior_enabled: false,
@@ -90,6 +92,9 @@ describe('SettingsComponent', () => {
               read_connection_status: 'not_configured',
               read_connection_message: 'Fill in the GA4 read-access fields and test read access.',
               last_sync: null,
+              oauth_connected: false,
+              google_oauth_client_id: '',
+              google_oauth_client_secret_configured: false,
             }),
             getMatomoTelemetrySettings: () => of({
               enabled: false,
