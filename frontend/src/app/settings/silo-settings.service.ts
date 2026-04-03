@@ -164,6 +164,15 @@ export interface AnalyticsSyncSummary {
   error_message: string;
 }
 
+export interface GoogleOAuthSettings {
+  client_id: string;
+  client_secret_configured: boolean;
+  oauth_connected: boolean;
+  status: string;
+  message: string;
+  last_sync: AnalyticsSyncSummary | null;
+}
+
 export interface GA4TelemetryUpdate {
   behavior_enabled: boolean;
   property_id: string;
@@ -180,8 +189,6 @@ export interface GA4TelemetryUpdate {
   engaged_min_seconds: number;
   api_secret?: string;
   read_private_key?: string;
-  google_oauth_client_id?: string;
-  google_oauth_client_secret?: string;
 }
 
 export interface MatomoTelemetrySettings {
@@ -353,6 +360,10 @@ export class SiloSettingsService {
     return this.http.get<GA4TelemetrySettings>('/api/analytics/settings/ga4/');
   }
 
+  getGoogleOAuthSettings(): Observable<GoogleOAuthSettings> {
+    return this.http.get<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/');
+  }
+
   getMatomoTelemetrySettings(): Observable<MatomoTelemetrySettings> {
     return this.http.get<MatomoTelemetrySettings>('/api/analytics/settings/matomo/');
   }
@@ -415,6 +426,10 @@ export class SiloSettingsService {
 
   getGoogleAuthUrl(): Observable<{ authorization_url: string }> {
     return this.http.get<{ authorization_url: string }>(`${this.baseUrl}/analytics/oauth/authorize/`);
+  }
+
+  updateGoogleOAuthSettings(payload: { client_id: string; client_secret?: string }): Observable<GoogleOAuthSettings> {
+    return this.http.put<GoogleOAuthSettings>('/api/analytics/settings/google-oauth/', payload);
   }
 
   unlinkGoogleAccount(): Observable<any> {

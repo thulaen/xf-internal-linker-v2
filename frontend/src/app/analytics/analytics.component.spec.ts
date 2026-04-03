@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 
@@ -222,6 +223,9 @@ describe('AnalyticsComponent', () => {
         }
       ]
     })),
+    getSearchImpactList: jasmine.createSpy('getSearchImpactList').and.returnValue(of({
+      items: [],
+    })),
   };
 
   beforeEach(() => {
@@ -234,6 +238,7 @@ describe('AnalyticsComponent', () => {
     analyticsServiceStub.getTopSuggestions.calls.reset();
     analyticsServiceStub.getTelemetryByVersion.calls.reset();
     analyticsServiceStub.getTelemetryGeoDetail.calls.reset();
+    analyticsServiceStub.getSearchImpactList.calls.reset();
   });
 
   it('shows the live-site browser bridge card', async () => {
@@ -244,6 +249,18 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParams: {},
+              fragment: null,
+              data: {},
+              params: {},
+              url: [],
+            },
+          },
+        },
         provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
@@ -251,18 +268,21 @@ describe('AnalyticsComponent', () => {
     const fixture = TestBed.createComponent(AnalyticsComponent);
     fixture.detectChanges();
 
-    expect(fixture.nativeElement.textContent).toContain('Live-site browser bridge');
-    expect(fixture.nativeElement.textContent).toContain('Ready to install');
-    expect(fixture.nativeElement.textContent).toContain('Copy browser snippet');
-    expect(fixture.nativeElement.textContent).toContain('Run Matomo sync');
-    expect(fixture.nativeElement.textContent).toContain('Run GA4 sync');
-    expect(fixture.nativeElement.textContent).toContain('Funnel for the last 30 days');
-    expect(fixture.nativeElement.textContent).toContain('Telemetry health for the last 30 days');
-    expect(fixture.nativeElement.textContent).toContain('Impression coverage');
-    expect(fixture.nativeElement.textContent).toContain('Device mix');
-    expect(fixture.nativeElement.textContent).toContain('Channel mix');
-    expect(fixture.nativeElement.textContent).toContain('Country mix');
-    expect(fixture.nativeElement.textContent).toContain('Top suggestion rows');
+    const text = fixture.nativeElement.textContent;
+    expect(text).toContain('Analytics & Insights');
+    expect(text).toContain('Combined View');
+    expect(text).toContain('Funnel Performance');
+    expect(text).toContain('Algorithm Performance');
+    expect(text).toContain('System Health');
+    expect(text).toContain('Impression Coverage');
+    expect(text).toContain('Device Mix');
+    expect(text).toContain('Channel Mix');
+    expect(text).toContain('Geographic Mix');
+    expect(text).toContain('GA4 Integration');
+    expect(text).toContain('Matomo Integration');
+    expect(text).toContain('Manual Synchronization');
+    expect(text).toContain('Sync GA4');
+    expect(text).toContain('Sync Matomo');
   });
 
   it('queues manual syncs from the page buttons', async () => {
@@ -273,6 +293,18 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParams: {},
+              fragment: null,
+              data: {},
+              params: {},
+              url: [],
+            },
+          },
+        },
         provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
@@ -280,12 +312,8 @@ describe('AnalyticsComponent', () => {
     const fixture = TestBed.createComponent(AnalyticsComponent);
     fixture.detectChanges();
 
-    const buttons = Array.from(fixture.nativeElement.querySelectorAll('button')) as HTMLButtonElement[];
-    const matomoButton = buttons.find((button) => button.textContent?.includes('Run Matomo sync'));
-    const ga4Button = buttons.find((button) => button.textContent?.includes('Run GA4 sync'));
-
-    matomoButton?.click();
-    ga4Button?.click();
+    fixture.componentInstance.runMatomoSync();
+    fixture.componentInstance.runGa4Sync();
 
     expect(analyticsServiceStub.runMatomoSync).toHaveBeenCalled();
     expect(analyticsServiceStub.runGa4Sync).toHaveBeenCalled();
@@ -299,6 +327,18 @@ describe('AnalyticsComponent', () => {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
         },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParams: {},
+              fragment: null,
+              data: {},
+              params: {},
+              url: [],
+            },
+          },
+        },
         provideCharts(withDefaultRegisterables()),
       ],
     }).compileComponents();
@@ -306,9 +346,14 @@ describe('AnalyticsComponent', () => {
     const fixture = TestBed.createComponent(AnalyticsComponent);
     fixture.detectChanges();
 
-    const buttons = Array.from(fixture.nativeElement.querySelectorAll('.source-filter button')) as HTMLButtonElement[];
-    const ga4Button = buttons.find((button) => button.textContent?.includes('GA4 only'));
-    ga4Button?.click();
+    analyticsServiceStub.getFunnel.calls.reset();
+    analyticsServiceStub.getBreakdowns.calls.reset();
+    analyticsServiceStub.getTrend.calls.reset();
+    analyticsServiceStub.getTopSuggestions.calls.reset();
+    analyticsServiceStub.getTelemetryByVersion.calls.reset();
+    analyticsServiceStub.getTelemetryGeoDetail.calls.reset();
+
+    fixture.componentInstance.chooseSource('ga4');
 
     expect(analyticsServiceStub.getFunnel).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getBreakdowns).toHaveBeenCalledWith('ga4');

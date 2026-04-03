@@ -57,6 +57,13 @@ GSC_DEFAULTS = {
 }
 
 
+def _sync_sort_key(sync: dict | None) -> tuple[int, str]:
+    if sync is None:
+        return (0, "")
+    stamp = sync.get("completed_at") or sync.get("started_at") or ""
+    return (1, str(stamp))
+
+
 def _google_oauth_refresh_token() -> str:
     return (_read_setting("analytics.google_oauth_refresh_token", "") or "").strip()
 
@@ -115,6 +122,33 @@ def _latest_sync(source: str) -> dict | None:
     }
 
 
+def get_google_oauth_settings() -> dict:
+    client_id = _google_oauth_client_id()
+    client_secret = _google_oauth_client_secret()
+    refresh_token = _google_oauth_refresh_token()
+    oauth_connected = bool(client_id and client_secret and refresh_token)
+    latest_sync = max(
+        [_latest_sync("ga4"), _latest_sync("gsc")],
+        key=_sync_sort_key,
+    )
+    status = "connected" if oauth_connected else "saved" if (client_id or client_secret) else "not_configured"
+    message = (
+        "Connected to Google. This one login can power both GA4 and Search Console."
+        if oauth_connected
+        else "Google app credentials are saved. Click Sign in with Google once to finish setup."
+        if (client_id or client_secret)
+        else "Paste the Google OAuth client ID and secret once, then sign in once."
+    )
+    return {
+        "client_id": client_id,
+        "client_secret_configured": bool(client_secret),
+        "oauth_connected": oauth_connected,
+        "status": status,
+        "message": message,
+        "last_sync": latest_sync,
+    }
+
+
 def get_ga4_telemetry_settings() -> dict:
     property_id = (_read_setting("analytics.ga4_property_id", "") or "").strip()
     measurement_id = (_read_setting("analytics.ga4_measurement_id", "") or "").strip()
@@ -128,6 +162,8 @@ def get_ga4_telemetry_settings() -> dict:
     if measurement_id and api_secret:
         status = "saved"
         message = "Browser-event credentials are saved. Run Test Connection to confirm they work."
+    read_status = "not_configured"
+    read_message = "Connect Google once or add a GA4 read key."
 
     oauth_client_id = _google_oauth_client_id()
     oauth_client_secret = _google_oauth_client_secret()
@@ -136,7 +172,7 @@ def get_ga4_telemetry_settings() -> dict:
 
     if oauth_connected:
         read_status = "connected"
-        read_message = "Connected via Google OAuth."
+        read_message = "Connected to Google. GA4 read access can reuse this login."
     elif property_id and read_client_email and read_private_key:
         read_status = "saved"
         read_message = "Read-access credentials (service account) are saved. Run Test Read Access to confirm they work."
@@ -188,8 +224,12 @@ def get_gsc_settings() -> dict:
     status = "not_configured"
     message = "Connect via Google OAuth or fill in service-account credentials."
     if oauth_connected:
-        status = "connected"
-        message = "Connected via Google OAuth."
+        status = "connected" if property_url else "saved"
+        message = (
+            "Connected to Google. Add the Search Console property URL to finish setup."
+            if not property_url
+            else "Connected to Google."
+        )
     elif property_url and client_email and private_key:
         status = "saved"
         message = "GSC credentials (service account) are saved. Run Test Connection to confirm they work."
@@ -294,10 +334,20 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
     api_secret = str(payload.get("api_secret", "")).strip() if api_secret_provided else None
     read_private_key_provided = "read_private_key" in payload
     read_private_key = str(payload.get("read_private_key", "")).strip() if read_private_key_provided else None
+    oauth_client_id_provided = "google_oauth_client_id" in payload
+    oauth_client_id = str(payload.get("google_oauth_client_id", _google_oauth_client_id())).strip()
+    oauth_client_secret_provided = "google_oauth_client_secret" in payload
+    oauth_client_secret = (
+        str(payload.get("google_oauth_client_secret", "")).strip()
+        if oauth_client_secret_provided
+        else None
+    )
 
     geo_granularity = str(payload.get("geo_granularity", current["geo_granularity"])).strip()
     if geo_granularity not in {"none", "country", "country_region"}:
         raise ValueError("geo_granularity must be none, country, or country_region.")
+    if oauth_client_id and ".apps.googleusercontent.com" not in oauth_client_id:
+        raise ValueError("google_oauth_client_id must look like a Google OAuth client ID.")
 
     event_schema = str(payload.get("event_schema", current["event_schema"])).strip() or GA4_DEFAULTS["event_schema"]
 
@@ -320,16 +370,24 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
         raise ValueError("GA4 browser events need both measurement_id and api_secret.")
     has_saved_read_key = bool(current["read_private_key_configured"])
     has_new_read_key = bool(read_private_key_provided and read_private_key)
+    has_google_login = bool(current["oauth_connected"] and _google_oauth_refresh_token() and oauth_client_id and (_google_oauth_client_secret() or oauth_client_secret))
     if validated["sync_enabled"] and (
         not validated["property_id"]
-        or not validated["read_project_id"]
-        or not validated["read_client_email"]
-        or not (has_new_read_key or has_saved_read_key)
+        or (
+            not has_google_login
+            and (
+                not validated["read_project_id"]
+                or not validated["read_client_email"]
+                or not (has_new_read_key or has_saved_read_key)
+            )
+        )
     ):
-        raise ValueError("GA4 sync needs property_id, read_project_id, read_client_email, and read_private_key.")
+        raise ValueError("GA4 sync needs property_id plus either Google login or read_project_id, read_client_email, and read_private_key.")
     validated["api_secret"] = api_secret
     validated["read_private_key"] = read_private_key
-    return validated, api_secret_provided or read_private_key_provided
+    validated["google_oauth_client_id"] = oauth_client_id
+    validated["google_oauth_client_secret"] = oauth_client_secret
+    return validated, api_secret_provided or read_private_key_provided or oauth_client_id_provided or oauth_client_secret_provided
 
 
 def _validate_matomo_payload(payload: dict) -> tuple[dict, bool]:
@@ -383,10 +441,34 @@ def _validate_gsc_payload(payload: dict) -> tuple[dict, bool]:
         "sync_enabled": _coerce_bool(payload.get("sync_enabled", current["sync_enabled"]), "sync_enabled"),
         "sync_lookback_days": _coerce_int(payload.get("sync_lookback_days", current["sync_lookback_days"]), "sync_lookback_days", 1, 90),
     }
-    if validated["sync_enabled"] and (not validated["property_url"] or not validated["client_email"] or not (private_key_provided and private_key or current["private_key_configured"])):
-        raise ValueError("GSC sync needs property_url, client_email, and private_key.")
+    has_google_login = bool(current["oauth_connected"] and _google_oauth_refresh_token() and _google_oauth_client_id() and _google_oauth_client_secret())
+    if validated["sync_enabled"] and (
+        not validated["property_url"]
+        or (
+            not has_google_login
+            and (
+                not validated["client_email"]
+                or not (private_key_provided and private_key or current["private_key_configured"])
+            )
+        )
+    ):
+        raise ValueError("GSC sync needs property_url plus either Google login or client_email and private_key.")
     validated["private_key"] = private_key
     return validated, private_key_provided
+
+
+def _validate_google_oauth_payload(payload: dict) -> tuple[dict[str, str], bool]:
+    current = get_google_oauth_settings()
+    client_id = str(payload.get("client_id", current["client_id"])).strip()
+    secret_provided = "client_secret" in payload
+    client_secret = str(payload.get("client_secret", "")).strip() if secret_provided else None
+    if client_id and ".apps.googleusercontent.com" not in client_id:
+        raise ValueError("client_id must look like a Google OAuth client ID.")
+    validated = {
+        "client_id": client_id,
+        "client_secret": client_secret or "",
+    }
+    return validated, secret_provided
 
 
 def _upsert_setting(key: str, value: str, value_type: str, description: str, *, is_secret: bool = False) -> None:
@@ -955,6 +1037,37 @@ class AnalyticsGA4SettingsView(APIView):
         return Response(get_ga4_telemetry_settings())
 
 
+class AnalyticsGoogleOAuthSettingsView(APIView):
+    """Get and save the shared Google OAuth app credentials."""
+
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_google_oauth_settings())
+
+    def put(self, request):
+        try:
+            validated, secret_provided = _validate_google_oauth_payload(request.data)
+        except ValueError as exc:
+            return Response({"detail": str(exc)}, status=400)
+
+        _upsert_setting(
+            "analytics.google_oauth_client_id",
+            validated["client_id"],
+            "str",
+            "Google OAuth client ID shared by GA4 and GSC.",
+        )
+        if secret_provided:
+            _upsert_setting(
+                "analytics.google_oauth_client_secret",
+                validated["client_secret"],
+                "str",
+                "Google OAuth client secret shared by GA4 and GSC.",
+                is_secret=True,
+            )
+        return Response(get_google_oauth_settings())
+
+
 class AnalyticsGA4TestConnectionView(APIView):
     """Run a lightweight GA4 Measurement Protocol test."""
 
@@ -1450,14 +1563,14 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
             return redirect(f"{frontend_settings_url}?oauth_error=missing_params")
 
         # Verify state to prevent CSRF (if session is working)
-        # Session might not work across origins (localhost:4200 -> localhost:8000)
-        # so we might have to skip this check for development or use a different mechanism.
-        # saved_state = request.session.get("google_oauth_state")
-        # if state != saved_state:
-        #     return redirect(f"{frontend_settings_url}?oauth_error=invalid_state")
+        saved_state = request.session.get("google_oauth_state")
+        if saved_state and state != saved_state:
+            return redirect(f"{frontend_settings_url}?oauth_error=invalid_state")
 
         client_id = _google_oauth_client_id()
         client_secret = _google_oauth_client_secret()
+        if not client_id or not client_secret:
+            return redirect(f"{frontend_settings_url}?oauth_error=missing_client_settings")
         
         client_config = {
             "web": {
@@ -1507,5 +1620,5 @@ class AnalyticsGoogleOAuthUnlinkView(APIView):
     
     def post(self, request):
         from .models import AppSetting
-        AppSetting.objects.filter(key="analytics.google_oauth_refresh_token").delete()
+        AppSetting.objects.filter(key__in=["analytics.google_oauth_refresh_token", "analytics.google_oauth_state"]).delete()
         return Response({"status": "unlinked", "message": "Google account unlinked."})

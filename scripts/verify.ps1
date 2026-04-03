@@ -38,8 +38,10 @@ if (-not $SkipFrontend) {
     }
 
     if (-not $SkipFrontendUnit) {
-        Write-Host "Running frontend unit tests..."
-        Invoke-FrontendNpm -Arguments @("run", "test:ci") -WorkingDirectory (Join-Path $repoRoot "frontend")
+        & (Join-Path $PSScriptRoot "test-frontend.ps1")
+        if ($LASTEXITCODE -ne 0) {
+            throw "Frontend unit tests failed."
+        }
     }
 }
 

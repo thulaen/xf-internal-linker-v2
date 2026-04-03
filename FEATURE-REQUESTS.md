@@ -281,16 +281,23 @@ Important:
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
-**Status:** In Progress (Slice 2 Complete: Interactive Google OAuth 2.0 flow)
+**Status:** In Progress (Slices 1-3 Complete: OAuth, shared Google login UX, and Python performance ingestion)
 **Priority:** High
 
 - **Slice 2 Completed (2026-04-03):**
   - Implemented exactly against Interactive OAuth requirements.
   - Added backend OAuth 2.0 handshake (Start, Callback, Unlink) for GA4 and GSC.
   - Updated GA4 and GSC API clients to support both OAuth and Service Account credentials.
-  - Refined Angular Settings UI with "Sign in with Google" buttons and live connection status.
-  - Added administrative "Google Cloud App Credentials" configuration directly in the UI.
+  - Refined Angular Settings UI with Google sign-in buttons and live connection status.
   - Verified sync tasks automatically prefer OAuth tokens when available.
+
+- **Slice 3 Completed (2026-04-03):**
+  - Added a shared `Google Connection` settings card so one Google account can be connected once and reused for both GA4 and GSC.
+  - Added a dedicated backend settings endpoint for Google OAuth app credentials, removing the broken split wiring between GA4 and GSC setup.
+  - Repaired `GA4` sync and stabilized `Matomo` sync so analytics imports no longer fail before data reaches storage.
+  - Landed the Python `GSC` performance importer with lag-safe upserts, query-level row ingestion, and duplicate-safe daily refresh behavior.
+  - Repaired `GSC` keyword-impact math and the attribution window boundary bug in the C# worker.
+  - Added score-refresh plumbing so imported analytics now refresh `content_value_score` for the existing ranking pipeline.
 
 ### GUI-first requirement (hard rule)
 - GSC credentials (OAuth client ID/secret, verified site URL) must be configured entirely through the settings page. No config files, no code, no environment variables.
@@ -339,7 +346,7 @@ Important:
 - Add queue-safe backfills so historical `GSC` imports can be reprocessed without mutating approved review data.
 
 ### Implementation notes for the AI
-- Do not feed `GSC` directly into live ranking until there is a separate offline evaluation layer.
+- The current code now refreshes `content_value_score` from imported analytics as a simple heuristic bridge. Keep any future direct `GSC` ranking influence gated and explainable until the later offline evaluation layer is in place.
 - Keep `GSC` attribution separate from `GA4` behavior data. They move on different clocks and should not be merged blindly.
 - Treat search outcome data as delayed reward, not instant truth.
 - Missing `GSC` data must stay neutral.
@@ -953,4 +960,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-03 (Phase 20 / FR-017 Slice 2 is in progress. FR-012, FR-013, and FR-014 are now correctly back-marked as COMPLETED.)*
+*Last updated: 2026-04-03 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work.)*

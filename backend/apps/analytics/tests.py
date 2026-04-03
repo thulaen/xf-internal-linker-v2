@@ -93,6 +93,23 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-hourly-restatement").enabled)
         self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-daily-catchup").enabled)
 
+    def test_google_oauth_settings_round_trip_masks_secret(self):
+        response = self.client.put(
+            "/api/analytics/settings/google-oauth/",
+            {
+                "client_id": "123456789-test.apps.googleusercontent.com",
+                "client_secret": "oauth-secret",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["client_id"], "123456789-test.apps.googleusercontent.com")
+        self.assertTrue(payload["client_secret_configured"])
+        self.assertEqual(AppSetting.objects.get(key="analytics.google_oauth_client_id").value, "123456789-test.apps.googleusercontent.com")
+        self.assertTrue(AppSetting.objects.get(key="analytics.google_oauth_client_secret").is_secret)
+
     @patch("apps.analytics.views.requests.post")
     def test_ga4_test_connection_uses_saved_secret(self, post_mock):
         AppSetting.objects.create(
@@ -596,6 +613,8 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.observed_impression_links, 1)
         self.assertEqual(coverage_row.observed_click_links, 1)
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
+        suggestion.destination.refresh_from_db()
+        self.assertGreater(suggestion.destination.content_value_score, 0.5)
 
     @patch("apps.analytics.sync.build_ga4_data_service")
     def test_run_ga4_sync_writes_daily_rollups(self, build_service_mock):
@@ -748,6 +767,8 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.observed_impression_links, 1)
         self.assertEqual(coverage_row.observed_click_links, 1)
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
+        suggestion.destination.refresh_from_db()
+        self.assertGreater(suggestion.destination.content_value_score, 0.5)
 class GSCSlice1Tests(APITestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(username="gsc-user", password="pass")
@@ -841,35 +862,46 @@ class GSCSlice3Tests(APITestCase):
             url="https://example.com/ingested-page",
         )
 
-    @patch("apps.analytics.gsc_client.build_gsc_service")
-    @patch("apps.analytics.gsc_client.fetch_gsc_performance_data")
+    @patch("apps.analytics.sync.build_gsc_service")
+    @patch("apps.analytics.sync.fetch_gsc_performance_data")
     def test_run_gsc_sync_populates_models(self, fetch_mock, build_mock):
         from apps.analytics.sync import run_gsc_sync
         from apps.analytics.models import GSCDailyPerformance, SearchMetric, AnalyticsSyncRun
         from django.utils import timezone
         
         # Mock GSC Response (page-level total)
-        fetch_mock.return_value = [
-            {
-                "keys": ["2026-04-01", "https://example.com/ingested-page"],
-                "clicks": 10,
-                "impressions": 100,
-                "ctr": 0.1,
-                "position": 5.5
-            },
-            {
-                "keys": ["2026-04-01", "https://example.com/untracked-page"],
-                "clicks": 5,
-                "impressions": 50,
-                "ctr": 0.1,
-                "position": 10.0
-            }
+        fetch_mock.side_effect = [
+            [
+                {
+                    "keys": ["2026-04-01", "https://example.com/ingested-page"],
+                    "clicks": 10,
+                    "impressions": 100,
+                    "ctr": 0.1,
+                    "position": 5.5
+                },
+                {
+                    "keys": ["2026-04-01", "https://example.com/untracked-page"],
+                    "clicks": 5,
+                    "impressions": 50,
+                    "ctr": 0.1,
+                    "position": 10.0
+                }
+            ],
+            [
+                {
+                    "keys": ["2026-04-01", "https://example.com/ingested-page", "ingested page"],
+                    "clicks": 10,
+                    "impressions": 100,
+                    "ctr": 0.1,
+                    "position": 5.5
+                }
+            ],
         ]
         
         sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=7)
         stats = run_gsc_sync(sync_run)
         
-        self.assertEqual(stats["rows_read"], 2)
+        self.assertEqual(stats["rows_read"], 3)
         self.assertEqual(stats["rows_written"], 2)
         
         # Verify GSCDailyPerformance (both pages)
@@ -882,9 +914,12 @@ class GSCSlice3Tests(APITestCase):
         metric = SearchMetric.objects.get(content_item=self.item)
         self.assertEqual(metric.clicks, 10)
         self.assertEqual(metric.source, "gsc")
+        self.assertEqual(metric.query, "ingested page")
+        self.item.refresh_from_db()
+        self.assertGreater(self.item.content_value_score, 0.5)
 
-    @patch("apps.analytics.gsc_client.build_gsc_service")
-    @patch("apps.analytics.gsc_client.fetch_gsc_performance_data")
+    @patch("apps.analytics.sync.build_gsc_service")
+    @patch("apps.analytics.sync.fetch_gsc_performance_data")
     def test_run_gsc_sync_updates_existing_rows(self, fetch_mock, build_mock):
         from apps.analytics.sync import run_gsc_sync
         from apps.analytics.models import GSCDailyPerformance, AnalyticsSyncRun
@@ -898,20 +933,31 @@ class GSCSlice3Tests(APITestCase):
             impressions=10
         )
         
-        fetch_mock.return_value = [
-            {
-                "keys": ["2026-04-01", "https://example.com/ingested-page"],
-                "clicks": 10,
-                "impressions": 100,
-                "ctr": 0.1,
-                "position": 5.5
-            }
+        fetch_mock.side_effect = [
+            [
+                {
+                    "keys": ["2026-04-01", "https://example.com/ingested-page"],
+                    "clicks": 10,
+                    "impressions": 100,
+                    "ctr": 0.1,
+                    "position": 5.5
+                }
+            ],
+            [
+                {
+                    "keys": ["2026-04-01", "https://example.com/ingested-page", "ingested page"],
+                    "clicks": 10,
+                    "impressions": 100,
+                    "ctr": 0.1,
+                    "position": 5.5
+                }
+            ],
         ]
         
         sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=1)
         stats = run_gsc_sync(sync_run)
         
-        self.assertEqual(stats["rows_read"], 1)
+        self.assertEqual(stats["rows_read"], 2)
         self.assertEqual(stats["rows_updated"], 1)
         
         perf = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")

@@ -101,6 +101,7 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
     )[:10] # Small sample is enough for trend
 
     metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
+    click_control_multiplier = 1.0
     reports = []
 
     for metric in metrics_to_calc:
@@ -119,6 +120,8 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
         control_lift_multiplier = 1.0
         if control_base > 0:
             control_lift_multiplier = control_post / control_base
+        if metric == "clicks":
+            click_control_multiplier = control_lift_multiplier
             
         # C. Normalized Lift calculation:
         # If site grew 10% (multiplier 1.1) and target grew 20%, target net lift is ~9%
@@ -148,7 +151,7 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
         suggestion, 
         baseline_start, baseline_end, 
         post_start, actual_post_end, 
-        control_lift_multiplier
+        click_control_multiplier
     )
 
     return reports
@@ -168,7 +171,7 @@ def _compute_keyword_impacts(
         content_item=suggestion.destination,
         source="gsc",
         date__range=[b_start, p_end]
-    ).values_list("query", flat=True).distinct()
+    ).exclude(query="").values_list("query", flat=True).distinct()
     
     anchor = (suggestion.anchor_edited or suggestion.anchor_phrase or "").lower().strip()
     

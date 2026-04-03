@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 20 / FR-017 Slice 3 (Performance Ingestion - Python)
+- Active target for the next session: Phase 20 / FR-017 Slice 4 (Statistical Brain - C#)
 - FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
-- Status: Phase 20 / FR-017 Slices 1 and 2 are complete. GSC Settings UI and OAuth logic are already natively implemented in the frontend. Next is implementing the Celery task for GSC performance ingestion.
+- Status: Phase 20 / FR-017 Slices 1, 2, and 3 are complete. The shared Google login flow, repaired GA4/Matomo sync plumbing, and the Python GSC performance ingestion task are now landed and verified. Next is Slice 4 statistical attribution work in the C# worker.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -197,8 +197,8 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 
 - Next exact target: Phase 20 / `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
-- Current continuity state: FR-017 Slices 1 and 2 are complete and verified. 
-- Next session type: implement FR-017 Slice 3 (Performance Ingestion in Python) against its spec.
+- Current continuity state: FR-017 Slices 1, 2, and 3 are complete and verified.
+- Next session type: implement FR-017 Slice 4 (Statistical Brain in the C# worker) against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 
@@ -274,17 +274,45 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
-- AI/tool: Antigravity
+- AI/tool: Codex
 - Intentional files changed:
+  - `docker-compose.yml`
+  - `backend/apps/analytics/gsc_client.py`
+  - `backend/apps/analytics/impact_engine.py`
+  - `backend/apps/analytics/sync.py`
+  - `backend/apps/analytics/tests.py`
+  - `backend/apps/analytics/urls.py`
+  - `backend/apps/analytics/views.py`
+  - `frontend/package.json`
+  - `frontend/src/app/analytics/analytics.component.spec.ts`
+  - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/settings/settings.component.spec.ts`
+  - `frontend/src/app/settings/settings.component.ts`
+  - `frontend/src/app/settings/silo-settings.service.ts`
+  - `scripts/dev-tools.ps1`
+  - `scripts/test-frontend.ps1`
+  - `scripts/verify.ps1`
+  - `services/http-worker/src/HttpWorker.Services/GSCAttributionService.cs`
   - `AI-CONTEXT.md`
+  - `FEATURE-REQUESTS.md`
 - What changed:
-  - Validated that FR-017 Slice 2 (GSC Settings UI & OAuth) was already fully implemented during the FR-016 (GA4+Matomo) phase directly in the frontend.
-  - Marked Slice 2 as complete.
-  - Set next target to FR-017 Slice 3 (Performance Ingestion Python Celery task).
+  - Replaced the duplicated GA4/GSC/Google Cloud OAuth setup blocks with one shared `Google Connection` card in Settings, so one Google account can authorize both GA4 and GSC.
+  - Added a dedicated backend settings endpoint for Google OAuth app credentials and repaired the one-time Google login flow so saved client credentials and refresh tokens are handled consistently.
+  - Fixed the broken GA4 sync path, stabilized Matomo sync, repaired GSC query ingestion, and added score refresh logic so imported analytics now update `content_value_score`.
+  - Fixed the Python keyword-impact math bug and the C# GSC attribution off-by-one window bug.
+  - Completed FR-017 Slice 3 by landing the Python GSC performance importer with 48-hour lag-safe upserts and query-level row ingestion.
+  - Added a universal frontend verification path so `scripts/test-frontend.ps1` and `scripts/build-frontend.ps1` automatically fall back to Docker when host Node is missing. Future AIs can also force Docker mode with `XF_FRONTEND_USE_DOCKER=1`.
+  - Repaired stale Angular specs so the shared frontend test wrapper matches the current Settings and Analytics screens.
+  - Increased the frontend Docker memory cap to 2 GB so Docker-based Angular test runs do not get killed during Chrome startup.
 - Verification that passed:
-  - Manual code inspection of `frontend/src/app/settings/settings.component.html` confirmed completion.
+  - `backend/manage.py test apps.analytics.tests --settings=config.settings.test`
+  - `docker-compose build`
+  - `docker-compose up -d`
+  - `powershell -ExecutionPolicy Bypass -File scripts/test-frontend.ps1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/test-frontend.ps1` with `XF_FRONTEND_USE_DOCKER=1`
+  - `powershell -ExecutionPolicy Bypass -File scripts/build-frontend.ps1` with `XF_FRONTEND_USE_DOCKER=1`
 - Commit/push state:
-  - Committed and pushed AI-CONTEXT.md updates to origin/master.
+  - Changes are currently uncommitted in the local worktree.
 
 | Item | Why needed | State |
 |---|---|---|

@@ -39,6 +39,7 @@ import {
   AnalyticsConnectionResult,
   GA4TelemetrySettings,
   GA4TelemetryUpdate,
+  GoogleOAuthSettings,
   MatomoTelemetrySettings,
   MatomoTelemetryUpdate,
 } from './silo-settings.service';
@@ -702,6 +703,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   testingMatomoTelemetry = false;
   testingGSCConnection = false;
   runningGSCSync = false;
+  savingGoogleAuth = false;
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -774,6 +776,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
   gscPrivateKey = '';
   googleAuthClientId = '';
   googleAuthClientSecret = '';
+  googleOAuth: GoogleOAuthSettings = {
+    client_id: '',
+    client_secret_configured: false,
+    oauth_connected: false,
+    status: 'not_configured',
+    message: 'Paste the Google OAuth client ID and secret once, then sign in once.',
+    last_sync: null,
+  };
   ga4Telemetry: GA4TelemetrySettings = {
     behavior_enabled: false,
     property_id: '',
@@ -1038,6 +1048,47 @@ export class SettingsComponent implements OnInit, OnDestroy {
     return `${new Date(stamp).toLocaleString()} • ${sync.rows_written} rows written`;
   }
 
+  hasGoogleAppCredentials(): boolean {
+    return Boolean(this.googleAuthClientId.trim() || this.googleOAuth.client_secret_configured || this.googleAuthClientSecret.trim());
+  }
+
+  shouldShowReconnectGoogle(): boolean {
+    return !this.googleOAuth.oauth_connected && this.hasGoogleAppCredentials();
+  }
+
+  saveGoogleAuthSettings(): void {
+    this.savingGoogleAuth = true;
+    const payload: { client_id: string; client_secret?: string } = {
+      client_id: this.googleAuthClientId.trim(),
+    };
+    if (this.googleAuthClientSecret.trim()) {
+      payload.client_secret = this.googleAuthClientSecret.trim();
+    }
+    this.siloSvc.updateGoogleOAuthSettings(payload).pipe(takeUntil(this.destroy$)).subscribe({
+      next: (googleOAuth) => {
+        this.googleOAuth = googleOAuth;
+        this.googleAuthClientId = googleOAuth.client_id;
+        this.googleAuthClientSecret = '';
+        this.ga4Telemetry = {
+          ...this.ga4Telemetry,
+          google_oauth_client_id: googleOAuth.client_id,
+          google_oauth_client_secret_configured: googleOAuth.client_secret_configured,
+          oauth_connected: googleOAuth.oauth_connected,
+        };
+        this.ga4Gsc = {
+          ...this.ga4Gsc,
+          oauth_connected: googleOAuth.oauth_connected,
+        };
+        this.savingGoogleAuth = false;
+        this.snack.open('Google app settings saved.', undefined, { duration: 3000 });
+      },
+      error: (error) => {
+        this.savingGoogleAuth = false;
+        this.snack.open(error?.error?.detail || 'Failed to save Google app settings.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   private presetMatchesCurrent(preset: WeightPreset): boolean {
     const presetEntries = Object.entries(preset.weights ?? {});
     if (!presetEntries.length) return false;
@@ -1118,6 +1169,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       rareTermPropagation: this.siloSvc.getRareTermPropagationSettings(),
       fieldAwareRelevance: this.siloSvc.getFieldAwareRelevanceSettings(),
       ga4Gsc: this.siloSvc.getGSCSettings(),
+      googleOAuth: this.siloSvc.getGoogleOAuthSettings(),
       ga4Telemetry: this.siloSvc.getGA4TelemetrySettings(),
       matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
@@ -1140,6 +1192,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
         this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
         this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
+        this.googleOAuth = { ...this.googleOAuth, ...data.googleOAuth };
+        this.googleAuthClientId = data.googleOAuth.client_id || '';
+        this.googleAuthClientSecret = '';
         this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
         this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
@@ -1514,12 +1569,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.ga4TelemetryReadPrivateKey.trim()) {
       payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
-    if (this.ga4Telemetry.google_oauth_client_id.trim()) {
-      payload.google_oauth_client_id = this.ga4Telemetry.google_oauth_client_id.trim();
-    }
-    if (this.ga4TelemetrySecret.trim()) {
-      payload.google_oauth_client_secret = this.ga4TelemetrySecret.trim();
-    }
 
     this.siloSvc.updateGA4TelemetrySettings(payload).subscribe({
       next: (ga4Telemetry) => {
@@ -1541,8 +1590,6 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.testGA4TelemetryConnection({
       measurement_id: this.ga4Telemetry.measurement_id.trim() || undefined,
       api_secret: this.ga4TelemetrySecret.trim() || undefined,
-      google_oauth_client_id: this.ga4Telemetry.google_oauth_client_id.trim() || undefined,
-      google_oauth_client_secret: this.ga4TelemetrySecret.trim() || undefined,
     }).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGA4Telemetry = false;
@@ -1905,11 +1952,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     if (this.ga4TelemetryReadPrivateKey.trim()) {
       ga4TelemetryPayload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
-    if (this.ga4Telemetry.google_oauth_client_id.trim()) {
-      ga4TelemetryPayload.google_oauth_client_id = this.ga4Telemetry.google_oauth_client_id.trim();
-    }
-    if (this.ga4TelemetrySecret.trim()) {
-      ga4TelemetryPayload.google_oauth_client_secret = this.ga4TelemetrySecret.trim();
+
+    const googleOAuthPayload: { client_id: string; client_secret?: string } = {
+      client_id: this.googleAuthClientId.trim(),
+    };
+    if (this.googleAuthClientSecret.trim()) {
+      googleOAuthPayload.client_secret = this.googleAuthClientSecret.trim();
     }
 
     const matomoTelemetryPayload: MatomoTelemetryUpdate = {
@@ -1944,6 +1992,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       rare: this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation),
       relevance: this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance),
       ga4: this.siloSvc.updateGSCSettings(gscPayload),
+      googleOAuth: this.siloSvc.updateGoogleOAuthSettings(googleOAuthPayload),
       ga4Telemetry: this.siloSvc.updateGA4TelemetrySettings(ga4TelemetryPayload),
       matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
@@ -1961,6 +2010,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = results.rare;
         this.fieldAwareRelevance = results.relevance;
         this.ga4Gsc = results.ga4;
+        this.googleOAuth = results.googleOAuth;
         this.gscPrivateKey = '';
         this.ga4Telemetry = results.ga4Telemetry;
         this.matomoTelemetry = results.matomoTelemetry;
@@ -1972,6 +2022,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.wordpressPassword = '';
         this.ga4TelemetrySecret = '';
         this.ga4TelemetryReadPrivateKey = '';
+        this.googleAuthClientId = results.googleOAuth.client_id;
+        this.googleAuthClientSecret = '';
         this.matomoTelemetryToken = '';
         
         this.savingSettings = false;

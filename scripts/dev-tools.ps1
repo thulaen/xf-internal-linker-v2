@@ -43,6 +43,62 @@ function Get-NodePaths {
     throw "No working Node.js runtime found. Expected a local install under AppData or a PATH-based node/npm."
 }
 
+function Get-DockerSafeScript {
+    $script = Join-Path $PSScriptRoot "docker-safe.ps1"
+    if (-not (Test-Path $script)) {
+        throw "Docker helper script was not found at $script."
+    }
+    return $script
+}
+
+function Test-DockerAvailable {
+    try {
+        $dockerSafe = Get-DockerSafeScript
+        & $dockerSafe version *> $null
+        return ($LASTEXITCODE -eq 0)
+    } catch {
+        return $false
+    }
+}
+
+function Invoke-FrontendNpmInDocker {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string[]]$Arguments,
+        [string]$WorkingDirectory = (Join-Path (Get-RepoRoot) "frontend")
+    )
+
+    $repoRoot = Get-RepoRoot
+    $frontendDir = Join-Path $repoRoot "frontend"
+    if ((Resolve-Path $WorkingDirectory).Path -ne (Resolve-Path $frontendDir).Path) {
+        throw "Docker fallback only supports the repo frontend directory."
+    }
+
+    $dockerSafe = Get-DockerSafeScript
+    $dockerArguments = @($Arguments)
+    if ($dockerArguments.Count -ge 2 -and $dockerArguments[0] -eq 'run' -and $dockerArguments[1] -eq 'test:ci') {
+        $dockerArguments = @('run', 'test:ci:docker')
+    }
+    $npmCommand = $dockerArguments -join " "
+    $frontendContainerId = ''
+
+    try {
+        $frontendContainerId = (& $dockerSafe compose ps -q frontend | Out-String).Trim()
+    } catch {
+        $frontendContainerId = ''
+    }
+
+    Write-Host "No working host Node.js runtime found. Falling back to Docker for frontend command: npm $npmCommand"
+    if ($frontendContainerId) {
+        & $dockerSafe compose exec -T frontend sh -lc "cd /app && npm $npmCommand"
+    } else {
+        & $dockerSafe compose run --rm --no-deps frontend sh -lc "cd /app && npm $npmCommand"
+    }
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker frontend command failed with exit code $LASTEXITCODE."
+    }
+}
+
 function Invoke-FrontendNpm {
     param(
         [Parameter(Mandatory = $true)]
@@ -50,10 +106,37 @@ function Invoke-FrontendNpm {
         [string]$WorkingDirectory = (Join-Path (Get-RepoRoot) "frontend")
     )
 
-    $nodePaths = Get-NodePaths
+    $nodePaths = $null
+    $preferDockerValue = ''
+    if ($null -ne $env:XF_FRONTEND_USE_DOCKER) {
+        $preferDockerValue = $env:XF_FRONTEND_USE_DOCKER.ToLowerInvariant()
+    }
+    $preferDocker = @('1', 'true', 'yes', 'on') -contains $preferDockerValue
+    if ($preferDocker) {
+        if (Test-DockerAvailable) {
+            Invoke-FrontendNpmInDocker -Arguments $Arguments -WorkingDirectory $WorkingDirectory
+            return
+        }
+        throw "XF_FRONTEND_USE_DOCKER is enabled, but Docker is not available."
+    }
+
+    try {
+        $nodePaths = Get-NodePaths
+    } catch {
+        if (Test-DockerAvailable) {
+            Invoke-FrontendNpmInDocker -Arguments $Arguments -WorkingDirectory $WorkingDirectory
+            return
+        }
+        throw
+    }
 
     if ($nodePaths.Npm -eq "npm") {
-        & npm @Arguments
+        Push-Location $WorkingDirectory
+        try {
+            & npm @Arguments
+        } finally {
+            Pop-Location
+        }
         if ($LASTEXITCODE -ne 0) {
             throw "npm $($Arguments -join ' ') failed with exit code $LASTEXITCODE."
         }
@@ -99,4 +182,3 @@ function Invoke-VsDevCommand {
         Pop-Location
     }
 }
-

@@ -1,5 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
+import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 
 import { SettingsComponent } from './settings.component';
@@ -69,6 +70,14 @@ describe('SettingsComponent', () => {
               connection_status: 'not_configured',
               connection_message: 'Fill in the Search Console property URL and service-account credentials.',
               oauth_connected: false,
+              last_sync: null,
+            }),
+            getGoogleOAuthSettings: () => of({
+              client_id: '',
+              client_secret_configured: false,
+              oauth_connected: false,
+              status: 'not_configured',
+              message: 'Paste the Google OAuth client ID and secret once, then sign in once.',
               last_sync: null,
             }),
             getGA4TelemetrySettings: () => of({
@@ -166,6 +175,14 @@ describe('SettingsComponent', () => {
             listScopes: () => of([]),
           },
         },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              queryParams: {},
+            },
+          },
+        },
       ],
     }).compileComponents();
 
@@ -177,11 +194,11 @@ describe('SettingsComponent', () => {
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
     expect(text).toContain('Connect & Sync');
-    expect(text).toContain('Search Console Credentials');
+    expect(text).toContain('Google Connection');
     expect(text).toContain('GA4 Telemetry');
     expect(text).toContain('Matomo Telemetry');
     expect(text).toContain('WordPress Connection');
-    expect(text).toContain('Search Console Sync');
+    expect(text).toContain('Google Search Console');
     expect(text).toContain('Telemetry Rules');
     expect(text).toContain('Sync Rules');
 

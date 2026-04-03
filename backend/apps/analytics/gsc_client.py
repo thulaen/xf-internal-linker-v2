@@ -6,9 +6,6 @@ import logging
 from datetime import date
 from typing import Any
 
-from google.oauth2 import service_account
-from googleapiclient.discovery import build, Resource
-
 logger = logging.getLogger(__name__)
 
 
@@ -19,9 +16,10 @@ def build_gsc_service(
     refresh_token: str = "",
     client_id: str = "",
     client_secret: str = ""
-) -> Resource:
+) -> Any:
     """Build a GSC service object using service account or OAuth credentials."""
-    from google.oauth2 import credentials
+    from google.oauth2 import credentials, service_account
+    from googleapiclient.discovery import build
 
     if refresh_token and client_id and client_secret:
         # Build using OAuth credentials
@@ -44,7 +42,7 @@ def build_gsc_service(
     return build("searchconsole", "v1", credentials=creds, cache_discovery=False)
 
 
-def test_gsc_access(service: Resource, property_url: str) -> bool:
+def test_gsc_access(service: Any, property_url: str) -> bool:
     """Test if we have access to the specified GSC property."""
     try:
         # Just try to get the site details. If this fails, we don't have access.
@@ -56,7 +54,7 @@ def test_gsc_access(service: Resource, property_url: str) -> bool:
 
 
 def fetch_gsc_performance_data(
-    service: Resource,
+    service: Any,
     property_url: str,
     start_date: date,
     end_date: date,

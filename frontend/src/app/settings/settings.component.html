@@ -678,6 +678,58 @@
             </mat-card-content>
           </mat-card>
 
+          <mat-card class="settings-card settings-card--wide">
+            <mat-card-header>
+              <mat-card-title>Google Connection</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Use one Google login for both GA4 and Search Console. Save the app details once, then sign in once.</p>
+              <div class="integration-status">
+                <span class="status-pill" [ngClass]="telemetryStatusClass(googleOAuth.status)">{{ telemetryStatusLabel(googleOAuth.status) }}</span>
+                <span class="integration-status__message">{{ googleOAuth.message }}</span>
+              </div>
+
+              <div class="form-row">
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Google OAuth Client ID</mat-label>
+                  <input matInput [(ngModel)]="googleAuthClientId" placeholder="123456789-abcdef.apps.googleusercontent.com" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>Google OAuth Client Secret</mat-label>
+                  <input matInput type="password" [(ngModel)]="googleAuthClientSecret" placeholder="Actual secret for the client ID" />
+                  <mat-hint>
+                    @if (googleOAuth.client_secret_configured) {
+                      Secret stored. Leave blank to keep it.
+                    } @else {
+                      Found in Google Cloud Console under Credentials.
+                    }
+                  </mat-hint>
+                </mat-form-field>
+              </div>
+
+              <div class="last-sync-box">Last synced: {{ lastSyncLabel(googleOAuth.last_sync) }}</div>
+
+              <div class="action-buttons">
+                <button mat-stroked-button color="primary" [disabled]="savingGoogleAuth" (click)="saveGoogleAuthSettings()">
+                  <mat-icon>save</mat-icon> {{ savingGoogleAuth ? 'Saving...' : 'Save Google App' }}
+                </button>
+                @if (!googleOAuth.oauth_connected) {
+                  <button mat-flat-button color="primary" [disabled]="!hasGoogleAppCredentials()" (click)="authorizeGoogle()">
+                    <mat-icon>login</mat-icon> {{ shouldShowReconnectGoogle() ? 'Reconnect' : 'Sign in with Google' }}
+                  </button>
+                } @else {
+                  <button mat-stroked-button color="warn" (click)="unlinkGoogleAccount()">
+                    <mat-icon>link_off</mat-icon> Disconnect
+                  </button>
+                }
+              </div>
+
+              <p class="hint" style="font-size: 11px; margin-top: 8px;">
+                <strong>Redirect URI:</strong> <code>http://localhost:8000/api/analytics/oauth/callback/</code> (or your real app URL).
+              </p>
+            </mat-card-content>
+          </mat-card>
+
           <mat-card class="settings-card">
             <mat-card-header>
               <mat-card-title>GA4 Telemetry</mat-card-title>
@@ -719,29 +771,6 @@
                         }
                       </mat-hint>
                     </mat-form-field>
-                  </div>
-                </div>
-
-                <div class="sync-schedule-box">
-                  <div class="schedule-header">
-                    <h3>Google Account Authorization</h3>
-                    <p class="hint" style="margin: 0; font-size: 12px;">Use your Google account to authorize GA4 and GSC access without service account keys.</p>
-                  </div>
-                  
-                  <div class="oauth-status-row" style="margin-top: 12px; display: flex; align-items: center; gap: 12px;">
-                    @if (ga4Telemetry.oauth_connected) {
-                      <div class="status-pill status-pill--success" style="display: flex; align-items: center; gap: 4px;">
-                        <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check_circle</mat-icon>
-                        Authorized via Oauth
-                      </div>
-                      <button mat-stroked-button color="warn" (click)="unlinkGoogleAccount()">
-                        <mat-icon>link_off</mat-icon> Unlink Account
-                      </button>
-                    } @else {
-                      <button mat-flat-button color="primary" (click)="authorizeGoogle()">
-                        <mat-icon>login</mat-icon> Sign in with Google
-                      </button>
-                    }
                   </div>
                 </div>
 
@@ -952,28 +981,6 @@
                 <mat-hint *ngIf="ga4Gsc.private_key_configured">Private key is already configured. Leave blank to keep current key.</mat-hint>
               </mat-form-field>
 
-              <div class="sync-schedule-box" style="margin-top: 24px; border: 1px dashed rgba(0,0,0,0.12); padding: 16px; border-radius: 8px;">
-                <div class="schedule-header">
-                  <h3>Interactive Authorization</h3>
-                  <p class="hint" style="margin: 0; font-size: 12px;">Avoid managing JSON keys by authorizing your Search Console property directly.</p>
-                </div>
-                <div class="oauth-status-row" style="margin-top: 12px; display: flex; align-items: center; gap: 12px;">
-                  @if (ga4Gsc.oauth_connected) {
-                    <div class="status-pill status-pill--success" style="display: flex; align-items: center; gap: 4px;">
-                      <mat-icon style="font-size: 16px; width: 16px; height: 16px;">check_circle</mat-icon>
-                      Authorized via OAuth
-                    </div>
-                    <button mat-stroked-button color="warn" (click)="unlinkGoogleAccount()">
-                      <mat-icon>link_off</mat-icon> Unlink Account
-                    </button>
-                  } @else {
-                    <button mat-flat-button color="primary" (click)="authorizeGoogle()">
-                      <mat-icon>login</mat-icon> Sign in with Google
-                    </button>
-                  }
-                </div>
-              </div>
-
               <mat-divider></mat-divider>
 
               <div class="number-grid">
@@ -1023,35 +1030,6 @@
             </mat-card-content>
           </mat-card>
 
-          <!-- Google Cloud App Credentials (Admin only section) -->
-          <mat-card class="settings-card settings-card--wide">
-            <mat-card-header>
-              <mat-card-title>Google Cloud App Credentials</mat-card-title>
-            </mat-card-header>
-            <mat-card-content class="card-content">
-              <p class="hint">Configure the OAuth 2.0 Client ID and Secret from your Google Cloud Console project. This is required for the "Sign in with Google" flow to work.</p>
-              <div class="form-row">
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Google OAuth Client ID</mat-label>
-                  <input matInput [(ngModel)]="ga4Telemetry.google_oauth_client_id" placeholder="123456789-abcdef.apps.googleusercontent.com" />
-                </mat-form-field>
-                <mat-form-field appearance="outline" class="full-width">
-                  <mat-label>Google OAuth Client Secret</mat-label>
-                  <input matInput type="password" [(ngModel)]="ga4TelemetrySecret" placeholder="Actual secret for the client ID" />
-                  <mat-hint>
-                    @if (ga4Telemetry.google_oauth_client_secret_configured) {
-                      Secret stored. Leave blank to keep it.
-                    } @else {
-                      Found in GCloud Console under Credentials.
-                    }
-                  </mat-hint>
-                </mat-form-field>
-              </div>
-              <p class="hint" style="font-size: 11px; margin-top: 8px;">
-                <strong>IMPORTANT:</strong> The Redirect URI must be set to <code>http://localhost:8000/api/analytics/oauth/callback/</code> (or your production URL) in the Google Cloud Console.
-              </p>
-            </mat-card-content>
-          </mat-card>
         </div>
       </div>
     </mat-tab>

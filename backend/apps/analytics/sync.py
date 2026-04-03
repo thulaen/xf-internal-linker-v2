@@ -4,16 +4,20 @@ from __future__ import annotations
 
 from collections import defaultdict
 from datetime import date, timedelta
+import math
 from typing import Any
 from urllib.parse import urljoin
 
 import requests
+from django.db.models import Avg, Sum
 from django.utils import timezone
 
+from apps.content.models import ContentItem
 from apps.suggestions.models import Suggestion
 
 from .ga4_client import build_ga4_data_service
-from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
+from .gsc_client import build_gsc_service, fetch_gsc_performance_data
+from .models import AnalyticsSyncRun, SearchMetric, SuggestionTelemetryDaily, TelemetryCoverageDaily
 
 MATOMO_EVENT_FIELDS = {
     "suggestion_link_impression": "impressions",
@@ -318,6 +322,7 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     rows_read = 0
     rows_written = 0
     rows_updated = 0
+    touched_destination_ids: set[int] = set()
 
     for offset in range(max(sync_run.lookback_days, 1)):
         target_date = timezone.now().date() - timedelta(days=offset)
@@ -358,6 +363,7 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                 field_totals=field_totals,
                 event_schema=event_schema,
             )
+            touched_destination_ids.add(suggestion.destination_id)
             rows_written += written
             rows_updated += updated
             if field_totals.get("impressions", 0) > 0:
@@ -385,6 +391,8 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
             defaults=coverage_defaults,
         )
 
+    _refresh_content_value_scores(destination_ids=touched_destination_ids)
+
     return {
         "rows_read": rows_read,
         "rows_written": rows_written,
@@ -393,10 +401,18 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
 
 
 def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
+    from .views import get_ga4_telemetry_settings, _google_oauth_client_secret, _google_oauth_refresh_token, _read_setting
+
+    settings = get_ga4_telemetry_settings()
+    property_id = str(settings.get("property_id") or "").strip()
+    project_id = str(settings.get("read_project_id") or "").strip()
+    client_email = str(settings.get("read_client_email") or "").strip()
+    private_key = _read_setting("analytics.ga4_read_private_key", "") or ""
+    geo_granularity = str(settings.get("geo_granularity") or "country").strip()
     # OAuth credentials
     refresh_token = settings.get("oauth_connected") and _google_oauth_refresh_token()
     client_id = settings.get("google_oauth_client_id")
-    client_secret = (_read_setting("analytics.google_oauth_client_secret", "") or "").strip()
+    client_secret = _google_oauth_client_secret()
 
     if refresh_token and client_id and client_secret:
         service = build_ga4_data_service(
@@ -422,6 +438,7 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     rows_written = 0
     rows_updated = 0
     event_schema = str(settings.get("event_schema") or "fr016_v1")
+    touched_destination_ids: set[int] = set()
 
     for offset in range(max(sync_run.lookback_days, 1)):
         target_date = timezone.now().date() - timedelta(days=offset)
@@ -537,6 +554,7 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                 field_totals=field_totals,
                 event_schema=event_schema,
             )
+            touched_destination_ids.add(suggestion.destination_id)
             rows_written += written
             rows_updated += updated
             if int(field_totals.get("impressions", 0)) > 0:
@@ -563,6 +581,8 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
             },
         )
 
+    _refresh_content_value_scores(destination_ids=touched_destination_ids)
+
     return {
         "rows_read": rows_read,
         "rows_written": rows_written,
@@ -575,10 +595,8 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     Fetch search performance metrics from GSC and store them as raw daily logs.
     These logs feed the attribution engine in Slice 4.
     """
-    from .gsc_client import build_gsc_service, fetch_gsc_performance_data
-    from .views import get_gsc_settings, _gsc_private_key, _google_oauth_refresh_token, _google_oauth_client_id, _google_oauth_client_secret, _read_setting
-    from apps.content.models import ContentItem
-    from .models import GSCDailyPerformance, SearchMetric
+    from .views import get_gsc_settings, _gsc_private_key, _google_oauth_refresh_token, _google_oauth_client_id, _google_oauth_client_secret
+    from .models import GSCDailyPerformance
 
     settings = get_gsc_settings()
     if not settings.get("sync_enabled"):
@@ -611,28 +629,37 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     end_date = timezone.now().date() - timedelta(days=3)
     start_date = end_date - timedelta(days=sync_run.lookback_days)
 
-    # For Slice 3 ingestion, we pull page-level totals (date+page)
-    # This is the "high-volume brain" data.
-    rows = fetch_gsc_performance_data(
+    # Pull page totals for the raw ingestion table.
+    page_rows = fetch_gsc_performance_data(
         service=service,
         property_url=property_url,
         start_date=start_date,
         end_date=end_date,
         dimensions=["date", "page"]
     )
+    query_rows = fetch_gsc_performance_data(
+        service=service,
+        property_url=property_url,
+        start_date=start_date,
+        end_date=end_date,
+        dimensions=["date", "page", "query"],
+    )
 
-    rows_read = len(rows)
+    rows_read = len(page_rows) + len(query_rows)
     rows_written = 0
     rows_updated = 0
 
     # Group by Page URL to find ContentItems efficiently for the legacy SearchMetric link
-    page_urls_in_batch = list(set(row["keys"][1] for row in rows))
+    page_urls_in_batch = list({row["keys"][1] for row in page_rows + query_rows if len(row.get("keys", [])) >= 2})
     content_map = {
         item.url: item 
         for item in ContentItem.objects.filter(url__in=page_urls_in_batch)
     }
+    page_totals_by_item_date: dict[tuple[int, str], dict[str, float | int]] = {}
+    item_dates_with_query_rows: set[tuple[int, str]] = set()
+    touched_destination_ids: set[int] = set()
 
-    for row in rows:
+    for row in page_rows:
         # dimensions=['date', 'page']
         dt_str = row["keys"][0]
         page_url = row["keys"][1]
@@ -662,21 +689,149 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         # 2. Also update legacy SearchMetric if we can map to a ContentItem (for repo stability)
         item = content_map.get(page_url)
         if item:
+            page_totals_by_item_date[(item.pk, dt_str)] = {
+                "item": item,
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": ctr,
+                "average_position": avg_pos,
+            }
+            touched_destination_ids.add(item.pk)
+
+    for row in query_rows:
+        if len(row.get("keys", [])) < 3:
+            continue
+        dt_str = row["keys"][0]
+        page_url = row["keys"][1]
+        query_text = str(row["keys"][2] or "").strip()
+        item = content_map.get(page_url)
+        if item is None:
+            continue
+        if query_text:
+            item_dates_with_query_rows.add((item.pk, dt_str))
             SearchMetric.objects.update_or_create(
                 content_item=item,
                 date=dt_str,
                 source="gsc",
-                query="", # Daily total doesn't have a specific top query
+                query=query_text,
                 defaults={
-                    "impressions": impressions,
-                    "clicks": clicks,
-                    "ctr": ctr,
-                    "average_position": avg_pos,
-                }
+                    "impressions": int(row.get("impressions", 0)),
+                    "clicks": int(row.get("clicks", 0)),
+                    "ctr": float(row.get("ctr", 0.0)),
+                    "average_position": float(row.get("position", 0.0)),
+                },
             )
+
+    for (item_pk, dt_str), totals in page_totals_by_item_date.items():
+        item = totals["item"]
+        if (item_pk, dt_str) in item_dates_with_query_rows:
+            SearchMetric.objects.filter(
+                content_item=item,
+                date=dt_str,
+                source="gsc",
+                query="",
+            ).delete()
+            continue
+        SearchMetric.objects.update_or_create(
+            content_item=item,
+            date=dt_str,
+            source="gsc",
+            query="",
+            defaults={
+                "impressions": int(totals["impressions"]),
+                "clicks": int(totals["clicks"]),
+                "ctr": float(totals["ctr"]),
+                "average_position": float(totals["average_position"]),
+            },
+        )
+
+    _refresh_content_value_scores(destination_ids=touched_destination_ids)
 
     return {
         "rows_read": rows_read,
         "rows_written": rows_written,
         "rows_updated": rows_updated,
     }
+
+
+def _refresh_content_value_scores(*, destination_ids: set[int] | None = None, lookback_days: int = 28) -> int:
+    item_qs = ContentItem.objects.all()
+    if destination_ids is not None:
+        if not destination_ids:
+            return 0
+        item_qs = item_qs.filter(pk__in=destination_ids)
+
+    item_ids = list(item_qs.values_list("pk", flat=True))
+    if not item_ids:
+        return 0
+
+    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
+    telemetry_rows = (
+        SuggestionTelemetryDaily.objects.filter(destination_id__in=item_ids, date__gte=window_start)
+        .values("destination_id")
+        .annotate(
+            clicks=Sum("clicks"),
+            destination_views=Sum("destination_views"),
+            engaged_sessions=Sum("engaged_sessions"),
+            conversions=Sum("conversions"),
+        )
+    )
+    gsc_rows = (
+        SearchMetric.objects.filter(content_item_id__in=item_ids, source="gsc", date__gte=window_start)
+        .exclude(query="")
+        .values("content_item_id")
+        .annotate(
+            clicks=Sum("clicks"),
+            impressions=Sum("impressions"),
+            ctr=Avg("ctr"),
+        )
+    )
+    telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}
+    gsc_map = {int(row["content_item_id"]): row for row in gsc_rows}
+
+    raw_scores: dict[int, float] = {}
+    for item_id in item_ids:
+        telemetry = telemetry_map.get(item_id, {})
+        gsc = gsc_map.get(item_id, {})
+        gsc_clicks = int(gsc.get("clicks") or 0)
+        gsc_impressions = int(gsc.get("impressions") or 0)
+        gsc_ctr = float(gsc.get("ctr") or 0.0)
+        destination_views = int(telemetry.get("destination_views") or 0)
+        engaged_sessions = int(telemetry.get("engaged_sessions") or 0)
+        conversions = int(telemetry.get("conversions") or 0)
+        telemetry_clicks = int(telemetry.get("clicks") or 0)
+
+        if not any([gsc_clicks, gsc_impressions, destination_views, engaged_sessions, conversions, telemetry_clicks]):
+            continue
+
+        engagement_rate = engaged_sessions / max(destination_views, 1)
+        conversion_rate = conversions / max(destination_views, 1)
+        click_rate = telemetry_clicks / max(destination_views, 1)
+        raw_scores[item_id] = (
+            (0.40 * math.log1p(gsc_clicks))
+            + (0.20 * gsc_ctr * 100.0)
+            + (0.20 * math.log1p(destination_views))
+            + (0.10 * engagement_rate * 10.0)
+            + (0.05 * conversion_rate * 10.0)
+            + (0.05 * click_rate * 10.0)
+        )
+
+    item_qs.update(content_value_score=0.5)
+    if not raw_scores:
+        return 0
+
+    min_raw = min(raw_scores.values())
+    max_raw = max(raw_scores.values())
+    updates = []
+    for item in ContentItem.objects.filter(pk__in=raw_scores.keys()):
+        if max_raw > min_raw:
+            normalized = (raw_scores[item.pk] - min_raw) / (max_raw - min_raw)
+            score = 0.30 + (0.60 * normalized)
+        else:
+            score = 0.75
+        item.content_value_score = round(score, 6)
+        updates.append(item)
+
+    if updates:
+        ContentItem.objects.bulk_update(updates, ["content_value_score"], batch_size=500)
+    return len(updates)

@@ -25,7 +25,7 @@ public sealed class GSCAttributionService
         var beforeStart = applyDate.AddDays(-payload.WindowDays);
         var beforeEnd = applyDate.AddDays(-1);
         var postStart = applyDate;
-        var postEnd = applyDate.AddDays(payload.WindowDays);
+        var postEnd = applyDate.AddDays(payload.WindowDays - 1);
 
         // 1. Fetch Performance Data
         var pageMetrics = await _store.GetPagePerformanceAsync(payload.PageUrl, beforeStart, postEnd, cancellationToken);
