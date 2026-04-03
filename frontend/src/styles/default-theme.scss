@@ -209,6 +209,24 @@ $theme: mat.m2-define-light-theme((
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
 
+  // ── CF variable aliases (for components that use --cf-text-* ) ──
+  --cf-text-primary:   var(--color-text-primary);
+  --cf-text-secondary: var(--color-text-secondary);
+  --cf-text-muted:     var(--color-text-muted);
+
+  // ── Link Graph design tokens (D3 / Three.js future FR) ──────────
+  --graph-canvas-bg:        #f8f9fa;
+  --graph-node-default:     #1a73e8;
+  --graph-node-hub:         #ea4335;
+  --graph-node-orphan:      #80868b;
+  --graph-node-new:         #34a853;
+  --graph-edge-default:     rgba(95, 99, 104, 0.25);
+  --graph-edge-selected:    #1a73e8;
+  --graph-label-color:      #202124;
+  --graph-tooltip-bg:       rgba(32, 33, 36, 0.9);
+  --graph-tooltip-text:     #ffffff;
+  --graph-selection-ring:   rgba(26, 115, 232, 0.4);
+
   // ── Typography ─────────────────────────────────────────────────
   --font-family: 'Inter', system-ui, -apple-system, sans-serif;
   --font-size-base: 15px;

@@ -80,14 +80,14 @@ export class AnalyticsComponent implements OnInit {
     plugins: {
       legend: { display: false },
       tooltip: {
-        backgroundColor: 'rgba(15, 20, 25, 0.9)',
+        backgroundColor: 'rgba(32, 33, 36, 0.9)',
         padding: 12,
         cornerRadius: 4,
       }
     },
     scales: {
       x: { display: false, grid: { display: false } },
-      y: { grid: { display: false }, ticks: { color: '#666', font: { size: 13 } } }
+      y: { grid: { display: false }, ticks: { color: '#5f6368', font: { size: 13 } } }
     }
   };
 
@@ -99,7 +99,7 @@ export class AnalyticsComponent implements OnInit {
     plugins: {
       legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, padding: 20 } },
       tooltip: {
-        backgroundColor: 'rgba(15, 20, 25, 0.9)',
+        backgroundColor: 'rgba(32, 33, 36, 0.9)',
         padding: 12,
         cornerRadius: 4,
       }
@@ -110,7 +110,7 @@ export class AnalyticsComponent implements OnInit {
         display: true,
         position: 'left',
         title: { display: true, text: 'Clicks' },
-        grid: { color: 'rgba(0,0,0,0.05)' }
+        grid: { color: 'rgba(95, 99, 104, 0.1)' }
       },
       y1: {
         type: 'linear',
@@ -230,13 +230,13 @@ export class AnalyticsComponent implements OnInit {
           totals.conversions
         ],
         backgroundColor: [
-          'rgba(238, 115, 10, 0.85)',
-          'rgba(238, 115, 10, 0.7)',
-          'rgba(238, 115, 10, 0.55)',
-          'rgba(238, 115, 10, 0.4)',
-          'rgba(238, 115, 10, 0.25)',
+          'rgba(26, 115, 232, 0.85)',
+          'rgba(26, 115, 232, 0.7)',
+          'rgba(26, 115, 232, 0.55)',
+          'rgba(26, 115, 232, 0.4)',
+          'rgba(26, 115, 232, 0.25)',
         ],
-        borderColor: '#ee730a',
+        borderColor: '#1a73e8',
         borderWidth: 1,
         borderRadius: 4,
         barThickness: 32
@@ -254,8 +254,8 @@ export class AnalyticsComponent implements OnInit {
         {
           label: 'Clicks',
           data: this.trend.items.map(i => i.clicks),
-          borderColor: '#ee730a',
-          backgroundColor: 'rgba(238, 115, 10, 0.1)',
+          borderColor: '#1a73e8',
+          backgroundColor: 'rgba(26, 115, 232, 0.1)',
           fill: true,
           tension: 0.4,
           yAxisID: 'y'
@@ -263,7 +263,7 @@ export class AnalyticsComponent implements OnInit {
         {
           label: 'CTR (%)',
           data: this.trend.items.map(i => i.ctr * 100),
-          borderColor: '#086fff',
+          borderColor: '#34a853',
           backgroundColor: 'transparent',
           borderDash: [5, 5],
           tension: 0.4,
@@ -272,7 +272,7 @@ export class AnalyticsComponent implements OnInit {
         {
           label: 'Engagement (%)',
           data: this.trend.items.map(i => i.engagement_rate * 100),
-          borderColor: '#228747',
+          borderColor: '#fbbc04',
           backgroundColor: 'transparent',
           tension: 0.4,
           yAxisID: 'y1'
@@ -290,13 +290,13 @@ export class AnalyticsComponent implements OnInit {
         {
           label: 'CTR (%)',
           data: this.versionComparison.items.map(i => i.ctr * 100),
-          backgroundColor: 'rgba(238, 115, 10, 0.8)',
+          backgroundColor: 'rgba(26, 115, 232, 0.8)',
           borderRadius: 4
         },
         {
           label: 'Engagement (%)',
           data: this.versionComparison.items.map(i => i.engagement_rate * 100),
-          backgroundColor: 'rgba(8, 111, 255, 0.8)',
+          backgroundColor: 'rgba(52, 168, 83, 0.8)',
           borderRadius: 4
         }
       ]
@@ -311,7 +311,7 @@ export class AnalyticsComponent implements OnInit {
       labels: this.breakdowns.device_categories.map(i => i.label),
       datasets: [{
         data: this.breakdowns.device_categories.map(i => i.clicks),
-        backgroundColor: ['#ee730a', '#086fff', '#3524cd', '#999']
+        backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#80868b']
       }]
     };
 
@@ -320,7 +320,7 @@ export class AnalyticsComponent implements OnInit {
       labels: this.breakdowns.channel_groups.map(i => i.label),
       datasets: [{
         data: this.breakdowns.channel_groups.map(i => i.clicks),
-        backgroundColor: ['#ee730a', '#228747', '#086fff', '#3524cd', '#e80954', '#999']
+        backgroundColor: ['#1a73e8', '#34a853', '#fbbc04', '#ea4335', '#fa7b17', '#80868b']
       }]
     };
 
@@ -331,7 +331,7 @@ export class AnalyticsComponent implements OnInit {
       datasets: [{
         label: 'Clicks',
         data: topCountries.map(i => i.clicks),
-        backgroundColor: 'rgba(53, 36, 205, 0.7)',
+        backgroundColor: 'rgba(26, 115, 232, 0.7)',
         borderRadius: 4
       }]
     };

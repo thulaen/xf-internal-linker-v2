@@ -221,21 +221,21 @@
   padding: 8px 10px;
   border-radius: 999px;
   border: 1px solid var(--cf-gray-8);
-  background: var(--cf-gray-10);
+  background: var(--cf-gray-9);
 
   &.tone-good {
-    background: #edf9f0;
-    border-color: #b7ddbf;
+    background: var(--color-success-light);
+    border-color: var(--color-success);
   }
 
   &.tone-warn {
-    background: #fff5e6;
-    border-color: #f0d09b;
+    background: var(--color-warning-light);
+    border-color: var(--color-warning);
   }
 
   &.tone-bad {
-    background: #fdeeee;
-    border-color: #e6b2b2;
+    background: var(--color-error-light);
+    border-color: var(--color-error);
   }
 }
 
