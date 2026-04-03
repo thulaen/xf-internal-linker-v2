@@ -937,6 +937,169 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-031 - Interactive D3.js Force-Directed Link Graph
+**Requested:** 2026-04-03
+**Target phase:** Phase 34
+**Priority:** High
+**Spec draft:** `docs/specs/fr031-interactive-d3-link-graph.md`
+
+### What's wanted
+- The primary visualization for the Link Graph page: an interactive, zoomable, and pannable network graph of the site's internal links.
+- Uses **D3.js** to render content items as nodes and internal links as edges.
+
+### Specific controls / behaviour
+- **Node Styling**:
+  - Color-coded by `SiloGroup`.
+  - Radius size relative to `march_2026_pagerank_score`.
+  - Icon based on `content_type` (thread, resource, wp_post, etc.).
+- **Force Simulation**:
+  - Colliding force to prevent overlap.
+  - Link force based on `ExistingLink.link_ordinal` (relative position in source).
+  - Charge force to push unrelated clusters apart.
+- **Interactivity**:
+  - Drag nodes to rearrange (pinning supported).
+  - Mouseover node highlights immediate neighbors and fades global web.
+  - Tooltip shows page title, URL, silo, and in/out degree.
+  - Click node loads a "Node Focus" sidebar with full details.
+- **Performance**:
+  - Web worker for initial large layout if nodes > 1000.
+  - Canvas rendering fallback if node count exceeds 2000.
+
+### Implementation notes for the AI
+- Data provided via new `GET /api/graph/topology/` endpoint returning `nodes` and `links`.
+- Use the standard D3.js `forceSimulation` pattern in the Angular component.
+- Node IDs should be `content_item_pk`.
+
+---
+
+### FR-032 - Automated Orphan & Low-Authority Page Identification
+**Requested:** 2026-04-03
+**Target phase:** Phase 35
+**Priority:** High
+**Spec draft:** `docs/specs/fr032-orphan-page-identification.md`
+
+### What's wanted
+- Actionable auditing of "dead-end" or "lost" content that receives zero internal links.
+- A dedicated "Audit" view within the Link Graph page to identify structural SEO weaknesses.
+
+### Specific controls / behaviour
+- **Orphan Detection**: List all `ContentItem` rows where `inbound_link_count == 0`.
+- **Low Integrity Warning**: Flag pages with PageRank scores below the bottom 5th percentile.
+- **Deep-Linked Discovery**: Flag pages that are ≥ 5 clicks away from the dashboard root (crawl depth audit).
+- **Interactive Resolution**: One-click "Generate Suggestion" button next to every orphan to trigger the AI ranker.
+
+### Implementation notes for the AI
+- `inbound_link_count` is already maintained via `GraphSyncService`.
+- Use a standard Material Table for the audit list.
+- Query optimization: Filter orphans in the database, do not pull all nodes to the frontend just to count.
+
+---
+
+### FR-033 - Internal PageRank (Structural Equity) Heatmap
+**Requested:** 2026-04-03
+**Target phase:** Phase 36
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr033-internal-pagerank-heatmap.md`
+
+### What's wanted
+- Visualize the distribution of "link juice" across the site to detect equity hoarding or starvation.
+- Provides a high-level view of structural importance vs. actual SEO performance.
+
+### Specific controls / behaviour
+- **Heatmap Layer**: Toggle node color to a "heat" scale based on `march_2026_pagerank_score` (Red = High, Blue = Low).
+- **Equity Table**: Sorted list of top "Hubs" (most outbound) and "Authorities" (most inbound).
+- **Concentration Alert**: Warning if > 50% of PageRank is concentrated in < 5% of pages.
+
+### Implementation notes for the AI
+- Reuse `march_2026_pagerank_score` from FR-006.
+- The heatmap calculation should be relative to the current site maximum, not an absolute log scale.
+
+---
+
+### FR-034 - Link Context & Contextual Class Audit
+**Requested:** 2026-04-03
+**Target phase:** Phase 37
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr034-link-context-quality-audit.md`
+
+### What's wanted
+- Audit the "human quality" of links based on their placement context.
+- Distinguish between organic contextual links and isolated "footer-style" or "weak" links.
+
+### Specific controls / behaviour
+- **Quality Distribution**: Chart showing % of site links classified as `contextual`, `weak_context`, or `isolated`.
+- **Context Filters**: Filter the D3 graph to only show `contextual` links to see the "true" content-driven network.
+- **Anchor Diversity Audit**: Per-node breakdown of anchor text variations. Warning for "over-optimized" anchors (many links, same text).
+
+### Implementation notes for the AI
+- `ContextClass` column on `ExistingLink` is already populated.
+- Use the existing `GraphSyncService.ClassifyContext` logic for any new imports.
+
+---
+
+### FR-035 - Link Freshness & Churn Velocity Timeline
+**Requested:** 2026-04-03
+**Target phase:** Phase 38
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr035-link-network-velocity-timeline.md`
+
+### What's wanted
+- Monitor the evolution of the link network over time.
+- Identify "Network Friction" (links that are frequently broken or disappearing).
+
+### Specific controls / behaviour
+- **Velocity Chart**: Stacked area chart of "Links Created" vs. "Links Disappeared" per day.
+- **Churn Alert**: Highlight nodes with high link turnover (links that appear and disappear repeatedly).
+- **History Viewer**: Scrub through "past states" of the graph based on the `first_seen_at` and `last_seen_at` stamps on freshness edges.
+
+### Implementation notes for the AI
+- Data source: `LinkFreshnessEdge` table.
+- Grouping by `tracked_at` date or `last_seen_at` to compute daily deltas.
+
+---
+
+### FR-036 - Suggestion vs. Reality Coverage Gap Analysis
+**Requested:** 2026-04-03
+**Target phase:** Phase 39
+**Priority:** High
+**Spec draft:** `docs/specs/fr036-suggestion-reality-coverage-gap.md`
+
+### What's wanted
+- Highlight "Opportunity Gaps" where the AI has high-relevance suggestions, but the page currently receives no links.
+- Bridge the gap between the Link Graph (current state) and Review Page (future state).
+
+### Specific controls / behaviour
+- **Ghost Edges**: Toggle "Potential Links" on the graph. These show dotted lines for suggestions with `score_final > 0.8` that haven't been applied.
+- **Gap Score**: Compute a "Neglect Score" for pages (High AI Relevance + 0 Internal Links).
+- **Actionable Ghosting**: Click a ghost edge to directly open the Suggestion Approve/Apply dialog.
+
+### Implementation notes for the AI
+- Join `ContentItem` nodes with `Suggestion` rows where `status == 'pending'`.
+- The frontend will need to fetch "Ghost Edges" as a separate optional data layer for the graph.
+
+---
+
+### FR-037 - Silo Connectivity & Cross-Topic Leakage Map
+**Requested:** 2026-04-03
+**Target phase:** Phase 40
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr037-silo-connectivity-leakage-map.md`
+
+### What's wanted
+- Visualize the integrity of Content Silos.
+- Identify where topical authority is "leaking" out of a silo or where silos are poorly connected to the home authority.
+
+### Specific controls / behaviour
+- **Silo Boundary Lines**: Draw boundaries or clusters around silo-grouped nodes.
+- **Leakage Audit**: Highlight edges that cross between different `SiloGroup` IDs.
+- **Isolation Warning**: Flag silos that have high internal connectivity but very few bridges to the rest of the site authority.
+
+### Implementation notes for the AI
+- Bounded by `SiloGroup` assignments from FR-005.
+- Nodes with `silo_group == null` are treated as "Generic/Shared Authority" nodes.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
