@@ -231,6 +231,7 @@ Important:
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
+**Status:** Spec Pass Complete (Detailed Implementation Spec at `docs/specs/fr017-gsc-search-outcome-attribution.md`)
 **Priority:** High
 
 ### GUI-first requirement (hard rule)

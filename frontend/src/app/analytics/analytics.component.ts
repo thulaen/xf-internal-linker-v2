@@ -25,6 +25,7 @@ import {
   AnalyticsTrendResponse,
   AnalyticsVersionComparisonResponse,
   AnalyticsVersionComparisonRow,
+  GSCImpactSnapshot,
 } from './analytics.service';
 
 @Component({
@@ -60,8 +61,10 @@ export class AnalyticsComponent implements OnInit {
   topSuggestions: AnalyticsTopSuggestionsResponse | null = null;
   versionComparison: AnalyticsVersionComparisonResponse | null = null;
   geoDetail: AnalyticsGeoDetailResponse | null = null;
-  searchImpacts: any[] = [];
+  
+  searchImpacts: GSCImpactSnapshot[] = [];
   loadingImpacts = false;
+  selectedImpactWindow = '28d';
 
   showFullGeo = false;
   syncingGa4 = false;
@@ -153,15 +156,21 @@ export class AnalyticsComponent implements OnInit {
 
   loadSearchImpacts(): void {
     this.loadingImpacts = true;
-    this.analyticsSvc.getSearchImpactList().subscribe({
+    this.analyticsSvc.getSearchImpactList(this.selectedImpactWindow).subscribe({
       next: (res) => {
         this.searchImpacts = res.items;
         this.loadingImpacts = false;
       },
       error: () => {
         this.loadingImpacts = false;
+        this.snack.open('Could not load Search Impact data.', 'Dismiss', { duration: 3000 });
       }
     });
+  }
+
+  onImpactWindowChange(event: MatButtonToggleChange): void {
+    this.selectedImpactWindow = event.value;
+    this.loadSearchImpacts();
   }
 
   loadData(): void {
@@ -511,5 +520,18 @@ export class AnalyticsComponent implements OnInit {
         this.snack.open(error?.error?.detail || 'Could not queue the Matomo sync.', 'Dismiss', { duration: 4000 });
       },
     });
+  }
+
+  rewardLabel(label: string): string {
+    return {
+      positive: 'Positive Uplift',
+      neutral: 'Neutral Change',
+      negative: 'Negative Impact',
+      inconclusive: 'Inconclusive',
+    }[label] ?? label;
+  }
+
+  rewardClass(label: string): string {
+    return `reward-badge--${label}`;
   }
 }

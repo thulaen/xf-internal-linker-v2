@@ -1,66 +1,100 @@
 # FR-017: GSC Search Outcome Attribution & Delayed Reward Signals
 
 ## Source and Math-Fidelity
-- **Primary Source**: Google Search Console Analytics API.
-- **Statistical Method**: Bayesian smoothing for low-volume CTR and T-Test for position/impression lift significance.
-- **Metric Interpretation**: Bounded delayed reward signals (positive/neutral/negative) for the FR-018 auto-tuning layer.
+- **Primary Source**: Google Search Console Analytics API (Search Analytics: query, page, click, impression, ctr, position).
+- **Statistical Method**: 
+  - **Bayesian Smoothing**: Use a Beta distribution conjugate prior ($Beta(\alpha, \beta)$) for CTR estimation to normalize low-traffic pages.
+  - **Causal Lift**: Bayesian Structural Time Series (BSTS) principles for counterfactual estimation (predicting what traffic would have been without the link).
+  - **Significance**: 95% Credible Intervals for lift and T-Tests for position delta significance.
+- **Metric Interpretation**: Bounded delayed reward signals (positive/neutral/negative) used as ground truth for the FR-018 auto-tuning layer.
+
+## Architecture: Hybrid Core
+- **Data Ingestion (Python)**: Use `google-api-python-client` in a Celery task to pull daily performance rows. Python is chosen for its superior GSC API library support.
+- **Attribution Engine (C#)**: Use the .NET `http-worker` with `MathNet.Numerics` to perform the heavy statistical lift and P-value computations. C# is chosen for its performance in high-frequency math and alignment with the Analytics Worker strategy.
+- **Persistence (PostgreSQL)**: Shared storage in the main Django database handles the final attribution snapshots.
 
 ## Implementation Spec
 
-### 1. Backend Data Models
-- **[NEW] `GSCDailyPerformance`**:
-  - `page_url`: String (canonical)
-  - `date`: Date
-  - `impressions`: Integer
-  - `clicks`: Integer
-  - `sum_position`: Float (average_position * impressions, to allow re-aggregation)
-  - `ctr`: Float
-- **[NEW] `GSCImpactSnapshot`**:
-  - `destination_url`: String
-  - `suggestion_id`: UUID (FK to Suggestion)
-  - `apply_date`: DateTime
-  - `window_type`: Enum (7d, 28d, 90d)
-  - `baseline_clicks`: Integer
-  - `baseline_impressions`: Integer
-  - `baseline_avg_position`: Float
-  - `post_clicks`: Integer
-  - `post_impressions`: Integer
-  - `post_avg_position`: Float
-  - `lift_clicks`: Float (%)
-  - `lift_position`: Float (absolute)
-  - `p_value`: Float
-  - `reward_label`: String (positive, neutral, negative, inconclusive)
+### 1. Backend Data Models (Django)
 
-### 2. GSC Data Importer
-- **Task**: `analytics.sync_gsc_performance`
-- **Logic**:
-  - Use `google-api-python-client` to fetch `query`, `page`, `impression`, `click`, `ctr`, and `position`.
-  - Store results in `GSCDailyPerformance`.
-  - Note: GSC data has a ~48h processing lag. Importer must look back at least 3 days.
+#### [NEW] `GSCDailyPerformance`
+Stores raw daily stats from GSC.
+- `id`: BigAutoField
+- `page_url`: URLField (db_index=true)
+- `date`: DateField (db_index=true)
+- `impressions`: PositiveIntegerField
+- `clicks`: PositiveIntegerField
+- `avg_position`: FloatField
+- `ctr`: FloatField
+- `property_url`: String (the GSC property this belongs to)
 
-### 3. Attribution Engine
-- **Task**: `analytics.compute_search_impact`
-- **Logic**:
-  - Identify suggestions where `status = 'applied'`.
-  - For each window (e.g., 28 days post-apply):
-    - Select baseline metrics (28 days before apply_date).
-    - Select post-metrics (28 days after apply_date).
-    - Calculate lift: `(post - baseline) / baseline`.
-    - Apply **Wilson Score** to CTR and **Bayesian Smoothing** to impressions.
-    - If `lift > threshold` AND `p_value < 0.05`, mark as **positive**.
+#### [NEW] `GSCImpactSnapshot`
+Stores the calculated attribution for a specific applied suggestion.
+- `suggestion`: OneToOneField(Suggestion)
+- `apply_date`: DateTimeField
+- `window_type`: CharField (choices: 7d, 14d, 28d, 90d)
+- `baseline_clicks`: IntegerField
+- `post_clicks`: IntegerField
+- `lift_clicks_pct`: FloatField
+- `lift_clicks_absolute`: IntegerField
+- `probability_of_uplift`: FloatField (0.0 to 1.0)
+- `reward_label`: CharField (positive, neutral, negative, inconclusive)
+- `last_computed_at`: DateTimeField
 
-### 4. Settings & GUI
-- **GSC Settings Card**:
-  - Property URL (e.g., `sc-domain:example.com`)
-  - Service Account Email
-  - Private Key (Write-only)
-  - "Test Connection" button calling `sites.get`.
-- **Analytics Impact View**:
-  - New tab "Search Impact".
-  - Scatter plot: Suggestions (X=Impressions, Y=Lift).
-  - Table of "Biggest Winners" and "Biggest Losers".
+### 2. GSC Data Importer (Python)
+- **Task**: `apps.analytics.tasks.sync_gsc_performance`
+- **Schedule**: Daily at 04:00 UTC (to account for the ~48h GSC processing lag).
+- **Batching**: Importer looks back 5 days to ensure no gaps are left by the lag.
+- **OAuth**: Google Service Account or OAuth2 token stored in `AppSetting`.
+
+### 3. Attribution Engine Math (C# / MathNet.Numerics)
+
+#### Bayesian Smoothing (CTR)
+To avoid high CTR noise on low impressions:
+- **Prior**: Compute global site-wide CTR ($\mu_{global}$).
+- **Posterior CTR**: $CTR_{smoothed} = \frac{clicks + \alpha}{impressions + \alpha + \beta}$
+- Where $\alpha = \mu_{global} \times K$ and $\beta = (1 - \mu_{global}) \times K$ ($K$ is a smoothing constant, default 100).
+
+#### Causal Lift Calculation
+- **Control Group**: All pages in the same silo/scope that did *not* receive a new internal link during the window.
+- **Lift**: Calculate the relative delta $L = \frac{Post_{item}}{Baseline_{item}} - \frac{Post_{control}}{Baseline_{control}}$.
+- **P-Value**: Use a two-sample T-test on daily click counts for the item vs. its own baseline, adjusted by the control group trend.
+
+### 4. Settings & GUI (Angular)
+
+#### GSC Settings Card
+- **Inputs**: Property URL, Service Account JSON (Secure Upload).
+- **Status**: Live connection badge via `searchconsole.sites().get()`.
+- **Sync Control**: "Manual Backfill" button with date range picker.
+
+#### Analytics: Search Impact Tab
+- **Scatter Plot**: X-axis: Impressions, Y-axis: Lift %. Dot color = Reward Label.
+- **Cohort Analysis**: Group winners by "Source Type" (XenForo vs WordPress) and "Anchor Family".
+- **Table**: List of applied suggestions with their calculated reward signal.
 
 ## Test Plan
-- **Mock GSC API**: Verify that the importer handles the 48h lag and empty responses correctly.
-- **Math Verification**: Unit tests for the Lift and P-Value calculation using static data.
-- **Consistency**: Ensure a suggestion applied yesterday does not show a "Long-term (90d)" reward signal yet.
+- **Mock GSC Data**: Verify the importer handles the "lag window" by merging existing rows without duplicates.
+- **Statistical Unit Tests (C#)**: 
+  - Ensure $CTR_{smoothed}$ stays within (0,1).
+  - Verify that a 0-click, 1-impression page does not get a 0% CTR (it should be pulled toward the site average).
+- **Regression**: Ensure that GSC work does not block the main pipeline run if the Google API is down.
+
+## Slices for Execution
+### Slice 1: GSC Backend Models and API (Django)
+- Migrations for `GSCDailyPerformance` and `GSCImpactSnapshot`.
+- Serializers and basic CRUD for GSC settings.
+
+### Slice 2: GSC Settings UI & OAuth (Angular)
+- Implementation of the Settings card.
+- Mock OAuth flow / Service Account credential storage.
+
+### Slice 3: Performance Ingestion (Python)
+- The Celery task for GSC sync.
+- Handling the 48h lag logic.
+
+### Slice 4: Statistical Brain (C#)
+- Implement `GSCAttributionLogic` class in `HttpWorker.Services`.
+- Expose an internal API for the backend to trigger attribution runs.
+
+### Slice 5: Reporting UI (Angular)
+- The "Search Impact" tab and Chart.js integration.

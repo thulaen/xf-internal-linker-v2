@@ -12,6 +12,7 @@ public sealed class JobProcessor(
     IUrlFetchService urlFetchService,
     IHealthCheckService healthCheckService,
     ISitemapService sitemapService,
+    GSCAttributionService gscAttributionService,
     IOptions<HttpWorkerOptions> options)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -51,7 +52,12 @@ public sealed class JobProcessor(
                         DeserializePayload<SitemapCrawlRequest>(request.Payload),
                         cancellationToken),
                     JsonOptions),
-                _ => throw new ValidationException("unknown job_type"),
+                "gsc_attribution" => JsonSerializer.SerializeToNode(
+                    await gscAttributionService.AnalyzeUpliftAsync(
+                        DeserializePayload<GSCAttributionJobPayload>(request.Payload),
+                        cancellationToken),
+                    JsonOptions),
+                _ => throw new Exception("unknown job_type"),
             };
 
             return new JobResult
@@ -73,44 +79,48 @@ public sealed class JobProcessor(
         {
             return Failure(request, "malformed sitemap xml");
         }
+        catch (Exception ex)
+        {
+            return Failure(request, ex.Message);
+        }
     }
 
     public void ValidateJobRequest(JobRequest? request)
     {
         if (request is null)
         {
-            throw new ValidationException("request body is required");
+            throw new Exception("request body is required");
         }
 
         if (!string.Equals(request.SchemaVersion, _options.SchemaVersion, StringComparison.Ordinal))
         {
-            throw new ValidationException("unknown schema_version");
+            throw new Exception("unknown schema_version");
         }
 
         if (string.IsNullOrWhiteSpace(request.JobId) || !Guid.TryParse(request.JobId, out _))
         {
-            throw new ValidationException("job_id must be a valid uuid");
+            throw new Exception("job_id must be a valid uuid");
         }
 
         if (request.CreatedAt == default)
         {
-            throw new ValidationException("created_at is required");
+            throw new Exception("created_at is required");
         }
 
         if (request.Payload.ValueKind is JsonValueKind.Null or JsonValueKind.Undefined)
         {
-            throw new ValidationException("payload is required");
+            throw new Exception("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution"))
         {
-            throw new ValidationException("unknown job_type");
+            throw new Exception("unknown job_type");
         }
     }
 
     private static T DeserializePayload<T>(JsonElement payload)
     {
-        return payload.Deserialize<T>(JsonOptions) ?? throw new ValidationException("payload is required");
+        return payload.Deserialize<T>(JsonOptions) ?? throw new Exception("payload is required");
     }
 
     private JobResult Failure(JobRequest request, string error)

@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 20
+- Active target for the next session: Phase 20 / FR-017 Slice 2 (GSC Settings UI)
 - FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
-- Status: Phase 19 / FR-016 is complete. Interactive Chart.js visualizations (funnel, trend, versions, breakdowns) and telemetry-health reporting are landed. Phase 20 / FR-017 is starting with the spec pass.
+- Status: Phase 20 / FR-017 Spec Pass and Slice 1 (Backend Models) are complete. GSCDailyPerformance and GSCImpactSnapshot models are established and verified. Next is implementing the Angular settings card.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -276,20 +276,21 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 - AI/tool: Antigravity
 - Intentional files changed:
-  - `frontend/src/app/app.config.ts`
-  - `frontend/src/app/analytics/analytics.component.ts`
-  - `frontend/src/app/analytics/analytics.component.html`
-  - `frontend/src/app/analytics/analytics.component.scss`
-  - `frontend/angular.json`
+  - `docs/specs/fr017-gsc-search-outcome-attribution.md`
+  - `backend/apps/analytics/models.py`
+  - `backend/apps/analytics/admin.py`
+  - `backend/apps/analytics/tests.py`
 - What changed:
-  - Replaced manual CSS visualizations in the Analytics page with interactive **Chart.js** (ng2-charts) components.
-  - Implemented: Horizontal Bar Funnel, Multi-Axis Trend Line (Clicks + CTR/Engagement), Grouped Bar Algorithm Comparison, and Doughnut Device/Channel Breakdowns.
-  - Registered `provideCharts` for global chart support.
-  - Increased Angular build budgets (2MB initial) to accommodate Chart.js bundle size.
+  - Completed the **Detailed Spec Pass** for FR-017; formalized Bayesian smoothing (Beta-Binomial) and Causal Lift math.
+  - Executed **Slice 1: Backend Models and API**.
+  - Implemented `GSCDailyPerformance` and `GSCImpactSnapshot` Django models.
+  - Created and applied migrations in the Postgres environment (via Docker).
+  - Registered new models in the Django Admin as read-only.
+  - Added `GSCSlice1Tests` to verify GSC settings persistence and model integrity.
 - Verification that passed:
-  - `powershell -ExecutionPolicy Bypass -File scripts/build-frontend.ps1` (Exit code 0, bundled successfully).
+  - `docker-compose exec backend python manage.py test apps.analytics.tests.GSCSlice1Tests` (2 tests, OK).
 - Commit/push state:
-  - Committed and pushed to origin/master.
+  - Committed and pushed spec, models, and tests to origin/master.
 
 | Item | Why needed | State |
 |---|---|---|

@@ -1355,7 +1355,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.gscPrivateKey = '';
         this.refreshCurrentWeights();
         this.savingGA4GSC = false;
-        this.snack.open('GA4 and Search Console settings saved', undefined, { duration: 2500 });
+        this.snack.open('Search Console settings saved', undefined, { duration: 2500 });
       },
       error: (error) => {
         this.savingGA4GSC = false;

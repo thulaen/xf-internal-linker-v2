@@ -369,29 +369,36 @@
     <div class="system-footer">
       <!-- Search Impact Section -->
     <div class="report-section-header">
-      <h2 class="section-title">
-        <mat-icon>insights</mat-icon>
-        Search Outcome Attribution
-      </h2>
-      <p class="section-subtitle">Real-world SEO lift measured via Google Search Console (normalized by control groups).</p>
+      <div class="section-title-group">
+        <h2 class="section-title">
+          <mat-icon>insights</mat-icon>
+          Search Outcome Attribution
+        </h2>
+        <mat-button-toggle-group [value]="selectedImpactWindow" (change)="onImpactWindowChange($event)" class="window-toggle">
+          <mat-button-toggle value="7d">7 Days</mat-button-toggle>
+          <mat-button-toggle value="14d">14 Days</mat-button-toggle>
+          <mat-button-toggle value="28d">28 Days</mat-button-toggle>
+        </mat-button-toggle-group>
+      </div>
+      <p class="section-subtitle">Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.</p>
     </div>
 
     <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
       <mat-card class="report-card impact-card--main">
         <mat-card-header>
-          <mat-card-title>Applied Suggestions Performance Lift</mat-card-title>
-          <mat-card-subtitle>28-day baseline vs. post-apply performance (normalized)</mat-card-subtitle>
+          <mat-card-title>Applied Suggestions Performance</mat-card-title>
+          <mat-card-subtitle>{{ selectedImpactWindow }} window — {{ searchImpacts.length }} tracked links</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
           <div class="table-container">
             <table class="premium-table">
               <thead>
                 <tr>
-                  <th>Suggestion</th>
-                  <th>Applied</th>
-                  <th class="text-right">Clicks (Base → Post)</th>
-                  <th class="text-right">Impressions (Base → Post)</th>
+                  <th>Link Suggestion</th>
+                  <th class="text-center">Attribution Result</th>
+                  <th class="text-right">Confidence</th>
                   <th class="text-right">Relative Lift</th>
+                  <th class="text-right">Clicks (Baseline → Post)</th>
                 </tr>
               </thead>
               <tbody>
@@ -400,23 +407,29 @@
                     <td>
                       <div class="version-info">
                         <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
-                        <span class="version-info__meta">To: {{ impact.destination_title }}</span>
+                        <span class="version-info__meta">Target: {{ impact.destination_title }}</span>
+                        <span class="version-info__meta text-subtle">Applied: {{ impact.apply_date | date:'shortDate' }}</span>
                       </div>
                     </td>
-                    <td class="text-muted">{{ impact.applied_at | date:'shortDate' }}</td>
+                    <td class="text-center">
+                      <span class="reward-badge" [ngClass]="rewardClass(impact.reward_label)">
+                        {{ rewardLabel(impact.reward_label) }}
+                      </span>
+                    </td>
                     <td class="text-right">
-                      <span class="metric-transition">
-                        {{ impact.metrics.clicks?.before | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.metrics.clicks?.after | number }}
+                      <div class="probability-cell" [matTooltip]="'Bayesian probability that this internal link caused a positive improvement.'">
+                        <strong>{{ formatPercent(impact.probability_of_uplift) }}</strong>
+                        <span class="text-subtle">confident</span>
+                      </div>
+                    </td>
+                    <td class="text-right">
+                      <span class="uplift-badge" [class.uplift-badge--negative]="impact.lift_clicks_pct < 0">
+                        {{ impact.lift_clicks_pct > 0 ? '+' : '' }}{{ (impact.lift_clicks_pct * 100) | number:'1.1-1' }}%
                       </span>
                     </td>
                     <td class="text-right">
                       <span class="metric-transition">
-                        {{ impact.metrics.impressions?.before | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.metrics.impressions?.after | number }}
-                      </span>
-                    </td>
-                    <td class="text-right">
-                      <span class="uplift-badge" [class.uplift-badge--negative]="impact.metrics.clicks?.delta < 0">
-                        {{ impact.metrics.clicks?.delta | number:'1.1-1' }}%
+                        {{ impact.baseline_clicks | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.post_clicks | number }}
                       </span>
                     </td>
                   </tr>
@@ -429,26 +442,32 @@
 
       <mat-card class="report-card impact-card--side">
         <mat-card-header>
-          <mat-card-title>Top Keyword Winners</mat-card-title>
-          <mat-card-subtitle>Highest lift queries across all applied links</mat-card-subtitle>
+          <mat-card-title>Statistical Method</mat-card-title>
+          <mat-card-subtitle>How we measure SEO impact</mat-card-subtitle>
         </mat-card-header>
         <mat-card-content>
-          <div class="winners-list">
-            @for (impact of searchImpacts.slice(0, 5); track impact.suggestion_id) {
-              <!-- We'll just show the top one query per top suggestion for now since we don't have a global winners endpoint yet -->
-              <div class="winner-row">
-                <div class="winner-row__main">
-                  <span class="winner-query">"{{ impact.anchor_phrase }}"</span>
-                  <span class="winner-target">{{ impact.destination_title | slice:0:30 }}...</span>
+          <div class="methodology-box">
+             <div class="method-item">
+                <mat-icon>groups</mat-icon>
+                <div>
+                  <strong>Global Control Baseline</strong>
+                  <p>Lift is normalized against "All pages NOT receiving a link" to filter out site-wide seasonality and Google updates.</p>
                 </div>
-                <div class="winner-lift">
-                   <span class="uplift-badge">{{ impact.metrics.clicks?.delta | number:'1.0-0' }}%</span>
+             </div>
+             <div class="method-item">
+                <mat-icon>functions</mat-icon>
+                <div>
+                  <strong>Bayesian Smoothing</strong>
+                  <p>Uses hierarchical priors to avoid noise on low-traffic pages, delivering reliable "Probability of Uplift" scores.</p>
                 </div>
-              </div>
-            }
-          </div>
-          <div class="impact-cta">
-            <p class="text-subtle">GSC data has a 2-3 day lag. New applications will appear as enough data accumulates.</p>
+             </div>
+             <div class="method-item">
+                <mat-icon>update</mat-icon>
+                <div>
+                  <strong>GSC Latency</strong>
+                  <p>Google Search Console data typically arrives with a 48-72 hour lag. Performance is refreshed daily.</p>
+                </div>
+             </div>
           </div>
         </mat-card-content>
       </mat-card>

@@ -1239,38 +1239,24 @@ class AnalyticsGSCTestConnectionView(APIView):
 
 
 class AnalyticsSearchImpactListView(APIView):
-    """List applied suggestions with impact reports."""
+    """List applied suggestions with GSC impact results."""
 
     permission_classes = [AllowAny]
 
     def get(self, request):
-        from apps.suggestions.models import Suggestion
+        from .models import GSCImpactSnapshot
+        from .serializers import GSCImpactSnapshotSerializer
 
-        # Suggestions with at least one impact report
-        qs = Suggestion.objects.filter(status="applied", impact_reports__isnull=False).distinct().order_by("-applied_at")
+        window = request.query_params.get("window", "28d")
+        
+        # Prefetch suggestion and content item for efficiency
+        qs = GSCImpactSnapshot.objects.filter(window_type=window).select_related(
+            "suggestion", 
+            "suggestion__destination"
+        ).order_by("-apply_date")
 
-        items = []
-        for sug in qs:
-            reports = sug.impact_reports.all()
-            metrics = {
-                r.metric_type: {
-                    "before": r.before_value,
-                    "after": r.after_value,
-                    "delta": r.delta_percent,
-                }
-                for r in reports
-            }
-            items.append(
-                {
-                    "suggestion_id": sug.suggestion_id,
-                    "destination_title": sug.destination_title,
-                    "anchor_phrase": sug.anchor_phrase,
-                    "applied_at": sug.applied_at,
-                    "metrics": metrics,
-                }
-            )
-
-        return Response({"items": items})
+        serializer = GSCImpactSnapshotSerializer(qs, many=True)
+        return Response({"items": serializer.data})
 
 
 class AnalyticsSearchImpactDetailView(APIView):
@@ -1281,37 +1267,23 @@ class AnalyticsSearchImpactDetailView(APIView):
     def get(self, request, suggestion_id):
         from django.shortcuts import get_object_or_404
         from apps.suggestions.models import Suggestion
+        from .models import GSCImpactSnapshot
+        from .serializers import GSCImpactSnapshotSerializer, GSCKeywordImpactSerializer
 
+        window = request.query_params.get("window", "28d")
         sug = get_object_or_404(Suggestion, pk=suggestion_id)
-        reports = sug.impact_reports.all()
+        
+        # Get the specific snapshot for the window
+        snapshot = GSCImpactSnapshot.objects.filter(suggestion=sug, window_type=window).first()
         keywords = sug.keyword_impacts.all().order_by("-lift_percent")[:50]
 
         return Response(
             {
                 "suggestion_id": sug.suggestion_id,
-                "destination_title": sug.destination_title,
                 "anchor_phrase": sug.anchor_phrase,
+                "destination_title": sug.destination_title,
                 "applied_at": sug.applied_at,
-                "metrics": [
-                    {
-                        "metric_type": r.metric_type,
-                        "before_value": r.before_value,
-                        "after_value": r.after_value,
-                        "delta_percent": r.delta_percent,
-                        "before_date_range": r.before_date_range,
-                        "after_date_range": r.after_date_range,
-                    }
-                    for r in reports
-                ],
-                "keywords": [
-                    {
-                        "query": k.query,
-                        "clicks_baseline": k.clicks_baseline,
-                        "clicks_post": k.clicks_post,
-                        "lift_percent": k.lift_percent,
-                        "is_anchor_match": k.is_anchor_match,
-                    }
-                    for k in keywords
-                ],
+                "impact": GSCImpactSnapshotSerializer(snapshot).data if snapshot else None,
+                "keywords": GSCKeywordImpactSerializer(keywords, many=True).data,
             }
         )

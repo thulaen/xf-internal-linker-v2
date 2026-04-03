@@ -231,6 +231,69 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         await command.ExecuteNonQueryAsync(cancellationToken);
     }
 
+    public async Task<List<GSCDailyMetrics>> GetPagePerformanceAsync(string pageUrl, DateTime startDate, DateTime endDate, CancellationToken cancellationToken)
+    {
+        var results = new List<GSCDailyMetrics>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT date, impressions, clicks
+            FROM analytics_gscdailyperformance
+            WHERE page_url = @url
+              AND date >= @start
+              AND date <= @end
+            ORDER BY date
+            """,
+            connection);
+        command.Parameters.AddWithValue("url", pageUrl);
+        command.Parameters.AddWithValue("start", startDate);
+        command.Parameters.AddWithValue("end", endDate);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new GSCDailyMetrics
+            {
+                Date = reader.GetDateTime(0),
+                Impressions = reader.GetInt32(1),
+                Clicks = reader.GetInt32(2)
+            });
+        }
+        return results;
+    }
+
+    public async Task<List<GSCDailyMetrics>> GetGlobalPerformanceAsync(DateTime startDate, DateTime endDate, string propertyUrl, CancellationToken cancellationToken)
+    {
+        var results = new List<GSCDailyMetrics>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT date, SUM(impressions) as impressions, SUM(clicks) as clicks
+            FROM analytics_gscdailyperformance
+            WHERE property_url = @prop
+              AND date >= @start
+              AND date <= @end
+            GROUP BY date
+            ORDER BY date
+            """,
+            connection);
+        command.Parameters.AddWithValue("prop", propertyUrl);
+        command.Parameters.AddWithValue("start", startDate.Date);
+        command.Parameters.AddWithValue("end", endDate.Date);
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add(new GSCDailyMetrics
+            {
+                Date = reader.GetDateTime(0),
+                Impressions = Convert.ToInt32(reader.GetValue(1)),
+                Clicks = Convert.ToInt32(reader.GetValue(2))
+            });
+        }
+        return results;
+    }
+
     private async Task LoadExistingLinkUrlsAsync(
         NpgsqlConnection connection,
         BrokenLinkScanRequest request,
@@ -327,7 +390,7 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
     {
         if (string.IsNullOrWhiteSpace(_connectionString))
         {
-            throw new ValidationException("postgres connection string is required");
+            throw new Exception("postgres connection string is required");
         }
 
         var connection = new NpgsqlConnection(_connectionString);

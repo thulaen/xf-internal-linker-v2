@@ -36,16 +36,18 @@ def test_gsc_access(service: Resource, property_url: str) -> bool:
 
 
 def fetch_gsc_performance_data(
-    service: Resource, 
-    property_url: str, 
-    start_date: date, 
+    service: Resource,
+    property_url: str,
+    start_date: date,
     end_date: date,
-    dimensions: list[str] = ["date", "page", "query"]
+    dimensions: list[str] = ["date", "page"]
 ) -> list[dict[str, Any]]:
     """
-    Fetch search performance data from GSC.
-    Returns a list of rows with keys: page, query, clicks, impressions, ctr, position.
+    Fetch search performance data from GSC for a specific date range.
+    Returns a list of rows. Typical keys: 'keys' (list of dimensions), 'clicks', 'impressions', 'ctr', 'position'.
     """
+    logger.info(f"Fetching GSC performance for {property_url} from {start_date} to {end_date} (dimensions: {dimensions})")
+    
     request = {
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
@@ -53,5 +55,11 @@ def fetch_gsc_performance_data(
         "rowLimit": 25000,
     }
     
-    response = service.searchanalytics().query(siteUrl=property_url, body=request).execute()
-    return response.get("rows", [])
+    try:
+        response = service.searchanalytics().query(siteUrl=property_url, body=request).execute()
+        rows = response.get("rows", [])
+        logger.info(f"Retrieved {len(rows)} rows from GSC API.")
+        return rows
+    except Exception as exc:
+        logger.error(f"GSC query failed: {exc}")
+        raise

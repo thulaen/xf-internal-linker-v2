@@ -568,11 +568,14 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
 
 
 def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
-    """Fetch search performance data from GSC and update SearchMetric rows."""
+    """
+    Fetch search performance metrics from GSC and store them as raw daily logs.
+    These logs feed the attribution engine in Slice 4.
+    """
     from .gsc_client import build_gsc_service, fetch_gsc_performance_data
     from .views import get_gsc_settings, _gsc_private_key
     from apps.content.models import ContentItem
-    from .models import SearchMetric
+    from .models import GSCDailyPerformance, SearchMetric
 
     settings = get_gsc_settings()
     if not settings.get("sync_enabled"):
@@ -592,52 +595,69 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     end_date = timezone.now().date() - timedelta(days=3)
     start_date = end_date - timedelta(days=sync_run.lookback_days)
 
+    # For Slice 3 ingestion, we pull page-level totals (date+page)
+    # This is the "high-volume brain" data.
     rows = fetch_gsc_performance_data(
         service=service,
         property_url=property_url,
         start_date=start_date,
         end_date=end_date,
-        dimensions=["date", "page", "query"]
+        dimensions=["date", "page"]
     )
 
     rows_read = len(rows)
     rows_written = 0
     rows_updated = 0
 
-    # Group by Page URL to find ContentItems efficiently
-    page_urls = list(set(row["keys"][1] for row in rows))
+    # Group by Page URL to find ContentItems efficiently for the legacy SearchMetric link
+    page_urls_in_batch = list(set(row["keys"][1] for row in rows))
     content_map = {
         item.url: item 
-        for item in ContentItem.objects.filter(url__in=page_urls)
+        for item in ContentItem.objects.filter(url__in=page_urls_in_batch)
     }
 
     for row in rows:
-        # dimensions=['date', 'page', 'query']
+        # dimensions=['date', 'page']
         dt_str = row["keys"][0]
         page_url = row["keys"][1]
-        query = row["keys"][2]
 
-        item = content_map.get(page_url)
-        if not item:
-            continue
+        impressions = int(row.get("impressions", 0))
+        clicks = int(row.get("clicks", 0))
+        ctr = float(row.get("ctr", 0.0))
+        avg_pos = float(row.get("position", 0.0))
 
-        # GSC query API returns 'position' but our model expects 'average_position'
-        _, created = SearchMetric.objects.update_or_create(
-            content_item=item,
+        # 1. Store in the new GSCDailyPerformance raw log table (Slice 3 focus)
+        _, created = GSCDailyPerformance.objects.update_or_create(
+            page_url=page_url,
             date=dt_str,
-            source="gsc",
-            query=query,
+            property_url=property_url,
             defaults={
-                "impressions": int(row.get("impressions", 0)),
-                "clicks": int(row.get("clicks", 0)),
-                "ctr": float(row.get("ctr", 0.0)),
-                "average_position": float(row.get("position", 0.0)),
+                "impressions": impressions,
+                "clicks": clicks,
+                "ctr": ctr,
+                "avg_position": avg_pos,
             }
         )
         if created:
             rows_written += 1
         else:
             rows_updated += 1
+
+        # 2. Also update legacy SearchMetric if we can map to a ContentItem (for repo stability)
+        item = content_map.get(page_url)
+        if item:
+            SearchMetric.objects.update_or_create(
+                content_item=item,
+                date=dt_str,
+                source="gsc",
+                query="", # Daily total doesn't have a specific top query
+                defaults={
+                    "impressions": impressions,
+                    "clicks": clicks,
+                    "ctr": ctr,
+                    "average_position": avg_pos,
+                }
+            )
 
     return {
         "rows_read": rows_read,

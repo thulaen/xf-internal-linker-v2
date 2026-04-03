@@ -748,3 +748,171 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.observed_impression_links, 1)
         self.assertEqual(coverage_row.observed_click_links, 1)
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
+class GSCSlice1Tests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="gsc-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_gsc_settings_round_trip(self):
+        """Verify that GSC settings can be saved and retrieved accurately."""
+        response = self.client.put(
+            "/api/analytics/settings/gsc/",
+            {
+                "property_url": "sc-domain:example.com",
+                "client_email": "gsc-bot@example.iam.gserviceaccount.com",
+                "private_key": "-----BEGIN PRIVATE KEY-----\\nFAKE-KEY\\n-----END PRIVATE KEY-----\\n",
+                "sync_enabled": True,
+                "sync_lookback_days": 14,
+            },
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["property_url"], "sc-domain:example.com")
+        self.assertTrue(payload["private_key_configured"])
+        
+        # Verify DB persistence
+        self.assertEqual(AppSetting.objects.get(key="analytics.gsc_property_url").value, "sc-domain:example.com")
+        self.assertTrue(AppSetting.objects.get(key="analytics.gsc_private_key").is_secret)
+
+    def test_gsc_models_persistence(self):
+        """Verify that the new GSCDailyPerformance and GSCImpactSnapshot models function."""
+        from apps.analytics.models import GSCDailyPerformance, GSCImpactSnapshot
+        from django.utils import timezone
+        
+        # Create raw performance data
+        perf = GSCDailyPerformance.objects.create(
+            page_url="https://example.com/page-1",
+            date=timezone.now().date(),
+            impressions=1000,
+            clicks=50,
+            avg_position=12.5,
+            ctr=0.05,
+            property_url="sc-domain:example.com"
+        )
+        self.assertEqual(GSCDailyPerformance.objects.count(), 1)
+        
+        # Create impact snapshot (requires a suggestion)
+        host = ContentItem.objects.create(content_id=501, title="Host")
+        dest = ContentItem.objects.create(content_id=502, title="Dest")
+        post = Post.objects.create(content_item=host, clean_text="Host sentence")
+        sentence = Sentence.objects.create(
+            content_item=host, post=post, text="Host sentence",
+            position=0, char_count=13, start_char=0, end_char=13, word_position=0
+        )
+        suggestion = Suggestion.objects.create(
+            destination=dest, host=host, host_sentence=sentence,
+            status="applied", applied_at=timezone.now()
+        )
+        
+        impact = GSCImpactSnapshot.objects.create(
+            suggestion=suggestion,
+            apply_date=timezone.now(),
+            window_type="28d",
+            baseline_clicks=10,
+            post_clicks=20,
+            lift_clicks_pct=1.0,
+            lift_clicks_absolute=10,
+            probability_of_uplift=0.99,
+            reward_label="positive"
+        )
+        self.assertEqual(GSCImpactSnapshot.objects.count(), 1)
+        self.assertEqual(suggestion.gsc_impact.reward_label, "positive")
+
+
+
+class GSCSlice3Tests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="gsc-ingest", password="pass")
+        self.client.force_authenticate(user=user)
+        
+        # Setup settings
+        AppSetting.objects.bulk_create([
+            AppSetting(key="analytics.gsc_sync_enabled", value="true", value_type="bool", category="analytics"),
+            AppSetting(key="analytics.gsc_property_url", value="https://example.com/", value_type="str", category="analytics"),
+            AppSetting(key="analytics.gsc_client_email", value="bot@example.com", value_type="str", category="analytics"),
+            AppSetting(key="analytics.gsc_private_key", value="-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----", value_type="str", category="analytics", is_secret=True),
+        ])
+        
+        # Setup ContentItem for legacy mapping test
+        self.item = ContentItem.objects.create(
+            content_id=601,
+            title="Ingested Page",
+            url="https://example.com/ingested-page",
+        )
+
+    @patch("apps.analytics.gsc_client.build_gsc_service")
+    @patch("apps.analytics.gsc_client.fetch_gsc_performance_data")
+    def test_run_gsc_sync_populates_models(self, fetch_mock, build_mock):
+        from apps.analytics.sync import run_gsc_sync
+        from apps.analytics.models import GSCDailyPerformance, SearchMetric, AnalyticsSyncRun
+        from django.utils import timezone
+        
+        # Mock GSC Response (page-level total)
+        fetch_mock.return_value = [
+            {
+                "keys": ["2026-04-01", "https://example.com/ingested-page"],
+                "clicks": 10,
+                "impressions": 100,
+                "ctr": 0.1,
+                "position": 5.5
+            },
+            {
+                "keys": ["2026-04-01", "https://example.com/untracked-page"],
+                "clicks": 5,
+                "impressions": 50,
+                "ctr": 0.1,
+                "position": 10.0
+            }
+        ]
+        
+        sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=7)
+        stats = run_gsc_sync(sync_run)
+        
+        self.assertEqual(stats["rows_read"], 2)
+        self.assertEqual(stats["rows_written"], 2)
+        
+        # Verify GSCDailyPerformance (both pages)
+        self.assertEqual(GSCDailyPerformance.objects.count(), 2)
+        perf_tracked = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")
+        self.assertEqual(perf_tracked.clicks, 10)
+        
+        # Verify SearchMetric (only the tracked page)
+        self.assertEqual(SearchMetric.objects.count(), 1)
+        metric = SearchMetric.objects.get(content_item=self.item)
+        self.assertEqual(metric.clicks, 10)
+        self.assertEqual(metric.source, "gsc")
+
+    @patch("apps.analytics.gsc_client.build_gsc_service")
+    @patch("apps.analytics.gsc_client.fetch_gsc_performance_data")
+    def test_run_gsc_sync_updates_existing_rows(self, fetch_mock, build_mock):
+        from apps.analytics.sync import run_gsc_sync
+        from apps.analytics.models import GSCDailyPerformance, AnalyticsSyncRun
+        
+        # Pre-create a row
+        GSCDailyPerformance.objects.create(
+            page_url="https://example.com/ingested-page",
+            date="2026-04-01",
+            property_url="https://example.com/",
+            clicks=1,
+            impressions=10
+        )
+        
+        fetch_mock.return_value = [
+            {
+                "keys": ["2026-04-01", "https://example.com/ingested-page"],
+                "clicks": 10,
+                "impressions": 100,
+                "ctr": 0.1,
+                "position": 5.5
+            }
+        ]
+        
+        sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=1)
+        stats = run_gsc_sync(sync_run)
+        
+        self.assertEqual(stats["rows_read"], 1)
+        self.assertEqual(stats["rows_updated"], 1)
+        
+        perf = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")
+        self.assertEqual(perf.clicks, 10) # Updated from 1 to 10

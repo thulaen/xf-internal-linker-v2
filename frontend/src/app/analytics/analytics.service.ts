@@ -187,6 +187,41 @@ export interface AnalyticsSyncTriggerResponse {
   message: string;
 }
 
+export interface GSCImpactSnapshot {
+  suggestion_id: string;
+  anchor_phrase: string;
+  destination_title: string;
+  status: string;
+  apply_date: string;
+  window_type: string;
+  baseline_clicks: number;
+  post_clicks: number;
+  lift_clicks_pct: number;
+  lift_clicks_absolute: number;
+  probability_of_uplift: number;
+  reward_label: 'positive' | 'neutral' | 'negative' | 'inconclusive';
+  last_computed_at: string;
+}
+
+export interface GSCKeywordImpact {
+  query: string;
+  clicks_baseline: number;
+  clicks_post: number;
+  impressions_baseline: number;
+  impressions_post: number;
+  lift_percent: number;
+  is_anchor_match: boolean;
+}
+
+export interface SearchImpactDetailResponse {
+  suggestion_id: string;
+  anchor_phrase: string;
+  destination_title: string;
+  applied_at: string;
+  impact: GSCImpactSnapshot | null;
+  keywords: GSCKeywordImpact[];
+}
+
 @Injectable({ providedIn: 'root' })
 export class AnalyticsService {
   private http = inject(HttpClient);
@@ -235,11 +270,11 @@ export class AnalyticsService {
     return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/matomo-sync/', {});
   }
 
-  getSearchImpactList(): Observable<{ items: any[] }> {
-    return this.http.get<{ items: any[] }>('/api/analytics/search-impact/');
+  getSearchImpactList(window = '28d'): Observable<{ items: GSCImpactSnapshot[] }> {
+    return this.http.get<{ items: GSCImpactSnapshot[] }>(`/api/analytics/search-impact/?window=${window}`);
   }
 
-  getSearchImpactDetail(suggestionId: string): Observable<any> {
-    return this.http.get<any>(`/api/analytics/search-impact/${suggestionId}/`);
+  getSearchImpactDetail(suggestionId: string, window = '28d'): Observable<SearchImpactDetailResponse> {
+    return this.http.get<SearchImpactDetailResponse>(`/api/analytics/search-impact/${suggestionId}/?window=${window}`);
   }
 }

@@ -355,3 +355,75 @@ class AnalyticsSyncRun(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source} {self.status} at {self.started_at}"
+class GSCDailyPerformance(models.Model):
+    """
+    Stores raw daily performance rows for a specific page from Google Search Console.
+    This acts as the source for the attribution engine.
+    """
+
+    page_url = models.URLField(max_length=2000, db_index=True)
+    date = models.DateField(db_index=True)
+    impressions = models.PositiveIntegerField(default=0)
+    clicks = models.PositiveIntegerField(default=0)
+    avg_position = models.FloatField(default=0.0)
+    ctr = models.FloatField(default=0.0)
+    property_url = models.CharField(max_length=500, blank=True, help_text="The GSC property this belongs to.")
+
+    class Meta:
+        verbose_name = "GSC Daily Performance"
+        verbose_name_plural = "GSC Daily Performance Rows"
+        unique_together = [["page_url", "date", "property_url"]]
+        indexes = [
+            models.Index(fields=["date", "page_url"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.page_url} on {self.date}"
+
+
+class GSCImpactSnapshot(models.Model):
+    """
+    Stores the formalized FR-017 attribution impact for an applied suggestion.
+    """
+
+    WINDOW_TYPE_CHOICES = [
+        ("7d", "7 Days"),
+        ("14d", "14 Days"),
+        ("28d", "28 Days"),
+        ("90d", "90 Days"),
+    ]
+
+    REWARD_LABEL_CHOICES = [
+        ("positive", "Positive"),
+        ("neutral", "Neutral"),
+        ("negative", "Negative"),
+        ("inconclusive", "Inconclusive"),
+    ]
+
+    suggestion = models.ForeignKey(
+        "suggestions.Suggestion",
+        on_delete=models.CASCADE,
+        related_name="gsc_impacts",
+        help_text="The suggestion this attribution belongs to.",
+    )
+    apply_date = models.DateTimeField(db_index=True)
+    window_type = models.CharField(max_length=10, choices=WINDOW_TYPE_CHOICES, default="28d")
+    
+    baseline_clicks = models.IntegerField(default=0)
+    post_clicks = models.IntegerField(default=0)
+    lift_clicks_pct = models.FloatField(default=0.0, help_text="Relative click lift: (post - baseline) / baseline.")
+    lift_clicks_absolute = models.IntegerField(default=0)
+    
+    probability_of_uplift = models.FloatField(default=0.0, help_text="Bayesian probability of positive lift (0.0 to 1.0).")
+    reward_label = models.CharField(max_length=20, choices=REWARD_LABEL_CHOICES, default="inconclusive")
+    
+    last_computed_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = "GSC Impact Snapshot"
+        verbose_name_plural = "GSC Impact Snapshots"
+        unique_together = [["suggestion", "window_type"]]
+        ordering = ["-apply_date"]
+
+    def __str__(self) -> str:
+        return f"GSC Impact: {self.suggestion_id} ({self.reward_label})"

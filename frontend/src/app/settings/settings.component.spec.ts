@@ -62,7 +62,7 @@ describe('SettingsComponent', () => {
             getGA4GSCSettings: () => of({
               ranking_weight: 0.05,
               property_url: '',
-              service_account_email: '',
+              client_email: '',
               private_key_configured: false,
               sync_enabled: false,
               sync_lookback_days: 7,
@@ -171,7 +171,7 @@ describe('SettingsComponent', () => {
 
     const text = fixture.nativeElement.textContent;
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
-    expect(text).toContain('WordPress Sync');
+    expect(text).toContain('Connect & Sync');
     expect(text).toContain('Search Console Credentials');
     expect(text).toContain('GA4 Telemetry');
     expect(text).toContain('Matomo Telemetry');

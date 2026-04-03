@@ -126,6 +126,12 @@ internal sealed class FakePostgresRuntimeStoreForScan : IPostgresRuntimeStore
 
     public Task MarkPeriodicTaskTriggeredAsync(int periodicTaskId, DateTimeOffset triggeredAt, CancellationToken cancellationToken)
         => Task.CompletedTask;
+
+    public Task<List<GSCDailyMetrics>> GetPagePerformanceAsync(string pageUrl, DateTime startDate, DateTime endDate, CancellationToken cancellationToken)
+        => Task.FromResult(new List<GSCDailyMetrics>());
+
+    public Task<List<GSCDailyMetrics>> GetGlobalPerformanceAsync(DateTime startDate, DateTime endDate, string propertyUrl, CancellationToken cancellationToken)
+        => Task.FromResult(new List<GSCDailyMetrics>());
 }
 
 internal sealed class FakeProgressStreamService : IProgressStreamService

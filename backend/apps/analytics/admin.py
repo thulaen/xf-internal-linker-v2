@@ -5,7 +5,10 @@ Analytics admin — SearchMetric and ImpactReport.
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import AnalyticsSyncRun, ImpactReport, SearchMetric, SuggestionTelemetryDaily, TelemetryCoverageDaily
+from .models import (
+    AnalyticsSyncRun, GSCDailyPerformance, GSCImpactSnapshot, 
+    ImpactReport, SearchMetric, SuggestionTelemetryDaily, TelemetryCoverageDaily
+)
 
 
 @admin.register(SearchMetric)
@@ -115,4 +118,37 @@ class AnalyticsSyncRunAdmin(ModelAdmin):
         return False
 
     def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+
+@admin.register(GSCDailyPerformance)
+class GSCDailyPerformanceAdmin(ModelAdmin):
+    """Admin for raw GSC performance data."""
+
+    list_display = ["page_url", "date", "impressions", "clicks", "avg_position", "ctr"]
+    list_filter = ["date", "property_url"]
+    search_fields = ["page_url"]
+    readonly_fields = [field.name for field in GSCDailyPerformance._meta.fields]
+    ordering = ["-date", "page_url"]
+    date_hierarchy = "date"
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+
+@admin.register(GSCImpactSnapshot)
+class GSCImpactSnapshotAdmin(ModelAdmin):
+    """Admin for the formalized FR-017 GSC impact attribution."""
+
+    list_display = [
+        "suggestion", "apply_date", "window_type", "reward_label",
+        "lift_clicks_pct", "probability_of_uplift",
+    ]
+    list_filter = ["reward_label", "window_type"]
+    search_fields = ["suggestion__destination_title", "suggestion_id"]
+    readonly_fields = [field.name for field in GSCImpactSnapshot._meta.fields]
+    ordering = ["-apply_date"]
+    date_hierarchy = "apply_date"
+
+    def has_add_permission(self, request) -> bool:
         return False
