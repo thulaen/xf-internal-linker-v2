@@ -264,7 +264,7 @@ mat-sidenav.app-sidenav,
 
   .mat-mdc-header-row {
     height: 48px !important;
-    background: var(--cf-newGray-9) !important; // Technical gray header
+    background: var(--color-bg-faint) !important; // Technical gray header
   }
 
   .mat-mdc-header-cell {
@@ -349,13 +349,13 @@ mat-sidenav.app-sidenav,
 
 // ── Utility Classes ─────────────────────────────────────────────
 .text-primary   { color: var(--color-primary) !important; }
-.text-success   { color: var(--cf-green-5) !important; }
-.text-error     { color: var(--cf-red-5) !important; }
-.text-warning   { color: var(--cf-gold-5) !important; }
+.text-success   { color: var(--color-success) !important; }
+.text-error     { color: var(--color-error) !important; }
+.text-warning   { color: var(--color-warning) !important; }
 
 .bg-primary-light { background: var(--color-blue-50) !important; }
-.bg-success-light { background: var(--cf-green-9) !important; }
-.bg-error-light   { background: var(--cf-red-9) !important; }
+.bg-success-light { background: var(--color-success-light) !important; }
+.bg-error-light   { background: var(--color-error-light) !important; }
  
 // ── Spacing Utilities ───────────────────────────────────────────
 .stack-sm { gap: 8px !important; }
