@@ -1,5 +1,5 @@
 .system-summary-card {
-  background: var(--cf-white);
+  background: var(--color-bg-white);
   border: var(--card-border);
   border-radius: var(--radius-md);
   padding: 24px;
@@ -65,8 +65,8 @@
 
   &.active {
     opacity: 1;
-    background: var(--cf-gray-9);
-    border-color: var(--cf-gray-8);
+    background: var(--color-bg-faint);
+    border-color: var(--color-border);
   }
 
   .count {
@@ -85,13 +85,13 @@
 
   &.failed.active {
     background: var(--color-error-light);
-    border-color: var(--cf-red-8);
+    border-color: var(--color-error-light);
     .count { color: var(--color-error); }
   }
 
   &.degraded.active {
     background: var(--color-warning-light);
-    border-color: var(--cf-gold-8);
+    border-color: var(--color-warning-light);
     .count { color: var(--color-warning); }
   }
 }

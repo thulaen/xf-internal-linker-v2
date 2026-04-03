@@ -7,13 +7,13 @@
 
 .app-sidenav {
   width: var(--sidenav-width, 256px);
-  background-color: var(--cf-white) !important;
-  border-right: 0.8px solid #dadce0 !important;
+  background-color: var(--color-bg-white) !important;
+  border-right: 1px solid var(--color-border) !important;
   transition: width 0.2s ease;
 
   &.mat-drawer {
-    background-color: var(--cf-white);
-    border-right: 0.8px solid #dadce0;
+    background-color: var(--color-bg-white);
+    border-right: 1px solid var(--color-border);
     overflow-x: hidden !important;
   }
 
@@ -22,13 +22,13 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
-    border-bottom: 1px solid var(--cf-gray-9);
+    border-bottom: 1px solid var(--color-border-faint);
     cursor: pointer;
     min-height: 64px;
     margin-bottom: 8px;
 
     &:hover {
-      background: var(--cf-gray-9);
+      background: var(--color-bg-faint);
     }
 
     .brand-icon {
@@ -52,8 +52,8 @@
       overflow: hidden;
 
       .brand-name {
-        color: var(--cf-gray-0);
-        font-size: 14px;
+        color: var(--color-text-primary);
+        font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.1px;
         white-space: nowrap;
@@ -62,7 +62,7 @@
       }
 
       .brand-version {
-        color: var(--cf-newGray-4);
+        color: var(--color-text-muted);
         font-size: 11px;
         font-weight: 400;
         opacity: 0.7;
@@ -75,7 +75,7 @@
       content: 'arrow_drop_down';
       font-family: 'Material Icons';
       font-size: 20px;
-      color: var(--cf-newGray-4);
+      color: var(--color-text-muted);
       margin-left: 4px;
     }
   }
@@ -126,8 +126,8 @@
         justify-content: center;
         padding: 0 5px;
         border-radius: 4px;
-        background: var(--cf-red-5);
-        color: var(--cf-white);
+        background: var(--color-error);
+        color: #ffffff;
         font-size: 10px;
         font-weight: 700;
       }
@@ -142,7 +142,7 @@
       }
 
       &:hover {
-        background: #f1f3f4;
+        background: var(--color-bg-faint);
         color: var(--color-text-primary);
 
         mat-icon {
@@ -188,12 +188,12 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: #ffffff;
+  background: var(--color-bg-white);
   color: var(--color-text-primary);
   position: sticky;
   top: 0;
   z-index: 1000;
-  border-bottom: 0.8px solid #dadce0;
+  border-bottom: 1px solid var(--color-border);
   box-shadow: none;
   height: 64px;
   padding: 0 24px;
@@ -215,11 +215,11 @@
   }
 
   button[mat-icon-button] {
-    color: var(--cf-newGray-4);
+    color: var(--color-text-muted);
 
     &:hover {
-      background: var(--cf-gray-8);
-      color: var(--cf-orange-6);
+      background: var(--color-bg-faint);
+      color: var(--color-primary);
     }
   }
 }
@@ -244,10 +244,10 @@
 
 .app-footer {
   padding: 24px 48px;
-  background: var(--cf-white);
-  border-top: 1px solid var(--cf-gray-8);
+  background: var(--color-bg-white);
+  border-top: 1px solid var(--color-border-faint);
   font-size: 12px;
-  color: var(--cf-newGray-4);
+  color: var(--color-text-muted);
   width: 100%;
   max-width: var(--layout-max-width, 100%);
   margin: 0;

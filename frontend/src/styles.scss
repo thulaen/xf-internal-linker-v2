@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════════════════════════════
-// Global styles for XF Internal Linker V2 — Cloudflare Visual Identity
+// Global styles for XF Internal Linker V2 — Google Analytics 4 Visual Identity
 // ═══════════════════════════════════════════════════════════════════
 
 @use './styles/default-theme';
@@ -34,7 +34,7 @@ body {
   font-family: var(--font-family) !important;
 }
 
-// Global Cloudflare Background Enforcements
+// Global Background Enforcements
 mat-sidenav-container,
 mat-sidenav-content,
 .mat-sidenav-content,
@@ -47,9 +47,9 @@ mat-sidenav-content,
 mat-sidenav.app-sidenav,
 .mat-drawer.app-sidenav,
 .app-sidenav {
-  background-color: var(--cf-white) !important;
+  background-color: var(--color-bg-white) !important;
   color: var(--color-text-primary) !important;
-  border-right: 1px solid var(--cf-gray-8) !important;
+  border-right: 1px solid var(--color-border) !important;
 }
 
 // Elevated surfaces (cards, inputs, filters) should be White
@@ -76,15 +76,15 @@ mat-sidenav.app-sidenav,
   background-color: transparent;
 }
 
-// ── Cloudflare Styled Buttons ────────────────────────────────────────
-// Primary Action: Cloudflare Orange
+// ── GA4 Styled Buttons ──────────────────────────────────────────────
+// Primary Action: GA4 Blue
 .mat-mdc-flat-button.mat-primary,
 .mat-mdc-raised-button.mat-primary,
 .mat-flat-button.mat-primary,
 .status-tab.active,
 .btn-gsc-primary {
   background-color: var(--color-primary) !important;
-  color: var(--cf-white) !important;
+  color: #ffffff !important;
   font-weight: 500 !important;
   border-radius: var(--radius-sm) !important;
   height: 36px !important;
@@ -97,7 +97,7 @@ mat-sidenav.app-sidenav,
   }
 
   mat-icon {
-    color: var(--cf-white) !important;
+    color: #ffffff !important;
     margin-right: 8px !important;
   }
 }
@@ -105,11 +105,11 @@ mat-sidenav.app-sidenav,
 // Global Brand Overrides for MDC Buttons (Material 15+)
 .mat-mdc-button, .mat-mdc-outlined-button, .mat-mdc-stroked-button, .mat-mdc-flat-button {
   &.mat-primary:not(:disabled) {
-    --mdc-filled-button-container-color: var(--cf-orange-6) !important;
-    --mdc-filled-button-label-text-color: var(--cf-white) !important;
-    --mdc-outlined-button-label-text-color: var(--cf-orange-6) !important;
-    --mdc-outlined-button-outline-color: var(--cf-orange-6) !important;
-    --mdc-text-button-label-text-color: var(--cf-orange-6) !important;
+    --mdc-filled-button-container-color: var(--color-primary) !important;
+    --mdc-filled-button-label-text-color: #ffffff !important;
+    --mdc-outlined-button-label-text-color: var(--color-primary) !important;
+    --mdc-outlined-button-outline-color: var(--color-primary) !important;
+    --mdc-text-button-label-text-color: var(--color-primary) !important;
     
     &:hover {
       --mdc-filled-button-container-color: var(--color-primary-dark) !important;
@@ -117,35 +117,24 @@ mat-sidenav.app-sidenav,
       --mdc-outlined-button-outline-color: var(--color-primary-dark) !important;
     }
   }
-  &.mat-warn:not(:disabled) {
-    --mdc-filled-button-container-color: var(--cf-red-5) !important;
-    --mdc-filled-button-label-text-color: var(--cf-white) !important;
-    --mdc-outlined-button-label-text-color: var(--cf-red-5) !important;
-    --mdc-outlined-button-outline-color: var(--cf-red-5) !important;
-    --mdc-text-button-label-text-color: var(--cf-red-5) !important;
-    
-    &:hover {
-      background-color: var(--cf-red-9) !important;
-    }
-  }
 }
 
-// Info Icons: Tech-Orange tint
+// Info Icons
 .info-btn {
-  color: var(--cf-orange-6) !important;
+  color: var(--color-primary) !important;
   opacity: 0.8;
   &:hover { opacity: 1; }
 }
 
-// Secondary Action: Cloudflare Blue/Cyan
+// Secondary Action: GA4 Blue
 .mat-mdc-outlined-button.mat-primary,
 .btn-secondary {
-  border: 1px solid var(--cf-blue-5) !important;
-  color: var(--cf-blue-5) !important;
+  border: 1px solid var(--color-primary) !important;
+  color: var(--color-primary) !important;
   border-radius: var(--radius-md) !important;
 
   &:hover {
-    background-color: var(--cf-blue-9) !important;
+    background-color: var(--color-blue-50) !important;
   }
 }
 
@@ -187,22 +176,22 @@ mat-sidenav.app-sidenav,
   
   .page-header { 
     margin: 0 !important; 
-    border-bottom: 1px solid var(--cf-gray-8) !important;
+    border-bottom: 1px solid var(--color-border) !important;
   }
   .filter-group-container { 
     margin-bottom: 24px !important;
     padding: 24px 48px !important;
-    background: var(--cf-white) !important;
-    border-bottom: 1px solid var(--cf-gray-8) !important;
+    background: var(--color-bg-white) !important;
+    border-bottom: 1px solid var(--color-border) !important;
   }
 }
 
 // ── Link Health Cards ──────────────────────────────────────────
 .link-health-controls-surface {
   .summary-card {
-    border: 1px solid var(--cf-gray-8) !important;
+    border: 1px solid var(--color-border) !important;
     border-radius: var(--radius-md) !important;
-    background: var(--cf-white) !important;
+    background: var(--color-bg-white) !important;
     padding: 20px !important;
     transition: box-shadow 0.2s ease !important;
     box-shadow: none !important;
@@ -212,13 +201,13 @@ mat-sidenav.app-sidenav,
     }
 
     strong { 
-      color: var(--cf-gray-0) !important; 
+      color: var(--color-text-primary) !important; 
       font-size: 24px !important; 
       font-weight: 700 !important;
     }
     .summary-label { 
       font-weight: 600 !important; 
-      color: var(--cf-newGray-4) !important;
+      color: var(--color-text-muted) !important;
       font-size: 11px; 
       letter-spacing: 0.05em;
     }
@@ -228,10 +217,10 @@ mat-sidenav.app-sidenav,
 // ── Tabs ────────────────────────────────────────────────────────
 .mat-mdc-tab-link {
   font-weight: 600 !important;
-  color: var(--cf-newGray-4) !important;
+  color: var(--color-text-muted) !important;
   
   &.mat-mdc-tab-active {
-    color: var(--cf-blue-5) !important;
+    color: var(--color-primary) !important;
   }
 }
 
@@ -241,11 +230,11 @@ mat-sidenav.app-sidenav,
 // resting-position label and the input text both render at 13px without
 // needing !important anywhere in component stylesheets.
 .mat-mdc-form-field {
-  font-size: 14px;
-  --mat-form-field-container-text-size: 14px;
-  --mdc-outlined-text-field-label-text-size: 14px;
-  --mdc-outlined-text-field-input-text-size: 14px;
-  --mdc-floating-label-font-size: 14px;
+  font-size: 13px;
+  --mat-form-field-container-text-size: 13px;
+  --mdc-outlined-text-field-label-text-size: 13px;
+  --mdc-outlined-text-field-input-text-size: 13px;
+  --mdc-floating-label-font-size: 13px;
 
   // Fix Truncation: Allow labels to wrap for better readability
   .mdc-floating-label {
@@ -261,15 +250,15 @@ mat-sidenav.app-sidenav,
   }
 
   &.mat-focused .mat-mdc-form-field-focus-indicator {
-    border-color: var(--cf-blue-5);
-    box-shadow: 0 0 0 2px var(--cf-blue-8);
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px var(--color-blue-100);
   }
 }
 
 // ── Tables: Cloudflare Technical Style ──────────────────────────
 .mat-mdc-table {
-  background: var(--cf-white) !important;
-  border: 1px solid var(--cf-gray-8) !important;
+  background: var(--color-bg-white) !important;
+  border: 1px solid var(--color-border) !important;
   border-radius: var(--radius-md) !important;
   overflow: hidden;
 
@@ -281,10 +270,10 @@ mat-sidenav.app-sidenav,
   .mat-mdc-header-cell {
     font-size: 12px !important;
     font-weight: 700 !important;
-    color: var(--cf-newGray-4) !important;
+    color: var(--color-text-muted) !important;
     text-transform: uppercase !important;
     letter-spacing: 0.08em !important;
-    border-bottom: 1px solid var(--cf-gray-8) !important;
+    border-bottom: 1px solid var(--color-border) !important;
   }
 
   .mat-mdc-row {
@@ -297,9 +286,9 @@ mat-sidenav.app-sidenav,
   }
 
   .mat-mdc-cell {
-    font-size: 14px !important;
-    color: var(--cf-gray-0) !important;
-    border-bottom: 1px solid var(--cf-gray-9) !important;
+    font-size: 13px !important;
+    color: var(--color-text-primary) !important;
+    border-bottom: 1px solid var(--color-bg-faint) !important;
   }
 }
 
@@ -312,9 +301,9 @@ mat-sidenav.app-sidenav,
   font-weight: 500 !important;
 }
 
-.mat-mdc-chip.status-pending  { background: var(--cf-gold-9) !important; color: var(--cf-gold-3) !important; border: 1px solid var(--cf-gold-8) !important; }
-.mat-mdc-chip.status-approved { background: var(--cf-green-9) !important; color: var(--cf-green-3) !important; border: 1px solid var(--cf-green-8) !important; }
-.mat-mdc-chip.status-rejected { background: var(--cf-red-9) !important; color: var(--cf-red-3) !important; border: 1px solid var(--cf-red-8) !important; }
+.mat-mdc-chip.status-pending  { background: var(--color-warning-light) !important; color: var(--color-warning-dark) !important; border: 1px solid var(--color-warning-light) !important; }
+.mat-mdc-chip.status-approved { background: var(--color-success-light) !important; color: var(--color-success-dark) !important; border: 1px solid var(--color-success-light) !important; }
+.mat-mdc-chip.status-rejected { background: var(--color-error-light) !important; color: var(--color-error-dark) !important; border: 1px solid var(--color-error-light) !important; }
 
 // ── Empty States ────────────────────────────────────────────────
 .empty-state {
@@ -328,7 +317,7 @@ mat-sidenav.app-sidenav,
     width: 80px;
     height: 80px;
     border-radius: 20px;
-    background: var(--cf-gray-9);
+    background: var(--color-bg-faint);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -338,7 +327,7 @@ mat-sidenav.app-sidenav,
       font-size: 40px !important;
       width: 40px !important;
       height: 40px !important;
-      color: var(--cf-blue-5) !important;
+      color: var(--color-primary) !important;
       opacity: 0.6 !important;
     }
   }
@@ -346,25 +335,25 @@ mat-sidenav.app-sidenav,
   h3 {
     font-size: 20px !important;
     font-weight: 600 !important;
-    color: var(--cf-gray-0) !important;
+    color: var(--color-text-primary) !important;
     margin-bottom: 12px !important;
   }
 
   p {
-    font-size: 14px !important;
-    color: var(--cf-newGray-4) !important;
+    font-size: 13px !important;
+    color: var(--color-text-muted) !important;
     max-width: 400px !important;
     margin-bottom: 32px !important;
   }
 }
 
 // ── Utility Classes ─────────────────────────────────────────────
-.text-primary   { color: var(--cf-blue-5) !important; }
+.text-primary   { color: var(--color-primary) !important; }
 .text-success   { color: var(--cf-green-5) !important; }
 .text-error     { color: var(--cf-red-5) !important; }
 .text-warning   { color: var(--cf-gold-5) !important; }
 
-.bg-primary-light { background: var(--cf-blue-9) !important; }
+.bg-primary-light { background: var(--color-blue-50) !important; }
 .bg-success-light { background: var(--cf-green-9) !important; }
 .bg-error-light   { background: var(--cf-red-9) !important; }
  

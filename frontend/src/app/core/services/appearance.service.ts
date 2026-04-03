@@ -23,18 +23,18 @@ export interface AppearanceConfig {
 }
 
 export const DEFAULT_CONFIG: AppearanceConfig = {
-  primaryColor: '#f38020',
-  accentColor: '#f38020',
-  fontSize: 'medium',
+  primaryColor: '#1a73e8',
+  accentColor: '#1a73e8',
+  fontSize: 'small',
   layoutWidth: 'wide',
   sidebarWidth: 'standard',
   density: 'comfortable',
-  headerBg: '#f9fafb',
+  headerBg: '#ffffff',
   siteName: 'XF Internal Linker',
   showScrollToTop: true,
   footerText: 'XF Internal Linker V2',
   showFooter: true,
-  footerBg: '#faf9f8',
+  footerBg: '#ffffff',
   logoUrl: '',
   faviconUrl: '',
   presets: [],
@@ -42,8 +42,8 @@ export const DEFAULT_CONFIG: AppearanceConfig = {
 
 const FONT_SIZE_MAP: Record<string, string> = {
   small: '13px',
-  medium: '14px',
-  large: '16px',
+  medium: '13px',
+  large: '15px',
 };
 
 const LAYOUT_WIDTH_MAP: Record<string, string> = {
@@ -207,7 +207,7 @@ export class AppearanceService {
     }
 
     // Enum values resolved through allow-lists — never passed raw
-    root.style.setProperty('--font-size-base', FONT_SIZE_MAP[cfg.fontSize] ?? '14px');
+    root.style.setProperty('--font-size-base', FONT_SIZE_MAP[cfg.fontSize] ?? '13px');
     root.style.setProperty('--layout-max-width', LAYOUT_WIDTH_MAP[cfg.layoutWidth] ?? '1280px');
     root.style.setProperty('--sidenav-width', SIDEBAR_WIDTH_MAP[cfg.sidebarWidth] ?? '220px');
 

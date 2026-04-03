@@ -14,14 +14,14 @@ h2[mat-dialog-title] {
   &.status-pending { background: var(--color-warning-light); color: var(--color-warning-dark); }
   &.status-approved { background: var(--color-success-light); color: var(--color-success-deeper); }
   &.status-rejected { background: var(--color-error-light); color: var(--color-error-dark); }
-  &.status-applied { background: var(--cf-blue-9); color: var(--cf-blue-5); }
-  &.status-verified { background: var(--cf-blue-8); color: var(--cf-blue-0); }
+  &.status-applied { background: var(--color-blue-50); color: var(--active-nav-color); }
+  &.status-verified { background: var(--color-blue-100); color: var(--color-text-primary); }
   &.status-stale, &.status-superseded { background: var(--color-bg-alt-1); color: var(--color-text-muted); }
 }
-.score-badge { background: var(--cf-orange-9); color: var(--cf-orange-5); font-size: 12px; text-transform: none; }
+.score-badge { background: var(--color-blue-50); color: var(--color-primary); font-size: 11px; text-transform: none; }
 .warning-badge {
   display: flex; align-items: center; gap: 4px; background: var(--color-warning-light); color: var(--color-warning-dark); font-weight: 600;
-  mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  mat-icon { font-size: 13px; width: 13px; height: 13px; }
 }
 .section { padding: 21px 0 8px; }
 .section-title { margin: 0 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-text-muted); }
@@ -30,11 +30,11 @@ h2[mat-dialog-title] {
 .destination-link {
   color: var(--color-primary); text-decoration: none; display: flex; align-items: center; gap: 4px; font-weight: 500;
   &:hover { text-decoration: underline; }
-  .ext-icon { font-size: 14px; width: 14px; height: 14px; }
+  .ext-icon { font-size: 13px; width: 13px; height: 13px; }
 }
 .host-sentence {
-  margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--cf-orange-8); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 14px; line-height: 1.6; color: var(--color-text-dark-2);
-  mark { background: rgba(26, 115, 232, 0.12); color: var(--color-primary-dark); border-radius: 2px; padding: 1px 2px; }
+  margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--color-border); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 13px; line-height: 1.6; color: var(--color-text-secondary);
+  mark { background: rgba(26, 115, 232, 0.15); color: var(--color-primary); border-radius: 2px; padding: 1px 2px; }
 }
 .anchor-row { display: flex; align-items: center; gap: 12px; }
 .anchor-field { flex: 1; }
