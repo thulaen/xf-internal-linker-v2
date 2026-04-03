@@ -966,6 +966,11 @@
                 <span class="hint" style="margin: 0; font-size: 12px;">{{ ga4Gsc.connection_message }}</span>
               </div>
 
+              <div class="analytics-guardrail-box">
+                <div class="analytics-guardrail-box__title">Traffic filter</div>
+                <p class="hint">Blocked countries: {{ ga4Gsc.excluded_countries.join(', ') || 'China, Singapore' }}. These regions are excluded from GA4, Matomo, and GSC imports so bot-heavy traffic does not influence the project.</p>
+              </div>
+
               <div class="number-grid">
                 <mat-form-field appearance="outline">
                   <mat-label>Property URL</mat-label>
@@ -1037,6 +1042,19 @@
                 </div>
               </div>
 
+              <div class="sync-schedule-box">
+                <div class="schedule-header">
+                  <h3>One-Time Cleanup Backfill</h3>
+                </div>
+                <p class="hint">Use a bigger window once to rewrite older Search Console rows with the new country filter. Daily sync can stay small.</p>
+                <div class="number-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Backfill Days</mat-label>
+                    <input matInput type="number" min="1" [max]="ga4Gsc.manual_backfill_max_days" [(ngModel)]="gscManualBackfillDays" />
+                  </mat-form-field>
+                </div>
+              </div>
+
               <div class="card-actions-row">
                 <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="updateGSCSettings()">
                   <mat-icon *ngIf="!savingGA4GSC">save</mat-icon>
@@ -1048,7 +1066,7 @@
                   <span *ngIf="!testingGSCConnection">Test Connection</span>
                   <span *ngIf="testingGSCConnection">Testing...</span>
                 </button>
-                <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" matTooltip="Trigger a manual performance data backfill for the lookback period.">
+                <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" matTooltip="Trigger a manual performance data backfill for the selected one-time window.">
                   <mat-icon *ngIf="!runningGSCSync">sync</mat-icon>
                   <span *ngIf="!runningGSCSync">Manual Backfill</span>
                   <span *ngIf="runningGSCSync">Syncing...</span>

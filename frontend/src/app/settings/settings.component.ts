@@ -768,12 +768,16 @@ export class SettingsComponent implements OnInit, OnDestroy {
     private_key_configured: false,
     sync_enabled: false,
     sync_lookback_days: 7,
+    manual_backfill_max_days: 365,
+    manual_backfill_suggested_days: 180,
+    excluded_countries: [],
     connection_status: 'not_configured',
     connection_message: 'Connect via Google OAuth or fill in service-account credentials.',
     oauth_connected: false,
     last_sync: null,
   };
   gscPrivateKey = '';
+  gscManualBackfillDays = 180;
   googleAuthClientId = '';
   googleAuthClientSecret = '';
   googleOAuth: GoogleOAuthSettings = {
@@ -1202,6 +1206,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.rareTermPropagation = { ...this.rareTermPropagation, ...data.rareTermPropagation };
         this.fieldAwareRelevance = { ...this.fieldAwareRelevance, ...data.fieldAwareRelevance };
         this.ga4Gsc = { ...this.ga4Gsc, ...data.ga4Gsc };
+        this.gscManualBackfillDays = Math.max(
+          Number(this.ga4Gsc.sync_lookback_days || 1),
+          Number(this.ga4Gsc.manual_backfill_suggested_days || 180),
+        );
         this.googleOAuth = { ...this.googleOAuth, ...data.googleOAuth };
         this.googleAuthClientId = data.googleOAuth.client_id || '';
         this.googleAuthClientSecret = '';
@@ -1474,6 +1482,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     this.siloSvc.updateGSCSettings(payload).pipe(takeUntil(this.destroy$)).subscribe({
       next: (ga4Gsc: GSCSettings) => {
         this.ga4Gsc = ga4Gsc;
+        this.gscManualBackfillDays = Math.max(
+          Number(ga4Gsc.sync_lookback_days || 1),
+          Number(ga4Gsc.manual_backfill_suggested_days || 180),
+        );
         this.gscPrivateKey = '';
         this.savingGA4GSC = false;
         this.snack.open('Search Console settings saved.', undefined, { duration: 3000 });
@@ -1541,12 +1553,13 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   runGSCSync(): void {
-    if (!confirm('Run a GSC performance sync now? This will fetch historical search data for the configured lookback period.')) return;
+    const lookbackDays = Math.max(1, Number(this.gscManualBackfillDays || this.ga4Gsc.sync_lookback_days));
+    if (!confirm(`Run a GSC performance sync now? This will re-read the last ${lookbackDays} days and replace matching rows with the new country-filtered data.`)) return;
     this.runningGSCSync = true;
-    this.siloSvc.runGSCSync().pipe(takeUntil(this.destroy$)).subscribe({
+    this.siloSvc.runGSCSync({ lookback_days: lookbackDays }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (res) => {
         this.runningGSCSync = false;
-        this.snack.open('GSC performance sync queued (Job: ' + res.job_id + ')', undefined, { duration: 3000 });
+        this.snack.open(res?.message || 'GSC performance sync queued.', undefined, { duration: 3500 });
       },
       error: (err) => {
         this.runningGSCSync = false;

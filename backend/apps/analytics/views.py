@@ -15,6 +15,7 @@ from rest_framework.views import APIView
 
 from apps.core.models import AppSetting
 
+from .country_filters import BLOCKED_COUNTRY_NAMES, BLOCKED_TELEMETRY_COUNTRY_VALUES
 from .integration_snippet import build_integration_payload
 from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
 from .tasks import sync_ga4_telemetry, sync_matomo_telemetry
@@ -56,6 +57,8 @@ GSC_DEFAULTS = {
     "sync_enabled": False,
     "sync_lookback_days": 14,
 }
+GSC_MANUAL_BACKFILL_MAX_DAYS = 365
+GSC_MANUAL_BACKFILL_SUGGESTED_DAYS = 180
 
 
 def _sync_sort_key(sync: dict | None) -> tuple[int, str]:
@@ -261,6 +264,9 @@ def get_gsc_settings() -> dict:
         "private_key_configured": bool(private_key),
         "sync_enabled": _read_bool("analytics.gsc_sync_enabled", GSC_DEFAULTS["sync_enabled"]),
         "sync_lookback_days": _read_int("analytics.gsc_sync_lookback_days", GSC_DEFAULTS["sync_lookback_days"]),
+        "manual_backfill_max_days": GSC_MANUAL_BACKFILL_MAX_DAYS,
+        "manual_backfill_suggested_days": GSC_MANUAL_BACKFILL_SUGGESTED_DAYS,
+        "excluded_countries": list(BLOCKED_COUNTRY_NAMES),
         "connection_status": status,
         "connection_message": message,
         "last_sync": sync,
@@ -637,7 +643,10 @@ def _telemetry_window_days(request, *, default: int = 30, minimum: int = 1, maxi
 def _telemetry_queryset(request):
     days = _telemetry_window_days(request)
     start_date = timezone.now().date() - timedelta(days=days - 1)
-    queryset = SuggestionTelemetryDaily.objects.filter(date__gte=start_date)
+    queryset = (
+        SuggestionTelemetryDaily.objects.filter(date__gte=start_date)
+        .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
+    )
     source = _telemetry_source_filter(request)
     if source:
         queryset = queryset.filter(telemetry_source=source)
@@ -657,7 +666,10 @@ class AnalyticsTelemetryOverviewView(APIView):
 
     def get(self, request):
         last_30_days = timezone.now().date() - timedelta(days=30)
-        telemetry_rows = SuggestionTelemetryDaily.objects.filter(date__gte=last_30_days)
+        telemetry_rows = (
+            SuggestionTelemetryDaily.objects.filter(date__gte=last_30_days)
+            .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
+        )
         coverage_rows = TelemetryCoverageDaily.objects.filter(date__gte=last_30_days)
         totals = telemetry_rows.aggregate(
             impressions=Sum("impressions"),
@@ -1274,11 +1286,24 @@ class AnalyticsGSCSyncView(APIView):
 
     def post(self, request):
         from .tasks import sync_gsc_performance
-        
+
         settings = get_gsc_settings()
+        requested_lookback = request.data.get("lookback_days")
+        if requested_lookback in (None, ""):
+            lookback_days = int(settings["sync_lookback_days"])
+        else:
+            try:
+                lookback_days = _coerce_int(
+                    requested_lookback,
+                    "lookback_days",
+                    1,
+                    GSC_MANUAL_BACKFILL_MAX_DAYS,
+                )
+            except ValueError as exc:
+                return Response({"detail": str(exc)}, status=400)
         sync_run = _queue_sync_run(
             source="gsc",
-            lookback_days=int(settings["sync_lookback_days"]),
+            lookback_days=lookback_days,
         )
         task = sync_gsc_performance.delay(sync_run.pk)
         return Response(
@@ -1287,7 +1312,7 @@ class AnalyticsGSCSyncView(APIView):
                 "task_id": task.id,
                 "source": "gsc",
                 "status": "queued",
-                "message": "GSC performance sync queued.",
+                "message": f"GSC performance sync queued for {lookback_days} days.",
             },
             status=202,
         )

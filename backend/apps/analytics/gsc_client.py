@@ -58,7 +58,8 @@ def fetch_gsc_performance_data(
     property_url: str,
     start_date: date,
     end_date: date,
-    dimensions: list[str] = ["date", "page"]
+    dimensions: list[str] = ["date", "page"],
+    excluded_country_codes: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
     Fetch search performance data from GSC for a specific date range.
@@ -72,6 +73,20 @@ def fetch_gsc_performance_data(
         "dimensions": dimensions,
         "rowLimit": 25000,
     }
+    if excluded_country_codes:
+        request["dimensionFilterGroups"] = [
+            {
+                "groupType": "and",
+                "filters": [
+                    {
+                        "dimension": "country",
+                        "operator": "notEquals",
+                        "expression": country_code,
+                    }
+                    for country_code in excluded_country_codes
+                ],
+            }
+        ]
     
     try:
         response = service.searchanalytics().query(siteUrl=property_url, body=request).execute()

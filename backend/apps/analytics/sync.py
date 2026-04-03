@@ -15,6 +15,12 @@ from django.utils import timezone
 from apps.content.models import ContentItem
 from apps.suggestions.models import Suggestion
 
+from .country_filters import (
+    BLOCKED_COUNTRY_CODES_ALPHA2,
+    BLOCKED_COUNTRY_CODES_ALPHA3,
+    BLOCKED_TELEMETRY_COUNTRY_VALUES,
+    is_blocked_country,
+)
 from .ga4_client import build_ga4_data_service
 from .gsc_client import build_gsc_service, fetch_gsc_performance_data
 from .models import AnalyticsSyncRun, SearchMetric, SuggestionTelemetryDaily, TelemetryCoverageDaily
@@ -33,6 +39,8 @@ GA4_EVENT_FIELDS = {
     "suggestion_destination_engaged": "engaged_sessions",
     "suggestion_destination_conversion": "conversions",
 }
+
+MATOMO_EXCLUDED_SEGMENT = ";".join(f"countryCode!={country_code}" for country_code in BLOCKED_COUNTRY_CODES_ALPHA2)
 
 
 def _same_silo(suggestion: Suggestion) -> bool | None:
@@ -206,6 +214,7 @@ def _fetch_matomo_event_rows(*, base_url: str, token_auth: str, site_id: str, ta
             "flat": 1,
             "expanded": 1,
             "secondaryDimension": "eventName",
+            "segment": MATOMO_EXCLUDED_SEGMENT,
         },
     )
     rows = payload if isinstance(payload, list) else []
@@ -475,6 +484,8 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                     dimension_names=_ga4_dimension_names(geo_granularity=geo_granularity),
                     geo_granularity=geo_granularity,
                 )
+                if is_blocked_country(parsed["country"]):
+                    continue
                 key = (
                     parsed["suggestion_id"],
                     parsed["device_category"],
@@ -502,6 +513,8 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                 dimension_names=_ga4_dimension_names(geo_granularity=geo_granularity),
                 geo_granularity=geo_granularity,
             )
+            if is_blocked_country(parsed["country"]):
+                continue
             key = (
                 parsed["suggestion_id"],
                 parsed["device_category"],
@@ -635,7 +648,8 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         property_url=property_url,
         start_date=start_date,
         end_date=end_date,
-        dimensions=["date", "page"]
+        dimensions=["date", "page"],
+        excluded_country_codes=list(BLOCKED_COUNTRY_CODES_ALPHA3),
     )
     query_rows = fetch_gsc_performance_data(
         service=service,
@@ -643,6 +657,7 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         start_date=start_date,
         end_date=end_date,
         dimensions=["date", "page", "query"],
+        excluded_country_codes=list(BLOCKED_COUNTRY_CODES_ALPHA3),
     )
 
     rows_read = len(page_rows) + len(query_rows)
@@ -768,6 +783,7 @@ def _refresh_content_value_scores(*, destination_ids: set[int] | None = None, lo
     window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
     telemetry_rows = (
         SuggestionTelemetryDaily.objects.filter(destination_id__in=item_ids, date__gte=window_start)
+        .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
         .values("destination_id")
         .annotate(
             clicks=Sum("clicks"),

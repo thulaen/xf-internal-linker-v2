@@ -112,6 +112,9 @@ export interface GSCSettings {
   private_key_configured: boolean;
   sync_enabled: boolean;
   sync_lookback_days: number;
+  manual_backfill_max_days: number;
+  manual_backfill_suggested_days: number;
+  excluded_countries: string[];
   connection_status: string;
   connection_message: string;
   oauth_connected: boolean;
@@ -420,8 +423,8 @@ export class SiloSettingsService {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload);
   }
 
-  runGSCSync(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, {});
+  runGSCSync(payload?: { lookback_days?: number }): Observable<any> {
+    return this.http.post(`${this.baseUrl}/analytics/telemetry/gsc-sync/`, payload ?? {});
   }
 
   getGoogleAuthUrl(): Observable<{ authorization_url: string }> {

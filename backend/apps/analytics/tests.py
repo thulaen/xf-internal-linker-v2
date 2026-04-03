@@ -1,3 +1,4 @@
+from datetime import date
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
@@ -5,7 +6,8 @@ from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
 from apps.analytics.models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
-from apps.analytics.sync import run_ga4_sync, run_matomo_sync
+from apps.analytics.gsc_client import fetch_gsc_performance_data
+from apps.analytics.sync import MATOMO_EXCLUDED_SEGMENT, run_ga4_sync, run_matomo_sync
 from apps.core.models import AppSetting
 from apps.content.models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.suggestions.models import PipelineRun, Suggestion
@@ -769,6 +771,154 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(coverage_row.attributed_destination_sessions, 5)
         suggestion.destination.refresh_from_db()
         self.assertGreater(suggestion.destination.content_value_score, 0.5)
+
+    @patch("apps.analytics.sync.build_ga4_data_service")
+    def test_run_ga4_sync_ignores_blocked_countries(self, build_service_mock):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.ga4_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="sync enabled",
+                ),
+                AppSetting(
+                    key="analytics.ga4_property_id",
+                    value="123456789",
+                    value_type="str",
+                    category="analytics",
+                    description="property id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_project_id",
+                    value="ga4-read-project",
+                    value_type="str",
+                    category="analytics",
+                    description="read project id",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_client_email",
+                    value="reader@example.iam.gserviceaccount.com",
+                    value_type="str",
+                    category="analytics",
+                    description="read client email",
+                ),
+                AppSetting(
+                    key="analytics.ga4_read_private_key",
+                    value="-----BEGIN PRIVATE KEY-----\\nsecret\\n-----END PRIVATE KEY-----\\n",
+                    value_type="str",
+                    category="analytics",
+                    description="read private key",
+                    is_secret=True,
+                ),
+            ]
+        )
+        suggestion = self._build_suggestion(host_id=401, destination_id=402)
+        sync_run = AnalyticsSyncRun.objects.create(source="ga4", status="pending", lookback_days=1)
+        service = Mock()
+        build_service_mock.return_value = service
+        service.properties.return_value.runReport.return_value.execute.side_effect = [
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "China"},
+                        ],
+                        "metricValues": [{"value": "99"}],
+                    },
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [{"value": "3"}],
+                    },
+                ]
+            },
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "Singapore"},
+                        ],
+                        "metricValues": [{"value": "88"}],
+                    },
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [{"value": "2"}],
+                    },
+                ]
+            },
+            {"rows": []},
+            {"rows": []},
+            {
+                "rows": [
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "China"},
+                        ],
+                        "metricValues": [
+                            {"value": "101"},
+                            {"value": "101"},
+                            {"value": "100"},
+                            {"value": "999"},
+                        ],
+                    },
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
+                            {"value": "United Kingdom"},
+                        ],
+                        "metricValues": [
+                            {"value": "5"},
+                            {"value": "5"},
+                            {"value": "4"},
+                            {"value": "40"},
+                        ],
+                    },
+                ]
+            },
+        ]
+
+        run_ga4_sync(sync_run)
+
+        telemetry_row = SuggestionTelemetryDaily.objects.get(telemetry_source="ga4")
+        self.assertEqual(telemetry_row.country, "United Kingdom")
+        self.assertEqual(telemetry_row.impressions, 3)
+        self.assertEqual(telemetry_row.clicks, 2)
+        self.assertEqual(telemetry_row.destination_views, 5)
+        self.assertEqual(telemetry_row.sessions, 5)
 class GSCSlice1Tests(APITestCase):
     def setUp(self):
         user = get_user_model().objects.create_user(username="gsc-user", password="pass")
@@ -791,6 +941,8 @@ class GSCSlice1Tests(APITestCase):
         payload = response.json()
         self.assertEqual(payload["property_url"], "sc-domain:example.com")
         self.assertTrue(payload["private_key_configured"])
+        self.assertEqual(payload["excluded_countries"], ["China", "Singapore"])
+        self.assertEqual(payload["manual_backfill_suggested_days"], 180)
         
         # Verify DB persistence
         self.assertEqual(AppSetting.objects.get(key="analytics.gsc_property_url").value, "sc-domain:example.com")
@@ -962,3 +1114,143 @@ class GSCSlice3Tests(APITestCase):
         
         perf = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")
         self.assertEqual(perf.clicks, 10) # Updated from 1 to 10
+
+    def test_fetch_gsc_performance_data_adds_blocked_country_filters(self):
+        service = Mock()
+        service.searchanalytics.return_value.query.return_value.execute.return_value = {"rows": []}
+
+        fetch_gsc_performance_data(
+            service=service,
+            property_url="sc-domain:example.com",
+            start_date=date(2026, 4, 1),
+            end_date=date(2026, 4, 2),
+            dimensions=["date", "page"],
+            excluded_country_codes=["CHN", "SGP"],
+        )
+
+        body = service.searchanalytics.return_value.query.call_args.kwargs["body"]
+        self.assertEqual(
+            body["dimensionFilterGroups"],
+            [
+                {
+                    "groupType": "and",
+                    "filters": [
+                        {"dimension": "country", "operator": "notEquals", "expression": "CHN"},
+                        {"dimension": "country", "operator": "notEquals", "expression": "SGP"},
+                    ],
+                }
+            ],
+        )
+
+    @patch("apps.analytics.sync.requests.get")
+    def test_run_matomo_sync_excludes_blocked_countries(self, get_mock):
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.matomo_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="enabled",
+                ),
+                AppSetting(
+                    key="analytics.matomo_url",
+                    value="https://matomo.example.com",
+                    value_type="str",
+                    category="analytics",
+                    description="url",
+                ),
+                AppSetting(
+                    key="analytics.matomo_site_id_xenforo",
+                    value="7",
+                    value_type="str",
+                    category="analytics",
+                    description="site id",
+                ),
+                AppSetting(
+                    key="analytics.matomo_token_auth",
+                    value="token-secret",
+                    value_type="str",
+                    category="analytics",
+                    description="token",
+                    is_secret=True,
+                ),
+                AppSetting(
+                    key="analytics.matomo_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                    description="sync enabled",
+                ),
+                AppSetting(
+                    key="analytics.telemetry_event_schema",
+                    value="fr016_v1",
+                    value_type="str",
+                    category="analytics",
+                    description="schema",
+                ),
+            ]
+        )
+        host = ContentItem.objects.create(
+            content_id=501,
+            content_type="thread",
+            title="Host 501",
+            url="https://forum.example.com/host-501",
+        )
+        destination = ContentItem.objects.create(
+            content_id=502,
+            content_type="thread",
+            title="Destination 502",
+            url="https://forum.example.com/destination-502",
+        )
+        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text="Host sentence",
+            position=0,
+            char_count=13,
+            start_char=0,
+            end_char=13,
+            word_position=0,
+        )
+        pipeline_run = PipelineRun.objects.create(run_state="completed")
+        suggestion = Suggestion.objects.create(
+            pipeline_run=pipeline_run,
+            destination=destination,
+            destination_title=destination.title,
+            host=host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="host",
+            anchor_start=0,
+            anchor_end=4,
+            anchor_confidence="strong",
+        )
+        sync_run = AnalyticsSyncRun.objects.create(source="matomo", status="pending", lookback_days=1)
+
+        get_mock.return_value.json.return_value = [
+            {
+                "label": "suggestion_link_impression",
+                "subtable": [
+                    {"label": str(suggestion.suggestion_id), "nb_events": 1},
+                ],
+            }
+        ]
+        get_mock.return_value.raise_for_status.return_value = None
+
+        run_matomo_sync(sync_run)
+
+        self.assertEqual(get_mock.call_args.kwargs["params"]["segment"], MATOMO_EXCLUDED_SEGMENT)
+
+    @patch("apps.analytics.tasks.sync_gsc_performance.delay")
+    def test_gsc_sync_endpoint_accepts_manual_backfill_override(self, delay_mock):
+        delay_mock.return_value = Mock(id="gsc-task-1")
+
+        response = self.client.post("/api/analytics/telemetry/gsc-sync/", {"lookback_days": 180}, format="json")
+
+        self.assertEqual(response.status_code, 202)
+        payload = response.json()
+        self.assertEqual(payload["message"], "GSC performance sync queued for 180 days.")
+        sync_run = AnalyticsSyncRun.objects.get(pk=payload["sync_run_id"])
+        self.assertEqual(sync_run.lookback_days, 180)
