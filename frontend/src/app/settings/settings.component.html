@@ -727,6 +727,9 @@
               <p class="hint" style="font-size: 11px; margin-top: 8px;">
                 <strong>Redirect URI:</strong> <code>http://localhost:8000/api/analytics/oauth/callback/</code> (or your real app URL).
               </p>
+              @if (googleOAuth.oauth_connected) {
+                <p class="hint">Google sign-in is connected. You can keep the old fallback key fields hidden unless you want a backup setup.</p>
+              }
             </mat-card-content>
           </mat-card>
 
@@ -777,29 +780,38 @@
                 <div class="sync-schedule-box">
                   <div class="schedule-header">
                     <h3>Service Account (Fallback)</h3>
+                    @if (googleOAuth.oauth_connected) {
+                      <button mat-stroked-button type="button" (click)="showGA4FallbackFields = !showGA4FallbackFields">
+                        {{ shouldShowGA4FallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}
+                      </button>
+                    }
+                  </div>
+                  @if (shouldShowGA4FallbackFields()) {
                     <mat-checkbox [(ngModel)]="ga4Telemetry.sync_enabled">Enable GA4 sync</mat-checkbox>
-                  </div>
-                  <div class="form-row">
+                    <div class="form-row">
+                      <mat-form-field appearance="outline">
+                        <mat-label>Read project ID</mat-label>
+                        <input matInput [(ngModel)]="ga4Telemetry.read_project_id" placeholder="my-ga4-project" />
+                      </mat-form-field>
+                      <mat-form-field appearance="outline">
+                        <mat-label>Read client email</mat-label>
+                        <input matInput [(ngModel)]="ga4Telemetry.read_client_email" placeholder="reader@project.iam.gserviceaccount.com" />
+                      </mat-form-field>
+                    </div>
                     <mat-form-field appearance="outline">
-                      <mat-label>Read project ID</mat-label>
-                      <input matInput [(ngModel)]="ga4Telemetry.read_project_id" placeholder="my-ga4-project" />
+                      <mat-label>Read private key</mat-label>
+                      <textarea matInput rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+                      <mat-hint>
+                        @if (ga4Telemetry.read_private_key_configured) {
+                          Private key stored. Leave blank to keep it.
+                        } @else {
+                          Paste the service-account private key for the GA4 Data API.
+                        }
+                      </mat-hint>
                     </mat-form-field>
-                    <mat-form-field appearance="outline">
-                      <mat-label>Read client email</mat-label>
-                      <input matInput [(ngModel)]="ga4Telemetry.read_client_email" placeholder="reader@project.iam.gserviceaccount.com" />
-                    </mat-form-field>
-                  </div>
-                  <mat-form-field appearance="outline">
-                    <mat-label>Read private key</mat-label>
-                    <textarea matInput rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
-                    <mat-hint>
-                      @if (ga4Telemetry.read_private_key_configured) {
-                        Private key stored. Leave blank to keep it.
-                      } @else {
-                        Paste the service-account private key for the GA4 Data API.
-                      }
-                    </mat-hint>
-                  </mat-form-field>
+                  } @else {
+                    <p class="hint">Google sign-in handles GA4 read access. Open the fallback fields only if you want a backup service-account setup.</p>
+                  }
                 </div>
 
                 <div class="sync-schedule-box">
@@ -963,14 +975,26 @@
                   </button>
                 </mat-form-field>
 
-                <mat-form-field appearance="outline">
-                  <mat-label>Service Account Email</mat-label>
-                  <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="gsc-bot@project.iam.gserviceaccount.com" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
-                  </button>
-                </mat-form-field>
               </div>
+
+              @if (googleOAuth.oauth_connected) {
+                <div class="action-buttons">
+                  <button mat-stroked-button type="button" (click)="showGSCFallbackFields = !showGSCFallbackFields">
+                    {{ shouldShowGSCFallbackFields() ? 'Hide fallback fields' : 'Show fallback fields' }}
+                  </button>
+                </div>
+              }
+
+              @if (shouldShowGSCFallbackFields()) {
+                <div class="number-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Service Account Email</mat-label>
+                    <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="gsc-bot@project.iam.gserviceaccount.com" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" matTooltipClass="setting-tooltip">
+                      <mat-icon>info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                </div>
 
               <mat-form-field appearance="outline">
                 <mat-label>Service Account Private Key</mat-label>
@@ -980,6 +1004,9 @@
                 </button>
                 <mat-hint *ngIf="ga4Gsc.private_key_configured">Private key is already configured. Leave blank to keep current key.</mat-hint>
               </mat-form-field>
+              } @else {
+                <p class="hint">Google sign-in handles Search Console access. Open the fallback fields only if you want a backup service-account setup.</p>
+              }
 
               <mat-divider></mat-divider>
 

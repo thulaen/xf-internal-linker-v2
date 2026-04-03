@@ -6,6 +6,7 @@ from datetime import timedelta
 from urllib.parse import urljoin, urlparse
 
 import requests
+from django.conf import settings
 from django.db.models import Sum
 from django.utils import timezone
 from rest_framework.permissions import AllowAny
@@ -120,6 +121,18 @@ def _latest_sync(source: str) -> dict | None:
         "lookback_days": row.lookback_days,
         "error_message": row.error_message,
     }
+
+
+def _frontend_settings_url(request) -> str:
+    """Best-effort redirect target for returning to the Angular settings page."""
+    saved_origin = (request.session.get("google_oauth_frontend_origin") or "").strip()
+    allowed_origins = getattr(settings, "CORS_ALLOWED_ORIGINS", []) or []
+    fallback_origin = allowed_origins[0].rstrip("/") if allowed_origins else ""
+    candidate = saved_origin or fallback_origin
+    parsed = urlparse(candidate)
+    if parsed.scheme and parsed.netloc:
+        return urljoin(f"{parsed.scheme}://{parsed.netloc}", "/settings")
+    return "/settings"
 
 
 def get_google_oauth_settings() -> dict:
@@ -1533,6 +1546,7 @@ class AnalyticsGoogleOAuthStartView(APIView):
 
         # Store state in session for verification in callback
         request.session["google_oauth_state"] = state
+        request.session["google_oauth_frontend_origin"] = (request.headers.get("Origin") or "").strip()
 
         return Response({"authorization_url": authorization_url})
 
@@ -1554,7 +1568,7 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
         error = request.GET.get("error")
 
         # Basic error handling
-        frontend_settings_url = "/settings" # TODO: Make this smarter or configurable
+        frontend_settings_url = _frontend_settings_url(request)
 
         if error:
             return redirect(f"{frontend_settings_url}?oauth_error={error}")

@@ -784,6 +784,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     message: 'Paste the Google OAuth client ID and secret once, then sign in once.',
     last_sync: null,
   };
+  showGA4FallbackFields = false;
+  showGSCFallbackFields = false;
   ga4Telemetry: GA4TelemetrySettings = {
     behavior_enabled: false,
     property_id: '',
@@ -1054,6 +1056,14 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   shouldShowReconnectGoogle(): boolean {
     return !this.googleOAuth.oauth_connected && this.hasGoogleAppCredentials();
+  }
+
+  shouldShowGA4FallbackFields(): boolean {
+    return this.showGA4FallbackFields || !this.googleOAuth.oauth_connected;
+  }
+
+  shouldShowGSCFallbackFields(): boolean {
+    return this.showGSCFallbackFields || !this.googleOAuth.oauth_connected;
   }
 
   saveGoogleAuthSettings(): void {
