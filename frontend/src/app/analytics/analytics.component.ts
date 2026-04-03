@@ -81,13 +81,20 @@ export class AnalyticsComponent implements OnInit {
       legend: { display: false },
       tooltip: {
         backgroundColor: 'rgba(32, 33, 36, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#e8eaed',
         padding: 12,
         cornerRadius: 4,
+        titleFont: { size: 13, weight: 'bold' },
+        bodyFont: { size: 12 },
       }
     },
     scales: {
       x: { display: false, grid: { display: false } },
-      y: { grid: { display: false }, ticks: { color: '#5f6368', font: { size: 13 } } }
+      y: {
+        grid: { display: false },
+        ticks: { color: '#5f6368', font: { size: 12 } }
+      }
     }
   };
 
@@ -97,11 +104,24 @@ export class AnalyticsComponent implements OnInit {
     maintainAspectRatio: false,
     interaction: { mode: 'index', intersect: false },
     plugins: {
-      legend: { position: 'bottom', labels: { boxWidth: 12, usePointStyle: true, padding: 20 } },
+      legend: {
+        position: 'bottom',
+        labels: {
+          boxWidth: 10,
+          usePointStyle: true,
+          padding: 20,
+          color: '#5f6368',
+          font: { size: 12 }
+        }
+      },
       tooltip: {
         backgroundColor: 'rgba(32, 33, 36, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#e8eaed',
         padding: 12,
         cornerRadius: 4,
+        titleFont: { size: 13, weight: 'bold' },
+        bodyFont: { size: 12 },
       }
     },
     scales: {
@@ -109,19 +129,24 @@ export class AnalyticsComponent implements OnInit {
         type: 'linear',
         display: true,
         position: 'left',
-        title: { display: true, text: 'Clicks' },
+        title: { display: true, text: 'Clicks', color: '#5f6368', font: { size: 11 } },
+        ticks: { color: '#5f6368', font: { size: 11 } },
         grid: { color: 'rgba(95, 99, 104, 0.1)' }
       },
       y1: {
         type: 'linear',
         display: true,
         position: 'right',
-        title: { display: true, text: 'Rate (%)' },
+        title: { display: true, text: 'Rate (%)', color: '#5f6368', font: { size: 11 } },
+        ticks: { color: '#5f6368', font: { size: 11 } },
         min: 0,
         max: 100,
         grid: { drawOnChartArea: false }
       },
-      x: { grid: { display: false } }
+      x: {
+        grid: { display: false },
+        ticks: { color: '#5f6368', font: { size: 11 } }
+      }
     }
   };
 
@@ -130,10 +155,30 @@ export class AnalyticsComponent implements OnInit {
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'bottom' },
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(32, 33, 36, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#e8eaed',
+        padding: 12,
+        cornerRadius: 4,
+      }
     },
     scales: {
-      y: { min: 0, max: 100, title: { display: true, text: 'Performance (%)' } }
+      y: {
+        min: 0,
+        max: 100,
+        title: { display: true, text: 'Performance (%)', color: '#5f6368', font: { size: 11 } },
+        ticks: { color: '#5f6368', font: { size: 11 } },
+        grid: { color: 'rgba(95, 99, 104, 0.1)' }
+      },
+      x: {
+        ticks: { color: '#5f6368', font: { size: 11 } },
+        grid: { display: false }
+      }
     }
   };
 
@@ -143,9 +188,19 @@ export class AnalyticsComponent implements OnInit {
   doughnutOptions: ChartConfiguration<'doughnut'>['options'] = {
     responsive: true,
     maintainAspectRatio: false,
-    cutout: '70%',
+    cutout: '68%',
     plugins: {
-      legend: { position: 'bottom', labels: { boxWidth: 10, padding: 15 } }
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(32, 33, 36, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#e8eaed',
+        padding: 12,
+        cornerRadius: 4,
+      }
     }
   };
 

@@ -34,7 +34,7 @@ h2[mat-dialog-title] {
 }
 .host-sentence {
   margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--cf-orange-8); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 14px; line-height: 1.6; color: var(--color-text-dark-2);
-  mark { background: rgb(238 115 10 / .14); color: var(--cf-orange-4); border-radius: 2px; padding: 1px 2px; }
+  mark { background: rgba(26, 115, 232, 0.12); color: var(--color-primary-dark); border-radius: 2px; padding: 1px 2px; }
 }
 .anchor-row { display: flex; align-items: center; gap: 12px; }
 .anchor-field { flex: 1; }

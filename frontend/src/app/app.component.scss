@@ -6,14 +6,14 @@
 }
 
 .app-sidenav {
-  width: var(--sidenav-width, 233px);
+  width: var(--sidenav-width, 256px);
   background-color: var(--cf-white) !important;
-  border-right: 1px solid var(--cf-gray-8) !important;
+  border-right: 0.8px solid #dadce0 !important;
   transition: width 0.2s ease;
 
   &.mat-drawer {
     background-color: var(--cf-white);
-    border-right: 1px solid var(--cf-gray-8);
+    border-right: 0.8px solid #dadce0;
     overflow-x: hidden !important;
   }
 
@@ -32,7 +32,7 @@
     }
 
     .brand-icon {
-      color: var(--cf-orange-6);
+      color: var(--color-primary);
       font-size: 24px;
       width: 24px;
       height: 24px;
@@ -82,25 +82,25 @@
 
   .sidebar-section-label {
     font-size: 11px;
-    font-weight: 700;
-    letter-spacing: .08em;
+    font-weight: 600;
+    letter-spacing: .06em;
     text-transform: uppercase;
-    color: var(--cf-newGray-4);
-    padding: 20px 16px 8px;
+    color: var(--color-text-muted);
+    padding: 16px 16px 6px;
   }
 
   mat-nav-list {
     padding-top: 0;
 
     a[mat-list-item] {
-      color: var(--cf-newGray-4);
-      border-radius: 0;
-      margin: 0;
+      color: var(--color-text-secondary);
+      border-radius: 0 44px 44px 0;
+      margin: 0 8px 2px 0;
       padding: 0 16px !important;
-      height: 40px;
-      min-height: 40px;
-      transition: all 0.1s ease;
-      font-size: 13px;
+      height: 36px;
+      min-height: 36px;
+      transition: background-color 0.15s ease, color 0.15s ease;
+      font-size: 14px;
 
       .nav-item-title {
         display: flex;
@@ -126,48 +126,36 @@
       }
 
       mat-icon {
-        color: var(--cf-newGray-4);
+        color: var(--color-text-muted);
         font-size: 18px;
         width: 18px;
         height: 18px;
         margin-right: 12px;
-        opacity: 0.7;
+        opacity: 1;
       }
 
       &:hover {
-        background: var(--cf-gray-9);
-        color: var(--cf-gray-0);
+        background: #f1f3f4;
+        color: var(--color-text-primary);
 
         mat-icon {
-          color: var(--cf-orange-6);
+          color: var(--color-primary);
           opacity: 1;
         }
       }
 
       &.active-link {
-        background: var(--cf-blue-9) !important;
-        color: var(--cf-blue-5) !important;
-        position: relative;
+        background: #e8f0fe !important;
+        color: #1967d2 !important;
 
         .nav-item-title, span, .mdc-list-item__primary-text {
           font-weight: 600 !important;
-          color: var(--cf-blue-5) !important;
+          color: #1967d2 !important;
         }
 
         mat-icon, [matListItemIcon] {
-          color: var(--cf-blue-5) !important;
+          color: #1967d2 !important;
           opacity: 1;
-        }
-
-        // Left indicator bar (Cloudflare style)
-        &::before {
-          content: '';
-          position: absolute;
-          left: 0;
-          top: 0;
-          bottom: 0;
-          width: 3px;
-          background: var(--cf-blue-5);
         }
       }
     }
@@ -187,12 +175,12 @@
 // ── Toolbar ───────────────────────────────────────────────────────
 
 .app-toolbar {
-  background: var(--toolbar-bg); // #f2f2f2 (Off-white)
-  color: var(--cf-gray-0);
+  background: #ffffff;
+  color: var(--color-text-primary);
   position: sticky;
   top: 0;
   z-index: 1000;
-  border-bottom: 1px solid var(--cf-gray-8);
+  border-bottom: 0.8px solid #dadce0;
   box-shadow: none;
   height: 64px;
   padding: 0 24px;
@@ -203,10 +191,10 @@
   }
 
   span {
-    font-size: 18px;
+    font-size: 16px;
     font-weight: 600;
-    color: var(--cf-gray-0);
-    letter-spacing: -0.2px;
+    color: var(--color-text-primary);
+    letter-spacing: -0.1px;
   }
 
   .toolbar-spacer {

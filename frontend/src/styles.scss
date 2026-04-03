@@ -13,7 +13,7 @@
 
 :root {
   --layout-max-width: 1440px; 
-  --sidenav-width: 233px;
+  --sidenav-width: 256px;
 }
 
 html,
@@ -59,11 +59,17 @@ mat-sidenav.app-sidenav,
 .filter-bar,
 .review-header-card,
 .review-header,
-.page-header,
 .review-controls-surface,
 .filter-actions,
 .mat-mdc-tab-header {
   background-color: var(--color-bg-white) !important;
+}
+
+// GA4 card system — flat, border-only, no shadow
+.mat-mdc-card {
+  border: var(--card-border) !important;
+  border-radius: var(--card-border-radius) !important;
+  box-shadow: var(--card-shadow) !important;
 }
 
 .mat-mdc-text-field-wrapper {
@@ -77,16 +83,17 @@ mat-sidenav.app-sidenav,
 .mat-flat-button.mat-primary,
 .status-tab.active,
 .btn-gsc-primary {
-  background-color: var(--cf-orange-6) !important;
+  background-color: var(--color-primary) !important;
   color: var(--cf-white) !important;
   font-weight: 500 !important;
-  border-radius: var(--radius-md) !important; // 4px
-  padding: 0 20px !important;
+  border-radius: var(--radius-sm) !important;
+  height: 36px !important;
+  padding: 0 16px !important;
   box-shadow: none !important;
-  transition: all 0.15s ease-in-out !important;
+  transition: background-color 0.15s ease !important;
 
   &:hover {
-    background-color: var(--cf-orange-5) !important;
+    background-color: var(--color-primary-dark) !important;
   }
 
   mat-icon {
@@ -105,9 +112,9 @@ mat-sidenav.app-sidenav,
     --mdc-text-button-label-text-color: var(--cf-orange-6) !important;
     
     &:hover {
-      --mdc-filled-button-container-color: var(--cf-orange-5) !important;
-      background-color: var(--cf-orange-9) !important;
-      --mdc-outlined-button-outline-color: var(--cf-orange-5) !important;
+      --mdc-filled-button-container-color: var(--color-primary-dark) !important;
+      background-color: var(--color-blue-50) !important;
+      --mdc-outlined-button-outline-color: var(--color-primary-dark) !important;
     }
   }
   &.mat-warn:not(:disabled) {
@@ -144,30 +151,30 @@ mat-sidenav.app-sidenav,
 
 // ── Global Page Header & Layout ─────────────────────────────
 .page-header {
-  margin: 0 0 32px 0 !important;
-  padding: 24px 48px !important;
-  background-color: var(--toolbar-bg) !important; // Off-white top bar
-  border-bottom: 1px solid var(--color-border) !important;
+  margin: 0 0 28px 0 !important;
+  padding: 0 0 20px 0 !important;
+  background-color: transparent !important;
+  border-bottom: 0.8px solid var(--color-border) !important;
   display: flex !important;
   align-items: center !important;
   justify-content: space-between !important;
   width: 100%;
-  box-shadow: none !important; // Flat look
+  box-shadow: none !important;
 
   .page-title {
     display: flex !important;
     align-items: center !important;
-    gap: 12px !important;
-    font-size: 20px !important; // Slightly more compact for technical feel
+    gap: 10px !important;
+    font-size: 22px !important;
     font-weight: 600 !important;
-    color: var(--cf-gray-0) !important;
+    color: var(--color-text-primary) !important;
     margin: 0 !important;
 
     mat-icon {
-      color: var(--cf-orange-6) !important;
-      font-size: 24px !important;
-      width: 24px !important;
-      height: 24px !important;
+      color: var(--color-primary) !important;
+      font-size: 22px !important;
+      width: 22px !important;
+      height: 22px !important;
     }
   }
 }
@@ -262,11 +269,11 @@ mat-sidenav.app-sidenav,
   }
 
   .mat-mdc-row {
-    height: 52px !important;
+    height: 48px !important;
     transition: background-color 0.15s ease !important;
 
     &:hover {
-      background-color: var(--cf-blue-9) !important;
+      background-color: #f8f9fa !important;
     }
   }
 

@@ -1,16 +1,16 @@
 // ═══════════════════════════════════════════════════════════════════
-// Default Theme — Cloudflare inspired palette
+// Default Theme — Google Analytics 4 visual identity
+// Live-measured from analytics.google.com 2026-04-03
 // ═══════════════════════════════════════════════════════════════════
 
 @use '@angular/material' as mat;
 
 @include mat.core();
 
-// Define a palette based on Cloudflare Orange (#ee730a)
-$primary-palette: mat.m2-define-palette(mat.$m2-orange-palette, 600);
-$accent-palette:  mat.m2-define-palette(mat.$m2-blue-palette, 600);
+// Primary: GA4 Blue (#1a73e8 ≈ Material Blue 600 = #1e88e5)
+$primary-palette: mat.m2-define-palette(mat.$m2-blue-palette, 600);
+$accent-palette:  mat.m2-define-palette(mat.$m2-teal-palette, 400);
 
-// Create the theme using the stable M2 bridge functions
 $theme: mat.m2-define-light-theme((
   color: (
     primary: $primary-palette,
@@ -20,11 +20,10 @@ $theme: mat.m2-define-light-theme((
   density: 0,
 ));
 
-// Emit all theme styles
 @include mat.all-component-themes($theme);
 
 :root {
-  // ── Cloudflare Brand Palette ──────────────────────────────────
+  // ── Cloudflare Brand Palette (kept for backward compat) ───────────
   --cf-white: #fff;
   --cf-black: #000;
   --cf-red-0: #3c0501;
@@ -37,16 +36,19 @@ $theme: mat.m2-define-light-theme((
   --cf-red-7: #fe9f97;
   --cf-red-8: #feccc8;
   --cf-red-9: #ffefee;
-  --cf-orange-0: #361a02;
-  --cf-orange-1: #482303;
-  --cf-orange-2: #592b04;
-  --cf-orange-3: #763905;
-  --cf-orange-4: #8d4406;
-  --cf-orange-5: #c05d08;
-  --cf-orange-6: #ee730a;
-  --cf-orange-7: #f8a054;
-  --cf-orange-8: #fbcda5;
-  --cf-orange-9: #fef1e6;
+
+  // CF orange remapped → GA4 blue (so var(--cf-orange-6) = GA4 primary)
+  --cf-orange-0: #001c43;
+  --cf-orange-1: #002b67;
+  --cf-orange-2: #003681;
+  --cf-orange-3: #0045a6;
+  --cf-orange-4: #0d47a1;
+  --cf-orange-5: #1558b0;
+  --cf-orange-6: #1a73e8;
+  --cf-orange-7: #4a90d9;
+  --cf-orange-8: #c5d9f9;
+  --cf-orange-9: #e8f0fe;
+
   --cf-gold-0: #261c00;
   --cf-gold-1: #3e2d00;
   --cf-gold-2: #4c3700;
@@ -117,41 +119,41 @@ $theme: mat.m2-define-light-theme((
   --cf-pink-7: #fb97b9;
   --cf-pink-8: #fdc9db;
   --cf-pink-9: #fef1f5;
-  --cf-gray-0: #0a0a0a;
-  --cf-gray-1: #313131;
+  --cf-gray-0: #202124;
+  --cf-gray-1: #3c4043;
   --cf-gray-2: #3d3d3d;
   --cf-gray-3: #4a4a4a;
-  --cf-gray-4: #595959;
+  --cf-gray-4: #5f6368;
   --cf-gray-5: #797979;
-  --cf-gray-6: #999999;
+  --cf-gray-6: #80868b;
   --cf-gray-7: #b6b6b6;
-  --cf-gray-8: #d9d9d9;
-  --cf-gray-9: #f2f2f2;
+  --cf-gray-8: #dadce0;
+  --cf-gray-9: #f8f9fa;
   --cf-newGray-0: #191919;
   --cf-newGray-1: #2C2C2C;
   --cf-newGray-2: #424242;
   --cf-newGray-3: #5A5A5A;
-  --cf-newGray-4: #666666;
+  --cf-newGray-4: #5f6368;
   --cf-newGray-5: #767676;
   --cf-newGray-6: #909090;
   --cf-newGray-7: #AEAEAE;
-  --cf-newGray-8: #CCCCCC;
-  --cf-newGray-9: #EAEAEA;
+  --cf-newGray-8: #dadce0;
+  --cf-newGray-9: #f8f9fa;
   --cf-newGreen-0: #081E10;
   --cf-newGreen-1: #0D341B;
   --cf-newGreen-2: #134C28;
   --cf-newGreen-3: #1A6736;
-  --cf-newGreen-4: #1E753E;
+  --cf-newGreen-4: #1e753e;
   --cf-newGreen-5: #228747;
   --cf-newGreen-6: #29A456;
   --cf-newGreen-7: #32C769;
   --cf-newGreen-8: #81DFA3;
-  --cf-newGreen-9: #CFF3DC;
-  --cf-sequential-0: #3E8EFF;
-  --cf-sequential-1: #104858;
-  --cf-sequential-2: #E46E0A;
-  --cf-sequential-3: #6B1687;
-  --cf-sequential-4: #F8528A;
+  --cf-newGreen-9: #e3f8eb;
+  --cf-sequential-0: #1a73e8;
+  --cf-sequential-1: #34a853;
+  --cf-sequential-2: #fbbc04;
+  --cf-sequential-3: #ea4335;
+  --cf-sequential-4: #fa7b17;
   --cf-sequential-5: #003E93;
   --cf-sequential-6: #FD5548;
   --cf-sequential-7: #423979;
@@ -163,88 +165,111 @@ $theme: mat.m2-define-light-theme((
   --cf-sequential-13: #880C02;
 
   // ── Functional Mapping ────────────────────────────────────────
-  --color-primary:        var(--cf-orange-6);
-  --color-primary-dark:   #d46400; // Custom dark orange for hover
-  --color-accent:         var(--cf-blue-5);
-  
+  --color-primary:        #1a73e8;
+  --color-primary-dark:   #1558b0;
+  --color-accent:         #1a73e8;
+
   --mdc-theme-primary:            var(--color-primary);
   --mdc-button-label-text-color:  var(--color-primary);
   --mdc-outlined-button-label-text-color: var(--color-primary);
-  
-  --color-blue-50:  var(--cf-blue-9);
-  --color-blue-100: var(--cf-blue-8);
-  --color-blue-200: var(--cf-blue-5);
 
-  --color-success:        var(--cf-newGreen-5);
-  --color-success-light:  var(--cf-newGreen-9);
-  --color-error:          var(--cf-red-5);
-  --color-error-light:    var(--cf-red-9);
-  --color-warning:        var(--cf-gold-5);
-  --color-warning-light:  var(--cf-gold-9);
+  --color-blue-50:  #e8f0fe;
+  --color-blue-100: #c5d9f9;
+  --color-blue-200: #1a73e8;
 
-  --color-text-primary:   var(--cf-gray-0);
-  --color-text-secondary: var(--cf-newGray-4);
-  --color-text-muted:     var(--cf-newGray-5);
-  --color-text-on-dark:   var(--cf-white);
+  --color-success:         #228747;
+  --color-success-light:   #e3f8eb;
+  --color-success-dark:    #1e753e;
+  --color-success-deeper:  #1a6736;
+  --color-error:           #e81403;
+  --color-error-light:     #ffefee;
+  --color-error-dark:      #b20f03;
+  --color-error-50:        #ffefee;
+  --color-warning:         #a77a00;
+  --color-warning-light:   #fff8e4;
+  --color-warning-dark:    #735400;
 
-  --color-border:       var(--cf-gray-8);
-  --color-border-faint: var(--cf-gray-9);
+  --color-text-primary:   #202124;
+  --color-text-secondary: #3c4043;
+  --color-text-muted:     #5f6368;
+  --color-text-on-dark:   #ffffff;
+  --color-text-dark-1:    #202124;
+  --color-text-dark-2:    #3c4043;
+  --color-text-light:     #5f6368;
+  --color-text-disabled:  #80868b;
 
-  --color-bg-white:  var(--cf-white);
-  --color-bg-page:   var(--cf-newGray-9);
-  --color-bg-faint:  var(--cf-gray-9);
-  --color-bg-alt-1:  var(--cf-white); // Cloudflare sidebar is mostly white
-  --color-bg-alt-2:  var(--cf-gray-9);
+  --color-border:       #dadce0;
+  --color-border-faint: #f1f3f4;
+  --color-border-dark:  #b6b6b6;
 
-  --toolbar-bg:        var(--cf-newGray-9); // Off-white top bar
-  --sidenav-width:     233px;
-  
+  --color-bg-white:   #ffffff;
+  --color-bg-page:    #fafafa;
+  --color-bg-faint:   #f8f9fa;
+  --color-bg-alt-1:   #ffffff;
+  --color-bg-alt-2:   #f8f9fa;
+  --color-surface:    #ffffff;
+  --color-bg-card:    #ffffff;
+  --color-dark-blue:  #0045a6;
+
+  --toolbar-bg:        #ffffff;
+  --sidenav-width:     256px;
+
+  // ── Card system ───────────────────────────────────────────────
+  --card-border:       0.8px solid #dadce0;
+  --card-border-radius: 8px;
+  --card-shadow:       none;
+
+  // ── Active nav ────────────────────────────────────────────────
+  --active-nav-bg:     #e8f0fe;
+  --active-nav-color:  #1967d2;
+
   // ── Radius & Spacing ──────────────────────────────────────────
-  --radius-sm:  2px;
-  --radius-md:  4px;
-  --radius-lg:  8px;
-  --spacing-md: 24px;
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-pill: 999px;
+  --spacing-md:  24px;
 
   // ── Shadows ────────────────────────────────────────────────────
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
-  --shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-sm:    0 1px 2px rgba(60, 64, 67, 0.1);
+  --shadow-hover: 0 1px 3px rgba(60, 64, 67, 0.15);
+  --shadow-md:    0 2px 6px rgba(60, 64, 67, 0.15);
 
-  // ── CF variable aliases (for components that use --cf-text-* ) ──
+  // ── Typography ─────────────────────────────────────────────────
+  --font-family:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-size-base:   13px;
+  --line-height-base: 1.5;
+
+  // ── CF variable aliases ────────────────────────────────────────
   --cf-text-primary:   var(--color-text-primary);
   --cf-text-secondary: var(--color-text-secondary);
   --cf-text-muted:     var(--color-text-muted);
 
   // ── Link Graph design tokens (D3 / Three.js future FR) ──────────
-  --graph-canvas-bg:        #f8f9fa;
-  --graph-node-default:     #1a73e8;
-  --graph-node-hub:         #ea4335;
-  --graph-node-orphan:      #80868b;
-  --graph-node-new:         #34a853;
-  --graph-edge-default:     rgba(95, 99, 104, 0.25);
-  --graph-edge-selected:    #1a73e8;
-  --graph-label-color:      #202124;
-  --graph-tooltip-bg:       rgba(32, 33, 36, 0.9);
-  --graph-tooltip-text:     #ffffff;
-  --graph-selection-ring:   rgba(26, 115, 232, 0.4);
-
-  // ── Typography ─────────────────────────────────────────────────
-  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  --font-size-base: 15px;
-  --line-height-base: 1.6;
+  --graph-canvas-bg:      #f8f9fa;
+  --graph-node-default:   #1a73e8;
+  --graph-node-hub:       #ea4335;
+  --graph-node-orphan:    #80868b;
+  --graph-node-new:       #34a853;
+  --graph-edge-default:   rgba(95, 99, 104, 0.25);
+  --graph-edge-selected:  #1a73e8;
+  --graph-label-color:    #202124;
+  --graph-tooltip-bg:     rgba(32, 33, 36, 0.9);
+  --graph-tooltip-text:   #ffffff;
+  --graph-selection-ring: rgba(26, 115, 232, 0.4);
 }
 
-// ── Global Setting Tooltip (Wall of text fix) ──────────────────────────
+// ── Global Setting Tooltip ─────────────────────────────────────────
 .setting-tooltip {
-  background: rgba(15, 20, 25, 0.96) !important;
+  background: rgba(32, 33, 36, 0.96) !important;
   color: #fff !important;
   font-size: 13px !important;
-  line-height: 1.62 !important;
-  padding: 18px !important;
-  border-radius: 6px !important;
+  line-height: 1.5 !important;
+  padding: 16px !important;
+  border-radius: 8px !important;
   max-width: 440px !important;
-  white-space: pre-line !important; 
-  box-shadow: 0 12px 40px rgba(0,0,0,0.4) !important;
-  border: 1px solid rgba(255, 255, 255, 0.15) !important;
-  backdrop-filter: blur(4px);
+  white-space: pre-line !important;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   z-index: 10000 !important;
 }
