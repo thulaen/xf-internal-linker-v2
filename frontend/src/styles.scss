@@ -249,10 +249,11 @@ mat-sidenav.app-sidenav,
 
   // Fix Truncation: Allow labels to wrap for better readability
   .mdc-floating-label {
-    white-space: normal !important;
-    line-height: 1.2 !important;
-    overflow: visible !important;
-    max-width: calc(100% - 32px) !important;
+    // Labels should not wrap as it breaks the notched outline height
+    white-space: nowrap !important;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    max-width: 100%;
   }
 
   .mat-mdc-text-field-wrapper {

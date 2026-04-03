@@ -1,0 +1,266 @@
+// ═══════════════════════════════════════════════════════════════════
+// Theme Variables & Mixins — ONLY
+// No CSS Output. Safe to @use in many components.
+// ═══════════════════════════════════════════════════════════════════
+
+:root {
+  // ── Cloudflare Brand Palette (kept for backward compat) ───────────
+  --cf-white: #fff;
+  --cf-black: #000;
+  --cf-red-0: #3c0501;
+  --cf-red-1: #5a0801;
+  --cf-red-2: #780a02;
+  --cf-red-3: #970d02;
+  --cf-red-4: #b20f03;
+  --cf-red-5: #e81403;
+  --cf-red-6: #fc574a;
+  --cf-red-7: #fe9f97;
+  --cf-red-8: #feccc8;
+  --cf-red-9: #ffefee;
+
+  // CF orange remapped → GA4 blue (so var(--cf-orange-6) = GA4 primary)
+  --cf-orange-0: #001c43;
+  --cf-orange-1: #002b67;
+  --cf-orange-2: #003681;
+  --cf-orange-3: #0045a6;
+  --cf-orange-4: #0d47a1;
+  --cf-orange-5: #1558b0;
+  --cf-orange-6: #1a73e8;
+  --cf-orange-7: #4a90d9;
+  --cf-orange-8: #c5d9f9;
+  --cf-orange-9: #e8f0fe;
+
+  --cf-gold-0: #261c00;
+  --cf-gold-1: #3e2d00;
+  --cf-gold-2: #4c3700;
+  --cf-gold-3: #644900;
+  --cf-gold-4: #735400;
+  --cf-gold-5: #a77a00;
+  --cf-gold-6: #dda100;
+  --cf-gold-7: #ffce4b;
+  --cf-gold-8: #ffeab2;
+  --cf-gold-9: #fff8e4;
+  --cf-green-0: #0a2614;
+  --cf-green-1: #0e381d;
+  --cf-green-2: #104122;
+  --cf-green-3: #15562d;
+  --cf-green-4: #196535;
+  --cf-green-5: #228b49;
+  --cf-green-6: #2db35e;
+  --cf-green-7: #55d584;
+  --cf-green-8: #a8e9c0;
+  --cf-green-9: #e3f8eb;
+  --cf-cyan-0: #061b20;
+  --cf-cyan-1: #0b333e;
+  --cf-cyan-2: #0d3e4b;
+  --cf-cyan-3: #115061;
+  --cf-cyan-4: #156074;
+  --cf-cyan-5: #1e89a5;
+  --cf-cyan-6: #30b6da;
+  --cf-cyan-7: #73cee6;
+  --cf-cyan-8: #ace2f0;
+  --cf-cyan-9: #e9f7fb;
+  --cf-blue-0: #001c43;
+  --cf-blue-1: #002b67;
+  --cf-blue-2: #003681;
+  --cf-blue-3: #0045a6;
+  --cf-blue-4: #0051c3;
+  --cf-blue-5: #086fff;
+  --cf-blue-6: #4693ff;
+  --cf-blue-7: #82b6ff;
+  --cf-blue-8: #b9d6ff;
+  --cf-blue-9: #ecf4ff;
+  --cf-indigo-0: #170f58;
+  --cf-indigo-1: #221785;
+  --cf-indigo-2: #2c1ea9;
+  --cf-indigo-3: #3524cd;
+  --cf-indigo-4: #4b3bdc;
+  --cf-indigo-5: #7366e4;
+  --cf-indigo-6: #9d94ec;
+  --cf-indigo-7: #c2bdf3;
+  --cf-indigo-8: #dfdcf9;
+  --cf-indigo-9: #f1f0fc;
+  --cf-violet-0: #350b42;
+  --cf-violet-1: #490f5c;
+  --cf-violet-2: #5f1477;
+  --cf-violet-3: #741892;
+  --cf-violet-4: #8d1eb1;
+  --cf-violet-5: #b73cdf;
+  --cf-violet-6: #cf7ee9;
+  --cf-violet-7: #dfa8f1;
+  --cf-violet-8: #ebcaf6;
+  --cf-violet-9: #f7eafb;
+  --cf-pink-0: #2d0210;
+  --cf-pink-1: #4e031c;
+  --cf-pink-2: #6a0426;
+  --cf-pink-3: #8d0633;
+  --cf-pink-4: #af0740;
+  --cf-pink-5: #e80954;
+  --cf-pink-6: #f85189;
+  --cf-pink-7: #fb97b9;
+  --cf-pink-8: #fdc9db;
+  --cf-pink-9: #fef1f5;
+  --cf-gray-0: #202124;
+  --cf-gray-1: #3c4043;
+  --cf-gray-2: #3d3d3d;
+  --cf-gray-3: #4a4a4a;
+  --cf-gray-4: #5f6368;
+  --cf-gray-5: #797979;
+  --cf-gray-6: #80868b;
+  --cf-gray-7: #b6b6b6;
+  --cf-gray-8: #dadce0;
+  --cf-gray-9: #f8f9fa;
+  --cf-newGray-0: #191919;
+  --cf-newGray-1: #2C2C2C;
+  --cf-newGray-2: #424242;
+  --cf-newGray-3: #5A5A5A;
+  --cf-newGray-4: #5f6368;
+  --cf-newGray-5: #767676;
+  --cf-newGray-6: #909090;
+  --cf-newGray-7: #AEAEAE;
+  --cf-newGray-8: #dadce0;
+  --cf-newGray-9: #f8f9fa;
+  --cf-newGreen-0: #081E10;
+  --cf-newGreen-1: #0D341B;
+  --cf-newGreen-2: #134C28;
+  --cf-newGreen-3: #1A6736;
+  --cf-newGreen-4: #1e753e;
+  --cf-newGreen-5: #228747;
+  --cf-newGreen-6: #29A456;
+  --cf-newGreen-7: #32C769;
+  --cf-newGreen-8: #81DFA3;
+  --cf-newGreen-9: #e3f8eb;
+  --cf-sequential-0: #1a73e8;
+  --cf-sequential-1: #34a853;
+  --cf-sequential-2: #fbbc04;
+  --cf-sequential-3: #ea4335;
+  --cf-sequential-4: #fa7b17;
+  --cf-sequential-5: #003E93;
+  --cf-sequential-6: #FD5548;
+  --cf-sequential-7: #423979;
+  --cf-sequential-8: #29A456;
+  --cf-sequential-9: #870531;
+  --cf-sequential-10: #BA8700;
+  --cf-sequential-11: #134C28;
+  --cf-sequential-12: #C768E6;
+  --cf-sequential-13: #880C02;
+
+  // ── Functional Mapping ────────────────────────────────────────
+  --color-primary:        #1a73e8;
+  --color-primary-dark:   #1558b0;
+  --color-accent:         #1a73e8;
+
+  --mdc-theme-primary:            var(--color-primary);
+  --mdc-button-label-text-color:  var(--color-primary);
+  --mdc-outlined-button-label-text-color: var(--color-primary);
+
+  --color-blue-50:  #e8f0fe;
+  --color-blue-100: #c5d9f9;
+  --color-blue-200: #1a73e8;
+
+  --color-success:         #228747;
+  --color-success-light:   #e3f8eb;
+  --color-success-dark:    #1e753e;
+  --color-success-deeper:  #1a6736;
+  --color-error:           #e81403;
+  --color-error-light:     #ffefee;
+  --color-error-dark:      #b20f03;
+  --color-error-50:        #ffefee;
+  --color-warning:         #a77a00;
+  --color-warning-light:   #fff8e4;
+  --color-warning-dark:    #735400;
+
+  --color-text-primary:   #202124;
+  --color-text-secondary: #3c4043;
+  --color-text-muted:     #5f6368;
+  --color-text-on-dark:   #ffffff;
+  --color-text-dark-1:    #202124;
+  --color-text-dark-2:    #3c4043;
+  --color-text-light:     #5f6368;
+  --color-text-disabled:  #80868b;
+
+  --color-border:       #dadce0;
+  --color-border-faint: #f1f3f4;
+  --color-border-dark:  #b6b6b6;
+
+  --color-bg-white:   #ffffff;
+  --color-bg-page:    #fafafa;
+  --color-bg-faint:   #f8f9fa;
+  --color-bg-alt-1:   #ffffff;
+  --color-bg-alt-2:   #f8f9fa;
+  --color-surface:    #ffffff;
+  --color-bg-card:    #ffffff;
+  --color-dark-blue:  #0045a6;
+
+  --toolbar-bg:        #ffffff;
+  --sidenav-width:     256px;
+
+  // ── Card system ───────────────────────────────────────────────
+  --card-border:       0.8px solid #dadce0;
+  --card-border-radius: 8px;
+  --card-shadow:       none;
+
+  // ── Active nav ────────────────────────────────────────────────
+  --active-nav-bg:     #e8f0fe;
+  --active-nav-color:  #1967d2;
+
+  // ── Radius & Spacing ──────────────────────────────────────────
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-pill: 999px;
+  --spacing-md:  24px;
+
+  // ── Shadows ────────────────────────────────────────────────────
+  --shadow-sm:    0 1px 2px rgba(60, 64, 67, 0.1);
+  --shadow-hover: 0 1px 3px rgba(60, 64, 67, 0.15);
+  --shadow-md:    0 2px 6px rgba(60, 64, 67, 0.15);
+
+  // ── Typography ─────────────────────────────────────────────────
+  --font-family:      -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+  --font-size-base:   14px;
+  --line-height-base: 1.5;
+
+  // ── CF variable aliases ────────────────────────────────────────
+  --cf-text-primary:   var(--color-text-primary);
+  --cf-text-secondary: var(--color-text-secondary);
+  --cf-text-muted:     var(--color-text-muted);
+
+  // ── Link Graph design tokens (D3 / Three.js future FR) ──────────
+  --graph-canvas-bg:      #f8f9fa;
+  --graph-node-default:   #1a73e8;
+  --graph-node-hub:       #ea4335;
+  --graph-node-orphan:    #80868b;
+  --graph-node-new:       #34a853;
+  --graph-edge-default:   rgba(95, 99, 104, 0.25);
+  --graph-edge-selected:  #1a73e8;
+  --graph-label-color:    #202124;
+  --graph-tooltip-bg:     rgba(32, 33, 36, 0.9);
+  --graph-tooltip-text:   #ffffff;
+  --graph-selection-ring: rgba(26, 115, 232, 0.4);
+}
+
+// ── Shared UI Tokens (Mixins for modular import) ──────────────────
+@mixin ga4-panel {
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--cf-white);
+  transition: all 0.2s ease;
+  overflow: hidden;
+
+  &:hover {
+    box-shadow: var(--shadow-hover);
+  }
+}
+
+@mixin ga4-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border: 1px solid transparent;
+}
