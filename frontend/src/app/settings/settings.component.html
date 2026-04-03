@@ -302,22 +302,26 @@
             </mat-card-content>
           </mat-card>
 
-          <!-- GSC / GA4 Signals -->
+          <!-- Traffic & Search Signals (Teaser) -->
           <mat-card class="settings-card">
             <mat-card-header>
               <mat-card-title>Traffic & Search Signals</mat-card-title>
             </mat-card-header>
             <mat-card-content class="card-content">
-              <p class="hint">First-party behavioral and search traffic data.</p>
-              <div class="number-grid">
-                <mat-form-field appearance="outline" [class.field-warn]="isExtreme(ga4Gsc.ranking_weight, 'ga4Gsc.ranking_weight') && !isDanger(ga4Gsc.ranking_weight, 'ga4Gsc.ranking_weight')" [class.field-danger]="isDanger(ga4Gsc.ranking_weight, 'ga4Gsc.ranking_weight')">
-                  <mat-label>Ranking weight</mat-label>
-                  <input matInput type="number" min="0" max="0.3" step="0.01" [(ngModel)]="ga4Gsc.ranking_weight" />
-                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
-                  </button>
-                  <mat-hint>{{ fieldHelper('ga4Gsc.ranking_weight', ga4Gsc.ranking_weight) }}</mat-hint>
-                </mat-form-field>
+              <p class="hint">Attributing search outcomes to your internal linking efforts.</p>
+              <div class="integration-status">
+                <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.connection_status)">
+                  {{ telemetryStatusLabel(ga4Gsc.connection_status) }}
+                </span>
+                <span class="integration-status__message" *ngIf="ga4Gsc.connection_status !== 'connected'">
+                  Connect to Search Console to use search performance as a ranking signal.
+                </span>
+                <span class="integration-status__message" *ngIf="ga4Gsc.connection_status === 'connected'">
+                  Search signals are active and influencing link rankings.
+                </span>
+              </div>
+              <div class="card-actions-row">
+                <button mat-stroked-button color="primary" (click)="onTabChange(2)">Configure Search Signals</button>
               </div>
             </mat-card-content>
           </mat-card>
@@ -878,65 +882,98 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Google Search Console -->
           <mat-card class="settings-card">
             <mat-card-header>
-              <mat-card-title>Search Console Credentials</mat-card-title>
+              <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <mat-card-title>Google Search Console</mat-card-title>
+                <div class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.connection_status)">
+                  {{ telemetryStatusLabel(ga4Gsc.connection_status) }}
+                </div>
+              </div>
             </mat-card-header>
             <mat-card-content class="card-content">
-              <p class="hint">This is where the app keeps the Search Console property and service-account read credentials.</p>
-              <div class="integration-status">
-                <span class="status-pill" [ngClass]="telemetryStatusClass(ga4Gsc.connection_status)">{{ telemetryStatusLabel(ga4Gsc.connection_status) }}</span>
-                <span class="integration-status__message">{{ ga4Gsc.connection_message }}</span>
+              <p class="hint">Connect to Google Search Console to pull daily performance data and attribute search outcomes to your internal linking efforts.</p>
+              
+              <div class="integration-status" *ngIf="ga4Gsc.connection_message">
+                <mat-icon [color]="ga4Gsc.connection_status === 'connected' ? 'primary' : 'warn'" style="font-size: 16px; width: 16px; height: 16px;">
+                  {{ ga4Gsc.connection_status === 'connected' ? 'check_circle' : 'info' }}
+                </mat-icon>
+                <span class="hint" style="margin: 0; font-size: 12px;">{{ ga4Gsc.connection_message }}</span>
               </div>
 
-              <div class="wordpress-form">
+              <div class="number-grid">
                 <mat-form-field appearance="outline">
                   <mat-label>Property URL</mat-label>
-                  <input matInput [(ngModel)]="ga4Gsc.property_url" placeholder="https://example.com" />
+                  <input matInput [(ngModel)]="ga4Gsc.property_url" placeholder="https://example.com/ or sc-domain:example.com" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.property_url')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <mat-label>Client email</mat-label>
-                  <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="search-console@project.iam.gserviceaccount.com" />
+                  <mat-label>Service Account Email</mat-label>
+                  <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="gsc-bot@project.iam.gserviceaccount.com" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+
+              <mat-form-field appearance="outline">
+                <mat-label>Service Account Private Key</mat-label>
+                <textarea matInput rows="3" [(ngModel)]="gscPrivateKey" [placeholder]="ga4Gsc.private_key_configured ? '••••••••••••••••••••••••••••' : 'Paste raw PEM private key here'"></textarea>
+                <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.private_key')" matTooltipClass="setting-tooltip">
+                  <mat-icon>info_outline</mat-icon>
+                </button>
+                <mat-hint *ngIf="ga4Gsc.private_key_configured">Private key is already configured. Leave blank to keep current key.</mat-hint>
+              </mat-form-field>
+
+              <mat-divider></mat-divider>
+
+              <div class="number-grid">
+                <mat-checkbox [(ngModel)]="ga4Gsc.sync_enabled">Enable Daily Sync</mat-checkbox>
+                
+                <mat-form-field appearance="outline">
+                  <mat-label>Lookback Days</mat-label>
+                  <input matInput type="number" min="1" max="90" [(ngModel)]="ga4Gsc.sync_lookback_days" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.sync_lookback_days')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
                 </mat-form-field>
 
                 <mat-form-field appearance="outline">
-                  <mat-label>Private key</mat-label>
-                  <textarea matInput rows="5" [(ngModel)]="gscPrivateKey" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
-                  <mat-hint>
-                    @if (ga4Gsc.private_key_configured) {
-                      Private key stored. Leave blank to keep it.
-                    } @else {
-                      Paste the Search Console service-account private key.
-                    }
-                  </mat-hint>
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput type="number" min="0" max="0.3" step="0.01" [(ngModel)]="ga4Gsc.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
                 </mat-form-field>
+              </div>
 
-                <div class="sync-schedule-box">
-                  <div class="schedule-header">
-                    <h3>Search Console Sync</h3>
-                    <mat-checkbox [(ngModel)]="ga4Gsc.sync_enabled">Enable GSC sync</mat-checkbox>
-                  </div>
-                  <div class="form-row">
-                    <mat-form-field appearance="outline">
-                      <mat-label>Sync lookback days</mat-label>
-                      <input matInput type="number" min="1" max="30" [(ngModel)]="ga4Gsc.sync_lookback_days" />
-                    </mat-form-field>
-                  </div>
+              <div class="last-sync-box" *ngIf="ga4Gsc.last_sync">
+                <div class="schedule-header">
+                  <h3>Last Performance Sync</h3>
+                  <span>{{ lastSyncLabel(ga4Gsc.last_sync) }}</span>
                 </div>
+              </div>
 
-                <div class="last-sync-box" *ngIf="ga4Gsc.last_sync">
-                  Last sync: {{ lastSyncLabel(ga4Gsc.last_sync) }}
-                </div>
-
-                <div class="action-buttons">
-                  <button mat-stroked-button color="primary" [disabled]="testingGSCConnection" (click)="testGSCConnection()">
-                    <mat-icon>wifi_tethering</mat-icon> {{ testingGSCConnection ? 'Testing...' : 'Test Connection' }}
-                  </button>
-                  <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="saveGA4GSCSettings()">
-                    <mat-icon>save</mat-icon> {{ savingGA4GSC ? 'Saving...' : 'Save GSC' }}
-                  </button>
-                </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingGA4GSC" (click)="saveGA4GSCSettings()">
+                  <mat-icon *ngIf="!savingGA4GSC">save</mat-icon>
+                  <span *ngIf="!savingGA4GSC">Save GSC Settings</span>
+                  <span *ngIf="savingGA4GSC">Saving...</span>
+                </button>
+                <button mat-stroked-button [disabled]="testingGSCConnection" (click)="testGSCConnection()">
+                  <mat-icon *ngIf="!testingGSCConnection">cable</mat-icon>
+                  <span *ngIf="!testingGSCConnection">Test Connection</span>
+                  <span *ngIf="testingGSCConnection">Testing...</span>
+                </button>
+                <button mat-stroked-button [disabled]="runningGSCSync || ga4Gsc.connection_status !== 'connected'" (click)="runGSCSync()" matTooltip="Trigger a manual performance data backfill for the lookback period.">
+                  <mat-icon *ngIf="!runningGSCSync">sync</mat-icon>
+                  <span *ngIf="!runningGSCSync">Manual Backfill</span>
+                  <span *ngIf="runningGSCSync">Syncing...</span>
+                </button>
               </div>
             </mat-card-content>
           </mat-card>

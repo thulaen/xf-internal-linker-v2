@@ -817,7 +817,7 @@ class GSCSlice1Tests(APITestCase):
             reward_label="positive"
         )
         self.assertEqual(GSCImpactSnapshot.objects.count(), 1)
-        self.assertEqual(suggestion.gsc_impact.reward_label, "positive")
+        self.assertEqual(suggestion.gsc_impacts.first().reward_label, "positive")
 
 
 

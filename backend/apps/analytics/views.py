@@ -1104,6 +1104,32 @@ class AnalyticsMatomoSyncView(APIView):
         )
 
 
+class AnalyticsGSCSyncView(APIView):
+    """Queue a GSC performance sync run."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from .tasks import sync_gsc_performance
+        
+        settings = get_gsc_settings()
+        sync_run = _queue_sync_run(
+            source="gsc",
+            lookback_days=int(settings["sync_lookback_days"]),
+        )
+        task = sync_gsc_performance.delay(sync_run.pk)
+        return Response(
+            {
+                "sync_run_id": sync_run.pk,
+                "task_id": task.id,
+                "source": "gsc",
+                "status": "queued",
+                "message": "GSC performance sync queued.",
+            },
+            status=202,
+        )
+
+
 class AnalyticsTelemetryByVersionView(APIView):
     """Compare performance metrics group by algorithm version."""
 

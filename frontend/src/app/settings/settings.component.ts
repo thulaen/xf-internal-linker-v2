@@ -12,6 +12,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDividerModule } from '@angular/material/divider';
 import {
   FieldAwareRelevanceSettings,
   ClickDistanceSettings,
@@ -282,6 +283,41 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     default: '0.05',
     example: 'Start at 0.05 so analytics acts like a light tie-breaker instead of overruling relevance.',
     range: '0 to 0.3',
+  },
+  'ga4Gsc.property_url': {
+    definition: 'The Google Search Console property URL for your site.',
+    impact: 'Required to fetch search performance data for your pages.',
+    default: 'https://example.com/ or sc-domain:example.com',
+    example: 'Use the exact property URL from the GSC dashboard.',
+    range: 'Full URL or sc-domain: prefix',
+  },
+  'ga4Gsc.client_email': {
+    definition: 'The client email from your Google Cloud service account JSON.',
+    impact: 'Used to authenticate the app with the Google Search Console API.',
+    default: 'service-account@project.iam.gserviceaccount.com',
+    example: 'Copy from the "client_email" field of your JSON key.',
+    range: 'A valid email address',
+  },
+  'ga4Gsc.private_key': {
+    definition: 'The private key from your Google Cloud service account JSON.',
+    impact: 'Used to securely sign API requests to Google.',
+    default: '-----BEGIN PRIVATE KEY----- ...',
+    example: 'Paste the entire key including the BEGIN and END markers.',
+    range: 'A valid RSA private key string',
+  },
+  'ga4Gsc.sync_enabled': {
+    definition: 'Turns the automatic GSC search performance sync on or off.',
+    impact: 'When on, the app pulls daily clicks and impressions for your content.',
+    default: 'Off',
+    example: 'Recommended to keep this on for accurate search attribution.',
+    range: 'Enabled / Disabled',
+  },
+  'ga4Gsc.sync_lookback_days': {
+    definition: 'How many days of history to reread during each GSC sync.',
+    impact: 'Helps pick up late-arriving data. Search Console data usually lags by 48 hours.',
+    default: '14',
+    example: 'Set to 14 or 28 to ensure all data is eventually captured.',
+    range: '1 to 90 days',
   },
   'clickDistance.ranking_weight': {
     definition: 'How much the click-distance score influences the final ranking.',
@@ -629,6 +665,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatSnackBarModule,
     MatTabsModule,
     MatTooltipModule,
+    MatDividerModule,
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
@@ -662,6 +699,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   testingGA4TelemetryRead = false;
   testingMatomoTelemetry = false;
   testingGSCConnection = false;
+  runningGSCSync = false;
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -1389,6 +1427,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
           connection_message: message,
         };
         this.snack.open(message, 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  runGSCSync(): void {
+    if (!confirm('Run a GSC performance sync now? This will fetch historical search data for the configured lookback period.')) return;
+    this.runningGSCSync = true;
+    this.siloSvc.runGSCSync().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (res) => {
+        this.runningGSCSync = false;
+        this.snack.open('GSC performance sync queued (Job: ' + res.job_id + ')', undefined, { duration: 3000 });
+      },
+      error: (err) => {
+        this.runningGSCSync = false;
+        this.snack.open(err?.error?.detail || 'Failed to queue GSC sync', 'Dismiss', { duration: 4000 });
       },
     });
   }

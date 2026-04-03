@@ -402,6 +402,10 @@ export class SiloSettingsService {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/gsc/test-connection/', payload);
   }
 
+  runGSCSync(): Observable<SyncRunResponse> {
+    return this.http.post<SyncRunResponse>('/api/analytics/telemetry/gsc-sync/', {});
+  }
+
   updateGA4TelemetrySettings(payload: GA4TelemetryUpdate): Observable<GA4TelemetrySettings> {
     return this.http.put<GA4TelemetrySettings>('/api/analytics/settings/ga4/', payload);
   }
