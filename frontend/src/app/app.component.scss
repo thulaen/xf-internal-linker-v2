@@ -91,16 +91,24 @@
 
   mat-nav-list {
     padding-top: 0;
+    padding-left: 0;
 
     a[mat-list-item] {
       color: var(--color-text-secondary);
       border-radius: 0 44px 44px 0;
+      overflow: hidden;
       margin: 0 8px 2px 0;
       padding: 0 16px !important;
       height: 36px;
       min-height: 36px;
       transition: background-color 0.15s ease, color 0.15s ease;
-      font-size: 14px;
+      font-size: 13px;
+
+      // Force MDC internal ripple/state layer to match our pill shape
+      .mdc-list-item__ripple,
+      .mat-mdc-list-item-ripple {
+        border-radius: 0 44px 44px 0;
+      }
 
       .nav-item-title {
         display: flex;
