@@ -63,15 +63,20 @@ public sealed class GSCAttributionService
         // 5. Bayesian Smoothing (Hierarchical Prior)
         // We use the Global Site CTR as the prior to smooth out low-traffic noise.
         double priorStrength = 100.0;
-        double alpha0 = globalCtrBaseline * priorStrength;
-        double beta0 = (1.0 - globalCtrBaseline) * priorStrength;
+        // Fix 1: Ensure alpha0 and beta0 are strictly positive to prevent MathNet exceptions
+        double alpha0 = Math.Max(0.01, globalCtrBaseline * priorStrength);
+        double beta0 = Math.Max(0.01, (1.0 - globalCtrBaseline) * priorStrength);
 
         // 6. Build Distributions
         // Baseline: The smoothed CTR we observed before the change.
-        var baselineDist = new Beta(baseline.Clicks + alpha0, (baseline.Impressions - baseline.Clicks) + beta0);
+        var baselineDist = new Beta(
+            baseline.Clicks + alpha0, 
+            Math.Max(0, baseline.Impressions - baseline.Clicks) + beta0);
         
         // Post: The actual CTR we observed after the change.
-        var postDist = new Beta(post.Clicks + alpha0, (post.Impressions - post.Clicks) + beta0);
+        var postDist = new Beta(
+            post.Clicks + alpha0, 
+            Math.Max(0, post.Impressions - post.Clicks) + beta0);
 
         // 7. Monte Carlo Simulation for Causal Lift
         int wins = 0;
@@ -84,14 +89,17 @@ public sealed class GSCAttributionService
             double sPost = postDist.Sample();
             
             // Apply Causal Trend: "What would the baseline have been if it followed the site trend?"
-            double sCounterfactual = sBaseline * controlTrendMultiplier;
+            // Fix 2: Clamp CTR to max 0.999 to prevent impossible >100% target CTR
+            double sCounterfactual = Math.Min(0.999, sBaseline * controlTrendMultiplier);
             
             if (sPost > sCounterfactual)
             {
                 wins++;
             }
             
-            totalLift += (sPost - sCounterfactual) / Math.Max(1e-9, sCounterfactual);
+            // Fix 3: Avoid extreme volatility on micro-CTRs
+            double denominator = Math.Max(0.001, sCounterfactual);
+            totalLift += (sPost - sCounterfactual) / denominator;
         }
 
         double probSuccess = (double)wins / MonteCarloSamples;
