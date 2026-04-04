@@ -201,6 +201,7 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 - Next session type: implement FR-017 Slice 4 (Statistical Brain in the C# worker) against its spec.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
+- Future queued backlog phases beyond Phase 23 continue in `FEATURE-REQUESTS.md`; the newest addition from this session is `Phase 48 / FR-045 - Anchor Diversity & Exact-Match Reuse Guard`.
 
 ## Spec Standards for All Feature Phases
 

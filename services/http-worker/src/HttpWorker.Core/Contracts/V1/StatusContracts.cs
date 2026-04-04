@@ -121,6 +121,9 @@ public sealed class HttpWorkerStatusResponse
     [JsonPropertyName("performance")]
     public HttpWorkerPerformanceSnapshot? Performance { get; set; }
 
+    [JsonPropertyName("distillation_fallback_active")]
+    public bool DistillationFallbackActive { get; set; }
+
     [JsonPropertyName("build_version")]
     public string BuildVersion { get; set; } = string.Empty;
 

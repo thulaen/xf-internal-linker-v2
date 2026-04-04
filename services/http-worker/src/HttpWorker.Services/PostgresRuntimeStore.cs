@@ -448,23 +448,272 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
             updated_at = @updated_at
         WHERE broken_link_id = @broken_link_id
         """;
-    public Task PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
+    public async Task PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
     {
-        return Task.CompletedTask;
+        if (mutations.Count == 0) return;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        // 1. Upsert ContentItem
+        await using var batchContent = new NpgsqlBatch(connection, transaction);
+        foreach (var m in mutations)
+        {
+            var cmd = new NpgsqlBatchCommand(
+                """
+                INSERT INTO content_contentitem (
+                    content_id, content_type, scope_id, url, title, distilled_text, content_hash,
+                    view_count, reply_count, download_count, post_date, last_post_date, xf_post_id,
+                    is_deleted, created_at, updated_at
+                ) VALUES (
+                    @content_id, @content_type, @scope_id, @url, @title, @distilled_text, @content_hash,
+                    @view_count, @reply_count, @download_count, @post_date, @last_post_date, @xf_post_id,
+                    FALSE, NOW(), NOW()
+                )
+                ON CONFLICT (content_id, content_type)
+                DO UPDATE SET
+                    scope_id = EXCLUDED.scope_id,
+                    url = EXCLUDED.url,
+                    title = EXCLUDED.title,
+                    distilled_text = EXCLUDED.distilled_text,
+                    content_hash = CASE WHEN EXCLUDED.content_hash <> '' THEN EXCLUDED.content_hash ELSE content_contentitem.content_hash END,
+                    view_count = EXCLUDED.view_count,
+                    reply_count = EXCLUDED.reply_count,
+                    download_count = EXCLUDED.download_count,
+                    post_date = EXCLUDED.post_date,
+                    last_post_date = EXCLUDED.last_post_date,
+                    xf_post_id = EXCLUDED.xf_post_id,
+                    is_deleted = FALSE,
+                    updated_at = NOW()
+                """);
+            cmd.Parameters.AddWithValue("content_id", m.ContentId);
+            cmd.Parameters.AddWithValue("content_type", m.ContentType);
+            cmd.Parameters.AddWithValue("scope_id", m.ScopeId);
+            cmd.Parameters.AddWithValue("url", m.Url);
+            cmd.Parameters.AddWithValue("title", m.Title);
+            cmd.Parameters.AddWithValue("distilled_text", m.DistilledText);
+            cmd.Parameters.AddWithValue("content_hash", m.ContentHash);
+            cmd.Parameters.AddWithValue("view_count", m.ViewCount);
+            cmd.Parameters.AddWithValue("reply_count", m.ReplyCount);
+            cmd.Parameters.AddWithValue("download_count", m.DownloadCount);
+            cmd.Parameters.AddWithValue("post_date", m.PostDate.HasValue ? (object)m.PostDate.Value.UtcDateTime : DBNull.Value);
+            cmd.Parameters.AddWithValue("last_post_date", m.LastPostDate.HasValue ? (object)m.LastPostDate.Value.UtcDateTime : DBNull.Value);
+            cmd.Parameters.AddWithValue("xf_post_id", m.XfPostId.HasValue ? (object)m.XfPostId.Value : DBNull.Value);
+            batchContent.BatchCommands.Add(cmd);
+        }
+        await batchContent.ExecuteNonQueryAsync(cancellationToken);
+
+        // 2. Fetch the corresponding internal `id`s for ContentItem and Upsert Post
+        var contentItemDbIds = new Dictionary<int, int>(); // map ContentId -> DB id
+        await using (var fetchCmd = new NpgsqlCommand(
+            "SELECT id, content_id FROM content_contentitem WHERE content_id = ANY(@ids) AND content_type = ANY(@types)", connection, transaction))
+        {
+            fetchCmd.Parameters.AddWithValue("ids", mutations.Select(x => x.ContentId).ToArray());
+            fetchCmd.Parameters.AddWithValue("types", mutations.Select(x => x.ContentType).ToArray());
+            await using var reader = await fetchCmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                contentItemDbIds[reader.GetInt32(1)] = reader.GetInt32(0);
+            }
+        }
+
+        await using var batchPost = new NpgsqlBatch(connection, transaction);
+        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey(x.ContentId)))
+        {
+            var dbId = contentItemDbIds[m.ContentId];
+            var cmd = new NpgsqlBatchCommand(
+                """
+                INSERT INTO content_post (
+                    content_item_id, raw_bbcode, clean_text, char_count, word_count, xf_post_id, created_at, updated_at
+                ) VALUES (
+                    @content_item_id, @raw_bbcode, @clean_text, @char_count, @word_count, @xf_post_id, NOW(), NOW()
+                )
+                ON CONFLICT (content_item_id)
+                DO UPDATE SET
+                    raw_bbcode = EXCLUDED.raw_bbcode,
+                    clean_text = EXCLUDED.clean_text,
+                    char_count = EXCLUDED.char_count,
+                    word_count = EXCLUDED.word_count,
+                    xf_post_id = EXCLUDED.xf_post_id,
+                    updated_at = NOW()
+                """);
+            cmd.Parameters.AddWithValue("content_item_id", dbId);
+            cmd.Parameters.AddWithValue("raw_bbcode", m.RawBody);
+            cmd.Parameters.AddWithValue("clean_text", m.CleanText);
+            cmd.Parameters.AddWithValue("char_count", m.CleanText.Length);
+            cmd.Parameters.AddWithValue("word_count", m.CleanText.Split(' ', StringSplitOptions.RemoveEmptyEntries).Length);
+            cmd.Parameters.AddWithValue("xf_post_id", m.XfPostId.HasValue ? (object)m.XfPostId.Value : DBNull.Value);
+            batchPost.BatchCommands.Add(cmd);
+        }
+        if (batchPost.BatchCommands.Count > 0)
+        {
+            await batchPost.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // Fetch Post ids
+        var postDbIds = new Dictionary<int, int>(); // map Content DB id -> Post DB id
+        await using (var fetchCmd = new NpgsqlCommand(
+            "SELECT id, content_item_id FROM content_post WHERE content_item_id = ANY(@ids)", connection, transaction))
+        {
+            fetchCmd.Parameters.AddWithValue("ids", contentItemDbIds.Values.ToArray());
+            await using var reader = await fetchCmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                postDbIds[reader.GetInt32(1)] = reader.GetInt32(0);
+            }
+        }
+
+        // 3. Sentences delete & recreate
+        await using (var delCmd = new NpgsqlCommand(
+            "DELETE FROM content_sentence WHERE content_item_id = ANY(@ids)", connection, transaction))
+        {
+            delCmd.Parameters.AddWithValue("ids", contentItemDbIds.Values.ToArray());
+            await delCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await using var batchSentence = new NpgsqlBatch(connection, transaction);
+        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey(x.ContentId)))
+        {
+            var dbId = contentItemDbIds[m.ContentId];
+            if (!postDbIds.TryGetValue(dbId, out var postId)) continue;
+
+            foreach (var s in m.Sentences)
+            {
+                var cmd = new NpgsqlBatchCommand(
+                    """
+                    INSERT INTO content_sentence (
+                        content_item_id, post_id, text, position, char_count, start_char, end_char, word_position, created_at, updated_at
+                    ) VALUES (
+                        @content_item_id, @post_id, @text, @position, @char_count, @start_char, @end_char, @word_position, NOW(), NOW()
+                    )
+                    """);
+                cmd.Parameters.AddWithValue("content_item_id", dbId);
+                cmd.Parameters.AddWithValue("post_id", postId);
+                cmd.Parameters.AddWithValue("text", s.Text);
+                cmd.Parameters.AddWithValue("position", s.Position);
+                cmd.Parameters.AddWithValue("char_count", s.CharCount);
+                cmd.Parameters.AddWithValue("start_char", s.StartChar);
+                cmd.Parameters.AddWithValue("end_char", s.EndChar);
+                cmd.Parameters.AddWithValue("word_position", s.WordPosition);
+                batchSentence.BatchCommands.Add(cmd);
+            }
+        }
+        
+        if (batchSentence.BatchCommands.Count > 0)
+        {
+            await batchSentence.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        await transaction.CommitAsync(cancellationToken);
     }
 
-    public Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyList<HostNode>>(new List<HostNode>());
+        var nodes = new List<HostNode>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT s.id, s.content_item_id, s.text, s.embedding::text
+            FROM content_sentence s
+            JOIN content_contentitem ci ON ci.id = s.content_item_id
+            WHERE ci.scope_id = ANY(@scopes)
+              AND s.embedding IS NOT NULL
+              AND ci.is_deleted = FALSE
+            """, connection);
+        command.Parameters.AddWithValue("scopes", scopeIds.ToArray());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            float[] embedArray = ParseVector(reader.IsDBNull(3) ? null : reader.GetString(3));
+            nodes.Add(new HostNode
+            {
+                SentenceId = reader.GetInt32(0),
+                ContentId = reader.GetInt32(1),
+                SentenceText = reader.GetString(2),
+                Embedding = embedArray
+            });
+        }
+        return nodes;
     }
 
-    public Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken)
     {
-        return Task.FromResult<IReadOnlyList<DestinationNode>>(new List<DestinationNode>());
+        var nodes = new List<DestinationNode>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            """
+            SELECT id, title, embedding::text, march_2026_pagerank_score, 0
+            FROM content_contentitem
+            WHERE scope_id = ANY(@scopes)
+              AND embedding IS NOT NULL
+              AND is_deleted = FALSE
+            """, connection);
+        command.Parameters.AddWithValue("scopes", destScopeIds.ToArray());
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            float[] embedArray = ParseVector(reader.IsDBNull(2) ? null : reader.GetString(2));
+            nodes.Add(new DestinationNode
+            {
+                ContentId = reader.GetInt32(0),
+                Title = reader.GetString(1),
+                Embedding = embedArray,
+                PageRank = reader.IsDBNull(3) ? 0f : (float)reader.GetDouble(3),
+                NodeQuality = 1.0f // Node quality could be calculated or derived from DB
+            });
+        }
+        return nodes;
     }
 
-    public Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
+    private static float[] ParseVector(string? vectorStr)
     {
-        return Task.CompletedTask;
+        if (string.IsNullOrWhiteSpace(vectorStr)) return [];
+        // format: "[0.1,-0.2,...]"
+        var cleanStr = vectorStr.Trim('[', ']');
+        var parts = cleanStr.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        var res = new float[parts.Length];
+        for (int i = 0; i < parts.Length; i++)
+        {
+            if (float.TryParse(parts[i], System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out float f))
+                res[i] = f;
+        }
+        return res;
+    }
+
+    public async Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
+    {
+        if (suggestions.Count == 0) return;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        await using var batch = new NpgsqlBatch(connection, transaction);
+        foreach (var sug in suggestions)
+        {
+            var cmd = new NpgsqlBatchCommand(
+                """
+                INSERT INTO suggestions_suggestion (
+                    pipeline_run_id, host_item_id, host_sentence_id, destination_item_id,
+                    anchor_text, composite_score, 
+                    state, is_visible, status, created_at, updated_at
+                ) VALUES (
+                    @run_id, @host_id, @sentence_id, @dest_id, 
+                    @anchor, @score,
+                    'pending', TRUE, 'new', NOW(), NOW()
+                )
+                """);
+            cmd.Parameters.AddWithValue("run_id", runId);
+            cmd.Parameters.AddWithValue("host_id", sug.HostContentId);
+            cmd.Parameters.AddWithValue("sentence_id", sug.HostSentenceId);
+            cmd.Parameters.AddWithValue("dest_id", sug.DestinationContentId);
+            cmd.Parameters.AddWithValue("anchor", sug.ExactMatchAnchor);
+            cmd.Parameters.AddWithValue("score", (double)sug.CompositeScore); // Postgres float field mapped to composite score
+            batch.BatchCommands.Add(cmd);
+        }
+
+        await batch.ExecuteNonQueryAsync(cancellationToken);
+        await transaction.CommitAsync(cancellationToken);
     }
 }

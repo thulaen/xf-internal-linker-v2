@@ -58,6 +58,8 @@ public sealed class StatusController(
                 }
             }
 
+            response.DistillationFallbackActive = HttpWorker.Services.Distillation.TextDistiller.IsFallbackActive;
+
             response.Status = response.RedisConnected &&
                 response.DatabaseConnected &&
                 response.WorkerOnline

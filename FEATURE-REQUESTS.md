@@ -1329,6 +1329,35 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-045 - Anchor Diversity & Exact-Match Reuse Guard
+**Requested:** 2026-04-04
+**Target phase:** Phase 48
+**Priority:** Medium
+**Research basis:** Google Search Central link-text guidance, Google Search Central spam policies, patent `US20110238644A1` (*Using Anchor Text With Hyperlink Structures for Web Searches*). User-supplied `US7814085B1` was checked and rejected as the wrong source for this topic.
+**Spec draft:** `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md`
+
+### What's wanted
+- Stop one exact anchor phrase from becoming too dominant for the same destination across active suggestions.
+- Reduce spammy exact-match repetition without changing phrase matching, learned anchors, or telemetry.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_anchor_diversity` with neutral `0.5` and lower values when the anchor is overly repetitive for the destination.
+- New suggestion diagnostics field: `anchor_diversity_diagnostics`.
+- Keep `repeated_anchor`, but formalize it as a normalized exact-match warning instead of an ad-hoc flag.
+- Score uses active suggestion history for the same destination only, in statuses `pending`, `approved`, `applied`, and `verified`.
+- Optional hard block when exact-match count would exceed a configured cap.
+- New settings: `anchor_diversity.enabled`, `anchor_diversity.ranking_weight` (default `0.0`), `anchor_diversity.min_history_count`, `anchor_diversity.max_exact_match_share`, `anchor_diversity.max_exact_match_count`, `anchor_diversity.hard_cap_enabled`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-008`. `FR-008` chooses the anchor phrase; `FR-045` scores whether that chosen phrase is overused.
+- Keep this separate from `FR-009`. Do not use `ExistingLink.anchor_text` as the repetition corpus in v1; use `Suggestion` history only.
+- Keep this separate from `FR-015`. This is anchor-level anti-spam control, not destination-slate diversity.
+- Keep this separate from `FR-016` to `FR-018`. No CTR, dwell, approval rates, or delayed reward inputs are allowed.
+- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- Full spec: `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1352,4 +1381,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47.)*
+*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*
