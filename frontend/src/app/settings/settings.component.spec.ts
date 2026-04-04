@@ -167,6 +167,18 @@ describe('SettingsComponent', () => {
               b_cd: 0.75,
               b_ud: 0.25,
             }),
+            getGraphCandidateSettings: () => of({
+              enabled: true,
+              walk_steps_per_entity: 2000,
+              min_stable_candidates: 50,
+              min_visit_threshold: 3,
+            }),
+            getValueModelSettings: () => of({
+              enabled: true,
+              w_traffic: 0.5,
+              w_freshness: 0.3,
+              traffic_lookback_days: 30,
+            }),
             getFeedbackRerankSettings: () => of({
               enabled: true,
               ranking_weight: 0.08,

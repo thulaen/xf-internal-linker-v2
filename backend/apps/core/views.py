@@ -150,6 +150,26 @@ DEFAULT_SLATE_DIVERSITY_SETTINGS = {
     "algorithm_version": "fr015-v1",
 }
 
+DEFAULT_GRAPH_CANDIDATE_SETTINGS = {
+    "enabled": recommended_bool("graph_candidate.enabled"),
+    "walk_steps_per_entity": recommended_int("graph_candidate.walk_steps_per_entity"),
+    "min_stable_candidates": recommended_int("graph_candidate.min_stable_candidates"),
+    "min_visit_threshold": recommended_int("graph_candidate.min_visit_threshold"),
+    "top_k_candidates": recommended_int("graph_candidate.top_k_candidates"),
+    "top_n_entities_per_article": recommended_int("graph_candidate.top_n_entities_per_article"),
+}
+
+DEFAULT_VALUE_MODEL_SETTINGS = {
+    "enabled": recommended_bool("value_model.enabled"),
+    "w_relevance": recommended_float("value_model.w_relevance"),
+    "w_traffic": recommended_float("value_model.w_traffic"),
+    "w_freshness": recommended_float("value_model.w_freshness"),
+    "w_authority": recommended_float("value_model.w_authority"),
+    "w_penalty": recommended_float("value_model.w_penalty"),
+    "traffic_lookback_days": recommended_int("value_model.traffic_lookback_days"),
+    "traffic_fallback_value": recommended_float("value_model.traffic_fallback_value"),
+}
+
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
 _FAVICON_ALLOWED = frozenset({
@@ -318,6 +338,30 @@ def get_field_aware_relevance_settings() -> dict[str, float]:
         )
     except ValueError:
         return dict(DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS)
+
+
+def get_graph_candidate_settings() -> dict[str, float | int | bool]:
+    """Load persisted FR-021 graph-walk settings with defensive defaults."""
+    settings = _read_graph_candidate_settings()
+    try:
+        return _validate_graph_candidate_settings(
+            settings,
+            current=dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS),
+        )
+    except Exception:
+        return dict(DEFAULT_GRAPH_CANDIDATE_SETTINGS)
+
+
+def get_value_model_settings() -> dict[str, float | int | bool]:
+    """Load persisted FR-021 value-model settings with defensive defaults."""
+    settings = _read_value_model_settings()
+    try:
+        return _validate_value_model_settings(
+            settings,
+            current=dict(DEFAULT_VALUE_MODEL_SETTINGS),
+        )
+    except Exception:
+        return dict(DEFAULT_VALUE_MODEL_SETTINGS)
 
 
 def get_ga4_gsc_settings() -> dict[str, object]:
@@ -2476,3 +2520,285 @@ class ChallengerEvaluateView(APIView):
 
         task = evaluate_weight_challenger.delay(run_id=run_id)
         return Response({"detail": "Evaluation queued.", "task_id": task.id}, status=202)
+
+
+class GraphCandidateSettingsView(APIView):
+    """
+    GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
+    PUT  /api/settings/graph-candidate/ - validates and persists those settings
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_graph_candidate_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        current = get_graph_candidate_settings()
+        try:
+            validated = _validate_graph_candidate_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        rows = {
+            "graph_candidate.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-021 Pixie walk candidate generation is active.",
+            },
+            "graph_candidate.walk_steps_per_entity": {
+                "value": str(validated["walk_steps_per_entity"]),
+                "value_type": "int",
+                "description": "Number of Pixie random walk steps to perform per query entity.",
+            },
+            "graph_candidate.min_stable_candidates": {
+                "value": str(validated["min_stable_candidates"]),
+                "value_type": "int",
+                "description": "Minimum number of stable candidates to find before early stopping.",
+            },
+            "graph_candidate.min_visit_threshold": {
+                "value": str(validated["min_visit_threshold"]),
+                "value_type": "int",
+                "description": "Minimum walk visits required for a node to be considered stable.",
+            },
+            "graph_candidate.top_k_candidates": {
+                "value": str(validated["top_k_candidates"]),
+                "value_type": "int",
+                "description": "Max number of top-visited candidates to return to the pipeline.",
+            },
+            "graph_candidate.top_n_entities_per_article": {
+                "value": str(validated["top_n_entities_per_article"]),
+                "value_type": "int",
+                "description": "Max number of top entities to extract per article for graph linking.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class ValueModelSettingsView(APIView):
+    """
+    GET  /api/settings/value-model/ - returns FR-021 value model settings
+    PUT  /api/settings/value-model/ - validates and persists those settings
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_value_model_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        current = get_value_model_settings()
+        try:
+            validated = _validate_value_model_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        rows = {
+            "value_model.enabled": {
+                "value": "true" if validated["enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-021 Instagram-style value pre-scoring is active.",
+            },
+            "value_model.w_relevance": {
+                "value": str(validated["w_relevance"]),
+                "value_type": "float",
+                "description": "Value component weight: semantic relevance.",
+            },
+            "value_model.w_traffic": {
+                "value": str(validated["w_traffic"]),
+                "value_type": "float",
+                "description": "Value component weight: historical traffic.",
+            },
+            "value_model.w_freshness": {
+                "value": str(validated["w_freshness"]),
+                "value_type": "float",
+                "description": "Value component weight: content freshness.",
+            },
+            "value_model.w_authority": {
+                "value": str(validated["w_authority"]),
+                "value_type": "float",
+                "description": "Value component weight: content authority.",
+            },
+            "value_model.w_penalty": {
+                "value": str(validated["w_penalty"]),
+                "value_type": "float",
+                "description": "Value component weight: blocklist/penalty sink.",
+            },
+            "value_model.traffic_lookback_days": {
+                "value": str(validated["traffic_lookback_days"]),
+                "value_type": "int",
+                "description": "Number of days of traffic history to look back.",
+            },
+            "value_model.traffic_fallback_value": {
+                "value": str(validated["traffic_fallback_value"]),
+                "value_type": "float",
+                "description": "Default traffic score to use if no data exists.",
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "ml",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
+class GraphRebuildView(APIView):
+    """POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh."""
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from apps.pipeline.tasks import dispatch_graph_rebuild
+
+        job_id = str(uuid.uuid4())
+        payload = dispatch_graph_rebuild(job_id=job_id)
+        return Response(payload, status=202)
+
+
+def _read_graph_candidate_settings() -> dict[str, float | int | bool]:
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            return float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            return int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _read_bool("graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"]),
+        "walk_steps_per_entity": _read_int("graph_candidate.walk_steps_per_entity", DEFAULT_GRAPH_CANDIDATE_SETTINGS["walk_steps_per_entity"]),
+        "min_stable_candidates": _read_int("graph_candidate.min_stable_candidates", DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_stable_candidates"]),
+        "min_visit_threshold": _read_int("graph_candidate.min_visit_threshold", DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_visit_threshold"]),
+        "top_k_candidates": _read_int("graph_candidate.top_k_candidates", DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_k_candidates"]),
+        "top_n_entities_per_article": _read_int("graph_candidate.top_n_entities_per_article", DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_n_entities_per_article"]),
+    }
+
+
+def _validate_graph_candidate_settings(payload: dict, current: dict) -> dict:
+    def _get_float(key: str) -> float:
+        val = payload.get(key, current.get(key))
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return float(current.get(key, 0.0))
+
+    def _get_int(key: str) -> int:
+        val = payload.get(key, current.get(key))
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return int(current.get(key, 0))
+
+    def _get_bool(key: str) -> bool:
+        val = payload.get(key, current.get(key))
+        if isinstance(val, bool):
+            return val
+        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _get_bool("enabled"),
+        "walk_steps_per_entity": max(10, min(10000, _get_int("walk_steps_per_entity"))),
+        "min_stable_candidates": max(5, min(500, _get_int("min_stable_candidates"))),
+        "min_visit_threshold": max(1, min(20, _get_int("min_visit_threshold"))),
+        "top_k_candidates": max(10, min(1000, _get_int("top_k_candidates"))),
+        "top_n_entities_per_article": max(1, min(100, _get_int("top_n_entities_per_article"))),
+    }
+
+
+def _read_value_model_settings() -> dict[str, float | int | bool]:
+    def _read_float(key: str, default: float) -> float:
+        raw = _get_app_setting_value(key)
+        try:
+            return float(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            return int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    def _read_bool(key: str, default: bool) -> bool:
+        raw = _get_app_setting_value(key)
+        if raw is None:
+            return default
+        return str(raw).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _read_bool("value_model.enabled", DEFAULT_VALUE_MODEL_SETTINGS["enabled"]),
+        "w_relevance": _read_float("value_model.w_relevance", DEFAULT_VALUE_MODEL_SETTINGS["w_relevance"]),
+        "w_traffic": _read_float("value_model.w_traffic", DEFAULT_VALUE_MODEL_SETTINGS["w_traffic"]),
+        "w_freshness": _read_float("value_model.w_freshness", DEFAULT_VALUE_MODEL_SETTINGS["w_freshness"]),
+        "w_authority": _read_float("value_model.w_authority", DEFAULT_VALUE_MODEL_SETTINGS["w_authority"]),
+        "w_penalty": _read_float("value_model.w_penalty", DEFAULT_VALUE_MODEL_SETTINGS["w_penalty"]),
+        "traffic_lookback_days": _read_int("value_model.traffic_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["traffic_lookback_days"]),
+        "traffic_fallback_value": _read_float("value_model.traffic_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["traffic_fallback_value"]),
+    }
+
+
+def _validate_value_model_settings(payload: dict, current: dict) -> dict:
+    def _get_float(key: str) -> float:
+        val = payload.get(key, current.get(key))
+        try:
+            return float(val)
+        except (TypeError, ValueError):
+            return float(current.get(key, 0.0))
+
+    def _get_int(key: str) -> int:
+        val = payload.get(key, current.get(key))
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return int(current.get(key, 0))
+
+    def _get_bool(key: str) -> bool:
+        val = payload.get(key, current.get(key))
+        if isinstance(val, bool):
+            return val
+        return str(val).strip().lower() in {"1", "true", "yes", "on"}
+
+    return {
+        "enabled": _get_bool("enabled"),
+        "w_relevance": max(0.0, min(1.0, _get_float("w_relevance"))),
+        "w_traffic": max(0.0, min(1.0, _get_float("w_traffic"))),
+        "w_freshness": max(0.0, min(1.0, _get_float("w_freshness"))),
+        "w_authority": max(0.0, min(1.0, _get_float("w_authority"))),
+        "w_penalty": max(0.0, min(1.0, _get_float("w_penalty"))),
+        "traffic_lookback_days": max(1, min(365, _get_int("traffic_lookback_days"))),
+        "traffic_fallback_value": max(0.0, min(1.0, _get_float("traffic_fallback_value"))),
+    }

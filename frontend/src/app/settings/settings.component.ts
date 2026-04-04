@@ -50,6 +50,8 @@ import {
   GoogleOAuthSettings,
   MatomoTelemetrySettings,
   MatomoTelemetryUpdate,
+  GraphCandidateSettings,
+  ValueModelSettings,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -285,6 +287,106 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     default: '0.15',
     example: 'Raising to 0.4 gives strong weight to existing anchor patterns. Lowering reduces this influence.',
     range: '0 to 1',
+  },
+  // FR-021 — Graph Candidate Generation (Pixie Walk)
+  'graphCandidate.enabled': {
+    definition: 'Turns on graph-based candidate generation using bipartite random walks (Pixie).',
+    impact: 'Enabled finds structural link candidates that semantic embedding searches might miss. Disabled relies purely on vector and keyword search.',
+    default: 'Enabled',
+    example: 'Keep enabled if you want to discover "people also linked" and structural relationship candidates.',
+    range: 'Enabled / Disabled',
+  },
+  'graphCandidate.walk_steps_per_entity': {
+    definition: 'Number of random walk steps to perform for each entity extracted from the source page.',
+    impact: 'Higher values explore the graph more deeply but take longer. Lower values are faster but may miss distant relatives.',
+    default: '2000',
+    example: '2000 steps provides a good balance of depth and speed. Raise to 5000 for extremely thorough discovery.',
+    range: '500 to 10000',
+  },
+  'graphCandidate.min_stable_candidates': {
+    definition: 'Minimum number of candidates that must reach the visit threshold before stopping the walk early.',
+    impact: 'Higher values ensure a more diverse set of candidates. Lower values stop faster once a few strong ones are found.',
+    default: '50',
+    example: '50 ensures we find enough high-confidence candidates before giving up.',
+    range: '10 to 500',
+  },
+  'graphCandidate.min_visit_threshold': {
+    definition: 'Number of visits required for a node to be considered stable during the walk.',
+    impact: 'Higher values improve precision but may miss candidates in sparse graph areas. Lower values are more inclusive.',
+    default: '4',
+    example: 'Keep at 4 for a good mix. Raise to 8 if you find the candidates are too noisy.',
+    range: '1 to 20',
+  },
+  'graphCandidate.top_k_candidates': {
+    definition: 'Max number of top-visited candidates to return for full ranking.',
+    impact: 'Higher values give the ranker more options but increase pipeline latency.',
+    default: '100',
+    example: '100 is usually plenty. Lower to 50 if the pipeline feels slow.',
+    range: '10 to 1000',
+  },
+  'graphCandidate.top_n_entities_per_article': {
+    definition: 'Max number of entities to extract from an article to use as seeds for the graph walk.',
+    impact: 'Higher values capture more topics but increase walk time per page.',
+    default: '15',
+    example: '15 extracts the most salient entities. Raise to 30 for long-form content.',
+    range: '5 to 100',
+  },
+  // FR-021 — Value Model (Instagram-style pre-scoring)
+  'valueModel.enabled': {
+    definition: 'Turns on the value model, which predicts the long-term engagement value of a potential link before full ranking.',
+    impact: 'Enabled uses traffic, freshness, and authority signals to prune weak candidates early. Disabled skips pre-scoring.',
+    default: 'Enabled',
+    example: 'Keep enabled to ensure high-value destination content is prioritised in the final suggestions.',
+    range: 'Enabled / Disabled',
+  },
+  'valueModel.w_relevance': {
+    definition: 'Weight given to semantic relevance in the value prediction.',
+    impact: 'Higher values prioritise candidates that look topically correct even if they have low traffic.',
+    default: '0.3',
+    example: '0.3 ensures relevance remains a key part of the value filter.',
+    range: '0 to 1.0',
+  },
+  'valueModel.w_traffic': {
+    definition: 'Weight given to historical traffic in the value prediction.',
+    impact: 'Higher values prioritise destinations that are already proven to be popular with users.',
+    default: '0.4',
+    example: '0.4 makes traffic a major value driver. Lower to 0.1 to focus value more on relevance.',
+    range: '0 to 1.0',
+  },
+  'valueModel.w_freshness': {
+    definition: 'Weight given to content freshness in the value prediction.',
+    impact: 'Higher values prioritise newly updated content.',
+    default: '0.1',
+    example: '0.1 gives a light boost to fresh content in the early prune stage.',
+    range: '0 to 1.0',
+  },
+  'valueModel.w_authority': {
+    definition: 'Weight given to PageRank authority in the value prediction.',
+    impact: 'Higher values prioritise established, high-authority pages.',
+    default: '0.2',
+    example: '0.2 ensures authority is a meaningful signal for picking the best link candidates.',
+    range: '0 to 1.0',
+  },
+  'valueModel.w_penalty': {
+    definition: 'Weight given to blocklist/penalty signals in the value prediction.',
+    impact: 'Higher values more aggressively suppress penalised content early.',
+    default: '0.2',
+    example: 'Internal blocklists use this weight to sink undesirable suggestions.',
+    range: '0 to 1.0',
+  },
+  'valueModel.traffic_lookback_days': {
+    definition: 'Number of days of traffic history to consider for the value model.',
+    impact: 'Longer windows are more stable. Shorter windows react faster to viral content.',
+    default: '30',
+    example: '30 days provides a solid statistical baseline.',
+    range: '7 to 365',
+  },
+  'valueModel.traffic_fallback_value': {
+    definition: 'Default engagement score for pages with no historical traffic data.',
+    impact: 'Higher values give new content a "benefit of the doubt" during pruning.',
+    default: '0.1',
+    example: '0.1 ensures new content isn\'t blocked if relevance is strong.',
+    range: '0 to 0.5',
   },
   // Click Distance
   'ga4Gsc.ranking_weight': {
@@ -1173,8 +1275,29 @@ export class SettingsComponent implements OnInit, OnDestroy {
   savingRareTermPropagation = false;
   savingFieldAwareRelevance = false;
   savingGA4GSC = false;
-  savingGA4Telemetry = false;
-  savingMatomoTelemetry = false;
+
+  graphCandidate: GraphCandidateSettings = {
+    enabled: true,
+    walk_steps_per_entity: 2000,
+    min_stable_candidates: 50,
+    min_visit_threshold: 4,
+    top_k_candidates: 100,
+    top_n_entities_per_article: 15,
+  };
+  savingGraphCandidate = false;
+  isGraphRebuilding = false;
+
+  valueModel: ValueModelSettings = {
+    enabled: true,
+    w_relevance: 0.3,
+    w_traffic: 0.4,
+    w_freshness: 0.1,
+    w_authority: 0.2,
+    w_penalty: 0.2,
+    traffic_lookback_days: 30,
+    traffic_fallback_value: 0.1,
+  };
+  savingValueModel = false;
   savingClickDistance = false;
   savingFeedbackRerank = false;
   savingClustering = false;
@@ -1186,6 +1309,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
   recalculatingClustering = false;
   runningWordPressSync = false;
   creatingGroup = false;
+  savingGA4Telemetry = false;
+  savingMatomoTelemetry = false;
   testingGA4Telemetry = false;
   testingGA4TelemetryRead = false;
   testingMatomoTelemetry = false;
@@ -1648,6 +1773,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       { label: 'Feedback Reranking', currentEnabled: this.feedbackRerank.enabled && this.feedbackRerank.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'explore_exploit.enabled') && this.isFeatureEnabledInPreset(recommended, 'explore_exploit.ranking_weight') },
       { label: 'Near-Duplicate Clustering', currentEnabled: this.clustering.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'clustering.enabled') },
       { label: 'Slate Diversity', currentEnabled: this.slateDiversity.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'slate_diversity.enabled') },
+      { label: 'Graph Candidate Generation', currentEnabled: this.graphCandidate.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'graph_candidate.enabled') },
+      { label: 'Value Model Scoring', currentEnabled: this.valueModel.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'value_model.enabled') },
     ];
   }
 
@@ -1707,6 +1834,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
       clustering: this.siloSvc.getClusteringSettings(),
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
+      graphCandidate: this.siloSvc.getGraphCandidateSettings(),
+      valueModel: this.siloSvc.getValueModelSettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
       notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$)).subscribe({
@@ -1737,6 +1866,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
         this.clustering = { ...this.clustering, ...data.clustering };
         this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
+        this.graphCandidate = { ...this.graphCandidate, ...data.graphCandidate };
+        this.valueModel = { ...this.valueModel, ...data.valueModel };
         this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
@@ -2310,6 +2441,53 @@ export class SettingsComponent implements OnInit, OnDestroy {
           connection_message: message,
         };
         this.snack.open(message, 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveGraphCandidateSettings(): void {
+    this.savingGraphCandidate = true;
+    this.siloSvc.updateGraphCandidateSettings(this.graphCandidate).subscribe({
+      next: (graphCandidate) => {
+        this.graphCandidate = graphCandidate;
+        this.refreshCurrentWeights();
+        this.savingGraphCandidate = false;
+        this.snack.open('Graph candidate settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingGraphCandidate = false;
+        this.snack.open(error?.error?.detail || 'Failed to save graph candidate settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveValueModelSettings(): void {
+    this.savingValueModel = true;
+    this.siloSvc.updateValueModelSettings(this.valueModel).subscribe({
+      next: (valueModel) => {
+        this.valueModel = valueModel;
+        this.refreshCurrentWeights();
+        this.savingValueModel = false;
+        this.snack.open('Value model settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingValueModel = false;
+        this.snack.open(error?.error?.detail || 'Failed to save value model settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  triggerGraphRebuild(): void {
+    if (!confirm('Manually rebuild the bipartite knowledge graph? This will trigger a full refresh of entity nodes.')) return;
+    this.isGraphRebuilding = true;
+    this.siloSvc.rebuildKnowledgeGraph().pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.isGraphRebuilding = false;
+        this.snack.open('Knowledge graph rebuild queued.', undefined, { duration: 3000 });
+      },
+      error: (err) => {
+        this.isGraphRebuilding = false;
+        this.snack.open(err?.error?.detail || 'Failed to trigger graph rebuild', 'Dismiss', { duration: 4500 });
       },
     });
   }

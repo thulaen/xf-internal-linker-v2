@@ -341,6 +341,7 @@
       }
 
       @if (detail.slate_diversity_diagnostics.mmr_applied) {
+        @let sdd = detail.slate_diversity_diagnostics;
         <p class="meta-line">
           <mat-icon>view_stream</mat-icon>
           {{ slateDiversityStateLabel() }}.
@@ -349,16 +350,56 @@
           {{ slateDiversitySummary() }}
         </p>
         <p class="meta-line">
-          Slot {{ (detail.slate_diversity_diagnostics.slot ?? 0) + 1 }}
+          Slot {{ (sdd.slot ?? 0) + 1 }}
           - Runtime: {{ slateDiversityRuntimeLabel() }}
-          - MMR {{ (detail.slate_diversity_diagnostics.mmr_score ?? 0).toFixed(3) }}
-          @if (detail.slate_diversity_diagnostics.max_similarity_to_selected !== null) {
-            - Max similarity {{ (detail.slate_diversity_diagnostics.max_similarity_to_selected ?? 0).toFixed(3) }}
+          - MMR {{ (sdd.mmr_score ?? 0).toFixed(3) }}
+          @if (sdd.max_similarity_to_selected !== null) {
+            - Max similarity {{ (sdd.max_similarity_to_selected ?? 0).toFixed(3) }}
           }
         </p>
         <p class="meta-line">
-          {{ detail.slate_diversity_diagnostics.runtime_reason }}
+          {{ sdd.runtime_reason }}
         </p>
+      }
+
+      @if (detail.graph_walk_diagnostics; as gwd) {
+        @if (gwd.enabled || detail.candidate_origin === 'graph_walk' || detail.candidate_origin === 'both') {
+          <p class="meta-line">
+            <mat-icon>account_tree</mat-icon>
+            {{ graphWalkStateLabel() }}.
+          </p>
+          <p class="meta-line">
+            {{ graphWalkSummary() }}
+          </p>
+          @if (gwd.nodes_visited) {
+            <p class="meta-line">
+              {{ gwd.nodes_visited }} nodes visited
+              - {{ gwd.candidates_found }} candidates found
+              @if (gwd.top_candidates && gwd.top_candidates.length > 0) {
+                - Top rank visit count: {{ gwd.top_candidates[0].visit_count }}
+              }
+            </p>
+          }
+        }
+      }
+
+      @if (detail.value_model_diagnostics; as vmd) {
+        @if (vmd.enabled) {
+          <p class="meta-line">
+            <mat-icon>trending_up</mat-icon>
+            {{ valueModelStateLabel() }}.
+          </p>
+          <p class="meta-line">
+            {{ valueModelSummary() }}
+          </p>
+          <p class="meta-line">
+            Raw value score: {{ detail.score_value_model?.toFixed(3) ?? 'n/a' }}
+            @if (vmd.applied_weights) {
+              - traffic weight {{ vmd.applied_weights.w_traffic }}
+              - freshness weight {{ vmd.applied_weights.w_freshness }}
+            }
+          </p>
+        }
       }
     </section>
 

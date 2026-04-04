@@ -469,6 +469,97 @@
               </div>
             </mat-card-content>
           </mat-card>
+
+          <!-- FR-021 — Graph Candidate Generation -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Graph Candidate Generation</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Finds "people also linked" and structural paths via random walks.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="graphCandidate.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
+                  <mat-label>Walk steps / entity</mat-label>
+                  <input matInput type="number" min="500" max="10000" step="100" [(ngModel)]="graphCandidate.walk_steps_per_entity" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.walk_steps_per_entity')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
+                  <mat-label>Min. stable nodes</mat-label>
+                  <input matInput type="number" min="10" max="500" step="10" [(ngModel)]="graphCandidate.min_stable_candidates" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.min_stable_candidates')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
+                  <mat-label>Visit thresh.</mat-label>
+                  <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="graphCandidate.min_visit_threshold" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.min_visit_threshold')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-stroked-button color="primary" [disabled]="isGraphRebuilding" (click)="triggerGraphRebuild()">
+                  <mat-icon>account_tree</mat-icon> Rebuild Knowledge Graph
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-021 — Value Model -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Value Model Scoring</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Pre-score and prune candidates based on engagement potential.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="valueModel.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
+                  <mat-label>Traffic weight</mat-label>
+                  <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.w_traffic" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_traffic')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
+                  <mat-label>Freshness weight</mat-label>
+                  <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.w_freshness" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_freshness')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
+                  <mat-label>Lookback (days)</mat-label>
+                  <input matInput type="number" min="7" max="365" step="7" [(ngModel)]="valueModel.traffic_lookback_days" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.traffic_lookback_days')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+            </mat-card-content>
+          </mat-card>
         </div>
       </div>
     </mat-tab>

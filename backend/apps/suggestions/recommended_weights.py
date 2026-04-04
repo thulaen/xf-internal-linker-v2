@@ -137,6 +137,21 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "internal_search.baseline_days": "28",
     "internal_search.max_active_queries": "200",
     "internal_search.min_recent_count": "3",
+    # FR-021 - Graph-Based Link Candidate Generation
+    "graph_candidate.enabled": "true",
+    "graph_candidate.walk_steps_per_entity": "1000",
+    "graph_candidate.min_stable_candidates": "50",
+    "graph_candidate.min_visit_threshold": "3",
+    "graph_candidate.top_k_candidates": "100",
+    "graph_candidate.top_n_entities_per_article": "20",
+    "value_model.enabled": "true",
+    "value_model.w_relevance": "0.4",
+    "value_model.w_traffic": "0.3",
+    "value_model.w_freshness": "0.1",
+    "value_model.w_authority": "0.1",
+    "value_model.w_penalty": "0.5",
+    "value_model.traffic_lookback_days": "90",
+    "value_model.traffic_fallback_value": "0.5",
 }
 
 

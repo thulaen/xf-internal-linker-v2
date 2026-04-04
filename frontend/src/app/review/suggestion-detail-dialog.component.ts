@@ -446,6 +446,40 @@ export class SuggestionDetailDialogComponent implements OnInit {
     return runtimePath === 'cpp_extension' ? 'C++ fast path' : 'Python fallback';
   }
 
+  graphWalkSummary(): string {
+    const diagnostics = this.detail?.graph_walk_diagnostics;
+    if (!diagnostics) {
+      return 'Neutral means this candidate was found via direct embedding search only.';
+    }
+    if (diagnostics.nodes_visited > 100) {
+      return `Graph discovery (Pixie) found this candidate after ${diagnostics.walk_steps} walk steps across ${diagnostics.nodes_visited} nodes.`;
+    }
+    return 'Neutral means the graph walk did not provide strong enough evidence for this pair.';
+  }
+
+  graphWalkStateLabel(): string {
+    const origin = this.detail?.candidate_origin;
+    if (origin === 'graph_walk') return 'Discovered via Knowledge Graph';
+    if (origin === 'both') return 'Strong Bridge (Vector + Graph)';
+    return 'Vector Search Candidate';
+  }
+
+  valueModelSummary(): string {
+    const diagnostics = this.detail?.value_model_diagnostics;
+    if (!diagnostics?.enabled) {
+      return 'Value model was disabled or skipped for this candidate.';
+    }
+    const score = (diagnostics.score_value * 100).toFixed(0);
+    return `Predicted link value: ${score}/100. This candidate was prioritised because it has strong potential for user engagement (traffic + relevance).`;
+  }
+
+  valueModelStateLabel(): string {
+    const score = this.detail?.score_value_model ?? 0;
+    if (score > 0.7) return 'High Expected Value';
+    if (score > 0.4) return 'Moderate Value';
+    return 'Low Value / Pruned';
+  }
+
   telemetryStatusLabel(): string {
     const status = this.detail?.telemetry_instrumentation?.status ?? 'unknown';
     if (status === 'instrumented') return 'Instrumented markup ready';

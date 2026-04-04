@@ -112,6 +112,7 @@ class SuggestionListSerializer(_SuggestionSerializerMixin, serializers.ModelSeri
             "host_silo_group", "host_silo_group_name", "same_silo",
             "anchor_phrase", "anchor_confidence", "anchor_edited",
             "repeated_anchor",
+            "candidate_origin",
             "rejection_reason", "reviewed_at", "is_applied",
             "created_at",
         ]
@@ -161,6 +162,8 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
             "explore_exploit_diagnostics", "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            "candidate_origin", "score_value_model", "value_model_diagnostics",
+            "graph_walk_diagnostics",
             "telemetry_instrumentation",
             "created_at", "updated_at",
         ]
@@ -186,6 +189,8 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
             "explore_exploit_diagnostics", "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
+            "candidate_origin", "score_value_model", "value_model_diagnostics",
+            "graph_walk_diagnostics",
             "telemetry_instrumentation",
             "created_at", "updated_at",
         ]

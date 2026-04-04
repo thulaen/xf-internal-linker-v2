@@ -249,6 +249,26 @@ export interface SlateDiversitySettings {
   algorithm_version?: string;
 }
 
+export interface GraphCandidateSettings {
+  enabled: boolean;
+  walk_steps_per_entity: number;
+  min_stable_candidates: number;
+  min_visit_threshold: number;
+  top_k_candidates: number;
+  top_n_entities_per_article: number;
+}
+
+export interface ValueModelSettings {
+  enabled: boolean;
+  w_relevance: number;
+  w_traffic: number;
+  w_freshness: number;
+  w_authority: number;
+  w_penalty: number;
+  traffic_lookback_days: number;
+  traffic_fallback_value: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -399,6 +419,14 @@ export class SiloSettingsService {
     return this.http.get<SlateDiversitySettings>('/api/settings/slate-diversity/');
   }
 
+  getGraphCandidateSettings(): Observable<GraphCandidateSettings> {
+    return this.http.get<GraphCandidateSettings>('/api/settings/graph-candidate/');
+  }
+
+  getValueModelSettings(): Observable<ValueModelSettings> {
+    return this.http.get<ValueModelSettings>('/api/settings/value-model/');
+  }
+
   updateWeightedAuthoritySettings(payload: WeightedAuthoritySettings): Observable<WeightedAuthoritySettings> {
     return this.http.put<WeightedAuthoritySettings>('/api/settings/weighted-authority/', payload);
   }
@@ -487,6 +515,14 @@ export class SiloSettingsService {
     return this.http.put<SlateDiversitySettings>('/api/settings/slate-diversity/', payload);
   }
 
+  updateGraphCandidateSettings(payload: GraphCandidateSettings): Observable<GraphCandidateSettings> {
+    return this.http.put<GraphCandidateSettings>('/api/settings/graph-candidate/', payload);
+  }
+
+  updateValueModelSettings(payload: ValueModelSettings): Observable<ValueModelSettings> {
+    return this.http.put<ValueModelSettings>('/api/settings/value-model/', payload);
+  }
+
   recalculateClickDistance(): Observable<{ job_id: string }> {
     return this.http.post<{ job_id: string }>('/api/settings/click-distance/recalculate/', {});
   }
@@ -497,6 +533,10 @@ export class SiloSettingsService {
 
   recalculateClustering(): Observable<{ job_id: string }> {
     return this.http.post<{ job_id: string }>('/api/settings/clustering/recalculate/', {});
+  }
+
+  rebuildKnowledgeGraph(): Observable<{ job_id: string }> {
+    return this.http.post<{ job_id: string }>('/api/settings/graph/rebuild/', {});
   }
 
   updateWordPressSettings(payload: WordPressSettingsUpdate): Observable<WordPressSettings> {

@@ -158,21 +158,29 @@ def dispatch_import_content(
     job_id = job_id or str(uuid.uuid4())
 
     if owner == "csharp":
-        # Guardrail: The C# worker does not yet support the full content import logic
-        # (needs orchestration work for sentence splitting and embeddings).
-        # Refuse this to keep the Python path as the source of truth for now.
-        raise RuntimeError("does not have a real C# import owner yet")
-
+        from apps.core.views import (
+            get_graph_candidate_settings,
+            get_silo_settings,
+            get_wordpress_settings,
+        )
         from apps.graph.services.http_worker_client import queue_job
+
+        payload = {
+            "scope_ids": scope_ids or [],
+            "mode": mode,
+            "source": source,
+            "file_path": file_path,
+            "settings": {
+                "silo": get_silo_settings(),
+                "wordpress": get_wordpress_settings(),
+                "graph_candidate": get_graph_candidate_settings(),
+            },
+        }
+
         queue_job(
             job_id=job_id,
             job_type="import_content",
-            payload={
-                "scope_ids": scope_ids or [],
-                "mode": mode,
-                "source": source,
-                "file_path": file_path,
-            },
+            payload=payload,
         )
         return {
             "job_id": job_id,
@@ -204,20 +212,53 @@ def dispatch_pipeline_run(
     owner = _runtime_owner_for_lane("pipeline")
 
     if owner == "csharp":
-        # Guardrail: The C# worker does not yet support the full pipeline stage 1/2/3 logic
-        # Refuse this to keep the Python path as the source of truth for now.
-        raise RuntimeError("does not have a real C# pipeline owner yet")
-
+        from apps.core.views import (
+            get_click_distance_settings,
+            get_clustering_settings,
+            get_field_aware_relevance_settings,
+            get_ga4_gsc_settings,
+            get_graph_candidate_settings,
+            get_learned_anchor_settings,
+            get_link_freshness_settings,
+            get_phrase_matching_settings,
+            get_rare_term_propagation_settings,
+            get_silo_settings,
+            get_slate_diversity_settings,
+            get_value_model_settings,
+            get_weighted_authority_settings,
+        )
         from apps.graph.services.http_worker_client import queue_job
+        from apps.suggestions.recommended_weights import RECOMMENDED_PRESET_WEIGHTS
+
+        registry_weights = {k: float(v) for k, v in RECOMMENDED_PRESET_WEIGHTS.items() if not k.endswith(".enabled") and not k.startswith("silo.")}
+
+        payload = {
+            "run_id": run_id,
+            "host_scope": host_scope,
+            "destination_scope": destination_scope,
+            "rerun_mode": rerun_mode,
+            "settings": {
+                "silo": get_silo_settings(),
+                "weighted_authority": get_weighted_authority_settings(),
+                "link_freshness": get_link_freshness_settings(),
+                "phrase_matching": get_phrase_matching_settings(),
+                "learned_anchor": get_learned_anchor_settings(),
+                "rare_term_propagation": get_rare_term_propagation_settings(),
+                "field_aware_relevance": get_field_aware_relevance_settings(),
+                "ga4_gsc": get_ga4_gsc_settings(),
+                "click_distance": get_click_distance_settings(),
+                "clustering": get_clustering_settings(),
+                "slate_diversity": get_slate_diversity_settings(),
+                "graph_candidate": get_graph_candidate_settings(),
+                "value_model": get_value_model_settings(),
+                "weights": registry_weights,
+            },
+        }
+
         queue_job(
             job_id=run_id,
             job_type="run_pipeline",
-            payload={
-                "run_id": run_id,
-                "host_scope": host_scope,
-                "destination_scope": destination_scope,
-                "rerun_mode": rerun_mode,
-            },
+            payload=payload,
         )
         return {
             "job_id": run_id,
@@ -427,6 +468,54 @@ def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
     except Exception as exc:
         logger.exception("Link Freshness recalculation %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Link Freshness recalculation failed: {exc}", error=str(exc))
+        raise
+
+
+def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
+    from apps.graph.services.http_worker_client import queue_job
+
+    owner = _runtime_owner_for_lane("graph_sync")
+    job_id = job_id or str(uuid.uuid4())
+    if owner == "csharp":
+        from apps.core.views import get_graph_candidate_settings
+
+        queue_job(
+            job_id=job_id,
+            job_type="graph_sync_refresh",
+            payload={
+                "settings": {
+                    "graph_candidate": get_graph_candidate_settings(),
+                }
+            },
+        )
+        return {
+            "job_id": job_id,
+            "message": "Knowledge graph rebuild started.",
+            "runtime_owner": "csharp",
+        }
+
+    build_knowledge_graph.delay(job_id=job_id)
+    return {
+        "job_id": job_id,
+        "message": "Knowledge graph rebuild started.",
+        "runtime_owner": "celery",
+    }
+
+
+@shared_task(bind=True, name="pipeline.build_knowledge_graph")
+def build_knowledge_graph(self, job_id: str | None = None) -> dict:
+    """Python fallback for building the bipartite knowledge graph."""
+    job_id = job_id or str(uuid.uuid4())
+    _publish_progress(job_id, "running", 0.0, "Starting knowledge graph build...")
+    try:
+        from apps.graph.services.graph_sync import refresh_existing_links
+
+        count = refresh_existing_links()
+        _publish_progress(job_id, "completed", 1.0, f"Knowledge graph build complete; {count} items refreshed.")
+        return {"job_id": job_id, "items_refreshed": count}
+    except Exception as exc:
+        logger.exception("Knowledge graph build %s failed", job_id)
+        _publish_progress(job_id, "failed", 0.0, f"Knowledge graph build failed: {exc}", error=str(exc))
         raise
 
 

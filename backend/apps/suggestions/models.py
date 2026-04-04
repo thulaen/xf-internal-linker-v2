@@ -493,6 +493,11 @@ class Suggestion(TimestampedModel):
         blank=True,
         help_text="Explainable signals and weights used in the Value Model pass.",
     )
+    graph_walk_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable random walk details (steps, seeds, visit counts) for graph candidates.",
+    )
 
     # Anchor text
     anchor_phrase = models.CharField(

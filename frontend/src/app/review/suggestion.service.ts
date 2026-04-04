@@ -73,6 +73,10 @@ export interface SuggestionDetail extends Suggestion {
   explore_exploit_diagnostics: FeedbackRerankDiagnostics;
   slate_diversity_diagnostics: SlateDiversityDiagnostics;
   telemetry_instrumentation: SuggestionTelemetryInstrumentation;
+  candidate_origin?: 'embedding' | 'graph_walk' | 'both';
+  score_value_model?: number | null;
+  value_model_diagnostics?: ValueModelDiagnostics;
+  graph_walk_diagnostics?: GraphWalkDiagnostics;
   updated_at: string;
 }
 
@@ -292,6 +296,37 @@ export interface SlateDiversityDiagnostics {
   runtime_path?: 'cpp_extension' | 'python_fallback';
   runtime_reason?: string;
   algorithm_version?: string;
+}
+
+export interface ValueModelDiagnostics {
+  enabled: boolean;
+  score_value: number;
+  score_relevance: number;
+  score_traffic: number;
+  score_freshness: number;
+  score_authority: number;
+  score_penalty: number;
+  applied_weights: {
+    w_relevance: number;
+    w_traffic: number;
+    w_freshness: number;
+    w_authority: number;
+    w_penalty: number;
+  };
+}
+
+export interface GraphWalkDiagnostics {
+  enabled: boolean;
+  seed_entities: string[];
+  walk_steps: number;
+  nodes_visited: number;
+  candidates_found: number;
+  min_visit_threshold: number;
+  top_candidates: Array<{
+    destination_id: number;
+    visit_count: number;
+    score: number;
+  }>;
 }
 
 export interface PaginatedResult<T> {
