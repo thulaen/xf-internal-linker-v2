@@ -232,13 +232,25 @@ public sealed class PostgresGraphSyncStore : IGraphSyncStore
             command.UpdatedLinks.Count == 0 &&
             command.DeletedLinkIds.Count == 0 &&
             command.NewFreshnessEdges.Count == 0 &&
-            command.UpdatedFreshnessEdges.Count == 0)
+            command.UpdatedFreshnessEdges.Count == 0 &&
+            command.KnowledgeGraphEntities.Count == 0)
         {
             return;
         }
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
+
+        if (command.KnowledgeGraphEntities.Count > 0)
+        {
+            await PersistKnowledgeGraphInternalAsync(
+                command.FromContentItemPk,
+                command.KnowledgeGraphEntities,
+                command.KnowledgeGraphExtractionVersion ?? "1.0",
+                connection,
+                transaction,
+                cancellationToken);
+        }
 
         foreach (var row in command.NewLinks)
         {
@@ -372,6 +384,88 @@ public sealed class PostgresGraphSyncStore : IGraphSyncStore
         }
 
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    private async Task PersistKnowledgeGraphInternalAsync(
+        int fromContentItemPk,
+        IReadOnlyList<GraphSyncEntityNode> entities,
+        string extractionVersion,
+        NpgsqlConnection connection,
+        NpgsqlTransaction? transaction,
+        CancellationToken cancellationToken)
+    {
+        // 1. Delete existing edges for this content item and extraction version
+        await using (var deleteCmd = new NpgsqlCommand(
+            "DELETE FROM knowledge_graph_articleentityedge WHERE content_item_id = @content_item_id",
+            connection, transaction))
+        {
+            deleteCmd.Parameters.AddWithValue("content_item_id", fromContentItemPk);
+            await deleteCmd.ExecuteNonQueryAsync(cancellationToken);
+        }
+
+        // 2. Upsert Entities and get their IDs
+        var entityIds = new Dictionary<(string Canonical, string Type), int>();
+        foreach (var entity in entities)
+        {
+            await using (var upsertCmd = new NpgsqlCommand(
+                """
+                INSERT INTO knowledge_graph_entitynode (
+                    entity_id, surface_form, canonical_form, entity_type, created_at, updated_at
+                ) VALUES (
+                    @entity_id, @surface_form, @canonical_form, @entity_type, NOW(), NOW()
+                )
+                ON CONFLICT (canonical_form, entity_type)
+                DO UPDATE SET
+                    updated_at = NOW()
+                RETURNING id
+                """, connection, transaction))
+            {
+                upsertCmd.Parameters.AddWithValue("entity_id", Guid.NewGuid());
+                upsertCmd.Parameters.AddWithValue("surface_form", entity.SurfaceForm);
+                upsertCmd.Parameters.AddWithValue("canonical_form", entity.CanonicalForm);
+                upsertCmd.Parameters.AddWithValue("entity_type", entity.EntityType);
+
+                var result = await upsertCmd.ExecuteScalarAsync(cancellationToken);
+                if (result is long longId)
+                {
+                    entityIds[(entity.CanonicalForm, entity.EntityType)] = (int)longId;
+                }
+                else if (result is int intId)
+                {
+                    entityIds[(entity.CanonicalForm, entity.EntityType)] = intId;
+                }
+            }
+        }
+
+        // 3. Insert Edges
+        if (entityIds.Count > 0)
+        {
+            await using var batch = new NpgsqlBatch(connection, transaction);
+            foreach (var entity in entities)
+            {
+                if (entityIds.TryGetValue((entity.CanonicalForm, entity.EntityType), out var entityId))
+                {
+                    var cmd = new NpgsqlBatchCommand(
+                        """
+                        INSERT INTO knowledge_graph_articleentityedge (
+                            content_item_id, entity_id, weight, extraction_version, created_at
+                        ) VALUES (
+                            @content_item_id, @entity_id, @weight, @extraction_version, NOW()
+                        )
+                        ON CONFLICT (content_item_id, entity_id) DO NOTHING
+                        """);
+                    cmd.Parameters.AddWithValue("content_item_id", fromContentItemPk);
+                    cmd.Parameters.AddWithValue("entity_id", entityId);
+                    cmd.Parameters.AddWithValue("weight", entity.Weight);
+                    cmd.Parameters.AddWithValue("extraction_version", extractionVersion);
+                    batch.BatchCommands.Add(cmd);
+                }
+            }
+            if (batch.BatchCommands.Count > 0)
+            {
+                await batch.ExecuteNonQueryAsync(cancellationToken);
+            }
+        }
     }
 
     private async Task<NpgsqlConnection> OpenConnectionAsync(CancellationToken cancellationToken)

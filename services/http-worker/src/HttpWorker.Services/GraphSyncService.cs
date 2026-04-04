@@ -54,6 +54,8 @@ public sealed class GraphSyncService(IGraphSyncStore graphSyncStore) : IGraphSyn
             response.DeletedLinks += command.DeletedLinkIds.Count;
             response.CreatedFreshnessEdges += command.NewFreshnessEdges.Count;
             response.UpdatedFreshnessEdges += command.UpdatedFreshnessEdges.Count;
+            response.CreatedEntities += command.KnowledgeGraphEntities.Count;
+            response.CreatedEntityEdges += command.KnowledgeGraphEntities.Count; // One edge per extracted entity
         }
 
         return response;
@@ -90,13 +92,22 @@ public sealed class GraphSyncService(IGraphSyncStore graphSyncStore) : IGraphSyn
                 .ToList(),
             cancellationToken);
         var sourceState = await graphSyncStore.LoadSourceStateAsync(source.ContentItemPk, cancellationToken);
-        return GraphSyncPlanner.Build(
+        var command = GraphSyncPlanner.Build(
             source.ContentItemPk,
             resolvedLinks,
             destinations,
             sourceState,
             allowDisappearance,
             trackedAt);
+
+        var entities = GraphLinkParser.ExtractEntities(source.RawBbcode);
+        foreach (var entity in entities)
+        {
+            command.KnowledgeGraphEntities.Add(entity);
+        }
+        command.KnowledgeGraphExtractionVersion = "1.0-regex";
+
+        return command;
     }
 
     private static GraphSyncResponse ToResponse(GraphSyncPersistenceCommand command, int refreshedItems)
@@ -110,6 +121,8 @@ public sealed class GraphSyncService(IGraphSyncStore graphSyncStore) : IGraphSyn
             DeletedLinks = command.DeletedLinkIds.Count,
             CreatedFreshnessEdges = command.NewFreshnessEdges.Count,
             UpdatedFreshnessEdges = command.UpdatedFreshnessEdges.Count,
+            CreatedEntities = command.KnowledgeGraphEntities.Count,
+            CreatedEntityEdges = command.KnowledgeGraphEntities.Count,
         };
     }
 
@@ -181,6 +194,7 @@ internal static class GraphSyncPlanner
     {
         var command = new GraphSyncPersistenceCommand
         {
+            FromContentItemPk = fromContentItemPk,
             ActiveLinks = resolvedLinks.Count,
         };
         var currentMap = sourceState.ExistingLinks
@@ -330,6 +344,8 @@ internal static class GraphLinkParser
     private static readonly Regex HtmlTagRegex = new(@"<[^>]+>", RegexOptions.Compiled);
     private static readonly Regex BbcodeTagRegex = new(@"\[[^\]]+\]", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly Regex ContextTokenRegex = new(@"[A-Za-z0-9]+(?:'[A-Za-z0-9]+)?", RegexOptions.Compiled);
+    private static readonly Regex EntityRegex = new(@"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+", RegexOptions.Compiled);
+    private static readonly Regex KeywordRegex = new(@"\b(?:framework|database|performance|latency|optimization|server|cloud|async|threading|caching|security|authentication|api|backend|frontend|angular|typescript|dotnet|csharp|python|django|celery|redis|postgres|vector|embedding|graph|bipartite|random-walk|pixie|instagram|scoring|internal-linker)\b", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly HashSet<string> AllowedSchemes = ["http", "https"];
     private const int ContextWindowChars = 80;
 
@@ -384,6 +400,58 @@ internal static class GraphLinkParser
         }
 
         return pending;
+    }
+
+    public static IReadOnlyList<GraphSyncEntityNode> ExtractEntities(string rawBbcode)
+    {
+        if (string.IsNullOrWhiteSpace(rawBbcode)) return [];
+
+        var text = StripMarkup(rawBbcode);
+        var entities = new Dictionary<(string Canonical, string Type), GraphSyncEntityNode>();
+
+        // 1. Capitalized Noun Phrases (Named Entities proxy)
+        foreach (Match match in EntityRegex.Matches(text))
+        {
+            var surface = match.Value.Trim();
+            var canonical = surface.ToLowerInvariant();
+            if (canonical.Length < 3) continue;
+
+            var key = (canonical, "named_entity");
+            if (!entities.TryGetValue(key, out var node))
+            {
+                node = new GraphSyncEntityNode { SurfaceForm = surface, CanonicalForm = canonical, EntityType = "named_entity", Weight = 0.0 };
+                entities[key] = node;
+            }
+            node.Weight += 1.0;
+        }
+
+        // 2. Industry Keywords (Topic Tags proxy)
+        foreach (Match match in KeywordRegex.Matches(text))
+        {
+            var surface = match.Value.Trim();
+            var canonical = surface.ToLowerInvariant();
+
+            var key = (canonical, "keyword");
+            if (!entities.TryGetValue(key, out var node))
+            {
+                node = new GraphSyncEntityNode { SurfaceForm = surface, CanonicalForm = canonical, EntityType = "keyword", Weight = 0.0 };
+                entities[key] = node;
+            }
+            node.Weight += 1.5;
+        }
+
+        // Normalize weights
+        var result = entities.Values.ToList();
+        if (result.Count > 0)
+        {
+            double maxWeight = result.Max(static x => x.Weight);
+            foreach (var entity in result)
+            {
+                entity.Weight = Math.Min(1.0, entity.Weight / maxWeight);
+            }
+        }
+
+        return result;
     }
 
     public static IReadOnlyList<ResolvedGraphLink> ResolveLinks(

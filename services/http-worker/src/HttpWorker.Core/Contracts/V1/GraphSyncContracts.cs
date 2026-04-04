@@ -60,6 +60,12 @@ public sealed class GraphSyncResponse
 
     [JsonPropertyName("updated_freshness_edges")]
     public int UpdatedFreshnessEdges { get; set; }
+
+    [JsonPropertyName("created_entities")]
+    public int CreatedEntities { get; set; }
+
+    [JsonPropertyName("created_entity_edges")]
+    public int CreatedEntityEdges { get; set; }
 }
 
 public sealed class GraphSyncSourceContent
@@ -203,5 +209,22 @@ public sealed class GraphSyncPersistenceCommand
 
     public List<GraphSyncFreshnessUpdate> UpdatedFreshnessEdges { get; } = [];
 
+    public List<GraphSyncEntityNode> KnowledgeGraphEntities { get; } = [];
+
+    public string? KnowledgeGraphExtractionVersion { get; set; }
+
+    public int FromContentItemPk { get; set; }
+
     public int ActiveLinks { get; set; }
+}
+
+public sealed class GraphSyncEntityNode
+{
+    public string SurfaceForm { get; set; } = string.Empty;
+
+    public string CanonicalForm { get; set; } = string.Empty;
+
+    public string EntityType { get; set; } = "keyword";
+
+    public double Weight { get; set; }
 }
