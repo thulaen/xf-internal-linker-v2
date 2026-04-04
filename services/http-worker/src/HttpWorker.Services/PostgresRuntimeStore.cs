@@ -448,9 +448,9 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
             updated_at = @updated_at
         WHERE broken_link_id = @broken_link_id
         """;
-    public async Task PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<int>> PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
     {
-        if (mutations.Count == 0) return;
+        if (mutations.Count == 0) return new List<int>();
 
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var transaction = await connection.BeginTransactionAsync(cancellationToken);
@@ -605,6 +605,7 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         }
 
         await transaction.CommitAsync(cancellationToken);
+        return contentItemDbIds.Values.ToList();
     }
 
     public async Task<List<(int ScopePk, int ExternalScopeId, string ScopeType)>> GetScopesAsync(IReadOnlyList<int> scopePks, CancellationToken cancellationToken)

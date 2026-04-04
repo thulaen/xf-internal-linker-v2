@@ -13,6 +13,7 @@ public class ImportContentService(
     IPostgresRuntimeStore runtimeStore, 
     IXenForoClient xenForoClient,
     ITextDistiller textDistiller,
+    IGraphSyncService graphSyncService,
     CeleryTaskEnqueuer celeryTaskEnqueuer,
     ILogger<ImportContentService> logger) : IImportContentService
 {
@@ -154,13 +155,15 @@ public class ImportContentService(
         
         if (batch.Count > 0)
         {
-            await runtimeStore.PersistImportNodesAsync(batch, cancellationToken);
+            var contentPkList = await runtimeStore.PersistImportNodesAsync(batch, cancellationToken);
         
             var contentIds = batch.Select(b => b.ContentId).ToList();
-            await celeryTaskEnqueuer.EnqueueClusterItemsAsync(contentIds);
             
-            // Note: C# side remains separated from embedding generation. 
-            // A dedicated enqueue routine for Python's generate_embeddings would occur here depending on pipeline decisions.
+            // Trigger the C# graph extraction (it operates purely on the persisted RawBbcode boundary, keeping layout chrome out)
+            await graphSyncService.RefreshAsync(new GraphSyncRefreshRequest
+            {
+                ContentItemPks = contentPkList.ToList()
+            }, cancellationToken);
         }
 
         return new ImportContentResult { ItemsSynced = batch.Count, ItemsUpdated = batch.Count };
