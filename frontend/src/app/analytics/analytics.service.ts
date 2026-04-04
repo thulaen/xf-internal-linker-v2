@@ -201,6 +201,8 @@ export interface GSCImpactSnapshot {
   probability_of_uplift: number;
   reward_label: 'positive' | 'neutral' | 'negative' | 'inconclusive';
   last_computed_at: string;
+  source_type: 'xenforo' | 'wordpress';
+  source_label: string;
 }
 
 export interface GSCKeywordImpact {

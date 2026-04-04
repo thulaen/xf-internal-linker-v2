@@ -300,7 +300,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
-**Status:** In Progress (Slices 1-4 Complete: OAuth, shared Google login UX, Python performance ingestion, C# sync endpoint)
+**Status:** Complete (All 5 Slices: OAuth, shared Google login UX, Python performance ingestion, C# sync endpoint, Angular Search Impact tab with scatter plot and cohort analysis)
 **Priority:** High
 
 - **Slice 2 Completed (2026-04-03):**
@@ -1387,4 +1387,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-4 are complete. Next target is Slice 5: Angular "Search Impact" tab with Chart.js scatter plot, cohort analysis, and reward-label table. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*
+*Last updated: 2026-04-04 (Phase 20 / FR-017 is now complete. All 5 slices shipped: Django models, Angular GSC settings UI, Python GSC importer, C# attribution engine, and Angular Search Impact tab with Chart.js scatter plot, cohort analysis by platform and anchor family, and reward-label table. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*

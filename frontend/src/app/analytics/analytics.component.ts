@@ -71,6 +71,46 @@ export class AnalyticsComponent implements OnInit {
   selectedImpactDetail: SearchImpactDetailResponse | null = null;
   loadingDetail = false;
 
+  scatterChartData: ChartData<'scatter'> | null = null;
+  scatterChartOptions: ChartConfiguration<'scatter'>['options'] = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        position: 'bottom',
+        labels: { boxWidth: 10, usePointStyle: true, padding: 16, color: '#5f6368', font: { size: 12 } }
+      },
+      tooltip: {
+        backgroundColor: 'rgba(32, 33, 36, 0.9)',
+        titleColor: '#ffffff',
+        bodyColor: '#e8eaed',
+        padding: 12,
+        cornerRadius: 4,
+        callbacks: {
+          label: (ctx) => {
+            const raw = ctx.raw as { x: number; y: number; label?: string };
+            return ` ${raw.label ?? ctx.dataset.label}: ${raw.x} baseline clicks, ${raw.y > 0 ? '+' : ''}${raw.y}% lift`;
+          }
+        }
+      }
+    },
+    scales: {
+      x: {
+        title: { display: true, text: 'Baseline Traffic (Clicks)', color: '#5f6368', font: { size: 11 } },
+        ticks: { color: '#5f6368', font: { size: 11 } },
+        grid: { color: 'rgba(95, 99, 104, 0.1)' }
+      },
+      y: {
+        title: { display: true, text: 'Lift (%)', color: '#5f6368', font: { size: 11 } },
+        ticks: { color: '#5f6368', font: { size: 11 } },
+        grid: { color: 'rgba(95, 99, 104, 0.1)' }
+      }
+    }
+  };
+
+  cohortBySource: Array<{ label: string; positive: number; neutral: number; negative: number; inconclusive: number; total: number }> = [];
+  cohortByAnchorFamily: Array<{ label: string; positive: number; neutral: number; negative: number; inconclusive: number; total: number }> = [];
+
   showFullGeo = false;
   syncingGa4 = false;
   syncingMatomo = false;
@@ -220,12 +260,81 @@ export class AnalyticsComponent implements OnInit {
       next: (res) => {
         this.searchImpacts = res.items;
         this.loadingImpacts = false;
+        this.prepareScatterChart();
+        this.prepareCohortData();
       },
       error: () => {
         this.loadingImpacts = false;
         this.snack.open('Could not load Search Impact data.', 'Dismiss', { duration: 3000 });
       }
     });
+  }
+
+  private prepareScatterChart(): void {
+    if (!this.searchImpacts.length) {
+      this.scatterChartData = null;
+      return;
+    }
+
+    const rewardColors: Record<string, string> = {
+      positive: 'rgba(52, 168, 83, 0.85)',
+      neutral: 'rgba(251, 188, 4, 0.85)',
+      negative: 'rgba(234, 67, 53, 0.85)',
+      inconclusive: 'rgba(128, 134, 139, 0.85)',
+    };
+
+    const groups: Record<string, Array<{ x: number; y: number; label: string }>> = {
+      positive: [],
+      neutral: [],
+      negative: [],
+      inconclusive: [],
+    };
+
+    for (const impact of this.searchImpacts) {
+      groups[impact.reward_label].push({
+        x: impact.baseline_clicks,
+        y: parseFloat((impact.lift_clicks_pct * 100).toFixed(1)),
+        label: impact.anchor_phrase,
+      });
+    }
+
+    this.scatterChartData = {
+      datasets: Object.entries(groups)
+        .filter(([, pts]) => pts.length > 0)
+        .map(([label, data]) => ({
+          label: this.rewardLabel(label),
+          data,
+          backgroundColor: rewardColors[label],
+          pointRadius: 8,
+          pointHoverRadius: 11,
+        }))
+    };
+  }
+
+  private prepareCohortData(): void {
+    type CohortRow = { label: string; positive: number; neutral: number; negative: number; inconclusive: number; total: number };
+
+    const sourceMap: Record<string, CohortRow> = {};
+    const anchorMap: Record<string, CohortRow> = {};
+
+    const blank = (): CohortRow => ({ label: '', positive: 0, neutral: 0, negative: 0, inconclusive: 0, total: 0 });
+
+    for (const impact of this.searchImpacts) {
+      const src = impact.source_label || 'XenForo';
+      if (!sourceMap[src]) { sourceMap[src] = { ...blank(), label: src }; }
+      sourceMap[src][impact.reward_label]++;
+      sourceMap[src].total++;
+
+      const family = (impact.anchor_phrase?.split(' ')[0] ?? '—').toLowerCase();
+      if (!anchorMap[family]) { anchorMap[family] = { ...blank(), label: family }; }
+      anchorMap[family][impact.reward_label]++;
+      anchorMap[family].total++;
+    }
+
+    this.cohortBySource = Object.values(sourceMap);
+    this.cohortByAnchorFamily = Object.values(anchorMap)
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
   }
 
   onImpactWindowChange(event: MatButtonToggleChange): void {

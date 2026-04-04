@@ -380,6 +380,93 @@
       <p class="section-subtitle">Bayesian uplift measured via Google Search Console, normalized against a site-wide control group.</p>
     </div>
 
+    <div class="impact-charts-row" *ngIf="searchImpacts.length > 0">
+      <mat-card class="report-card">
+        <mat-card-header>
+          <mat-card-title>Traffic vs. Lift Scatter</mat-card-title>
+          <mat-card-subtitle>Each dot is one applied suggestion. Position shows baseline traffic vs. measured lift.</mat-card-subtitle>
+        </mat-card-header>
+        <mat-card-content>
+          @if (scatterChartData) {
+            <div class="chart-wrapper chart-wrapper--md">
+              <canvas baseChart [data]="scatterChartData" [options]="scatterChartOptions" [type]="'scatter'"></canvas>
+            </div>
+          } @else {
+            <div class="empty-chart chart-wrapper--md">
+              <mat-icon>scatter_plot</mat-icon>
+              <p>Not enough data to plot.</p>
+            </div>
+          }
+        </mat-card-content>
+      </mat-card>
+
+      <div class="cohort-grid">
+        <mat-card class="report-card cohort-card">
+          <mat-card-header>
+            <mat-card-title>By Platform</mat-card-title>
+            <mat-card-subtitle>Results split by XenForo vs WordPress content</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <table class="premium-table premium-table--compact">
+              <thead>
+                <tr>
+                  <th>Platform</th>
+                  <th class="text-center">Positive</th>
+                  <th class="text-center">Neutral</th>
+                  <th class="text-center">Negative</th>
+                  <th class="text-center">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of cohortBySource; track row.label) {
+                  <tr>
+                    <td><strong>{{ row.label }}</strong></td>
+                    <td class="text-center"><span class="reward-badge reward-badge--positive">{{ row.positive }}</span></td>
+                    <td class="text-center"><span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span></td>
+                    <td class="text-center"><span class="reward-badge reward-badge--negative">{{ row.negative }}</span></td>
+                    <td class="text-center"><strong>{{ row.total }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="report-card cohort-card">
+          <mat-card-header>
+            <mat-card-title>By Anchor Family</mat-card-title>
+            <mat-card-subtitle>Top 10 keyword groups (first word of anchor phrase)</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <table class="premium-table premium-table--compact">
+              <thead>
+                <tr>
+                  <th>Anchor Family</th>
+                  <th class="text-center">Positive</th>
+                  <th class="text-center">Neutral</th>
+                  <th class="text-center">Negative</th>
+                  <th class="text-center">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of cohortByAnchorFamily; track row.label) {
+                  <tr>
+                    <td>
+                      <span class="anchor-family-label">{{ row.label }}</span>
+                    </td>
+                    <td class="text-center"><span class="reward-badge reward-badge--positive">{{ row.positive }}</span></td>
+                    <td class="text-center"><span class="reward-badge reward-badge--neutral">{{ row.neutral }}</span></td>
+                    <td class="text-center"><span class="reward-badge reward-badge--negative">{{ row.negative }}</span></td>
+                    <td class="text-center"><strong>{{ row.total }}</strong></td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </div>
+
     <div class="impact-grid" *ngIf="searchImpacts.length > 0; else noImpactData">
       <mat-card class="report-card impact-card--main">
         <mat-card-header>

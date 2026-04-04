@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 20 / FR-017 Slice 5 (Reporting UI - Angular)
-- FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
-- Status: Phase 20 / FR-017 Slices 1–4 are complete. Slice 4 added sync execution to JobsController so Django's run_job() can call /api/v1/jobs?sync=true and get inline results. GSCAttributionService (Gamma-Poisson + Monte Carlo math), PostgresRuntimeStore GSC queries, and JobProcessor routing were already in place. Next is Slice 5: the Angular "Search Impact" tab with Chart.js scatter plot, cohort analysis, and reward-label table.
+- Active target for the next session: Phase 21 / FR-018 (Auto-Tuned Ranking Weights & Safe Dated Model Promotion)
+- FR cross-reference: `FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion`
+- Status: Phase 20 / FR-017 is complete. All 5 slices shipped. Slice 5 added the Angular "Search Impact" tab with a Chart.js scatter plot (baseline traffic vs lift %, coloured by reward label), cohort analysis tables (by platform and by anchor family), and the applied suggestions reward-label table with expandable keyword-level detail rows. Backend serializer was extended with source_type and source_label fields.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
@@ -190,12 +190,12 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 17 | FR-014 | Complete | Near-Duplicate Destination Clustering |
 | 18 | FR-015 | Complete | Final Slate Diversity Reranking |
 | 19 | FR-016 | Complete | GA4 + Matomo settings, browser-bridge, sync plumbing, health reporting, and interactive Chart.js visualizations (funnel, trend, versions, breakdowns) are landed. |
-| 20 | FR-017 | In Progress | GSC Search Outcome Attribution & Delayed Reward Signals |
+| 20 | FR-017 | Complete | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
 | 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
-- Next exact target: Phase 20 / `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
+- Next exact target: Phase 21 / `FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
 - Current continuity state: FR-017 Slices 1, 2, and 3 are complete and verified.
 - Next session type: implement FR-017 Slice 4 (Statistical Brain in the C# worker) against its spec.
@@ -274,6 +274,32 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-04 - FR-017 Slice 5: Search Impact Reporting UI
+
+- AI/tool: Claude
+- Intentional files changed:
+  - `backend/apps/analytics/serializers.py`
+  - `frontend/src/app/analytics/analytics.service.ts`
+  - `frontend/src/app/analytics/analytics.component.ts`
+  - `frontend/src/app/analytics/analytics.component.html`
+  - `frontend/src/app/analytics/analytics.component.scss`
+  - `AI-CONTEXT.md`
+  - `FEATURE-REQUESTS.md`
+- What changed:
+  - Added `source_type` and `source_label` serializer method fields to `GSCImpactSnapshotSerializer`, derived from `suggestion.destination.content_type`. No migration needed.
+  - Added `source_type` and `source_label` fields to the `GSCImpactSnapshot` TypeScript interface.
+  - Added `scatterChartData`, `scatterChartOptions`, `cohortBySource`, and `cohortByAnchorFamily` to the Analytics component.
+  - Added `prepareScatterChart()` — groups impacts into 4 coloured Chart.js scatter datasets (positive/neutral/negative/inconclusive).
+  - Added `prepareCohortData()` — builds cohort rows grouped by platform (XenForo vs WordPress) and by anchor family (first word of anchor phrase, top 10).
+  - Added scatter chart card and two cohort tables (by platform, by anchor family) to the HTML, displayed above the existing applied-suggestions table when data is present.
+  - Added `.impact-charts-row`, `.cohort-grid`, `.cohort-card`, and `.anchor-family-label` SCSS rules.
+- Verification that passed:
+  - `backend/manage.py test apps.analytics.tests --settings=config.settings.test` — 24 tests, OK
+  - `scripts/build-frontend.ps1` — build succeeded (2 pre-existing SCSS budget warnings, not new)
+  - `scripts/test-frontend.ps1` — 18 tests, all SUCCESS
+- Commit/push state:
+  - Changes are currently uncommitted.
 
 ### 2026-04-04 - Doc-only FR backlog expansion
 

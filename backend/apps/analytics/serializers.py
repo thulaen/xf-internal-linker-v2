@@ -3,11 +3,21 @@ from .models import GSCImpactSnapshot, GSCKeywordImpact
 
 class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
     """Serializer for suggestion-level search attribution."""
-    
+
     anchor_phrase = serializers.CharField(source="suggestion.anchor_phrase", read_only=True)
     destination_title = serializers.CharField(source="suggestion.destination_title", read_only=True)
     status = serializers.CharField(source="suggestion.status", read_only=True)
-    
+    source_type = serializers.SerializerMethodField()
+    source_label = serializers.SerializerMethodField()
+
+    def get_source_type(self, obj) -> str:
+        ct = getattr(getattr(obj.suggestion, "destination", None), "content_type", None)
+        return "wordpress" if ct in ("wp_post", "wp_page") else "xenforo"
+
+    def get_source_label(self, obj) -> str:
+        ct = getattr(getattr(obj.suggestion, "destination", None), "content_type", None)
+        return "WordPress" if ct in ("wp_post", "wp_page") else "XenForo"
+
     class Meta:
         model = GSCImpactSnapshot
         fields = [
@@ -24,6 +34,8 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
             "probability_of_uplift",
             "reward_label",
             "last_computed_at",
+            "source_type",
+            "source_label",
         ]
 
 class GSCKeywordImpactSerializer(serializers.ModelSerializer):
