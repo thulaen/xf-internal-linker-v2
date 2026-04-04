@@ -153,6 +153,11 @@ describe('SettingsComponent', () => {
               connection_message: 'Fill in the Matomo fields and test the connection.',
               last_sync: null,
             }),
+            getXenForoSettings: () => of({
+              base_url: '',
+              api_key_configured: false,
+            }),
+            updateXenForoSettings: () => of({ status: 'saved' }),
             getWordPressSettings: () => of({
               base_url: '',
               username: '',
