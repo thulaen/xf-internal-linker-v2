@@ -153,8 +153,13 @@
     color: var(--color-success);
   }
 
-  &.owner-celery .owner-label {
+  &.owner-celery .owner-label,
+  &.owner-python .owner-label {
     color: var(--color-warning);
+  }
+
+  &.owner-cpp .owner-label {
+    color: var(--color-primary);
   }
 }
 
@@ -272,6 +277,100 @@
     margin: 0;
     font-size: 13px;
     color: var(--color-text-primary);
+  }
+}
+
+.runtime-execution-card {
+  .lane-explanation {
+    min-height: 38px;
+  }
+}
+
+.runtime-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+}
+
+.runtime-detail-item {
+  padding: 10px 12px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-faint);
+
+  label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  span {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+}
+
+.native-module-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.module-list-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.native-module-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg-faint);
+}
+
+.native-module-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.native-module-name {
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.native-module-benchmark {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.native-module-state {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+
+  &.is-healthy {
+    color: var(--color-success);
+  }
+
+  &.is-degraded {
+    color: var(--color-warning);
+  }
+
+  &.is-failed {
+    color: var(--color-error);
   }
 }
 

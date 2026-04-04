@@ -1,6 +1,9 @@
 import logging
 import os
+import importlib
+import importlib.util
 from datetime import timedelta
+from time import perf_counter
 
 import requests
 from asgiref.sync import async_to_sync
@@ -15,6 +18,19 @@ from apps.suggestions.models import Suggestion
 from .models import ServiceStatusSnapshot, SystemConflict
 
 logger = logging.getLogger(__name__)
+
+_NATIVE_RUNTIME_MODULES = (
+    ("scoring", "calculate_composite_scores_full_batch", "Composite scoring kernel", True),
+    ("simsearch", "score_and_topk", "Sentence search kernel", True),
+    ("pagerank", "pagerank_step", "PageRank kernel", True),
+    ("texttok", "tokenize_text_batch", "Tokenizer kernel", True),
+    ("feedrerank", "calculate_mmr_scores_batch", "Slate diversity kernel", False),
+    ("l2norm", "normalize_l2_batch", "Embedding normalization kernel", False),
+    ("fieldrel", "score_field_tokens", "Field-aware relevance kernel", False),
+    ("rareterm", "evaluate_rare_terms", "Rare-term propagation kernel", False),
+    ("linkparse", "find_urls", "Link parser kernel", False),
+    ("phrasematch", "longest_contiguous_overlap", "Phrase matching kernel", False),
+)
 
 
 def _result(
@@ -33,6 +49,248 @@ def _http_worker_status_url() -> str:
     return f"{base_url}/api/v1/status"
 
 
+def _native_module_runtime_status() -> list[dict[str, object]]:
+    statuses: list[dict[str, object]] = []
+    for module_name, expected_attr, label, critical in _NATIVE_RUNTIME_MODULES:
+        dotted_name = f"extensions.{module_name}"
+        spec = importlib.util.find_spec(dotted_name)
+        origin = getattr(spec, "origin", None) if spec else None
+        compiled = bool(origin and str(origin).endswith((".so", ".pyd")))
+        importable = False
+        callable_present = False
+        error = ""
+
+        if spec is not None:
+            try:
+                module = importlib.import_module(dotted_name)
+                importable = True
+                callable_present = hasattr(module, expected_attr)
+            except Exception as exc:
+                error = str(exc)
+        else:
+            error = "Module spec not found."
+
+        if importable and callable_present:
+            state = "healthy"
+            runtime_path = "cpp"
+            fallback_active = False
+            fallback_reason = ""
+        elif critical:
+            state = "failed"
+            runtime_path = "python"
+            fallback_active = True
+            fallback_reason = error or f"Missing expected callable '{expected_attr}'."
+        else:
+            state = "degraded"
+            runtime_path = "python"
+            fallback_active = True
+            fallback_reason = error or f"Missing expected callable '{expected_attr}'."
+
+        statuses.append(
+            {
+                "module": module_name,
+                "label": label,
+                "critical": critical,
+                "compiled": compiled,
+                "importable": importable,
+                "callable_present": callable_present,
+                "state": state,
+                "runtime_path": runtime_path,
+                "fallback_active": fallback_active,
+                "fallback_reason": fallback_reason,
+                "origin": origin or "",
+            }
+        )
+    return statuses
+
+
+def _runtime_owner_settings() -> dict[str, str]:
+    return {
+        "heavy_runtime_owner": getattr(settings, "HEAVY_RUNTIME_OWNER", "celery"),
+        "broken_link_scan_owner": getattr(settings, "RUNTIME_OWNER_BROKEN_LINK_SCAN", "celery"),
+        "graph_sync_owner": getattr(settings, "RUNTIME_OWNER_GRAPH_SYNC", "celery"),
+        "import_owner": getattr(settings, "RUNTIME_OWNER_IMPORT", "celery"),
+        "pipeline_owner": getattr(settings, "RUNTIME_OWNER_PIPELINE", "celery"),
+    }
+
+
+def _measure_ms(fn, *, repeats: int = 3) -> float:
+    best_ms: float | None = None
+    for _ in range(repeats):
+        started = perf_counter()
+        fn()
+        elapsed_ms = (perf_counter() - started) * 1000.0
+        best_ms = elapsed_ms if best_ms is None else min(best_ms, elapsed_ms)
+    return round(best_ms or 0.0, 3)
+
+
+def _benchmark_native_modules() -> dict[str, dict[str, object]]:
+    import numpy as np
+
+    benchmark_results: dict[str, dict[str, object]] = {}
+
+    try:
+        from extensions import scoring as scoring_ext
+        from apps.pipeline.services import ranker as ranker_service
+
+        np.random.seed(7)
+        component_scores = np.random.uniform(-1.0, 1.0, size=(512, 12)).astype(np.float32)
+        weights = np.random.uniform(-0.75, 0.75, size=(12,)).astype(np.float32)
+        silo = np.random.uniform(-0.5, 0.5, size=(512,)).astype(np.float32)
+
+        py_ms = _measure_ms(lambda: ranker_service._calculate_composite_scores_full_batch_py(component_scores, weights, silo))
+        cpp_ms = _measure_ms(lambda: scoring_ext.calculate_composite_scores_full_batch(component_scores, weights, silo))
+        benchmark_results["scoring"] = _benchmark_result(py_ms, cpp_ms)
+    except Exception as exc:
+        benchmark_results["scoring"] = _benchmark_error_result(exc)
+
+    try:
+        from extensions import texttok as texttok_ext
+        from apps.pipeline.services import text_tokens as text_tokens_service
+
+        texts = [f"Internal linking benchmark sentence number {index} with repeated anchor text and topic overlap." for index in range(300)]
+        stopwords = text_tokens_service.STANDARD_ENGLISH_STOPWORDS
+
+        py_ms = _measure_ms(lambda: text_tokens_service.tokenize_text_batch(texts, stopwords))
+        cpp_ms = _measure_ms(lambda: texttok_ext.tokenize_text_batch(texts, stopwords))
+        benchmark_results["texttok"] = _benchmark_result(py_ms, cpp_ms)
+    except Exception as exc:
+        benchmark_results["texttok"] = _benchmark_error_result(exc)
+
+    try:
+        from extensions import simsearch as simsearch_ext
+
+        np.random.seed(11)
+        destination_embedding = np.random.uniform(-1.0, 1.0, size=(128,)).astype(np.float32)
+        destination_embedding /= np.maximum(np.linalg.norm(destination_embedding), 1e-12)
+        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(1024, 128)).astype(np.float32)
+        sentence_embeddings /= np.maximum(np.linalg.norm(sentence_embeddings, axis=1, keepdims=True), 1e-12)
+        candidate_rows = list(range(700))
+        top_k = 25
+
+        def _py_simsearch() -> tuple[object, object]:
+            candidate_matrix = sentence_embeddings[candidate_rows]
+            scores = candidate_matrix @ destination_embedding
+            k = min(top_k, len(scores))
+            top_idx = np.argpartition(scores, -k)[-k:]
+            top_idx = top_idx[np.argsort(-scores[top_idx])]
+            return top_idx, scores[top_idx]
+
+        py_ms = _measure_ms(_py_simsearch)
+        cpp_ms = _measure_ms(lambda: simsearch_ext.score_and_topk(destination_embedding, sentence_embeddings, candidate_rows, top_k))
+        benchmark_results["simsearch"] = _benchmark_result(py_ms, cpp_ms)
+    except Exception as exc:
+        benchmark_results["simsearch"] = _benchmark_error_result(exc)
+
+    try:
+        from extensions import pagerank as pagerank_ext
+        from apps.pipeline.services import weighted_pagerank as pagerank_service
+
+        np.random.seed(13)
+        node_count = 256
+        indptr = np.arange(0, (node_count + 1) * 4, 4, dtype=np.int32)
+        indices = np.random.randint(0, node_count, size=node_count * 4, dtype=np.int32)
+        data = np.random.uniform(0.01, 1.0, size=node_count * 4).astype(np.float64)
+        ranks = np.full(node_count, 1.0 / node_count, dtype=np.float64)
+        dangling_mask = np.zeros(node_count, dtype=bool)
+
+        py_ms = _measure_ms(lambda: pagerank_service._pagerank_step_py(
+            indptr=indptr,
+            indices=indices,
+            data=data,
+            ranks=ranks,
+            dangling_mask=dangling_mask,
+            damping=0.15,
+            node_count=node_count,
+        ))
+        cpp_ms = _measure_ms(lambda: pagerank_ext.pagerank_step(
+            indptr,
+            indices,
+            data,
+            ranks,
+            dangling_mask,
+            0.15,
+            node_count,
+        ))
+        benchmark_results["pagerank"] = _benchmark_result(py_ms, cpp_ms)
+    except Exception as exc:
+        benchmark_results["pagerank"] = _benchmark_error_result(exc)
+
+    try:
+        from extensions import feedrerank as feedrerank_ext
+
+        np.random.seed(17)
+        relevance = np.random.uniform(0.2, 1.0, size=(256,)).astype(np.float64)
+        candidate_embeddings = np.random.uniform(-1.0, 1.0, size=(256, 64)).astype(np.float64)
+        selected_embeddings = np.random.uniform(-1.0, 1.0, size=(12, 64)).astype(np.float64)
+
+        def _py_feedrerank() -> tuple[object, object]:
+            max_sims = np.array(
+                [
+                    max(float(np.dot(candidate, selected)) for selected in selected_embeddings)
+                    for candidate in candidate_embeddings
+                ],
+                dtype=np.float64,
+            )
+            return (0.65 * relevance) - ((1.0 - 0.65) * max_sims), max_sims
+
+        py_ms = _measure_ms(_py_feedrerank, repeats=2)
+        cpp_ms = _measure_ms(
+            lambda: feedrerank_ext.calculate_mmr_scores_batch(
+                relevance,
+                candidate_embeddings,
+                selected_embeddings,
+                0.65,
+            ),
+            repeats=2,
+        )
+        benchmark_results["feedrerank"] = _benchmark_result(py_ms, cpp_ms)
+    except Exception as exc:
+        benchmark_results["feedrerank"] = _benchmark_error_result(exc)
+
+    return benchmark_results
+
+
+def _benchmark_result(py_ms: float, cpp_ms: float) -> dict[str, object]:
+    if cpp_ms <= 0.0 or py_ms <= 0.0:
+        return {
+            "benchmark_status": "invalid_result",
+            "python_ms": py_ms,
+            "cpp_ms": cpp_ms,
+            "speedup_vs_python": None,
+            "proof_available": False,
+            "error": "Benchmark produced a non-positive duration.",
+        }
+
+    speedup = round(py_ms / cpp_ms, 3)
+    if speedup >= 1.1:
+        status = "benchmarked_faster"
+    elif speedup >= 0.95:
+        status = "no_material_speedup"
+    else:
+        status = "slower_than_python"
+
+    return {
+        "benchmark_status": status,
+        "python_ms": py_ms,
+        "cpp_ms": cpp_ms,
+        "speedup_vs_python": speedup,
+        "proof_available": True,
+        "error": "",
+    }
+
+
+def _benchmark_error_result(exc: Exception) -> dict[str, object]:
+    return {
+        "benchmark_status": "benchmark_failed",
+        "python_ms": None,
+        "cpp_ms": None,
+        "speedup_vs_python": None,
+        "proof_available": False,
+        "error": str(exc),
+    }
+
+
 def _http_worker_metadata(status_url: str, data: dict) -> dict:
     worker = data.get("worker") or {}
     scheduler = data.get("scheduler") or {}
@@ -46,6 +304,7 @@ def _http_worker_metadata(status_url: str, data: dict) -> dict:
 
     return {
         "url": status_url,
+        "runtime_path": "csharp",
         "schema_version": data.get("schema_version"),
         "build_version": data.get("build_version"),
         "redis_connected": redis_connected,
@@ -68,6 +327,10 @@ def _http_worker_metadata(status_url: str, data: dict) -> dict:
         "last_failed_job_type": last_failed.get("job_type"),
         "last_failed_error": last_failed.get("error"),
         "python_fallback_active": not (redis_connected and database_connected and worker_online),
+        "fallback_active": not (redis_connected and database_connected and worker_online),
+        "safe_to_use": bool(redis_connected and database_connected and worker_online),
+        "fallback_reason": "" if (redis_connected and database_connected and worker_online) else "C# worker lane is not fully healthy.",
+        "owner_selected": "csharp",
     }
 
 
@@ -243,7 +506,12 @@ def check_http_worker():
             "Set HTTP_WORKER_ENABLED=true when you want Django to use the C# helper service.",
             {
                 "url": status_url,
+                "runtime_path": "python",
                 "python_fallback_active": True,
+                "fallback_active": True,
+                "fallback_reason": "HTTP_WORKER_ENABLED is false.",
+                "safe_to_use": False,
+                "owner_selected": "celery",
             },
         )
 
@@ -256,7 +524,12 @@ def check_http_worker():
                 "Check whether the http-worker-api service is running and reachable.",
                 {
                     "url": status_url,
+                    "runtime_path": "python",
                     "python_fallback_active": True,
+                    "fallback_active": True,
+                    "fallback_reason": f"HttpWorker returned status {response.status_code}.",
+                    "safe_to_use": False,
+                    "owner_selected": "csharp",
                 },
             )
 
@@ -304,25 +577,27 @@ def check_http_worker():
             "Check whether HTTP_WORKER_URL points at the live http-worker-api service.",
             {
                 "url": status_url,
+                "runtime_path": "python",
                 "python_fallback_active": True,
+                "fallback_active": True,
+                "fallback_reason": str(exc),
+                "safe_to_use": False,
+                "owner_selected": "csharp",
             },
         )
 
 
 def check_runtime_lanes():
-    owners = {
-        "heavy_runtime_owner": getattr(settings, "HEAVY_RUNTIME_OWNER", "celery"),
-        "broken_link_scan_owner": getattr(settings, "RUNTIME_OWNER_BROKEN_LINK_SCAN", "celery"),
-        "graph_sync_owner": getattr(settings, "RUNTIME_OWNER_GRAPH_SYNC", "celery"),
-        "import_owner": getattr(settings, "RUNTIME_OWNER_IMPORT", "celery"),
-        "pipeline_owner": getattr(settings, "RUNTIME_OWNER_PIPELINE", "celery"),
-    }
+    owners = _runtime_owner_settings()
     csharp_owned = [lane for lane, owner in owners.items() if owner == "csharp" and lane != "heavy_runtime_owner"]
     celery_owned = [lane for lane, owner in owners.items() if owner == "celery" and lane != "heavy_runtime_owner"]
     metadata = {
         **owners,
         "csharp_owned_lane_count": len(csharp_owned),
         "celery_owned_lane_count": len(celery_owned),
+        "runtime_path": "mixed" if csharp_owned and celery_owned else ("csharp" if csharp_owned else "python"),
+        "fallback_active": bool(celery_owned),
+        "fallback_reason": "" if not celery_owned else "Some heavy lanes still fall back to Celery/Python ownership.",
     }
 
     if not celery_owned:
@@ -366,6 +641,10 @@ def check_scheduler_lane():
             "Turn on the C# runtime before moving periodic work off Celery Beat.",
             {
                 "scheduler_mode": scheduler_mode or "disabled",
+                "runtime_path": "python",
+                "fallback_active": True,
+                "fallback_reason": "HttpWorker runtime is disabled.",
+                "safe_to_use": False,
             },
         )
 
@@ -382,7 +661,13 @@ def check_scheduler_lane():
             "healthy",
             "The C# scheduler lane is active and reporting a fresh heartbeat.",
             "No action needed.",
-            metadata,
+            {
+                **metadata,
+                "runtime_path": "csharp",
+                "fallback_active": False,
+                "fallback_reason": "",
+                "safe_to_use": True,
+            },
         )
 
     if scheduler_status == "shadow":
@@ -390,7 +675,13 @@ def check_scheduler_lane():
             "degraded",
             "The C# scheduler lane is alive in shadow mode, but Celery Beat still owns live periodic execution.",
             "Keep validating parity, then flip schedule ownership to C# before retiring Beat.",
-            metadata,
+            {
+                **metadata,
+                "runtime_path": "mixed",
+                "fallback_active": True,
+                "fallback_reason": "Scheduler is still running in shadow mode.",
+                "safe_to_use": False,
+            },
         )
 
     if scheduler_status == "disabled":
@@ -398,38 +689,140 @@ def check_scheduler_lane():
             "disabled",
             "The C# scheduler lane is installed but disabled.",
             "Enable the C# scheduler lane before moving periodic jobs off Celery Beat.",
-            metadata,
+            {
+                **metadata,
+                "runtime_path": "python",
+                "fallback_active": True,
+                "fallback_reason": "Scheduler lane is disabled.",
+                "safe_to_use": False,
+            },
         )
 
     return _result(
         "degraded",
         "The C# scheduler lane does not have a trustworthy heartbeat yet.",
         "Check the Postgres connection string and the scheduler worker logs.",
-        metadata,
+        {
+            **metadata,
+            "runtime_path": "mixed" if scheduler_mode == "shadow" else "csharp",
+            "fallback_active": True,
+            "fallback_reason": "Scheduler heartbeat is missing or stale.",
+            "safe_to_use": False,
+        },
     )
 
 
 def check_native_scoring():
-    try:
-        from extensions import scoring  # noqa: F401
+    module_statuses = _native_module_runtime_status()
+    benchmark_results = _benchmark_native_modules()
+    for status in module_statuses:
+        benchmark = benchmark_results.get(str(status["module"]), {})
+        status["benchmark_status"] = benchmark.get("benchmark_status", "not_benchmarked")
+        status["python_ms"] = benchmark.get("python_ms")
+        status["cpp_ms"] = benchmark.get("cpp_ms")
+        status["speedup_vs_python"] = benchmark.get("speedup_vs_python")
+        status["proof_available"] = benchmark.get("proof_available", False)
+        status["benchmark_error"] = benchmark.get("error", "")
 
-        return _result(
-            "healthy",
-            "The native C++ scoring extension is importable, so the fast scoring kernel is available.",
-            "No action needed.",
-            {
-                "native_scoring_active": True,
-            },
-        )
-    except Exception as exc:
+    critical_failures = [status for status in module_statuses if status["critical"] and status["state"] != "healthy"]
+    degraded_modules = [status for status in module_statuses if status["state"] == "degraded"]
+    healthy_modules = [status for status in module_statuses if status["state"] == "healthy"]
+    compiled_count = sum(1 for status in module_statuses if status["compiled"])
+    importable_count = sum(1 for status in module_statuses if status["importable"])
+    fallback_active = bool(critical_failures or degraded_modules)
+    proof_ready_benchmarks = [
+        benchmark
+        for benchmark in benchmark_results.values()
+        if benchmark.get("proof_available") and isinstance(benchmark.get("cpp_ms"), (int, float))
+    ]
+    benchmark_failures = [
+        module_name
+        for module_name, benchmark in benchmark_results.items()
+        if benchmark.get("benchmark_status") == "benchmark_failed"
+    ]
+    overall_cpp_ms = round(sum(float(benchmark["cpp_ms"]) for benchmark in proof_ready_benchmarks), 3) if proof_ready_benchmarks else None
+    overall_python_ms = round(sum(float(benchmark["python_ms"]) for benchmark in proof_ready_benchmarks), 3) if proof_ready_benchmarks else None
+    overall_speedup = round((overall_python_ms / overall_cpp_ms), 3) if overall_cpp_ms and overall_python_ms else None
+
+    if overall_speedup is None:
+        benchmark_status = "benchmark_failed"
+    elif overall_speedup >= 1.1:
+        benchmark_status = "benchmarked_faster"
+    elif overall_speedup >= 0.95:
+        benchmark_status = "no_material_speedup"
+    else:
+        benchmark_status = "slower_than_python"
+
+    metadata = {
+        "runtime_path": "cpp" if not fallback_active else ("mixed" if healthy_modules else "python"),
+        "native_scoring_active": not bool(critical_failures),
+        "compiled": compiled_count == len(module_statuses),
+        "importable": importable_count == len(module_statuses),
+        "safe_to_use": not bool(critical_failures),
+        "fallback_active": fallback_active,
+        "fallback_reason": "",
+        "compiled_module_count": compiled_count,
+        "importable_module_count": importable_count,
+        "healthy_module_count": len(healthy_modules),
+        "degraded_module_count": len(degraded_modules),
+        "critical_failure_count": len(critical_failures),
+        "last_benchmark_ms": overall_cpp_ms,
+        "python_benchmark_ms": overall_python_ms,
+        "speedup_vs_python": overall_speedup,
+        "benchmark_status": benchmark_status,
+        "benchmarked_module_count": len(proof_ready_benchmarks),
+        "benchmark_failure_count": len(benchmark_failures),
+        "module_statuses": module_statuses,
+        "benchmark_results": benchmark_results,
+        "last_error_summary": "; ".join(
+            f"{status['module']}: {status['fallback_reason']}"
+            for status in module_statuses
+            if status["fallback_reason"]
+        )[:500],
+    }
+
+    if critical_failures:
+        metadata["fallback_reason"] = "One or more critical C++ kernels are unavailable, so Python fallback is protecting ranking."
         return _result(
             "failed",
-            f"The native C++ scoring extension could not be loaded: {exc}",
-            "Rebuild the native extensions before trusting final weighted scoring.",
-            {
-                "native_scoring_active": False,
-            },
+            f"The native C++ fast path is not fully safe right now. Critical kernels missing: {', '.join(status['module'] for status in critical_failures)}.",
+            "Rebuild the native extensions and restore the missing critical kernels before trusting the fast path.",
+            metadata,
         )
+
+    if degraded_modules:
+        metadata["fallback_reason"] = "Some optional C++ kernels are unavailable, so mixed C++/Python execution is active."
+        return _result(
+            "degraded",
+            f"Core C++ scoring is active, but some optional kernels are falling back to Python: {', '.join(status['module'] for status in degraded_modules)}.",
+            "Rebuild the optional native extensions if you want every fast path back.",
+            metadata,
+        )
+
+    if benchmark_status == "benchmark_failed":
+        metadata["fallback_reason"] = "Benchmarks could not prove the fast path, even though the critical kernels imported."
+        return _result(
+            "degraded",
+            "The native C++ fast path imported successfully, but benchmark proof could not be captured yet.",
+            "Check benchmark failures and fix the benchmark harness before trusting speed claims.",
+            metadata,
+        )
+
+    if benchmark_status in {"no_material_speedup", "slower_than_python"}:
+        metadata["fallback_reason"] = "The native path is available, but the benchmark did not show a meaningful speed win over Python."
+        return _result(
+            "degraded",
+            "The native C++ fast path is available, but diagnostics did not measure a strong speed advantage over Python.",
+            "Inspect the benchmark details before assuming the native complexity is paying off.",
+            metadata,
+        )
+
+    return _result(
+        "healthy",
+        "All tracked native C++ kernels are importable, and diagnostics measured a real speed advantage over Python.",
+        "No action needed.",
+        metadata,
+    )
 
 
 def check_slate_diversity_runtime():
@@ -440,6 +833,8 @@ def check_slate_diversity_runtime():
         "runtime_path": runtime["path"],
         "cpp_fast_path_active": bool(runtime["available"]),
         "python_fallback_active": not bool(runtime["available"]),
+        "fallback_active": not bool(runtime["available"]),
+        "safe_to_use": bool(runtime["available"]),
     }
 
     if runtime["available"]:
@@ -467,6 +862,10 @@ def check_embedding_specialist():
         "No bounded Python embedding specialist lane is deployed yet, and embeddings are still tied to the older Python/Celery path.",
         "When embeddings are migrated, keep the Python specialist narrow and place C# in charge of orchestration around it.",
         {
+            "runtime_path": "python",
+            "fallback_active": True,
+            "fallback_reason": "A dedicated Python specialist lane has not been deployed yet.",
+            "safe_to_use": False,
             "embedding_specialist_active": False,
         },
     )
@@ -660,6 +1059,76 @@ def detect_conflicts():
                 "location": "apps.diagnostics.health.check_http_worker",
                 "why": "The compose service is named http-worker-api on port 8080, so the old URL will always lie.",
                 "next_step": "Set HTTP_WORKER_URL to the live http-worker-api base URL.",
+            }
+        )
+
+    owners = _runtime_owner_settings()
+    csharp_lanes = [lane for lane, owner in owners.items() if lane != "heavy_runtime_owner" and owner == "csharp"]
+    http_worker_state, _, _, http_worker_metadata = check_http_worker()
+    native_scoring_state, _, _, native_scoring_metadata = check_native_scoring()
+
+    if csharp_lanes and not getattr(settings, "HTTP_WORKER_ENABLED", False):
+        conflicts.append(
+            {
+                "type": "drift",
+                "title": "C# Runtime Ownership Without HttpWorker",
+                "description": f"C# owns {', '.join(csharp_lanes)}, but HTTP_WORKER_ENABLED is off.",
+                "severity": "critical",
+                "location": "config.settings.base runtime ownership",
+                "why": "The repo points heavy lanes at C#, but the C# runtime is disabled, so that ownership cannot be trusted.",
+                "next_step": "Either enable HttpWorker or move those lanes back to Celery until the C# runtime is truly ready.",
+            }
+        )
+
+    if csharp_lanes and http_worker_state != "healthy":
+        conflicts.append(
+            {
+                "type": "drift",
+                "title": "C# Runtime Ownership Drift",
+                "description": f"C# owns {', '.join(csharp_lanes)}, but the HttpWorker runtime is {http_worker_state}.",
+                "severity": "high",
+                "location": "apps.diagnostics.health.check_runtime_lanes",
+                "why": "The configured owner and the live C# runtime health do not agree, so jobs may route into an unhealthy lane.",
+                "next_step": http_worker_metadata.get("fallback_reason") or "Repair HttpWorker health or move the affected lanes back to Celery.",
+            }
+        )
+
+    if owners.get("import_owner") == "csharp":
+        conflicts.append(
+            {
+                "type": "mismatch",
+                "title": "Import Lane Points At Nonexistent C# Owner",
+                "description": "Import ownership is set to C#, but this repo does not have a real C# import owner yet.",
+                "severity": "critical",
+                "location": "backend/apps/pipeline/tasks.py",
+                "why": "Dispatching imports with this setting will fail instead of routing to a working C# lane.",
+                "next_step": "Set RUNTIME_OWNER_IMPORT=celery until a real C# import owner exists.",
+            }
+        )
+
+    if owners.get("pipeline_owner") == "csharp":
+        conflicts.append(
+            {
+                "type": "mismatch",
+                "title": "Pipeline Lane Points At Nonexistent C# Owner",
+                "description": "Pipeline ownership is set to C#, but this repo does not have a real C# pipeline owner yet.",
+                "severity": "critical",
+                "location": "backend/apps/pipeline/tasks.py",
+                "why": "Dispatching pipeline runs with this setting will fail instead of routing to a working C# lane.",
+                "next_step": "Set RUNTIME_OWNER_PIPELINE=celery until a real C# pipeline owner exists.",
+            }
+        )
+
+    if native_scoring_state != "healthy":
+        conflicts.append(
+            {
+                "type": "drift",
+                "title": "C++ Fast Path Not Fully Healthy",
+                "description": "The repo expects C++ to be the default hot-path, but native runtime diagnostics report fallback or failure.",
+                "severity": "high" if native_scoring_state == "failed" else "medium",
+                "location": "backend/apps/diagnostics/health.py",
+                "why": "Hot-loop work is falling back to Python in at least part of the runtime, which can reduce speed and hide native regressions.",
+                "next_step": native_scoring_metadata.get("fallback_reason") or "Rebuild native extensions and re-run parity checks.",
             }
         )
 

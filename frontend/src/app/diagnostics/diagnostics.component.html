@@ -89,13 +89,85 @@
       </div>
     </section>
 
+    <section class="runtime-lanes-section" *ngIf="runtimeExecutionCards.length > 0">
+      <div class="section-heading">
+        <h2>Runtime Execution Paths</h2>
+        <p>These cards show where C++, Python, and C# are healthy, falling back, or failing.</p>
+      </div>
+
+      <div class="runtime-lane-grid">
+        <article
+          class="runtime-lane-card runtime-execution-card"
+          *ngFor="let card of runtimeExecutionCards; trackBy: runtimeExecutionTrackBy"
+          [class.state-healthy]="card.state === 'healthy'"
+          [class.state-degraded]="card.state === 'degraded'"
+          [class.state-failed]="card.state === 'failed'"
+          [class.owner-csharp]="card.runtime === 'csharp'"
+          [class.owner-python]="card.runtime === 'python'"
+          [class.owner-cpp]="card.runtime === 'cpp'">
+          <div class="lane-header">
+            <div>
+              <h3>{{ card.title }}</h3>
+              <p class="owner-label">Runtime: {{ card.runtime === 'unknown' ? 'Unknown' : (card.runtime | uppercase) }}</p>
+            </div>
+            <span class="lane-state">{{ card.state | titlecase }}</span>
+          </div>
+
+          <p class="lane-status-line">{{ card.statusLine }}</p>
+          <p class="lane-explanation">{{ card.explanation }}</p>
+
+          <div class="lane-badges">
+            <div
+              class="lane-badge"
+              *ngFor="let badge of card.badges"
+              [class.tone-good]="badge.tone === 'good'"
+              [class.tone-warn]="badge.tone === 'warn'"
+              [class.tone-bad]="badge.tone === 'bad'">
+              <span class="badge-label">{{ badge.label }}</span>
+              <span class="badge-value">{{ badge.value }}</span>
+            </div>
+          </div>
+
+          <div class="runtime-detail-grid" *ngIf="card.details.length > 0">
+            <div class="runtime-detail-item" *ngFor="let detail of card.details">
+              <label>{{ detail.label }}</label>
+              <span>{{ detail.value }}</span>
+            </div>
+          </div>
+
+          <div class="native-module-list" *ngIf="card.moduleStatuses.length > 0">
+            <label class="module-list-label">Tracked Modules</label>
+            <div class="native-module-item" *ngFor="let module of card.moduleStatuses">
+              <div class="native-module-copy">
+                <span class="native-module-name">{{ module.label }}</span>
+                <span class="native-module-benchmark">
+                  {{ module.proof_available ? ((module.speedup_vs_python ?? 0).toFixed(2) + 'x') : (module.benchmark_status || 'Not benchmarked') }}
+                  @if (module.proof_available) {
+                    · {{ module.cpp_ms?.toFixed(2) }} ms
+                  }
+                </span>
+              </div>
+              <span class="native-module-state" [class.is-healthy]="module.state === 'healthy'" [class.is-degraded]="module.state === 'degraded'" [class.is-failed]="module.state === 'failed'">
+                {{ module.state | titlecase }}
+              </span>
+            </div>
+          </div>
+
+          <div class="lane-next-step">
+            <label>Next Step</label>
+            <p>{{ card.nextStep }}</p>
+          </div>
+        </article>
+      </div>
+    </section>
+
     <div class="main-grid">
       <!-- Left Column: Services -->
       <div class="grid-column">
         <section class="services-section">
           <h2>Core Runtime & Services</h2>
           <div class="services-grid">
-            <app-service-card *ngFor="let s of services" [service]="s"></app-service-card>
+            <app-service-card *ngFor="let s of coreServices" [service]="s"></app-service-card>
           </div>
         </section>
       </div>

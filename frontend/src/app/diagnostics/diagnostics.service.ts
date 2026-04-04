@@ -11,7 +11,44 @@ export interface ServiceStatus {
   last_success: string | null;
   last_failure: string | null;
   next_action_step: string;
-  metadata: any;
+  metadata: ServiceMetadata;
+}
+
+export interface NativeModuleStatus {
+  module: string;
+  label: string;
+  critical: boolean;
+  compiled: boolean;
+  importable: boolean;
+  callable_present: boolean;
+  state: string;
+  runtime_path: 'cpp' | 'python';
+  fallback_active: boolean;
+  fallback_reason: string;
+  origin: string;
+  benchmark_status?: string;
+  python_ms?: number | null;
+  cpp_ms?: number | null;
+  speedup_vs_python?: number | null;
+  proof_available?: boolean;
+  benchmark_error?: string;
+}
+
+export interface ServiceMetadata {
+  runtime_path?: 'cpp' | 'python' | 'csharp' | 'mixed' | string;
+  fallback_active?: boolean;
+  fallback_reason?: string;
+  python_fallback_active?: boolean;
+  compiled?: boolean;
+  importable?: boolean;
+  safe_to_use?: boolean;
+  last_benchmark_ms?: number | null;
+  speedup_vs_python?: number | null;
+  benchmark_status?: string;
+  module_statuses?: NativeModuleStatus[];
+  owner_selected?: string;
+  last_error_summary?: string;
+  [key: string]: unknown;
 }
 
 export interface SystemConflict {

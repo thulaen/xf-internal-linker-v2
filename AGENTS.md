@@ -5,7 +5,7 @@ Read all sections before making any changes to frontend styles.
 
 ---
 
-## Design System — GA4 Visual Identity
+## Design System - GA4 Visual Identity
 
 This app is styled to match **Google Analytics 4 pixel-for-pixel** as of 2026-04-03.
 Design uniformity is paramount. Do not drift from the design system.
@@ -18,7 +18,7 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 
 ---
 
-## Hard Rules — Never Break These
+## Hard Rules - Never Break These
 
 ### Colours
 - **No hardcoded hex colours** in component `.scss` files. Use `var(--token-name)`.
@@ -29,7 +29,7 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 ### Cards and Shadows
 - Cards use `border: var(--card-border)` = `0.8px solid #dadce0`. No other border style.
 - `box-shadow: none` at rest. Cards do not have drop shadows.
-- Hover may use `var(--shadow-md)` only — never as a resting state.
+- Hover may use `var(--shadow-md)` only - never as a resting state.
 
 ### Typography
 - Font stack: `var(--font-family)` = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif`
@@ -48,7 +48,7 @@ When writing styles, prefer in this order:
 
 1. Semantic tokens: `var(--color-primary)`, `var(--color-border)`, `var(--card-border)`, `var(--color-text-secondary)`
 2. Component palette tokens: `var(--cf-blue-5)`, `var(--cf-gray-9)`, `var(--cf-green-4)`
-3. Raw hex: **only** for values that genuinely have no token equivalent — and add a comment explaining why
+3. Raw hex: **only** for values that genuinely have no token equivalent - and add a comment explaining why
 
 ---
 
@@ -86,4 +86,12 @@ When writing styles, prefer in this order:
 - `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat.
 - `xf-linker-http-worker:latest` is shared by http-worker-api and http-worker-queue.
 - After `docker-compose build`, run `docker image prune -f`.
-- Never run `docker-compose down -v` — it deletes the database.
+- Never run `docker-compose down -v` - it deletes the database.
+
+---
+
+## Native Runtime Policy
+
+- Before changing native C++, Python fallback, runtime ownership, or operator-facing runtime diagnostics, read `docs/NATIVE_RUNTIME_POLICY.md`.
+- Treat C++ as the default speed path for hot ranking and pipeline loops, Python as the safety fallback/reference path, and C# as the preferred worker/orchestration runtime.
+- Do not create a second native-runtime issue surface. Reuse the existing diagnostics system for C++, Python, and C# runtime visibility.

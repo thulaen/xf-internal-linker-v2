@@ -159,6 +159,35 @@ class HttpWorkerHealthTests(TestCase):
         self.assertIn("cpp_fast_path_active", metadata)
         self.assertIn("python_fallback_active", metadata)
 
+    def test_check_native_scoring_reports_runtime_metadata(self):
+        state, explanation, next_step, metadata = health.check_native_scoring()
+
+        self.assertIn(state, {"healthy", "degraded", "failed"})
+        self.assertTrue(explanation)
+        self.assertTrue(next_step)
+        self.assertIn("runtime_path", metadata)
+        self.assertIn("fallback_active", metadata)
+        self.assertIn("safe_to_use", metadata)
+        self.assertIn("module_statuses", metadata)
+        self.assertGreater(len(metadata["module_statuses"]), 0)
+        self.assertIn("compiled_module_count", metadata)
+        self.assertIn("benchmark_status", metadata)
+
+
+class RuntimeConflictTests(TestCase):
+    @override_settings(
+        HTTP_WORKER_ENABLED=False,
+        RUNTIME_OWNER_IMPORT="csharp",
+        RUNTIME_OWNER_PIPELINE="csharp",
+    )
+    def test_detect_conflicts_flags_nonexistent_csharp_lane_owners(self):
+        conflicts = health.detect_conflicts()
+        titles = {conflict["title"] for conflict in conflicts}
+
+        self.assertIn("C# Runtime Ownership Without HttpWorker", titles)
+        self.assertIn("Import Lane Points At Nonexistent C# Owner", titles)
+        self.assertIn("Pipeline Lane Points At Nonexistent C# Owner", titles)
+
 
 @override_settings(SCHEDULER_CONTROL_TOKEN="scheduler-secret")
 class SchedulerDispatchViewTests(TestCase):
