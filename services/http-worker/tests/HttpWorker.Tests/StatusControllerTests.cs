@@ -84,7 +84,7 @@ public sealed class StatusControllerTests
             {
                 Snapshot = workerSnapshot,
             },
-            Options.Create(new HttpWorkerOptions
+            new FakeTextDistiller(), Options.Create(new HttpWorkerOptions
             {
                 SchemaVersion = "v1",
             }));
@@ -162,4 +162,27 @@ internal sealed class FakePostgresRuntimeStore : IPostgresRuntimeStore
 
     public Task<List<GSCDailyMetrics>> GetGlobalPerformanceAsync(DateTime startDate, DateTime endDate, string propertyUrl, CancellationToken cancellationToken)
         => Task.FromResult(new List<GSCDailyMetrics>());
+
+    public Task<IReadOnlyList<int>> PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<int>>([]);
+
+    public Task<List<(int ScopePk, int ExternalScopeId, string ScopeType)>> GetScopesAsync(IReadOnlyList<int> scopePks, CancellationToken cancellationToken)
+        => Task.FromResult(new List<(int ScopePk, int ExternalScopeId, string ScopeType)>());
+
+    public Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<HostNode>>([]);
+
+    public Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken)
+        => Task.FromResult<IReadOnlyList<DestinationNode>>([]);
+
+    public Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+}
+
+internal sealed class FakeTextDistiller : ITextDistiller
+{
+    public bool IsFallbackActive { get; set; }
+
+    public Task<string> DistillBodyAsync(IReadOnlyList<string> sentences, int maxSentences = 5, CancellationToken cancellationToken = default)
+        => Task.FromResult(string.Empty);
 }

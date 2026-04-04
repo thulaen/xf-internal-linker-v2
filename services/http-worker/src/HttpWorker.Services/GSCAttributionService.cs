@@ -21,7 +21,8 @@ public sealed class GSCAttributionService
     {
         _logger.LogInformation("Starting GSC Attribution for suggestion {SuggestionId} on {PageUrl}", payload.SuggestionId, payload.PageUrl);
 
-        var applyDate = payload.ApplyDate.Date;
+        // Use UtcDateTime and Date to ensure absolute midnight UTC
+        var applyDate = payload.ApplyDate.UtcDateTime.Date;
         var beforeStart = applyDate.AddDays(-payload.WindowDays);
         var beforeEnd = applyDate.AddDays(-1);
         var postStart = applyDate;
@@ -60,23 +61,18 @@ public sealed class GSCAttributionService
         // We use this to adjust our "expectations" of the baseline.
         double controlTrendMultiplier = globalCtrPost / Math.Max(0.001, globalCtrBaseline);
 
-        // 5. Bayesian Smoothing (Hierarchical Prior)
-        // We use the Global Site CTR as the prior to smooth out low-traffic noise.
-        double priorStrength = 100.0;
-        // Fix 1: Ensure alpha0 and beta0 are strictly positive to prevent MathNet exceptions
-        double alpha0 = Math.Max(0.01, globalCtrBaseline * priorStrength);
-        double beta0 = Math.Max(0.01, (1.0 - globalCtrBaseline) * priorStrength);
-
-        // 6. Build Distributions
-        // Baseline: The smoothed CTR we observed before the change.
-        var baselineDist = new Beta(
-            baseline.Clicks + alpha0, 
-            Math.Max(0, baseline.Impressions - baseline.Clicks) + beta0);
+        // 5. Gamma-Poisson Conjugacy (Click-Count Rates)
+        // Prior: Jeffreys prior (shape=0.5, rate=0.0) for robust low-traffic handling.
+        // We use rate=0.0 (uninformative) or a small value like 0.001 to ensure proper Gamma parameters.
+        double alphaPrior = 0.5;
+        double ratePrior = 0.001;
         
-        // Post: The actual CTR we observed after the change.
-        var postDist = new Beta(
-            post.Clicks + alpha0, 
-            Math.Max(0, post.Impressions - post.Clicks) + beta0);
+        // 6. Build Distributions for Click Rates (lambda)
+        // Baseline: The Gamma posterior for the click rate before the change.
+        var baselineDist = new Gamma(baseline.Clicks + alphaPrior, 1.0 + ratePrior);
+        
+        // Post: The Gamma posterior for the click rate after the change.
+        var postDist = new Gamma(post.Clicks + alphaPrior, 1.0 + ratePrior);
 
         // 7. Monte Carlo Simulation for Causal Lift
         int wins = 0;
@@ -85,21 +81,20 @@ public sealed class GSCAttributionService
         
         for (int i = 0; i < MonteCarloSamples; i++)
         {
-            double sBaseline = baselineDist.Sample();
-            double sPost = postDist.Sample();
+            double lambdaBaseline = baselineDist.Sample();
+            double lambdaPost = postDist.Sample();
             
-            // Apply Causal Trend: "What would the baseline have been if it followed the site trend?"
-            // Fix 2: Clamp CTR to max 0.999 to prevent impossible >100% target CTR
-            double sCounterfactual = Math.Min(0.999, sBaseline * controlTrendMultiplier);
+            // Apply Causal Trend: "What would the baseline rate have been if it followed the site trend?"
+            double lambdaCounterfactual = lambdaBaseline * controlTrendMultiplier;
             
-            if (sPost > sCounterfactual)
+            if (lambdaPost > lambdaCounterfactual)
             {
                 wins++;
             }
             
-            // Fix 3: Avoid extreme volatility on micro-CTRs
-            double denominator = Math.Max(0.001, sCounterfactual);
-            totalLift += (sPost - sCounterfactual) / denominator;
+            // Relative Lift on rates
+            double denominator = Math.Max(0.0001, lambdaCounterfactual);
+            totalLift += (lambdaPost - lambdaCounterfactual) / denominator;
         }
 
         double probSuccess = (double)wins / MonteCarloSamples;

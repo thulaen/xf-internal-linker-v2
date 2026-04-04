@@ -146,6 +146,7 @@ public class ImportContentService(
                             batch.Add(mutation);
                         }
                     }
+                }
                 else if (scopeType == "wp_posts" || scopeType == "wp_pages")
                 {
                     bool isPage = scopeType == "wp_pages";

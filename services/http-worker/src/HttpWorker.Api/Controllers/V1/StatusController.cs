@@ -13,6 +13,7 @@ public sealed class StatusController(
     IJobQueueService jobQueueService,
     IPostgresRuntimeStore postgresRuntimeStore,
     IRuntimeTelemetryService runtimeTelemetryService,
+    ITextDistiller textDistiller,
     IOptions<HttpWorkerOptions> options) : ControllerBase
 {
     private static readonly DateTimeOffset ServiceStartedAt = DateTimeOffset.UtcNow;
@@ -58,7 +59,7 @@ public sealed class StatusController(
                 }
             }
 
-            response.DistillationFallbackActive = HttpWorker.Services.Distillation.TextDistiller.IsFallbackActive;
+            response.DistillationFallbackActive = textDistiller.IsFallbackActive;
 
             response.Status = response.RedisConnected &&
                 response.DatabaseConnected &&

@@ -64,7 +64,7 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
             "SuggestionId": str(suggestion.suggestion_id),
             "PageUrl": suggestion.destination.url,
             "PropertyUrl": property_url,
-            "ApplyDate": post_start.isoformat(),
+            "ApplyDate": suggestion.applied_at.isoformat(),
             "WindowDays": actual_days
         }
         try:
