@@ -292,54 +292,68 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
 
     @patch("apps.pipeline.tasks.dispatch_pipeline_run")
     def test_start_pipeline_persists_weighted_authority_snapshot(self, dispatch_pipeline_mock):
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="weighted_authority.ranking_weight",
-            value="0.2",
-            value_type="float",
-            category="ml",
-            description="Ranking weight",
+            defaults={
+                "value": "0.2",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Ranking weight",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="weighted_authority.position_bias",
-            value="0.4",
-            value_type="float",
-            category="ml",
-            description="Position bias",
+            defaults={
+                "value": "0.4",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Position bias",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="phrase_matching.context_window_tokens",
-            value="10",
-            value_type="int",
-            category="anchor",
-            description="Context window",
+            defaults={
+                "value": "10",
+                "value_type": "int",
+                "category": "anchor",
+                "description": "Context window",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="learned_anchor.minimum_anchor_sources",
-            value="4",
-            value_type="int",
-            category="anchor",
-            description="Minimum anchor sources",
+            defaults={
+                "value": "4",
+                "value_type": "int",
+                "category": "anchor",
+                "description": "Minimum anchor sources",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="rare_term_propagation.max_document_frequency",
-            value="5",
-            value_type="int",
-            category="ml",
-            description="Rare-term max document frequency",
+            defaults={
+                "value": "5",
+                "value_type": "int",
+                "category": "ml",
+                "description": "Rare-term max document frequency",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="field_aware_relevance.title_field_weight",
-            value="0.5",
-            value_type="float",
-            category="ml",
-            description="Field-aware title weight",
+            defaults={
+                "value": "0.5",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware title weight",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="field_aware_relevance.body_field_weight",
-            value="0.2",
-            value_type="float",
-            category="ml",
-            description="Field-aware body weight",
+            defaults={
+                "value": "0.2",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Field-aware body weight",
+            },
         )
 
         response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")

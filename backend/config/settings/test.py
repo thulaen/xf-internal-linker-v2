@@ -37,6 +37,7 @@ CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
 CELERY_BROKER_URL = "memory://"
 CELERY_RESULT_BACKEND = "cache+memory://"
+HTTP_WORKER_ENABLED = False
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.MD5PasswordHasher",
@@ -57,6 +58,5 @@ LOGGING = {
         },
     },
 }
-
 
 

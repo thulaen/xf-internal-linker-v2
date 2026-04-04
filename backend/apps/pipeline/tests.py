@@ -1184,19 +1184,23 @@ class LinkFreshnessServiceTests(TestCase):
         destination.refresh_from_db()
         baseline = destination.link_freshness_score
 
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="weighted_authority.position_bias",
-            value="0.9",
-            value_type="float",
-            category="ml",
-            description="Unrelated weighted authority setting",
+            defaults={
+                "value": "0.9",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Unrelated weighted authority setting",
+            },
         )
-        AppSetting.objects.create(
+        AppSetting.objects.update_or_create(
             key="vel_recency_half_life_days",
-            value="99",
-            value_type="float",
-            category="ml",
-            description="Unrelated velocity setting",
+            defaults={
+                "value": "99",
+                "value_type": "float",
+                "category": "ml",
+                "description": "Unrelated velocity setting",
+            },
         )
 
         run_link_freshness(reference_time=now)
