@@ -12,12 +12,20 @@ public sealed class JobsController(
     JobProcessor jobProcessor) : ControllerBase
 {
     [HttpPost]
-    public async Task<ActionResult<QueueSubmitResponse>> SubmitAsync(
+    public async Task<IActionResult> SubmitAsync(
         [FromBody] JobRequest? request,
-        CancellationToken cancellationToken)
+        [FromQuery] bool sync = false,
+        CancellationToken cancellationToken = default)
     {
         try {
             jobProcessor.ValidateJobRequest(request);
+
+            if (sync)
+            {
+                var result = await jobProcessor.ProcessAsync(request!, cancellationToken);
+                return Ok(result);
+            }
+
             await jobQueueService.QueueJobAsync(request!, cancellationToken);
 
             return Accepted(new QueueSubmitResponse
