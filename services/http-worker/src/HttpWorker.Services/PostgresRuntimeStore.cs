@@ -611,17 +611,29 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
     public async Task<List<(int ScopePk, int ExternalScopeId, string ScopeType)>> GetScopesAsync(IReadOnlyList<int> scopePks, CancellationToken cancellationToken)
     {
         var results = new List<(int, int, string)>();
-        if (scopePks.Count == 0) return results;
-
         await using var connection = await OpenConnectionAsync(cancellationToken);
-        await using var command = new NpgsqlCommand(
-            "SELECT id, scope_id, scope_type FROM content_scopeitem WHERE id = ANY(@ids)", connection);
-        command.Parameters.AddWithValue("ids", scopePks.ToArray());
 
-        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
-        while (await reader.ReadAsync(cancellationToken))
+        // Empty list means "all active scopes" — used when the caller does not restrict by scope.
+        NpgsqlCommand command;
+        if (scopePks.Count == 0)
         {
-            results.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+            command = new NpgsqlCommand(
+                "SELECT id, scope_id, scope_type FROM content_scopeitem", connection);
+        }
+        else
+        {
+            command = new NpgsqlCommand(
+                "SELECT id, scope_id, scope_type FROM content_scopeitem WHERE id = ANY(@ids)", connection);
+            command.Parameters.AddWithValue("ids", scopePks.ToArray());
+        }
+
+        await using (command)
+        {
+            await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                results.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+            }
         }
         return results;
     }

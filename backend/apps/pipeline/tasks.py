@@ -200,19 +200,75 @@ def orchestrate_csharp_import(
             job.items_synced = items_synced
             job.save(update_fields=["ml_items_queued", "items_synced", "updated_at"])
 
-        # 2. Trigger Python ML Enrichment (Intelligence Path)
+        # 2. spaCy NLP re-split + distillation (replaces C#'s regex sentences)
         if updated_pks:
             _publish_progress(
                 job_id,
                 "running",
-                0.9,
-                f"C# sync complete; triggering ML enrichment (BGE-M3/spaCy) for {len(updated_pks)} items...",
+                0.5,
+                f"Running spaCy NLP enrichment for {len(updated_pks)} items...",
                 ingest_progress=1.0,
                 ml_progress=0.0,
                 ml_items_queued=len(updated_pks),
                 ml_items_completed=0,
             )
-            # We call generate_embeddings directly (it's another task)
+            from apps.content.models import ContentItem, Post, Sentence
+            from apps.pipeline.services.distiller import distill_body
+            from apps.pipeline.services.sentence_splitter import split_sentence_spans
+
+            posts = (
+                Post.objects.filter(content_item_id__in=updated_pks)
+                .select_related("content_item")
+                .only("id", "content_item_id", "clean_text")
+            )
+            new_sentences: list[Sentence] = []
+            distilled: dict[int, str] = {}  # content_item_id → distilled_text
+
+            for post in posts:
+                clean = (post.clean_text or "").strip()
+                if not clean:
+                    continue
+                spans = split_sentence_spans(clean)
+                word_offset = 0
+                for span in spans:
+                    new_sentences.append(
+                        Sentence(
+                            content_item_id=post.content_item_id,
+                            post_id=post.id,
+                            text=span.text,
+                            position=span.position,
+                            start_char=span.start_char,
+                            end_char=span.end_char,
+                            char_count=len(span.text),
+                            word_position=word_offset,
+                        )
+                    )
+                    word_offset += len(span.text.split())
+                distilled[post.content_item_id] = distill_body([s.text for s in spans])
+
+            # Atomically swap sentences: delete C# regex rows, insert spaCy rows
+            Sentence.objects.filter(content_item_id__in=updated_pks).delete()
+            Sentence.objects.bulk_create(new_sentences, batch_size=500)
+
+            # Persist spaCy-quality distilled text on each ContentItem
+            if distilled:
+                ci_objs = ContentItem.objects.filter(id__in=list(distilled.keys()))
+                for ci in ci_objs:
+                    ci.distilled_text = distilled[ci.id]
+                ContentItem.objects.bulk_update(ci_objs, ["distilled_text"], batch_size=200)
+
+        # 3. Trigger Python ML Enrichment (BGE-M3 embeddings)
+        if updated_pks:
+            _publish_progress(
+                job_id,
+                "running",
+                0.9,
+                f"spaCy done; triggering BGE-M3 embeddings for {len(updated_pks)} items...",
+                ingest_progress=1.0,
+                ml_progress=0.0,
+                ml_items_queued=len(updated_pks),
+                ml_items_completed=0,
+            )
             generate_embeddings.delay(content_item_ids=updated_pks, job_id=job_id)
 
         _publish_progress(
