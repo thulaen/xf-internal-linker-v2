@@ -448,7 +448,7 @@
     color: var(--color-primary);
   }
 
-  .status-pill--primary { background: var(--color-primary); color: #fff; }
+  .status-pill--primary { background: var(--color-primary); color: var(--color-bg-white); }
   .status-pill--status { background: var(--color-bg-white); }
 }
 

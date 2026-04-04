@@ -127,7 +127,7 @@
         padding: 0 5px;
         border-radius: 4px;
         background: var(--color-error);
-        color: #ffffff;
+        color: var(--color-bg-white);
         font-size: 10px;
         font-weight: 700;
       }
@@ -152,10 +152,10 @@
       }
 
       &.active-link {
-        background: #e8f0fe !important;
-        color: #1967d2 !important;
+        background: var(--active-nav-bg) !important;
+        color: var(--active-nav-color) !important;
 
-        // Kill MDC's state layer overlay — it was darkening our #e8f0fe background
+        // Kill MDC's state layer overlay — it was darkening our active background
         .mdc-list-item__ripple::before,
         .mat-mdc-list-item-ripple::before {
           opacity: 0 !important;
@@ -163,11 +163,11 @@
 
         .nav-item-title, span, .mdc-list-item__primary-text {
           font-weight: 600 !important;
-          color: #1967d2 !important;
+          color: var(--active-nav-color) !important;
         }
 
         mat-icon, [matListItemIcon] {
-          color: #1967d2 !important;
+          color: var(--active-nav-color) !important;
           opacity: 1;
         }
       }

@@ -152,28 +152,28 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       this.buildLaneCard(
         'broken_link_scan',
         'Broken Link Scan',
-        metadata['broken_link_scan_owner'],
+        metadata.broken_link_scan_owner,
         httpWorkerService,
         celeryWorkerService
       ),
       this.buildLaneCard(
         'graph_sync',
         'Graph Sync',
-        metadata['graph_sync_owner'],
+        metadata.graph_sync_owner,
         httpWorkerService,
         celeryWorkerService
       ),
       this.buildLaneCard(
         'import',
         'Import',
-        metadata['import_owner'],
+        metadata.import_owner,
         httpWorkerService,
         celeryWorkerService
       ),
       this.buildLaneCard(
         'pipeline',
         'Pipeline',
-        metadata['pipeline_owner'],
+        metadata.pipeline_owner,
         httpWorkerService,
         celeryWorkerService
       ),
@@ -303,12 +303,12 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
           this.booleanBadge('Fallback Active', nativeScoring.metadata?.fallback_active, false),
         ],
         details: [
-          this.detail('Runtime', this.displayRuntime(nativeScoring.metadata?.runtime_path)),
-          this.detail('Healthy Modules', this.displayCount(nativeScoring.metadata?.healthy_module_count)),
-          this.detail('Degraded Modules', this.displayCount(nativeScoring.metadata?.degraded_module_count)),
-          this.detail('Benchmark', this.displayBenchmark(nativeScoring.metadata?.benchmark_status, nativeScoring.metadata?.speedup_vs_python)),
-          this.detail('C++ Time', this.displayMilliseconds(nativeScoring.metadata?.last_benchmark_ms)),
-          this.detail('Python Time', this.displayMilliseconds(nativeScoring.metadata?.python_benchmark_ms)),
+          this.detail('Runtime', this.displayRuntime(nativeScoring.metadata.runtime_path)),
+          this.detail('Healthy Modules', this.displayCount(nativeScoring.metadata.healthy_module_count)),
+          this.detail('Degraded Modules', this.displayCount(nativeScoring.metadata.degraded_module_count)),
+          this.detail('Benchmark', this.displayBenchmark(nativeScoring.metadata.benchmark_status, nativeScoring.metadata.speedup_vs_python)),
+          this.detail('C++ Time', this.displayMilliseconds(nativeScoring.metadata.last_benchmark_ms)),
+          this.detail('Python Time', this.displayMilliseconds(nativeScoring.metadata.python_benchmark_ms)),
         ],
         moduleStatuses,
       });
@@ -321,9 +321,9 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         'C++ Slate Diversity',
         slateRuntime,
         [
-          this.booleanBadge('C++ Active', slateRuntime.metadata?.cpp_fast_path_active as boolean | undefined, true),
-          this.booleanBadge('Fallback Active', slateRuntime.metadata?.fallback_active, false),
-          this.booleanBadge('Safe To Use', slateRuntime.metadata?.safe_to_use, true),
+          this.booleanBadge('C++ Active', slateRuntime.metadata.cpp_fast_path_active, true),
+          this.booleanBadge('Fallback Active', slateRuntime.metadata.fallback_active, false),
+          this.booleanBadge('Safe To Use', slateRuntime.metadata.safe_to_use, true),
         ],
       ));
     }
@@ -349,9 +349,9 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         'C# HttpWorker',
         httpWorker,
         [
-          this.booleanBadge('Worker Online', httpWorker.metadata?.worker_online as boolean | undefined, true),
-          this.booleanBadge('Fallback Active', httpWorker.metadata?.fallback_active, false),
-          this.booleanBadge('Safe To Use', httpWorker.metadata?.safe_to_use, true),
+          this.booleanBadge('Worker Online', httpWorker.metadata.worker_online, true),
+          this.booleanBadge('Fallback Active', httpWorker.metadata.fallback_active, false),
+          this.booleanBadge('Safe To Use', httpWorker.metadata.safe_to_use, true),
         ],
       ));
     }
@@ -367,10 +367,10 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
           this.booleanBadge('Safe To Use', schedulerLane.metadata?.safe_to_use, true),
           {
             label: 'Mode',
-            value: String(schedulerLane.metadata?.scheduler_mode || 'Unknown'),
-            tone: schedulerLane.metadata?.scheduler_mode === 'active'
+            value: String(schedulerLane.metadata.scheduler_mode || 'Unknown'),
+            tone: schedulerLane.metadata.scheduler_mode === 'active'
               ? 'good'
-              : schedulerLane.metadata?.scheduler_mode === 'shadow'
+              : schedulerLane.metadata.scheduler_mode === 'shadow'
                 ? 'warn'
                 : 'bad',
           },

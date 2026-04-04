@@ -48,6 +48,18 @@ export interface ServiceMetadata {
   module_statuses?: NativeModuleStatus[];
   owner_selected?: string;
   last_error_summary?: string;
+  // Execution-specific metadata
+  healthy_module_count?: number;
+  degraded_module_count?: number;
+  python_benchmark_ms?: number | null;
+  cpp_fast_path_active?: boolean;
+  worker_online?: boolean;
+  scheduler_mode?: 'active' | 'shadow' | 'unknown' | string;
+  // Lane-specific metadata
+  broken_link_scan_owner?: string;
+  graph_sync_owner?: string;
+  import_owner?: string;
+  pipeline_owner?: string;
   [key: string]: unknown;
 }
 
