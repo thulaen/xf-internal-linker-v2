@@ -39,6 +39,9 @@ public class ImportContentResult
     
     [JsonPropertyName("items_updated")]
     public int ItemsUpdated { get; set; }
+
+    [JsonPropertyName("updated_pks")]
+    public List<int> UpdatedPks { get; set; } = new();
 }
 
 public class RunPipelineResult

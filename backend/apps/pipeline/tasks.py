@@ -146,6 +146,96 @@ def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
+@shared_task(bind=True, name="pipeline.orchestrate_csharp_import")
+def orchestrate_csharp_import(
+    self,
+    scope_ids: list[int] | None = None,
+    mode: str = "full",
+    source: str = "api",
+    file_path: str | None = None,
+    job_id: str | None = None,
+) -> dict[str, Any]:
+    """
+    Orchestrator that runs the C# content import synchronously and then
+    automatically triggers the Python ML enrichment (BGE-M3 and spaCy).
+    """
+    from apps.core.views import (
+        get_graph_candidate_settings,
+        get_silo_settings,
+        get_wordpress_settings,
+    )
+    from apps.graph.services.http_worker_client import run_job
+    from apps.sync.models import SyncJob
+
+    job_id = job_id or str(uuid.uuid4())
+    _publish_progress(job_id, "running", 0.0, f"Starting orchestrated C# {mode} import...")
+
+    payload = {
+        "scope_ids": scope_ids or [],
+        "mode": mode,
+        "source": source,
+        "file_path": file_path,
+        "settings": {
+            "silo": get_silo_settings(),
+            "wordpress": get_wordpress_settings(),
+            "graph_candidate": get_graph_candidate_settings(),
+        },
+    }
+
+    try:
+        # 1. Run C# Initial Ingest (Fast Path)
+        results = run_job(
+            job_id=job_id,
+            job_type="import_content",
+            payload=payload,
+        )
+
+        updated_pks = results.get("updated_pks", [])
+        items_synced = results.get("items_synced", 0)
+
+        # 1.5 Update SyncJob with ML info
+        job = SyncJob.objects.filter(job_id=job_id).first()
+        if job:
+            job.ml_items_queued = len(updated_pks)
+            job.items_synced = items_synced
+            job.save(update_fields=["ml_items_queued", "items_synced", "updated_at"])
+
+        # 2. Trigger Python ML Enrichment (Intelligence Path)
+        if updated_pks:
+            _publish_progress(
+                job_id,
+                "running",
+                0.9,
+                f"C# sync complete; triggering ML enrichment (BGE-M3/spaCy) for {len(updated_pks)} items...",
+                ingest_progress=1.0,
+                ml_progress=0.0,
+                ml_items_queued=len(updated_pks),
+                ml_items_completed=0,
+            )
+            # We call generate_embeddings directly (it's another task)
+            generate_embeddings.delay(content_item_ids=updated_pks, job_id=job_id)
+
+        _publish_progress(
+            job_id,
+            "completed" if not updated_pks else "running",
+            1.0 if not updated_pks else 0.9,
+            f"Sync complete: {items_synced} items imported and queued for ML.",
+            ingest_progress=1.0,
+            ml_progress=1.0 if not updated_pks else 0.0,
+        )
+
+        return {
+            "job_id": job_id,
+            "items_synced": items_synced,
+            "ml_enrichment_queued": len(updated_pks),
+            "runtime_owner": "csharp",
+        }
+    except Exception as exc:
+        logger.exception("Orchestrated C# import %s failed", job_id)
+        _publish_progress(job_id, "failed", 0.0, f"Orchestration failed: {exc}", error=str(exc))
+        raise
+
+
 def dispatch_import_content(
     *,
     scope_ids: list[int] | None = None,
@@ -158,34 +248,17 @@ def dispatch_import_content(
     job_id = job_id or str(uuid.uuid4())
 
     if owner == "csharp":
-        from apps.core.views import (
-            get_graph_candidate_settings,
-            get_silo_settings,
-            get_wordpress_settings,
-        )
-        from apps.graph.services.http_worker_client import queue_job
-
-        payload = {
-            "scope_ids": scope_ids or [],
-            "mode": mode,
-            "source": source,
-            "file_path": file_path,
-            "settings": {
-                "silo": get_silo_settings(),
-                "wordpress": get_wordpress_settings(),
-                "graph_candidate": get_graph_candidate_settings(),
-            },
-        }
-
-        queue_job(
+        orchestrate_csharp_import.delay(
+            scope_ids=scope_ids,
+            mode=mode,
+            source=source,
+            file_path=file_path,
             job_id=job_id,
-            job_type="import_content",
-            payload=payload,
         )
         return {
             "job_id": job_id,
             "runtime_owner": "csharp",
-            "message": f"{source} import queued.",
+            "message": f"{source} import orchestrated (Fast Ingest -> ML Enrichment).",
         }
 
     import_content.delay(
@@ -230,7 +303,14 @@ def dispatch_pipeline_run(
         from apps.graph.services.http_worker_client import queue_job
         from apps.suggestions.recommended_weights import RECOMMENDED_PRESET_WEIGHTS
 
-        registry_weights = {k: float(v) for k, v in RECOMMENDED_PRESET_WEIGHTS.items() if not k.endswith(".enabled") and not k.startswith("silo.")}
+        registry_weights = {}
+        for k, v in RECOMMENDED_PRESET_WEIGHTS.items():
+            if k.startswith("silo.") or v.lower() in ("true", "false") or "enable" in k.lower():
+                continue
+            try:
+                registry_weights[k] = float(v)
+            except (ValueError, TypeError):
+                continue
 
         payload = {
             "run_id": run_id,
@@ -383,21 +463,69 @@ def run_pipeline(
 
 
 @shared_task(bind=True, name="pipeline.generate_embeddings")
-def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict:
+def generate_embeddings(
+    self, content_item_ids: list[int] | None = None, job_id: str | None = None
+) -> dict:
     """Generate and store embeddings for ContentItems and Sentences."""
-    job_id = str(uuid.uuid4())
+    job_id = job_id or str(uuid.uuid4())
     count_label = len(content_item_ids) if content_item_ids is not None else "all"
-    _publish_progress(job_id, "running", 0.0, f"Generating embeddings for {count_label} items...")
+
+    from apps.sync.models import SyncJob
+
+    job = SyncJob.objects.filter(job_id=job_id).first()
+    ml_queued = len(content_item_ids) if content_item_ids else 0
+
+    _publish_progress(
+        job_id,
+        "running",
+        0.0,
+        f"Generating embeddings for {count_label} items...",
+        ingest_progress=1.0,
+        ml_progress=0.0,
+    )
     try:
         from apps.pipeline.services.embeddings import generate_all_embeddings
 
-        _publish_progress(job_id, "running", 0.1, "Loading embedding model...")
+        _publish_progress(
+            job_id, "running", 0.1, "Loading embedding model...", ingest_progress=1.0, ml_progress=0.05
+        )
+
+        # Internal progress wrapper to update the SyncJob
+        def _ml_progress_callback(current: int, total: int):
+            if job:
+                job.ml_items_completed = current
+                job.save(update_fields=["ml_items_completed", "updated_at"])
+            pct = current / total if total > 0 else 1.0
+            _publish_progress(
+                job_id,
+                "running",
+                0.1 + (pct * 0.8),
+                f"ML Enrichment: {current}/{total} items processed...",
+                ingest_progress=1.0,
+                ml_progress=pct,
+                ml_items_queued=total,
+                ml_items_completed=current,
+            )
+
+        # Note: generate_all_embeddings would need to be updated to accept this callback
+        # For now, we'll just run it and update at the end if the service doesn't support callbacks
         stats = generate_all_embeddings(content_item_ids)
+
+        if job:
+            job.ml_items_completed = stats["content_items_embedded"]
+            job.status = "completed"
+            job.completed_at = timezone.now()
+            job.save(update_fields=["ml_items_completed", "status", "completed_at", "updated_at"])
+
         _publish_progress(
             job_id,
             "completed",
             1.0,
             f"Embeddings complete; {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences.",
+            ingest_progress=1.0,
+            ml_progress=1.0,
+            ml_items_queued=ml_queued,
+            ml_items_completed=stats["content_items_embedded"],
             **stats,
         )
         _emit_job_alert(
@@ -411,7 +539,20 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
         return {"job_id": job_id, **stats}
     except Exception as exc:
         logger.exception("Embedding job %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Embeddings failed: {exc}", error=str(exc))
+        if job:
+            job.status = "failed"
+            job.error_message = str(exc)
+            job.save(update_fields=["status", "error_message", "updated_at"])
+
+        _publish_progress(
+            job_id,
+            "failed",
+            0.0,
+            f"Embeddings failed: {exc}",
+            error=str(exc),
+            ingest_progress=1.0,
+            ml_progress=0.0,
+        )
         _emit_job_alert(
             "job.failed",
             "error",
@@ -1137,8 +1278,10 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         nonlocal flagged_urls, fixed_urls
 
         existing_record = existing_records.get((source_content_id, url))
-        issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 400
+        issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 300
+
         if issue_detected:
+            flagged_urls += 1
             record_status = (
                 BrokenLink.STATUS_IGNORED
                 if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
@@ -1155,8 +1298,6 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
                         notes="",
                         first_detected_at=checked_at,
                         last_checked_at=checked_at,
-                        created_at=checked_at,
-                        updated_at=checked_at,
                     )
                 )
             else:
@@ -1164,19 +1305,14 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
                 existing_record.redirect_url = redirect_url
                 existing_record.status = record_status
                 existing_record.last_checked_at = checked_at
-                existing_record.updated_at = checked_at
                 to_update.append(existing_record)
-            flagged_urls += 1
-            return
-
-        if existing_record:
+        elif existing_record:
+            fixed_urls += 1
             existing_record.http_status = http_status
             existing_record.redirect_url = ""
             existing_record.status = BrokenLink.STATUS_FIXED
             existing_record.last_checked_at = checked_at
-            existing_record.updated_at = checked_at
             to_update.append(existing_record)
-            fixed_urls += 1
 
     if getattr(settings, "HTTP_WORKER_ENABLED", False):
         try:

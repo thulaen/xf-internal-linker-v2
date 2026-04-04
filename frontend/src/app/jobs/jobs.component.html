@@ -9,16 +9,80 @@
   
   <!-- ── Left Column: Active Import ──────────────────────────────── -->
   <div class="layout-main">
+    <!-- ── Data Source Selection ────────────────────────────────────── -->
+    <div class="source-grid">
+      <mat-card class="source-card" [class.active]="source === 'api'" (click)="setSource('api')">
+        <mat-card-content>
+          <div class="source-icon xf"><mat-icon>forum</mat-icon></div>
+          <div class="source-info">
+            <span class="source-name">XenForo</span>
+            <span class="source-status" [class.connected]="sourceStatus.api" [class.not-configured]="!sourceStatus.api">
+              <span class="status-dot"></span>
+              {{ sourceStatus.api ? 'Connected' : 'Not configured' }}
+            </span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="source-card" [class.active]="source === 'wp'" (click)="setSource('wp')">
+        <mat-card-content>
+          <div class="source-icon wp"><mat-icon>description</mat-icon></div>
+          <div class="source-info">
+            <span class="source-name">WordPress</span>
+            <span class="source-status" [class.connected]="sourceStatus.wp" [class.not-configured]="!sourceStatus.wp">
+              <span class="status-dot"></span>
+              {{ sourceStatus.wp ? 'Connected' : 'Not configured' }}
+            </span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="source-card" [class.active]="source === 'jsonl'" (click)="setSource('jsonl')">
+        <mat-card-content>
+          <div class="source-icon jsonl"><mat-icon>upload_file</mat-icon></div>
+          <div class="source-info">
+            <span class="source-name">JSONL Import</span>
+            <span class="source-status connected">
+              <span class="status-dot"></span>
+              Ready
+            </span>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    </div>
+
+    <!-- ── Not configured notice (XF or WP) ─────────────────────────── -->
+    @if ((source === 'api' && !sourceStatus.api) || (source === 'wp' && !sourceStatus.wp)) {
+      <div class="source-config-panel">
+        <div class="config-header">
+          <mat-icon>info</mat-icon>
+          <span>{{ source === 'api' ? 'XenForo' : 'WordPress' }} not configured</span>
+        </div>
+        <p class="config-hint">Set up credentials in Settings → Connect &amp; Sync, then come back here to run a sync.</p>
+        <a mat-stroked-button routerLink="/settings">
+          <mat-icon>settings</mat-icon>
+          Go to Settings → Connect &amp; Sync
+        </a>
+      </div>
+    }
+
+    <!-- ── Active Sync Card ────────────────────────────────────────── -->
     <mat-card class="import-card">
       <mat-card-header>
-        <mat-icon mat-card-avatar>upload_file</mat-icon>
-        <mat-card-title>Import Content</mat-card-title>
-        <mat-card-subtitle>Upload a .jsonl export from your XenForo server</mat-card-subtitle>
+        <mat-card-title>
+          @if (source === 'jsonl') { Import Content } 
+          @else if (source === 'api') { Sync from XenForo }
+          @else { Sync from WordPress }
+        </mat-card-title>
+        <mat-card-subtitle>
+          @if (source === 'jsonl') { Upload a .jsonl export from your server }
+          @else { One-click synchronization via direct API connection }
+        </mat-card-subtitle>
       </mat-card-header>
 
       <mat-card-content>
-        <!-- Drop zone (hidden when running) -->
-        @if (state === 'idle' || state === 'uploading') {
+        <!-- Drop zone for JSONL -->
+        @if (source === 'jsonl' && (state === 'idle' || state === 'uploading')) {
           <div
             class="drop-zone"
             [class.drag-over]="isDragOver"
@@ -29,35 +93,26 @@
             (click)="fileInput.click()"
             role="button"
             tabindex="0"
-            (keydown.enter)="fileInput.click()"
-            aria-label="Click or drag a .jsonl file here"
           >
-            <input
-              #fileInput
-              type="file"
-              accept=".jsonl"
-              hidden
-              (change)="onFileSelected($event)"
-            />
-
+            <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
             @if (selectedFile) {
               <mat-icon class="drop-icon file-selected">task</mat-icon>
               <span class="drop-primary">{{ selectedFile.name }}</span>
-              <span class="drop-secondary">{{ fileSizeLabel }}</span>
             } @else {
               <mat-icon class="drop-icon">cloud_upload</mat-icon>
               <span class="drop-primary">Drag &amp; drop your .jsonl file here</span>
-              <span class="drop-secondary">or click to browse</span>
             }
           </div>
+        }
 
-          @if (errorMessage) {
-            <div class="error-banner">
-              <mat-icon>error_outline</mat-icon>
-              {{ errorMessage }}
-            </div>
-          }
+        @if (errorMessage) {
+          <div class="error-banner">
+            <mat-icon>error_outline</mat-icon>
+            {{ errorMessage }}
+          </div>
+        }
 
+        @if (state === 'idle') {
           <mat-form-field appearance="outline" class="mode-field">
             <mat-label>Import mode</mat-label>
             <mat-select [(ngModel)]="importMode">
@@ -70,14 +125,30 @@
           </mat-form-field>
         }
 
-        <!-- Progress section -->
+        <!-- Dual Progress section -->
         @if (state === 'running' || state === 'uploading') {
           <div class="progress-section">
             <div class="progress-header">
               <span class="progress-message">{{ progressMessage }}</span>
-              <span class="progress-pct">{{ progress }}%</span>
             </div>
-            <mat-progress-bar mode="determinate" [value]="progress"></mat-progress-bar>
+
+            <div class="dual-progress">
+              <div class="progress-row">
+                <div class="row-label">
+                  <span class="phase">Phase 1: Ingest (C#)</span>
+                  <span class="pct">{{ ingestProgress }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="ingestProgress"></mat-progress-bar>
+              </div>
+
+              <div class="progress-row" [class.dimmed]="ingestProgress < 100">
+                <div class="row-label">
+                  <span class="phase">Phase 2: Intelligence (Python)</span>
+                  <span class="pct">{{ mlProgress }}%</span>
+                </div>
+                <mat-progress-bar mode="determinate" [value]="mlProgress"></mat-progress-bar>
+              </div>
+            </div>
           </div>
         }
 
@@ -86,7 +157,7 @@
           <div class="result-banner success">
             <mat-icon>check_circle</mat-icon>
             <div>
-              <strong>Import complete</strong>
+              <strong>Process complete</strong>
               <p>{{ progressMessage }}</p>
             </div>
           </div>
@@ -96,7 +167,7 @@
           <div class="result-banner failure">
             <mat-icon>cancel</mat-icon>
             <div>
-              <strong>Import failed</strong>
+              <strong>Sync failed</strong>
               <p>{{ errorMessage }}</p>
             </div>
           </div>
@@ -109,24 +180,24 @@
         @if (state === 'completed' || state === 'failed') {
           <button mat-button (click)="reset()">
             <mat-icon>refresh</mat-icon>
-            New import
+            Reset
           </button>
         }
         @if (state === 'idle') {
           <button
             mat-flat-button
             color="primary"
-            [disabled]="!selectedFile"
-            (click)="startImport()"
+            [disabled]="source === 'jsonl' && !selectedFile"
+            (click)="source === 'jsonl' ? startImport() : startApiSync(source)"
           >
             <mat-icon>play_arrow</mat-icon>
-            Start import
+            Start {{ source === 'jsonl' ? 'Import' : 'Sync' }}
           </button>
         }
         @if (isRunning) {
           <button mat-flat-button color="primary" disabled>
             <mat-icon class="spinning">sync</mat-icon>
-            {{ state === 'uploading' ? 'Uploading...' : 'Importing...' }}
+            Processing...
           </button>
         }
       </mat-card-actions>

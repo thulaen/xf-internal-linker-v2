@@ -39,6 +39,7 @@ from apps.core.views import (
     GraphRebuildView,
     WordPressSettingsView,
     WordPressSyncRunView,
+    XenForoSettingsView,
 )
 from apps.graph.views import BrokenLinkViewSet
 from apps.suggestions.views import (
@@ -102,6 +103,7 @@ urlpatterns = [
     path("settings/cs-tune/evaluate/<str:run_id>/", ChallengerEvaluateView.as_view(), name="cs-tune-evaluate"),
     path("internal/weight-challenger/", WeightChallengerInternalView.as_view(), name="internal-weight-challenger"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
+    path("settings/xenforo/", XenForoSettingsView.as_view(), name="xenforo-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),
     path("settings/graph-candidate/", GraphCandidateSettingsView.as_view(), name="graph-candidate-settings"),

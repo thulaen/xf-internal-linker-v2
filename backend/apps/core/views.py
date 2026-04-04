@@ -2070,6 +2070,47 @@ class WordPressSyncRunView(APIView):
         )
 
 
+class XenForoSettingsView(APIView):
+    """
+    GET  /api/settings/xenforo/ - returns saved XenForo connection settings
+    PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        base_url = (
+            _get_app_setting_value("xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")) or ""
+        ).strip()
+        api_key = (
+            _get_app_setting_value("xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")) or ""
+        ).strip()
+        return Response({
+            "base_url": base_url,
+            "api_key_configured": bool(api_key),
+        })
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        base_url = (request.data.get("base_url") or "").strip().rstrip("/")
+        api_key = (request.data.get("api_key") or "").strip()
+
+        if not base_url:
+            return Response({"detail": "base_url is required."}, status=400)
+
+        AppSetting.objects.update_or_create(
+            key="xenforo.base_url",
+            defaults={"value": base_url, "value_type": "str", "category": "api", "is_secret": False},
+        )
+        if api_key:
+            AppSetting.objects.update_or_create(
+                key="xenforo.api_key",
+                defaults={"value": api_key, "value_type": "str", "category": "api", "is_secret": True},
+            )
+
+        return Response({"status": "saved"})
+
+
 def _save_appearance_key(key: str, value) -> None:
     """Persist a single key into the appearance config AppSetting blob."""
     from apps.core.models import AppSetting

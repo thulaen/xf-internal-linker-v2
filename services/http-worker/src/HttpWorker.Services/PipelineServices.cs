@@ -207,20 +207,25 @@ public class ImportContentService(
             }
         }
         
+        var updatedPks = new List<int>();
         if (batch.Count > 0)
         {
             var contentPkList = await runtimeStore.PersistImportNodesAsync(batch, cancellationToken);
+            updatedPks = contentPkList.ToList();
         
-            var contentIds = batch.Select(b => b.ContentId).ToList();
-            
             // Trigger the C# graph extraction (it operates purely on the persisted RawBbcode boundary, keeping layout chrome out)
             await graphSyncService.RefreshAsync(new GraphSyncRefreshRequest
             {
-                ContentItemPks = contentPkList.ToList()
+                ContentItemPks = updatedPks
             }, cancellationToken);
         }
 
-        return new ImportContentResult { ItemsSynced = batch.Count, ItemsUpdated = batch.Count };
+        return new ImportContentResult 
+        { 
+            ItemsSynced = batch.Count, 
+            ItemsUpdated = batch.Count,
+            UpdatedPks = updatedPks
+        };
     }
 
     private static string ScrubBbcode(string raw)

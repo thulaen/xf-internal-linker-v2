@@ -231,7 +231,7 @@
   gap: 8px;
   color: var(--color-error-dark);
   font-size: 13px;
-  margin-bottom: 16px;
+  margin-bottom: 21px;
   padding: 8px 12px;
   background: var(--color-error-50);
   border-radius: 4px;
@@ -240,5 +240,223 @@
     font-size: 18px;
     width: 18px;
     height: 18px;
+  }
+}
+
+// ── Data Source Grid ─────────────────────────────────────────────
+
+.source-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 13px;
+  margin-bottom: 21px;
+}
+
+.source-card {
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  border: var(--card-border);
+  box-shadow: none;
+
+  mat-card-content {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 13px !important;
+  }
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.02);
+    border-color: #bdc1c6;
+  }
+
+  &.active {
+    background: #e8f0fe;
+    border-color: var(--color-primary);
+    
+    .source-name { color: #1967d2; }
+    .source-icon { background: #fff; color: var(--color-primary); }
+  }
+}
+
+.source-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  color: #5f6368;
+
+  mat-icon { font-size: 20px; width: 20px; height: 20px; }
+
+  &.xf { color: #1a73e8; }
+  &.wp { color: #21759b; }
+  &.jsonl { color: #5f6368; }
+}
+
+.source-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  .source-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-text-dark-1);
+  }
+}
+
+.source-status {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 500;
+
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  &.connected {
+    color: #188038;
+    .status-dot { background: #34a853; }
+  }
+
+  &.not-configured {
+    color: #b06000;
+    .status-dot { background: #f9ab00; }
+  }
+}
+
+// ── Source config panel ──────────────────────────────────────────
+
+.source-config-panel {
+  background: var(--color-surface);
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-md);
+
+  .config-header {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-dark-1);
+    margin-bottom: var(--space-sm);
+
+    mat-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--color-primary);
+    }
+  }
+
+  .config-hint {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin: 0 0 var(--space-md);
+    line-height: 1.5;
+  }
+
+  .config-field {
+    width: 100%;
+    margin-bottom: var(--space-sm);
+  }
+
+  .config-actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-md);
+    flex-wrap: wrap;
+
+    mat-spinner {
+      display: inline-block;
+      margin-right: 6px;
+    }
+  }
+
+  .config-error,
+  .config-success {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+  }
+
+  .config-error { color: var(--color-error); }
+  .config-success { color: #188038; }
+}
+
+// ── Dual Progress ────────────────────────────────────────────────
+
+.dual-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 21px;
+  padding: 13px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #e8eaed;
+}
+
+.progress-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  transition: opacity 0.3s ease;
+
+  &.dimmed {
+    opacity: 0.5;
+  }
+
+  .row-label {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    
+    .phase { font-size: 12px; font-weight: 500; color: #5f6368; }
+    .pct { font-size: 12px; font-weight: 600; color: var(--color-primary); }
+  }
+
+  mat-progress-bar {
+    height: 6px;
+    border-radius: 3px;
+  }
+}
+
+// ── History Stats ────────────────────────────────────────────────
+
+.results-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  span {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #5f6368;
+
+    mat-icon { font-size: 14px; width: 14px; height: 14px; }
+  }
+
+  .ml-stat {
+    color: #1a73e8;
+    font-weight: 500;
   }
 }

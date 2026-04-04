@@ -38,6 +38,16 @@ export interface ScopeItem {
   display_order: number;
 }
 
+export interface XenForoSettings {
+  base_url: string;
+  api_key_configured: boolean;
+}
+
+export interface XenForoSettingsUpdate {
+  base_url: string;
+  api_key?: string;
+}
+
 export interface WordPressSettings {
   base_url: string;
   username: string;
@@ -357,6 +367,14 @@ export class SiloSettingsService {
 
   updateScopeSilo(id: number, siloGroupId: number | null): Observable<ScopeItem> {
     return this.http.patch<ScopeItem>(`/api/scopes/${id}/`, { silo_group: siloGroupId });
+  }
+
+  getXenForoSettings(): Observable<XenForoSettings> {
+    return this.http.get<XenForoSettings>('/api/settings/xenforo/');
+  }
+
+  updateXenForoSettings(payload: XenForoSettingsUpdate): Observable<{ status: string }> {
+    return this.http.put<{ status: string }>('/api/settings/xenforo/', payload);
   }
 
   getWordPressSettings(): Observable<WordPressSettings> {

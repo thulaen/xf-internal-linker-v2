@@ -30,6 +30,10 @@ class SyncJob(models.Model):
     items_synced = models.IntegerField(default=0)
     items_updated = models.IntegerField(default=0)
     
+    # ML Enrichment (Intelligence) phase
+    ml_items_queued = models.IntegerField(default=0)
+    ml_items_completed = models.IntegerField(default=0)
+    
     error_message = models.TextField(blank=True)
     
     started_at = models.DateTimeField(null=True, blank=True)

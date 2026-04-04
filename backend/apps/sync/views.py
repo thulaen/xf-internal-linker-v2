@@ -91,6 +91,8 @@ class ImportUploadView(APIView):
         }, status=202)
 
 
+from rest_framework.decorators import action
+
 class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     """
     API endpoint for viewing synchronization jobs (imports).
@@ -98,6 +100,68 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = SyncJob.objects.all()
     serializer_class = SyncJobSerializer
     lookup_field = "job_id"
+
+    @action(detail=False, methods=["get"])
+    def source_status(self, request):
+        """
+        GET /api/sync-jobs/source_status/
+        Returns whether XenForo and WordPress credentials have been saved via the UI.
+        Only checks the AppSetting table — env-only credentials do not count as "configured".
+        """
+        from apps.core.views import _get_app_setting_value
+
+        xf_url = (_get_app_setting_value("xenforo.base_url") or "").strip()
+        xf_key = (_get_app_setting_value("xenforo.api_key") or "").strip()
+
+        wp_url = (_get_app_setting_value("wordpress.base_url") or "").strip()
+        wp_user = (_get_app_setting_value("wordpress.username") or "").strip()
+        wp_pass = (_get_app_setting_value("wordpress.app_password") or "").strip()
+
+        return Response({
+            "api": bool(xf_url and xf_key),
+            "wp": bool(wp_url and wp_user and wp_pass),
+        })
+
+    @action(detail=False, methods=["post"])
+    def trigger_api_sync(self, request):
+        """
+        Trigger a direct API sync for a specific source (api|wp).
+        
+        POST /api/sync-jobs/trigger_api_sync/
+        { "source": "api"|"wp", "mode": "full"|"titles"|"quick", "scope_ids": [] }
+        """
+        source = request.data.get("source")
+        mode = request.data.get("mode", "full")
+        scope_ids = request.data.get("scope_ids", [])
+
+        if source not in ["api", "wp"]:
+            return Response({"error": "Invalid source. Use 'api' or 'wp'."}, status=400)
+            
+        if mode not in ALLOWED_MODES:
+            return Response({"error": f"Invalid mode '{mode}'."}, status=400)
+
+        # Create SyncJob record
+        job = SyncJob.objects.create(
+            source=source,
+            mode=mode,
+            status="pending"
+        )
+        job_id = str(job.job_id)
+
+        from apps.pipeline.tasks import dispatch_import_content
+        
+        dispatch_import_content(
+            mode=mode,
+            source=source,
+            scope_ids=scope_ids,
+            job_id=job_id,
+        )
+
+        return Response({
+            "job_id": job_id,
+            "source": source,
+            "mode": mode,
+        }, status=202)
 
 
 class XenForoWebhookView(APIView):

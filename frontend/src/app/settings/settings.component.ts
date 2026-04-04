@@ -34,6 +34,8 @@ import {
   SiloSettings,
   SiloSettingsService,
   WeightedAuthoritySettings,
+  XenForoSettings,
+  XenForoSettingsUpdate,
   WordPressSettings,
   WordPressSettingsUpdate,
   GSCSettings,
@@ -1302,6 +1304,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   savingFeedbackRerank = false;
   savingClustering = false;
   savingSlate = false;
+  savingXenForo = false;
   savingWordPress = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
@@ -1489,6 +1492,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     score_window: 0.30,
     similarity_cap: 0.90,
   };
+  xenforo: XenForoSettings = {
+    base_url: '',
+    api_key_configured: false,
+  };
+  xfApiKey = '';
+
   wordpress: WordPressSettings = {
     base_url: '',
     username: '',
@@ -1829,6 +1838,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       googleOAuth: this.siloSvc.getGoogleOAuthSettings(),
       ga4Telemetry: this.siloSvc.getGA4TelemetrySettings(),
       matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
+      xenforo: this.siloSvc.getXenForoSettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
@@ -1861,6 +1871,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.googleAuthClientSecret = '';
         this.ga4Telemetry = { ...this.ga4Telemetry, ...data.ga4Telemetry };
         this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
+        this.xenforo = { ...this.xenforo, ...data.xenforo };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
         this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
@@ -2678,6 +2689,33 @@ export class SettingsComponent implements OnInit, OnDestroy {
       error: (error) => {
         this.recalculatingLinkFreshness = false;
         this.snack.open(error?.error?.detail || 'Failed to start Link Freshness recalculation', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveXenForoSettings(): void {
+    if (!this.xenforo.base_url.trim()) {
+      this.snack.open('Forum URL is required.', 'Dismiss', { duration: 3000 });
+      return;
+    }
+    this.savingXenForo = true;
+    const payload: XenForoSettingsUpdate = { base_url: this.xenforo.base_url.trim() };
+    if (this.xfApiKey.trim()) {
+      payload.api_key = this.xfApiKey.trim();
+    }
+    this.siloSvc.updateXenForoSettings(payload).subscribe({
+      next: () => {
+        this.xfApiKey = '';
+        this.savingXenForo = false;
+        this.siloSvc.getXenForoSettings().subscribe({
+          next: (xf) => { this.xenforo = { ...this.xenforo, ...xf }; },
+          error: () => {},
+        });
+        this.snack.open('XenForo credentials saved.', 'Dismiss', { duration: 3000 });
+      },
+      error: (err) => {
+        this.savingXenForo = false;
+        this.snack.open(err?.error?.detail || 'Failed to save XenForo settings.', 'Dismiss', { duration: 4000 });
       },
     });
   }

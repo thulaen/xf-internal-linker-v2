@@ -3301,6 +3301,7 @@ class BrokenLinkScanBenchmarkTests(TestCase):
         self.assertEqual(result["fixed_urls"], 100)
 
 
+@override_settings(HTTP_WORKER_ENABLED=False)
 class BrokenLinkScanTaskRegressionTests(TestCase):
     def setUp(self):
         self.scope = ScopeItem.objects.create(scope_id=5, scope_type="node", title="Forum")
@@ -3501,27 +3502,70 @@ class BrokenLinkScanDispatchTests(TestCase):
         queue_job.assert_not_called()
 
 
-class HeavyRuntimeDispatchGuardrailTests(TestCase):
+class HeavyRuntimeDispatchTests(TestCase):
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",
         RUNTIME_OWNER_IMPORT="csharp",
+        XENFORO_BASE_URL="https://forum.example.com",
+        WORDPRESS_BASE_URL="https://content.example.com",
     )
-    def test_dispatch_import_content_refuses_fake_csharp_ownership(self):
-        with self.assertRaisesMessage(RuntimeError, "does not have a real C# import owner yet"):
-            pipeline_tasks.dispatch_import_content(mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111")
+    def test_dispatch_import_content_orchestrates_csharp_import(self):
+        with patch("apps.pipeline.tasks.orchestrate_csharp_import.delay") as delay_mock:
+            result = pipeline_tasks.dispatch_import_content(mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111")
+        
+        self.assertEqual(result["runtime_owner"], "csharp")
+        delay_mock.assert_called_once_with(
+            scope_ids=None,
+            mode="full",
+            source="api",
+            file_path=None,
+            job_id="11111111-1111-1111-1111-111111111111",
+        )
+
+    def test_orchestrate_csharp_import_chains_ml_on_success(self):
+        # Verify the orchestrator itself triggers ML
+        with patch("apps.graph.services.http_worker_client.run_job") as run_job, \
+             patch("apps.pipeline.tasks.generate_embeddings.delay") as generate_delay, \
+             patch("apps.pipeline.tasks._publish_progress"):
+            
+            run_job.return_value = {"updated_pks": [1, 2, 3], "items_synced": 3}
+            
+            pipeline_tasks.orchestrate_csharp_import(mode="full", source="api")
+            
+            run_job.assert_called_once()
+            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3])
 
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",
         RUNTIME_OWNER_PIPELINE="csharp",
     )
-    def test_dispatch_pipeline_run_refuses_fake_csharp_ownership(self):
-        with self.assertRaisesMessage(RuntimeError, "does not have a real C# pipeline owner yet"):
-            pipeline_tasks.dispatch_pipeline_run(
+    def test_dispatch_pipeline_run_queues_csharp_job(self):
+        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, \
+             patch("apps.suggestions.recommended_weights.RECOMMENDED_PRESET_WEIGHTS", {"w_semantic": "0.4"}):
+            result = pipeline_tasks.dispatch_pipeline_run(
                 run_id="11111111-1111-1111-1111-111111111111",
                 host_scope={},
                 destination_scope={},
                 rerun_mode="skip_pending",
             )
+        
+        self.assertEqual(result["runtime_owner"], "csharp")
+        queue_job.assert_called_once_with(
+            job_id="11111111-1111-1111-1111-111111111111",
+            job_type="run_pipeline",
+            payload=ANY,
+        )
+
+    @override_settings(
+        HEAVY_RUNTIME_OWNER="celery",
+        RUNTIME_OWNER_IMPORT="celery",
+    )
+    def test_dispatch_import_content_falls_back_to_celery(self):
+        with patch.object(pipeline_tasks.import_content, "delay") as delay_task:
+            result = pipeline_tasks.dispatch_import_content(mode="full", source="api")
+
+        self.assertEqual(result["runtime_owner"], "celery")
+        delay_task.assert_called_once()
 
 
 class PipelineSettingsFallbackLoggingTests(TestCase):

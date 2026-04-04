@@ -1,6 +1,7 @@
 import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -20,6 +21,7 @@ type ImportState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
   imports: [
     CommonModule,
     FormsModule,
+    RouterModule,
     MatCardModule,
     MatButtonModule,
     MatIconModule,
@@ -42,13 +44,25 @@ export class JobsComponent implements OnInit, OnDestroy {
   // ── Active Job state ────────────────────────────────────────────
   state: ImportState = 'idle';
   progress = 0;
+  ingestProgress = 0;
+  mlProgress = 0;
   progressMessage = '';
   jobId: string | null = null;
   errorMessage = '';
 
+  // ── Connection status ────────────────────────────────────────────
+  sourceStatus: { api: boolean; wp: boolean } = { api: false, wp: false };
+
   // ── History ─────────────────────────────────────────────────────
   syncJobs: SyncJob[] = [];
   displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'actions'];
+  source: 'api' | 'wp' | 'jsonl' = 'jsonl';
+
+  setSource(s: 'api' | 'wp' | 'jsonl'): void {
+    if (this.isRunning) return;
+    this.source = s;
+    this.reset();
+  }
 
   private syncService = inject(SyncService);
   private ws: WebSocket | null = null;
@@ -62,6 +76,14 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   ngOnInit(): void {
     this.loadHistory();
+    this.loadSourceStatus();
+  }
+
+  loadSourceStatus(): void {
+    this.syncService.getSourceStatus().subscribe({
+      next: (status) => { this.sourceStatus = status; },
+      error: () => {},
+    });
   }
 
   loadHistory(): void {
@@ -129,6 +151,8 @@ export class JobsComponent implements OnInit, OnDestroy {
 
     this.state = 'uploading';
     this.progress = 0;
+    this.ingestProgress = 0;
+    this.mlProgress = 0;
     this.progressMessage = 'Uploading file…';
     this.errorMessage = '';
 
@@ -143,6 +167,30 @@ export class JobsComponent implements OnInit, OnDestroy {
       error: (err: any) => {
         this.state = 'failed';
         this.errorMessage = err.error?.error ?? 'Upload failed. Please try again.';
+      },
+    });
+  }
+
+  startApiSync(source: 'api' | 'wp'): void {
+    if (this.isRunning) return;
+
+    this.state = 'running';
+    this.progress = 0;
+    this.ingestProgress = 0;
+    this.mlProgress = 0;
+    this.progressMessage = `Requesting ${source === 'api' ? 'XenForo' : 'WordPress'} sync…`;
+    this.errorMessage = '';
+
+    this.syncService.triggerApiSync(source, this.importMode).subscribe({
+      next: (res: { job_id: string; source: string; mode: string }) => {
+        this.jobId = res.job_id;
+        this.progressMessage = 'Sync scheduled — connecting…';
+        this.connectWebSocket(res.job_id);
+        this.loadHistory();
+      },
+      error: (err: any) => {
+        this.state = 'failed';
+        this.errorMessage = err.error?.error ?? 'Sync request failed. Please try again.';
       },
     });
   }
@@ -163,11 +211,15 @@ export class JobsComponent implements OnInit, OnDestroy {
 
       if (data.type === 'job.progress') {
         this.progress = Math.round((data.progress ?? 0) * 100);
+        this.ingestProgress = Math.round((data.ingest_progress ?? (data.progress || 0)) * 100);
+        this.mlProgress = Math.round((data.ml_progress ?? 0) * 100);
         this.progressMessage = data.message ?? '';
 
         if (data.state === 'completed') {
           this.state = 'completed';
           this.progress = 100;
+          this.ingestProgress = 100;
+          this.mlProgress = 100;
           this.ws?.close();
           this.stopPolling();
           this.loadHistory(); // Refresh history on completion
