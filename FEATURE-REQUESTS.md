@@ -45,6 +45,24 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ## COMPLETED
 
+### FR-019 - Operator Alerts, Notification Center & Desktop Attention Signals
+**Requested:** 2026-03-25
+**Target phase:** Phase 22
+**Completed phase:** Phase 22
+**Priority:** High
+**Spec draft:** `docs/specs/fr019-operator-alerts-notification-center.md`
+**Completed:** 2026-04-04
+
+- Implemented exactly against `docs/specs/fr019-operator-alerts-notification-center.md`.
+- Added a full background-persisted `OperatorAlert` model with severity, cooldown, and occurrence counting.
+- Built a real-time notification stream (`ws/notifications/`) to push events to the shell.
+- Implemented the Angular `NotificationCenterComponent` with a toolbar bell icon and unread count badge.
+- Added browser desktop notification and audio cue support (configurable in settings).
+- Wired alerts for job failures, large GSC spikes, and engine health problems.
+- Verified through `apps.notifications` unit tests (9/9 passing) and manual UI verification.
+
+---
+
 ### FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion
 **Requested:** 2026-03-27
 **Target phase:** Phase 21

@@ -25,7 +25,9 @@ public sealed class JobsControllerTests
         Payload = JsonSerializer.SerializeToElement(new { urls = Array.Empty<string>(), timeout_seconds = 5, max_concurrency = 1 }, JsonOpts),
     };
 
-    private static JobProcessor CreateJobProcessor(IHealthCheckService? healthCheckService = null)
+    private static JobProcessor CreateJobProcessor(
+        IHealthCheckService? healthCheckService = null,
+        IGraphSyncService? graphSyncService = null)
     {
         var store = Substitute.For<IPostgresRuntimeStore>();
         var gscService = new GSCAttributionService(store, NullLogger<GSCAttributionService>.Instance);
@@ -43,6 +45,7 @@ public sealed class JobsControllerTests
             Substitute.For<IImportContentService>(),
             Substitute.For<IRunPipelineService>(),
             weightTuner,
+            graphSyncService ?? Substitute.For<IGraphSyncService>(),
             options);
     }
 

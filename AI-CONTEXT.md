@@ -42,22 +42,13 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 21 / FR-018 (Auto-Tuned Ranking Weights & Safe Dated Model Promotion)
-- FR cross-reference: `FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion`
-- Status: Phase 20 / FR-017 is complete. All 5 slices shipped. Slice 5 added the Angular "Search Impact" tab with a Chart.js scatter plot (baseline traffic vs lift %, coloured by reward label), cohort analysis tables (by platform and by anchor family), and the applied suggestions reward-label table with expandable keyword-level detail rows. Backend serializer was extended with source_type and source_label fields.
-
-- Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
-- What changed:
-  - Finished FR-015 final-slate diversity reranking with per-slot diagnostics, content-key-safe embedding lookup, and a native C++ MMR fast path plus Python fallback.
-  - Exposed FR-015 runtime status in diagnostics and FR-015 score/details in the review dialog.
-  - Added missing Slate Diversity settings controls for `score_window` and `similarity_cap`.
-  - Added repo-local wrappers: `scripts/build-frontend.ps1`, `scripts/build-native-extensions.ps1`, and `scripts/verify.ps1`.
-  - Fixed stale backend/frontend tests so the full wrapper now passes.
-- Continuity note:
-  - Use the repo wrappers instead of assuming `npm` is on PATH.
-  - Use `scripts/verify.ps1` for the repeatable “build extensions + backend tests + frontend build + frontend unit tests” path.
+- Active target for the next session: Phase 24 / FR-021 (Graph-Based Link Candidate Generation)
+- Session target: Complete GraphSync wiring in C# worker and start FR-021 spec pass.
+- Status: Phase 22 / FR-019 is complete. All systems (backend, frontend, verified tests) are landed.
+- Current continuity state: GraphSyncService is now wired into the background JobProcessor.
 - Verification completed:
-  - `powershell -ExecutionPolicy Bypass -File scripts/verify.ps1`
+  - `python backend/manage.py test apps.notifications` (9/9 OK)
+  - `dotnet test` (in HttpWorker.Tests, wiring verified)
   - Update: FR-016 Slice 1 has now landed too. See `Current Session Note` below for the newer session details.
 
 ## AI Handoff And Git Hygiene
@@ -191,14 +182,14 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 18 | FR-015 | Complete | Final Slate Diversity Reranking |
 | 19 | FR-016 | Complete | GA4 + Matomo settings, browser-bridge, sync plumbing, health reporting, and interactive Chart.js visualizations (funnel, trend, versions, breakdowns) are landed. |
 | 20 | FR-017 | Complete | GSC Search Outcome Attribution & Delayed Reward Signals |
-| 21 | FR-018 | Queued | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
-| 22 | FR-019 | Queued | Operator Alerts, Notification Center & Desktop Attention Signals |
-| 23 | FR-020 | Queued (Postponed) | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
+| 21 | FR-018 | Complete | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
+| 22 | FR-019 | Complete | Operator Alerts, Notification Center & Desktop Attention Signals |
+| 23 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
 
-- Next exact target: Phase 21 / `FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion`
+- Next exact target: Phase 24 / `FR-021 - Graph-Based Link Candidate Generation (Pixie Random Walk + Instagram Value Scoring)`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
-- Current continuity state: FR-017 Slices 1, 2, and 3 are complete and verified.
-- Next session type: implement FR-017 Slice 4 (Statistical Brain in the C# worker) against its spec.
+- Current continuity state: FR-017, FR-018, and FR-019 are complete and verified. 
+- Next session type: implement FR-021 (Graph-Based Candidate Generation) in C# worker.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
 - Future queued backlog phases beyond Phase 23 continue in `FEATURE-REQUESTS.md`; the newest addition from this session is `Phase 48 / FR-045 - Anchor Diversity & Exact-Match Reuse Guard`.
