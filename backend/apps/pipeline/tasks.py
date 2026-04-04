@@ -125,6 +125,11 @@ def dispatch_import_content(
     job_id = job_id or str(uuid.uuid4())
 
     if owner == "csharp":
+        # Guardrail: The C# worker does not yet support the full content import logic
+        # (needs orchestration work for sentence splitting and embeddings).
+        # Refuse this to keep the Python path as the source of truth for now.
+        raise RuntimeError("does not have a real C# import owner yet")
+
         from apps.graph.services.http_worker_client import queue_job
         queue_job(
             job_id=job_id,
@@ -166,6 +171,10 @@ def dispatch_pipeline_run(
     owner = _runtime_owner_for_lane("pipeline")
 
     if owner == "csharp":
+        # Guardrail: The C# worker does not yet support the full pipeline stage 1/2/3 logic
+        # Refuse this to keep the Python path as the source of truth for now.
+        raise RuntimeError("does not have a real C# pipeline owner yet")
+
         from apps.graph.services.http_worker_client import queue_job
         queue_job(
             job_id=run_id,

@@ -1,0 +1,33 @@
+#!/bin/bash
+# Automatically enforce test checks before pushing to repository
+# This prevents AI agents and developers from breaking CI with bad commits.
+
+echo "========================================="
+echo "Running Pre-push checks (Backend + Frontend)"
+echo "========================================="
+
+# 1. Backend tests
+echo "=> Testing Django Backend..."
+cd backend || exit 1
+export DJANGO_SETTINGS_MODULE=config.settings.test
+export DJANGO_SECRET_KEY=ci-fake-secret-key
+python manage.py test --verbosity=1
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Backend tests failed. Push aborted."
+  exit 1
+fi
+cd ..
+
+# 2. Frontend tests
+echo "=> Testing Angular Frontend..."
+cd frontend || exit 1
+npm run test:ci || { echo "[ERROR] Frontend tests failed. Push aborted."; exit 1; }
+
+echo "=> Building Angular Production Bundle..."
+npm run build:prod || { echo "[ERROR] Frontend production build failed. Push aborted."; exit 1; }
+cd ..
+
+echo "========================================="
+echo "All checks passed! Push proceeding..."
+echo "========================================="
+exit 0

@@ -94,3 +94,17 @@ When writing styles, prefer in this order:
 - Before changing native C++, Python fallback, runtime ownership, or operator-facing runtime diagnostics, read `docs/NATIVE_RUNTIME_POLICY.md`.
 - Treat C++ as the default speed path for hot ranking and pipeline loops, Python as the safety fallback/reference path, and C# as the preferred worker/orchestration runtime.
 - Do not create a second native-runtime issue surface. Reuse the existing diagnostics system for C++, Python, and C# runtime visibility.
+
+---
+
+## CI and Testing - Mandatory for All Agents
+
+To prevent breaking the build on GitHub, every AI agent MUST verify their changes locally before pushing.
+
+1. **Local Git Hooks**: This repository uses a mandatory pre-push hook.
+   - Run `git config core.hooksPath .githooks` once to enable it.
+2. **Manual Verification**: If the hook is bypassed or unavailable, you MUST run these commands and ensure they pass:
+   - **Backend**: `cd backend && python manage.py test`
+   - **Frontend**: `cd frontend && npm run test:ci && npm run build:prod`
+3. **Never `--no-verify`**: Under no circumstances should an agent use `--no-verify` to bypass the pre-push checks.
+4. **Angular Peer Deps**: If you encounter peer dependency errors in the frontend, ensure `frontend/.npmrc` contains `legacy-peer-deps=true`.
