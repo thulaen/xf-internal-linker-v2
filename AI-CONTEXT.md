@@ -95,7 +95,7 @@ Do not leave mystery changes behind.
 
 ### Visual Design Principles (User-First Design)
 - **Readability is Non-Negotiable**: Prioritize high-contrast text and clean, neutral backgrounds. Avoid dark, vibrant gradients for large headers (e.g., deep blue gradients with white text) as they are physically straining to read and feel overbearing.
-- **Subtle Professionalism**: Use soft grays, thin borders (1px solid var(--cf-newGray-8)), and ample whitespace. "Premium" means refined and easy to use, not "loud" or "flashy."
+- **Subtle Professionalism**: Use soft grays, thin borders (1px solid var(--color-border)), and ample whitespace. "Premium" means refined and easy to use, not "loud" or "flashy."
 - **Accessibility**: Ensure all text meets WCAG contrast standards. When in doubt, black text on a white/light-gray background is the gold standard.
 - **User-Centric Spacing**: Ensure data visualizations, tables, and metrics have clear labels and enough breathing room. Never allow text to "jumble" or overlap.
 - **Consistency**: Stick to Material Design patterns and existing `default-theme.scss` variables.

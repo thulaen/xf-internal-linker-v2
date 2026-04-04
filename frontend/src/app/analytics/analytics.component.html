@@ -400,10 +400,13 @@
               </thead>
               <tbody>
                 @for (impact of searchImpacts; track impact.suggestion_id) {
-                  <tr>
+                  <tr class="clickable-row" (click)="toggleImpactDetails(impact)" [class.row-expanded]="expandedSuggestionId === impact.suggestion_id">
                     <td>
                       <div class="version-info">
-                        <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
+                        <div class="expansion-indicator">
+                          <mat-icon>{{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                          <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
+                        </div>
                         <span class="version-info__meta">Target: {{ impact.destination_title }}</span>
                         <span class="version-info__meta text-subtle">Applied: {{ impact.apply_date | date:'shortDate' }}</span>
                       </div>
@@ -430,6 +433,75 @@
                       </span>
                     </td>
                   </tr>
+                  
+                  @if (expandedSuggestionId === impact.suggestion_id) {
+                    <tr class="detail-row">
+                      <td colspan="5">
+                        <div class="detail-container">
+                          @if (loadingDetail) {
+                            <div class="detail-loading">
+                              <mat-spinner diameter="24"></mat-spinner>
+                              <span>Loading keyword attribution...</span>
+                            </div>
+                          } @else if (selectedImpactDetail; as detail) {
+                            <div class="detail-content">
+                              <div class="detail-header">
+                                <h4 class="detail-title">Query-Level Attribution Breakdown</h4>
+                                <p class="detail-subtitle">Attributing clicks to specific search queries that appeared after the link was applied.</p>
+                              </div>
+                              
+                              @if (detail.keywords.length > 0) {
+                                <div class="keyword-table-wrapper">
+                                  <table class="premium-table premium-table--compact">
+                                    <thead>
+                                      <tr>
+                                        <th>Search Query</th>
+                                        <th class="text-right">Impressions (Base → Post)</th>
+                                        <th class="text-right">Clicks (Base → Post)</th>
+                                        <th class="text-right">Lift %</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      @for (kw of detail.keywords; track kw.query) {
+                                        <tr>
+                                          <td>
+                                            <div class="query-cell">
+                                              <span>{{ kw.query }}</span>
+                                              @if (kw.is_anchor_match) {
+                                                <span class="anchor-match-chip">Anchor Match</span>
+                                              }
+                                            </div>
+                                          </td>
+                                          <td class="text-right">
+                                            <small class="text-subtle">{{ kw.impressions_baseline | number }} <mat-icon class="icon--xs">arrow_forward</mat-icon> {{ kw.impressions_post | number }}</small>
+                                          </td>
+                                          <td class="text-right">
+                                            <span class="metric-transition">
+                                              {{ kw.clicks_baseline | number }} <mat-icon class="icon--xs">arrow_forward</mat-icon> <strong>{{ kw.clicks_post | number }}</strong>
+                                            </span>
+                                          </td>
+                                          <td class="text-right">
+                                            <span class="uplift-badge" [class.uplift-badge--negative]="kw.lift_percent < 0">
+                                              {{ kw.lift_percent > 0 ? '+' : '' }}{{ kw.lift_percent | number:'1.0-1' }}%
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      }
+                                    </tbody>
+                                  </table>
+                                </div>
+                              } @else {
+                                <div class="detail-empty">
+                                  <mat-icon>info_outline</mat-icon>
+                                  <span>No specific search queries have shown significant attribution signals for this link yet.</span>
+                                </div>
+                              }
+                            </div>
+                          }
+                        </div>
+                      </td>
+                    </tr>
+                  }
                 }
               </tbody>
             </table>

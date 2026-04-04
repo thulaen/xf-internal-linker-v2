@@ -26,6 +26,8 @@ import {
   AnalyticsVersionComparisonResponse,
   AnalyticsVersionComparisonRow,
   GSCImpactSnapshot,
+  GSCKeywordImpact,
+  SearchImpactDetailResponse,
 } from './analytics.service';
 
 @Component({
@@ -65,6 +67,9 @@ export class AnalyticsComponent implements OnInit {
   searchImpacts: GSCImpactSnapshot[] = [];
   loadingImpacts = false;
   selectedImpactWindow = '28d';
+  expandedSuggestionId: string | null = null;
+  selectedImpactDetail: SearchImpactDetailResponse | null = null;
+  loadingDetail = false;
 
   showFullGeo = false;
   syncingGa4 = false;
@@ -225,7 +230,32 @@ export class AnalyticsComponent implements OnInit {
 
   onImpactWindowChange(event: MatButtonToggleChange): void {
     this.selectedImpactWindow = event.value;
+    this.expandedSuggestionId = null;
+    this.selectedImpactDetail = null;
     this.loadSearchImpacts();
+  }
+
+  toggleImpactDetails(impact: GSCImpactSnapshot): void {
+    if (this.expandedSuggestionId === impact.suggestion_id) {
+      this.expandedSuggestionId = null;
+      this.selectedImpactDetail = null;
+      return;
+    }
+
+    this.expandedSuggestionId = impact.suggestion_id;
+    this.selectedImpactDetail = null;
+    this.loadingDetail = true;
+
+    this.analyticsSvc.getSearchImpactDetail(impact.suggestion_id, this.selectedImpactWindow).subscribe({
+      next: (res) => {
+        this.selectedImpactDetail = res;
+        this.loadingDetail = false;
+      },
+      error: () => {
+        this.loadingDetail = false;
+        this.snack.open('Could not load impact details.', 'Dismiss', { duration: 3000 });
+      }
+    });
   }
 
   loadData(): void {

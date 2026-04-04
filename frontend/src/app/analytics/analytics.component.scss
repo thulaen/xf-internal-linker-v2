@@ -673,3 +673,135 @@
   }
 }
 
+
+// Expandable Row & Keyword Details
+.clickable-row {
+  cursor: pointer;
+  transition: background-color 0.1s ease, border-left-color 0.15s ease;
+  border-left: 3px solid transparent;
+
+  &:hover {
+    background-color: var(--color-bg-faint) !important;
+  }
+
+  &.row-expanded {
+    background-color: var(--color-bg-faint) !important;
+    border-left-color: var(--color-primary);
+  }
+}
+
+.expansion-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  mat-icon {
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    color: var(--color-text-muted);
+  }
+}
+
+.detail-row {
+  background-color: var(--color-bg-faint);
+
+  td {
+    padding: 0 !important;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+.detail-container {
+  padding: 0 24px 24px 64px; // Align with the start of the text in the parent row
+  animation: slideDown 0.2s ease-out;
+}
+
+.detail-loading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px 0;
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+}
+
+.detail-header {
+  padding: 16px 0;
+  
+  .detail-title {
+    margin: 0 0 4px;
+    font-size: 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+  }
+
+  .detail-subtitle {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+}
+
+.keyword-table-wrapper {
+  background: var(--color-bg-white);
+  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  margin-top: 8px;
+}
+
+.query-cell {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  
+  span {
+    font-weight: 600;
+    color: var(--color-text-primary);
+  }
+
+  .anchor-match-chip {
+    padding: 2px 8px;
+    background: var(--color-blue-50);
+    color: var(--color-primary);
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    border-radius: 4px;
+    letter-spacing: 0.02em;
+  }
+}
+
+.icon--xs {
+  font-size: 11px !important;
+  width: 11px !important;
+  height: 11px !important;
+}
+
+.detail-empty {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  background: var(--color-bg-white);
+  border-radius: 8px;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+
+  mat-icon {
+    color: var(--color-text-muted);
+    opacity: 0.6;
+  }
+}
+
+@keyframes slideDown {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

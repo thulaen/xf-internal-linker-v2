@@ -22,8 +22,7 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 
 ### Colours
 - **No hardcoded hex colours** in component `.scss` files. Use `var(--token-name)`.
-- **No orange**. The primary colour is GA4 blue `#1a73e8`. It lives in `var(--color-primary)`.
-  - `--cf-orange-6` has been intentionally remapped to `#1a73e8` (blue). This is correct. Do not change it back to orange.
+- **No orange**. The primary color is GA4 blue `#1a73e8`. It lives in `var(--color-primary)`.
 - **No gradients** (`linear-gradient`, `radial-gradient`). GA4 uses flat colour only.
 
 ### Cards and Shadows
@@ -47,7 +46,7 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 When writing styles, prefer in this order:
 
 1. Semantic tokens: `var(--color-primary)`, `var(--color-border)`, `var(--card-border)`, `var(--color-text-secondary)`
-2. Component palette tokens: `var(--cf-blue-5)`, `var(--cf-gray-9)`, `var(--cf-green-4)`
+2. Component palette tokens: `var(--color-blue-50)`, `var(--color-bg-faint)`, `var(--color-success-light)`
 3. Raw hex: **only** for values that genuinely have no token equivalent - and add a comment explaining why
 
 ---

@@ -18,8 +18,8 @@ This app uses a pixel-accurate Google Analytics 4 (GA4) visual identity. Every A
 
 ## Colour Rules
 
-- **Never hardcode a hex colour** in any component `.scss` file. Always use a CSS variable (`var(--color-primary)`, `var(--cf-blue-5)`, etc.).
-- **Never use orange** (`#f6821f`, `#ee730a`, `#ff6600`, or any orange shade). The primary colour is GA4 blue `#1a73e8`. It lives in `var(--color-primary)` and `var(--cf-orange-6)` (which has been remapped to blue intentionally — do not undo this).
+- **Never hardcode a hex colour** in any component `.scss` file. Always use a CSS variable (`var(--color-primary)`, `var(--color-blue-50)`, etc.).
+- **Never use orange** (`#f6821f`, `#ee730a`, `#ff6600`, or any orange shade). The primary colour is GA4 blue `#1a73e8`. It lives in `var(--color-primary)`.
 - **Never add a `linear-gradient` or `radial-gradient`** to any UI element. GA4 uses flat colours only.
 
 ## Card & Shadow Rules
@@ -36,9 +36,9 @@ This app uses a pixel-accurate Google Analytics 4 (GA4) visual identity. Every A
 ## Token Hierarchy — Use Semantic Tokens First
 
 Prefer semantic tokens over raw palette tokens:
-- Use `var(--color-primary)` not `var(--cf-orange-6)` (even though they resolve to the same value)
-- Use `var(--color-text-secondary)` not `var(--cf-gray-4)`
-- Use `var(--color-border)` not `#dadce0` directly
+- Use `var(--color-primary)` for the main brand color
+- Use `var(--color-text-secondary)` for secondary text
+- Use `var(--color-border)` for standard borders
 - Use `var(--card-border)` for card borders
 - Use `var(--card-border-radius)` (`8px`) for card corner rounding
 
