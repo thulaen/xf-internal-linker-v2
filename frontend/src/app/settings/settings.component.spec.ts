@@ -1,10 +1,12 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 
 import { SettingsComponent } from './settings.component';
 import { SiloSettingsService } from './silo-settings.service';
+import { NotificationService } from '../core/services/notification.service';
 
 describe('SettingsComponent', () => {
   it('renders the telemetry settings cards on the WordPress sync tab', async () => {
@@ -13,6 +15,37 @@ describe('SettingsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [SettingsComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        {
+          provide: NotificationService,
+          useValue: {
+            loadPreferences: () => of({
+              desktop_enabled: true,
+              sound_enabled: true,
+              quiet_hours_enabled: false,
+              quiet_hours_start: '22:00',
+              quiet_hours_end: '07:00',
+              min_desktop_severity: 'warning',
+              min_sound_severity: 'error',
+              enable_job_completed: true,
+              enable_job_failed: true,
+              enable_job_stalled: true,
+              enable_model_status: true,
+              enable_gsc_spikes: true,
+              toast_enabled: true,
+              toast_min_severity: 'warning',
+              duplicate_cooldown_seconds: 900,
+              job_stalled_default_minutes: 15,
+              gsc_spike_min_impressions_delta: 50,
+              gsc_spike_min_clicks_delta: 5,
+              gsc_spike_min_relative_lift: 0.5,
+            }),
+            savePreferences: () => of({}),
+            sendTestNotification: () => of({}),
+            unreadCount$: of(0),
+            newAlert$: of(),
+          },
+        },
         {
           provide: SiloSettingsService,
           useValue: {
