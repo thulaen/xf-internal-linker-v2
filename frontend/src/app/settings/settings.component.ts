@@ -783,6 +783,179 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Raising to 3 requires terms to be mentioned at least three times. Lowering to 1 picks up any term that survives the site-frequency filter.',
     range: '1 to 5',
   },
+  // FR-040 - Multimedia Boost
+  'multimediaSignal.enabled': {
+    definition: 'Turns on multimedia richness scoring, which rewards destinations with better video, image, and alt-text coverage.',
+    impact: 'Enabled computes the multimedia signal from stored HTML-extraction metadata. Disabled skips that signal and falls back to the neutral value.',
+    default: 'Enabled',
+    example: 'Keep enabled so visually rich destinations can benefit once FR-040 is implemented. Disable only if multimedia extraction is unavailable or too noisy.',
+    range: 'Enabled / Disabled',
+  },
+  'multimediaSignal.ranking_weight': {
+    definition: 'How much the multimedia richness signal influences the value-model score.',
+    impact: 'Higher values make pages with helpful videos, descriptive images, and strong alt-text coverage more attractive as destinations.',
+    default: '0.10',
+    example: '0.10 gives multimedia a meaningful supporting role. Raising far above this can over-reward pretty pages that are not the best semantic match.',
+    range: '0 to 0.20',
+  },
+  'multimediaSignal.fallback_value': {
+    definition: 'The neutral score used when multimedia metadata is missing for a destination.',
+    impact: 'Higher values make missing metadata almost harmless. Lower values effectively punish pages that have not been re-synced yet.',
+    default: '0.5',
+    example: 'Keep at 0.5 so pages without extracted metadata remain neutral until the next sync.',
+    range: '0 to 1',
+  },
+  // FR-041 - Originality Provenance Scoring
+  'originalityProvenance.enabled': {
+    definition: 'Turns on originality provenance scoring, which prefers the earliest and most source-like page inside a family of near-duplicate pages.',
+    impact: 'Enabled computes provenance diagnostics and origin preference. Disabled skips provenance analysis and stores a neutral score.',
+    default: 'Enabled',
+    example: 'Keep enabled so provenance diagnostics are available even while the ranking weight remains conservative.',
+    range: 'Enabled / Disabled',
+  },
+  'originalityProvenance.ranking_weight': {
+    definition: 'How much originality provenance influences the final ranking.',
+    impact: 'Higher values make historically primary pages win more often against reposts, mirrors, or lightly rewritten copies.',
+    default: '0.03',
+    example: '0.03 is a gentle tie-breaker. Raise carefully only after verifying that provenance families and timestamps look trustworthy.',
+    range: '0 to 0.10',
+  },
+  'originalityProvenance.resemblance_threshold': {
+    definition: 'The minimum shingle-overlap resemblance required before two pages are treated as belonging to the same provenance family.',
+    impact: 'Lower values group more pages together. Higher values require pages to be much closer lexical matches before provenance logic activates.',
+    default: '0.55',
+    example: 'Keep near 0.55 for broad near-copy detection. Raising toward 0.75 makes the signal much stricter and more clone-focused.',
+    range: '0.30 to 0.90',
+  },
+  'originalityProvenance.containment_threshold': {
+    definition: 'The minimum containment score required before one page is treated as substantially contained within another provenance family member.',
+    impact: 'Higher values make partial-copy detection stricter. Lower values catch more derivative pages but risk over-grouping.',
+    default: '0.80',
+    example: 'Keep near 0.80 so derivative pages must substantially include another page before provenance support activates.',
+    range: '0.50 to 0.95',
+  },
+  // FR-042 - Fact Density Scoring
+  'factDensity.enabled': {
+    definition: 'Turns on fact density scoring, which rewards destinations that contain more concrete facts relative to their length.',
+    impact: 'Enabled computes a text-density quality signal. Disabled skips density analysis and stores a neutral score.',
+    default: 'Enabled',
+    example: 'Keep enabled so the signal can run in shadow mode while you inspect whether it behaves well on forum and article content.',
+    range: 'Enabled / Disabled',
+  },
+  'factDensity.ranking_weight': {
+    definition: 'How much fact density influences the final ranking.',
+    impact: 'Higher values reward pages that pack more concrete, verifiable information into fewer words and reduce the impact of fluffy pages.',
+    default: '0.04',
+    example: '0.04 gives density a useful quality voice without letting it overpower topical relevance.',
+    range: '0 to 0.10',
+  },
+  'factDensity.min_word_count': {
+    definition: 'The minimum destination word count required before a fact-density score is computed.',
+    impact: 'Pages shorter than this stay neutral. Higher values reduce noisy scores on thin pages; lower values score more of the corpus.',
+    default: '120',
+    example: 'Keep around 120 so tiny blurbs and stub pages do not get misleading density scores.',
+    range: '50 to 400',
+  },
+  'factDensity.density_cap_per_100_words': {
+    definition: 'The maximum effective fact count per 100 words before the score saturates.',
+    impact: 'Lower values make dense pages hit the top score faster. Higher values spread out the score across a wider range of factual writing styles.',
+    default: '8.0',
+    example: '8.0 treats very information-dense how-to or product pages as strong performers without making normal prose impossible to score well.',
+    range: '2 to 20',
+  },
+  'factDensity.filler_penalty_weight': {
+    definition: 'How strongly filler-heavy sentences reduce the final fact-density score.',
+    impact: 'Higher values punish vague or padded writing more aggressively. Lower values let density dominate even when some filler is present.',
+    default: '0.35',
+    example: '0.35 trims obvious filler without turning a few soft sentences into a major penalty.',
+    range: '0 to 1',
+  },
+  // FR-043 - Semantic Drift Penalty
+  'semanticDrift.enabled': {
+    definition: 'Turns on semantic drift analysis, which penalizes destinations that start on-topic but drift into unrelated material later.',
+    impact: 'Enabled computes drift diagnostics and a bounded penalty score. Disabled skips drift analysis and stores a neutral value.',
+    default: 'Enabled',
+    example: 'Keep enabled so you can inspect drift diagnostics before letting the penalty affect ranking.',
+    range: 'Enabled / Disabled',
+  },
+  'semanticDrift.ranking_weight': {
+    definition: 'How strongly semantic drift subtracts from the final ranking.',
+    impact: 'Higher values punish pages that lose topical focus as they progress. Lower values keep drift as a light quality guardrail.',
+    default: '0.03',
+    example: '0.03 keeps drift lighter than the fact-density boost, which is safer because penalties are felt as regressions faster than boosts.',
+    range: '0 to 0.10',
+  },
+  'semanticDrift.tokens_per_sequence': {
+    definition: 'The token count used for each low-level sequence before larger drift-analysis blocks are formed.',
+    impact: 'Smaller values make the signal more sensitive to local topic shifts. Larger values smooth out noise but may miss short drift events.',
+    default: '20',
+    example: '20 is a balanced starting point. Lowering too far makes chatter and quoted fragments look like drift.',
+    range: '10 to 60',
+  },
+  'semanticDrift.block_size_in_sequences': {
+    definition: 'How many token sequences are combined into each comparison block for drift analysis.',
+    impact: 'Higher values create smoother, more stable topic blocks. Lower values make the signal react faster but increase noise.',
+    default: '6',
+    example: '6 provides enough context for stable segmentation on long forum and article pages without making blocks too large.',
+    range: '3 to 12',
+  },
+  'semanticDrift.anchor_similarity_threshold': {
+    definition: 'The minimum similarity a later segment must retain to the opening anchor segment before it is marked as drifted.',
+    impact: 'Higher values make the penalty stricter. Lower values tolerate broader topic expansion before drift is recorded.',
+    default: '0.18',
+    example: '0.18 is lenient enough for related subsections but still catches pages that wander into a different subject entirely.',
+    range: '0.05 to 0.40',
+  },
+  'semanticDrift.min_word_count': {
+    definition: 'The minimum destination word count required before semantic drift is analyzed.',
+    impact: 'Short pages stay neutral. Higher values reduce false positives on brief content; lower values attempt drift scoring on more pages.',
+    default: '180',
+    example: 'Keep around 180 so short threads, notices, and stubs do not get forced through topic-segmentation logic.',
+    range: '80 to 500',
+  },
+  // FR-044 - Internal Search Intensity Signal
+  'internalSearch.enabled': {
+    definition: 'Turns on internal-search intensity scoring, which rewards destinations matching topics users are actively searching for inside the site.',
+    impact: 'Enabled computes a burst-aware demand signal from aggregate internal-search queries. Disabled skips that analysis and stores a neutral score.',
+    default: 'Enabled',
+    example: 'Keep enabled so the signal can run in shadow mode while you validate the quality of query matching.',
+    range: 'Enabled / Disabled',
+  },
+  'internalSearch.ranking_weight': {
+    definition: 'How much internal-search intensity influences the final ranking.',
+    impact: 'Higher values favor destinations tied to currently high-demand internal search topics. Lower values keep search demand as a subtle freshness signal.',
+    default: '0.02',
+    example: '0.02 is intentionally light because search-demand spikes can be noisy until query matching is proven on real content.',
+    range: '0 to 0.08',
+  },
+  'internalSearch.recent_days': {
+    definition: 'The number of most-recent days used to measure current internal-search demand.',
+    impact: 'Smaller windows react faster to short-lived spikes. Larger windows smooth demand and make the signal slower but steadier.',
+    default: '3',
+    example: '3 days catches short bursts of user interest without making the signal too jumpy hour-to-hour.',
+    range: '1 to 14',
+  },
+  'internalSearch.baseline_days': {
+    definition: 'The longer baseline window used to judge whether recent internal-search demand is unusually high.',
+    impact: 'Larger baselines make burst detection stricter and more stable. Smaller baselines react faster but can misread normal fluctuations as spikes.',
+    default: '28',
+    example: '28 days is a good monthly baseline for detecting genuine lifts above normal search demand.',
+    range: '7 to 90',
+  },
+  'internalSearch.max_active_queries': {
+    definition: 'The maximum number of high-intensity internal-search queries kept in the active scoring set.',
+    impact: 'Higher values broaden coverage but increase matching noise and compute cost. Lower values focus only on the strongest current topics.',
+    default: '200',
+    example: '200 keeps the active set broad enough for medium-size sites without letting long-tail noise dominate.',
+    range: '20 to 1000',
+  },
+  'internalSearch.min_recent_count': {
+    definition: 'The minimum recent search count a query must have before it is considered active for scoring.',
+    impact: 'Higher values filter out one-off queries. Lower values make the signal more sensitive but noisier.',
+    default: '3',
+    example: '3 is a practical floor that filters accidental one-offs while still allowing emerging topics to appear.',
+    range: '1 to 20',
+  },
 };
 
 const UI_TO_PRESET_KEY: Record<string, string> = {
@@ -845,6 +1018,35 @@ const UI_TO_PRESET_KEY: Record<string, string> = {
   'entitySalience.max_salient_terms': 'entity_salience.max_salient_terms',
   'entitySalience.max_site_document_frequency': 'entity_salience.max_site_document_frequency',
   'entitySalience.min_source_term_frequency': 'entity_salience.min_source_term_frequency',
+  // FR-040 - Multimedia Boost
+  'multimediaSignal.enabled': 'multimedia_signal_enabled',
+  'multimediaSignal.ranking_weight': 'w_multimedia',
+  'multimediaSignal.fallback_value': 'multimedia_fallback_value',
+  // FR-041 - Originality Provenance Scoring
+  'originalityProvenance.enabled': 'originality_provenance.enabled',
+  'originalityProvenance.ranking_weight': 'originality_provenance.ranking_weight',
+  'originalityProvenance.resemblance_threshold': 'originality_provenance.resemblance_threshold',
+  'originalityProvenance.containment_threshold': 'originality_provenance.containment_threshold',
+  // FR-042 - Fact Density Scoring
+  'factDensity.enabled': 'fact_density.enabled',
+  'factDensity.ranking_weight': 'fact_density.ranking_weight',
+  'factDensity.min_word_count': 'fact_density.min_word_count',
+  'factDensity.density_cap_per_100_words': 'fact_density.density_cap_per_100_words',
+  'factDensity.filler_penalty_weight': 'fact_density.filler_penalty_weight',
+  // FR-043 - Semantic Drift Penalty
+  'semanticDrift.enabled': 'semantic_drift.enabled',
+  'semanticDrift.ranking_weight': 'semantic_drift.ranking_weight',
+  'semanticDrift.tokens_per_sequence': 'semantic_drift.tokens_per_sequence',
+  'semanticDrift.block_size_in_sequences': 'semantic_drift.block_size_in_sequences',
+  'semanticDrift.anchor_similarity_threshold': 'semantic_drift.anchor_similarity_threshold',
+  'semanticDrift.min_word_count': 'semantic_drift.min_word_count',
+  // FR-044 - Internal Search Intensity Signal
+  'internalSearch.enabled': 'internal_search.enabled',
+  'internalSearch.ranking_weight': 'internal_search.ranking_weight',
+  'internalSearch.recent_days': 'internal_search.recent_days',
+  'internalSearch.baseline_days': 'internal_search.baseline_days',
+  'internalSearch.max_active_queries': 'internal_search.max_active_queries',
+  'internalSearch.min_recent_count': 'internal_search.min_recent_count',
 };
 
 const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number; dangerBelow?: number; dangerAbove?: number }> = {
@@ -896,6 +1098,30 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
   'entitySalience.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.10 },
   'entitySalience.max_salient_terms': { warnAbove: 20, dangerAbove: 24 },
   'entitySalience.max_site_document_frequency': { warnAbove: 60, dangerAbove: 80 },
+  // FR-040 - Multimedia Boost
+  'multimediaSignal.ranking_weight': { warnAbove: 0.15, dangerAbove: 0.20 },
+  'multimediaSignal.fallback_value': { warnBelow: 0.4, warnAbove: 0.6, dangerBelow: 0.25, dangerAbove: 0.75 },
+  // FR-041 - Originality Provenance Scoring
+  'originalityProvenance.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.10 },
+  'originalityProvenance.resemblance_threshold': { warnBelow: 0.40, warnAbove: 0.75, dangerBelow: 0.25, dangerAbove: 0.90 },
+  'originalityProvenance.containment_threshold': { warnBelow: 0.65, dangerAbove: 0.92 },
+  // FR-042 - Fact Density Scoring
+  'factDensity.ranking_weight': { warnAbove: 0.08, dangerAbove: 0.10 },
+  'factDensity.min_word_count': { warnBelow: 80, warnAbove: 250, dangerBelow: 50, dangerAbove: 350 },
+  'factDensity.density_cap_per_100_words': { warnBelow: 4, warnAbove: 12, dangerBelow: 2, dangerAbove: 18 },
+  'factDensity.filler_penalty_weight': { warnAbove: 0.65, dangerAbove: 0.85 },
+  // FR-043 - Semantic Drift Penalty
+  'semanticDrift.ranking_weight': { warnAbove: 0.06, dangerAbove: 0.10 },
+  'semanticDrift.tokens_per_sequence': { warnBelow: 12, warnAbove: 40, dangerBelow: 8, dangerAbove: 60 },
+  'semanticDrift.block_size_in_sequences': { warnBelow: 4, warnAbove: 10, dangerBelow: 2, dangerAbove: 14 },
+  'semanticDrift.anchor_similarity_threshold': { warnBelow: 0.10, warnAbove: 0.30, dangerBelow: 0.05, dangerAbove: 0.40 },
+  'semanticDrift.min_word_count': { warnBelow: 120, warnAbove: 320, dangerBelow: 80, dangerAbove: 500 },
+  // FR-044 - Internal Search Intensity Signal
+  'internalSearch.ranking_weight': { warnAbove: 0.05, dangerAbove: 0.08 },
+  'internalSearch.recent_days': { warnBelow: 2, warnAbove: 7, dangerBelow: 1, dangerAbove: 14 },
+  'internalSearch.baseline_days': { warnBelow: 14, warnAbove: 60, dangerBelow: 7, dangerAbove: 90 },
+  'internalSearch.max_active_queries': { warnAbove: 400, dangerAbove: 800 },
+  'internalSearch.min_recent_count': { warnAbove: 8, dangerAbove: 12 },
 };
 
 @Component({

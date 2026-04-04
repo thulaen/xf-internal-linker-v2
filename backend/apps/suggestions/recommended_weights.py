@@ -82,6 +82,15 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "entity_salience.max_salient_terms": "10",
     "entity_salience.max_site_document_frequency": "20",
     "entity_salience.min_source_term_frequency": "2",
+    # FR-040 - Multimedia Boost
+    # Forward-declared: inert until FR-040 is implemented and reads these keys.
+    # Research basis: Google image/video quality guidance, alt-text usage, and
+    # multimedia-engagement studies. Starting weight is 0.10 because FR-040
+    # belongs to the value-model family and should be material enough to reward
+    # richer destinations without overpowering semantic fit or authority.
+    "multimedia_signal_enabled": "true",
+    "w_multimedia": "0.10",
+    "multimedia_fallback_value": "0.5",
     # FR-041 - Originality Provenance Scoring
     # Forward-declared: inert until FR-041 is implemented and reads these keys.
     # Research basis: US8707459B2 plus lexical near-duplicate provenance math

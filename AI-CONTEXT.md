@@ -280,10 +280,12 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Intentional files changed:
   - `FEATURE-REQUESTS.md`
   - `backend/apps/suggestions/recommended_weights.py`
+  - `backend/apps/suggestions/migrations/0019_upsert_recommended_future_signal_keys.py`
   - `docs/specs/fr041-originality-provenance-scoring.md`
   - `docs/specs/fr042-fact-density-scoring.md`
   - `docs/specs/fr043-semantic-drift-penalty.md`
   - `docs/specs/fr044-internal-search-intensity.md`
+  - `frontend/src/app/settings/settings.component.ts`
   - `AI-CONTEXT.md`
 - What changed:
   - Added four future backlog items and implementation-spec drafts for:
@@ -293,6 +295,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
     - `FR-044` Internal Search Intensity Signal
   - The specs were written from repo review plus web research on patents, papers, and scoring math.
   - Added forward-declared recommended preset keys for `FR-041` through `FR-044` with conservative starting weights so implementation can later wire them in without inventing first-pass defaults.
+  - Follow-up pass added the missing `FR-040` preset keys, a `suggestions` migration to upsert `FR-040` through `FR-044` keys into the `Recommended` preset for existing installs, and forward-looking tooltip / preset-key metadata for `FR-040` through `FR-044` in Angular Settings without adding placeholder UI cards.
   - The active delivery target is still unchanged: `Phase 20 / FR-017 Slice 4`.
 - Verification that passed:
   - Documentation-only review of existing models, pipeline boundaries, and backlog/spec consistency.
