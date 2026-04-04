@@ -45,6 +45,24 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ## COMPLETED
 
+### FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion
+**Requested:** 2026-03-27
+**Target phase:** Phase 21
+**Completed phase:** Phase 21
+**Priority:** High
+**Spec draft:** `docs/specs/fr018-auto-tuned-ranking-weights.md`
+**Completed:** 2026-04-04
+
+- Implemented exactly against `docs/specs/fr018-auto-tuned-ranking-weights.md`.
+- Implemented C# analytics worker for full auto-tune orchestration (collect → optimize → submit).
+- Migrated weight optimization from Nelder-Mead to **MathNet.Numerics L-BFGS** using a quadratic penalty function for sum/bound constraints.
+- Integrated multi-source signals: GSC (clicks/impressions lift), GA4 (engagement/dwell), Matomo (unsampled per-suggestion CTR), and Review (historical approval rate).
+- Added safe dated promotion in Django: automated side-by-side evaluation, status-gated promotion, and automatic rollback on demand drop.
+- Added interactive Auto-Tune card in Angular Settings with live challenger diffs, manual promotion/rejection, and adjustment history.
+- Verified through `docker build --target test` with 33 passing C# unit tests.
+
+---
+
 ### FR-016 - GA4 + Matomo Suggestion Attribution & User-Behavior Telemetry
 **Requested:** 2026-03-25
 **Target phase:** Phase 19

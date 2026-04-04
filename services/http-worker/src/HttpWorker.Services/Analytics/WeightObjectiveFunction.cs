@@ -62,21 +62,67 @@ public sealed class WeightObjectiveFunction
 
         double baselineScore = Score(baseline, signals);
 
-        // Gradient-free search: evaluate a grid of candidate directions and pick the best
-        // that satisfies all constraints. For 4 weights with ±0.05 steps this is fast enough
-        // to not need full L-BFGS, but we use the MathNet NelderMead minimiser (negated
-        // objective) to stay consistent with the spec's spirit.
-        var objectiveFunc = ObjectiveFunction.Value(w =>
+        // We use MathNet's BfgsMinimizer (L-BFGS). Since it is unconstrained, we handle 
+        // bounds and the sum=1.0 constraint via a multi-stage penalty function.
+        // Objective: Minimize -Score(w) + Penalty(w)
+        var objectiveFunc = ObjectiveFunction.Gradient(w =>
         {
-            var clamped = ApplyConstraints(w, baseline, recommended);
-            return -Score(clamped, signals); // negate because we minimise
+            var arr = w.ToArray();
+            
+            // 1. Calculate the raw objective (minimize negative score)
+            double score = Score(arr, signals);
+            double val = -score;
+
+            // 2. Add penalty for sum != 1.0 (very strong)
+            double sum = arr.Sum();
+            val += 1000.0 * Math.Pow(sum - 1.0, 2);
+
+            // 3. Add penalties for bound violations (per-run delta and drift)
+            for (int i = 0; i < 4; i++)
+            {
+                double low = Math.Max(MinWeight, Math.Max(baseline[i] - MaxDeltaPerRun, recommended[i] - MaxDriftFromBase));
+                double high = Math.Min(MaxWeight, Math.Min(baseline[i] + MaxDeltaPerRun, recommended[i] + MaxDriftFromBase));
+
+                if (arr[i] < low) val += 500.0 * Math.Pow(low - arr[i], 2);
+                if (arr[i] > high) val += 500.0 * Math.Pow(arr[i] - high, 2);
+            }
+
+            return val;
+        }, w =>
+        {
+            var arr = w.ToArray();
+            var grad = new double[4];
+
+            // 1. Partial derivative of -Score(w): d/dw_i = -Signal_i
+            double[] sigArr = [signals.GscLift, signals.Ga4Dwell, signals.ReviewApprovalRate, signals.MatomoClickRate];
+            for (int i = 0; i < 4; i++) grad[i] = -sigArr[i];
+
+            // 2. Partial derivative of sum penalty: d/dw_i (1000 * (sum-1)^2) = 2000 * (sum-1)
+            double sum = arr.Sum();
+            double sumGrad = 2000.0 * (sum - 1.0);
+            for (int i = 0; i < 4; i++) grad[i] += sumGrad;
+
+            // 3. Partial derivative of bound penalties: d/dw_i (500 * (low-w)^2) = -1000 * (low-w)
+            for (int i = 0; i < 4; i++)
+            {
+                double low = Math.Max(MinWeight, Math.Max(baseline[i] - MaxDeltaPerRun, recommended[i] - MaxDriftFromBase));
+                double high = Math.Min(MaxWeight, Math.Min(baseline[i] + MaxDeltaPerRun, recommended[i] + MaxDriftFromBase));
+
+                if (arr[i] < low) grad[i] += -1000.0 * (low - arr[i]);
+                if (arr[i] > high) grad[i] += 1000.0 * (arr[i] - high);
+            }
+
+            return MathNet.Numerics.LinearAlgebra.Vector<double>.Build.DenseOfArray(grad);
         });
 
         var initialGuess = MathNet.Numerics.LinearAlgebra.Vector<double>.Build.DenseOfArray(baseline);
 
         try
         {
-            var result = NelderMeadSimplex.Minimum(objectiveFunc, initialGuess, 1e-6, 1000);
+            var minimizer = new BfgsMinimizer(1e-7, 1e-7, 1e-7, 100);
+            var result = minimizer.FindMinimum(objectiveFunc, initialGuess);
+            
+            // Final pass through constraints to ensure absolute compliance (handles rounding/floating point jitter)
             var candidate = ApplyConstraints(result.MinimizingPoint.ToArray(), baseline, recommended);
             double candidateScore = Score(candidate, signals);
 

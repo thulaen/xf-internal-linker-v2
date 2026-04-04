@@ -249,6 +249,9 @@ Do not just write code and stop.
 This repo expects the docs, checks, and git workflow to move together.
 
 - Before starting any code for a feature request, check whether `docs/specs/fr0XX-<slug>.md` already exists.
+### Phase 4: FR-018 Auto-Tuning (Completed April 2026)
+- **Status**: Completed
+- **Technical Summary**: Implemented C# analytics worker for weight auto-tuning. Replaced Nelder-Mead with MathNet.Numerics L-BFGS optimization using a quadratic penalty approach for sum and bound constraints. Integrated signals from GSC (lift), GA4 (dwell), Matomo (click rate), and Review decisions.
 - If the spec file is missing, add the spec file first and ensure it is based on online research of the actual math or source of truth.
 - When implementing an FR that already has a spec, implement against that spec and keep the code boundary aligned with it.
 - For future ranking-affecting work, treat C++ as the default execution path for the hot loop, keep Python only as the safety net, and add visible diagnostics that explain why the fast path is unavailable, skipped, or not materially faster.

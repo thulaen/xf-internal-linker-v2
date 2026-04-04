@@ -3,6 +3,7 @@ using HttpWorker.Api.Controllers.V1;
 using HttpWorker.Core.Contracts.V1;
 using HttpWorker.Core.Interfaces;
 using HttpWorker.Services;
+using HttpWorker.Services.Analytics;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
@@ -29,6 +30,9 @@ public sealed class JobsControllerTests
         var store = Substitute.For<IPostgresRuntimeStore>();
         var gscService = new GSCAttributionService(store, NullLogger<GSCAttributionService>.Instance);
         var options = Options.Create(new HttpWorkerOptions());
+        var collector = new WeightTunerDataCollector(options, NullLogger<WeightTunerDataCollector>.Instance);
+        var weightTuner = new WeightTunerService(collector, options, Substitute.For<IHttpClientFactory>(), NullLogger<WeightTunerService>.Instance);
+        
         return new JobProcessor(
             Substitute.For<IBrokenLinkService>(),
             Substitute.For<IBrokenLinkScanService>(),
@@ -38,6 +42,7 @@ public sealed class JobsControllerTests
             gscService,
             Substitute.For<IImportContentService>(),
             Substitute.For<IRunPipelineService>(),
+            weightTuner,
             options);
     }
 
