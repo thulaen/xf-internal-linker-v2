@@ -344,6 +344,24 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Commit/push state:
   - Changes are currently uncommitted in the local worktree.
 
+### 2026-04-04 - Code Review & Integrity Fixes
+
+- AI/tool: Antigravity
+- Intentional files changed:
+  - `services/http-worker/src/HttpWorker.Services/PostgresRuntimeStore.cs`
+  - `services/http-worker/src/HttpWorker.Services/Distillation/TextDistiller.cs`
+  - `AI-CONTEXT.md`
+- What changed:
+  - Conducted a strict code review on recent commits `d68848a` and `ef8ce8e` affecting `services/http-worker`.
+  - Addressed a **Severity 1 Data Integrity Risk** in `PostgresRuntimeStore.PersistImportNodesAsync` where mapping `ContentId -> DB id` could lead to overlaps across content types (`thread` vs `post`), writing relational objects to the wrong parent DB ID. Changed dictionary map to leverage a tuple `(int ContentId, string ContentType)`.
+  - Fixed a **Severity 2 Concurrency & Race Condition** in `TextDistiller.IsFallbackActive` by removing its `static` modifier. As a Singleton service, a static fallback boolean produces an unstable state under concurrent API usage.
+  - Removed an unused dead `0` column mapping in `PostgresRuntimeStore.GetDestinationNodesAsync` `SELECT` statement mapping `march_2026_pagerank_score`.
+  - Identified **Severity 3 Memory Regression** in `PipelineServices.cs`: `ArrayPool.Shared.Rent(destinations.Count * 768)` will exceed the maximum pooling threshold (usually ~1M floating-point items) if `destinations.Count` > 1365. This negates the memory pool benefits and results in LOH memory allocations. This was documented but not auto-fixed since it requires domain knowledge on typical batch sizes for destinations.
+- Verification that passed:
+  - Code changes visually inspected for syntax and compatibility since they fall within C# domains.
+- Commit/push state:
+  - Changes will be committed and pushed during this session.
+
 | Item | Why needed | State |
 |---|---|---|
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |

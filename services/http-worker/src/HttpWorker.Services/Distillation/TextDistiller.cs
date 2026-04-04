@@ -20,7 +20,7 @@ public class TextDistiller : ITextDistiller
         @"[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+",
         RegexOptions.Compiled);
 
-    public static bool IsFallbackActive { get; private set; }
+    public bool IsFallbackActive { get; private set; }
 
     public TextDistiller(HttpClient httpClient, IOptions<HttpWorkerOptions> options, ILogger<TextDistiller> logger)
     {

@@ -504,23 +504,23 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         await batchContent.ExecuteNonQueryAsync(cancellationToken);
 
         // 2. Fetch the corresponding internal `id`s for ContentItem and Upsert Post
-        var contentItemDbIds = new Dictionary<int, int>(); // map ContentId -> DB id
+        var contentItemDbIds = new Dictionary<(int, string), int>(); // map (ContentId, ContentType) -> DB id
         await using (var fetchCmd = new NpgsqlCommand(
-            "SELECT id, content_id FROM content_contentitem WHERE content_id = ANY(@ids) AND content_type = ANY(@types)", connection, transaction))
+            "SELECT id, content_id, content_type FROM content_contentitem WHERE content_id = ANY(@ids) AND content_type = ANY(@types)", connection, transaction))
         {
             fetchCmd.Parameters.AddWithValue("ids", mutations.Select(x => x.ContentId).ToArray());
             fetchCmd.Parameters.AddWithValue("types", mutations.Select(x => x.ContentType).ToArray());
             await using var reader = await fetchCmd.ExecuteReaderAsync(cancellationToken);
             while (await reader.ReadAsync(cancellationToken))
             {
-                contentItemDbIds[reader.GetInt32(1)] = reader.GetInt32(0);
+                contentItemDbIds[(reader.GetInt32(1), reader.GetString(2))] = reader.GetInt32(0);
             }
         }
 
         await using var batchPost = new NpgsqlBatch(connection, transaction);
-        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey(x.ContentId)))
+        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey((x.ContentId, x.ContentType))))
         {
-            var dbId = contentItemDbIds[m.ContentId];
+            var dbId = contentItemDbIds[(m.ContentId, m.ContentType)];
             var cmd = new NpgsqlBatchCommand(
                 """
                 INSERT INTO content_post (
@@ -572,9 +572,9 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         }
 
         await using var batchSentence = new NpgsqlBatch(connection, transaction);
-        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey(x.ContentId)))
+        foreach (var m in mutations.Where(x => contentItemDbIds.ContainsKey((x.ContentId, x.ContentType))))
         {
-            var dbId = contentItemDbIds[m.ContentId];
+            var dbId = contentItemDbIds[(m.ContentId, m.ContentType)];
             if (!postDbIds.TryGetValue(dbId, out var postId)) continue;
 
             foreach (var s in m.Sentences)
@@ -643,7 +643,7 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         await using var connection = await OpenConnectionAsync(cancellationToken);
         await using var command = new NpgsqlCommand(
             """
-            SELECT id, title, embedding::text, march_2026_pagerank_score, 0
+            SELECT id, title, embedding::text, march_2026_pagerank_score
             FROM content_contentitem
             WHERE scope_id = ANY(@scopes)
               AND embedding IS NOT NULL
