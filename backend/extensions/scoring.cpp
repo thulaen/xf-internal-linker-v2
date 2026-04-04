@@ -160,3 +160,48 @@ PYBIND11_MODULE(scoring, m) {
         "Calculate batch composite scores from per-row components plus silo adjustments"
     );
 }
+
+extern "C" {
+#ifdef _WIN32
+    __declspec(dllexport)
+#else
+    __attribute__((visibility("default")))
+#endif
+    void cscore_full_batch(
+        const float* component_scores, size_t num_rows, size_t num_components,
+        const float* weights, size_t num_weights,
+        const float* silo_scores, size_t num_silo,
+        float* out_scores
+    ) {
+        if (num_components != num_weights || num_rows != num_silo) {
+            return;
+        }
+
+#if TBB_VERSION_MAJOR > 0
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, num_rows),
+            [&](const tbb::blocked_range<size_t>& range) {
+                for (size_t row = range.begin(); row < range.end(); ++row) {
+                    size_t offset = row * num_components;
+                    double total = static_cast<double>(silo_scores[row]);
+                    for (size_t col = 0; col < num_components; ++col) {
+                        total += static_cast<double>(component_scores[offset + col]) *
+                                 static_cast<double>(weights[col]);
+                    }
+                    out_scores[row] = static_cast<float>(total);
+                }
+            }
+        );
+#else
+        for (size_t row = 0; row < num_rows; ++row) {
+            size_t offset = row * num_components;
+            double total = static_cast<double>(silo_scores[row]);
+            for (size_t col = 0; col < num_components; ++col) {
+                total += static_cast<double>(component_scores[offset + col]) *
+                         static_cast<double>(weights[col]);
+            }
+            out_scores[row] = static_cast<float>(total);
+        }
+#endif
+    }
+}

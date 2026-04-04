@@ -448,4 +448,23 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
             updated_at = @updated_at
         WHERE broken_link_id = @broken_link_id
         """;
+    public Task PersistImportNodesAsync(IReadOnlyList<ImportContentMutation> mutations, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
+
+    public Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<HostNode>>(new List<HostNode>());
+    }
+
+    public Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken)
+    {
+        return Task.FromResult<IReadOnlyList<DestinationNode>>(new List<DestinationNode>());
+    }
+
+    public Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
+    {
+        return Task.CompletedTask;
+    }
 }

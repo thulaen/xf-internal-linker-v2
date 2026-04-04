@@ -125,10 +125,22 @@ def dispatch_import_content(
     job_id = job_id or str(uuid.uuid4())
 
     if owner == "csharp":
-        raise RuntimeError(
-            "Import is set to C#, but this repo does not have a real C# import owner yet. "
-            "Set RUNTIME_OWNER_IMPORT=celery before dispatching imports."
+        from apps.graph.services.http_worker_client import queue_job
+        queue_job(
+            job_id=job_id,
+            job_type="import_content",
+            payload={
+                "scope_ids": scope_ids or [],
+                "mode": mode,
+                "source": source,
+                "file_path": file_path,
+            },
         )
+        return {
+            "job_id": job_id,
+            "runtime_owner": "csharp",
+            "message": f"{source} import queued.",
+        }
 
     import_content.delay(
         scope_ids=scope_ids,
@@ -154,10 +166,22 @@ def dispatch_pipeline_run(
     owner = _runtime_owner_for_lane("pipeline")
 
     if owner == "csharp":
-        raise RuntimeError(
-            "Pipeline is set to C#, but this repo does not have a real C# pipeline owner yet. "
-            "Set RUNTIME_OWNER_PIPELINE=celery before dispatching pipeline runs."
+        from apps.graph.services.http_worker_client import queue_job
+        queue_job(
+            job_id=run_id,
+            job_type="run_pipeline",
+            payload={
+                "run_id": run_id,
+                "host_scope": host_scope,
+                "destination_scope": destination_scope,
+                "rerun_mode": rerun_mode,
+            },
         )
+        return {
+            "job_id": run_id,
+            "runtime_owner": "csharp",
+            "message": "Pipeline queued.",
+        }
 
     run_pipeline.delay(
         run_id=run_id,

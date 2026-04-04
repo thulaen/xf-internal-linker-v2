@@ -45,6 +45,8 @@ from apps.suggestions.views import (
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
 
+from apps.api.ml_views import MLDistillView, MLEmbedView
+
 router = DefaultRouter()
 
 # Content (read-only)
@@ -66,6 +68,8 @@ urlpatterns = [
     path("analytics/", include("apps.analytics.urls")),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+    path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
+    path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
     path("sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"),
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
     path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),

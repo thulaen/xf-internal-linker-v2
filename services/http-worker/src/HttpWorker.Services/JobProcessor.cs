@@ -13,6 +13,8 @@ public sealed class JobProcessor(
     IHealthCheckService healthCheckService,
     ISitemapService sitemapService,
     GSCAttributionService gscAttributionService,
+    IImportContentService importContentService,
+    IRunPipelineService runPipelineService,
     IOptions<HttpWorkerOptions> options)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -56,6 +58,18 @@ public sealed class JobProcessor(
                     await gscAttributionService.AnalyzeUpliftAsync(
                         DeserializePayload<GSCAttributionJobPayload>(request.Payload),
                         cancellationToken),
+                    JsonOptions),
+                "import_content" => JsonSerializer.SerializeToNode(
+                    await importContentService.ExecuteAsync(
+                         request.JobId,
+                         DeserializePayload<ImportContentRequest>(request.Payload),
+                         cancellationToken),
+                    JsonOptions),
+                "run_pipeline" => JsonSerializer.SerializeToNode(
+                    await runPipelineService.ExecuteAsync(
+                         request.JobId,
+                         DeserializePayload<RunPipelineRequest>(request.Payload),
+                         cancellationToken),
                     JsonOptions),
                 _ => throw new Exception("unknown job_type"),
             };
@@ -112,7 +126,7 @@ public sealed class JobProcessor(
             throw new Exception("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution" or "import_content" or "run_pipeline"))
         {
             throw new Exception("unknown job_type");
         }

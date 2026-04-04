@@ -40,6 +40,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRuntimeTelemetryService, RedisRuntimeTelemetryService>();
         services.AddSingleton<ISchedulerDispatchService, SchedulerDispatchService>();
         services.AddSingleton<GSCAttributionService>();
+        services.AddSingleton<IImportContentService, ImportContentService>();
+        services.AddSingleton<IRunPipelineService, RunPipelineService>();
         services.AddSingleton<JobProcessor>();
         return services;
     }
