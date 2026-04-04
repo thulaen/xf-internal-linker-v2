@@ -12,6 +12,7 @@ namespace HttpWorker.Services;
 public class ImportContentService(
     IPostgresRuntimeStore runtimeStore, 
     IXenForoClient xenForoClient,
+    IWordPressClient wordPressClient,
     ITextDistiller textDistiller,
     IGraphSyncService graphSyncService,
     CeleryTaskEnqueuer celeryTaskEnqueuer,
@@ -144,6 +145,58 @@ public class ImportContentService(
                             };
                             batch.Add(mutation);
                         }
+                    }
+                else if (scopeType == "wp_posts" || scopeType == "wp_pages")
+                {
+                    bool isPage = scopeType == "wp_pages";
+                    // Sequential paging for WordPress
+                    for (int page = 1; page <= 5; page++) 
+                    {
+                        var (items, totalPages) = isPage 
+                            ? await wordPressClient.GetPagesAsync(page, "publish", cancellationToken)
+                            : await wordPressClient.GetPostsAsync(page, "publish", cancellationToken);
+
+                        if (items == null || items.Count == 0) break;
+
+                        foreach (var item in items)
+                        {
+                            if (item == null) continue;
+                            int contentId = item["id"]?.GetValue<int>() ?? 0;
+                            if (contentId == 0) continue;
+
+                            string title = item["title"]?["rendered"]?.GetValue<string>() ?? string.Empty;
+                            string url = item["link"]?.GetValue<string>() ?? string.Empty;
+                            // Raw editorial body directly from the REST API JSON payload, completely bypassing page templates/chrome
+                            string rawBody = item["content"]?["rendered"]?.GetValue<string>() ?? string.Empty;
+
+                            string cleanText = ScrubBbcode(rawBody); // scrub html tags
+                            string distilled = await textDistiller.DistillBodyAsync(new[] { title, cleanText }, 3, cancellationToken);
+
+                            var mutation = new ImportContentMutation
+                            {
+                                ScopeId = scopePk,
+                                ContentId = contentId,
+                                ContentType = isPage ? "wp_page" : "wp_post",
+                                Url = UrlNormalizer.NormalizeInternalUrl(url),
+                                Title = HttpWorker.Core.Text.UrlNormalizer.NormalizeInternalUrl(title), // not quite, just keep title
+                                RawBody = rawBody,
+                                CleanText = cleanText,
+                                DistilledText = distilled,
+                                ViewCount = 0, // WP API doesn't return view_count natively usually
+                                ReplyCount = 0,
+                                DownloadCount = 0,
+                                ContentHash = GenerateHash(rawBody),
+                                Sentences = ExtractSentences(cleanText),
+                                Embedding = [] // Handled by Python layer
+                            };
+                            
+                            // Revert accidental title modification
+                            mutation.Title = ScrubBbcode(title); // Decode HTML entities in title
+                            
+                            batch.Add(mutation);
+                        }
+                        
+                        if (page >= totalPages) break;
                     }
                 }
             }
