@@ -55,7 +55,7 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
 
         var suggestionChannel = Channel.CreateBounded<PipelineSuggestion>(new BoundedChannelOptions(5000) 
         { 
-            SingleWriter = false, 
+            SingleWriter = true, 
             SingleReader = true 
         });
 
@@ -65,6 +65,7 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
             var destEmbeddingsArray = ArrayPool<float>.Shared.Rent(destinations.Count * 768);
             try
             {
+                Array.Clear(destEmbeddingsArray, 0, destinations.Count * 768);
                 for (int i = 0; i < destinations.Count; i++)
                 {
                     if (destinations[i].Embedding is not null && destinations[i].Embedding.Length == 768)
@@ -73,18 +74,20 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
                     }
                 }
 
-                int batchSize = 100;
+                int batchSize = 1000;
                 for (int i = 0; i < hosts.Count; i += batchSize)
                 {
-                    var chunk = hosts.Skip(i).Take(batchSize).ToList();
-                    var hostEmbeddingsArray = ArrayPool<float>.Shared.Rent(chunk.Count * 768);
+                    int currentBatch = Math.Min(batchSize, hosts.Count - i);
+                    var hostEmbeddingsArray = ArrayPool<float>.Shared.Rent(currentBatch * 768);
                     try
                     {
-                        for (int j = 0; j < chunk.Count; j++)
+                        Array.Clear(hostEmbeddingsArray, 0, currentBatch * 768);
+                        for (int j = 0; j < currentBatch; j++)
                         {
-                            if (chunk[j].Embedding is not null && chunk[j].Embedding.Length == 768)
+                            var host = hosts[i + j];
+                            if (host.Embedding is not null && host.Embedding.Length == 768)
                             {
-                                Array.Copy(chunk[j].Embedding, 0, hostEmbeddingsArray, j * 768, 768);
+                                Array.Copy(host.Embedding, 0, hostEmbeddingsArray, j * 768, 768);
                             }
                         }
 
@@ -100,8 +103,9 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
                         }
                         */
 
-                        foreach (var host in chunk)
+                        for (int j = 0; j < currentBatch; j++)
                         {
+                            var host = hosts[i + j];
                             await suggestionChannel.Writer.WriteAsync(new PipelineSuggestion
                             {
                                 HostContentId = host.ContentId,
