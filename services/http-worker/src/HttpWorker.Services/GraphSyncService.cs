@@ -355,7 +355,7 @@ internal static class GraphLinkParser
 
         foreach (var match in matches)
         {
-            var normalizedUrl = NormalizeInternalUrl(match.Url);
+            var normalizedUrl = HttpWorker.Core.Text.UrlNormalizer.NormalizeInternalUrl(match.Url);
             if (string.IsNullOrEmpty(normalizedUrl))
             {
                 continue;
@@ -546,38 +546,6 @@ internal static class GraphLinkParser
         }
 
         return false;
-    }
-
-    private static string NormalizeInternalUrl(string url)
-    {
-        if (string.IsNullOrWhiteSpace(url))
-        {
-            return string.Empty;
-        }
-
-        if (!Uri.TryCreate(url.Trim(), UriKind.Absolute, out var uri))
-        {
-            return string.Empty;
-        }
-
-        if (!AllowedSchemes.Contains(uri.Scheme.ToLowerInvariant()))
-        {
-            return string.Empty;
-        }
-
-        var builder = new UriBuilder(uri)
-        {
-            Scheme = uri.Scheme.ToLowerInvariant(),
-            Host = uri.Host.ToLowerInvariant(),
-            Query = string.Empty,
-            Fragment = string.Empty,
-        };
-        if (builder.Path.Length > 1 && builder.Path.EndsWith("/", StringComparison.Ordinal))
-        {
-            builder.Path = builder.Path.TrimEnd('/');
-        }
-
-        return builder.Uri.GetLeftPart(UriPartial.Path);
     }
 
     private static string StripMarkup(string value)

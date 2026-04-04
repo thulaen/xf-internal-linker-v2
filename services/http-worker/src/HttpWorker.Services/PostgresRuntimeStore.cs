@@ -607,6 +607,24 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
         await transaction.CommitAsync(cancellationToken);
     }
 
+    public async Task<List<(int ScopePk, int ExternalScopeId, string ScopeType)>> GetScopesAsync(IReadOnlyList<int> scopePks, CancellationToken cancellationToken)
+    {
+        var results = new List<(int, int, string)>();
+        if (scopePks.Count == 0) return results;
+
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        await using var command = new NpgsqlCommand(
+            "SELECT id, scope_id, scope_type FROM content_scopeitem WHERE id = ANY(@ids)", connection);
+        command.Parameters.AddWithValue("ids", scopePks.ToArray());
+
+        await using var reader = await command.ExecuteReaderAsync(cancellationToken);
+        while (await reader.ReadAsync(cancellationToken))
+        {
+            results.Add((reader.GetInt32(0), reader.GetInt32(1), reader.GetString(2)));
+        }
+        return results;
+    }
+
     public async Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
     {
         var nodes = new List<HostNode>();
