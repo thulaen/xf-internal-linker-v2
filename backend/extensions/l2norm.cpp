@@ -2,6 +2,12 @@
 #include <pybind11/numpy.h>
 #include <cmath>
 #include <vector>
+#include <numeric>
+#ifdef _WIN32
+#include <execution>
+#include <algorithm>
+#define HAS_PAR_EXECUTION 1
+#endif
 
 namespace py = pybind11;
 
@@ -40,6 +46,25 @@ void normalize_l2_batch(py::array_t<float, py::array::c_style | py::array::force
     size_t rows = buf.shape[0];
     size_t cols = buf.shape[1];
 
+#if defined(HAS_PAR_EXECUTION)
+    std::vector<size_t> indices(rows);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t r) {
+        float sum_sq = 0.0f;
+        float* row_ptr = ptr + r * cols;
+        for (size_t c = 0; c < cols; ++c) {
+            sum_sq += row_ptr[c] * row_ptr[c];
+        }
+
+        float norm = std::sqrt(sum_sq);
+        if (norm > 1e-10f) {
+            float inv_norm = 1.0f / norm;
+            for (size_t c = 0; c < cols; ++c) {
+                row_ptr[c] *= inv_norm;
+            }
+        }
+    });
+#else
     for (size_t r = 0; r < rows; ++r) {
         float sum_sq = 0.0f;
         float* row_ptr = ptr + r * cols;
@@ -55,6 +80,7 @@ void normalize_l2_batch(py::array_t<float, py::array::c_style | py::array::force
             }
         }
     }
+#endif
 }
 
 PYBIND11_MODULE(l2norm, m) {

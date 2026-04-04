@@ -2,15 +2,18 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #ifdef _WIN32
-#define TBB_VERSION_MAJOR 0
+#include <execution>
+#include <algorithm>
+#define HAS_PAR_EXECUTION 1
 #else
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#define HAS_TBB 1
 #endif
-#include <algorithm>
 #include <numeric>
-#include <stdexcept>
 #include <vector>
+#include <stdexcept>
+#include <cmath>
 
 namespace py = pybind11;
 
@@ -52,16 +55,21 @@ std::tuple<py::array_t<int64_t>, py::array_t<float>> score_and_topk(
                 throw std::runtime_error("candidate row index out of bounds");
             }
             const size_t offset = static_cast<size_t>(row_index) * dimension;
-            double total = 0.0;
+            float total = 0.0f;
             for (size_t dim = 0; dim < dimension; ++dim) {
-                total += static_cast<double>(sentence_ptr[offset + dim]) *
-                         static_cast<double>(destination_ptr[dim]);
+                total += sentence_ptr[offset + dim] * destination_ptr[dim];
             }
-            scores[candidate_index] = static_cast<float>(total);
+            scores[candidate_index] = total;
         };
 
         if (candidate_count > 256) {
-#if TBB_VERSION_MAJOR > 0
+#if defined(HAS_PAR_EXECUTION)
+            std::vector<size_t> indices(candidate_count);
+            std::iota(indices.begin(), indices.end(), 0);
+            std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index) {
+                compute_one(index);
+            });
+#elif defined(HAS_TBB)
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, static_cast<size_t>(candidate_count)),
                 [&](const tbb::blocked_range<size_t>& range) {
@@ -153,16 +161,21 @@ extern "C" {
                 return;
             }
             size_t offset = static_cast<size_t>(row_index) * sentence_dim;
-            double total = 0.0;
+            float total = 0.0f;
             for (size_t dim = 0; dim < sentence_dim; ++dim) {
-                total += static_cast<double>(sentence_ptr[offset + dim]) *
-                         static_cast<double>(destination_ptr[dim]);
+                total += sentence_ptr[offset + dim] * destination_ptr[dim];
             }
-            scores[candidate_index] = static_cast<float>(total);
+            scores[candidate_index] = total;
         };
 
         if (candidate_count > 256) {
-#if TBB_VERSION_MAJOR > 0
+#if defined(HAS_PAR_EXECUTION)
+            std::vector<size_t> indices(candidate_count);
+            std::iota(indices.begin(), indices.end(), 0);
+            std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t index) {
+                compute_one(index);
+            });
+#elif defined(HAS_TBB)
             tbb::parallel_for(
                 tbb::blocked_range<size_t>(0, candidate_count),
                 [&](const tbb::blocked_range<size_t>& range) {

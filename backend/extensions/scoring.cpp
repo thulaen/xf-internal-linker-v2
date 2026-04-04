@@ -2,11 +2,17 @@
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
 #ifdef _WIN32
-#define TBB_VERSION_MAJOR 0
+#include <execution>
+#include <algorithm>
+#define HAS_PAR_EXECUTION 1
 #else
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#define HAS_TBB 1
 #endif
+#include <numeric>
+#include <vector>
+#include <stdexcept>
 
 #include <vector>
 #include <stdexcept>
@@ -44,7 +50,20 @@ std::vector<float> calculate_composite_scores(
     std::vector<float> results(candidates.size());
 
     py::gil_scoped_release release;
-#if TBB_VERSION_MAJOR > 0
+#if defined(HAS_PAR_EXECUTION)
+    std::vector<size_t> indices(candidates.size());
+    std::iota(indices.begin(), indices.end(), 0);
+    std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t i) {
+        const auto& c = candidates[i];
+        results[i] = (c.score_semantic * w_semantic) +
+                     (c.score_keyword * w_keyword) +
+                     (c.score_node * w_node) +
+                     (c.score_quality * w_quality) +
+                     (c.score_pr * w_pr) +
+                     (c.score_freshness * w_freshness) +
+                     (c.score_ga4 * w_ga4);
+    });
+#elif defined(HAS_TBB)
     tbb::parallel_for(tbb::blocked_range<size_t>(0, candidates.size()),
         [&](const tbb::blocked_range<size_t>& r) {
             for (size_t i = r.begin(); i < r.end(); ++i) {
@@ -113,28 +132,37 @@ py::array_t<float> calculate_composite_scores_full_batch(
 
     {
         py::gil_scoped_release release;
-#if TBB_VERSION_MAJOR > 0
+#if defined(HAS_PAR_EXECUTION)
+        std::vector<size_t> indices(n_rows);
+        std::iota(indices.begin(), indices.end(), 0);
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t row) {
+            const size_t offset = row * k_components;
+            float total = silo_ptr[row];
+            for (size_t col = 0; col < k_components; ++col) {
+                total += component_ptr[offset + col] * weight_ptr[col];
+            }
+            result_ptr[row] = total;
+        });
+#elif defined(HAS_TBB)
         tbb::parallel_for(tbb::blocked_range<size_t>(0, n_rows),
             [&](const tbb::blocked_range<size_t>& r) {
                 for (size_t row = r.begin(); row < r.end(); ++row) {
                     const size_t offset = row * k_components;
-                    double total = static_cast<double>(silo_ptr[row]);
+                    float total = silo_ptr[row];
                     for (size_t col = 0; col < k_components; ++col) {
-                        total += static_cast<double>(component_ptr[offset + col]) *
-                                 static_cast<double>(weight_ptr[col]);
+                        total += component_ptr[offset + col] * weight_ptr[col];
                     }
-                    result_ptr[row] = static_cast<float>(total);
+                    result_ptr[row] = total;
                 }
             });
 #else
         for (size_t row = 0; row < n_rows; ++row) {
             const size_t offset = row * k_components;
-            double total = static_cast<double>(silo_ptr[row]);
+            float total = silo_ptr[row];
             for (size_t col = 0; col < k_components; ++col) {
-                total += static_cast<double>(component_ptr[offset + col]) *
-                         static_cast<double>(weight_ptr[col]);
+                total += component_ptr[offset + col] * weight_ptr[col];
             }
-            result_ptr[row] = static_cast<float>(total);
+            result_ptr[row] = total;
         }
 #endif
     }
@@ -177,30 +205,39 @@ extern "C" {
             return;
         }
 
-#if TBB_VERSION_MAJOR > 0
+#if defined(HAS_PAR_EXECUTION)
+        std::vector<size_t> indices(num_rows);
+        std::iota(indices.begin(), indices.end(), 0);
+        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t row) {
+            size_t offset = row * num_components;
+            float total = silo_scores[row];
+            for (size_t col = 0; col < num_components; ++col) {
+                total += component_scores[offset + col] * weights[col];
+            }
+            out_scores[row] = total;
+        });
+#elif defined(HAS_TBB)
         tbb::parallel_for(
             tbb::blocked_range<size_t>(0, num_rows),
             [&](const tbb::blocked_range<size_t>& range) {
                 for (size_t row = range.begin(); row < range.end(); ++row) {
                     size_t offset = row * num_components;
-                    double total = static_cast<double>(silo_scores[row]);
+                    float total = silo_scores[row];
                     for (size_t col = 0; col < num_components; ++col) {
-                        total += static_cast<double>(component_scores[offset + col]) *
-                                 static_cast<double>(weights[col]);
+                        total += component_scores[offset + col] * weights[col];
                     }
-                    out_scores[row] = static_cast<float>(total);
+                    out_scores[row] = total;
                 }
             }
         );
 #else
         for (size_t row = 0; row < num_rows; ++row) {
             size_t offset = row * num_components;
-            double total = static_cast<double>(silo_scores[row]);
+            float total = silo_scores[row];
             for (size_t col = 0; col < num_components; ++col) {
-                total += static_cast<double>(component_scores[offset + col]) *
-                         static_cast<double>(weights[col]);
+                total += component_scores[offset + col] * weights[col];
             }
-            out_scores[row] = static_cast<float>(total);
+            out_scores[row] = total;
         }
 #endif
     }
