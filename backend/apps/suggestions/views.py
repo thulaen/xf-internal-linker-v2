@@ -16,12 +16,14 @@ from rest_framework import filters, status, viewsets
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.audit.models import AuditEntry
-from .models import PipelineDiagnostic, PipelineRun, Suggestion, WeightAdjustmentHistory, WeightPreset
+from .models import PipelineDiagnostic, PipelineRun, RankingChallenger, Suggestion, WeightAdjustmentHistory, WeightPreset
 from .serializers import (
     PipelineDiagnosticSerializer,
     PipelineRunSerializer,
+    RankingChallengerSerializer,
     SuggestionDetailSerializer,
     SuggestionListSerializer,
     SuggestionReviewSerializer,
@@ -354,3 +356,151 @@ class WeightAdjustmentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
             reason=f"Rollback to {created_str}",
         )
         return Response({"detail": f"Rolled back to weights from {created_str}."})
+
+
+class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
+    """
+    Read-only list of all RankingChallenger records.
+    Also provides a POST /reject/ action for human override.
+    """
+    permission_classes = [AllowAny]
+    queryset = RankingChallenger.objects.order_by("-created_at")
+    serializer_class = RankingChallengerSerializer
+
+    @action(detail=True, methods=["post"])
+    def reject(self, request, pk=None):
+        challenger = self.get_object()
+        if challenger.status != "pending":
+            return Response(
+                {"detail": f"Cannot reject a challenger with status '{challenger.status}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        challenger.status = "rejected"
+        challenger.save(update_fields=["status", "updated_at"])
+        return Response({"detail": f"Challenger {challenger.run_id[:16]} rejected."})
+
+
+# ── FR-018: Internal write endpoint for C# auto-tuner ────────────────────────
+
+# The four weights the C# L-BFGS optimizer is allowed to propose.
+_TUNABLE_KEYS = frozenset({"w_semantic", "w_keyword", "w_node", "w_quality"})
+
+# Safety bounds enforced server-side (C# already applies these; Django is a
+# second line of defence).
+_MAX_DELTA_PER_RUN = 0.05
+_MAX_DRIFT_FROM_BASELINE = 0.20
+
+
+class WeightChallengerInternalView(APIView):
+    """
+    POST /api/internal/weight-challenger/
+
+    Called exclusively by the C# HTTP-worker after an L-BFGS tune run.
+    Creates a RankingChallenger record with status='pending'.
+
+    Expected JSON body:
+        {
+            "run_id": "<guid>",
+            "candidate_weights": {
+                "w_semantic": 0.42,
+                "w_keyword": 0.23,
+                "w_node": 0.20,
+                "w_quality": 0.15
+            },
+            "baseline_weights": {
+                "w_semantic": 0.40,
+                ...
+            },
+            "predicted_quality_score": 0.812,    # optional
+            "champion_quality_score": 0.771       # optional
+        }
+    """
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from apps.suggestions.weight_preset_service import PRESET_DEFAULTS
+
+        data = request.data
+
+        run_id = data.get("run_id", "").strip()
+        if not run_id:
+            return Response({"detail": "run_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        candidate = data.get("candidate_weights")
+        baseline = data.get("baseline_weights")
+        if not isinstance(candidate, dict) or not isinstance(baseline, dict):
+            return Response(
+                {"detail": "candidate_weights and baseline_weights must be objects."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Only tunable keys are accepted.
+        unexpected = set(candidate) - _TUNABLE_KEYS
+        if unexpected:
+            return Response(
+                {"detail": f"Unexpected keys in candidate_weights: {sorted(unexpected)}. "
+                           f"Only {sorted(_TUNABLE_KEYS)} are tunable."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if set(candidate) != _TUNABLE_KEYS:
+            return Response(
+                {"detail": f"candidate_weights must contain exactly: {sorted(_TUNABLE_KEYS)}."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate bounds.
+        try:
+            recommended = {k: float(PRESET_DEFAULTS[k]) for k in _TUNABLE_KEYS}
+        except (KeyError, ValueError) as exc:
+            return Response({"detail": f"Baseline lookup failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+        errors = {}
+        for key in _TUNABLE_KEYS:
+            try:
+                cand_val = float(candidate[key])
+                base_val = float(baseline.get(key, recommended[key]))
+                rec_val = recommended[key]
+            except (TypeError, ValueError):
+                errors[key] = "Must be a number."
+                continue
+
+            if abs(cand_val - base_val) > _MAX_DELTA_PER_RUN + 1e-9:
+                errors[key] = (
+                    f"Delta {cand_val - base_val:+.4f} exceeds ±{_MAX_DELTA_PER_RUN} per-run limit."
+                )
+            if abs(cand_val - rec_val) > _MAX_DRIFT_FROM_BASELINE + 1e-9:
+                errors[key] = (
+                    f"Drift {cand_val - rec_val:+.4f} from recommended baseline "
+                    f"exceeds ±{_MAX_DRIFT_FROM_BASELINE} limit."
+                )
+
+        if errors:
+            return Response({"detail": "Bound violation.", "errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+
+        if RankingChallenger.objects.filter(run_id=run_id).exists():
+            return Response({"detail": f"Challenger with run_id '{run_id}' already exists."}, status=status.HTTP_409_CONFLICT)
+
+        # Normalise to float strings for consistency with AppSetting storage.
+        clean_candidate = {k: float(v) for k, v in candidate.items()}
+        clean_baseline = {k: float(baseline.get(k, recommended[k])) for k in _TUNABLE_KEYS}
+
+        challenger = RankingChallenger.objects.create(
+            run_id=run_id,
+            status="pending",
+            candidate_weights=clean_candidate,
+            baseline_weights=clean_baseline,
+            predicted_quality_score=data.get("predicted_quality_score"),
+            champion_quality_score=data.get("champion_quality_score"),
+        )
+
+        logger.info(
+            "[FR-018] New RankingChallenger created: run_id=%s candidate=%s",
+            run_id,
+            clean_candidate,
+        )
+
+        return Response(
+            {"detail": "Challenger created.", "id": challenger.pk, "status": challenger.status},
+            status=status.HTTP_201_CREATED,
+        )

@@ -1,4 +1,5 @@
 using HttpWorker.Core.Interfaces;
+using HttpWorker.Services.Analytics;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -40,6 +41,8 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRuntimeTelemetryService, RedisRuntimeTelemetryService>();
         services.AddSingleton<ISchedulerDispatchService, SchedulerDispatchService>();
         services.AddSingleton<GSCAttributionService>();
+        services.AddSingleton<WeightTunerDataCollector>();
+        services.AddSingleton<WeightTunerService>();
         services.AddSingleton<HttpWorker.Services.External.CeleryTaskEnqueuer>();
         services.AddSingleton<HttpWorker.Core.Interfaces.IXenForoClient, HttpWorker.Services.External.XenForoClient>();
         services.AddSingleton<HttpWorker.Core.Interfaces.IWordPressClient, HttpWorker.Services.External.WordPressClient>();

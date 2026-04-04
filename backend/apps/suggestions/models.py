@@ -71,6 +71,7 @@ class WeightAdjustmentHistory(models.Model):
 
     SOURCE_CHOICES = [
         ("r_auto", "Monthly R auto-tune"),
+        ("cs_auto_tune", "C# L-BFGS auto-tune (FR-018)"),
         ("manual", "Manual save"),
         ("preset_applied", "Preset applied"),
     ]
@@ -123,6 +124,77 @@ class WeightAdjustmentHistory(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.source}] {self.reason[:80]} at {self.created_at}"
+
+
+class RankingChallenger(TimestampedModel):
+    """
+    A candidate weight set produced by the C# L-BFGS auto-tuner (FR-018).
+
+    C# POSTs one RankingChallenger row per tune run via the internal write
+    endpoint.  Django's evaluate_weight_challenger Celery task then scores it
+    against the current champion (active AppSetting values) and either promotes
+    it, rejects it, or leaves it pending for human review.
+
+    Only the four core blend weights (w_semantic, w_keyword, w_node, w_quality)
+    are tuned by the optimizer.  All other weights remain at their current values.
+    """
+
+    STATUS_CHOICES = [
+        ("pending", "Pending evaluation"),
+        ("promoted", "Promoted to champion"),
+        ("rolled_back", "Rolled back after regression"),
+        ("rejected", "Rejected — did not beat champion"),
+    ]
+
+    run_id = models.CharField(
+        max_length=200,
+        unique=True,
+        help_text="Opaque identifier from the C# tune run (e.g. a GUID).",
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+        db_index=True,
+        help_text="Lifecycle state of this challenger.",
+    )
+    candidate_weights = models.JSONField(
+        default=dict,
+        help_text=(
+            "Flat key→value map of the four tunable weights proposed by the optimizer: "
+            "w_semantic, w_keyword, w_node, w_quality."
+        ),
+    )
+    baseline_weights = models.JSONField(
+        default=dict,
+        help_text="Snapshot of the four active weights at the moment C# submitted this challenger.",
+    )
+    predicted_quality_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Predicted link-quality score from the C# optimizer for the candidate weights.",
+    )
+    champion_quality_score = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Predicted link-quality score for the current champion weights (for comparison).",
+    )
+    history = models.OneToOneField(
+        "WeightAdjustmentHistory",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="challenger",
+        help_text="The WeightAdjustmentHistory row written when this challenger was promoted.",
+    )
+
+    class Meta:
+        verbose_name = "Ranking Challenger"
+        verbose_name_plural = "Ranking Challengers"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"Challenger {self.run_id[:16]} [{self.status}]"
 
 
 class ScopePreset(TimestampedModel):

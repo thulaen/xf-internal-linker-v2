@@ -27,6 +27,8 @@ from apps.core.views import (
     LogoUploadView,
     PhraseMatchingSettingsView,
     RareTermPropagationSettingsView,
+    ChallengerEvaluateView,
+    CSTuneTriggerView,
     RTuneTriggerView,
     SiloSettingsView,
     SlateDiversitySettingsView,
@@ -39,8 +41,10 @@ from apps.graph.views import BrokenLinkViewSet
 from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
+    RankingChallengerViewSet,
     SuggestionViewSet,
     WeightAdjustmentHistoryViewSet,
+    WeightChallengerInternalView,
     WeightPresetViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
@@ -62,6 +66,7 @@ router.register(r"sync-jobs", SyncJobViewSet, basename="sync-job")
 router.register(r"broken-links", BrokenLinkViewSet, basename="broken-link")
 router.register(r"weight-presets", WeightPresetViewSet, basename="weight-preset")
 router.register(r"weight-history", WeightAdjustmentHistoryViewSet, basename="weight-history")
+router.register(r"weight-challengers", RankingChallengerViewSet, basename="weight-challenger")
 
 urlpatterns = [
     path("", include("apps.core.urls")),
@@ -90,6 +95,9 @@ urlpatterns = [
     path("settings/clustering/recalculate/", ClusteringRecalculateView.as_view(), name="clustering-recalculate"),
     path("settings/slate-diversity/", SlateDiversitySettingsView.as_view(), name="slate-diversity-settings"),
     path("settings/r-tune/trigger/", RTuneTriggerView.as_view(), name="r-tune-trigger"),
+    path("settings/cs-tune/trigger/", CSTuneTriggerView.as_view(), name="cs-tune-trigger"),
+    path("settings/cs-tune/evaluate/<str:run_id>/", ChallengerEvaluateView.as_view(), name="cs-tune-evaluate"),
+    path("internal/weight-challenger/", WeightChallengerInternalView.as_view(), name="internal-weight-challenger"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),

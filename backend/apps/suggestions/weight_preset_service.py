@@ -122,11 +122,14 @@ def write_history(
     reason: str,
     preset=None,
     r_run_id: str = "",
-) -> None:
-    """Write one WeightAdjustmentHistory row after weights are applied."""
+):
+    """Write one WeightAdjustmentHistory row after weights are applied.
+
+    Returns the created WeightAdjustmentHistory instance.
+    """
     from apps.suggestions.models import WeightAdjustmentHistory
 
-    WeightAdjustmentHistory.objects.create(
+    return WeightAdjustmentHistory.objects.create(
         source=source,
         preset=preset,
         previous_weights=previous_weights,

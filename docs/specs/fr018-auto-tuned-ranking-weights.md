@@ -40,3 +40,32 @@ The R analytics service has been removed. Auto-weight tuning is implemented in C
 ## Safe Dated Promotion
 - Every change is logged with a timestamped record.
 - **Rollback**: If the new weights cause a sudden drop in GSC clicks, the system rolls back to the previous known-good version automatically.
+
+## Slices for Execution
+
+### Slice 1: Django — Challenger model & internal write endpoint
+- New `RankingChallenger` model: stores candidate weight JSON, `status` (`pending` / `promoted` / `rolled_back`), predicted quality scores, and a run reference.
+- Internal-only POST endpoint `/api/internal/weight-challenger/` that C# calls to land a new candidate.
+- Migration.
+
+### Slice 2: C# — Data collection & L-BFGS optimizer
+- New `HttpWorker.Analytics` namespace under `HttpWorker.Services`.
+- `WeightTunerDataCollector` — Npgsql queries for all 4 signals (GSC lift, GA4 dwell, review approval rate, Matomo click rate with GA4 fallback).
+- `WeightObjectiveFunction` — MathNet.Numerics L-BFGS optimizer, bounded to `±0.05` per weight per run and `0.20` max drift from baseline.
+- Unit tests with synthetic data.
+
+### Slice 3: C# — Run trigger & Django write
+- `WeightTuningController` with POST `/api/v1/weight-tuning/run`.
+- Orchestrates: collect → optimize → apply bounds → POST candidate to Django's internal endpoint.
+- Hook into `JobsController` so Django can trigger a tune run like any other job.
+
+### Slice 4: Django — Champion vs Challenger evaluation, promotion & rollback
+- Celery task `evaluate_weight_challenger`: scores both sets of weights against recent historical data.
+- Auto-promotes challenger if it beats champion by >5% predicted quality — applies weights to `AppSetting`, creates a `WeightAdjustmentHistory` row with `source='cs_auto_tune'`.
+- Rollback task: if GSC clicks drop within a configurable window after promotion, revert and mark challenger `rolled_back`.
+
+### Slice 5: Angular — Weight Tuning card in Settings
+- Shows current champion weights (read from `AppSetting`).
+- If a pending challenger exists, shows a diff of what would change.
+- Manual "Promote" and "Reject" buttons for human override.
+- History table of past auto-tune events (from `WeightAdjustmentHistory`).

@@ -9,7 +9,7 @@ from rest_framework import serializers
 
 from apps.pipeline.services.link_freshness import get_destination_link_freshness_diagnostics
 
-from .models import PipelineDiagnostic, PipelineRun, Suggestion, WeightAdjustmentHistory, WeightPreset
+from .models import PipelineDiagnostic, PipelineRun, RankingChallenger, Suggestion, WeightAdjustmentHistory, WeightPreset
 from .telemetry_markup import build_suggestion_telemetry_payload
 
 
@@ -247,6 +247,18 @@ class PipelineDiagnosticSerializer(serializers.ModelSerializer):
         fields = [
             "id", "pipeline_run", "destination", "destination_title",
             "skip_reason", "detail", "created_at",
+        ]
+        read_only_fields = fields
+
+
+class RankingChallengerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = RankingChallenger
+        fields = [
+            "id", "run_id", "status",
+            "candidate_weights", "baseline_weights",
+            "predicted_quality_score", "champion_quality_score",
+            "created_at", "updated_at",
         ]
         read_only_fields = fields
 

@@ -271,7 +271,7 @@ export interface WeightDeltaEntry {
 
 export interface WeightAdjustmentHistory {
   id: number;
-  source: 'r_auto' | 'manual' | 'preset_applied';
+  source: 'r_auto' | 'cs_auto_tune' | 'manual' | 'preset_applied';
   preset: number | null;
   preset_name: string | null;
   previous_weights: Record<string, string>;
@@ -280,6 +280,18 @@ export interface WeightAdjustmentHistory {
   reason: string;
   r_run_id: string;
   created_at: string;
+}
+
+export interface RankingChallenger {
+  id: number;
+  run_id: string;
+  status: 'pending' | 'promoted' | 'rolled_back' | 'rejected';
+  candidate_weights: Record<string, number>;
+  baseline_weights: Record<string, number>;
+  predicted_quality_score: number | null;
+  champion_quality_score: number | null;
+  created_at: string;
+  updated_at: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -527,6 +539,26 @@ export class SiloSettingsService {
 
   triggerRTune(): Observable<{ detail: string; task_id: string }> {
     return this.http.post<{ detail: string; task_id: string }>('/api/settings/r-tune/trigger/', {});
+  }
+
+  triggerCsTune(): Observable<{ detail: string; task_id: string }> {
+    return this.http.post<{ detail: string; task_id: string }>('/api/settings/cs-tune/trigger/', {});
+  }
+
+  listChallengers(): Observable<RankingChallenger[]> {
+    return this.http.get<RankingChallenger[] | { results: RankingChallenger[] }>('/api/weight-challengers/')
+      .pipe(
+        map((r) => Array.isArray(r) ? r : r.results ?? []),
+        catchError(() => of([]))
+      );
+  }
+
+  evaluateChallenger(runId: string): Observable<{ detail: string; task_id: string }> {
+    return this.http.post<{ detail: string; task_id: string }>(`/api/settings/cs-tune/evaluate/${runId}/`, {});
+  }
+
+  rejectChallenger(id: number): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(`/api/weight-challengers/${id}/reject/`, {});
   }
 
   // ── Weight adjustment history ─────────────────────────────────────

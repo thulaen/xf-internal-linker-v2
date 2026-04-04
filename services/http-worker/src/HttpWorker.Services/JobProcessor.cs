@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using HttpWorker.Core.Contracts.V1;
 using HttpWorker.Core.Interfaces;
+using HttpWorker.Services.Analytics;
 using Microsoft.Extensions.Options;
 
 namespace HttpWorker.Services;
@@ -15,6 +16,7 @@ public sealed class JobProcessor(
     GSCAttributionService gscAttributionService,
     IImportContentService importContentService,
     IRunPipelineService runPipelineService,
+    WeightTunerService weightTunerService,
     IOptions<HttpWorkerOptions> options)
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
@@ -69,6 +71,11 @@ public sealed class JobProcessor(
                     await runPipelineService.ExecuteAsync(
                          request.JobId,
                          DeserializePayload<RunPipelineRequest>(request.Payload),
+                         cancellationToken),
+                    JsonOptions),
+                "weight_tune" => JsonSerializer.SerializeToNode(
+                    await weightTunerService.RunAsync(
+                         DeserializePayload<WeightTuneRequest>(request.Payload),
                          cancellationToken),
                     JsonOptions),
                 _ => throw new Exception("unknown job_type"),
@@ -126,7 +133,7 @@ public sealed class JobProcessor(
             throw new Exception("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution" or "import_content" or "run_pipeline"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution" or "import_content" or "run_pipeline" or "weight_tune"))
         {
             throw new Exception("unknown job_type");
         }

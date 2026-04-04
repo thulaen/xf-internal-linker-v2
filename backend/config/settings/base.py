@@ -193,6 +193,18 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=2, minute=0, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },
+    # FR-018 — monthly C# weight-tune: 02:30 on the first Sunday of every month.
+    "monthly-cs-weight-tune": {
+        "task": "pipeline.monthly_cs_weight_tune",
+        "schedule": crontab(hour=2, minute=30, day_of_week=0, day_of_month="1-7"),
+        "options": {"queue": "pipeline"},
+    },
+    # FR-018 — weekly GSC rollback check: Sunday 04:00 UTC.
+    "weekly-weight-rollback-check": {
+        "task": "pipeline.check_weight_rollback",
+        "schedule": crontab(hour=4, minute=0, day_of_week=0),
+        "options": {"queue": "pipeline"},
+    },
     # Part 7 — nightly data retention: 03:00 UTC daily.
     "nightly-data-retention": {
         "task": "pipeline.nightly_data_retention",

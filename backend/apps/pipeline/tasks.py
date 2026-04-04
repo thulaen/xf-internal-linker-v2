@@ -1484,3 +1484,300 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
     except Exception as e:
         logger.exception("Failed to sync single item %d", content_id)
         return {"error": str(e)}
+
+
+# ---------------------------------------------------------------------------
+# Part 8 — FR-018 C# auto-tune tasks
+# ---------------------------------------------------------------------------
+
+@shared_task(bind=True, name="pipeline.monthly_cs_weight_tune")
+def monthly_cs_weight_tune(self):
+    """Trigger a FR-018 weight-tune run via the C# HTTP-worker, then evaluate the result.
+
+    Scheduled at 02:30 on the first Sunday of every month (offset from the R
+    auto-tune so both do not run at the same second).
+
+    Flow:
+        1. Ask C# to collect signals + optimise → C# POSTs a RankingChallenger
+           to /api/internal/weight-challenger/ if it finds an improvement.
+        2. Chain evaluate_weight_challenger to score and optionally promote it.
+    """
+    import traceback
+    import uuid as _uuid
+
+    from apps.audit.models import ErrorLog
+
+    run_id = str(_uuid.uuid4())
+
+    try:
+        from apps.graph.services.http_worker_client import HttpWorkerError, run_job
+
+        result = run_job(
+            "weight_tune",
+            {"run_id": run_id, "lookback_days": 90},
+            job_id=run_id,
+        )
+
+        status = result.get("status", "unknown")
+        logger.info("[monthly_cs_weight_tune] C# run finished: status=%s run_id=%s", status, run_id)
+
+        if status == "submitted":
+            # C# already POSTed the challenger; evaluate it now.
+            evaluate_weight_challenger.delay(run_id=run_id)
+
+        return {"status": status, "run_id": run_id}
+
+    except HttpWorkerError as exc:
+        logger.warning("[monthly_cs_weight_tune] HTTP-worker unavailable: %s", exc)
+        return {"status": "skipped", "reason": str(exc)}
+
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[monthly_cs_weight_tune] Failed: %s", raw)
+        ErrorLog.objects.create(
+            job_type="auto_tune_weights",
+            step="monthly_cs_weight_tune",
+            error_message="C# weight-tune task failed.",
+            raw_exception=raw,
+            why="The monthly C# auto-tune task raised an unexpected exception.",
+        )
+        return {"status": "error"}
+
+
+@shared_task(bind=True, name="pipeline.evaluate_weight_challenger")
+def evaluate_weight_challenger(self, *, run_id: str):
+    """Evaluate a pending RankingChallenger and promote it if it beats the champion.
+
+    Promotion criteria (spec §4):
+        challenger.predicted_quality_score > champion_quality_score * 1.05
+
+    If the challenger qualifies, its weights are written to AppSetting and a
+    WeightAdjustmentHistory row is created with source='cs_auto_tune'.
+    If it does not qualify, the challenger is marked 'rejected'.
+
+    Called automatically after monthly_cs_weight_tune, or manually via
+    POST /api/settings/cs-tune/trigger/.
+    """
+    import traceback
+
+    from django.db import transaction
+
+    from apps.audit.models import ErrorLog
+    from apps.suggestions.models import RankingChallenger
+    from apps.suggestions.weight_preset_service import (
+        apply_weights,
+        get_current_weights,
+        write_history,
+    )
+
+    IMPROVEMENT_THRESHOLD = 1.05  # challenger must beat champion by >5%
+
+    try:
+        challenger = RankingChallenger.objects.filter(run_id=run_id, status="pending").first()
+        if challenger is None:
+            logger.info(
+                "[evaluate_weight_challenger] No pending challenger found for run_id=%s", run_id
+            )
+            return {"status": "not_found", "run_id": run_id}
+
+        cand_score = challenger.predicted_quality_score
+        champ_score = challenger.champion_quality_score
+
+        # If C# did not supply scores, fall back to approving automatically
+        # (the bounds validation in WeightChallengerInternalView already guarantees safety).
+        if cand_score is None or champ_score is None:
+            logger.info(
+                "[evaluate_weight_challenger] No quality scores on challenger %s — auto-promoting.",
+                run_id,
+            )
+            should_promote = True
+        else:
+            should_promote = cand_score > champ_score * IMPROVEMENT_THRESHOLD
+
+        if not should_promote:
+            challenger.status = "rejected"
+            challenger.save(update_fields=["status", "updated_at"])
+            logger.info(
+                "[evaluate_weight_challenger] Challenger %s rejected: score %.4f vs champion %.4f (need %.4f).",
+                run_id,
+                cand_score,
+                champ_score,
+                champ_score * IMPROVEMENT_THRESHOLD if champ_score else 0,
+            )
+            return {"status": "rejected", "run_id": run_id}
+
+        # Promote: apply the four tunable weights; leave all other weights untouched.
+        previous_weights = get_current_weights()
+
+        # Merge candidate values into the full current weights dict.
+        promoted_weights = dict(previous_weights)
+        for key, val in challenger.candidate_weights.items():
+            promoted_weights[key] = str(val)
+
+        with transaction.atomic():
+            apply_weights(promoted_weights)
+
+        new_weights = get_current_weights()
+
+        history_row = write_history(
+            source="cs_auto_tune",
+            previous_weights=previous_weights,
+            new_weights=new_weights,
+            reason=f"FR-018 C# auto-tune promoted challenger {run_id[:16]}",
+            r_run_id=run_id,
+        )
+
+        challenger.status = "promoted"
+        if history_row is not None:
+            challenger.history = history_row
+        challenger.save(update_fields=["status", "history", "updated_at"])
+
+        logger.info(
+            "[evaluate_weight_challenger] Challenger %s promoted. New weights: %s",
+            run_id,
+            {k: promoted_weights[k] for k in challenger.candidate_weights},
+        )
+        return {"status": "promoted", "run_id": run_id}
+
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[evaluate_weight_challenger] Failed: %s", raw)
+        ErrorLog.objects.create(
+            job_type="auto_tune_weights",
+            step="evaluate_weight_challenger",
+            error_message="Challenger evaluation failed.",
+            raw_exception=raw,
+            why="The evaluate_weight_challenger task raised an unexpected exception.",
+        )
+        return {"status": "error"}
+
+
+@shared_task(name="pipeline.check_weight_rollback")
+def check_weight_rollback():
+    """Check recently-promoted challengers for a GSC regression and roll back if found.
+
+    Scheduled weekly at 04:00 UTC on Sunday (runs after enough post-promotion
+    data has accumulated).
+
+    Rollback trigger: average GSC clicks in the 14-day window after promotion
+    is more than 15% below the 14-day baseline before promotion.
+    """
+    import traceback
+    from datetime import timedelta
+
+    from django.db import transaction
+    from django.utils import timezone
+
+    from apps.audit.models import ErrorLog
+    from apps.suggestions.models import RankingChallenger
+    from apps.suggestions.weight_preset_service import (
+        apply_weights,
+        get_current_weights,
+        write_history,
+    )
+
+    # Only inspect challengers promoted in the last 21 days.
+    lookback = timezone.now() - timedelta(days=21)
+    # Minimum 14 days post-promotion needed before we can judge.
+    min_age = timezone.now() - timedelta(days=14)
+
+    candidates = RankingChallenger.objects.filter(
+        status="promoted",
+        updated_at__gte=lookback,
+        updated_at__lte=min_age,
+    )
+
+    for challenger in candidates:
+        try:
+            _check_single_rollback(challenger)
+        except Exception:
+            raw = traceback.format_exc()
+            logger.exception("[check_weight_rollback] Error checking challenger %s.", challenger.run_id)
+            ErrorLog.objects.create(
+                job_type="auto_tune_weights",
+                step="check_weight_rollback",
+                error_message=f"Rollback check failed for challenger {challenger.run_id[:16]}.",
+                raw_exception=raw,
+                why="check_weight_rollback raised an unexpected exception for one challenger.",
+            )
+
+
+def _check_single_rollback(challenger):
+    """Compare GSC clicks before vs after promotion for one challenger."""
+    from apps.analytics.models import GSCDailyPerformance
+    from django.db.models import Sum
+    from django.utils import timezone
+    from datetime import timedelta
+    from apps.suggestions.weight_preset_service import (
+        apply_weights,
+        get_current_weights,
+        write_history,
+    )
+    from django.db import transaction
+
+    REGRESSION_THRESHOLD = 0.85  # < 85% of baseline = regression
+
+    promoted_at = challenger.updated_at.date()
+    pre_start = promoted_at - timedelta(days=14)
+    pre_end = promoted_at - timedelta(days=1)
+    post_start = promoted_at
+    post_end = promoted_at + timedelta(days=13)
+
+    pre_clicks = (
+        GSCDailyPerformance.objects.filter(date__range=(pre_start, pre_end))
+        .aggregate(total=Sum("clicks"))["total"] or 0
+    )
+    post_clicks = (
+        GSCDailyPerformance.objects.filter(date__range=(post_start, post_end))
+        .aggregate(total=Sum("clicks"))["total"] or 0
+    )
+
+    if pre_clicks < 50:
+        logger.info(
+            "[check_weight_rollback] Skipping challenger %s — insufficient pre-promotion GSC data (%d clicks).",
+            challenger.run_id, pre_clicks,
+        )
+        return
+
+    ratio = post_clicks / pre_clicks
+    logger.info(
+        "[check_weight_rollback] Challenger %s: post/pre click ratio = %.3f (threshold %.2f).",
+        challenger.run_id, ratio, REGRESSION_THRESHOLD,
+    )
+
+    if ratio < REGRESSION_THRESHOLD:
+        # Roll back: restore the baseline_weights snapshot stored on the challenger.
+        if not challenger.baseline_weights:
+            logger.warning(
+                "[check_weight_rollback] No baseline_weights on challenger %s — cannot roll back.",
+                challenger.run_id,
+            )
+            return
+
+        previous_weights = get_current_weights()
+        rollback_target = dict(previous_weights)
+        for key, val in challenger.baseline_weights.items():
+            rollback_target[key] = str(val)
+
+        with transaction.atomic():
+            apply_weights(rollback_target)
+
+        new_weights = get_current_weights()
+        write_history(
+            source="cs_auto_tune",
+            previous_weights=previous_weights,
+            new_weights=new_weights,
+            reason=(
+                f"FR-018 auto-rollback: challenger {challenger.run_id[:16]} "
+                f"caused GSC regression (post/pre={ratio:.2f})."
+            ),
+            r_run_id=challenger.run_id,
+        )
+
+        challenger.status = "rolled_back"
+        challenger.save(update_fields=["status", "updated_at"])
+
+        logger.info(
+            "[check_weight_rollback] Rolled back challenger %s (ratio=%.3f).",
+            challenger.run_id, ratio,
+        )

@@ -1222,6 +1222,99 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- FR-018 Weight Auto-Tuner -->
+          <mat-card class="settings-card settings-card--wide">
+            <mat-card-header>
+              <mat-card-title>Auto-Tune (FR-018)</mat-card-title>
+              <mat-card-subtitle>C# L-BFGS optimiser proposes weight updates based on GSC, GA4, Matomo, and review signals.</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+
+              <!-- Run button -->
+              <div class="tune-trigger-row">
+                <button mat-stroked-button color="primary" [disabled]="triggeringCsTune" (click)="triggerCsTune()">
+                  @if (triggeringCsTune) {
+                    <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
+                  }
+                  Run Auto-Tune Now
+                </button>
+                <span class="tune-hint">Runs automatically on the first Sunday of every month at 02:30 UTC.</span>
+              </div>
+
+              <!-- Pending challenger -->
+              @if (loadingChallengers) {
+                <div class="challenger-loading">
+                  <mat-spinner diameter="24"></mat-spinner>
+                </div>
+              } @else if (pendingChallenger) {
+                <div class="challenger-pending">
+                  <div class="challenger-header">
+                    <mat-icon class="challenger-icon">auto_awesome</mat-icon>
+                    <span class="challenger-title">Pending Challenger</span>
+                    @if (challengerImprovementPct(pendingChallenger)) {
+                      <span class="challenger-badge challenger-badge--positive">{{ challengerImprovementPct(pendingChallenger) }}</span>
+                    }
+                    <span class="challenger-date">{{ pendingChallenger.created_at | date:'short' }}</span>
+                  </div>
+
+                  <!-- Weight diff -->
+                  <div class="challenger-diff">
+                    @for (key of challengerDiffKeys(pendingChallenger); track key) {
+                      <div class="diff-row">
+                        <span class="diff-key">{{ key }}</span>
+                        <span class="diff-old">{{ pendingChallenger.baseline_weights[key] | number:'1.2-4' }}</span>
+                        <mat-icon class="diff-arrow">arrow_forward</mat-icon>
+                        <span class="diff-new">{{ pendingChallenger.candidate_weights[key] | number:'1.2-4' }}</span>
+                      </div>
+                    }
+                  </div>
+
+                  <div class="challenger-actions">
+                    <button mat-raised-button color="primary" [disabled]="evaluatingChallenger" (click)="promoteChallenger(pendingChallenger)">
+                      @if (evaluatingChallenger) {
+                        <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
+                      }
+                      Promote
+                    </button>
+                    <button mat-button (click)="rejectChallenger(pendingChallenger)">Reject</button>
+                  </div>
+                </div>
+              } @else {
+                <div class="challenger-empty">
+                  <mat-icon>check_circle_outline</mat-icon>
+                  <span>No pending challenger. Current weights are the champion.</span>
+                </div>
+              }
+
+              <!-- Recent challengers -->
+              @if (challengers.length > 0) {
+                <div class="challenger-history">
+                  <table class="history-table">
+                    <thead>
+                      <tr>
+                        <th>Date</th>
+                        <th>Run ID</th>
+                        <th>Status</th>
+                        <th>Score Δ</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      @for (c of challengers; track c.id) {
+                        <tr>
+                          <td class="date-cell">{{ c.created_at | date:'shortDate' }}</td>
+                          <td class="run-id-cell"><code>{{ c.run_id | slice:0:12 }}…</code></td>
+                          <td><span class="source-tag source-tag--{{ c.status }}">{{ c.status }}</span></td>
+                          <td>{{ challengerImprovementPct(c) || '—' }}</td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              }
+
+            </mat-card-content>
+          </mat-card>
+
           <!-- History -->
           <mat-card class="settings-card settings-card--wide">
             <mat-card-header>

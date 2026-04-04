@@ -2445,3 +2445,34 @@ class RTuneTriggerView(APIView):
 
         task = monthly_r_auto_tune.delay()
         return Response({"detail": "R auto-tune task queued.", "task_id": task.id}, status=202)
+
+
+class CSTuneTriggerView(APIView):
+    """POST /api/settings/cs-tune/trigger/ — manually trigger a FR-018 C# weight-tune run."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from apps.pipeline.tasks import monthly_cs_weight_tune
+
+        task = monthly_cs_weight_tune.delay()
+        return Response({"detail": "C# weight-tune task queued.", "task_id": task.id}, status=202)
+
+
+class ChallengerEvaluateView(APIView):
+    """POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate a pending challenger."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request, run_id):
+        from apps.pipeline.tasks import evaluate_weight_challenger
+        from apps.suggestions.models import RankingChallenger
+
+        if not RankingChallenger.objects.filter(run_id=run_id, status="pending").exists():
+            return Response(
+                {"detail": f"No pending challenger with run_id '{run_id}'."},
+                status=404,
+            )
+
+        task = evaluate_weight_challenger.delay(run_id=run_id)
+        return Response({"detail": "Evaluation queued.", "task_id": task.id}, status=202)

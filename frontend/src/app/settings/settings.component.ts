@@ -13,6 +13,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute } from '@angular/router';
 import {
   FieldAwareRelevanceSettings,
@@ -36,6 +37,7 @@ import {
   SlateDiversitySettings,
   WeightPreset,
   WeightAdjustmentHistory,
+  RankingChallenger,
   AnalyticsConnectionResult,
   GA4TelemetrySettings,
   GA4TelemetryUpdate,
@@ -1144,6 +1146,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatTabsModule,
     MatTooltipModule,
     MatDividerModule,
+    MatProgressSpinnerModule,
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
@@ -1351,6 +1354,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   // Weight history
   weightHistory: WeightAdjustmentHistory[] = [];
+  challengers: RankingChallenger[] = [];
+  loadingChallengers = false;
+  triggeringCsTune = false;
+  evaluatingChallenger = false;
   loadingHistory = false;
   rollingBack = false;
   triggeringRTune = false;
@@ -1732,6 +1739,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       next: (history) => { this.weightHistory = history; this.loadingHistory = false; },
       error: () => { this.loadingHistory = false; },
     });
+    this.loadChallengers();
   }
 
   private checkAndAutoApplyRecommended(): void {
@@ -1862,7 +1870,79 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   historySourceLabel(source: string): string {
-    return { r_auto: 'R auto-tune', manual: 'Manual', preset_applied: 'Preset applied' }[source] ?? source;
+    return {
+      r_auto: 'R auto-tune',
+      cs_auto_tune: 'C# auto-tune',
+      manual: 'Manual',
+      preset_applied: 'Preset applied',
+    }[source] ?? source;
+  }
+
+  // ── FR-018 Weight Tuning ──────────────────────────────────────────────────
+
+  get pendingChallenger(): RankingChallenger | null {
+    return this.challengers.find((c) => c.status === 'pending') ?? null;
+  }
+
+  loadChallengers(): void {
+    this.loadingChallengers = true;
+    this.siloSvc.listChallengers().pipe(takeUntil(this.destroy$)).subscribe({
+      next: (challengers) => { this.challengers = challengers; this.loadingChallengers = false; },
+      error: () => { this.loadingChallengers = false; },
+    });
+  }
+
+  triggerCsTune(): void {
+    if (!confirm('Run the C# auto-tune now? This will analyse recent data and may propose new weights.')) return;
+    this.triggeringCsTune = true;
+    this.siloSvc.triggerCsTune().pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.triggeringCsTune = false;
+        this.snack.open('C# weight-tune task queued. Check back in a moment.', undefined, { duration: 3000 });
+        setTimeout(() => this.loadChallengers(), 5000);
+      },
+      error: () => {
+        this.triggeringCsTune = false;
+        this.snack.open('Failed to queue the C# tune task.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  promoteChallenger(challenger: RankingChallenger): void {
+    if (!confirm('Promote this challenger? Its weights will become active immediately.')) return;
+    this.evaluatingChallenger = true;
+    this.siloSvc.evaluateChallenger(challenger.run_id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.evaluatingChallenger = false;
+        this.snack.open('Challenger evaluation queued. Reload the page to see the new weights.', undefined, { duration: 4000 });
+        this.loadChallengers();
+      },
+      error: () => {
+        this.evaluatingChallenger = false;
+        this.snack.open('Failed to queue challenger evaluation.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  rejectChallenger(challenger: RankingChallenger): void {
+    if (!confirm('Reject this challenger? It will not be applied.')) return;
+    this.siloSvc.rejectChallenger(challenger.id).pipe(takeUntil(this.destroy$)).subscribe({
+      next: () => {
+        this.snack.open('Challenger rejected.', undefined, { duration: 2500 });
+        this.loadChallengers();
+      },
+      error: () => this.snack.open('Failed to reject challenger.', 'Dismiss', { duration: 4000 }),
+    });
+  }
+
+  challengerImprovementPct(c: RankingChallenger): string {
+    if (c.predicted_quality_score == null || c.champion_quality_score == null || c.champion_quality_score === 0) return '';
+    const pct = ((c.predicted_quality_score - c.champion_quality_score) / c.champion_quality_score) * 100;
+    return (pct >= 0 ? '+' : '') + pct.toFixed(1) + '%';
+  }
+
+  challengerDiffKeys(c: RankingChallenger): string[] {
+    return Object.keys(c.candidate_weights ?? {});
   }
 
   deltaKeys(delta: Record<string, any> | null | undefined): string[] {

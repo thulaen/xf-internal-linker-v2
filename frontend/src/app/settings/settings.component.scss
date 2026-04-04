@@ -530,3 +530,104 @@
     mat-icon { margin-right: 8px; }
   }
 }
+
+// ── FR-018 Weight Auto-Tuner card ─────────────────────────────────────────
+
+.tune-trigger-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+
+  .tune-hint {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+}
+
+.challenger-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-lg) 0;
+}
+
+.challenger-empty {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: 13px;
+
+  mat-icon { font-size: 20px; color: var(--color-text-secondary); }
+}
+
+.challenger-pending {
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  padding: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+
+.challenger-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-md);
+
+  .challenger-icon { color: var(--color-primary); font-size: 20px; }
+  .challenger-title { font-weight: 600; font-size: 13px; }
+  .challenger-date { font-size: 12px; color: var(--color-text-secondary); margin-left: auto; }
+}
+
+.challenger-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+
+  &--positive {
+    background: #e6f4ea;
+    color: #137333;
+  }
+}
+
+.challenger-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  margin-bottom: var(--space-md);
+  font-size: 12px;
+
+  .diff-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
+  .diff-key {
+    width: 200px;
+    font-family: monospace;
+    color: var(--color-text-secondary);
+  }
+
+  .diff-old { color: var(--color-text-secondary); }
+  .diff-arrow { font-size: 16px; color: var(--color-text-secondary); }
+  .diff-new { color: var(--color-primary); font-weight: 600; }
+}
+
+.challenger-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+
+.challenger-history {
+  margin-top: var(--space-lg);
+}
+
+.source-tag {
+  &--promoted { background: #e6f4ea; color: #137333; }
+  &--rejected, &--rolled_back { background: #fce8e6; color: #c5221f; }
+  &--pending { background: #e8f0fe; color: #1967d2; }
+}
