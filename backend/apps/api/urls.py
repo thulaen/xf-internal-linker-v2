@@ -103,6 +103,7 @@ urlpatterns = [
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),
     path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("", include("apps.notifications.urls")),
     path("system/status/", include("apps.diagnostics.urls")),
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),
 ]

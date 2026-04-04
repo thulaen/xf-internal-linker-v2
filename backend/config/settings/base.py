@@ -60,6 +60,7 @@ LOCAL_APPS = [
     "apps.sync",
     "apps.api",
     "apps.diagnostics",
+    "apps.notifications",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -209,6 +210,12 @@ CELERY_BEAT_SCHEDULE = {
     "nightly-data-retention": {
         "task": "pipeline.nightly_data_retention",
         "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "pipeline"},
+    },
+    # FR-019 — daily GSC spike detection: 08:00 UTC (after overnight GSC sync).
+    "daily-gsc-spike-check": {
+        "task": "pipeline.check_gsc_spikes",
+        "schedule": crontab(hour=8, minute=0),
         "options": {"queue": "pipeline"},
     },
 }

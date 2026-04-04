@@ -64,6 +64,12 @@ export const routes: Routes = [
     title: 'System Health — XF Internal Linker',
   },
   {
+    path: 'alerts',
+    loadComponent: () =>
+      import('./alerts/alerts.component').then((m) => m.AlertsComponent),
+    title: 'Alerts — XF Internal Linker',
+  },
+  {
     path: '**',
     redirectTo: '/dashboard',
   },

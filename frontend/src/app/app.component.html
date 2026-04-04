@@ -6,6 +6,9 @@
   }
   <span>{{ siteName }}</span>
   <span class="toolbar-spacer"></span>
+  <app-notification-center
+    [(open)]="notifPanelOpen"
+  />
   <button
     mat-icon-button
     matTooltip="Customize appearance"

@@ -15,6 +15,12 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute } from '@angular/router';
+import { DesktopNotificationService } from '../core/services/desktop-notification.service';
+import {
+  NotificationPreferences,
+  NotificationService,
+} from '../core/services/notification.service';
+import { AudioCueService } from '../core/services/audio-cue.service';
 import {
   FieldAwareRelevanceSettings,
   ClickDistanceSettings,
@@ -1151,6 +1157,9 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
 })
 export class SettingsComponent implements OnInit, OnDestroy {
   private siloSvc = inject(SiloSettingsService);
+  private notifSvc = inject(NotificationService);
+  desktopSvc = inject(DesktopNotificationService);
+  private audioSvc = inject(AudioCueService);
   private snack = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
   private destroy$ = new Subject<void>();
@@ -1183,6 +1192,30 @@ export class SettingsComponent implements OnInit, OnDestroy {
   testingGSCConnection = false;
   runningGSCSync = false;
   savingGoogleAuth = false;
+  savingNotifPrefs = false;
+  testingNotification = false;
+
+  notifPrefs: NotificationPreferences = {
+    desktop_enabled: true,
+    sound_enabled: true,
+    quiet_hours_enabled: false,
+    quiet_hours_start: '22:00',
+    quiet_hours_end: '07:00',
+    min_desktop_severity: 'warning',
+    min_sound_severity: 'error',
+    enable_job_completed: true,
+    enable_job_failed: true,
+    enable_job_stalled: true,
+    enable_model_status: true,
+    enable_gsc_spikes: true,
+    toast_enabled: true,
+    toast_min_severity: 'warning',
+    duplicate_cooldown_seconds: 900,
+    job_stalled_default_minutes: 15,
+    gsc_spike_min_impressions_delta: 50,
+    gsc_spike_min_clicks_delta: 5,
+    gsc_spike_min_relative_lift: 0.5,
+  };
 
   // Tab persistence
   selectedTabIndex = Number(localStorage.getItem('settings_active_tab') || '0');
@@ -1675,6 +1708,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       clustering: this.siloSvc.getClusteringSettings(),
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
+      notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         // Merge API data with the class-level defaults so that boolean
@@ -1703,6 +1737,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
         this.clustering = { ...this.clustering, ...data.clustering };
         this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
+        this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
       },
@@ -2717,5 +2752,46 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.snack.open('Failed to save scope assignment', 'Dismiss', { duration: 4000 });
       },
     });
+  }
+
+  // ── Notification preferences ──────────────────────────────────────
+
+  saveNotifPrefs(): void {
+    this.savingNotifPrefs = true;
+    this.notifSvc.savePreferences(this.notifPrefs).subscribe({
+      next: (saved) => {
+        this.notifPrefs = saved;
+        this.savingNotifPrefs = false;
+        this.snack.open('Notification preferences saved.', undefined, { duration: 2500 });
+      },
+      error: () => {
+        this.savingNotifPrefs = false;
+        this.snack.open('Failed to save notification preferences.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  sendTestNotification(severity: string): void {
+    this.testingNotification = true;
+    this.notifSvc.sendTestNotification(severity).subscribe({
+      next: () => {
+        this.testingNotification = false;
+        this.snack.open('Test notification sent.', undefined, { duration: 2500 });
+        this.audioSvc.playTone(severity === 'error' || severity === 'urgent' ? 'error' : 'warning');
+      },
+      error: () => {
+        this.testingNotification = false;
+        this.snack.open('Failed to send test notification.', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  async requestDesktopPermission(): Promise<void> {
+    const result = await this.desktopSvc.requestPermission();
+    if (result === 'granted') {
+      this.snack.open('Desktop notifications enabled.', undefined, { duration: 2500 });
+    } else if (result === 'denied') {
+      this.snack.open('Desktop notifications blocked by the browser.', 'Dismiss', { duration: 5000 });
+    }
   }
 }

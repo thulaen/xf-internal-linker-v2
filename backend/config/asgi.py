@@ -19,6 +19,7 @@ from channels.auth import AuthMiddlewareStack  # noqa: E402
 from channels.routing import ProtocolTypeRouter, URLRouter  # noqa: E402
 from channels.security.websocket import AllowedHostsOriginValidator  # noqa: E402
 
+from apps.notifications.routing import websocket_urlpatterns as notifications_ws  # noqa: E402
 from apps.pipeline.routing import websocket_urlpatterns as pipeline_ws  # noqa: E402
 
 application = ProtocolTypeRouter(
@@ -27,7 +28,7 @@ application = ProtocolTypeRouter(
         "websocket": AllowedHostsOriginValidator(
             AuthMiddlewareStack(
                 URLRouter(
-                    pipeline_ws,
+                    pipeline_ws + notifications_ws,
                 )
             )
         ),

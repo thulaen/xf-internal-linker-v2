@@ -8,8 +8,10 @@ import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
 import { DashboardService } from './dashboard/dashboard.service';
+import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
 import { environment } from '../environments/environment';
@@ -40,6 +42,7 @@ interface NavSection {
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    NotificationCenterComponent,
     ThemeCustomizerComponent,
     ScrollToTopComponent,
   ],
@@ -48,10 +51,12 @@ interface NavSection {
 })
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
+  private alertDelivery = inject(AlertDeliveryService);
   private dashboardSvc = inject(DashboardService);
   private destroyRef = inject(DestroyRef);
 
   customizerOpen = false;
+  notifPanelOpen = false;
   openBrokenLinks = 0;
 
   navSections: NavSection[] = [
@@ -110,12 +115,19 @@ export class AppComponent implements OnInit {
           route: '/settings',
           tooltip: 'Theme, silo controls, and app settings',
         },
+        {
+          label: 'Alerts',
+          icon: 'notifications',
+          route: '/alerts',
+          tooltip: 'Operator alert center',
+        },
       ],
     },
   ];
 
   ngOnInit(): void {
     this.appearance.load();
+    this.alertDelivery.start();
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data) => {

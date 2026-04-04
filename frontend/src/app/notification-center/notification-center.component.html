@@ -1,0 +1,101 @@
+<!-- Bell button in the toolbar — parent must place <app-notification-center> there -->
+<button
+  mat-icon-button
+  matTooltip="Notifications"
+  (click)="openPanel()"
+  [attr.aria-label]="'Notifications, ' + (notifSvc.unreadCount$ | async) + ' unread'"
+  [matBadge]="(notifSvc.unreadCount$ | async) || null"
+  matBadgeColor="warn"
+  matBadgeSize="small"
+>
+  <mat-icon>notifications</mat-icon>
+</button>
+
+<!-- Slide-over panel -->
+@if (open) {
+  <div class="notif-backdrop" (click)="close()"></div>
+  <div class="notif-panel" role="dialog" aria-label="Notification center">
+
+    <!-- Header -->
+    <div class="notif-panel-header">
+      <span class="notif-panel-title">Notifications</span>
+      <div class="notif-panel-actions">
+        @if (alerts.length > 0) {
+          <button
+            mat-button
+            class="notif-clear-btn"
+            matTooltip="Acknowledge all"
+            (click)="onAcknowledgeAll()"
+          >
+            Clear all
+          </button>
+        }
+        <button mat-icon-button matTooltip="Close" (click)="close()">
+          <mat-icon>close</mat-icon>
+        </button>
+      </div>
+    </div>
+
+    <mat-divider />
+
+    <!-- Loading state -->
+    @if (loading) {
+      <div class="notif-empty">
+        <mat-spinner diameter="24" />
+      </div>
+    }
+
+    <!-- Empty state -->
+    @if (!loading && alerts.length === 0) {
+      <div class="notif-empty">
+        <mat-icon class="notif-empty-icon">notifications_none</mat-icon>
+        <span class="notif-empty-label">No unread notifications</span>
+      </div>
+    }
+
+    <!-- Alert list -->
+    @if (!loading && alerts.length > 0) {
+      <ul class="notif-list" role="list">
+        @for (alert of alerts; track alert.alert_id) {
+          <li
+            class="notif-item notif-item--{{ alert.severity }}"
+            role="listitem"
+            [class.notif-item--clickable]="!!alert.related_route"
+            (click)="onOpenRelated(alert)"
+          >
+            <mat-icon class="notif-icon">{{ severityIcon(alert.severity) }}</mat-icon>
+            <div class="notif-body">
+              <span class="notif-title">{{ alert.title }}</span>
+              <span class="notif-msg">{{ alert.message }}</span>
+              <span class="notif-meta">
+                {{ alert.first_seen_at | date:'MMM d, h:mm a' }}
+                @if (alert.occurrence_count > 1) {
+                  &nbsp;· {{ alert.occurrence_count }}×
+                }
+              </span>
+            </div>
+            <button
+              mat-icon-button
+              class="notif-dismiss"
+              matTooltip="Acknowledge"
+              aria-label="Acknowledge"
+              (click)="onAcknowledge(alert, $event)"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </li>
+          <mat-divider />
+        }
+      </ul>
+    }
+
+    <!-- Footer -->
+    <div class="notif-panel-footer">
+      <button mat-button (click)="openAlertsPage()">
+        View all alerts
+        <mat-icon iconPositionEnd>arrow_forward</mat-icon>
+      </button>
+    </div>
+
+  </div>
+}

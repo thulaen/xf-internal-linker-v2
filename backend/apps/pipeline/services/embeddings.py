@@ -52,6 +52,26 @@ def _resolve_device() -> str:
     return "cpu"
 
 
+def _emit_model_alert(event_type: str, severity: str, title: str, message: str, model_name: str) -> None:
+    """Emit a model state alert. Never raises."""
+    try:
+        from apps.notifications.models import OperatorAlert
+        from apps.notifications.services import emit_operator_alert
+
+        emit_operator_alert(
+            event_type=event_type,
+            severity=severity,
+            title=title,
+            message=message,
+            source_area=OperatorAlert.AREA_MODELS,
+            dedupe_key=f"{event_type}:{model_name}",
+            related_route="/jobs",
+            payload={"model_name": model_name},
+        )
+    except Exception:
+        logger.warning("_emit_model_alert: failed to emit alert for model %s", model_name, exc_info=True)
+
+
 def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     """Load and cache a sentence-transformers model."""
     if model_name in _model_cache:
@@ -61,11 +81,35 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
 
     device = _resolve_device()
     logger.info("Loading embedding model '%s' on device='%s'...", model_name, device)
+    _emit_model_alert(
+        "model.warming",
+        "info",
+        "Embedding model is loading",
+        f"The app is loading the embedding model '{model_name}' into memory. The first run may be slower than normal.",
+        model_name,
+    )
     start = time.monotonic()
-    model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
+    try:
+        model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
+    except Exception as exc:
+        _emit_model_alert(
+            "model.load_failed",
+            "error",
+            "Embedding model failed to load",
+            f"The app could not load the embedding model '{model_name}': {exc}. Open Jobs or Error Log for details.",
+            model_name,
+        )
+        raise
     elapsed = time.monotonic() - start
     logger.info("Model loaded in %.2fs.", elapsed)
     _model_cache[model_name] = model
+    _emit_model_alert(
+        "model.ready",
+        "success",
+        "Embedding model ready",
+        f"Model '{model_name}' loaded successfully in {elapsed:.1f}s on {device}.",
+        model_name,
+    )
     if device == "cpu":
         try:
             import torch

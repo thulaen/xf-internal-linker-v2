@@ -1,0 +1,138 @@
+<div class="alerts-page">
+
+  <!-- Page header -->
+  <div class="alerts-header">
+    <h1 class="alerts-title">Notifications</h1>
+    @if (unreadCount > 0) {
+      <span class="alerts-unread-badge">{{ unreadCount }} unread</span>
+    }
+    <span class="alerts-spacer"></span>
+    @if (alerts.length > 0) {
+      <button mat-stroked-button (click)="onAcknowledgeAll()" matTooltip="Acknowledge all visible alerts">
+        <mat-icon>done_all</mat-icon>
+        Acknowledge all
+      </button>
+    }
+  </div>
+
+  <!-- Filters -->
+  <div class="alerts-filters">
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Status</mat-label>
+      <mat-select [(ngModel)]="filterStatus" (ngModelChange)="loadAlerts()">
+        @for (opt of statusOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Severity</mat-label>
+      <mat-select [(ngModel)]="filterSeverity" (ngModelChange)="loadAlerts()">
+        @for (opt of severityOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+
+    <mat-form-field appearance="outline" class="filter-field">
+      <mat-label>Area</mat-label>
+      <mat-select [(ngModel)]="filterSourceArea" (ngModelChange)="loadAlerts()">
+        @for (opt of sourceAreaOptions; track opt.value) {
+          <mat-option [value]="opt.value">{{ opt.label }}</mat-option>
+        }
+      </mat-select>
+    </mat-form-field>
+  </div>
+
+  <!-- Loading -->
+  @if (loading) {
+    <div class="alerts-loading">
+      <mat-spinner diameter="48" />
+    </div>
+  }
+
+  <!-- Empty state -->
+  @if (!loading && alerts.length === 0) {
+    <div class="alerts-empty">
+      <mat-icon class="alerts-empty-icon">notifications_none</mat-icon>
+      <h2>No notifications</h2>
+      <p>Completed jobs, failures, and search spikes will appear here.</p>
+    </div>
+  }
+
+  <!-- Alert cards -->
+  @if (!loading && alerts.length > 0) {
+    <div class="alerts-list">
+      @for (alert of alerts; track alert.alert_id) {
+        <mat-card class="alert-card alert-card--{{ alert.severity }}">
+          <mat-card-content>
+            <div class="alert-row">
+
+              <!-- Severity icon -->
+              <mat-icon class="alert-icon">{{ severityIcon(alert.severity) }}</mat-icon>
+
+              <!-- Body -->
+              <div class="alert-body">
+                <div class="alert-title-row">
+                  <span class="alert-title">{{ alert.title }}</span>
+                  <span class="alert-severity-chip chip--{{ alert.severity }}">{{ alert.severity }}</span>
+                  <span class="alert-status-chip chip--status--{{ alert.status }}">{{ alert.status }}</span>
+                  @if (alert.occurrence_count > 1) {
+                    <span class="alert-count-chip">{{ alert.occurrence_count }}×</span>
+                  }
+                </div>
+                <p class="alert-message">{{ alert.message }}</p>
+                <span class="alert-meta">
+                  {{ alert.source_area }} · {{ alert.event_type }} · {{ alert.first_seen_at | date:'MMM d, y, h:mm a' }}
+                </span>
+              </div>
+
+              <!-- Actions -->
+              <div class="alert-actions">
+                @if (alert.related_route) {
+                  <button
+                    mat-icon-button
+                    matTooltip="Open related page"
+                    (click)="openRelated(alert)"
+                  >
+                    <mat-icon>open_in_new</mat-icon>
+                  </button>
+                }
+                @if (alert.status === 'unread') {
+                  <button
+                    mat-icon-button
+                    matTooltip="Mark read"
+                    (click)="onMarkRead(alert)"
+                  >
+                    <mat-icon>mark_email_read</mat-icon>
+                  </button>
+                }
+                @if (alert.status !== 'acknowledged' && alert.status !== 'resolved') {
+                  <button
+                    mat-icon-button
+                    matTooltip="Acknowledge"
+                    (click)="onAcknowledge(alert)"
+                  >
+                    <mat-icon>close</mat-icon>
+                  </button>
+                }
+                @if (alert.status !== 'resolved') {
+                  <button
+                    mat-icon-button
+                    matTooltip="Mark resolved"
+                    (click)="onResolve(alert)"
+                  >
+                    <mat-icon>check</mat-icon>
+                  </button>
+                }
+              </div>
+
+            </div>
+          </mat-card-content>
+        </mat-card>
+      }
+    </div>
+  }
+
+</div>

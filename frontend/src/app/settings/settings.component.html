@@ -1358,6 +1358,182 @@
         </div>
       </div>
     </mat-tab>
+
+    <!-- TAB 5: NOTIFICATIONS -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon style="margin-right: 6px; font-size: 16px; height: 16px; width: 16px;">notifications</mat-icon>
+        Notifications
+      </ng-template>
+      <div class="settings-tab-content">
+        <div class="settings-grid settings-grid--single">
+
+          <!-- Alert delivery -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Alert delivery</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Choose which channels deliver operator alerts. In-app bell center is always on.</p>
+
+              <div class="form-row">
+                <mat-checkbox [(ngModel)]="notifPrefs.toast_enabled">Show toast notifications</mat-checkbox>
+              </div>
+              <div class="form-row" style="margin-top: 8px;">
+                <mat-form-field appearance="outline">
+                  <mat-label>Minimum severity for toast</mat-label>
+                  <mat-select [(ngModel)]="notifPrefs.toast_min_severity">
+                    <mat-option value="info">Info and above</mat-option>
+                    <mat-option value="success">Success and above</mat-option>
+                    <mat-option value="warning">Warning and above</mat-option>
+                    <mat-option value="error">Error and above</mat-option>
+                    <mat-option value="urgent">Urgent only</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+
+              <mat-divider style="margin: 16px 0;" />
+
+              <div class="form-row">
+                <mat-checkbox [(ngModel)]="notifPrefs.desktop_enabled">Desktop popup notifications</mat-checkbox>
+              </div>
+              @if (notifPrefs.desktop_enabled) {
+                <div class="form-row" style="margin-top: 8px; gap: 8px; align-items: center; flex-wrap: wrap;">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Minimum severity for desktop popup</mat-label>
+                    <mat-select [(ngModel)]="notifPrefs.min_desktop_severity">
+                      <mat-option value="info">Info and above</mat-option>
+                      <mat-option value="success">Success and above</mat-option>
+                      <mat-option value="warning">Warning and above</mat-option>
+                      <mat-option value="error">Error and above</mat-option>
+                      <mat-option value="urgent">Urgent only</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                  @if ((desktopSvc.permission$ | async) !== 'granted') {
+                    <button mat-stroked-button color="primary" (click)="requestDesktopPermission()">
+                      <mat-icon>notifications_active</mat-icon>
+                      Grant browser permission
+                    </button>
+                  } @else {
+                    <span class="hint" style="color: #34a853;">
+                      <mat-icon style="font-size: 16px; vertical-align: middle;">check_circle</mat-icon>
+                      Browser permission granted
+                    </span>
+                  }
+                  @if ((desktopSvc.permission$ | async) === 'denied') {
+                    <p class="hint" style="color: var(--color-error);">
+                      Desktop notifications are blocked in this browser. Open browser site settings to unblock.
+                    </p>
+                  }
+                </div>
+              }
+
+              <mat-divider style="margin: 16px 0;" />
+
+              <div class="form-row">
+                <mat-checkbox [(ngModel)]="notifPrefs.sound_enabled">Sound cues</mat-checkbox>
+              </div>
+              @if (notifPrefs.sound_enabled) {
+                <div class="form-row" style="margin-top: 8px;">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Minimum severity for sound</mat-label>
+                    <mat-select [(ngModel)]="notifPrefs.min_sound_severity">
+                      <mat-option value="info">Info and above</mat-option>
+                      <mat-option value="success">Success and above</mat-option>
+                      <mat-option value="warning">Warning and above</mat-option>
+                      <mat-option value="error">Error and above</mat-option>
+                      <mat-option value="urgent">Urgent only</mat-option>
+                    </mat-select>
+                  </mat-form-field>
+                </div>
+              }
+
+              <div class="card-actions-row" style="margin-top: 16px;">
+                <button mat-flat-button color="primary" [disabled]="savingNotifPrefs" (click)="saveNotifPrefs()">
+                  <mat-icon>save</mat-icon>
+                  {{ savingNotifPrefs ? 'Saving...' : 'Save delivery settings' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Quiet hours -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Quiet hours</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">During quiet hours, sound and desktop popups are muted. In-app alerts still appear.</p>
+              <div class="form-row">
+                <mat-checkbox [(ngModel)]="notifPrefs.quiet_hours_enabled">Enable quiet hours</mat-checkbox>
+              </div>
+              @if (notifPrefs.quiet_hours_enabled) {
+                <div class="form-row" style="margin-top: 8px;">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Start time (HH:MM)</mat-label>
+                    <input matInput [(ngModel)]="notifPrefs.quiet_hours_start" placeholder="22:00" />
+                  </mat-form-field>
+                  <mat-form-field appearance="outline">
+                    <mat-label>End time (HH:MM)</mat-label>
+                    <input matInput [(ngModel)]="notifPrefs.quiet_hours_end" placeholder="07:00" />
+                  </mat-form-field>
+                </div>
+              }
+              <div class="card-actions-row" style="margin-top: 16px;">
+                <button mat-flat-button color="primary" [disabled]="savingNotifPrefs" (click)="saveNotifPrefs()">
+                  <mat-icon>save</mat-icon>
+                  {{ savingNotifPrefs ? 'Saving...' : 'Save quiet hours' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Event subscriptions -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Event subscriptions</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Choose which events create alerts.</p>
+              <div class="form-row"><mat-checkbox [(ngModel)]="notifPrefs.enable_job_completed">Job completed</mat-checkbox></div>
+              <div class="form-row"><mat-checkbox [(ngModel)]="notifPrefs.enable_job_failed">Job failed</mat-checkbox></div>
+              <div class="form-row"><mat-checkbox [(ngModel)]="notifPrefs.enable_job_stalled">Job stalled</mat-checkbox></div>
+              <div class="form-row"><mat-checkbox [(ngModel)]="notifPrefs.enable_model_status">Embedding model status changes</mat-checkbox></div>
+              <div class="form-row"><mat-checkbox [(ngModel)]="notifPrefs.enable_gsc_spikes">Google Search Console demand spikes</mat-checkbox></div>
+              <div class="card-actions-row" style="margin-top: 16px;">
+                <button mat-flat-button color="primary" [disabled]="savingNotifPrefs" (click)="saveNotifPrefs()">
+                  <mat-icon>save</mat-icon>
+                  {{ savingNotifPrefs ? 'Saving...' : 'Save subscriptions' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- Test alert -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Send a test alert</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Fire a synthetic alert to verify that the bell, toast, desktop popup, and sound are all working.</p>
+              <div class="card-actions-row">
+                <button mat-stroked-button [disabled]="testingNotification" (click)="sendTestNotification('warning')">
+                  <mat-icon>warning</mat-icon> Test warning
+                </button>
+                <button mat-stroked-button color="warn" [disabled]="testingNotification" (click)="sendTestNotification('error')">
+                  <mat-icon>error</mat-icon> Test error
+                </button>
+                <button mat-flat-button color="primary" [disabled]="testingNotification" (click)="sendTestNotification('urgent')">
+                  <mat-icon>priority_high</mat-icon> Test urgent
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+        </div>
+      </div>
+    </mat-tab>
+
   </mat-tab-group>
 
   <!-- Sticky Mobile/Global Save Trigger for UX -->

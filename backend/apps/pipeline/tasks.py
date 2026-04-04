@@ -49,6 +49,39 @@ def _publish_progress(job_id: str, state: str, progress: float, message: str, **
         logger.exception("Failed to publish progress event for job %s", job_id)
 
 
+def _emit_job_alert(
+    event_type: str,
+    severity: str,
+    title: str,
+    message: str,
+    *,
+    job_id: str,
+    job_type: str,
+    related_route: str = "/jobs",
+    error_log_id: int | None = None,
+) -> None:
+    """Emit an operator alert for a job event. Never raises — alert failure must not kill the task."""
+    try:
+        from apps.notifications.services import emit_operator_alert
+        from apps.notifications.models import OperatorAlert
+
+        emit_operator_alert(
+            event_type=event_type,
+            severity=severity,
+            title=title,
+            message=message,
+            source_area=OperatorAlert.AREA_JOBS,
+            dedupe_key=f"{event_type}:{job_id}",
+            related_object_type="SyncJob",
+            related_object_id=job_id,
+            related_route=related_route,
+            payload={"job_id": job_id, "job_type": job_type},
+            error_log_id=error_log_id,
+        )
+    except Exception:
+        logger.warning("_emit_job_alert: failed to emit alert for job %s", job_id, exc_info=True)
+
+
 def _runtime_owner_for_lane(lane: str) -> str:
     from django.conf import settings
 
@@ -275,6 +308,14 @@ def run_pipeline(
             suggestions_created=result.suggestions_created,
             destinations_processed=result.items_in_scope,
         )
+        _emit_job_alert(
+            "job.completed",
+            "success",
+            "Pipeline job completed",
+            f"Pipeline finished. {result.suggestions_created} suggestions created from {result.items_in_scope} destinations.",
+            job_id=job_id,
+            job_type="pipeline",
+        )
         return {
             "run_id": run_id,
             "state": "completed",
@@ -289,6 +330,14 @@ def run_pipeline(
         run.duration_seconds = time.monotonic() - started_at
         run.save(update_fields=["run_state", "error_message", "duration_seconds", "updated_at"])
         _publish_progress(job_id, "failed", 0.0, f"Pipeline failed: {exc}", error=str(exc))
+        _emit_job_alert(
+            "job.failed",
+            "error",
+            "Pipeline job failed",
+            f"The pipeline run stopped with an error: {exc}",
+            job_id=job_id,
+            job_type="pipeline",
+        )
         raise
 
 
@@ -310,10 +359,26 @@ def generate_embeddings(self, content_item_ids: list[int] | None = None) -> dict
             f"Embeddings complete; {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences.",
             **stats,
         )
+        _emit_job_alert(
+            "job.completed",
+            "success",
+            "Embedding job completed",
+            f"Embeddings finished. {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences embedded.",
+            job_id=job_id,
+            job_type="embed",
+        )
         return {"job_id": job_id, **stats}
     except Exception as exc:
         logger.exception("Embedding job %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Embeddings failed: {exc}", error=str(exc))
+        _emit_job_alert(
+            "job.failed",
+            "error",
+            "Embedding job failed",
+            f"The embedding run stopped with an error: {exc}",
+            job_id=job_id,
+            job_type="embed",
+        )
         raise
 
 
@@ -782,6 +847,14 @@ def import_content(
             1.0,
             f"Content import complete ({source}). {items_synced} items synced, {items_updated} updated.",
         )
+        _emit_job_alert(
+            "job.completed",
+            "success",
+            "Import job completed",
+            f"Content import finished. {items_synced} items synced, {items_updated} updated.",
+            job_id=job_id,
+            job_type="import",
+        )
         return {"mode": mode, "job_id": job_id, "items_synced": items_synced, "items_updated": items_updated}
     except Exception as exc:
         logger.exception("Import job %s failed", job_id)
@@ -790,6 +863,14 @@ def import_content(
         job.completed_at = timezone.now()
         job.save()
         _publish_progress(job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc))
+        _emit_job_alert(
+            "job.failed",
+            "error",
+            "Import job failed",
+            f"The content import stopped with an error: {exc}",
+            job_id=job_id,
+            job_type="import",
+        )
         raise
 
 
@@ -1781,3 +1862,120 @@ def _check_single_rollback(challenger):
             "[check_weight_rollback] Rolled back challenger %s (ratio=%.3f).",
             challenger.run_id, ratio,
         )
+
+
+# ── FR-019: GSC spike detection ───────────────────────────────────────────────
+
+
+@shared_task(bind=True, name="pipeline.check_gsc_spikes")
+def check_gsc_spikes(self) -> dict:
+    """
+    Detect significant week-on-week Google Search Console demand spikes.
+
+    For each ContentItem with at least 7 days of GSC data, compare the
+    most recent 3-day average against the previous 7-day baseline. If
+    either impressions or clicks jump above the configured thresholds,
+    emit an analytics.gsc_spike operator alert.
+
+    Thresholds are read from the notifications.settings AppSetting so
+    the operator can tune them from the UI.
+    """
+    import json
+    from datetime import date, timedelta
+
+    from django.db.models import Avg
+
+    from apps.analytics.models import SearchMetric
+    from apps.content.models import ContentItem
+    from apps.notifications.models import OperatorAlert
+    from apps.notifications.services import emit_operator_alert
+
+    # Load thresholds from prefs (defaults if not set)
+    try:
+        from apps.core.models import AppSetting
+        raw = AppSetting.objects.filter(key="notifications.settings").first()
+        prefs = json.loads(raw.value) if raw else {}
+    except Exception:
+        prefs = {}
+
+    min_impressions_delta = int(prefs.get("gsc_spike_min_impressions_delta", 50))
+    min_clicks_delta = int(prefs.get("gsc_spike_min_clicks_delta", 5))
+    min_relative_lift = float(prefs.get("gsc_spike_min_relative_lift", 0.5))
+
+    today = date.today()
+    recent_end = today - timedelta(days=1)          # yesterday
+    recent_start = recent_end - timedelta(days=2)   # 3-day window
+    baseline_end = recent_start - timedelta(days=1)
+    baseline_start = baseline_end - timedelta(days=6)  # 7-day baseline
+
+    alerts_emitted = 0
+
+    for item in ContentItem.objects.all().iterator():
+        recent_qs = SearchMetric.objects.filter(
+            content_item=item,
+            source="gsc",
+            date__gte=recent_start,
+            date__lte=recent_end,
+        ).aggregate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
+
+        baseline_qs = SearchMetric.objects.filter(
+            content_item=item,
+            source="gsc",
+            date__gte=baseline_start,
+            date__lte=baseline_end,
+        ).aggregate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
+
+        r_imp = recent_qs["avg_impressions"] or 0.0
+        r_clk = recent_qs["avg_clicks"] or 0.0
+        b_imp = baseline_qs["avg_impressions"] or 0.0
+        b_clk = baseline_qs["avg_clicks"] or 0.0
+
+        # Skip if no baseline data
+        if b_imp == 0 and b_clk == 0:
+            continue
+
+        imp_delta = r_imp - b_imp
+        clk_delta = r_clk - b_clk
+        imp_lift = (imp_delta / b_imp) if b_imp > 0 else 0.0
+        clk_lift = (clk_delta / b_clk) if b_clk > 0 else 0.0
+
+        impressions_spike = imp_delta >= min_impressions_delta and imp_lift >= min_relative_lift
+        clicks_spike = clk_delta >= min_clicks_delta and clk_lift >= min_relative_lift
+
+        if not (impressions_spike or clicks_spike):
+            continue
+
+        severity = OperatorAlert.SEVERITY_URGENT if (imp_lift >= 2.0 or clk_lift >= 2.0) else OperatorAlert.SEVERITY_WARNING
+        title = "Google search demand spiked"
+        message = (
+            f"'{item.title[:60]}' — impressions: +{imp_delta:.0f} ({imp_lift*100:.0f}%), "
+            f"clicks: +{clk_delta:.0f} ({clk_lift*100:.0f}%). Review the Analytics page."
+        )
+
+        try:
+            emit_operator_alert(
+                event_type="analytics.gsc_spike",
+                severity=severity,
+                title=title,
+                message=message,
+                source_area=OperatorAlert.AREA_ANALYTICS,
+                dedupe_key=f"analytics.gsc_spike:{item.pk}:{today.isoformat()}",
+                related_object_type="ContentItem",
+                related_object_id=str(item.pk),
+                related_route="/analytics",
+                payload={
+                    "content_item_id": item.pk,
+                    "title": item.title,
+                    "impressions_delta": round(imp_delta, 1),
+                    "clicks_delta": round(clk_delta, 1),
+                    "impressions_lift_pct": round(imp_lift * 100, 1),
+                    "clicks_lift_pct": round(clk_lift * 100, 1),
+                },
+                cooldown_seconds=86400,  # 24-hour cooldown per page per day
+            )
+            alerts_emitted += 1
+        except Exception:
+            logger.warning("check_gsc_spikes: failed to emit alert for item %s", item.pk, exc_info=True)
+
+    logger.info("check_gsc_spikes: %d spike alerts emitted.", alerts_emitted)
+    return {"alerts_emitted": alerts_emitted}
