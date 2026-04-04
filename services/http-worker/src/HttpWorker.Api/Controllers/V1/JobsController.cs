@@ -16,15 +16,19 @@ public sealed class JobsController(
         [FromBody] JobRequest? request,
         CancellationToken cancellationToken)
     {
-        jobProcessor.ValidateJobRequest(request);
-        await jobQueueService.QueueJobAsync(request!, cancellationToken);
+        try {
+            jobProcessor.ValidateJobRequest(request);
+            await jobQueueService.QueueJobAsync(request!, cancellationToken);
 
-        return Accepted(new QueueSubmitResponse
-        {
-            JobId = request!.JobId,
-            Status = "queued",
-            QueuedAt = DateTimeOffset.UtcNow,
-        });
+            return Accepted(new QueueSubmitResponse
+            {
+                JobId = request!.JobId,
+                Status = "queued",
+                QueuedAt = DateTimeOffset.UtcNow,
+            });
+        } catch (Exception ex) {
+            return StatusCode(500, new { error = ex.ToString() });
+        }
     }
 
     [HttpGet("{jobId}/result")]

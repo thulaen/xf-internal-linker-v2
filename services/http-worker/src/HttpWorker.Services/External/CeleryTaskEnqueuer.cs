@@ -7,10 +7,10 @@ namespace HttpWorker.Services.External;
 
 public class CeleryTaskEnqueuer
 {
-    private readonly IConnectionMultiplexer _redis;
+    private readonly ConnectionMultiplexer _redis;
     private readonly string _queueName;
 
-    public CeleryTaskEnqueuer(IConnectionMultiplexer redis, string queueName = "celery")
+    public CeleryTaskEnqueuer(ConnectionMultiplexer redis, string queueName = "celery")
     {
         _redis = redis;
         _queueName = queueName;

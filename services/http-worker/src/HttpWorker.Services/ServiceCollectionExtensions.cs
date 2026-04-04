@@ -40,6 +40,10 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRuntimeTelemetryService, RedisRuntimeTelemetryService>();
         services.AddSingleton<ISchedulerDispatchService, SchedulerDispatchService>();
         services.AddSingleton<GSCAttributionService>();
+        services.AddSingleton<HttpWorker.Services.External.CeleryTaskEnqueuer>();
+        services.AddSingleton<HttpWorker.Core.Interfaces.IXenForoClient, HttpWorker.Services.External.XenForoClient>();
+        services.AddSingleton<HttpWorker.Core.Interfaces.IWordPressClient, HttpWorker.Services.External.WordPressClient>();
+        services.AddSingleton<HttpWorker.Core.Interfaces.ITextDistiller, HttpWorker.Services.Distillation.TextDistiller>();
         services.AddSingleton<IImportContentService, ImportContentService>();
         services.AddSingleton<IRunPipelineService, RunPipelineService>();
         services.AddSingleton<JobProcessor>();
