@@ -82,6 +82,52 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "entity_salience.max_salient_terms": "10",
     "entity_salience.max_site_document_frequency": "20",
     "entity_salience.min_source_term_frequency": "2",
+    # FR-041 - Originality Provenance Scoring
+    # Forward-declared: inert until FR-041 is implemented and reads these keys.
+    # Research basis: US8707459B2 plus lexical near-duplicate provenance math
+    # using shingles, resemblance, and containment. Starting weight is 0.03
+    # because the signal is narrow by design: it should gently prefer the
+    # earliest, most source-like page within a near-copy family, not override
+    # broader relevance or authority signals across unrelated pages.
+    "originality_provenance.enabled": "true",
+    "originality_provenance.ranking_weight": "0.03",
+    "originality_provenance.resemblance_threshold": "0.55",
+    "originality_provenance.containment_threshold": "0.80",
+    # FR-042 - Fact Density Scoring
+    # Forward-declared: inert until FR-042 is implemented and reads these keys.
+    # Research basis: factual-density literature plus US9286379B2 document-quality
+    # framing. Starting weight is 0.04 because this is a broadly useful quality
+    # signal, but it still relies on heuristic fact-like sentence detection and
+    # may be noisy on conversational forum content until calibrated on live data.
+    "fact_density.enabled": "true",
+    "fact_density.ranking_weight": "0.04",
+    "fact_density.min_word_count": "120",
+    "fact_density.density_cap_per_100_words": "8.0",
+    "fact_density.filler_penalty_weight": "0.35",
+    # FR-043 - Semantic Drift Penalty
+    # Forward-declared: inert until FR-043 is implemented and reads these keys.
+    # Research basis: Hearst TextTiling segmentation plus US8185378B2 text-
+    # coherence ideas. Starting weight is 0.03 because this is a subtractive
+    # quality guardrail and should begin conservatively to avoid over-penalizing
+    # long forum pages, compilations, or pages with legitimate multi-section flow.
+    "semantic_drift.enabled": "true",
+    "semantic_drift.ranking_weight": "0.03",
+    "semantic_drift.tokens_per_sequence": "20",
+    "semantic_drift.block_size_in_sequences": "6",
+    "semantic_drift.anchor_similarity_threshold": "0.18",
+    "semantic_drift.min_word_count": "180",
+    # FR-044 - Internal Search Intensity Signal
+    # Forward-declared: inert until FR-044 is implemented and reads these keys.
+    # Research basis: Matomo Site Search aggregates, burst-style trend math, and
+    # US20050102259A1 query-trend analysis. Starting weight is 0.02 because this
+    # signal is temporally noisy and query matching can overfire before operators
+    # validate that active internal-search topics map cleanly onto destination pages.
+    "internal_search.enabled": "true",
+    "internal_search.ranking_weight": "0.02",
+    "internal_search.recent_days": "3",
+    "internal_search.baseline_days": "28",
+    "internal_search.max_active_queries": "200",
+    "internal_search.min_recent_count": "3",
 }
 
 

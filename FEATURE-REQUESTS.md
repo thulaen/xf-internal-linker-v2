@@ -1217,6 +1217,118 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-041 - Originality Provenance Scoring
+**Requested:** 2026-04-04
+**Target phase:** Phase 44
+**Priority:** Medium
+**Research basis:** Google patent `US8707459B2` (*Determination of Originality of Content*), Broder-style shingling / resemblance / containment math for lexical near-duplicate families.
+**Spec draft:** `docs/specs/fr041-originality-provenance-scoring.md`
+
+### What's wanted
+- Reward the page that appears to be the earliest, most source-like version inside a family of very similar pages.
+- This is not duplicate suppression and not freshness. It is a small historical-authority signal for the page that most likely introduced the topic first on this site.
+
+### Specific controls / behaviour
+- New destination-level score: `originality_provenance_score` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when the page has no sufficiently similar peer family or lacks reliable timing data.
+- Build lexical near-copy families from word shingles using resemblance and containment thresholds.
+- Prefer the earliest `source_published_at` member of a family, with modest support from containment and canonical URL signals.
+- New suggestion-level copy field: `score_originality_provenance`.
+- New suggestion diagnostics field: `originality_provenance_diagnostics`.
+- New settings: `originality_provenance.enabled`, `originality_provenance.ranking_weight` (default `0.0`), `originality_provenance.resemblance_threshold`, `originality_provenance.containment_threshold`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-014` duplicate clustering. `FR-014` groups similar pages; `FR-041` asks which one looks original within that family.
+- Add `source_published_at` on `ContentItem` so source-system publication time can be stored when available.
+- Use the existing normalized tokenizer and a deterministic shingling pass. Do not introduce external crawling or copyright-ownership logic.
+- Full spec: `docs/specs/fr041-originality-provenance-scoring.md`.
+
+---
+
+### FR-042 - Fact Density Scoring
+**Requested:** 2026-04-04
+**Target phase:** Phase 45
+**Priority:** Medium
+**Research basis:** NODALIDA 2013 paper *Using Factual Density to Measure Informativeness of Web Documents*, patent `US9286379B2` (*Document Quality Measurement*).
+**Spec draft:** `docs/specs/fr042-fact-density-scoring.md`
+
+### What's wanted
+- Reward destination pages that pack more concrete, fact-like information into fewer words.
+- Penalize pages that are mostly vague filler, padding, or generic marketing language.
+
+### Specific controls / behaviour
+- New destination-level score: `fact_density_score` bounded `[0.5, 1.0]`.
+- Neutral `0.5` for short or underspecified pages where density cannot be estimated reliably.
+- Approximate factual propositions using deterministic sentence-level patterns over clean text.
+- Normalize estimated fact count by document length, then dampen the score using a filler-sentence ratio.
+- New suggestion-level copy field: `score_fact_density`.
+- New suggestion diagnostics field: `fact_density_diagnostics`.
+- New settings: `fact_density.enabled`, `fact_density.ranking_weight` (default `0.0`), `fact_density.min_word_count`, `fact_density.density_cap_per_100_words`, `fact_density.filler_penalty_weight`.
+
+### Implementation notes for the AI
+- Prefer `Post.clean_text`, otherwise `ContentItem.distilled_text`.
+- Keep this as a quality-like signal separate from relevance, engagement, and multimedia richness.
+- Do not add heavy Open IE dependencies in v1. Use deterministic heuristics only.
+- Full spec: `docs/specs/fr042-fact-density-scoring.md`.
+
+---
+
+### FR-043 - Semantic Drift Penalty
+**Requested:** 2026-04-04
+**Target phase:** Phase 46
+**Priority:** Medium
+**Research basis:** Hearst TextTiling segmentation math (ACL 1994), patent `US8185378B2` (*Text Coherence Determination*).
+**Spec draft:** `docs/specs/fr043-semantic-drift-penalty.md`
+
+### What's wanted
+- Penalize destination pages that begin on-topic but drift into unrelated material later.
+- Keep focused pages preferred over pages that only look relevant in the opening section.
+
+### Specific controls / behaviour
+- New destination-level penalty score: `semantic_drift_penalty_score` bounded `[0.5, 1.0]`.
+- Neutral `0.5` for short or single-segment pages where drift cannot be measured reliably.
+- Segment destination text using deterministic adjacent-block similarity and depth-score boundaries.
+- Use the first coherent segment as the anchor topic and measure how many later segments fall below an anchor-similarity threshold.
+- New suggestion-level copy field: `score_semantic_drift_penalty`.
+- New suggestion diagnostics field: `semantic_drift_diagnostics`.
+- New settings: `semantic_drift.enabled`, `semantic_drift.ranking_weight` (default `0.0`), `semantic_drift.tokens_per_sequence`, `semantic_drift.block_size_in_sequences`, `semantic_drift.anchor_similarity_threshold`, `semantic_drift.min_word_count`.
+
+### Implementation notes for the AI
+- Keep this separate from `score_semantic`, `FR-038`, and `FR-039`. Those measure topical fit or novelty, not within-document coherence.
+- Compute once per destination and cache the result. Do not recompute per host-destination pair.
+- Start as a subtractive experimental penalty with zero ranking weight by default.
+- Full spec: `docs/specs/fr043-semantic-drift-penalty.md`.
+
+---
+
+### FR-044 - Internal Search Intensity Signal
+**Requested:** 2026-04-04
+**Target phase:** Phase 47
+**Priority:** Medium
+**Research basis:** Matomo Site Search reporting model, Kleinberg burst-detection math, patent `US20050102259A1` (*Systems and Methods for Search Query Processing Using Trend Analysis*).
+**Spec draft:** `docs/specs/fr044-internal-search-intensity.md`
+
+### What's wanted
+- Give a temporary boost to destinations that match topics users are actively searching for inside the site right now.
+- Use aggregate internal-search demand as a fresh, privacy-safe signal.
+
+### Specific controls / behaviour
+- New destination-level score: `internal_search_intensity_score` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when internal-search telemetry is missing, stale, or shows no active queries.
+- Build daily aggregates for normalized site-search queries and compare recent volume against a longer baseline window.
+- Score a destination by the strongest active query it matches, using title/body token overlap against burst-aware query intensity.
+- New suggestion-level copy field: `score_internal_search_intensity`.
+- New suggestion diagnostics field: `internal_search_diagnostics`.
+- New settings: `internal_search.enabled`, `internal_search.ranking_weight` (default `0.0`), `internal_search.recent_days`, `internal_search.baseline_days`, `internal_search.max_active_queries`, `internal_search.min_recent_count`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-016`, `FR-018`, and `FR-019`. This is aggregate search-demand scoring, not attribution telemetry or alerting.
+- Store daily aggregate counts only. Do not store user-level query histories in the ranking path.
+- Matomo Site Search is the preferred first source if site-search tracking is available.
+- Full spec: `docs/specs/fr044-internal-search-intensity.md`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1240,4 +1352,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43.)*
+*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47.)*

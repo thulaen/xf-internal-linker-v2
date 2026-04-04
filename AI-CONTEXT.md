@@ -274,6 +274,32 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-04 - Doc-only FR backlog expansion
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `FEATURE-REQUESTS.md`
+  - `backend/apps/suggestions/recommended_weights.py`
+  - `docs/specs/fr041-originality-provenance-scoring.md`
+  - `docs/specs/fr042-fact-density-scoring.md`
+  - `docs/specs/fr043-semantic-drift-penalty.md`
+  - `docs/specs/fr044-internal-search-intensity.md`
+  - `AI-CONTEXT.md`
+- What changed:
+  - Added four future backlog items and implementation-spec drafts for:
+    - `FR-041` Originality Provenance Scoring
+    - `FR-042` Fact Density Scoring
+    - `FR-043` Semantic Drift Penalty
+    - `FR-044` Internal Search Intensity Signal
+  - The specs were written from repo review plus web research on patents, papers, and scoring math.
+  - Added forward-declared recommended preset keys for `FR-041` through `FR-044` with conservative starting weights so implementation can later wire them in without inventing first-pass defaults.
+  - The active delivery target is still unchanged: `Phase 20 / FR-017 Slice 4`.
+- Verification that passed:
+  - Documentation-only review of existing models, pipeline boundaries, and backlog/spec consistency.
+- Important handoff:
+  - The git worktree was already dirty before this doc-only session due to unrelated implementation work in backend and `services/http-worker/`. Those files were not reverted or modified by this documentation pass.
+  - No code build or Docker verification was run because this session changed only documentation/backlog files.
+
 - AI/tool: Codex
 - Intentional files changed:
   - `docker-compose.yml`
