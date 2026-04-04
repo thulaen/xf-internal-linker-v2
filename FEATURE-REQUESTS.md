@@ -1180,6 +1180,43 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-040 - Multimedia Boost — Content Richness Signal
+**Requested:** 2026-04-04
+**Target phase:** Phase 43
+**Priority:** Medium
+**Research basis:** Google Image SEO documentation (alt text as confirmed signal), Google patent `US8189685B1` (*Ranking Video Articles*), Wistia video engagement study (2.6× time on page), Google AI Overviews multimedia lift data (317% higher selection with text + images + video + schema).
+**Spec draft:** `docs/specs/fr040-multimedia-boost.md`
+
+### What's wanted
+- Score how visually rich a destination page is. Pages with video, descriptive images, and good alt text coverage are better link destinations than plain text pages.
+- This is the eighth signal slot (`multimedia_signal`) in the FR-021 value model.
+- Two-part implementation: (1) extract multimedia metadata from raw HTML at sync time and store it as a new `multimedia_metadata` JSONField on `ContentItem`; (2) compute `multimedia_signal` from that metadata during the pipeline's value model pass.
+
+### Specific controls / behaviour
+- New `ContentItem.multimedia_metadata` JSONField (nullable). Populated by the XenForo and WordPress sync services at ingest time. Null until the item is re-synced after deployment.
+- New `multimedia_signal` bounded `[0, 1]`. Neutral fallback `0.5` when metadata is null.
+- Score is a weighted blend of four components:
+  - **Video component** (weight 0.40): no video = 0.0; video present = 0.6–1.0 based on provider (YouTube/Vimeo/native) and VideoObject schema presence.
+  - **Alt text coverage** (weight 0.25): proportion of non-decorative images with descriptive alt text. ≥80% = 1.0, 50–79% = 0.5, <50% = 0.0. Text-only pages = 0.5 neutral.
+  - **Image presence** (weight 0.20): rewards original images; penalises pages where all images come from known stock CDN hostnames (Unsplash, Getty, Shutterstock, etc.).
+  - **Image-to-word ratio** (weight 0.15): optimal = 1 image per 200–600 words. Guards against content padded with images (too many) or long articles with no visuals (too few).
+- Tracking pixels (images with `width` or `height` < 100px) are excluded from all counts.
+- Decorative images (`alt=""` — correct W3C pattern) are excluded from alt-coverage scoring.
+- New settings: `multimedia_signal_enabled` (bool, default: `true`), `w_multimedia` (float, default: `0.10`), `multimedia_fallback_value` (float, default: `0.5`).
+- New UI sub-section in the FR-021 settings card: **Multimedia Richness Signal** with enable toggle, weight slider, and a read-only counter showing how many `ContentItem` rows have metadata.
+- Suggestion review detail panel shows: video presence + provider, image count (original vs stock), alt coverage %, words per image.
+
+### Implementation notes for the AI
+- HTML is parsed **at sync time only** — never at pipeline time. Add `extract_multimedia_metadata(html: str, word_count: int) -> dict` in a new file `backend/apps/content/multimedia_extractor.py`.
+- Call the extractor from both `backend/apps/xenforo/` and `backend/apps/wordpress/` sync paths immediately after HTML cleaning.
+- Use `html.parser` (Python stdlib) or BeautifulSoup with `html.parser` backend. Never import `lxml` unless already in `requirements.txt`.
+- Create a Django migration for the new `multimedia_metadata` JSONField on `ContentItem`.
+- The value model formula in `backend/apps/knowledge_graph/services.py` gets an eighth additive slot. Existing signal computations must not change.
+- `score_final` in the main ranker is not touched.
+- Full spec: `docs/specs/fr040-multimedia-boost.md`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1203,4 +1240,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-03 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42.)*
+*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43.)*
