@@ -898,6 +898,17 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
                             {"value": "desktop"},
                             {"value": "Organic Search"},
                             {"value": "google / organic"},
+                            {"value": "Vietnam"},
+                        ],
+                        "metricValues": [{"value": "77"}],
+                    },
+                    {
+                        "dimensionValues": [
+                            {"value": sync_run.started_at.date().strftime("%Y%m%d")},
+                            {"value": str(suggestion.suggestion_id)},
+                            {"value": "desktop"},
+                            {"value": "Organic Search"},
+                            {"value": "google / organic"},
                             {"value": "United Kingdom"},
                         ],
                         "metricValues": [
@@ -941,7 +952,7 @@ class GSCSlice1Tests(APITestCase):
         payload = response.json()
         self.assertEqual(payload["property_url"], "sc-domain:example.com")
         self.assertTrue(payload["private_key_configured"])
-        self.assertEqual(payload["excluded_countries"], ["China", "Singapore"])
+        self.assertEqual(payload["excluded_countries"], ["China", "Singapore", "Vietnam"])
         self.assertEqual(payload["manual_backfill_suggested_days"], 180)
         
         # Verify DB persistence
@@ -1137,6 +1148,7 @@ class GSCSlice3Tests(APITestCase):
                     "filters": [
                         {"dimension": "country", "operator": "notEquals", "expression": "CHN"},
                         {"dimension": "country", "operator": "notEquals", "expression": "SGP"},
+                        {"dimension": "country", "operator": "notEquals", "expression": "VNM"},
                     ],
                 }
             ],
