@@ -2705,6 +2705,129 @@ class ValueModelSettingsView(APIView):
         return Response(validated)
 
 
+DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
+    "max_existing_links_per_host": 3,
+    "max_anchor_words": 4,
+    "paragraph_window": 3,
+}
+
+
+def get_spam_guard_settings() -> dict[str, int]:
+    """Return current spam-guard limits, falling back to patent-backed defaults."""
+    def _read_int(key: str, default: int) -> int:
+        raw = _get_app_setting_value(key)
+        try:
+            return int(raw) if raw is not None else default
+        except (TypeError, ValueError):
+            return default
+
+    return {
+        "max_existing_links_per_host": _read_int(
+            "spam_guards.max_existing_links_per_host",
+            DEFAULT_SPAM_GUARD_SETTINGS["max_existing_links_per_host"],
+        ),
+        "max_anchor_words": _read_int(
+            "spam_guards.max_anchor_words",
+            DEFAULT_SPAM_GUARD_SETTINGS["max_anchor_words"],
+        ),
+        "paragraph_window": _read_int(
+            "spam_guards.paragraph_window",
+            DEFAULT_SPAM_GUARD_SETTINGS["paragraph_window"],
+        ),
+    }
+
+
+def _validate_spam_guard_settings(payload: dict, current: dict) -> dict[str, int]:
+    """Validate and clamp spam-guard settings."""
+    def _get_int(key: str, lo: int, hi: int) -> int:
+        val = payload.get(key, current.get(key))
+        try:
+            return max(lo, min(hi, int(val)))
+        except (TypeError, ValueError):
+            return current.get(key, DEFAULT_SPAM_GUARD_SETTINGS[key])
+
+    return {
+        "max_existing_links_per_host": _get_int("max_existing_links_per_host", 1, 20),
+        "max_anchor_words": _get_int("max_anchor_words", 1, 10),
+        "paragraph_window": _get_int("paragraph_window", 1, 10),
+    }
+
+
+class SpamGuardSettingsView(APIView):
+    """
+    GET  /api/settings/spam-guards/  — returns current spam-guard limits
+    PUT  /api/settings/spam-guards/  — validates and persists new limits
+
+    Controls three pipeline guards that prevent the tool from producing
+    spammy internal-link suggestions (backed by Ntoulas et al., US8380722B2,
+    US8577893B1, and the 2024 Google API leak findings):
+
+    * max_existing_links_per_host — skip a host page if it already has this
+      many outgoing body links (default 3).
+    * max_anchor_words — reject anchor text longer than this many words
+      (default 4, matching Google's 2–5 word recommendation).
+    * paragraph_window — block a second suggestion within this many sentence
+      positions of an already-selected one on the same host (default 3).
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response(get_spam_guard_settings())
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        current = get_spam_guard_settings()
+        try:
+            validated = _validate_spam_guard_settings(request.data, current)
+        except ValueError as exc:
+            return Response({"error": str(exc)}, status=400)
+
+        rows = {
+            "spam_guards.max_existing_links_per_host": {
+                "value": str(validated["max_existing_links_per_host"]),
+                "value_type": "int",
+                "description": (
+                    "Maximum number of existing outgoing body links a host page may "
+                    "already carry before the pipeline skips it. "
+                    "Default 3 — Ntoulas et al. anchor-word fraction research (US20060184500A1)."
+                ),
+            },
+            "spam_guards.max_anchor_words": {
+                "value": str(validated["max_anchor_words"]),
+                "value_type": "int",
+                "description": (
+                    "Maximum number of words allowed in a suggested anchor phrase. "
+                    "Default 4 — Google recommends 2–5 words; US8380722B2 confirms "
+                    "anchors are 'usually short and descriptive'."
+                ),
+            },
+            "spam_guards.paragraph_window": {
+                "value": str(validated["paragraph_window"]),
+                "value_type": "int",
+                "description": (
+                    "Sentence-position window for paragraph-cluster detection. "
+                    "Two suggestions within this many sentences of each other on "
+                    "the same host are treated as the same paragraph — only the "
+                    "higher-scoring one is kept. Default 3 — US8577893B1."
+                ),
+            },
+        }
+
+        for key, row in rows.items():
+            AppSetting.objects.update_or_create(
+                key=key,
+                defaults={
+                    "value": row["value"],
+                    "value_type": row["value_type"],
+                    "category": "anchor",
+                    "description": row["description"],
+                    "is_secret": False,
+                },
+            )
+        return Response(validated)
+
+
 class GraphRebuildView(APIView):
     """POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh."""
     permission_classes = [AllowAny]

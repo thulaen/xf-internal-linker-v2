@@ -87,6 +87,7 @@ class SentenceRecord:
     text: str
     char_count: int
     tokens: frozenset[str]
+    position: int = 0  # zero-based sentence index within the post (Sentence.position)
 
     @property
     def content_key(self) -> ContentKey:
@@ -327,6 +328,9 @@ def score_destination_matches(
     content_records: Mapping[ContentKey, ContentRecord],
     sentence_records: Mapping[int, SentenceRecord],
     existing_links: set[ExistingLinkKey],
+    existing_outgoing_counts: Mapping[ContentKey, int] | None = None,
+    max_existing_links_per_host: int = 3,
+    max_anchor_words: int = 4,
     learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]] | None = None,
     rare_term_profiles: Mapping[ContentKey, RareTermProfile] | None = None,
     weights: Mapping[str, float],
@@ -385,6 +389,17 @@ def score_destination_matches(
         if (host_key, destination.key) in existing_links:
             continue
 
+        # Guard 1 — skip hosts that already carry too many outgoing body links.
+        # Research basis: Ntoulas et al. anchor-word fraction (US20060184500A1);
+        # Google droppedLocalAnchorCount (2024 API leak). Adding more links to a
+        # page that already has 3+ raises the anchor-word fraction into the range
+        # where spam probability climbs sharply.
+        if existing_outgoing_counts is not None:
+            if existing_outgoing_counts.get(host_key, 0) >= max_existing_links_per_host:
+                if blocked_reasons is not None:
+                    blocked_reasons.add("max_links_reached")
+                continue
+
         host_record = content_records.get(host_key)
         sentence_record = sentence_records.get(match.sentence_id)
         if host_record is None or sentence_record is None:
@@ -416,6 +431,17 @@ def score_destination_matches(
             destination_distilled_text=destination.distilled_text,
             settings=phrase_matching_settings,
         )
+
+        # Guard 2 — reject anchors that are too long (long-tail keyword stuffing).
+        # Research basis: Google recommends 2–5 words (link best-practices docs);
+        # US8380722B2 states anchors are "usually short and descriptive";
+        # Google's phraseAnchorSpamFraq field (2024 leak) specifically targets
+        # recurring long-phrase anchors. A 4-word cap sits inside the safe zone.
+        if phrase_match.anchor_phrase and len(phrase_match.anchor_phrase.split()) > max_anchor_words:
+            if blocked_reasons is not None:
+                blocked_reasons.add("anchor_too_long")
+            continue
+
         learned_anchor_match = evaluate_learned_anchor_corroboration(
             candidate_anchor_text=phrase_match.anchor_phrase,
             host_sentence_text=sentence_record.text,
@@ -603,17 +629,47 @@ def score_destination_matches(
     return ranked
 
 
+def _is_paragraph_collision(
+    candidate: ScoredCandidate,
+    host_para_positions: dict[ContentKey, list[int]],
+    sentence_records: Mapping[int, SentenceRecord],
+    paragraph_window: int,
+) -> bool:
+    """Return True if *candidate*'s sentence falls within *paragraph_window*
+    positions of any sentence already selected for the same host page.
+
+    Research basis: US8577893B1 models a ±5-word context window per link;
+    adjacent links pollute each other's context signals. Google's own link
+    best-practices docs warn against placing many links close together in the
+    same text block. A window of ±3 sentences is a conservative but safe proxy
+    for "same paragraph" in typical forum post content.
+    """
+    sent = sentence_records.get(candidate.host_sentence_id)
+    if sent is None:
+        return False
+    used = host_para_positions.get(candidate.host_key, [])
+    return any(abs(sent.position - p) <= paragraph_window for p in used)
+
+
 def select_final_candidates(
     candidates_by_destination: Mapping[ContentKey, list[ScoredCandidate]],
     *,
     max_host_reuse: int = 3,
+    sentence_records: Mapping[int, SentenceRecord] | None = None,
+    paragraph_window: int = 3,
     blocked_diagnostics: dict[ContentKey, str] | None = None,
 ) -> list[ScoredCandidate]:
-    """Resolve host-reuse and circular-direction conflicts across destinations.
+    """Resolve host-reuse, circular-direction, and paragraph-cluster conflicts.
 
     If *blocked_diagnostics* is provided, destinations whose candidates are
     all blocked will be recorded with their last blocking reason
-    (``"host_reuse_cap"`` or ``"circular_suppressed"``).
+    (``"host_reuse_cap"``, ``"circular_suppressed"``, or
+    ``"paragraph_cluster"``).
+
+    *sentence_records* enables the paragraph guard. When provided, a second
+    suggestion targeting a sentence within *paragraph_window* positions of an
+    already-selected sentence on the same host is rejected and the next-best
+    candidate tried instead.
     """
     heap: list[tuple[float, float, int, str, int]] = []
     destination_cursor: dict[ContentKey, int] = {}
@@ -636,6 +692,8 @@ def select_final_candidates(
     selected_by_destination: dict[ContentKey, ScoredCandidate] = {}
     host_reuse_counts: Counter[ContentKey] = Counter()
     selected_directions: set[tuple[ContentKey, ContentKey]] = set()
+    # Guard 3 — tracks which sentence positions are already "occupied" per host.
+    host_para_positions: dict[ContentKey, list[int]] = {}
     last_block_reason: dict[ContentKey, str] = {}
 
     while heap:
@@ -651,12 +709,18 @@ def select_final_candidates(
         candidate = candidates[candidate_idx]
         is_host_reuse = host_reuse_counts[candidate.host_key] >= max_host_reuse
         is_circular = (candidate.host_key, candidate.destination_key) in selected_directions
-        blocked = is_host_reuse or is_circular
+        is_para_collision = (
+            sentence_records is not None
+            and _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window)
+        )
+        blocked = is_host_reuse or is_circular or is_para_collision
         if blocked:
             if is_circular:
                 last_block_reason[destination_key] = "circular_suppressed"
-            else:
+            elif is_host_reuse:
                 last_block_reason[destination_key] = "host_reuse_cap"
+            else:
+                last_block_reason[destination_key] = "paragraph_cluster"
             next_idx = candidate_idx + 1
             if next_idx < len(candidates):
                 next_candidate = candidates[next_idx]
@@ -675,6 +739,12 @@ def select_final_candidates(
         selected_by_destination[destination_key] = candidate
         host_reuse_counts[candidate.host_key] += 1
         selected_directions.add((candidate.destination_key, candidate.host_key))
+        # Record the sentence position used by this host so the paragraph guard
+        # can reject suggestions that land too close to it.
+        if sentence_records is not None:
+            sent = sentence_records.get(candidate.host_sentence_id)
+            if sent is not None:
+                host_para_positions.setdefault(candidate.host_key, []).append(sent.position)
         last_block_reason.pop(destination_key, None)
 
     if blocked_diagnostics is not None:

@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import gc
 import logging
-from collections import defaultdict
+from collections import Counter, defaultdict
 from dataclasses import dataclass
 from typing import Any, Callable
 
@@ -177,6 +177,13 @@ def run_pipeline(
 
     _progress(0.12, "Loading existing links...")
     existing_links = _load_existing_links()
+    # Count outgoing links per host — used by the max-links-per-host guard.
+    existing_outgoing_counts: dict[ContentKey, int] = Counter(
+        from_key for from_key, _to_key in existing_links
+    )
+    max_existing_links_per_host = _get_max_existing_links_per_host()
+    max_anchor_words = _get_max_anchor_words()
+    paragraph_window = _get_paragraph_window()
     learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
     rare_term_profiles = {}
     if rare_term_settings.enabled:
@@ -272,6 +279,9 @@ def run_pipeline(
             content_records=content_records,
             sentence_records=sentence_records,
             existing_links=existing_links,
+            existing_outgoing_counts=existing_outgoing_counts,
+            max_existing_links_per_host=max_existing_links_per_host,
+            max_anchor_words=max_anchor_words,
             learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
             rare_term_profiles=rare_term_profiles,
             weights=weights,
@@ -313,6 +323,10 @@ def run_pipeline(
                     "destination_silo_group_name": destination.silo_group_name,
                 },
             ))
+        elif "max_links_reached" in blocked_reasons:
+            diagnostics.append((dest_key[0], dest_key[1], "max_links_reached", None))
+        elif "anchor_too_long" in blocked_reasons:
+            diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
         else:
             diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))
 
@@ -338,11 +352,13 @@ def run_pipeline(
             max_per_host=max_host_reuse,
         )
     else:
-        _progress(0.87, "Resolving host-reuse and circular-pair filters...")
+        _progress(0.87, "Resolving host-reuse, circular-pair, and paragraph-cluster filters...")
         blocked_diagnostics: dict[ContentKey, str] = {}
         selected_candidates = select_final_candidates(
             candidates_by_destination,
             max_host_reuse=max_host_reuse,
+            sentence_records=sentence_records,
+            paragraph_window=paragraph_window,
             blocked_diagnostics=blocked_diagnostics,
         )
         for dest_key, reason in blocked_diagnostics.items():
@@ -393,6 +409,63 @@ def _get_max_host_reuse() -> int:
             return int(setting.value)
     except Exception:
         logger.exception("Failed to load max host reuse; using default.")
+    return 3
+
+
+def _get_max_existing_links_per_host() -> int:
+    """Maximum number of existing outgoing body links a host page may already
+    have before the pipeline stops adding new suggestions to it.
+
+    Configurable via AppSetting key ``spam_guards.max_existing_links_per_host``.
+    Default: 3 — Ntoulas et al. (US20060184500A1) anchor-word fraction research
+    and the 2024 Google API leak findings support this as a conservative cap.
+    """
+    try:
+        from apps.core.models import AppSetting
+        setting = AppSetting.objects.filter(key="spam_guards.max_existing_links_per_host").first()
+        if setting:
+            return int(setting.value)
+    except Exception:
+        logger.exception("Failed to load spam_guards.max_existing_links_per_host; using default.")
+    return 3
+
+
+def _get_max_anchor_words() -> int:
+    """Maximum number of words allowed in suggested anchor text.
+
+    Configurable via AppSetting key ``spam_guards.max_anchor_words``.
+    Default: 4 — Google recommends 2–5 words (link best-practices docs);
+    US8380722B2 states anchors are "usually short and descriptive";
+    empirical average of natural anchor text is ~4.85 words (seo.ai, 23M links).
+    """
+    try:
+        from apps.core.models import AppSetting
+        setting = AppSetting.objects.filter(key="spam_guards.max_anchor_words").first()
+        if setting:
+            return int(setting.value)
+    except Exception:
+        logger.exception("Failed to load spam_guards.max_anchor_words; using default.")
+    return 4
+
+
+def _get_paragraph_window() -> int:
+    """Sentence-position window used to detect paragraph-level link clustering.
+
+    Two suggested links on the same host page are considered to be in the same
+    paragraph when their sentence positions are within this many positions of
+    each other. Only the higher-scoring suggestion is kept.
+
+    Configurable via AppSetting key ``spam_guards.paragraph_window``.
+    Default: 3 — backed by US8577893B1 (Google ±5-word context window per link)
+    and Google's documented guidance against placing multiple links close together.
+    """
+    try:
+        from apps.core.models import AppSetting
+        setting = AppSetting.objects.filter(key="spam_guards.paragraph_window").first()
+        if setting:
+            return int(setting.value)
+    except Exception:
+        logger.exception("Failed to load spam_guards.paragraph_window; using default.")
     return 3
 
 
@@ -625,7 +698,7 @@ def _load_sentence_records(
     
     in_clause, params = _sql_in_clause_params(content_pks)
     query = f"""
-        SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count
+        SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count, s.position
         FROM content_sentence s
         JOIN content_contentitem ci ON s.content_item_id = ci.id
         WHERE s.content_item_id IN ({in_clause})
@@ -643,7 +716,7 @@ def _load_sentence_records(
             if not rows:
                 break
 
-            for sid, cid, ctype, text, char_count in rows:
+            for sid, cid, ctype, text, char_count, position in rows:
                 text = text or ""
                 ckey: ContentKey = (cid, ctype)
                 sentence_records[sid] = SentenceRecord(
@@ -653,6 +726,7 @@ def _load_sentence_records(
                     text=text,
                     char_count=char_count or len(text),
                     tokens=tokenize_text(text),
+                    position=position or 0,
                 )
                 content_to_sentence_ids[ckey].add(sid)
 

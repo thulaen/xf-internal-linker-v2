@@ -77,7 +77,9 @@ from apps.pipeline.services.ranker import (
     SentenceRecord,
     SentenceSemanticMatch,
     SiloSettings,
+    _is_paragraph_collision,
     score_destination_matches,
+    select_final_candidates,
 )
 from apps.pipeline.services.slate_diversity import SlateDiversitySettings
 from apps.pipeline.services.slate_diversity import apply_slate_diversity, get_slate_diversity_runtime_status
@@ -3578,3 +3580,303 @@ class PipelineSettingsFallbackLoggingTests(TestCase):
 
         self.assertEqual(weights, DEFAULT_WEIGHTS)
         log_exception.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Spam-guard tests  (FR-016 guards: max existing links, anchor word cap,
+# one-link-per-paragraph)
+# ---------------------------------------------------------------------------
+
+def _sentence_record(
+    sentence_id: int,
+    content_id: int,
+    position: int = 0,
+    text: str = "This is a sentence about the topic.",
+) -> SentenceRecord:
+    return SentenceRecord(
+        sentence_id=sentence_id,
+        content_id=content_id,
+        content_type="thread",
+        text=text,
+        char_count=len(text),
+        tokens=frozenset(text.lower().split()),
+        position=position,
+    )
+
+
+def _make_sentence_match(
+    host_content_id: int,
+    sentence_id: int,
+    score: float = 0.85,
+) -> SentenceSemanticMatch:
+    return SentenceSemanticMatch(
+        host_content_id=host_content_id,
+        host_content_type="thread",
+        sentence_id=sentence_id,
+        score_semantic=score,
+    )
+
+
+class GuardMaxExistingLinksTests(TestCase):
+    """Guard 1 — hosts that already have 3+ outgoing links are skipped."""
+
+    def setUp(self):
+        self.destination = _content_record(content_id=99, silo_group_id=1)
+        self.host = _content_record(content_id=10, silo_group_id=1)
+        self.content_records = {
+            self.destination.key: self.destination,
+            self.host.key: self.host,
+        }
+        self.sentence = _sentence_record(sentence_id=1, content_id=10, position=0)
+        self.sentence_records = {1: self.sentence}
+        self.match = _make_sentence_match(host_content_id=10, sentence_id=1)
+        self.weights = {
+            "w_semantic": 1.0, "w_keyword": 0.0, "w_node": 0.0, "w_quality": 0.0,
+        }
+        self.bounds = (0.0, 1.0)
+
+    def _score(self, existing_outgoing_counts, max_existing=3, blocked_reasons=None):
+        if blocked_reasons is None:
+            blocked_reasons = set()
+        return score_destination_matches(
+            self.destination,
+            [self.match],
+            content_records=self.content_records,
+            sentence_records=self.sentence_records,
+            existing_links=set(),
+            existing_outgoing_counts=existing_outgoing_counts,
+            max_existing_links_per_host=max_existing,
+            weights=self.weights,
+            march_2026_pagerank_bounds=self.bounds,
+            blocked_reasons=blocked_reasons,
+        )
+
+    def test_host_below_limit_is_not_blocked(self):
+        counts = {self.host.key: 2}
+        result = self._score(counts, max_existing=3)
+        self.assertEqual(len(result), 1)
+
+    def test_host_at_limit_is_blocked(self):
+        blocked = set()
+        counts = {self.host.key: 3}
+        result = self._score(counts, max_existing=3, blocked_reasons=blocked)
+        self.assertEqual(result, [])
+        self.assertIn("max_links_reached", blocked)
+
+    def test_host_above_limit_is_blocked(self):
+        blocked = set()
+        counts = {self.host.key: 10}
+        result = self._score(counts, max_existing=3, blocked_reasons=blocked)
+        self.assertEqual(result, [])
+        self.assertIn("max_links_reached", blocked)
+
+    def test_no_existing_outgoing_counts_does_not_block(self):
+        """When existing_outgoing_counts is None the guard is disabled."""
+        result = self._score(None, max_existing=3)
+        self.assertEqual(len(result), 1)
+
+    def test_custom_limit_respected(self):
+        """A custom limit of 5 should allow hosts with 4 links through."""
+        counts = {self.host.key: 4}
+        result = self._score(counts, max_existing=5)
+        self.assertEqual(len(result), 1)
+
+
+class GuardAnchorWordCapTests(TestCase):
+    """Guard 2 — anchor text longer than max_anchor_words is rejected."""
+
+    def setUp(self):
+        self.destination = _content_record(content_id=99, silo_group_id=1)
+        self.host = _content_record(content_id=10, silo_group_id=1)
+        self.content_records = {
+            self.destination.key: self.destination,
+            self.host.key: self.host,
+        }
+        self.weights = {
+            "w_semantic": 1.0, "w_keyword": 0.0, "w_node": 0.0, "w_quality": 0.0,
+        }
+        self.bounds = (0.0, 1.0)
+
+    def _score_with_anchor(self, anchor_text: str, max_anchor_words: int = 4):
+        """Build a sentence whose text contains the anchor and score it."""
+        sentence = _sentence_record(
+            sentence_id=1, content_id=10, position=0,
+            text=f"This topic is about {anchor_text} and more details.",
+        )
+        sentence_records = {1: sentence}
+        match = _make_sentence_match(host_content_id=10, sentence_id=1)
+        # We mock evaluate_phrase_match to return a controlled anchor phrase.
+        from apps.pipeline.services.phrase_matching import PhraseMatchResult
+        mock_result = PhraseMatchResult(
+            anchor_phrase=anchor_text,
+            anchor_start=20,
+            anchor_end=20 + len(anchor_text),
+            anchor_confidence="strong",
+            score_phrase_relevance=0.9,
+            score_phrase_component=0.9,
+            phrase_match_diagnostics={"phrase_match_state": "mocked"},
+        )
+        blocked = set()
+        with patch(
+            "apps.pipeline.services.ranker.evaluate_phrase_match",
+            return_value=mock_result,
+        ):
+            result = score_destination_matches(
+                self.destination,
+                [match],
+                content_records=self.content_records,
+                sentence_records=sentence_records,
+                existing_links=set(),
+                max_anchor_words=max_anchor_words,
+                weights=self.weights,
+                march_2026_pagerank_bounds=self.bounds,
+                blocked_reasons=blocked,
+            )
+        return result, blocked
+
+    def test_four_word_anchor_is_accepted(self):
+        result, _ = self._score_with_anchor("carbon fibre bicycle frame", max_anchor_words=4)
+        self.assertEqual(len(result), 1)
+
+    def test_five_word_anchor_is_rejected(self):
+        result, blocked = self._score_with_anchor(
+            "best carbon fibre bicycle frame", max_anchor_words=4
+        )
+        self.assertEqual(result, [])
+        self.assertIn("anchor_too_long", blocked)
+
+    def test_single_word_anchor_is_accepted(self):
+        result, _ = self._score_with_anchor("cycling", max_anchor_words=4)
+        self.assertEqual(len(result), 1)
+
+    def test_custom_higher_limit_accepts_longer_anchor(self):
+        result, _ = self._score_with_anchor(
+            "best carbon fibre bicycle frame", max_anchor_words=6
+        )
+        self.assertEqual(len(result), 1)
+
+
+class GuardParagraphClusterTests(TestCase):
+    """Guard 3 — two suggestions targeting the same paragraph of the same host
+    are not both allowed through select_final_candidates."""
+
+    def _make_candidate(
+        self,
+        destination_id: int,
+        host_id: int,
+        sentence_id: int,
+        score: float = 0.9,
+    ) -> ScoredCandidate:
+        return _scored_candidate(
+            destination_content_id=destination_id,
+            host_content_id=host_id,
+            host_sentence_id=sentence_id,
+            score_final=score,
+        )
+
+    def test_two_destinations_same_paragraph_only_one_selected(self):
+        """Destinations 10 and 11 both want to link from sentence 1 (position 0)
+        and sentence 2 (position 1) on host 50. With paragraph_window=3 these
+        are adjacent — only the higher-scoring one should survive."""
+        sentence_records = {
+            1: _sentence_record(sentence_id=1, content_id=50, position=0),
+            2: _sentence_record(sentence_id=2, content_id=50, position=1),
+        }
+        candidates_by_destination = {
+            (10, "thread"): [self._make_candidate(10, 50, sentence_id=1, score=0.95)],
+            (11, "thread"): [self._make_candidate(11, 50, sentence_id=2, score=0.80)],
+        }
+        blocked: dict = {}
+        result = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=3,
+            sentence_records=sentence_records,
+            paragraph_window=3,
+            blocked_diagnostics=blocked,
+        )
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].destination_content_id, 10)  # higher score wins
+        self.assertIn((11, "thread"), blocked)
+        self.assertEqual(blocked[(11, "thread")], "paragraph_cluster")
+
+    def test_two_destinations_different_paragraphs_both_selected(self):
+        """Destinations 10 and 11 target sentences 0 and 8 on host 50.
+        With paragraph_window=3 these are far apart — both should be selected."""
+        sentence_records = {
+            1: _sentence_record(sentence_id=1, content_id=50, position=0),
+            2: _sentence_record(sentence_id=2, content_id=50, position=8),
+        }
+        candidates_by_destination = {
+            (10, "thread"): [self._make_candidate(10, 50, sentence_id=1, score=0.95)],
+            (11, "thread"): [self._make_candidate(11, 50, sentence_id=2, score=0.80)],
+        }
+        result = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=3,
+            sentence_records=sentence_records,
+            paragraph_window=3,
+        )
+        self.assertEqual(len(result), 2)
+
+    def test_paragraph_guard_disabled_when_sentence_records_none(self):
+        """Passing sentence_records=None disables the guard entirely."""
+        candidates_by_destination = {
+            (10, "thread"): [self._make_candidate(10, 50, sentence_id=1, score=0.95)],
+            (11, "thread"): [self._make_candidate(11, 50, sentence_id=2, score=0.80)],
+        }
+        result = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=3,
+            sentence_records=None,
+        )
+        self.assertEqual(len(result), 2)
+
+    def test_paragraph_collision_helper_detects_adjacent_sentences(self):
+        sentence_records = {
+            1: _sentence_record(sentence_id=1, content_id=50, position=2),
+        }
+        host_para_positions = {(50, "thread"): [0]}
+        candidate = self._make_candidate(10, 50, sentence_id=1)
+        # Position 2 is within window=3 of position 0 → collision
+        self.assertTrue(
+            _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window=3)
+        )
+
+    def test_paragraph_collision_helper_clears_distant_sentences(self):
+        sentence_records = {
+            1: _sentence_record(sentence_id=1, content_id=50, position=7),
+        }
+        host_para_positions = {(50, "thread"): [0]}
+        candidate = self._make_candidate(10, 50, sentence_id=1)
+        # Position 7 is more than window=3 away from position 0 → no collision
+        self.assertFalse(
+            _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window=3)
+        )
+
+    def test_paragraph_collision_fallback_candidate_used_if_available(self):
+        """When the first candidate causes a paragraph collision the guard tries
+        the next candidate which targets a distant sentence."""
+        sentence_records = {
+            1: _sentence_record(sentence_id=1, content_id=50, position=0),
+            2: _sentence_record(sentence_id=2, content_id=50, position=8),
+            3: _sentence_record(sentence_id=3, content_id=50, position=1),
+        }
+        # Destination 10 gets sentence 1 (position 0) — selected first.
+        # Destination 11 tries sentence 3 (position 1, same paragraph) — blocked.
+        # Destination 11 falls back to sentence 2 (position 8) — accepted.
+        candidates_by_destination = {
+            (10, "thread"): [self._make_candidate(10, 50, sentence_id=1, score=0.99)],
+            (11, "thread"): [
+                self._make_candidate(11, 50, sentence_id=3, score=0.90),
+                self._make_candidate(11, 50, sentence_id=2, score=0.75),
+            ],
+        }
+        result = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=3,
+            sentence_records=sentence_records,
+            paragraph_window=3,
+        )
+        self.assertEqual(len(result), 2)
+        dest_11 = next(c for c in result if c.destination_content_id == 11)
+        self.assertEqual(dest_11.host_sentence_id, 2)  # fallback candidate used

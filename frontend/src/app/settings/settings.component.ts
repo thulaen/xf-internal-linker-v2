@@ -54,6 +54,7 @@ import {
   MatomoTelemetryUpdate,
   GraphCandidateSettings,
   ValueModelSettings,
+  SpamGuardSettings,
 } from './silo-settings.service';
 
 interface SettingTooltip {
@@ -467,6 +468,28 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     default: '0.25',
     example: '0.25 uses URL depth as light supporting evidence. Lowering to 0 ignores URL path depth.',
     range: '0 to 1',
+  },
+  // Spam Guards
+  'spamGuards.max_existing_links_per_host': {
+    definition: 'The maximum number of existing outgoing internal links a host page may already have before the pipeline skips it entirely.',
+    impact: 'Lower values keep pages cleaner — the tool will not add any suggestions to heavily-linked pages. Higher values allow more suggestions on already-linked pages.',
+    default: '3',
+    example: 'At 3, a page with 3 existing body links receives no new suggestions. Raise to 5 for larger, content-rich pages.',
+    range: '1 to 20',
+  },
+  'spamGuards.max_anchor_words': {
+    definition: 'The maximum number of words the tool will use in a suggested anchor phrase.',
+    impact: 'Lower values force shorter, more natural-looking anchors. Higher values allow longer, more descriptive (but potentially spammy) phrases.',
+    default: '4',
+    example: 'At 4 words, "carbon fibre bicycle frame" is accepted but "best carbon fibre bicycle frame" is rejected. Google recommends 2–5 words.',
+    range: '1 to 10',
+  },
+  'spamGuards.paragraph_window': {
+    definition: 'How many sentences apart two suggestions must be on the same page before they are allowed to coexist. Suggestions closer than this are treated as being in the same paragraph — only the better one is kept.',
+    impact: 'Lower values are stricter — links must be further apart. Higher values are more lenient and allow links to appear closer together.',
+    default: '3',
+    example: 'At 3, if suggestion A is at sentence 2 and suggestion B is at sentence 4, only one survives. Set to 1 to allow links in consecutive sentences.',
+    range: '1 to 10',
   },
   // Silo Ranking
   'silo.mode': {
@@ -1476,6 +1499,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     b_cd: 0.75,
     b_ud: 0.25,
   };
+  spamGuards: SpamGuardSettings = {
+    max_existing_links_per_host: 3,
+    max_anchor_words: 4,
+    paragraph_window: 3,
+  };
+  savingSpamGuards = false;
   feedbackRerank: FeedbackRerankSettings = {
     enabled: true,
     ranking_weight: 0.08,
@@ -1841,6 +1870,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       xenforo: this.siloSvc.getXenForoSettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
+      spamGuards: this.siloSvc.getSpamGuardSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
       clustering: this.siloSvc.getClusteringSettings(),
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
@@ -1874,6 +1904,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.xenforo = { ...this.xenforo, ...data.xenforo };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
         this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
+        this.spamGuards = { ...this.spamGuards, ...data.spamGuards };
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
         this.clustering = { ...this.clustering, ...data.clustering };
         this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
@@ -2519,6 +2550,21 @@ export class SettingsComponent implements OnInit, OnDestroy {
     });
   }
 
+  saveSpamGuardSettings(): void {
+    this.savingSpamGuards = true;
+    this.siloSvc.updateSpamGuardSettings(this.spamGuards).subscribe({
+      next: (spamGuards) => {
+        this.spamGuards = spamGuards;
+        this.savingSpamGuards = false;
+        this.snack.open('Spam guard settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingSpamGuards = false;
+        this.snack.open(error?.error?.detail || 'Failed to save spam guard settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   saveClickDistanceSettings(): void {
     this.savingClickDistance = true;
     this.siloSvc.updateClickDistanceSettings(this.clickDistance).subscribe({
@@ -2826,6 +2872,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       ga4Telemetry: this.siloSvc.updateGA4TelemetrySettings(ga4TelemetryPayload),
       matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
+      spamGuards: this.siloSvc.updateSpamGuardSettings(this.spamGuards),
       explore: this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank),
       clustering: this.siloSvc.updateClusteringSettings(this.clustering),
       slate: this.siloSvc.updateSlateDiversitySettings(this.slateDiversity),
@@ -2845,6 +2892,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.ga4Telemetry = results.ga4Telemetry;
         this.matomoTelemetry = results.matomoTelemetry;
         this.clickDistance = results.click;
+        this.spamGuards = results.spamGuards;
         this.feedbackRerank = results.explore;
         this.clustering = results.clustering;
         this.slateDiversity = results.slate;

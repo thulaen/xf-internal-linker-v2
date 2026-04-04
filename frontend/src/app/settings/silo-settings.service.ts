@@ -279,6 +279,12 @@ export interface ValueModelSettings {
   traffic_fallback_value: number;
 }
 
+export interface SpamGuardSettings {
+  max_existing_links_per_host: number;
+  max_anchor_words: number;
+  paragraph_window: number;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -539,6 +545,14 @@ export class SiloSettingsService {
 
   updateValueModelSettings(payload: ValueModelSettings): Observable<ValueModelSettings> {
     return this.http.put<ValueModelSettings>('/api/settings/value-model/', payload);
+  }
+
+  getSpamGuardSettings(): Observable<SpamGuardSettings> {
+    return this.http.get<SpamGuardSettings>('/api/settings/spam-guards/');
+  }
+
+  updateSpamGuardSettings(payload: SpamGuardSettings): Observable<SpamGuardSettings> {
+    return this.http.put<SpamGuardSettings>('/api/settings/spam-guards/', payload);
   }
 
   recalculateClickDistance(): Observable<{ job_id: string }> {

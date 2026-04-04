@@ -364,6 +364,45 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Spam Guards -->
+          <mat-card class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Spam Guards</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Patent-backed limits that prevent the tool from producing spammy internal-link suggestions.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Max existing links per host</mat-label>
+                  <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="spamGuards.max_existing_links_per_host" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.max_existing_links_per_host')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Max anchor words</mat-label>
+                  <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="spamGuards.max_anchor_words" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.max_anchor_words')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Paragraph window (sentences)</mat-label>
+                  <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="spamGuards.paragraph_window" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.paragraph_window')" matTooltipClass="setting-tooltip">
+                    <mat-icon>info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingSpamGuards" (click)="saveSpamGuardSettings()">
+                  <mat-icon>{{ savingSpamGuards ? 'sync' : 'shield' }}</mat-icon>
+                  {{ savingSpamGuards ? 'Saving...' : 'Save Spam Guards' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <!-- Feedback Reranking -->
           <mat-card class="settings-card">
             <mat-card-header>

@@ -669,10 +669,12 @@ class PipelineDiagnostic(models.Model):
         ("no_embedding", "Destination has no embedding"),
         ("max_links_reached", "Host already has max links"),
         ("anchor_banned", "All candidate anchors are banned"),
+        ("anchor_too_long", "Anchor text exceeds maximum word count"),
         ("short_post", "Post too short to distill"),
         ("host_reuse_cap", "Host reuse cap reached"),
         ("circular_suppressed", "Circular candidate suppressed"),
         ("cross_silo_blocked", "Cross-silo candidate blocked by strict mode"),
+        ("paragraph_cluster", "Host paragraph already has a suggestion"),
         ("other", "Other"),
     ]
 
