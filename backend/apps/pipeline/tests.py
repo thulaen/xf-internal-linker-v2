@@ -3533,7 +3533,7 @@ class HeavyRuntimeDispatchTests(TestCase):
             pipeline_tasks.orchestrate_csharp_import(mode="full", source="api")
             
             run_job.assert_called_once()
-            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3])
+            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3], job_id=ANY)
 
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",
