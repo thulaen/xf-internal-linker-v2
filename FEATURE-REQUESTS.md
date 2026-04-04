@@ -300,7 +300,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
-**Status:** In Progress (Slices 1-3 Complete: OAuth, shared Google login UX, and Python performance ingestion)
+**Status:** In Progress (Slices 1-4 Complete: OAuth, shared Google login UX, Python performance ingestion, C# sync endpoint)
 **Priority:** High
 
 - **Slice 2 Completed (2026-04-03):**
@@ -317,6 +317,12 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
   - Landed the Python `GSC` performance importer with lag-safe upserts, query-level row ingestion, and duplicate-safe daily refresh behavior.
   - Repaired `GSC` keyword-impact math and the attribution window boundary bug in the C# worker.
   - Added score-refresh plumbing so imported analytics now refresh `content_value_score` for the existing ranking pipeline.
+
+- **Slice 4 Completed (2026-04-04):**
+  - The Gamma-Poisson conjugacy math, PostgresRuntimeStore GSC queries, and JobProcessor routing for `gsc_attribution` were already in place from prior slices.
+  - Added `[FromQuery] bool sync` to `JobsController.SubmitAsync` — when `sync=true`, the job runs inline via `JobProcessor.ProcessAsync` and returns HTTP 200 with the full `JobResult`, instead of queuing via Redis.
+  - This closes the wiring gap: Django's `run_job()` posts to `/api/v1/jobs?sync=true` and now receives inline attribution results.
+  - Added `JobsControllerTests` covering sync/async paths and invalid-request handling. All 32 C# tests pass.
 
 ### GUI-first requirement (hard rule)
 - GSC credentials (OAuth client ID/secret, verified site URL) must be configured entirely through the settings page. No config files, no code, no environment variables.
@@ -1381,4 +1387,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-3 are complete. Next target is Slice 4 statistical attribution work. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*
+*Last updated: 2026-04-04 (Phase 20 / FR-017 Slices 1-4 are complete. Next target is Slice 5: Angular "Search Impact" tab with Chart.js scatter plot, cohort analysis, and reward-label table. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*

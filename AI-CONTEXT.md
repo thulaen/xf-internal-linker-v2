@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 20 / FR-017 Slice 4 (Statistical Brain - C#)
+- Active target for the next session: Phase 20 / FR-017 Slice 5 (Reporting UI - Angular)
 - FR cross-reference: `FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals`
-- Status: Phase 20 / FR-017 Slices 1, 2, and 3 are complete. The shared Google login flow, repaired GA4/Matomo sync plumbing, and the Python GSC performance ingestion task are now landed and verified. Next is Slice 4 statistical attribution work in the C# worker.
+- Status: Phase 20 / FR-017 Slices 1–4 are complete. Slice 4 added sync execution to JobsController so Django's run_job() can call /api/v1/jobs?sync=true and get inline results. GSCAttributionService (Gamma-Poisson + Monte Carlo math), PostgresRuntimeStore GSC queries, and JobProcessor routing were already in place. Next is Slice 5: the Angular "Search Impact" tab with Chart.js scatter plot, cohort analysis, and reward-label table.
 
 - Session target: Continue Phase 19 / FR-016 after the completed FR-015 session above.
 - What changed:
