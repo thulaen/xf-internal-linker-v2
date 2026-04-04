@@ -714,25 +714,91 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
             var cmd = new NpgsqlBatchCommand(
                 """
                 INSERT INTO suggestions_suggestion (
-                    pipeline_run_id, host_item_id, host_sentence_id, destination_item_id,
-                    anchor_text, composite_score, 
-                    state, is_visible, status, created_at, updated_at
+                    pipeline_run_id, host_id, host_sentence_id, destination_id,
+                    anchor_phrase, score_final, 
+                    status, created_at, updated_at,
+                    candidate_origin, score_value_model, value_model_diagnostics,
+                    destination_title, host_sentence_text
                 ) VALUES (
                     @run_id, @host_id, @sentence_id, @dest_id, 
                     @anchor, @score,
-                    'pending', TRUE, 'new', NOW(), NOW()
+                    'pending', NOW(), NOW(),
+                    @origin, @value_score, CAST(@diagnostics AS jsonb),
+                    '', ''
                 )
                 """);
-            cmd.Parameters.AddWithValue("run_id", runId);
+            cmd.Parameters.AddWithValue("run_id", Guid.Parse(runId));
             cmd.Parameters.AddWithValue("host_id", sug.HostContentId);
             cmd.Parameters.AddWithValue("sentence_id", sug.HostSentenceId);
             cmd.Parameters.AddWithValue("dest_id", sug.DestinationContentId);
             cmd.Parameters.AddWithValue("anchor", sug.ExactMatchAnchor);
-            cmd.Parameters.AddWithValue("score", (double)sug.CompositeScore); // Postgres float field mapped to composite score
+            cmd.Parameters.AddWithValue("score", (double)sug.CompositeScore);
+            cmd.Parameters.AddWithValue("origin", sug.CandidateOrigin);
+            cmd.Parameters.AddWithValue("value_score", (object?)sug.ValueScore ?? DBNull.Value);
+            cmd.Parameters.AddWithValue("diagnostics", sug.ValueModelDiagnostics ?? "{}");
             batch.BatchCommands.Add(cmd);
         }
 
         await batch.ExecuteNonQueryAsync(cancellationToken);
         await transaction.CommitAsync(cancellationToken);
+    }
+
+    public async Task<KnowledgeGraphData> LoadKnowledgeGraphDataAsync(CancellationToken cancellationToken)
+    {
+        var data = new KnowledgeGraphData();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+
+        // 1. Load Entity Types for biasing
+        await using (var cmd = new NpgsqlCommand("SELECT id, entity_type FROM knowledge_graph_entitynode", connection))
+        {
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                data.EntityTypeMap[reader.GetInt32(0)] = reader.GetString(1);
+            }
+        }
+
+        // 2. Load Edges
+        await using (var cmd = new NpgsqlCommand("SELECT content_item_id, entity_id, weight FROM knowledge_graph_articleentityedge", connection))
+        {
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                data.Edges.Add(new KnowledgeGraphEdge
+                {
+                    ArticleId = reader.GetInt32(0),
+                    EntityId = reader.GetInt32(1),
+                    Weight = (float)reader.GetDouble(2)
+                });
+            }
+        }
+
+        return data;
+    }
+
+    public async Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+    {
+        var metrics = new Dictionary<int, float>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        
+        var startDate = DateTime.UtcNow.Date.AddDays(-lookbackDays);
+
+        await using (var cmd = new NpgsqlCommand(
+            """
+            SELECT content_item_id, SUM(clicks) as total_clicks
+            FROM analytics_searchmetric
+            WHERE date >= @start
+            GROUP BY content_item_id
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("start", startDate);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                metrics[reader.GetInt32(0)] = (float)Convert.ToDouble(reader.GetValue(1));
+            }
+        }
+
+        return metrics;
     }
 }

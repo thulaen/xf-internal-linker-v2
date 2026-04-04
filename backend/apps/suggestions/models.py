@@ -471,6 +471,29 @@ class Suggestion(TimestampedModel):
         help_text="Weighted composite of all score components. Used to rank suggestions.",
     )
 
+    # FR-021 Graph and Value Model
+    candidate_origin = models.CharField(
+        max_length=20,
+        choices=[
+            ("embedding", "Embedding Similarity"),
+            ("graph_walk", "Pixie Graph Walk"),
+            ("both", "Both Channel Match"),
+        ],
+        default="embedding",
+        db_index=True,
+        help_text="Which candidate generation channel produced this suggestion.",
+    )
+    score_value_model = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Pre-ranking score from the Instagram-style value model (relevance + traffic).",
+    )
+    value_model_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable signals and weights used in the Value Model pass.",
+    )
+
     # Anchor text
     anchor_phrase = models.CharField(
         max_length=500,

@@ -228,3 +228,19 @@ public sealed class GraphSyncEntityNode
 
     public double Weight { get; set; }
 }
+
+public sealed class KnowledgeGraphEdge
+{
+    public int ArticleId { get; set; }
+
+    public int EntityId { get; set; }
+
+    public float Weight { get; set; }
+}
+
+public sealed class KnowledgeGraphData
+{
+    public List<KnowledgeGraphEdge> Edges { get; } = [];
+
+    public Dictionary<int, string> EntityTypeMap { get; } = [];
+}

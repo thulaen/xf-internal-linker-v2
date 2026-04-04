@@ -273,7 +273,11 @@ public class ImportContentService(
     }
 }
 
-public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunPipelineService> logger) : IRunPipelineService
+public class RunPipelineService(
+    IPostgresRuntimeStore runtimeStore, 
+    IGraphCandidateService graphCandidateService,
+    IOptions<HttpWorkerOptions> options,
+    ILogger<RunPipelineService> logger) : IRunPipelineService
 {
     public async Task<RunPipelineResult> ExecuteAsync(string jobId, RunPipelineRequest request, CancellationToken cancellationToken)
     {
@@ -285,6 +289,10 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
         var destScopeIds = new List<int>();
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
+
+        // 1. Warm-up Graph and Traffic Data (Simplicity/Consistency as per user request)
+        var graphData = await runtimeStore.LoadKnowledgeGraphDataAsync(cancellationToken);
+        var trafficMetrics = await runtimeStore.GetTrafficMetricsAsync(options.Value.Pipeline.TrafficLookbackDays, cancellationToken);
 
         var destinations = await runtimeStore.GetDestinationNodesAsync(destScopeIds, cancellationToken);
         var hosts = await runtimeStore.GetHostNodesAsync(hostScopeIds, cancellationToken);
@@ -305,6 +313,19 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
             for (int destOuterIdx = 0; destOuterIdx < destinations.Count; destOuterIdx += destBatchSize)
             {
                 int currentDestBatch = Math.Min(destBatchSize, destinations.Count - destOuterIdx);
+                
+                // --- CHANNEL A: Graph-Based Candidate Generation ---
+                var graphCandidateMap = new Dictionary<int, List<PipelineSuggestion>>(); // Destination -> List of Hosts
+                for (int d = 0; d < currentDestBatch; d++)
+                {
+                    var dest = destinations[destOuterIdx + d];
+                    var graphCandidates = await graphCandidateService.GenerateGraphCandidatesAsync(
+                        dest.ContentId, graphData, trafficMetrics, cancellationToken);
+                    
+                    graphCandidateMap[dest.ContentId] = graphCandidates.ToList();
+                }
+
+                // --- CHANNEL B: Embedding-Based Candidate Generation ---
                 var destEmbeddingsArray = ArrayPool<float>.Shared.Rent(currentDestBatch * 1024);
                 try
                 {
@@ -335,32 +356,44 @@ public class RunPipelineService(IPostgresRuntimeStore runtimeStore, ILogger<RunP
                                 }
                             }
 
-                            // Placeholder for fixed P/Invoke mapping
-                            /*
-                            unsafe
+                            // --- MERGE & SCORE ---
+                            for (int d = 0; d < currentDestBatch; d++)
                             {
-                                fixed (float* dPtr = destEmbeddingsArray)
-                                fixed (float* sPtr = hostEmbeddingsArray)
-                                {
-                                    ScoringInterop.cscore_and_topk(dPtr, 1024, ...);
-                                }
-                            }
-                            */
+                                var dest = destinations[destOuterIdx + d];
+                                var graphCandidates = graphCandidateMap[dest.ContentId];
 
-                            // Emit mock suggestions (only on the first pass of destinations so we don't multiply host count)
-                            if (destOuterIdx == 0)
-                            {
                                 for (int j = 0; j < currentBatch; j++)
                                 {
                                     var host = hosts[i + j];
-                                    await suggestionChannel.Writer.WriteAsync(new PipelineSuggestion
+                                    
+                                    // 1. Check if Graph Candidate exists for this host
+                                    var gc = graphCandidates.FirstOrDefault(x => x.HostContentId == host.ContentId);
+                                    
+                                    // 2. Perform Cosine Similarity (Embedding Channel)
+                                    float semanticScore = 0f;
+                                    if (dest.Embedding?.Length == 1024 && host.Embedding?.Length == 1024)
                                     {
-                                        HostContentId = host.ContentId,
-                                        HostSentenceId = host.SentenceId,
-                                        DestinationContentId = destinations[0].ContentId, 
-                                        CompositeScore = 0.9f,
-                                        ExactMatchAnchor = host.SentenceText
-                                    }, cancellationToken);
+                                        for (int k = 0; k < 1024; k++) semanticScore += dest.Embedding[k] * host.Embedding[k];
+                                    }
+
+                                    bool isEmbeddingCandidate = semanticScore > 0.75f; // Threshold
+
+                                    if (isEmbeddingCandidate || gc != null)
+                                    {
+                                        var suggestion = new PipelineSuggestion
+                                        {
+                                            HostContentId = host.ContentId,
+                                            HostSentenceId = host.SentenceId,
+                                            DestinationContentId = dest.ContentId,
+                                            ExactMatchAnchor = host.SentenceText, // Anchor selection logic remains future
+                                            CompositeScore = gc?.CompositeScore ?? semanticScore, // Value model already applied to gc
+                                            CandidateOrigin = (isEmbeddingCandidate && gc != null) ? "both" : (gc != null ? "graph_walk" : "embedding"),
+                                            ValueScore = gc?.ValueScore,
+                                            ValueModelDiagnostics = gc?.ValueModelDiagnostics
+                                        };
+
+                                        await suggestionChannel.Writer.WriteAsync(suggestion, cancellationToken);
+                                    }
                                 }
                             }
                         }

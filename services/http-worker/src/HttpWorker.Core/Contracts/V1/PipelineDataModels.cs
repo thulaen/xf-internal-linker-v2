@@ -55,4 +55,8 @@ public class PipelineSuggestion
     public int DestinationContentId { get; set; }
     public string ExactMatchAnchor { get; set; } = string.Empty;
     public float CompositeScore { get; set; }
+
+    public string CandidateOrigin { get; set; } = "embedding";
+    public float? ValueScore { get; set; }
+    public string? ValueModelDiagnostics { get; set; }
 }

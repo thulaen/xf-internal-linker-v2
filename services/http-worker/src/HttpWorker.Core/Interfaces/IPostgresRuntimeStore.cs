@@ -40,4 +40,8 @@ public interface IPostgresRuntimeStore
     Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken);
     
     Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken);
+
+    Task<KnowledgeGraphData> LoadKnowledgeGraphDataAsync(CancellationToken cancellationToken);
+
+    Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
 }

@@ -49,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HttpWorker.Core.Interfaces.ITextDistiller, HttpWorker.Services.Distillation.TextDistiller>();
         services.AddSingleton<IImportContentService, ImportContentService>();
         services.AddSingleton<IRunPipelineService, RunPipelineService>();
+        services.AddSingleton<IGraphCandidateService, GraphCandidateService>();
         services.AddSingleton<JobProcessor>();
         return services;
     }
