@@ -1136,7 +1136,7 @@ class GSCSlice3Tests(APITestCase):
             start_date=date(2026, 4, 1),
             end_date=date(2026, 4, 2),
             dimensions=["date", "page"],
-            excluded_country_codes=["CHN", "SGP"],
+            excluded_country_codes=["CHN", "SGP", "VNM"],
         )
 
         body = service.searchanalytics.return_value.query.call_args.kwargs["body"]
