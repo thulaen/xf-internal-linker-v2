@@ -249,6 +249,9 @@ def get_wordpress_settings() -> dict[str, object]:
 
     sync_enabled = (_get_app_setting_value("wordpress.sync_enabled") or "").strip().lower() in {"1", "true", "yes", "on"}
 
+    from apps.health.services import get_service_health_status
+    health = get_service_health_status("wordpress")
+
     return {
         "base_url": base_url,
         "username": username,
@@ -256,6 +259,7 @@ def get_wordpress_settings() -> dict[str, object]:
         "sync_enabled": sync_enabled,
         "sync_hour": _read_int("wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"]),
         "sync_minute": _read_int("wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"]),
+        "health": health
     }
 
 
@@ -365,10 +369,15 @@ def get_value_model_settings() -> dict[str, float | int | bool]:
 
 
 def get_ga4_gsc_settings() -> dict[str, object]:
-    """Load persisted GA4/GSC settings with defensive defaults."""
+    """Load persisted GA4/GSC settings with defensive defaults and health status."""
     settings = _read_ga4_gsc_settings()
     if not isinstance(settings.get("ranking_weight"), (float, int)):
         settings["ranking_weight"] = DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
+    
+    from apps.health.services import get_service_health_status
+    settings["ga4_health"] = get_service_health_status("ga4")
+    settings["gsc_health"] = get_service_health_status("gsc")
+    
     return settings
 
 
@@ -2079,15 +2088,22 @@ class XenForoSettingsView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
+        from apps.health.services import get_service_health_status
+        
         base_url = (
             _get_app_setting_value("xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")) or ""
         ).strip()
         api_key = (
             _get_app_setting_value("xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")) or ""
         ).strip()
+        
+        # Get actual connectivity health
+        health = get_service_health_status("xenforo")
+        
         return Response({
             "base_url": base_url,
             "api_key_configured": bool(api_key),
+            "health": health
         })
 
     def put(self, request):
@@ -2292,6 +2308,23 @@ class DashboardView(APIView):
             if job["completed_at"]:
                 job["completed_at"] = job["completed_at"].isoformat()
 
+        # System Health Summary
+        from apps.health.models import ServiceHealthRecord
+        from apps.health.serializers import ServiceHealthRecordSerializer
+        
+        health_records = ServiceHealthRecord.objects.all()
+        status_counts = health_records.values("status").annotate(count=Count("status"))
+        summary = {row["status"]: row["count"] for row in status_counts}
+        
+        # Determine overall system state
+        overall_status = ServiceHealthRecord.STATUS_HEALTHY
+        if any(r.status == ServiceHealthRecord.STATUS_DOWN for r in health_records):
+            overall_status = ServiceHealthRecord.STATUS_DOWN
+        elif any(r.status in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_STALE) for r in health_records):
+            overall_status = ServiceHealthRecord.STATUS_ERROR
+        elif any(r.status == ServiceHealthRecord.STATUS_WARNING for r in health_records):
+            overall_status = ServiceHealthRecord.STATUS_WARNING
+
         return Response({
             "suggestion_counts": {
                 "pending":  suggestion_counts.get("pending", 0),
@@ -2305,6 +2338,11 @@ class DashboardView(APIView):
             "last_sync": last_sync,
             "pipeline_runs": pipeline_runs,
             "recent_imports": recent_imports,
+            "system_health": {
+                "status": overall_status,
+                "summary": summary,
+                "total_monitored": health_records.count()
+            }
         })
 
 

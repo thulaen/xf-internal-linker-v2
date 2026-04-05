@@ -53,7 +53,7 @@
 
 @if (!loading && data) {
   <section class="dashboard-overview-grid">
-    <app-system-summary></app-system-summary>
+    <app-system-summary [health]="data.system_health"></app-system-summary>
 
     <section class="sync-banner" [class.no-sync]="!data.last_sync">
       @if (data.last_sync) {

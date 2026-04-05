@@ -5,6 +5,7 @@
   padding: var(--space-lg);
   max-width: 900px;
   font-family: var(--font-family);
+  padding-bottom: 80px; // Breathing room at bottom
 }
 
 // ── Header ────────────────────────────────────────────────────────
@@ -90,7 +91,7 @@
 .alerts-list {
   display: flex;
   flex-direction: column;
-  gap: var(--space-sm);
+  gap: var(--space-md); // Increased from sm (8px) to md (16px)
 }
 
 // ── Alert card ────────────────────────────────────────────────────

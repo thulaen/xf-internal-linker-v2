@@ -91,39 +91,12 @@ export class HealthComponent implements OnInit {
     return `status-${status}`;
   }
 
-  getServiceName(key: string): string {
-    const names: { [key: string]: string } = {
-      'ga4': 'Google Analytics 4',
-      'gsc': 'Search Console',
-      'xenforo': 'XenForo Community',
-      'wordpress': 'WordPress Site',
-      'http_worker': 'C# Analysis Worker',
-      'celery': 'Task Queue (Celery)',
-      'database': 'Main Database (PG)',
-      'redis': 'Cache & Queue (Redis)',
-      'pipeline': 'Ranking Pipeline',
-      'matomo': 'Matomo Analytics',
-      'embedding': 'Embedding Specialist',
-      'scheduler': 'C# Scheduler',
-      'diagnostics': 'Backend Services'
-    };
-    return names[key] || key.replace(/_/g, ' ').toUpperCase();
+  getServiceName(service: ServiceHealth): string {
+    return service.service_name || service.service_key.replace(/_/g, ' ').toUpperCase();
   }
 
-  getServiceDescription(key: string): string {
-    const descs: { [key: string]: string } = {
-      'ga4': 'Tracks post-click traffic and conversion metrics.',
-      'gsc': 'Monitors search impressions and organic clicks.',
-      'xenforo': 'Source for threads, posts, and user content.',
-      'wordpress': 'Source for cross-linkable blog and page content.',
-      'http_worker': 'High-performance C# engine for heavy I/O.',
-      'celery': 'Handles background processing and sync tasks.',
-      'database': 'Canonical storage for links and knowledge graph.',
-      'redis': 'Low-latency state management and task routing.',
-      'pipeline': 'The core logic that generates link suggestions.',
-      'matomo': 'Self-hosted privacy-focused web analytics.',
-    };
-    return descs[key] || '';
+  getServiceDescription(service: ServiceHealth): string {
+    return service.service_description || '';
   }
 
   isStale(lastSuccess: string | null): boolean {

@@ -38,9 +38,21 @@ export interface ScopeItem {
   display_order: number;
 }
 
+export interface ConnectionHealth {
+  status: string;
+  label: string;
+  name: string;
+  description: string;
+  issue: string;
+  fix: string;
+  last_success: string | null;
+  is_healthy: boolean;
+}
+
 export interface XenForoSettings {
   base_url: string;
   api_key_configured: boolean;
+  health: ConnectionHealth;
 }
 
 export interface XenForoSettingsUpdate {
@@ -55,6 +67,7 @@ export interface WordPressSettings {
   sync_enabled: boolean;
   sync_hour: number;
   sync_minute: number;
+  health: ConnectionHealth;
 }
 
 export interface WordPressSettingsUpdate {
@@ -129,6 +142,7 @@ export interface GSCSettings {
   connection_message: string;
   oauth_connected: boolean;
   last_sync: AnalyticsSyncSummary | null;
+  health: ConnectionHealth;
 }
 
 export interface GSCSettingsUpdate {
@@ -164,6 +178,8 @@ export interface GA4TelemetrySettings {
   oauth_connected: boolean;
   google_oauth_client_id: string;
   google_oauth_client_secret_configured: boolean;
+  ga4_health: ConnectionHealth;
+  gsc_health: ConnectionHealth;
 }
 
 export interface AnalyticsSyncSummary {

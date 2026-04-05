@@ -44,6 +44,11 @@ export interface DashboardData {
   last_sync: LastSync | null;
   pipeline_runs: PipelineRunSummary[];
   recent_imports: ImportJobSummary[];
+  system_health: {
+    status: 'healthy' | 'warning' | 'error' | 'down' | 'stale';
+    summary: { [key: string]: number };
+    total_monitored: number;
+  };
 }
 
 @Injectable({ providedIn: 'root' })

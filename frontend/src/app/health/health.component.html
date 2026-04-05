@@ -43,8 +43,8 @@
         <div class="service-identify">
           <mat-icon class="service-icon">{{ getStatusIcon(s.status) }}</mat-icon>
           <div class="name-box">
-            <h3 class="service-name">{{ getServiceName(s.service_key) }}</h3>
-            <span class="service-description">{{ getServiceDescription(s.service_key) }}</span>
+            <h3 class="service-name">{{ getServiceName(s) }}</h3>
+            <span class="service-description">{{ getServiceDescription(s) }}</span>
           </div>
         </div>
         <button mat-icon-button (click)="refreshService(s.service_key)" 
@@ -56,31 +56,57 @@
 
       <div class="status-box">
         <div class="status-badge" [ngClass]="'badge-' + s.status">
+          <mat-icon class="mini-icon">{{ getStatusIcon(s.status) }}</mat-icon>
           {{ s.status_label }}
         </div>
       </div>
 
-      <div class="metadata-box" *ngIf="s.metadata && s.metadata.lag_hours !== undefined">
-        <div class="metric">
+      <!-- Plain-English Issue Information -->
+      <div class="issue-box" *ngIf="s.issue_description && s.status !== 'healthy'">
+        <div class="issue-desc">
+          <mat-icon>error_outline</mat-icon>
+          <div class="text-content">
+            <span class="label">The Problem</span>
+            <p>{{ s.issue_description }}</p>
+          </div>
+        </div>
+        <div class="suggested-fix" *ngIf="s.suggested_fix">
+          <mat-icon>auto_fix_high</mat-icon>
+          <div class="text-content">
+            <span class="label">The Fix</span>
+            <p>{{ s.suggested_fix }}</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="metadata-box" *ngIf="s.metadata && (s.metadata.lag_hours !== undefined || s.metadata.node_count || s.metadata.worker_count)">
+        <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
           <span class="m-label">Data Lag</span>
           <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h</span>
         </div>
-        <div class="metric" *ngIf="s.metadata.last_data_date">
-          <span class="m-label">Last Record</span>
-          <span class="m-value">{{ s.metadata.last_data_date | date:'shortDate' }}</span>
+        <div class="metric" *ngIf="s.metadata.worker_count !== undefined">
+          <span class="m-label">Active Workers</span>
+          <span class="m-value core">{{ s.metadata.worker_count }}</span>
+        </div>
+        <div class="metric" *ngIf="s.metadata.node_count !== undefined">
+          <span class="m-label">Entities</span>
+          <span class="m-value core">{{ s.metadata.node_count | number }}</span>
         </div>
       </div>
 
-      <div class="error-box" *ngIf="s.last_error_message && s.status !== 'healthy'">
-        <p class="error-text">{{ s.last_error_message }}</p>
+      <div class="technical-error" *ngIf="s.last_error_message && s.status !== 'healthy'">
+        <details>
+          <summary>Technical Details</summary>
+          <p class="error-text">{{ s.last_error_message }}</p>
+        </details>
       </div>
 
       <div class="footer">
-        <span class="last-success" *ngIf="s.last_success_at">
-          Healthy as of {{ s.last_success_at | date:'HH:mm' }}
+        <span class="last-success" *ngIf="s.last_success_at && s.status === 'healthy'">
+          Last verified {{ s.last_success_at | date:'HH:mm' }}
         </span>
-        <span class="not-configured" *ngIf="s.status === 'not_configured'">
-          Setup required in <a routerLink="/settings">Settings</a>
+        <span class="not-configured" *ngIf="s.status === 'not_configured' || s.status === 'not_enabled'">
+          Action required in <a routerLink="/settings">Settings</a>
         </span>
       </div>
     </mat-card>

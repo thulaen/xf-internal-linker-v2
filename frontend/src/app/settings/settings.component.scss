@@ -348,10 +348,70 @@
   @include theme.ga4-chip;
 }
 
-.status-pill--success { background: var(--color-success-light); color: var(--color-success-dark); border: 1px solid var(--color-success-light); }
-.status-pill--danger { background: var(--color-error-light); color: var(--color-error-dark); border: 1px solid var(--color-error-light); }
+.status-pill--success, .status-pill--healthy { background: var(--color-success-light); color: var(--color-success-dark); border: 1px solid var(--color-success-light); }
+.status-pill--danger, .status-pill--error, .status-pill--down { background: var(--color-error-light); color: var(--color-error-dark); border: 1px solid var(--color-error-light); }
+.status-pill--warning, .status-pill--stale { background: var(--color-warning-light); color: var(--color-warning-dark); border: 1px solid var(--color-warning); }
 .status-pill--status { background: var(--color-blue-50); color: var(--color-primary); border: 1px solid var(--color-blue-100); }
 .status-pill--muted { background: var(--color-bg-faint); color: var(--color-text-muted); }
+
+.health-indicator {
+  .status-pill {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    font-size: 11px;
+    font-weight: 600;
+    
+    mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
+  }
+}
+
+.health-issue-box {
+  margin-top: 16px;
+  padding: 16px;
+  background: var(--color-error-light);
+  border: 1px solid var(--color-error);
+  border-radius: var(--s-radius);
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+
+  mat-icon {
+    color: var(--color-error-dark);
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+  }
+
+  .issue-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+
+    strong {
+      color: var(--color-error-dark);
+      margin-right: 4px;
+    }
+
+    .fix-text {
+      margin-top: 4px;
+      padding-top: 4px;
+      border-top: 1px solid rgba(0, 0, 0, 0.05);
+      color: var(--color-text-muted);
+
+      strong {
+        color: var(--color-primary);
+      }
+    }
+  }
+}
 
 .group-create-form {
   display: flex;

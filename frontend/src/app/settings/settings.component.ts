@@ -1424,6 +1424,17 @@ export class SettingsComponent implements OnInit, OnDestroy {
     scope_field_weight: 0.15,
     learned_anchor_field_weight: 0.15,
   };
+
+  private readonly DEFAULT_HEALTH = {
+    status: 'stale',
+    label: 'Pending check',
+    name: '',
+    description: '',
+    issue: '',
+    fix: '',
+    last_success: null,
+    is_healthy: false
+  };
   ga4Gsc: GSCSettings = {
     ranking_weight: 0.05,
     property_url: '',
@@ -1438,6 +1449,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     connection_message: 'Connect via Google OAuth or fill in service-account credentials.',
     oauth_connected: false,
     last_sync: null,
+    health: this.DEFAULT_HEALTH,
   };
   gscPrivateKey = '';
   gscManualBackfillDays = 180;
@@ -1477,6 +1489,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
     oauth_connected: false,
     google_oauth_client_id: '',
     google_oauth_client_secret_configured: false,
+    ga4_health: this.DEFAULT_HEALTH,
+    gsc_health: this.DEFAULT_HEALTH,
   };
   ga4TelemetrySecret = '';
   ga4TelemetryReadPrivateKey = '';
@@ -1524,6 +1538,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   xenforo: XenForoSettings = {
     base_url: '',
     api_key_configured: false,
+    health: this.DEFAULT_HEALTH,
   };
   xfApiKey = '';
 
@@ -1534,6 +1549,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
     sync_enabled: false,
     sync_hour: 3,
     sync_minute: 0,
+    health: this.DEFAULT_HEALTH,
   };
   wordpressPassword = '';
 
@@ -1723,7 +1739,18 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   telemetryStatusClass(status: string): string {
-    return `status-pill--${status === 'connected' ? 'success' : status === 'error' ? 'danger' : status === 'saved' ? 'status' : 'muted'}`;
+    return `status-pill--${status === 'connected' || status === 'healthy' ? 'success' : (status === 'error' || status === 'down') ? 'danger' : (status === 'warning' || status === 'stale') ? 'warning' : status === 'saved' ? 'status' : 'muted'}`;
+  }
+
+  getHealthIcon(status: string): string {
+    switch (status) {
+      case 'healthy': return 'check_circle';
+      case 'warning': return 'warning';
+      case 'error':   return 'error';
+      case 'down':    return 'dangerous';
+      case 'stale':   return 'update';
+      default:        return 'help_outline';
+    }
   }
 
   lastSyncLabel(sync: { completed_at: string | null; started_at: string | null; rows_written: number } | null): string {

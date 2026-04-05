@@ -90,19 +90,17 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     def source_status(self, request):
         """
         GET /api/sync-jobs/source_status/
+        
+        Returns unified health status for XF and WP sources.
         """
-        from apps.core.views import _get_app_setting_value
+        from apps.health.models import ServiceHealthRecord
 
-        xf_url = (_get_app_setting_value("xenforo.base_url") or "").strip()
-        xf_key = (_get_app_setting_value("xenforo.api_key") or "").strip()
-
-        wp_url = (_get_app_setting_value("wordpress.base_url") or "").strip()
-        wp_user = (_get_app_setting_value("wordpress.username") or "").strip()
-        wp_pass = (_get_app_setting_value("wordpress.app_password") or "").strip()
+        xf_status = ServiceHealthRecord.objects.filter(service_key="xenforo").first()
+        wp_status = ServiceHealthRecord.objects.filter(service_key="wordpress").first()
 
         return Response({
-            "api": bool(xf_url and xf_key),
-            "wp": bool(wp_url and wp_user and wp_pass),
+            "api": xf_status.status == ServiceHealthRecord.STATUS_HEALTHY if xf_status else False,
+            "wp": wp_status.status == ServiceHealthRecord.STATUS_HEALTHY if wp_status else False,
         })
 
     @action(detail=False, methods=["post"])

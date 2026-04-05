@@ -241,6 +241,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=8, minute=0),
         "options": {"queue": "pipeline"},
     },
+    # Automated system health check: Every 30 minutes.
+    "periodic-system-health-check": {
+        "task": "health.run_all_health_checks",
+        "schedule": 1800.0,
+        "options": {"queue": "pipeline"},
+    },
 }
 
 

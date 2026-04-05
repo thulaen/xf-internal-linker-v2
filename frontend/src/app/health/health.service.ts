@@ -4,12 +4,16 @@ import { Observable } from 'rxjs';
 
 export interface ServiceHealth {
   service_key: string;
+  service_name: string;
+  service_description: string;
   status: 'healthy' | 'warning' | 'error' | 'down' | 'stale' | 'not_configured' | 'not_enabled';
   status_label: string;
   last_check_at: string;
   last_success_at: string | null;
   last_error_at: string | null;
   last_error_message: string;
+  issue_description: string;
+  suggested_fix: string;
   metadata: any;
 }
 

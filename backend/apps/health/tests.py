@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.utils import timezone
 from apps.health.models import ServiceHealthRecord
-from apps.health.services import perform_health_check, CHECKERS
+from apps.health.services import perform_health_check, HealthCheckRegistry, ServiceHealthResult
 
 class HealthCheckTests(TestCase):
     def test_model_creation(self):
@@ -9,34 +9,38 @@ class HealthCheckTests(TestCase):
             service_key="test_service",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="All good",
-            last_check_at=timezone.now()
+            last_check_at=timezone.now(),
+            issue_description="No problems found.",
+            suggested_fix="Enjoy the uptime."
         )
         self.assertEqual(record.service_key, "test_service")
         self.assertEqual(record.status, "healthy")
+        self.assertEqual(record.issue_description, "No problems found.")
 
     def test_perform_health_check_invalid(self):
         with self.assertRaises(ValueError):
-            perform_health_check("invalid_service")
+            perform_health_check("invalid_service_random_key_123")
 
     def test_perform_health_check_logic(self):
-        # We'll mock a simple checker for testing
+        # We'll register a mock checker for testing
+        @HealthCheckRegistry.register("mock_service_test")
         def mock_checker():
-            from apps.health.services import ServiceHealthResult
             return ServiceHealthResult(
-                service_key="mock_service",
-                status="healthy",
+                service_key="mock_service_test",
+                status=ServiceHealthRecord.STATUS_HEALTHY,
                 status_label="Mock is fine",
+                issue_description="Mocking is successful.",
+                suggested_fix="No action needed.",
                 last_success_at=timezone.now()
             )
         
-        # Patch CHECKERS temporarily
-        original_checkers = CHECKERS.copy()
-        CHECKERS["mock_service"] = mock_checker
         try:
-            record = perform_health_check("mock_service")
+            record = perform_health_check("mock_service_test")
             self.assertEqual(record.status, "healthy")
             self.assertEqual(record.status_label, "Mock is fine")
+            self.assertEqual(record.issue_description, "Mocking is successful.")
         finally:
-            # Restore
-            CHECKERS.clear()
-            CHECKERS.update(original_checkers)
+            # Clean up the registry
+            checkers = HealthCheckRegistry.get_checkers()
+            if "mock_service_test" in checkers:
+                del checkers["mock_service_test"]

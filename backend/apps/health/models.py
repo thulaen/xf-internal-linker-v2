@@ -39,6 +39,15 @@ class ServiceHealthRecord(TimestampedModel):
         db_index=True,
         help_text="Unique stable key for the monitored service.",
     )
+    service_name = models.CharField(
+        max_length=100,
+        blank=True,
+        help_text="Human-readable name for the service (e.g. 'Google Analytics 4').",
+    )
+    service_description = models.TextField(
+        blank=True,
+        help_text="Short description of what this service does.",
+    )
     status = models.CharField(
         max_length=20,
         choices=STATUS_CHOICES,
@@ -65,6 +74,14 @@ class ServiceHealthRecord(TimestampedModel):
     last_error_message = models.TextField(
         blank=True,
         help_text="Technical error details from the last failed attempt.",
+    )
+    issue_description = models.TextField(
+        blank=True,
+        help_text="Plain English explanation of what is wrong and why.",
+    )
+    suggested_fix = models.TextField(
+        blank=True,
+        help_text="Plain English instructions on how to resolve the issue.",
     )
     metadata = models.JSONField(
         default=dict,

@@ -5,22 +5,24 @@ Health tasks — periodic health checks.
 import logging
 from celery import shared_task
 from django.utils import timezone
-from .services import CHECKERS, perform_health_check
+from .services import HealthCheckRegistry, perform_health_check
 
 logger = logging.getLogger(__name__)
 
 @shared_task(name="health.run_all_health_checks")
 def run_all_health_checks():
     """
-    Run all registered health checks.
+    Run all registered health checks from the registry.
     
-    This is intended to run every 5 minutes via Celery Beat.
+    This is intended to run every 30 minutes via Celery Beat.
     It updates the ServiceHealthRecord for each service and emits/resolves
     OperatorAlerts accordingly.
     """
-    logger.info("Starting system-wide health checks.")
+    logger.info("Starting system-wide health checks via Registry.")
+    checkers = HealthCheckRegistry.get_checkers()
     results = []
-    for service_key in CHECKERS.keys():
+    
+    for service_key in checkers.keys():
         try:
             record = perform_health_check(service_key)
             results.append(f"{service_key}: {record.status}")
@@ -28,7 +30,7 @@ def run_all_health_checks():
             logger.error(f"Health check failed for {service_key}: {str(e)}", exc_info=True)
             results.append(f"{service_key}: FAILED_EXECUTION")
     
-    logger.info(f"Health checks completed: {', '.join(results)}")
+    logger.info(f"Registry-scale health checks completed: {', '.join(results)}")
     return results
 
 @shared_task(name="health.run_single_health_check")

@@ -2,7 +2,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { filter, map, startWith } from 'rxjs';
+import { filter, map, startWith, timer, switchMap } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -166,9 +166,12 @@ export class AppComponent implements OnInit {
       },
     });
 
-    // Fetch health summary for status dot
-    this.healthService.getSummary()
-      .pipe(takeUntilDestroyed(this.destroyRef))
+    // Fetch health summary for status dot plus 30-minute heart beat
+    timer(0, 30 * 60 * 1000)
+      .pipe(
+        switchMap(() => this.healthService.getSummary()),
+        takeUntilDestroyed(this.destroyRef)
+      )
       .subscribe({
         next: (summary: any) => this.systemStatus = summary.system_status,
         error: () => this.systemStatus = 'unknown'

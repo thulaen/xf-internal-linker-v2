@@ -135,13 +135,69 @@
         font-size: 12px;
         padding: 4px 10px;
         border-radius: 12px;
-        display: inline-block;
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
         font-weight: 500;
+
+        .mini-icon {
+          font-size: 14px;
+          width: 14px;
+          height: 14px;
+        }
         
         &.badge-healthy { background-color: var(--color-success-light); color: var(--color-success); }
         &.badge-warning, &.badge-stale { background-color: var(--color-warning-light); color: var(--color-warning); }
         &.badge-error, &.badge-down { background-color: var(--color-error-light); color: var(--color-error); }
         &.badge-not_configured, &.badge-not_enabled { background-color: var(--color-bg-faint); color: var(--color-text-secondary); }
+      }
+    }
+
+    .issue-box {
+      margin-bottom: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+
+      .issue-desc, .suggested-fix {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+
+        mat-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          margin-top: 2px;
+        }
+
+        .text-content {
+          .label {
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: block;
+            margin-bottom: 2px;
+          }
+          p {
+            font-size: 13px;
+            margin: 0;
+            line-height: 1.4;
+          }
+        }
+      }
+
+      .issue-desc {
+        color: var(--color-error);
+        mat-icon { color: var(--color-error); }
+        .label { color: var(--color-error); }
+      }
+
+      .suggested-fix {
+        color: var(--color-primary);
+        mat-icon { color: var(--color-primary); }
+        .label { color: var(--color-primary); }
       }
     }
 
@@ -165,21 +221,33 @@
           font-weight: 500;
           color: var(--color-text-primary);
           &.warn { color: var(--color-error); }
+          &.core { color: var(--color-primary); }
         }
       }
     }
 
-    .error-box {
-      background-color: var(--color-error-light);
-      padding: 8px;
-      border-radius: 4px;
+    .technical-error {
       margin-bottom: 12px;
       
-      .error-text {
+      details {
         font-size: 11px;
-        color: var(--color-error);
-        margin: 0;
-        word-break: break-all;
+        color: var(--color-text-secondary);
+        
+        summary {
+          cursor: pointer;
+          outline: none;
+          user-select: none;
+          &:hover { color: var(--color-text-primary); }
+        }
+
+        .error-text {
+          background-color: var(--color-bg-faint);
+          padding: 8px;
+          border-radius: 4px;
+          margin: 8px 0 0;
+          word-break: break-all;
+          font-family: monospace;
+        }
       }
     }
 
