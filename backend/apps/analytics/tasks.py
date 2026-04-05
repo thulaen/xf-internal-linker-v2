@@ -196,3 +196,74 @@ def recompute_all_search_impact() -> dict[str, int]:
         count += 1
 
     return {"processed_suggestions": count}
+
+
+@shared_task(name="analytics.detect_traffic_spikes")
+def detect_traffic_spikes() -> dict[str, int]:
+    """
+    FR-023 Part 3: Momentum-based spike detection.
+    Alerts the dashboard if a page's daily traffic is >300% above its 7-day trailing average.
+    """
+    from django.db.models import Avg, Sum
+    from apps.notifications.services import emit_operator_alert
+    from apps.notifications.models import OperatorAlert
+    from apps.content.models import ContentItem
+    from .models import SearchMetric
+
+    # 1. Find the latest date we have GSC data for
+    latest_metric = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
+    if not latest_metric:
+        return {"alerts_emitted": 0}
+
+    target_date = latest_metric.date
+    seven_days_ago = target_date - timedelta(days=7)
+    one_day_ago = target_date - timedelta(days=1)
+
+    # 2. Identify candidates (pages with at least some traffic on the target date)
+    # We only care about pages with > 10 clicks to avoid noise from 1 click vs 0.
+    candidates = SearchMetric.objects.filter(
+        date=target_date, 
+        source="gsc", 
+        clicks__gt=10
+    ).values_list("content_item_id", flat=True)
+
+    alerts_count = 0
+    for item_id in candidates:
+        stats = SearchMetric.objects.filter(
+            content_item_id=item_id,
+            source="gsc",
+            date__range=[seven_days_ago, one_day_ago]
+        ).aggregate(avg_clicks=Avg("clicks"))
+        
+        avg_clicks = stats["avg_clicks"] or 0
+        latest_clicks = SearchMetric.objects.filter(
+            content_item_id=item_id,
+            source="gsc",
+            date=target_date
+        ).aggregate(total=Sum("clicks"))["total"] or 0
+
+        # Threshold: 300% above average (i.e., 4x the average)
+        if avg_clicks > 0 and latest_clicks > (avg_clicks * 4):
+            item = ContentItem.objects.get(pk=item_id)
+            emit_operator_alert(
+                event_type="traffic_spike",
+                severity=OperatorAlert.SEVERITY_INFO,
+                title=f"Traffic Spike: {item.title[:40]}...",
+                message=(
+                    f"Page '{item.title}' saw {latest_clicks} clicks on {target_date}, "
+                    f"which is {((latest_clicks/avg_clicks)-1)*100:.0f}% above its 7-day average ({avg_clicks:.1f})."
+                ),
+                source_area=OperatorAlert.AREA_PIPELINE,
+                dedupe_key=f"traffic-spike-{item_id}-{target_date}",
+                related_object_type="content_item",
+                related_object_id=str(item_id),
+                payload={
+                    "item_id": item_id,
+                    "date": str(target_date),
+                    "latest_clicks": latest_clicks,
+                    "avg_clicks": float(avg_clicks),
+                }
+            )
+            alerts_count += 1
+
+    return {"alerts_emitted": alerts_count}

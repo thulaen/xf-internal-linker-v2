@@ -411,6 +411,8 @@ class GSCImpactSnapshot(models.Model):
     
     baseline_clicks = models.IntegerField(default=0)
     post_clicks = models.IntegerField(default=0)
+    baseline_impressions = models.IntegerField(default=0)
+    post_impressions = models.IntegerField(default=0)
     lift_clicks_pct = models.FloatField(default=0.0, help_text="Relative click lift: (post - baseline) / baseline.")
     lift_clicks_absolute = models.IntegerField(default=0)
     

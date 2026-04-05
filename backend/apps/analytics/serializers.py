@@ -18,6 +18,39 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
         ct = getattr(getattr(obj.suggestion, "destination", None), "content_type", None)
         return "WordPress" if ct in ("wp_post", "wp_page") else "XenForo"
 
+    wilson_lower_bound = serializers.SerializerMethodField()
+    wilson_confidence_label = serializers.SerializerMethodField()
+
+    def get_wilson_lower_bound(self, obj) -> float:
+        """
+        Calculates the 95% Wilson Score Lower Bound for CTR.
+        CTR_Wilson = (CTR + z^2/(2n) - z * sqrt((CTR * (1-CTR) + z^2/(4n)) / n)) / (1 + z^2/n)
+        """
+        n = obj.post_impressions
+        if n < 1:
+            return 0.0
+            
+        clicks = obj.post_clicks
+        p = clicks / n
+        z = 1.96  # 95% confidence
+        
+        denominator = 1 + (z**2 / n)
+        adjustment = z**2 / (2 * n)
+        error = z * ((p * (1 - p) + (z**2 / (4 * n))) / n)**0.5
+        
+        lower_bound = (p + adjustment - error) / denominator
+        return round(max(0.0, lower_bound), 4)
+
+    def get_wilson_confidence_label(self, obj) -> str:
+        n = obj.post_impressions
+        if n < 20:
+            return "Low"
+        if n < 100:
+            return "Moderate"
+        if n < 500:
+            return "Good"
+        return "High"
+
     class Meta:
         model = GSCImpactSnapshot
         fields = [
@@ -29,6 +62,10 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
             "window_type",
             "baseline_clicks",
             "post_clicks",
+            "baseline_impressions",
+            "post_impressions",
+            "wilson_lower_bound",
+            "wilson_confidence_label",
             "lift_clicks_pct",
             "lift_clicks_absolute",
             "probability_of_uplift",

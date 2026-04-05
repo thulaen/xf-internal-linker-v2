@@ -72,6 +72,10 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
             result = run_job("gsc_attribution", payload)
             
             if result and result.get("RewardLabel") != "inconclusive":
+                # Fetch impressions locally since C# only returns clicks
+                baseline_imps = _get_aggregated_metric(suggestion.destination, "impressions", baseline_start, baseline_end)
+                post_imps = _get_aggregated_metric(suggestion.destination, "impressions", post_start, actual_post_end)
+
                 GSCImpactSnapshot.objects.update_or_create(
                     suggestion=suggestion,
                     window_type=f"{window_days}d",
@@ -79,6 +83,8 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
                         "apply_date": suggestion.applied_at,
                         "baseline_clicks": result.get("BaselineClicks", 0),
                         "post_clicks": result.get("PostClicks", 0),
+                        "baseline_impressions": int(baseline_imps),
+                        "post_impressions": int(post_imps),
                         "lift_clicks_pct": result.get("LiftClicksPct", 0.0),
                         "lift_clicks_absolute": result.get("PostClicks", 0) - result.get("BaselineClicks", 0),
                         "probability_of_uplift": result.get("ProbabilityOfUplift", 0.0),

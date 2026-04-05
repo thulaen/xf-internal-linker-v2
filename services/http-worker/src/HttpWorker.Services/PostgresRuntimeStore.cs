@@ -835,4 +835,41 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
 
         return metrics;
     }
+
+    public async Task<Dictionary<int, List<GSCDailyMetrics>>> GetDailyTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+    {
+        var metrics = new Dictionary<int, List<GSCDailyMetrics>>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        
+        var startDate = DateTime.UtcNow.Date.AddDays(-lookbackDays);
+
+        await using (var cmd = new NpgsqlCommand(
+            """
+            SELECT content_item_id, date, clicks, impressions
+            FROM analytics_searchmetric
+            WHERE date >= @start
+            ORDER BY content_item_id, date
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("start", startDate);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                var contentId = reader.GetInt32(0);
+                if (!metrics.TryGetValue(contentId, out var list))
+                {
+                    list = new List<GSCDailyMetrics>();
+                    metrics[contentId] = list;
+                }
+                list.Add(new GSCDailyMetrics
+                {
+                    Date = reader.GetDateTime(1),
+                    Clicks = reader.GetInt32(2),
+                    Impressions = reader.GetInt32(3)
+                });
+            }
+        }
+
+        return metrics;
+    }
 }

@@ -50,6 +50,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IImportContentService, ImportContentService>();
         services.AddSingleton<IRunPipelineService, RunPipelineService>();
         services.AddSingleton<IGraphCandidateService, GraphCandidateService>();
+        services.AddSingleton<TrafficDecayService>();
         services.AddSingleton<JobProcessor>();
         return services;
     }

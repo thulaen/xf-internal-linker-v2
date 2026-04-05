@@ -42,14 +42,14 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Active target for the next session: Phase 24 / FR-021 (Graph-Based Link Candidate Generation)
-- Session target: Complete GraphSync wiring in C# worker and start FR-021 spec pass.
-- Status: Phase 22 / FR-019 is complete. All systems (backend, frontend, verified tests) are landed.
-- Current continuity state: GraphSyncService is now wired into the background JobProcessor.
+- Status: Phase 26 / FR-023 (Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts) is complete.
+- Active target for the next session: Phase 27 / FR-024 (TikTok Read-Through Rate Sync & Score)
+- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), and Social Scoring (FR-023) are fully implemented and verified.
 - Verification completed:
-  - `python backend/manage.py test apps.notifications` (9/9 OK)
-  - `dotnet test` (in HttpWorker.Tests, wiring verified)
-  - Update: FR-016 Slice 1 has now landed too. See `Current Session Note` below for the newer session details.
+  - `python backend/manage.py test apps.health` (Verified by thulaen in commit 8020899)
+  - `dotnet test` (Graph Candidate logic verified in HttpWorker.Tests)
+  - `frontend/src/app/health` components fully landing in the UI.
+  - Phase 29 / FR-026 (Auth & Login) is also landed and verified.
 
 ## AI Handoff And Git Hygiene
 
@@ -184,15 +184,19 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 20 | FR-017 | Complete | GSC Search Outcome Attribution & Delayed Reward Signals |
 | 21 | FR-018 | Complete | Auto-Tuned Ranking Weights & Safe Dated Model Promotion |
 | 22 | FR-019 | Complete | Operator Alerts, Notification Center & Desktop Attention Signals |
-| 23 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed due to resources) |
+| 23 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (Heavy ML models postponed) |
+| 24 | FR-021 | Complete | Graph-Based Link Candidate Generation (Pixie Random Walk) |
+| 25 | FR-022 | Complete | Data Source & System Health Check Dashboard |
+| 26 | FR-023 | Complete | Reddit Hot Decay, Wilson Score CTR Confidence & Traffic Spike Alerts |
+| 29 | FR-026 | Complete | Authentication & Login Status UI |
 
-- Next exact target: Phase 24 / `FR-021 - Graph-Based Link Candidate Generation (Pixie Random Walk + Instagram Value Scoring)`
-- Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer and stays separate from FR-014 clustering and FR-013 feedback reranking
-- Current continuity state: FR-017, FR-018, and FR-019 are complete and verified. 
-- Next session type: implement FR-021 (Graph-Based Candidate Generation) in C# worker.
-- Scope reminder: do not hide FR-012 structural evidence inside FR-011 field evidence, phrase scoring, learned-anchor corroboration, or later reranking phases
-- Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced; never infer ordering from the FR number
-- Future queued backlog phases beyond Phase 23 continue in `FEATURE-REQUESTS.md`; the newest addition from this session is `Phase 48 / FR-045 - Anchor Diversity & Exact-Match Reuse Guard`.
+- Next exact target: Phase 27 / `FR-024 - TikTok Read-Through Rate Sync & Score`
+- Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer
+- Current continuity state: Phases 24, 25, 26, and 29 are complete and verified (commits 5b89804, 8020899, 89d3437, 26d3437).
+- Next session type: implement FR-024 TikTok Read-Through Rate.
+- Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
+- Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
+- Future queued backlog phases beyond Phase 28 continue in `FEATURE-REQUESTS.md`.
 
 ## Spec Standards for All Feature Phases
 

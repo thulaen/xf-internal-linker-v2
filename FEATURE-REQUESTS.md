@@ -689,6 +689,8 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### FR-021 - Graph-Based Link Candidate Generation (Pixie Random Walk + Instagram Value Scoring)
 **Requested:** 2026-03-28
 **Target phase:** Phase 24
+**Completed phase:** Phase 24
+**Completed:** 2026-04-05
 **Priority:** High
 **Spec draft:** `docs/specs/fr021-graph-based-link-candidate-generation.md`
 
@@ -723,6 +725,8 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### FR-022 - Data Source & System Health Check Dashboard
 **Requested:** 2026-03-28
 **Target phase:** Phase 25
+**Completed phase:** Phase 25
+**Completed:** 2026-04-05
 **Priority:** High
 **Spec draft:** `docs/specs/fr022-data-source-system-health-check.md`
 
@@ -767,7 +771,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ---
 
-### FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
+### [Complete] FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
 **Requested:** 2026-03-28
 **Target phase:** Phase 26
 **Priority:** Medium

@@ -6,6 +6,8 @@ using HttpWorker.Core.Text;
 using HttpWorker.Services.External;
 using HttpWorker.Services.Native;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using HttpWorker.Services.Analytics;
 
 namespace HttpWorker.Services;
 
@@ -281,6 +283,7 @@ public class ImportContentService(
 public class RunPipelineService(
     IPostgresRuntimeStore runtimeStore, 
     IGraphCandidateService graphCandidateService,
+    TrafficDecayService decayService,
     IOptions<HttpWorkerOptions> options,
     ILogger<RunPipelineService> logger) : IRunPipelineService
 {
@@ -295,9 +298,19 @@ public class RunPipelineService(
 
         var sw = System.Diagnostics.Stopwatch.StartNew();
 
-        // 1. Warm-up Graph and Traffic Data (Simplicity/Consistency as per user request)
+        // 1. Warm-up Graph and Traffic Data
         var graphData = await runtimeStore.LoadKnowledgeGraphDataAsync(cancellationToken);
-        var trafficMetrics = await runtimeStore.GetTrafficMetricsAsync(options.Value.Pipeline.TrafficLookbackDays, cancellationToken);
+        
+        Dictionary<int, float> trafficMetrics;
+        if (options.Value.Pipeline.HotDecayEnabled)
+        {
+            var dailyMetrics = await runtimeStore.GetDailyTrafficMetricsAsync(options.Value.Pipeline.HotLookbackDays, cancellationToken);
+            trafficMetrics = decayService.ComputeDecayedScores(dailyMetrics, options.Value);
+        }
+        else
+        {
+            trafficMetrics = await runtimeStore.GetTrafficMetricsAsync(options.Value.Pipeline.TrafficLookbackDays, cancellationToken);
+        }
 
         var destinations = await runtimeStore.GetDestinationNodesAsync(destScopeIds, cancellationToken);
         var hosts = await runtimeStore.GetHostNodesAsync(hostScopeIds, cancellationToken);

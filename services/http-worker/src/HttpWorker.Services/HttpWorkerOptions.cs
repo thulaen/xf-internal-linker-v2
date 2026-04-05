@@ -62,4 +62,11 @@ public sealed class PipelineOptions
     public float WeightPenalty { get; set; } = 0.1f;
 
     public int TrafficLookbackDays { get; set; } = 90;
+    
+    // Reddit Hot Decay (FR-023)
+    public bool HotDecayEnabled { get; set; } = true;
+    public float HotGravity { get; set; } = 0.05f;
+    public float HotClicksWeight { get; set; } = 1.0f;
+    public float HotImpressionsWeight { get; set; } = 0.05f;
+    public int HotLookbackDays { get; set; } = 90;
 }

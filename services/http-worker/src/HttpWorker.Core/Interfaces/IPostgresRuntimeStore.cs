@@ -44,4 +44,6 @@ public interface IPostgresRuntimeStore
     Task<KnowledgeGraphData> LoadKnowledgeGraphDataAsync(CancellationToken cancellationToken);
 
     Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
+
+    Task<Dictionary<int, List<GSCDailyMetrics>>> GetDailyTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
 }

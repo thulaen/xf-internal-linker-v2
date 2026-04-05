@@ -621,6 +621,25 @@ def _sync_analytics_periodic_tasks(*, ga4_config: dict[str, object] | None = Non
         },
     )
 
+    daily_spikes, _ = CrontabSchedule.objects.get_or_create(
+        minute="30",
+        hour="4",
+        day_of_week="*",
+        day_of_month="*",
+        month_of_year="*",
+        timezone="UTC",
+    )
+    PeriodicTask.objects.update_or_create(
+        name="analytics-traffic-spike-detection",
+        defaults={
+            "task": "analytics.detect_traffic_spikes",
+            "crontab": daily_spikes,
+            "queue": "pipeline",
+            "enabled": True,
+            "description": "Daily momentum-based traffic spike detection for FR-023.",
+        },
+    )
+
 
 def _telemetry_source_filter(request) -> str | None:
     source = str(request.query_params.get("source") or "all").strip().lower()
