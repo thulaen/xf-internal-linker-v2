@@ -34,9 +34,6 @@
 
     mat-icon {
       color: var(--s-accent);
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
     }
   }
 
@@ -50,50 +47,6 @@
 
 .settings-tabs {
   min-height: 600px;
-
-  ::ng-deep {
-    .mat-mdc-tab-header {
-      border-bottom: 1px solid var(--s-border);
-      margin-bottom: 24px;
-    }
-
-    .mat-mdc-tab {
-      height: 48px;
-      padding: 0 24px;
-      opacity: 0.7;
-      transition: all 0.2s;
-
-      &.mdc-tab--active {
-        opacity: 1;
-      }
-    }
-
-    .mat-mdc-tab-labels {
-      gap: 8px;
-    }
-
-    .tab-icon {
-      margin-right: 8px;
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-
-    .tab-label-info {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-      margin-left: 8px;
-      color: var(--color-text-muted);
-      opacity: 0.6;
-      cursor: help;
-
-      &:hover {
-        color: var(--color-primary);
-        opacity: 1;
-      }
-    }
-  }
 }
 
 .tab-content {
@@ -192,65 +145,7 @@
   line-height: 1.6;
 }
 
-:host ::ng-deep .mat-mdc-form-field {
-  width: 100%;
-  margin-bottom: 8px;
-
-  --mdc-outlined-text-field-container-shape: var(--s-radius);
-  --mdc-outlined-text-field-outline-color: var(--s-border);
-  --mdc-outlined-text-field-focus-outline-color: var(--color-primary);
-
-  .mat-mdc-text-field-wrapper {
-    background: var(--color-bg-white);
-  }
-
-  &.mat-focused .mat-mdc-text-field-wrapper {
-    box-shadow: 0 0 0 3px var(--color-blue-50);
-  }
-
-  .mat-mdc-input-element {
-    font-weight: 500;
-  }
-
-  .info-btn {
-    opacity: 0.5;
-    transition: all 0.2s;
-
-    &:hover {
-      opacity: 1;
-      color: var(--color-primary);
-      transform: scale(1.1);
-    }
-
-    mat-icon {
-      font-size: 18px;
-      width: 18px;
-      height: 18px;
-    }
-  }
-
-  .mat-mdc-form-field-subscript-wrapper {
-    display: none;
-  }
-
-  &.field-warn,
-  &.field-danger {
-    .mat-mdc-form-field-subscript-wrapper {
-      display: block;
-      padding-bottom: 8px;
-    }
-  }
-
-  &.field-warn {
-    --mdc-outlined-text-field-outline-color: var(--color-warning);
-    .mat-mdc-text-field-wrapper { background: var(--color-warning-light); }
-  }
-
-  &.field-danger {
-    --mdc-outlined-text-field-outline-color: var(--color-error);
-    .mat-mdc-text-field-wrapper { background: var(--color-error-light); }
-  }
-}
+// Form field overrides moved to global _material-overrides.scss
 
 .number-grid {
   display: grid;
@@ -363,11 +258,6 @@
     font-size: 11px;
     font-weight: 600;
     
-    mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
   }
 }
 
@@ -383,9 +273,6 @@
 
   mat-icon {
     color: var(--color-error-dark);
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
     flex-shrink: 0;
   }
 
@@ -474,9 +361,6 @@
 
   .scope-select {
     width: 160px;
-    ::ng-deep .mat-mdc-text-field-wrapper {
-      height: 40px;
-    }
   }
 }
 
@@ -619,7 +503,7 @@
   color: var(--color-text-secondary);
   font-size: 13px;
 
-  mat-icon { font-size: 20px; color: var(--color-text-secondary); }
+  mat-icon { color: var(--color-text-secondary); }
 }
 
 .challenger-pending {
@@ -635,7 +519,7 @@
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
 
-  .challenger-icon { color: var(--color-primary); font-size: 20px; }
+  .challenger-icon { color: var(--color-primary); }
   .challenger-title { font-weight: 600; font-size: 13px; }
   .challenger-date { font-size: 12px; color: var(--color-text-secondary); margin-left: auto; }
 }

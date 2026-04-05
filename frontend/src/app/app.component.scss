@@ -134,9 +134,6 @@
 
       mat-icon {
         color: var(--color-text-muted);
-        font-size: 18px;
-        width: 18px;
-        height: 18px;
         margin-right: 12px;
         opacity: 1;
       }
@@ -220,7 +217,7 @@
     border-radius: 50%;
     margin: 0 16px;
     cursor: pointer;
-    background-color: #dadce0; // unknown
+    background-color: var(--color-border);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
     &.status-healthy { 
@@ -295,11 +292,7 @@
 
 // ── Global Customizations for GA4 Menu ────────────────────────────
 
-// Note: These must be outside the scoped component or use ::ng-deep 
-// but since I'm in app.component.scss (global shell) and it's standalone 
-// we should be careful with isolation. For now I'll use ::ng-deep if needed
-// or just standard global classes if I assume this file is global.
-// Actually, AppComponent is the root, so these are global.
+// AppComponent is the root, so these selectors are effectively global.
 
 .ga4-menu {
   margin-top: 8px;

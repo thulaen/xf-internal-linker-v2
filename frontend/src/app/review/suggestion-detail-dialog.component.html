@@ -20,7 +20,7 @@
       <span class="score-badge">{{ (detail.score_final * 100).toFixed(0) }} / 100</span>
       @if (detail.repeated_anchor) {
         <span class="warning-badge" matTooltip="Same anchor used in another active suggestion">
-          <mat-icon>warning</mat-icon> repeated anchor
+          <mat-icon class="icon-2xs">warning</mat-icon> repeated anchor
         </span>
       }
     </div>
@@ -32,7 +32,7 @@
         <span class="field-label">Destination</span>
         <a class="destination-link" [href]="detail.destination_url || '#'" target="_blank" rel="noopener">
           {{ detail.destination_title }}
-          <mat-icon class="ext-icon">open_in_new</mat-icon>
+          <mat-icon class="ext-icon icon-2xs">open_in_new</mat-icon>
         </a>
         <span class="confidence-badge confidence-none">{{ detail.destination_source_label }}</span>
       </div>
@@ -77,7 +77,7 @@
     <section class="section">
       <p class="section-title">Telemetry markup</p>
       <p class="meta-line">
-        <mat-icon>ads_click</mat-icon>
+        <mat-icon class="icon-sm">ads_click</mat-icon>
         {{ telemetryStatusLabel() }}.
       </p>
       @if (detail.telemetry_instrumentation.status === 'instrumented') {
@@ -184,7 +184,7 @@
 
       @if (detail.phrase_match_diagnostics) {
         <p class="meta-line">
-          <mat-icon>text_fields</mat-icon>
+          <mat-icon class="icon-sm">text_fields</mat-icon>
           {{ phraseStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -200,7 +200,7 @@
 
       @if (detail.link_freshness_diagnostics) {
         <p class="meta-line">
-          <mat-icon>schedule</mat-icon>
+          <mat-icon class="icon-sm">schedule</mat-icon>
           {{ linkFreshnessStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -217,7 +217,7 @@
 
       @if (detail.learned_anchor_diagnostics) {
         <p class="meta-line">
-          <mat-icon>history_edu</mat-icon>
+          <mat-icon class="icon-sm">history_edu</mat-icon>
           {{ learnedAnchorStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -243,7 +243,7 @@
 
       @if (hasRareTermDiagnostics()) {
         <p class="meta-line">
-          <mat-icon>hub</mat-icon>
+          <mat-icon class="icon-sm">hub</mat-icon>
           {{ rareTermStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -270,7 +270,7 @@
 
       @if (detail.field_aware_diagnostics) {
         <p class="meta-line">
-          <mat-icon>dashboard_customize</mat-icon>
+          <mat-icon class="icon-sm">dashboard_customize</mat-icon>
           {{ fieldAwareStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -306,7 +306,7 @@
 
       @if (detail.click_distance_diagnostics) {
         <p class="meta-line">
-          <mat-icon>straighten</mat-icon>
+          <mat-icon class="icon-sm">straighten</mat-icon>
           {{ clickDistanceStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -316,7 +316,7 @@
 
       @if (detail.cluster_diagnostics) {
         <p class="meta-line">
-          <mat-icon>layers</mat-icon>
+          <mat-icon class="icon-sm">layers</mat-icon>
           {{ clusteringStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -326,7 +326,7 @@
 
       @if (detail.explore_exploit_diagnostics) {
         <p class="meta-line">
-          <mat-icon>trending_up</mat-icon>
+          <mat-icon class="icon-sm">trending_up</mat-icon>
           {{ feedbackRerankStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -343,7 +343,7 @@
       @if (detail.slate_diversity_diagnostics.mmr_applied) {
         @let sdd = detail.slate_diversity_diagnostics;
         <p class="meta-line">
-          <mat-icon>view_stream</mat-icon>
+          <mat-icon class="icon-sm">view_stream</mat-icon>
           {{ slateDiversityStateLabel() }}.
         </p>
         <p class="meta-line">
@@ -365,7 +365,7 @@
       @if (detail.graph_walk_diagnostics; as gwd) {
         @if (gwd.enabled || detail.candidate_origin === 'graph_walk' || detail.candidate_origin === 'both') {
           <p class="meta-line">
-            <mat-icon>account_tree</mat-icon>
+            <mat-icon class="icon-sm">account_tree</mat-icon>
             {{ graphWalkStateLabel() }}.
           </p>
           <p class="meta-line">
@@ -386,7 +386,7 @@
       @if (detail.value_model_diagnostics; as vmd) {
         @if (vmd.enabled) {
           <p class="meta-line">
-            <mat-icon>trending_up</mat-icon>
+            <mat-icon class="icon-sm">trending_up</mat-icon>
             {{ valueModelStateLabel() }}.
           </p>
           <p class="meta-line">
@@ -436,13 +436,13 @@
       <mat-divider></mat-divider>
       <section class="section">
         @if (detail.applied_at) {
-          <p class="meta-line"><mat-icon>check_circle</mat-icon> Applied {{ detail.applied_at | date:'medium' }}</p>
+          <p class="meta-line"><mat-icon class="icon-sm">check_circle</mat-icon> Applied {{ detail.applied_at | date:'medium' }}</p>
         }
         @if (detail.verified_at) {
-          <p class="meta-line"><mat-icon>verified</mat-icon> Verified {{ detail.verified_at | date:'medium' }}</p>
+          <p class="meta-line"><mat-icon class="icon-sm">verified</mat-icon> Verified {{ detail.verified_at | date:'medium' }}</p>
         }
         @if (detail.stale_reason) {
-          <p class="meta-line warn"><mat-icon>warning</mat-icon> Stale: {{ detail.stale_reason }}</p>
+          <p class="meta-line warn"><mat-icon class="icon-sm">warning</mat-icon> Stale: {{ detail.stale_reason }}</p>
         }
       </section>
     }

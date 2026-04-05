@@ -1,7 +1,7 @@
 <div class="page-container">
   <div class="inline-page-header" id="analytics-header">
     <h1 class="page-title">
-      <mat-icon>analytics</mat-icon>
+      <mat-icon class="icon-lg">analytics</mat-icon>
       Analytics & Insights
     </h1>
     <p class="page-subtitle">Monitor your link performance, algorithm uplift, and telemetry health in real-time.</p>
@@ -29,7 +29,7 @@
 
     <div class="overview-grid" id="analytics-stats">
       <mat-card class="stat-card">
-        <mat-icon class="stat-card__icon">database</mat-icon>
+        <mat-icon class="stat-card__icon icon-lg">database</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Telemetry Records</span>
           <span class="stat-card__value">{{ data.telemetry_row_count | number }}</span>
@@ -38,7 +38,7 @@
       </mat-card>
 
       <mat-card class="stat-card">
-        <mat-icon class="stat-card__icon">health_and_safety</mat-icon>
+        <mat-icon class="stat-card__icon icon-lg">health_and_safety</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Coverage Snapshots</span>
           <span class="stat-card__value">{{ data.coverage_row_count | number }}</span>
@@ -47,7 +47,7 @@
       </mat-card>
 
       <mat-card class="stat-card">
-        <mat-icon class="stat-card__icon">ads_click</mat-icon>
+        <mat-icon class="stat-card__icon icon-lg">ads_click</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Total Clicks</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.clicks | number }}</span>
@@ -56,7 +56,7 @@
       </mat-card>
 
       <mat-card class="stat-card">
-        <mat-icon class="stat-card__icon">person_celebrating</mat-icon>
+        <mat-icon class="stat-card__icon icon-lg">person_celebrating</mat-icon>
         <mat-card-content class="stat-card__content">
           <span class="stat-card__label">Engaged Sessions</span>
           <span class="stat-card__value">{{ data.totals_last_30_days.engaged_sessions | number }}</span>
@@ -78,7 +78,7 @@
                 <canvas baseChart [data]="funnelChartData" [options]="funnelChartOptions" [type]="'bar'"></canvas>
               } @else {
                 <div class="empty-chart">
-                  <mat-icon>bar_chart</mat-icon>
+                  <mat-icon class="icon-3xl">bar_chart</mat-icon>
                   <p>No funnel data available for the selected period.</p>
                 </div>
               }
@@ -195,15 +195,15 @@
             <div class="health-status-bar">
               <div class="day-tracker">
                 <span class="day-badge day-badge--healthy">
-                  <mat-icon>check_circle</mat-icon>
+                  <mat-icon class="icon-sm">check_circle</mat-icon>
                   {{ healthData.overall.healthy_days }} Healthy
                 </span>
                 <span class="day-badge day-badge--partial">
-                  <mat-icon>warning</mat-icon>
+                  <mat-icon class="icon-sm">warning</mat-icon>
                   {{ healthData.overall.partial_days }} Partial
                 </span>
                 <span class="day-badge day-badge--degraded">
-                  <mat-icon>error</mat-icon>
+                  <mat-icon class="icon-sm">error</mat-icon>
                   {{ healthData.overall.degraded_days }} Degraded
                 </span>
               </div>
@@ -239,7 +239,7 @@
                 </div>
               } @else {
                 <div class="empty-chart">
-                  <mat-icon>show_chart</mat-icon>
+                  <mat-icon class="icon-3xl">show_chart</mat-icon>
                   <p>Insufficient trend data. Run a sync to populate interaction history.</p>
                 </div>
               }
@@ -393,7 +393,7 @@
             </div>
           } @else {
             <div class="empty-chart chart-wrapper--md">
-              <mat-icon>scatter_plot</mat-icon>
+              <mat-icon class="icon-3xl">scatter_plot</mat-icon>
               <p>Not enough data to plot.</p>
             </div>
           }
@@ -491,7 +491,7 @@
                     <td>
                       <div class="version-info">
                         <div class="expansion-indicator">
-                          <mat-icon>{{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
+                          <mat-icon class="icon-md">{{ expandedSuggestionId === impact.suggestion_id ? 'keyboard_arrow_down' : 'keyboard_arrow_right' }}</mat-icon>
                           <span class="version-info__slug">{{ impact.anchor_phrase }}</span>
                         </div>
                         <span class="version-info__meta">Target: {{ impact.destination_title }}</span>
@@ -516,7 +516,7 @@
                     </td>
                     <td class="text-right">
                       <span class="metric-transition">
-                        {{ impact.baseline_clicks | number }} <mat-icon>arrow_forward</mat-icon> {{ impact.post_clicks | number }}
+                        {{ impact.baseline_clicks | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> {{ impact.post_clicks | number }}
                       </span>
                     </td>
                   </tr>
@@ -560,11 +560,11 @@
                                             </div>
                                           </td>
                                           <td class="text-right">
-                                            <small class="text-subtle">{{ kw.impressions_baseline | number }} <mat-icon class="icon--xs">arrow_forward</mat-icon> {{ kw.impressions_post | number }}</small>
+                                            <small class="text-subtle">{{ kw.impressions_baseline | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> {{ kw.impressions_post | number }}</small>
                                           </td>
                                           <td class="text-right">
                                             <span class="metric-transition">
-                                              {{ kw.clicks_baseline | number }} <mat-icon class="icon--xs">arrow_forward</mat-icon> <strong>{{ kw.clicks_post | number }}</strong>
+                                              {{ kw.clicks_baseline | number }} <mat-icon class="icon-2xs">arrow_forward</mat-icon> <strong>{{ kw.clicks_post | number }}</strong>
                                             </span>
                                           </td>
                                           <td class="text-right">
@@ -632,7 +632,7 @@
     <ng-template #noImpactData>
       <mat-card class="empty-state-card">
         <mat-card-content>
-          <mat-icon>query_stats</mat-icon>
+          <mat-icon class="icon-3xl">query_stats</mat-icon>
           <h3>Search Impact Data Pending</h3>
           <p>We are waiting for Google Search Console to process enough days of data for your applied suggestions.</p>
           <div class="action-buttons">

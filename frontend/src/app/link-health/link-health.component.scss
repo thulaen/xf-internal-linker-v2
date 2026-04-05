@@ -127,18 +127,10 @@
   flex-wrap: wrap;
   margin-bottom: 48px;
 
-  // Align the 'All' chip with the above card edge by removing Material's negative margin
-  ::ng-deep .mat-mdc-chip-listbox {
-    margin-left: 0;
-    padding-top: 8px; // Visually aligns chip text baseline with mat-select text
-  }
+  // Chip + form field overrides moved to global _material-overrides.scss
 
-  // Ensure the select dropdown shares the same horizontal baseline as the chips
   .status-code-field {
     align-self: flex-start;
-    ::ng-deep .mat-mdc-form-field-subscript-wrapper {
-      display: none; // Prevent subscript space from pushing the field up/down
-    }
   }
 }
 
@@ -164,9 +156,6 @@
   border-radius: var(--radius-md);
 
   .empty-icon-wrap mat-icon {
-    width: 48px;
-    height: 48px;
-    font-size: 48px;
     color: var(--color-primary);
     opacity: 0.5;
   }

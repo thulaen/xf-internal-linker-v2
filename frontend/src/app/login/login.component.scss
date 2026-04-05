@@ -9,7 +9,7 @@
 .login-card {
   width: 100%;
   max-width: 400px;
-  background: #fff;
+  background: var(--color-bg-white);
   border: var(--card-border);
   border-radius: var(--card-border-radius);
   padding: var(--space-xl);
@@ -24,9 +24,6 @@
 }
 
 .login-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
   color: var(--color-primary);
 }
 

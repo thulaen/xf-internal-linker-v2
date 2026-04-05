@@ -1,7 +1,7 @@
 <div class="system-summary-card" *ngIf="health">
   <div class="card-header">
     <div class="title-group">
-      <mat-icon [ngClass]="'status-' + health.status">{{ getStatusIcon() }}</mat-icon>
+      <mat-icon class="icon-base" [ngClass]="'status-' + health.status">{{ getStatusIcon() }}</mat-icon>
       <h3>System Health</h3>
     </div>
     <a routerLink="/health" class="btn-detail">Details</a>

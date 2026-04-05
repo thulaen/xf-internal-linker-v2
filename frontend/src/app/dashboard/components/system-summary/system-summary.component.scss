@@ -21,7 +21,6 @@
     color: var(--color-text-primary);
 
     .material-icons {
-      font-size: 20px;
       color: var(--color-text-muted);
     }
 
@@ -122,10 +121,6 @@
       font-size: 13px;
       color: var(--color-error);
       font-weight: 600;
-
-      .material-icons {
-        font-size: 16px;
-      }
 
       .issue-text {
         white-space: nowrap;

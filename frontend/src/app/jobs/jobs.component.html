@@ -43,7 +43,7 @@
           <!-- XenForo -->
           <div class="source-item" [class.is-running]="getJob('api').state === 'running'">
             <div class="source-main-info">
-              <div class="source-icon xf"><mat-icon>forum</mat-icon></div>
+              <div class="source-icon xf"><mat-icon class="icon-base">forum</mat-icon></div>
               <div class="source-detail">
                 <div class="source-name">XenForo</div>
                 <div class="source-status-pill" [class.connected]="sourceStatus.api">
@@ -85,7 +85,7 @@
           <!-- WordPress -->
           <div class="source-item" [class.is-running]="getJob('wp').state === 'running'">
             <div class="source-main-info">
-              <div class="source-icon wp"><mat-icon>description</mat-icon></div>
+              <div class="source-icon wp"><mat-icon class="icon-base">description</mat-icon></div>
               <div class="source-detail">
                 <div class="source-name">WordPress</div>
                 <div class="source-status-pill" [class.connected]="sourceStatus.wp">
@@ -164,7 +164,7 @@
         <div class="source-list">
           <div class="source-item jsonl-item" [class.expanded]="jsonlExpanded">
             <div class="source-main-info">
-              <div class="source-icon jsonl"><mat-icon>upload_file</mat-icon></div>
+              <div class="source-icon jsonl"><mat-icon class="icon-base">upload_file</mat-icon></div>
               <div class="source-detail">
                 <div class="source-name">JSONL Import</div>
                 <div class="source-status-pill connected">Ready</div>
@@ -220,7 +220,7 @@
                 (click)="fileInput.click()"
               >
                 <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
-                <mat-icon>{{ selectedFile ? 'task' : 'cloud_upload' }}</mat-icon>
+                <mat-icon class="icon-xl">{{ selectedFile ? 'task' : 'cloud_upload' }}</mat-icon>
                 <span>{{ selectedFile ? selectedFile.name : 'Drag & drop .jsonl or click to browse' }}</span>
               </div>
               @if (selectedFile) {
@@ -295,7 +295,7 @@
                 <mat-icon
                   [matTooltip]="getStatusTooltip(job)"
                   [ngClass]="isStuck(job) ? 'status-stuck' : getStatusClass(job.status)"
-                  class="status-icon">
+                  class="status-icon icon-md">
                   {{ isStuck(job) ? 'warning' : getStatusIcon(job.status) }}
                 </mat-icon>
               </td>
@@ -330,7 +330,7 @@
           </table>
         } @else {
           <div class="empty-state">
-            <mat-icon>history</mat-icon>
+            <mat-icon class="icon-3xl">history</mat-icon>
             <p>No activity records found</p>
           </div>
         }

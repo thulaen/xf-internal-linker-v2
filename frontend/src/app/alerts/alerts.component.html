@@ -55,7 +55,7 @@
   <!-- Empty state -->
   @if (!loading && alerts.length === 0) {
     <div class="alerts-empty">
-      <mat-icon class="alerts-empty-icon">notifications_none</mat-icon>
+      <mat-icon class="alerts-empty-icon icon-3xl">notifications_none</mat-icon>
       <h2>No notifications</h2>
       <p>Completed jobs, failures, and search spikes will appear here.</p>
     </div>
@@ -78,7 +78,7 @@
 
             <!-- Severity Icon -->
             <div class="col-icon" [matTooltip]="alert.severity | titlecase">
-              <mat-icon class="alert-icon">{{ severityIcon(alert.severity) }}</mat-icon>
+              <mat-icon class="alert-icon icon-base">{{ severityIcon(alert.severity) }}</mat-icon>
             </div>
 
             <!-- Body Content -->

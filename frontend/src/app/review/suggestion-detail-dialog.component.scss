@@ -21,7 +21,6 @@ h2[mat-dialog-title] {
 .score-badge { background: var(--color-blue-50); color: var(--color-primary); font-size: 11px; text-transform: none; }
 .warning-badge {
   display: flex; align-items: center; gap: 4px; background: var(--color-warning-light); color: var(--color-warning-dark); font-weight: 600;
-  mat-icon { font-size: 13px; width: 13px; height: 13px; }
 }
 .section { padding: 21px 0 8px; }
 .section-title { margin: 0 0 10px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--color-text-muted); }
@@ -30,7 +29,6 @@ h2[mat-dialog-title] {
 .destination-link {
   color: var(--color-primary); text-decoration: none; display: flex; align-items: center; gap: 4px; font-weight: 500;
   &:hover { text-decoration: underline; }
-  .ext-icon { font-size: 13px; width: 13px; height: 13px; }
 }
 .host-sentence {
   margin: 0; padding: 13px 21px; background: var(--color-bg-faint); border-left: 3px solid var(--color-border); border-radius: 0 var(--radius-sm) var(--radius-sm) 0; font-size: 13px; line-height: 1.6; color: var(--color-text-secondary);
@@ -52,7 +50,6 @@ h2[mat-dialog-title] {
 .reject-actions { display: flex; gap: 8px; align-items: center; margin-top: 8px; }
 .meta-line {
   display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--color-text-muted); margin: 4px 0;
-  mat-icon { font-size: 16px; width: 16px; height: 16px; }
   &.warn { color: var(--color-warning-dark); }
 }
 .full-width { width: 100%; }

@@ -61,9 +61,9 @@
     <!-- TAB 1: RANKING WEIGHTS -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">fitness_center</mat-icon>
+        <mat-icon class="tab-icon icon-md">fitness_center</mat-icon>
         Ranking Weights
-        <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.ranking_weights')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.ranking_weights')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
       <div class="tab-content" id="ranking-weights">
@@ -80,7 +80,7 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.25" step="0.01" [(ngModel)]="weightedAuthority.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>{{ fieldHelper('weightedAuthority.ranking_weight', weightedAuthority.ranking_weight) }}</mat-hint>
                 </mat-form-field>
@@ -88,21 +88,21 @@
                   <mat-label>Position bias</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="weightedAuthority.position_bias" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.position_bias')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Empty anchor factor</mat-label>
                   <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.empty_anchor_factor" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.empty_anchor_factor')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Bare URL factor</mat-label>
                   <input matInput type="number" min="0.1" max="1" step="0.05" [(ngModel)]="weightedAuthority.bare_url_factor" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('weightedAuthority.bare_url_factor')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -126,7 +126,7 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.15" step="0.01" [(ngModel)]="linkFreshness.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>{{ fieldHelper('linkFreshness.ranking_weight', linkFreshness.ranking_weight) }}</mat-hint>
                 </mat-form-field>
@@ -134,14 +134,14 @@
                   <mat-label>Recent window (days)</mat-label>
                   <input matInput type="number" min="7" max="90" step="1" [(ngModel)]="linkFreshness.recent_window_days" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.recent_window_days')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Fresh peer share</mat-label>
                   <input matInput type="number" min="0.1" max="0.5" step="0.05" [(ngModel)]="linkFreshness.newest_peer_percent" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFreshness.newest_peer_percent')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -165,7 +165,7 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="phraseMatching.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>{{ fieldHelper('phraseMatching.ranking_weight', phraseMatching.ranking_weight) }}</mat-hint>
                 </mat-form-field>
@@ -176,14 +176,14 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.enable_anchor_expansion')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Context tokens</mat-label>
                   <input matInput type="number" min="4" max="12" step="1" [(ngModel)]="phraseMatching.context_window_tokens" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('phraseMatching.context_window_tokens')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -202,14 +202,14 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="learnedAnchor.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Min sources</mat-label>
                   <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="learnedAnchor.minimum_anchor_sources" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.minimum_anchor_sources')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
@@ -219,7 +219,7 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('learnedAnchor.enable_noise_filter')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -241,21 +241,21 @@
                     <mat-option [value]="false">Off</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.1" step="0.01" [(ngModel)]="rareTermPropagation.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Max doc freq</mat-label>
                   <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="rareTermPropagation.max_document_frequency" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rareTermPropagation.max_document_frequency')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -274,7 +274,7 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.15" step="0.01" [(ngModel)]="fieldAwareRelevance.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>{{ fieldHelper('fieldAwareRelevance.ranking_weight', fieldAwareRelevance.ranking_weight) }}</mat-hint>
                 </mat-form-field>
@@ -282,21 +282,21 @@
                   <mat-label>Title share</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.title_field_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.title_field_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Body share</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.body_field_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.body_field_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Scope label share</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="fieldAwareRelevance.scope_field_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('fieldAwareRelevance.scope_field_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -339,21 +339,21 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.2" step="0.01" [(ngModel)]="clickDistance.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Sensitivity (k)</mat-label>
                   <input matInput type="number" min="0.5" max="5.0" step="0.1" [(ngModel)]="clickDistance.k_cd" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.k_cd')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Smoothing (b)</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="clickDistance.b_cd" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clickDistance.b_cd')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -377,21 +377,21 @@
                   <mat-label>Max existing links per host</mat-label>
                   <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="spamGuards.max_existing_links_per_host" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.max_existing_links_per_host')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Max anchor words</mat-label>
                   <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="spamGuards.max_anchor_words" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.max_anchor_words')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Paragraph window (sentences)</mat-label>
                   <input matInput type="number" min="1" max="10" step="1" [(ngModel)]="spamGuards.paragraph_window" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('spamGuards.paragraph_window')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -419,14 +419,14 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.2" step="0.01" [(ngModel)]="feedbackRerank.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('feedbackRerank.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -448,14 +448,14 @@
                     <mat-option [value]="false">Inactive</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clustering.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Similarity Thr.</mat-label>
                   <input matInput type="number" min="0" max="0.5" step="0.01" [(ngModel)]="clustering.similarity_threshold" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('clustering.similarity_threshold')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -482,28 +482,28 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Lambda (Diversity)</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="slateDiversity.diversity_lambda" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.diversity_lambda')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Score Window</mat-label>
                   <input matInput type="number" min="0.05" max="1" step="0.05" [(ngModel)]="slateDiversity.score_window" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.score_window')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline">
                   <mat-label>Similarity Cap</mat-label>
                   <input matInput type="number" min="0.7" max="0.99" step="0.01" [(ngModel)]="slateDiversity.similarity_cap" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('slateDiversity.similarity_cap')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -525,28 +525,28 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
                   <mat-label>Walk steps / entity</mat-label>
                   <input matInput type="number" min="500" max="10000" step="100" [(ngModel)]="graphCandidate.walk_steps_per_entity" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.walk_steps_per_entity')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
                   <mat-label>Min. stable nodes</mat-label>
                   <input matInput type="number" min="10" max="500" step="10" [(ngModel)]="graphCandidate.min_stable_candidates" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.min_stable_candidates')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="graphCandidate.enabled">
                   <mat-label>Visit thresh.</mat-label>
                   <input matInput type="number" min="1" max="20" step="1" [(ngModel)]="graphCandidate.min_visit_threshold" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('graphCandidate.min_visit_threshold')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -573,28 +573,28 @@
                     <mat-option [value]="false">Disabled</mat-option>
                   </mat-select>
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.enabled')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
                   <mat-label>Traffic weight</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.w_traffic" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_traffic')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
                   <mat-label>Freshness weight</mat-label>
                   <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.w_freshness" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_freshness')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" *ngIf="valueModel.enabled">
                   <mat-label>Lookback (days)</mat-label>
                   <input matInput type="number" min="7" max="365" step="7" [(ngModel)]="valueModel.traffic_lookback_days" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.traffic_lookback_days')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -607,9 +607,9 @@
     <!-- TAB 2: SILO ARCHITECTURE -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">account_tree</mat-icon>
+        <mat-icon class="tab-icon icon-md">account_tree</mat-icon>
         Silo Architecture
-        <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.silo_architecture')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.silo_architecture')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
       <div class="tab-content" id="silo-architecture">
@@ -743,9 +743,9 @@
     <!-- TAB 3: WORDPRESS SYNC -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">sync</mat-icon>
+        <mat-icon class="tab-icon icon-md">sync</mat-icon>
         Connect & Sync
-        <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.wordpress_sync')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.wordpress_sync')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
       <div class="tab-content" id="connect-sync">
@@ -819,7 +819,7 @@
                   <mat-label>WordPress site URL</mat-label>
                   <input matInput [(ngModel)]="wordpress.base_url" placeholder="https://example.com" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.base_url')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>Use main URL (no /wp-admin)</mat-hint>
                 </mat-form-field>
@@ -829,14 +829,14 @@
                     <mat-label>Username</mat-label>
                     <input matInput [(ngModel)]="wordpress.username" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.username')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                   <mat-form-field appearance="outline">
                     <mat-label>App Password</mat-label>
                     <input matInput type="password" [(ngModel)]="wordpressPassword" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.app_password')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                     <mat-hint>
                       @if (wordpress.app_password_configured) {
@@ -865,14 +865,14 @@
                       <mat-label>Hour (UTC 0-23)</mat-label>
                       <input matInput type="number" [(ngModel)]="wordpress.sync_hour" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_hour')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
                       <mat-label>Minute (0-59)</mat-label>
                       <input matInput type="number" [(ngModel)]="wordpress.sync_minute" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('wordpress.sync_minute')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -906,14 +906,14 @@
                   <mat-label>Google OAuth Client ID</mat-label>
                   <input matInput [(ngModel)]="googleAuthClientId" placeholder="123456789-abcdef.apps.googleusercontent.com" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_id')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
                 <mat-form-field appearance="outline" class="full-width">
                   <mat-label>Google OAuth Client Secret</mat-label>
                   <input matInput type="password" [(ngModel)]="googleAuthClientSecret" placeholder="Actual secret for the client ID" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('googleOAuth.client_secret')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>
                     @if (googleOAuth.client_secret_configured) {
@@ -976,7 +976,7 @@
                     <mat-label>GA4 Property ID</mat-label>
                     <input matInput [(ngModel)]="ga4Telemetry.property_id" placeholder="123456789" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.property_id')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                   <div class="form-row">
@@ -984,14 +984,14 @@
                       <mat-label>Measurement ID</mat-label>
                       <input matInput [(ngModel)]="ga4Telemetry.measurement_id" placeholder="G-ABC123XYZ" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.measurement_id')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
                       <mat-label>API Secret</mat-label>
                       <input matInput type="password" [(ngModel)]="ga4TelemetrySecret" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.api_secret')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                       <mat-hint>
                         @if (ga4Telemetry.api_secret_configured) {
@@ -1020,14 +1020,14 @@
                         <mat-label>Read project ID</mat-label>
                         <input matInput [(ngModel)]="ga4Telemetry.read_project_id" placeholder="my-ga4-project" />
                         <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_project_id')" matTooltipClass="setting-tooltip">
-                          <mat-icon>info_outline</mat-icon>
+                          <mat-icon class="icon-md">info_outline</mat-icon>
                         </button>
                       </mat-form-field>
                       <mat-form-field appearance="outline">
                         <mat-label>Read client email</mat-label>
                         <input matInput [(ngModel)]="ga4Telemetry.read_client_email" placeholder="reader@project.iam.gserviceaccount.com" />
                         <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_client_email')" matTooltipClass="setting-tooltip">
-                          <mat-icon>info_outline</mat-icon>
+                          <mat-icon class="icon-md">info_outline</mat-icon>
                         </button>
                       </mat-form-field>
                     </div>
@@ -1035,7 +1035,7 @@
                       <mat-label>Read private key</mat-label>
                       <textarea matInput rows="5" [(ngModel)]="ga4TelemetryReadPrivateKey" placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.read_private_key')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                       <mat-hint>
                         @if (ga4Telemetry.read_private_key_configured) {
@@ -1060,7 +1060,7 @@
                       <mat-label>Sync lookback days</mat-label>
                       <input matInput type="number" min="1" max="30" [(ngModel)]="ga4Telemetry.sync_lookback_days" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.sync_lookback_days')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
@@ -1071,7 +1071,7 @@
                         <mat-option value="country_region">Country and region</mat-option>
                       </mat-select>
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.geo_granularity')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -1080,14 +1080,14 @@
                       <mat-label>Event schema</mat-label>
                       <input matInput [(ngModel)]="ga4Telemetry.event_schema" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.event_schema')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
                       <mat-label>Retention days</mat-label>
                       <input matInput type="number" min="1" max="800" [(ngModel)]="ga4Telemetry.retention_days" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.retention_days')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -1096,14 +1096,14 @@
                       <mat-label>Impression visible ratio</mat-label>
                       <input matInput type="number" min="0.25" max="1" step="0.05" [(ngModel)]="ga4Telemetry.impression_visible_ratio" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_visible_ratio')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                     <mat-form-field appearance="outline">
                       <mat-label>Impression time (ms)</mat-label>
                       <input matInput type="number" min="250" max="5000" step="50" [(ngModel)]="ga4Telemetry.impression_min_ms" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.impression_min_ms')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -1112,7 +1112,7 @@
                       <mat-label>Engaged seconds</mat-label>
                       <input matInput type="number" min="5" max="60" [(ngModel)]="ga4Telemetry.engaged_min_seconds" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Telemetry.engaged_min_seconds')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -1151,7 +1151,7 @@
                   <mat-label>Matomo URL</mat-label>
                   <input matInput [(ngModel)]="matomoTelemetry.url" placeholder="https://matomo.example.com" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.url')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
 
@@ -1160,14 +1160,14 @@
                     <mat-label>XenForo site ID</mat-label>
                     <input matInput [(ngModel)]="matomoTelemetry.site_id_xenforo" placeholder="7" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_xenforo')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                   <mat-form-field appearance="outline">
                     <mat-label>WordPress site ID</mat-label>
                     <input matInput [(ngModel)]="matomoTelemetry.site_id_wordpress" placeholder="Optional" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.site_id_wordpress')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                 </div>
@@ -1176,7 +1176,7 @@
                   <mat-label>Token Auth</mat-label>
                   <input matInput type="password" [(ngModel)]="matomoTelemetryToken" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.token_auth')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                   <mat-hint>
                     @if (matomoTelemetry.token_auth_configured) {
@@ -1198,7 +1198,7 @@
                       <mat-label>Sync lookback days</mat-label>
                       <input matInput type="number" min="1" max="30" [(ngModel)]="matomoTelemetry.sync_lookback_days" />
                       <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('matomoTelemetry.sync_lookback_days')" matTooltipClass="setting-tooltip">
-                        <mat-icon>info_outline</mat-icon>
+                        <mat-icon class="icon-md">info_outline</mat-icon>
                       </button>
                     </mat-form-field>
                   </div>
@@ -1258,7 +1258,7 @@
                   <mat-label>Property URL</mat-label>
                   <input matInput [(ngModel)]="ga4Gsc.property_url" placeholder="https://example.com/ or sc-domain:example.com" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.property_url')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -1277,7 +1277,7 @@
                     <mat-label>Service Account Email</mat-label>
                     <input matInput [(ngModel)]="ga4Gsc.client_email" placeholder="gsc-bot@project.iam.gserviceaccount.com" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.client_email')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                 </div>
@@ -1286,7 +1286,7 @@
                 <mat-label>Service Account Private Key</mat-label>
                 <textarea matInput rows="3" [(ngModel)]="gscPrivateKey" [placeholder]="ga4Gsc.private_key_configured ? '••••••••••••••••••••••••••••' : 'Paste raw PEM private key here'"></textarea>
                 <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.private_key')" matTooltipClass="setting-tooltip">
-                  <mat-icon>info_outline</mat-icon>
+                  <mat-icon class="icon-md">info_outline</mat-icon>
                 </button>
                 <mat-hint *ngIf="ga4Gsc.private_key_configured">Private key is already configured. Leave blank to keep current key.</mat-hint>
               </mat-form-field>
@@ -1303,7 +1303,7 @@
                   <mat-label>Lookback Days</mat-label>
                   <input matInput type="number" min="1" max="90" [(ngModel)]="ga4Gsc.sync_lookback_days" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.sync_lookback_days')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
 
@@ -1311,7 +1311,7 @@
                   <mat-label>Ranking weight</mat-label>
                   <input matInput type="number" min="0" max="0.3" step="0.01" [(ngModel)]="ga4Gsc.ranking_weight" />
                   <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.ranking_weight')" matTooltipClass="setting-tooltip">
-                    <mat-icon>info_outline</mat-icon>
+                    <mat-icon class="icon-md">info_outline</mat-icon>
                   </button>
                 </mat-form-field>
               </div>
@@ -1333,7 +1333,7 @@
                     <mat-label>Backfill Days</mat-label>
                     <input matInput type="number" min="1" [max]="ga4Gsc.manual_backfill_max_days" [(ngModel)]="gscManualBackfillDays" />
                     <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('ga4Gsc.manual_backfill_days')" matTooltipClass="setting-tooltip">
-                      <mat-icon>info_outline</mat-icon>
+                      <mat-icon class="icon-md">info_outline</mat-icon>
                     </button>
                   </mat-form-field>
                 </div>
@@ -1366,9 +1366,9 @@
     <!-- TAB 4: PRESETS & HISTORY -->
     <mat-tab>
       <ng-template mat-tab-label>
-        <mat-icon class="tab-icon">history</mat-icon>
+        <mat-icon class="tab-icon icon-md">history</mat-icon>
         Library & History
-        <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.library_history')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
+        <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.library_history')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
       <div class="tab-content" id="history-presets">

@@ -48,7 +48,7 @@
     <!-- Empty state -->
     @if (!loading && alerts.length === 0) {
       <div class="notif-empty">
-        <mat-icon class="notif-empty-icon">notifications_none</mat-icon>
+        <mat-icon class="notif-empty-icon icon-3xl">notifications_none</mat-icon>
         <span class="notif-empty-label">No unread notifications</span>
       </div>
     }
@@ -63,7 +63,7 @@
             [class.notif-item--clickable]="!!alert.related_route"
             (click)="onOpenRelated(alert)"
           >
-            <mat-icon class="notif-icon">{{ severityIcon(alert.severity) }}</mat-icon>
+            <mat-icon class="notif-icon icon-md">{{ severityIcon(alert.severity) }}</mat-icon>
             <div class="notif-body">
               <span class="notif-title">{{ alert.title }}</span>
               <span class="notif-msg">{{ alert.message }}</span>

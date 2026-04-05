@@ -54,25 +54,21 @@
   }
 
   &.xenforo {
-    background: #f1f3f4;
-    color: #5f6368;
+    background: var(--color-border-faint);
+    color: var(--color-text-muted);
   }
 }
 
 .event-type {
   font-family: 'Roboto Mono', monospace;
   font-size: 11px;
-  background: #f8f9fa;
+  background: var(--color-bg-faint);
   padding: 2px 4px;
   border-radius: 4px;
-  color: #3c4043;
+  color: var(--color-text-secondary);
 }
 
 .status-icon {
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-
   &.status-processed { color: var(--color-success); }
   &.status-ignored { color: var(--color-text-disabled); }
   &.status-error   { color: var(--color-error); }
@@ -94,9 +90,6 @@
     justify-content: center;
 
     mat-icon {
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
       color: var(--color-text-disabled);
     }
   }
@@ -113,21 +106,4 @@
   }
 }
 
-:host ::ng-deep .mat-mdc-card-header {
-  padding: 16px;
-  border-bottom: 1px solid var(--color-border-faint);
-  margin-bottom: 8px;
-
-  .mat-mdc-card-avatar {
-    background-color: var(--color-blue-50);
-    color: var(--color-primary);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  .mat-mdc-card-title {
-    font-size: 14px;
-    font-weight: 500;
-  }
-}
+// Card header overrides moved to global _material-overrides.scss

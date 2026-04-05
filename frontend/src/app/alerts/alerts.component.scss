@@ -28,7 +28,7 @@
   display: inline-flex;
   align-items: center;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-text-on-dark);
   font-size: 11px;
   font-weight: 500;
   padding: 2px 8px;
@@ -84,9 +84,6 @@
 }
 
 .alerts-empty-icon {
-  font-size: 48px;
-  width: 48px;
-  height: 48px;
   color: var(--color-border);
 }
 
@@ -182,10 +179,6 @@
 
 // ── Content Elements ──────────────────────────────────────────────
 .alert-icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
-
   .alert-row--info    & { color: var(--color-primary); }
   .alert-row--success & { color: var(--color-success); }
   .alert-row--warning & { color: var(--color-warning); }
@@ -242,9 +235,9 @@
 .alert-status-chip {
   @extend %chip-base;
   &.chip--status--unread       { background: var(--color-blue-50); color: var(--color-primary); }
-  &.chip--status--read         { background: #f1f3f4; color: #5f6368; }
+  &.chip--status--read         { background: var(--color-border-faint); color: var(--color-text-muted); }
   &.chip--status--acknowledged { background: var(--color-success-light); color: var(--color-success); }
-  &.chip--status--resolved     { background: #f1f3f4; color: #5f6368; }
+  &.chip--status--resolved     { background: var(--color-border-faint); color: var(--color-text-muted); }
 }
 
 .alert-count-chip {

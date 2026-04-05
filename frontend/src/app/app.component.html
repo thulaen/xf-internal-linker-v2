@@ -73,7 +73,7 @@
       @if (config.logoUrl) {
         <img [src]="config.logoUrl" alt="Logo" class="brand-logo-img" />
       } @else {
-        <mat-icon class="brand-icon">link</mat-icon>
+        <mat-icon class="brand-icon icon-lg">link</mat-icon>
       }
       <div class="brand-info">
         <span class="brand-name">{{ siteName }}</span>
@@ -93,7 +93,7 @@
             [matTooltip]="item.tooltip"
             matTooltipPosition="right"
           >
-            <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+            <mat-icon matListItemIcon class="icon-md">{{ item.icon }}</mat-icon>
             <div matListItemTitle class="nav-item-title">
               <span>{{ item.label }}</span>
               @if (item.route === '/link-health' && openBrokenLinks > 0) {

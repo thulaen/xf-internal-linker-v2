@@ -4,7 +4,7 @@
       <span class="review-kicker">Suggestion workspace</span>
       <div class="header-left">
         <h1 class="page-title">
-          <mat-icon>rate_review</mat-icon>
+          <mat-icon class="icon-lg">rate_review</mat-icon>
           Review
         </h1>
         @if (totalCount > 0) {
@@ -107,7 +107,7 @@
 @if (!loading && suggestions.length === 0) {
   <div class="empty-state">
     <div class="empty-icon-wrap">
-      <mat-icon class="empty-icon">rate_review</mat-icon>
+      <mat-icon class="empty-icon icon-3xl">rate_review</mat-icon>
     </div>
     <h3>No {{ statusFilter === 'all' ? '' : statusFilter }} suggestions</h3>
     <p>
@@ -166,7 +166,7 @@
         </div>
 
         <div class="card-destination">
-          <mat-icon>arrow_forward</mat-icon>
+          <mat-icon class="icon-sm">arrow_forward</mat-icon>
           <span class="destination-title">{{ s.destination_title }}</span>
           <span class="silo-pill">{{ s.destination_source_label }}</span>
           @if (s.destination_url) {
@@ -178,13 +178,13 @@
               (click)="$event.stopPropagation()"
               matTooltip="Open destination"
             >
-              <mat-icon>open_in_new</mat-icon>
+              <mat-icon class="icon-sm">open_in_new</mat-icon>
             </a>
           }
         </div>
 
         <div class="card-host">
-          <mat-icon>article</mat-icon>
+          <mat-icon class="icon-2xs">article</mat-icon>
           <span>{{ s.host_title }}</span>
           <span class="silo-pill">{{ s.host_source_label }}</span>
         </div>

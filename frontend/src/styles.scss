@@ -4,6 +4,8 @@
 
 @use './styles/default-theme';
 @use './styles/scroll-highlight';
+@use './styles/themes/icons';
+@use './styles/themes/material-overrides';
 
 // ── Reset / Base ───────────────────────────────────────────────────
 *,

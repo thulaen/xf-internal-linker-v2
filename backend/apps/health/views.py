@@ -30,7 +30,7 @@ class HealthStatusViewSet(viewsets.ReadOnlyModelViewSet):
         except ValueError as e:
             return Response({"error": str(e)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            return Response({"error": f"Failed to check health: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER__ERROR)
+            return Response({"error": f"Failed to check health: {str(e)}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):

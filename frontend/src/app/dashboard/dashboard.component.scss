@@ -26,9 +26,6 @@
 
     mat-icon {
       color: var(--color-primary);
-      font-size: 24px;
-      width: 24px;
-      height: 24px;
     }
   }
 
@@ -74,9 +71,6 @@
     font-weight: 600;
 
     mat-icon {
-      width: 16px;
-      height: 16px;
-      font-size: 16px;
       color: var(--color-primary);
     }
   }
@@ -171,12 +165,6 @@
   justify-content: center;
   flex-shrink: 0;
 
-  mat-icon {
-    font-size: 20px;
-    width: 20px;
-    height: 20px;
-  }
-
   &.warn {
     background: var(--color-warning-light);
     mat-icon { color: var(--color-warning); }
@@ -258,9 +246,6 @@
 
   mat-icon {
     color: var(--color-primary);
-    font-size: 22px;
-    width: 22px;
-    height: 22px;
     flex-shrink: 0;
   }
 
@@ -352,11 +337,6 @@
   border-radius: var(--radius-pill);
   text-transform: capitalize;
 
-  .state-icon {
-    font-size: 13px;
-    width: 13px;
-    height: 13px;
-  }
 }
 
 .state-chip {
@@ -451,7 +431,4 @@
 .icon-right {
   margin-left: 8px;
   margin-right: -4px;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
 }
