@@ -220,7 +220,15 @@ def generate_content_item_embeddings(
     # Process in batches to report progress
     raw_vectors_list = []
     total_items = len(texts)
-    
+
+    if job_id:
+        from apps.sync.models import SyncJob
+        from apps.pipeline.tasks import _publish_progress
+        job = SyncJob.objects.filter(job_id=job_id).first()
+    else:
+        job = None
+
+    batch_num = 0
     for i in range(0, total_items, batch_size):
         batch_texts = texts[i : i + batch_size]
         batch_vectors = model.encode(
@@ -230,28 +238,32 @@ def generate_content_item_embeddings(
             convert_to_numpy=True,
         )
         raw_vectors_list.append(batch_vectors)
-        
+
         # Report progress
         if job_id:
-            from apps.sync.models import SyncJob
-            from apps.pipeline.tasks import _publish_progress
-            
+            batch_num += 1
             processed = min(i + batch_size, total_items)
             pct = processed / total_items
-            
-            job = SyncJob.objects.filter(job_id=job_id).first()
+
             if job:
                 job.embedding_items_completed = processed
-                job.save(update_fields=["embedding_items_completed", "updated_at"])
-                
+                # Throttle DB writes — saving every batch issues O(N/batch_size) UPDATEs;
+                # every 5th batch cuts that by 5x with negligible progress-reporting lag.
+                if batch_num % 5 == 0:
+                    job.save(update_fields=["embedding_items_completed", "updated_at"])
+
             _publish_progress(
                 job_id,
                 "running",
                 0.8 + (pct * 0.1),
                 f"Content embeddings: {processed}/{total_items}...",
-                embedding_progress=pct * 0.5, # Content items are first half of embedding phase
+                embedding_progress=pct * 0.5,  # Content items are first half of embedding phase
                 ml_progress=0.7 + (pct * 0.15)
             )
+
+    # Persist final count regardless of whether the last batch fell on a multiple-of-5 boundary.
+    if job_id and job:
+        job.save(update_fields=["embedding_items_completed", "updated_at"])
 
     raw_vectors = np.vstack(raw_vectors_list)
     vectors = _l2_normalize(raw_vectors)

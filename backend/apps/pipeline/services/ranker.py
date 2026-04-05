@@ -9,15 +9,26 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 import heapq
+import logging
 import math
+import warnings
 import numpy as np
 from typing import Mapping, TypeAlias
- 
+
 try:
     from extensions import scoring
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
+    warnings.warn(
+        "C++ scoring extension not found — ranker using slow Python fallback. "
+        "Run 'make build-ext' to compile.",
+        RuntimeWarning,
+    )
+    logging.getLogger(__name__).warning(
+        "C++ scoring extension not found — ranker using slow Python fallback. "
+        "Run 'make build-ext' to compile.",
+    )
 
 HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(scoring, "calculate_composite_scores_full_batch")
 
@@ -357,8 +368,11 @@ def score_destination_matches(
     rare_term_profiles = rare_term_profiles or {}
     ranked: list[ScoredCandidate] = []
     pending_candidates: list[dict[str, object]] = []
-    component_rows: list[list[float]] = []
-    silo_scores: list[float] = []
+    # Pre-allocate fixed-size arrays: avoids repeated list.append + np.asarray copy on every candidate.
+    # Upper bound is len(sentence_matches); sliced down to row_idx after the loop.
+    component_scores = np.empty((len(sentence_matches), 12), dtype=np.float32)
+    silo_array = np.empty(len(sentence_matches), dtype=np.float32)
+    row_idx = 0
     destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(destination.key, [])
     batch_weights = np.asarray(
         [
@@ -512,27 +526,27 @@ def score_destination_matches(
                 "field_aware_match": field_aware_match,
             }
         )
-        component_rows.append(
-            [
-                float(match.score_semantic),
-                float(score_keyword),
-                float(score_node),
-                float(score_quality),
-                float(score_march_2026_pagerank_component),
-                float(score_link_freshness),
-                float(score_phrase_relevance),
-                float(score_learned_anchor),
-                float(score_rare_term),
-                float(score_field_aware),
-                float(score_ga4_gsc),
-                float(score_click_distance_component),
-            ]
-        )
-        silo_scores.append(float(score_silo))
+        component_scores[row_idx] = [
+            float(match.score_semantic),
+            float(score_keyword),
+            float(score_node),
+            float(score_quality),
+            float(score_march_2026_pagerank_component),
+            float(score_link_freshness),
+            float(score_phrase_relevance),
+            float(score_learned_anchor),
+            float(score_rare_term),
+            float(score_field_aware),
+            float(score_ga4_gsc),
+            float(score_click_distance_component),
+        ]
+        silo_array[row_idx] = float(score_silo)
+        row_idx += 1
+
+    component_scores = component_scores[:row_idx]
+    silo_array = silo_array[:row_idx]
 
     if pending_candidates:
-        component_scores = np.asarray(component_rows, dtype=np.float32)
-        silo_array = np.asarray(silo_scores, dtype=np.float32)
         if HAS_CPP_FULL_BATCH:
             score_finals = scoring.calculate_composite_scores_full_batch(
                 component_scores,

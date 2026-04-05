@@ -205,7 +205,24 @@ def _refresh_existing_links_py(*, tracked_at=None) -> int:
     refreshed = 0
     tracked_at = tracked_at or timezone.now()
 
-    for content_item in content_items.iterator(chunk_size=100):
+    CHUNK_SIZE = 100
+    chunk: list[tuple] = []
+
+    def _flush_chunk(chunk: list[tuple]) -> int:
+        # Wrapping each 100-item chunk in one transaction reduces per-row commit
+        # overhead from O(N) to O(N/100) and prevents partial-graph corruption
+        # if the process is killed mid-batch.
+        with transaction.atomic():
+            for content_item, edges in chunk:
+                sync_existing_links(
+                    content_item,
+                    edges,
+                    allow_disappearance=True,
+                    tracked_at=tracked_at,
+                )
+        return len(chunk)
+
+    for content_item in content_items.iterator(chunk_size=CHUNK_SIZE):
         post = getattr(content_item, "post", None)
         if post is None or not post.raw_bbcode:
             continue
@@ -215,13 +232,13 @@ def _refresh_existing_links_py(*, tracked_at=None) -> int:
             content_item.content_type,
             forum_domains=internal_domains,
         )
-        sync_existing_links(
-            content_item,
-            edges,
-            allow_disappearance=True,
-            tracked_at=tracked_at,
-        )
-        refreshed += 1
+        chunk.append((content_item, edges))
+        if len(chunk) >= CHUNK_SIZE:
+            refreshed += _flush_chunk(chunk)
+            chunk = []
+
+    if chunk:
+        refreshed += _flush_chunk(chunk)
 
     return refreshed
 
