@@ -72,7 +72,7 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
-    path: 'system-health',
+    path: 'health',
     loadComponent: () =>
       import('./health/health.component').then((m) => m.HealthComponent),
     title: 'System Health — XF Internal Linker',
