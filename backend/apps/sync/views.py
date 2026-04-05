@@ -68,6 +68,7 @@ class ImportUploadView(APIView):
             source="jsonl",
             file_path=str(dest_path),
             job_id=job_id,
+            force_reembed=bool(request.data.get("force_reembed") or False),
         )
 
         return Response({
@@ -133,6 +134,7 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
             source=source,
             scope_ids=scope_ids,
             job_id=job_id,
+            force_reembed=bool(request.data.get("force_reembed") or False),
         )
 
         return Response({

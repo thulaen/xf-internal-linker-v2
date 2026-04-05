@@ -128,6 +128,7 @@ class SchedulerDispatchView(views.APIView):
                 source=str(kwargs.get("source") or "api"),
                 file_path=kwargs.get("file_path"),
                 job_id=kwargs.get("job_id"),
+                force_reembed=bool(kwargs.get("force_reembed") or False),
             )
             return response.Response(
                 {

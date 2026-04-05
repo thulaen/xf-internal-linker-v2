@@ -2058,6 +2058,7 @@ class WordPressSyncRunView(APIView):
             mode="full",
             source="wp",
             job_id=str(job.job_id),
+            force_reembed=bool(request.data.get("force_reembed") or False),
         )
 
         return Response(

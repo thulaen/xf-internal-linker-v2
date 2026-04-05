@@ -2876,6 +2876,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
       explore: this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank),
       clustering: this.siloSvc.updateClusteringSettings(this.clustering),
       slate: this.siloSvc.updateSlateDiversitySettings(this.slateDiversity),
+      graph: this.siloSvc.updateGraphCandidateSettings(this.graphCandidate),
+      value: this.siloSvc.updateValueModelSettings(this.valueModel),
       wordpress: this.siloSvc.updateWordPressSettings(wordpressPayload)
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (results) => {
@@ -2896,6 +2898,8 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.feedbackRerank = results.explore;
         this.clustering = results.clustering;
         this.slateDiversity = results.slate;
+        this.graphCandidate = results.graph;
+        this.valueModel = results.value;
         this.wordpress = results.wordpress;
         this.wordpressPassword = '';
         this.ga4TelemetrySecret = '';

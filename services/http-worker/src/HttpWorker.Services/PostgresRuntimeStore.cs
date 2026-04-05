@@ -785,6 +785,28 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
             }
         }
 
+        // 3. Load Article Metrics (Authority/Freshness) for all involved articles
+        var articleIds = data.Edges.Select(x => x.ArticleId).Distinct().ToArray();
+        if (articleIds.Length > 0)
+        {
+            await using var cmd = new NpgsqlCommand(
+                """
+                SELECT id, march_2026_pagerank_score, link_freshness_score
+                FROM content_contentitem
+                WHERE id = ANY(@ids)
+                """, connection);
+            cmd.Parameters.AddWithValue("ids", articleIds);
+
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                data.ArticleMetrics[reader.GetInt32(0)] = (
+                    (float)reader.GetDouble(1),
+                    (float)reader.GetDouble(2)
+                );
+            }
+        }
+
         return data;
     }
 

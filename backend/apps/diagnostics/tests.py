@@ -216,6 +216,7 @@ class SchedulerDispatchViewTests(TestCase):
             source="api",
             file_path=None,
             job_id=None,
+            force_reembed=False,
         )
 
     def test_scheduler_dispatch_rejects_bad_token(self):

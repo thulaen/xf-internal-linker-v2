@@ -3522,6 +3522,7 @@ class HeavyRuntimeDispatchTests(TestCase):
             source="api",
             file_path=None,
             job_id="11111111-1111-1111-1111-111111111111",
+            force_reembed=False,
         )
 
     def test_orchestrate_csharp_import_chains_ml_on_success(self):
@@ -3535,7 +3536,7 @@ class HeavyRuntimeDispatchTests(TestCase):
             pipeline_tasks.orchestrate_csharp_import(mode="full", source="api")
             
             run_job.assert_called_once()
-            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3], job_id=ANY)
+            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3], job_id=ANY, force_reembed=False)
 
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",

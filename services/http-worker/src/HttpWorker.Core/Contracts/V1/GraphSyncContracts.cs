@@ -243,4 +243,6 @@ public sealed class KnowledgeGraphData
     public List<KnowledgeGraphEdge> Edges { get; } = [];
 
     public Dictionary<int, string> EntityTypeMap { get; } = [];
+
+    public Dictionary<int, (float PageRank, float Freshness)> ArticleMetrics { get; } = [];
 }

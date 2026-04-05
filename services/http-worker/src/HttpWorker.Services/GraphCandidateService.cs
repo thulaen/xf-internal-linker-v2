@@ -96,7 +96,7 @@ public sealed class GraphCandidateService : IGraphCandidateService
             float pixieRelevance = (float)Math.Sqrt(hit.Value);
             float trafficValue = trafficMetrics.GetValueOrDefault(hit.Key, 0f);
 
-            var (valueScore, diagJson) = CalculateValueScore(pixieRelevance, trafficValue, hit.Key);
+            var (valueScore, diagJson) = CalculateValueScore(pixieRelevance, trafficValue, hit.Key, graphData);
 
             suggestions.Add(new PipelineSuggestion
             {
@@ -129,7 +129,7 @@ public sealed class GraphCandidateService : IGraphCandidateService
         return items[^1].Id;
     }
 
-    private (float Score, string Diagnostics) CalculateValueScore(float pixieRelevance, float traffic, int articleId)
+    private (float Score, string Diagnostics) CalculateValueScore(float pixieRelevance, float traffic, int articleId, KnowledgeGraphData graphData)
     {
         // Normalization (Instagram-style signals)
         // relevance is sqrt(hits) -> 2000 walks, average hits 10-50 per top node. sqrt(50) ~ 7.
@@ -143,10 +143,15 @@ public sealed class GraphCandidateService : IGraphCandidateService
         var p = _options.Pipeline;
         float score = (p.WeightRelevance * normRel) + (p.WeightTraffic * normTraff);
         
-        // Placeholder for Authority (PageRank) and Freshness
-        // In full implementation, we'd load these from the destination nodes
+        // Loading real Authority (PageRank) and Freshness
         float normAuth = 0.5f; 
         float normFresh = 0.5f;
+
+        if (graphData.ArticleMetrics.TryGetValue(articleId, out var metrics))
+        {
+            normAuth = metrics.PageRank;
+            normFresh = metrics.Freshness;
+        }
 
         score += (p.WeightAuthority * normAuth);
         score += (p.WeightFreshness * normFresh);
@@ -157,8 +162,12 @@ public sealed class GraphCandidateService : IGraphCandidateService
             traffic_raw = traffic,
             norm_relevance = normRel,
             norm_traffic = normTraff,
+            norm_authority = normAuth,
+            norm_freshness = normFresh,
             w_rel = p.WeightRelevance,
-            w_traff = p.WeightTraffic
+            w_traff = p.WeightTraffic,
+            w_auth = p.WeightAuthority,
+            w_fresh = p.WeightFreshness
         };
 
         return (score, System.Text.Json.JsonSerializer.Serialize(diagnostics));
