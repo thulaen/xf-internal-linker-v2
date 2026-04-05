@@ -194,6 +194,16 @@ describe('SettingsComponent', () => {
               similarity_threshold: 0.04,
               suppression_penalty: 20,
             }),
+            getSpamGuardSettings: () => of({
+              max_existing_links_per_host: 3,
+              max_anchor_words: 4,
+              paragraph_window: 3,
+            }),
+            updateSpamGuardSettings: () => of({
+              max_existing_links_per_host: 3,
+              max_anchor_words: 4,
+              paragraph_window: 3,
+            }),
             getSlateDiversitySettings: () => of({
               enabled: true,
               diversity_lambda: 0.65,
