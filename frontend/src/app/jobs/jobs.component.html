@@ -139,8 +139,12 @@
                   <mat-progress-bar mode="determinate" [value]="getJob($any(source)).ingestProgress"></mat-progress-bar>
                 </div>
                 <div class="phase-item" [class.locked]="getJob($any(source)).ingestProgress < 100">
-                  <div class="phase-info"><span>Phase 2: Intelligence</span><span>{{ getJob($any(source)).mlProgress }}%</span></div>
-                  <mat-progress-bar mode="determinate" [value]="getJob($any(source)).mlProgress"></mat-progress-bar>
+                  <div class="phase-info"><span>Phase 2: SpaCy (NLP)</span><span>{{ getJob($any(source)).spacyProgress }}%</span></div>
+                  <mat-progress-bar mode="determinate" [value]="getJob($any(source)).spacyProgress"></mat-progress-bar>
+                </div>
+                <div class="phase-item" [class.locked]="getJob($any(source)).spacyProgress < 100">
+                  <div class="phase-info"><span>Phase 3: BGE-M3 (Embeddings)</span><span>{{ getJob($any(source)).embeddingProgress }}%</span></div>
+                  <mat-progress-bar mode="determinate" [value]="getJob($any(source)).embeddingProgress"></mat-progress-bar>
                 </div>
               </div>
             </div>
@@ -241,8 +245,12 @@
                 <mat-progress-bar mode="determinate" [value]="getJob('jsonl').ingestProgress"></mat-progress-bar>
               </div>
               <div class="phase-item" [class.locked]="getJob('jsonl').ingestProgress < 100">
-                <div class="phase-info"><span>Phase 2: Intelligence</span><span>{{ getJob('jsonl').mlProgress }}%</span></div>
-                <mat-progress-bar mode="determinate" [value]="getJob('jsonl').mlProgress"></mat-progress-bar>
+                <div class="phase-info"><span>Phase 2: SpaCy (NLP)</span><span>{{ getJob('jsonl').spacyProgress }}%</span></div>
+                <mat-progress-bar mode="determinate" [value]="getJob('jsonl').spacyProgress"></mat-progress-bar>
+              </div>
+              <div class="phase-item" [class.locked]="getJob('jsonl').spacyProgress < 100">
+                <div class="phase-info"><span>Phase 3: BGE-M3 (Embeddings)</span><span>{{ getJob('jsonl').embeddingProgress }}%</span></div>
+                <mat-progress-bar mode="determinate" [value]="getJob('jsonl').embeddingProgress"></mat-progress-bar>
               </div>
             </div>
           </div>

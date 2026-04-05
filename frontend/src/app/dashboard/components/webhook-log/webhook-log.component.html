@@ -1,0 +1,54 @@
+<mat-card class="webhook-card dashboard-panel">
+  <mat-card-header>
+    <mat-icon mat-card-avatar>hub</mat-icon>
+    <mat-card-title>Webhook Activity</mat-card-title>
+    <mat-card-subtitle>Real-time site synchronization logs</mat-card-subtitle>
+  </mat-card-header>
+
+  <mat-card-content>
+    @if (receipts.length === 0) {
+      <div class="empty-state compact-empty-state">
+        <div class="empty-icon-wrap">
+          <mat-icon>router</mat-icon>
+        </div>
+        <h3>No webhook activity</h3>
+        <p>Listening for real-time updates from XenForo and WordPress.</p>
+      </div>
+    } @else {
+      <div class="table-shell">
+        <table mat-table [dataSource]="receipts" class="webhook-table">
+          <ng-container matColumnDef="created_at">
+            <th mat-header-cell *matHeaderCellDef>Time</th>
+            <td mat-cell *matCellDef="let r">{{ r.created_at | date:'shortTime' }}</td>
+          </ng-container>
+
+          <ng-container matColumnDef="source">
+            <th mat-header-cell *matHeaderCellDef>Source</th>
+            <td mat-cell *matCellDef="let r">
+              <span class="source-tag" [ngClass]="r.source">{{ r.source }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="event_type">
+            <th mat-header-cell *matHeaderCellDef>Event</th>
+            <td mat-cell *matCellDef="let r">
+              <code class="event-type">{{ r.event_type }}</code>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="status">
+            <th mat-header-cell *matHeaderCellDef>Status</th>
+            <td mat-cell *matCellDef="let r">
+              <mat-icon [matTooltip]="r.error_message || r.status" [ngClass]="getStatusClass(r.status)" class="status-icon">
+                {{ getStatusIcon(r.status) }}
+              </mat-icon>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let r; columns: displayedColumns;"></tr>
+        </table>
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

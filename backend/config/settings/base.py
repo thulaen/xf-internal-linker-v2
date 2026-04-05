@@ -190,6 +190,20 @@ CELERY_BEAT_SCHEDULE = {
         "kwargs": {"source": "api", "mode": "full"},
         "options": {"queue": "pipeline"},
     },
+    # Part 6.5 — monthly baseline refresh: 1st of every month.
+    # Forces a full re-embedding to ensure zero drift from live sites.
+    "monthly-xenforo-full-sync": {
+        "task": "pipeline.import_content",
+        "schedule": crontab(hour=2, minute=30, day_of_month="1"),
+        "kwargs": {"source": "api", "mode": "full", "force_reembed": True},
+        "options": {"queue": "pipeline"},
+    },
+    "monthly-wordpress-full-sync": {
+        "task": "pipeline.import_content",
+        "schedule": crontab(hour=3, minute=0, day_of_month="1"),
+        "kwargs": {"source": "wp", "mode": "full", "force_reembed": True},
+        "options": {"queue": "pipeline"},
+    },
     # Part 6 — monthly R auto-tune: 02:00 on the first Sunday of every month.
     "monthly-r-auto-tune": {
         "task": "pipeline.monthly_r_auto_tune",

@@ -34,6 +34,10 @@ class SyncJob(models.Model):
     ml_items_queued = models.IntegerField(default=0)
     ml_items_completed = models.IntegerField(default=0)
     
+    # Granular ML progress
+    spacy_items_completed = models.IntegerField(default=0)
+    embedding_items_completed = models.IntegerField(default=0)
+    
     error_message = models.TextField(blank=True)
     
     started_at = models.DateTimeField(null=True, blank=True)
@@ -46,3 +50,27 @@ class SyncJob(models.Model):
 
     def __str__(self):
         return f"{self.source} ({self.mode}) - {self.status} - {self.created_at}"
+
+
+class WebhookReceipt(models.Model):
+    """
+    Audit log for every incoming webhook attempt from XF or WP.
+    """
+    receipt_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
+    source = models.CharField(max_length=20, choices=SyncJob.SOURCE_CHOICES)
+    event_type = models.CharField(max_length=100)
+    payload = models.JSONField(help_text="Raw payload received from the webhook.")
+    
+    status = models.CharField(max_length=20, default='received') # received, processed, ignored, error
+    error_message = models.TextField(blank=True)
+    
+    # Link to the resulting SyncJob if one was triggered
+    sync_job = models.ForeignKey(SyncJob, on_delete=models.SET_NULL, null=True, blank=True, related_name='webhooks')
+    
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Webhook {self.source} {self.event_type} - {self.status} at {self.created_at}"

@@ -163,6 +163,8 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
 
 def generate_content_item_embeddings(
     content_item_ids: list[int] | None = None,
+    job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict[str, int]:
     """Generate and store embeddings for ContentItem.embedding (destination embeddings).
 
@@ -185,6 +187,10 @@ def generate_content_item_embeddings(
     qs = ContentItem.objects.filter(is_deleted=False)
     if content_item_ids is not None:
         qs = qs.filter(pk__in=content_item_ids)
+    
+    if not force_reembed:
+        qs = qs.filter(embedding__isnull=True)
+        
     qs = qs.values_list("pk", "title", "distilled_text")
 
     items = list(qs)
@@ -210,12 +216,44 @@ def generate_content_item_embeddings(
 
     logger.info("Embedding %d content items...", len(texts))
     start = time.monotonic()
-    raw_vectors = model.encode(
-        texts,
-        batch_size=batch_size,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-    )
+    
+    # Process in batches to report progress
+    raw_vectors_list = []
+    total_items = len(texts)
+    
+    for i in range(0, total_items, batch_size):
+        batch_texts = texts[i : i + batch_size]
+        batch_vectors = model.encode(
+            batch_texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+        raw_vectors_list.append(batch_vectors)
+        
+        # Report progress
+        if job_id:
+            from apps.sync.models import SyncJob
+            from apps.pipeline.tasks import _publish_progress
+            
+            processed = min(i + batch_size, total_items)
+            pct = processed / total_items
+            
+            job = SyncJob.objects.filter(job_id=job_id).first()
+            if job:
+                job.embedding_items_completed = processed
+                job.save(update_fields=["embedding_items_completed", "updated_at"])
+                
+            _publish_progress(
+                job_id,
+                "running",
+                0.8 + (pct * 0.1),
+                f"Content embeddings: {processed}/{total_items}...",
+                embedding_progress=pct * 0.5, # Content items are first half of embedding phase
+                ml_progress=0.7 + (pct * 0.15)
+            )
+
+    raw_vectors = np.vstack(raw_vectors_list)
     vectors = _l2_normalize(raw_vectors)
     elapsed = time.monotonic() - start
     logger.info("Encoded %d items in %.2fs.", len(texts), elapsed)
@@ -232,6 +270,8 @@ def generate_content_item_embeddings(
 
 def generate_sentence_embeddings(
     content_item_ids: list[int] | None = None,
+    job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict[str, int]:
     """Generate and store embeddings for Sentence.embedding (host sentence embeddings).
 
@@ -257,6 +297,9 @@ def generate_sentence_embeddings(
     if content_item_ids is not None:
         qs = qs.filter(content_item__pk__in=content_item_ids)
 
+    if not force_reembed:
+        qs = qs.filter(embedding__isnull=True)
+
     # Only embed sentences within the HOST_SCAN_WORD_LIMIT window
     qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list("pk", "text")
 
@@ -276,12 +319,38 @@ def generate_sentence_embeddings(
 
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()
-    raw_vectors = model.encode(
-        texts,
-        batch_size=batch_size,
-        show_progress_bar=False,
-        convert_to_numpy=True,
-    )
+    
+    # Process in batches to report progress
+    raw_vectors_list = []
+    total_sentences = len(texts)
+    
+    for i in range(0, total_sentences, batch_size):
+        batch_texts = texts[i : i + batch_size]
+        batch_vectors = model.encode(
+            batch_texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+        raw_vectors_list.append(batch_vectors)
+        
+        # Report progress
+        if job_id:
+            from apps.pipeline.tasks import _publish_progress
+            
+            processed = min(i + batch_size, total_sentences)
+            pct = processed / total_sentences
+            
+            _publish_progress(
+                job_id,
+                "running",
+                0.9 + (pct * 0.09),
+                f"Sentence embeddings: {processed}/{total_sentences}...",
+                embedding_progress=0.5 + (pct * 0.5), # Sentences are second half
+                ml_progress=0.85 + (pct * 0.14)
+            )
+
+    raw_vectors = np.vstack(raw_vectors_list)
     vectors = _l2_normalize(raw_vectors)
     elapsed = time.monotonic() - start
     logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
@@ -298,13 +367,15 @@ def generate_sentence_embeddings(
 
 def generate_all_embeddings(
     content_item_ids: list[int] | None = None,
+    job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict[str, int]:
     """Generate both ContentItem and Sentence embeddings in one call.
 
     Returns combined stats dict.
     """
-    ci_stats = generate_content_item_embeddings(content_item_ids)
-    sent_stats = generate_sentence_embeddings(content_item_ids)
+    ci_stats = generate_content_item_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
+    sent_stats = generate_sentence_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
     return {
         "content_items_embedded": ci_stats["embedded"],
         "content_items_skipped": ci_stats["skipped"],

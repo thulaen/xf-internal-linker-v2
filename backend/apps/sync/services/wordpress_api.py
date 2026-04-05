@@ -55,30 +55,38 @@ class WordPressAPIClient:
     def has_credentials(self) -> bool:
         return bool(self.username and self.app_password)
 
-    def get_posts(self, page: int = 1, *, status: str = "publish") -> tuple[list[dict[str, Any]], int]:
+    def get_posts(self, page: int = 1, *, status: str = "publish", after: str | None = None) -> tuple[list[dict[str, Any]], int]:
         """Fetch one page of WordPress posts."""
-        return self._list_endpoint("posts", page=page, status=status)
+        return self._list_endpoint("posts", page=page, status=status, after=after)
 
-    def get_pages(self, page: int = 1, *, status: str = "publish") -> tuple[list[dict[str, Any]], int]:
+    def get_pages(self, page: int = 1, *, status: str = "publish", after: str | None = None) -> tuple[list[dict[str, Any]], int]:
         """Fetch one page of WordPress pages."""
-        return self._list_endpoint("pages", page=page, status=status)
+        return self._list_endpoint("pages", page=page, status=status, after=after)
 
-    def iter_posts(self) -> Iterator[dict[str, Any]]:
+    def get_post(self, post_id: int) -> dict[str, Any]:
+        """Fetch a single post by ID."""
+        return self._get(f"posts/{post_id}").json()
+
+    def get_page(self, page_id: int) -> dict[str, Any]:
+        """Fetch a single page by ID."""
+        return self._get(f"pages/{page_id}").json()
+
+    def iter_posts(self, *, after: str | None = None) -> Iterator[dict[str, Any]]:
         """Yield published posts plus private posts when credentials are configured."""
-        yield from self._iter_endpoint("posts")
+        yield from self._iter_endpoint("posts", after=after)
 
-    def iter_pages(self) -> Iterator[dict[str, Any]]:
+    def iter_pages(self, *, after: str | None = None) -> Iterator[dict[str, Any]]:
         """Yield published pages plus private pages when credentials are configured."""
-        yield from self._iter_endpoint("pages")
+        yield from self._iter_endpoint("pages", after=after)
 
-    def _iter_endpoint(self, endpoint: str) -> Iterator[dict[str, Any]]:
+    def _iter_endpoint(self, endpoint: str, *, after: str | None = None) -> Iterator[dict[str, Any]]:
         seen_ids: set[int] = set()
 
         for status in self._statuses_for_fetch():
             page = 1
             total_pages = 1
             while page <= total_pages:
-                records, total_pages = self._list_endpoint(endpoint, page=page, status=status)
+                records, total_pages = self._list_endpoint(endpoint, page=page, status=status, after=after)
                 if not records:
                     break
                 for record in records:
@@ -94,14 +102,18 @@ class WordPressAPIClient:
             return ("publish", "private")
         return ("publish",)
 
-    def _list_endpoint(self, endpoint: str, *, page: int, status: str) -> tuple[list[dict[str, Any]], int]:
+    def _list_endpoint(self, endpoint: str, *, page: int, status: str, after: str | None = None) -> tuple[list[dict[str, Any]], int]:
+        params = {
+            "page": page,
+            "per_page": _PER_PAGE,
+            "status": status,
+        }
+        if after:
+            params["after"] = after
+            
         response = self._get(
             endpoint,
-            params={
-                "page": page,
-                "per_page": _PER_PAGE,
-                "status": status,
-            },
+            params=params,
         )
         total_pages = int(response.headers.get("X-WP-TotalPages", "1") or "1")
         payload = response.json()

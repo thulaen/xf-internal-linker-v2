@@ -35,12 +35,16 @@ def _publish_progress(job_id: str, state: str, progress: float, message: str, **
     if channel_layer is None:
         logger.warning("Channel layer not available; progress event not sent.")
         return
+    
+    # Ensure progress fields are initialized if not provided
     event = {
         "type": "job.progress",
         "job_id": job_id,
         "state": state,
         "progress": round(progress, 3),
         "message": message,
+        "spacy_progress": extra.get("spacy_progress", 0.0),
+        "embedding_progress": extra.get("embedding_progress", 0.0),
         **extra,
     }
     try:
@@ -154,6 +158,7 @@ def orchestrate_csharp_import(
     source: str = "api",
     file_path: str | None = None,
     job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict[str, Any]:
     """
     Orchestrator that runs the C# content import synchronously and then
@@ -224,7 +229,8 @@ def orchestrate_csharp_import(
             new_sentences: list[Sentence] = []
             distilled: dict[int, str] = {}  # content_item_id → distilled_text
 
-            for post in posts:
+            total_spacy = posts.count()
+            for index, post in enumerate(posts):
                 clean = (post.clean_text or "").strip()
                 if not clean:
                     continue
@@ -245,6 +251,23 @@ def orchestrate_csharp_import(
                     )
                     word_offset += len(span.text.split())
                 distilled[post.content_item_id] = distill_body([s.text for s in spans])
+                
+                # Granular progress update
+                if index % 20 == 0 or index == total_spacy - 1:
+                    sp_pct = (index + 1) / total_spacy
+                    if job:
+                        job.spacy_items_completed = index + 1
+                        job.save(update_fields=["spacy_items_completed", "updated_at"])
+                    _publish_progress(
+                        job_id,
+                        "running",
+                        0.5 + (sp_pct * 0.2),
+                        f"SpaCy processing: {index + 1}/{total_spacy} items...",
+                        spacy_progress=sp_pct,
+                        ml_progress=sp_pct * 0.5,
+                        ml_items_queued=total_spacy,
+                        ml_items_completed=index + 1
+                    )
 
             # Atomically swap sentences: delete C# regex rows, insert spaCy rows
             Sentence.objects.filter(content_item_id__in=updated_pks).delete()
@@ -269,7 +292,7 @@ def orchestrate_csharp_import(
                 ml_items_queued=len(updated_pks),
                 ml_items_completed=0,
             )
-            generate_embeddings.delay(content_item_ids=updated_pks, job_id=job_id)
+            generate_embeddings.delay(content_item_ids=updated_pks, job_id=job_id, force_reembed=force_reembed)
 
         _publish_progress(
             job_id,
@@ -299,6 +322,7 @@ def dispatch_import_content(
     source: str = "api",
     file_path: str | None = None,
     job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict[str, Any]:
     owner = _runtime_owner_for_lane("import")
     job_id = job_id or str(uuid.uuid4())
@@ -310,6 +334,7 @@ def dispatch_import_content(
             source=source,
             file_path=file_path,
             job_id=job_id,
+            force_reembed=force_reembed,
         )
         return {
             "job_id": job_id,
@@ -323,6 +348,7 @@ def dispatch_import_content(
         source=source,
         file_path=file_path,
         job_id=job_id,
+        force_reembed=force_reembed,
     )
     return {
         "job_id": job_id,
@@ -520,75 +546,51 @@ def run_pipeline(
 
 @shared_task(bind=True, name="pipeline.generate_embeddings")
 def generate_embeddings(
-    self, content_item_ids: list[int] | None = None, job_id: str | None = None
+    self, content_item_ids: list[int] | None = None, job_id: str | None = None, force_reembed: bool = False
 ) -> dict:
     """Generate and store embeddings for ContentItems and Sentences."""
+    from django.utils import timezone
+    from apps.sync.models import SyncJob
+    from apps.pipeline.services.embeddings import generate_all_embeddings
+
     job_id = job_id or str(uuid.uuid4())
     count_label = len(content_item_ids) if content_item_ids is not None else "all"
-
-    from apps.sync.models import SyncJob
-
     job = SyncJob.objects.filter(job_id=job_id).first()
-    ml_queued = len(content_item_ids) if content_item_ids else 0
-
+    
     _publish_progress(
         job_id,
         "running",
-        0.0,
+        0.8,
         f"Generating embeddings for {count_label} items...",
         ingest_progress=1.0,
-        ml_progress=0.0,
+        ml_progress=0.7,
+        embedding_progress=0.0
     )
     try:
-        from apps.pipeline.services.embeddings import generate_all_embeddings
-
-        _publish_progress(
-            job_id, "running", 0.1, "Loading embedding model...", ingest_progress=1.0, ml_progress=0.05
-        )
-
-        # Internal progress wrapper to update the SyncJob
-        def _ml_progress_callback(current: int, total: int):
-            if job:
-                job.ml_items_completed = current
-                job.save(update_fields=["ml_items_completed", "updated_at"])
-            pct = current / total if total > 0 else 1.0
-            _publish_progress(
-                job_id,
-                "running",
-                0.1 + (pct * 0.8),
-                f"ML Enrichment: {current}/{total} items processed...",
-                ingest_progress=1.0,
-                ml_progress=pct,
-                ml_items_queued=total,
-                ml_items_completed=current,
-            )
-
-        # Note: generate_all_embeddings would need to be updated to accept this callback
-        # For now, we'll just run it and update at the end if the service doesn't support callbacks
-        stats = generate_all_embeddings(content_item_ids)
+        # The service now handles granular progress reporting if job_id is provided
+        stats = generate_all_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
 
         if job:
-            job.ml_items_completed = stats["content_items_embedded"]
             job.status = "completed"
             job.completed_at = timezone.now()
-            job.save(update_fields=["ml_items_completed", "status", "completed_at", "updated_at"])
+            job.progress = 1.0
+            job.save(update_fields=["status", "completed_at", "progress", "updated_at"])
 
         _publish_progress(
             job_id,
             "completed",
             1.0,
-            f"Embeddings complete; {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences.",
+            f"ML Enrichment complete. {stats['content_items_embedded']} items embedded.",
             ingest_progress=1.0,
             ml_progress=1.0,
-            ml_items_queued=ml_queued,
-            ml_items_completed=stats["content_items_embedded"],
-            **stats,
+            embedding_progress=1.0,
+            **stats
         )
         _emit_job_alert(
             "job.completed",
             "success",
             "Embedding job completed",
-            f"Embeddings finished. {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences embedded.",
+            f"ML Enrichment complete. {stats['content_items_embedded']} items, {stats['sentences_embedded']} sentences embedded.",
             job_id=job_id,
             job_type="embed",
         )
@@ -724,6 +726,7 @@ def import_content(
     source: str = "api",
     file_path: str | None = None,
     job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict:
     """Import/sync content from XenForo, WordPress, or JSONL export."""
     from django.conf import settings
@@ -916,7 +919,7 @@ def import_content(
                     raw_body,
                     allow_disappearance=True,
                 )
-            return None
+            return content_item.pk if force_reembed else None
 
         with transaction.atomic():
             content_item.content_hash = new_hash
@@ -1062,10 +1065,19 @@ def import_content(
                     defaults={"title": "WordPress Pages", "is_enabled": True},
                 )[0],
             }
+            # Incremental Sync Logic: Find last successful sync for this source
+            last_sync_date = ""
+            if mode != "full":
+                last_job = SyncJob.objects.filter(source="wp", status="completed").first()
+                if last_job and last_job.completed_at:
+                    # WP API expects ISO 8601 string, e.g. "2026-04-01T12:00:00"
+                    last_sync_date = last_job.completed_at.isoformat()
+                    logger.info("Using incremental sync for WordPress: after=%s", last_sync_date)
+
             for index, (content_type, label, iterator) in enumerate(
                 [
-                    ("wp_post", "WordPress posts", client.iter_posts()),
-                    ("wp_page", "WordPress pages", client.iter_pages()),
+                    ("wp_post", "WordPress posts", client.iter_posts(after=last_sync_date)),
+                    ("wp_page", "WordPress pages", client.iter_pages(after=last_sync_date)),
                 ],
                 start=1,
             ):
@@ -1877,6 +1889,42 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
         
     except Exception as e:
         logger.exception("Failed to sync single item %d", content_id)
+        return {"error": str(e)}
+
+
+@shared_task(name="pipeline.sync_single_wp_item")
+def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
+    """Real-time sync for a single WordPress post/page via webhook."""
+    from apps.core.views import get_wordpress_runtime_config
+    from apps.sync.services.wordpress_api import WordPressAPIClient
+    from apps.sync.models import SyncJob
+    from apps.pipeline.tasks import import_content
+    
+    logger.info("Real-time sync triggered for WordPress %s %d", content_type, post_id)
+    
+    try:
+        wp_config = get_wordpress_runtime_config()
+        client = WordPressAPIClient(
+            base_url=wp_config["base_url"],
+            username=wp_config["username"],
+            app_password=wp_config["app_password"],
+        )
+        
+        # 1. Fetch item data to verify it exists
+        if content_type == "page":
+            item = client.get_page(post_id)
+        else:
+            item = client.get_post(post_id)
+            
+        if not item:
+            return {"error": "Item not found"}
+
+        # 2. Trigger import logic
+        # For single items we always use "full" to ensure we get the body and embeddings
+        return import_content(mode="full", source="wp", job_id=f"wp_single_{post_id}_{int(time.time())}")
+        
+    except Exception as e:
+        logger.exception("Failed to sync single WP item %d", post_id)
         return {"error": str(e)}
 
 

@@ -21,6 +21,8 @@ interface SourceJobState {
   jobId: string | null;
   ingestProgress: number;
   mlProgress: number;
+  spacyProgress: number;
+  embeddingProgress: number;
   progressMessage: string;
   errorMessage: string;
   ws: WebSocket | null;
@@ -80,6 +82,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     return {
       state: 'idle', jobId: null,
       ingestProgress: 0, mlProgress: 0,
+      spacyProgress: 0, embeddingProgress: 0,
       progressMessage: '', errorMessage: '',
       ws: null, pollingInterval: null,
     };
@@ -261,14 +264,18 @@ export class JobsComponent implements OnInit, OnDestroy {
       }
 
       if (data.type === 'job.progress') {
-        job.ingestProgress  = Math.round((data.ingest_progress ?? data.progress ?? 0) * 100);
-        job.mlProgress      = Math.round((data.ml_progress ?? 0) * 100);
-        job.progressMessage = data.message ?? '';
+        job.ingestProgress    = Math.round((data.ingest_progress ?? data.progress ?? 0) * 100);
+        job.mlProgress        = Math.round((data.ml_progress ?? 0) * 100);
+        job.spacyProgress     = Math.round((data.spacy_progress ?? 0) * 100);
+        job.embeddingProgress = Math.round((data.embedding_progress ?? 0) * 100);
+        job.progressMessage   = data.message ?? '';
 
         if (data.state === 'completed') {
           job.state = 'completed';
           job.ingestProgress = 100;
           job.mlProgress = 100;
+          job.spacyProgress = 100;
+          job.embeddingProgress = 100;
           ws.close();
           this.clearPolling(job);
           this.loadHistory();
@@ -292,9 +299,11 @@ export class JobsComponent implements OnInit, OnDestroy {
     job.pollingInterval = setInterval(() => {
       this.syncService.getJob(jobId).subscribe({
         next: (j) => {
-          job.ingestProgress  = Math.round((j.ingest_progress ?? j.progress ?? 0) * 100);
-          job.mlProgress      = Math.round((j.ml_progress ?? 0) * 100);
-          job.progressMessage = j.message ?? '';
+          job.ingestProgress    = Math.round((j.ingest_progress ?? j.progress ?? 0) * 100);
+          job.mlProgress        = Math.round((j.ml_progress ?? 0) * 100);
+          job.spacyProgress     = Math.round((j.spacy_progress ?? 0) * 100);
+          job.embeddingProgress = Math.round((j.embedding_progress ?? 0) * 100);
+          job.progressMessage   = j.message ?? '';
           if (j.status === 'completed') {
             job.state = 'completed';
             this.clearPolling(job);

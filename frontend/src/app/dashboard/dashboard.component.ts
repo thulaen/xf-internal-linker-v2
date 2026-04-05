@@ -16,6 +16,7 @@ import {
 } from './dashboard.service';
 import { SuggestionService } from '../review/suggestion.service';
 import { SystemSummaryComponent } from './components/system-summary/system-summary.component';
+import { WebhookLogComponent } from './components/webhook-log/webhook-log.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -32,6 +33,7 @@ import { SystemSummaryComponent } from './components/system-summary/system-summa
     MatTableModule,
     MatTooltipModule,
     SystemSummaryComponent,
+    WebhookLogComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

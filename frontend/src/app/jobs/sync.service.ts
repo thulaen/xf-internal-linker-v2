@@ -9,16 +9,29 @@ export interface SyncJob {
   mode: string;
   file_name?: string;
   progress: number; // Overall progress
-  ingest_progress?: number; // Phase 1
-  ml_progress?: number;     // Phase 2
+  ingest_progress?: number;    // Phase 1
+  ml_progress?: number;        // Total Phase 2
+  spacy_progress?: number;     // Phase 2a
+  embedding_progress?: number; // Phase 2b
   message: string;
   items_synced: number;
   items_updated: number;
   ml_items_queued: number;
   ml_items_completed: number;
+  spacy_items_completed: number;
+  embedding_items_completed: number;
   error_message?: string;
   started_at?: string;
   completed_at?: string;
+  created_at: string;
+}
+
+export interface WebhookReceipt {
+  receipt_id: string;
+  source: string;
+  event_type: string;
+  status: string;
+  error_message?: string;
   created_at: string;
 }
 
@@ -38,10 +51,10 @@ export class SyncService {
     return this.http.get<SyncJob>(`${this.apiUrl}${jobId}/`);
   }
 
-  triggerApiSync(source: 'api' | 'wp', mode: string = 'full'): Observable<{ job_id: string; source: string; mode: string }> {
+  triggerApiSync(source: 'api' | 'wp', mode: string = 'full', scope_ids: number[] = []): Observable<{ job_id: string; source: string; mode: string }> {
     return this.http.post<{ job_id: string; source: string; mode: string }>(
       `${this.apiUrl}trigger_api_sync/`,
-      { source, mode }
+      { source, mode, scope_ids }
     );
   }
 
@@ -54,6 +67,10 @@ export class SyncService {
 
   getSourceStatus(): Observable<{ api: boolean; wp: boolean }> {
     return this.http.get<{ api: boolean; wp: boolean }>(`${this.apiUrl}source_status/`);
+  }
+
+  getWebhookReceipts(): Observable<WebhookReceipt[]> {
+    return this.http.get<WebhookReceipt[]>('/api/webhook-receipts/');
   }
 
 }

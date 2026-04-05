@@ -56,7 +56,7 @@ from apps.suggestions.views import (
     WeightChallengerInternalView,
     WeightPresetViewSet,
 )
-from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
+from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView, WordPressWebhookView, WebhookReceiptViewSet
 from rest_framework.authtoken.views import ObtainAuthToken
 
 
@@ -85,6 +85,7 @@ router.register(r"broken-links", BrokenLinkViewSet, basename="broken-link")
 router.register(r"weight-presets", WeightPresetViewSet, basename="weight-preset")
 router.register(r"weight-history", WeightAdjustmentHistoryViewSet, basename="weight-history")
 router.register(r"weight-challengers", RankingChallengerViewSet, basename="weight-challenger")
+router.register(r"webhook-receipts", WebhookReceiptViewSet, basename="webhook-receipt")
 router.register(r"health", HealthStatusViewSet, basename="health")
 
 urlpatterns = [
@@ -98,6 +99,7 @@ urlpatterns = [
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
     path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
     path("sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"),
+    path("sync/webhooks/wordpress/", WordPressWebhookView.as_view(), name="wordpress-webhook"),
     path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
     path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),
     path("settings/weighted-authority/", WeightedAuthoritySettingsView.as_view(), name="weighted-authority-settings"),
