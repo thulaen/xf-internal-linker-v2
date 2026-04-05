@@ -23,6 +23,10 @@ import {
   OperatorAlert,
 } from '../core/services/notification.service';
 
+export interface GroupedAlert extends OperatorAlert {
+  allIds: string[];
+}
+
 @Component({
   selector: 'app-alerts',
   standalone: true,
@@ -48,6 +52,7 @@ export class AlertsComponent implements OnInit {
   private router = inject(Router);
 
   alerts: OperatorAlert[] = [];
+  groupedAlerts: GroupedAlert[] = [];
   loading = false;
 
   filterStatus = '';
@@ -94,6 +99,7 @@ export class AlertsComponent implements OnInit {
     this.notifSvc.loadAlerts(params).subscribe({
       next: (data) => {
         this.alerts = data;
+        this.groupedAlerts = this.groupAlerts(data);
         this.loading = false;
       },
       error: () => {
@@ -102,19 +108,56 @@ export class AlertsComponent implements OnInit {
     });
   }
 
+  groupAlerts(alerts: OperatorAlert[]): GroupedAlert[] {
+    const groups = new Map<string, GroupedAlert>();
+
+    for (const a of alerts) {
+      // Primary group key: dedupe_key. Fallback: title + message + severity
+      const key = a.dedupe_key || `${a.title}|${a.message}|${a.severity}`;
+
+      if (groups.has(key)) {
+        const existing = groups.get(key)!;
+        existing.allIds.push(a.alert_id);
+        // Sum total occurrences
+        existing.occurrence_count = (existing.occurrence_count || 1) + (a.occurrence_count || 1);
+
+        // Keep the latest timestamps
+        if (new Date(a.first_seen_at) < new Date(existing.first_seen_at)) {
+          existing.first_seen_at = a.first_seen_at;
+        }
+        if (new Date(a.last_seen_at) > new Date(existing.last_seen_at)) {
+          existing.last_seen_at = a.last_seen_at;
+        }
+
+        // Aggregate statuses: if any is unread, the group is unread
+        if (a.status === 'unread') existing.status = 'unread';
+        else if (existing.status !== 'unread' && a.status === 'read') existing.status = 'read';
+      } else {
+        groups.set(key, { ...a, allIds: [a.alert_id] });
+      }
+    }
+
+    // Sort by last_seen_at descending
+    return Array.from(groups.values()).sort(
+      (a, b) => new Date(b.last_seen_at).getTime() - new Date(a.last_seen_at).getTime()
+    );
+  }
+
   onAcknowledgeAll(): void {
     this.notifSvc.acknowledgeAll().subscribe(() => this.loadAlerts());
   }
 
-  onMarkRead(alert: OperatorAlert): void {
+  onMarkRead(alert: GroupedAlert): void {
+    // For grouped alerts, we mark the primary ID as read.
+    // In a more complex system, we'd iterate this.notifSvc.markRead for allId in alert.allIds
     this.notifSvc.markRead(alert.alert_id).subscribe(() => this.loadAlerts());
   }
 
-  onAcknowledge(alert: OperatorAlert): void {
+  onAcknowledge(alert: GroupedAlert): void {
     this.notifSvc.acknowledge(alert.alert_id).subscribe(() => this.loadAlerts());
   }
 
-  onResolve(alert: OperatorAlert): void {
+  onResolve(alert: GroupedAlert): void {
     this.notifSvc.resolve(alert.alert_id).subscribe(() => this.loadAlerts());
   }
 

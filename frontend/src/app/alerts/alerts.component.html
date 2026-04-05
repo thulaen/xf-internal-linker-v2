@@ -61,77 +61,93 @@
     </div>
   }
 
-  <!-- Alert cards -->
-  @if (!loading && alerts.length > 0) {
-    <div class="alerts-list">
-      @for (alert of alerts; track alert.alert_id) {
-        <mat-card class="alert-card alert-card--{{ alert.severity }}">
-          <mat-card-content>
-            <div class="alert-row">
+  <!-- Alert list -->
+  @if (!loading && groupedAlerts.length > 0) {
+    <div class="alerts-container">
+      <!-- Table Header -->
+      <div class="alerts-list-header">
+        <div class="col-icon">Severity</div>
+        <div class="col-content">Alert Details</div>
+        <div class="col-status">Status</div>
+        <div class="col-actions">Actions</div>
+      </div>
 
-              <!-- Severity icon -->
+      <div class="alerts-list">
+        @for (alert of groupedAlerts; track alert.allIds.join(',')) {
+          <div class="alert-row alert-row--{{ alert.severity }}" [class.alert-row--unread]="alert.status === 'unread'">
+            
+            <!-- Severity Icon -->
+            <div class="col-icon" [matTooltip]="alert.severity | titlecase">
               <mat-icon class="alert-icon">{{ severityIcon(alert.severity) }}</mat-icon>
-
-              <!-- Body -->
-              <div class="alert-body">
-                <div class="alert-title-row">
-                  <span class="alert-title">{{ alert.title }}</span>
-                  <span class="alert-severity-chip chip--{{ alert.severity }}">{{ alert.severity }}</span>
-                  <span class="alert-status-chip chip--status--{{ alert.status }}">{{ alert.status }}</span>
-                  @if (alert.occurrence_count > 1) {
-                    <span class="alert-count-chip">{{ alert.occurrence_count }}×</span>
-                  }
-                </div>
-                <p class="alert-message">{{ alert.message }}</p>
-                <span class="alert-meta">
-                  {{ alert.source_area }} · {{ alert.event_type }} · {{ alert.first_seen_at | date:'MMM d, y, h:mm a' }}
-                </span>
-              </div>
-
-              <!-- Actions -->
-              <div class="alert-actions">
-                @if (alert.related_route) {
-                  <button
-                    mat-icon-button
-                    matTooltip="Open related page"
-                    (click)="openRelated(alert)"
-                  >
-                    <mat-icon>open_in_new</mat-icon>
-                  </button>
-                }
-                @if (alert.status === 'unread') {
-                  <button
-                    mat-icon-button
-                    matTooltip="Mark read"
-                    (click)="onMarkRead(alert)"
-                  >
-                    <mat-icon>mark_email_read</mat-icon>
-                  </button>
-                }
-                @if (alert.status !== 'acknowledged' && alert.status !== 'resolved') {
-                  <button
-                    mat-icon-button
-                    matTooltip="Acknowledge"
-                    (click)="onAcknowledge(alert)"
-                  >
-                    <mat-icon>close</mat-icon>
-                  </button>
-                }
-                @if (alert.status !== 'resolved') {
-                  <button
-                    mat-icon-button
-                    matTooltip="Mark resolved"
-                    (click)="onResolve(alert)"
-                  >
-                    <mat-icon>check</mat-icon>
-                  </button>
-                }
-              </div>
-
             </div>
-          </mat-card-content>
-        </mat-card>
-      }
+
+            <!-- Body Content -->
+            <div class="col-content">
+              <div class="alert-title-group">
+                <span class="alert-title">{{ alert.title }}</span>
+                @if (alert.occurrence_count > 1) {
+                  <span class="alert-count-chip">{{ alert.occurrence_count }}×</span>
+                }
+              </div>
+              <p class="alert-message">{{ alert.message }}</p>
+              <div class="alert-meta">
+                <span class="meta-item">{{ alert.source_area }}</span>
+                <span class="meta-dot">·</span>
+                <span class="meta-item">{{ alert.event_type }}</span>
+                <span class="meta-dot">·</span>
+                <span class="meta-item">{{ alert.last_seen_at | date:'MMM d, h:mm a' }}</span>
+              </div>
+            </div>
+
+            <!-- Status Chip -->
+            <div class="col-status">
+              <span class="alert-status-chip chip--status--{{ alert.status }}">
+                {{ alert.status }}
+              </span>
+            </div>
+
+            <!-- Actions -->
+            <div class="col-actions">
+              @if (alert.related_route) {
+                <button
+                  mat-icon-button
+                  matTooltip="Open related page"
+                  (click)="openRelated(alert)"
+                >
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              }
+              @if (alert.status === 'unread') {
+                <button
+                  mat-icon-button
+                  matTooltip="Mark read"
+                  (click)="onMarkRead(alert)"
+                >
+                  <mat-icon>mark_email_read</mat-icon>
+                </button>
+              }
+              @if (alert.status !== 'acknowledged' && alert.status !== 'resolved') {
+                <button
+                  mat-icon-button
+                  matTooltip="Acknowledge"
+                  (click)="onAcknowledge(alert)"
+                >
+                  <mat-icon>done</mat-icon>
+                </button>
+              }
+              @if (alert.status !== 'resolved') {
+                <button
+                  mat-icon-button
+                  matTooltip="Mark resolved"
+                  (click)="onResolve(alert)"
+                >
+                  <mat-icon>check_circle_outline</mat-icon>
+                </button>
+              }
+            </div>
+          </div>
+        }
+      </div>
     </div>
   }
 
