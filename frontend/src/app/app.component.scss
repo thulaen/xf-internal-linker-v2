@@ -214,6 +214,30 @@
     flex: 1 1 auto;
   }
 
+  .system-status-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin: 0 16px;
+    cursor: pointer;
+    background-color: #dadce0; // unknown
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+
+    &.status-healthy { 
+      background-color: var(--color-success);
+      box-shadow: 0 0 4px var(--color-success-light);
+    }
+    &.status-degraded { 
+      background-color: var(--color-warning);
+      box-shadow: 0 0 6px var(--color-warning-light);
+    }
+    &.status-critical { 
+      background-color: var(--color-error);
+      box-shadow: 0 0 8px var(--color-error-light);
+      animation: heartbeat 2s infinite ease-in-out;
+    }
+  }
+
   button[mat-icon-button] {
     color: var(--color-text-muted);
 

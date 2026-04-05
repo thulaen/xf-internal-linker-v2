@@ -117,6 +117,36 @@ def emit_operator_alert(
     return alert
 
 
+def resolve_operator_alert(dedupe_key: str) -> None:
+    """
+    Find any open (unresolved) alert with the matching dedupe_key and mark it as resolved.
+    """
+    now = timezone.now()
+    updated = OperatorAlert.objects.filter(
+        dedupe_key=dedupe_key
+    ).exclude(
+        status=OperatorAlert.STATUS_RESOLVED
+    ).update(
+        status=OperatorAlert.STATUS_RESOLVED,
+        resolved_at=now,
+        updated_at=now
+    )
+
+    if updated > 0:
+        # Push a refresh signal to WebSocket so the UI knows the alert is gone
+        try:
+            channel_layer = get_channel_layer()
+            if channel_layer:
+                event = {
+                    "type": "notification.resolve",
+                    "dedupe_key": dedupe_key,
+                    "resolved_at": now.isoformat(),
+                }
+                async_to_sync(channel_layer.group_send)(_NOTIFICATION_GROUP, event)
+        except Exception:
+            logger.warning("resolve_operator_alert: failed to push WebSocket event", exc_info=True)
+
+
 def _push_to_websocket(alert: OperatorAlert) -> None:
     """Send a notification.alert event to all connected clients."""
     try:

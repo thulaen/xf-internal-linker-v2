@@ -1,0 +1,92 @@
+<div class="health-container">
+  <div class="header">
+    <div class="header-content">
+      <h1>System Health Dashboard</h1>
+      <p class="subtitle">Real-time status of data sources and background services</p>
+    </div>
+    <div class="header-actions">
+      <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing || loading">
+        <mat-icon *ngIf="!refreshing && !loading">refresh</mat-icon>
+        <mat-icon *ngIf="refreshing || loading" class="spin">sync</mat-icon>
+        <span>Full System Re-check</span>
+      </button>
+    </div>
+  </div>
+
+  <mat-card class="summary-card" *ngIf="summary">
+    <div class="summary-content">
+      <div class="summary-stat">
+        <span class="label">Overall Status</span>
+        <span class="value" [ngClass]="'status-' + summary.system_status">
+          <mat-icon>{{ getStatusIcon(summary.system_status) }}</mat-icon>
+          {{ summary.system_status | uppercase }}
+        </span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Monitored Services</span>
+        <span class="value">{{ summary.total_services }}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Degraded</span>
+        <span class="value" [class.warn]="summary.degraded_count > 0">{{ summary.degraded_count }}</span>
+      </div>
+      <div class="summary-stat last-check">
+        <span class="label">Last Heartbeat</span>
+        <span class="value">{{ summary.last_check_at | date:'MMM d, HH:mm:ss' }}</span>
+      </div>
+    </div>
+  </mat-card>
+
+  <div class="health-grid" *ngIf="!loading || services.length > 0">
+    <mat-card class="service-card" *ngFor="let s of services" [ngClass]="getStatusClass(s.status)">
+      <div class="card-header">
+        <div class="service-identify">
+          <mat-icon class="service-icon">{{ getStatusIcon(s.status) }}</mat-icon>
+          <div class="name-box">
+            <h3 class="service-name">{{ getServiceName(s.service_key) }}</h3>
+            <span class="service-description">{{ getServiceDescription(s.service_key) }}</span>
+          </div>
+        </div>
+        <button mat-icon-button (click)="refreshService(s.service_key)" 
+                [disabled]="refreshingServices.has(s.service_key)"
+                matTooltip="Re-check now">
+          <mat-icon [class.spin]="refreshingServices.has(s.service_key)">refresh</mat-icon>
+        </button>
+      </div>
+
+      <div class="status-box">
+        <div class="status-badge" [ngClass]="'badge-' + s.status">
+          {{ s.status_label }}
+        </div>
+      </div>
+
+      <div class="metadata-box" *ngIf="s.metadata && s.metadata.lag_hours !== undefined">
+        <div class="metric">
+          <span class="m-label">Data Lag</span>
+          <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h</span>
+        </div>
+        <div class="metric" *ngIf="s.metadata.last_data_date">
+          <span class="m-label">Last Record</span>
+          <span class="m-value">{{ s.metadata.last_data_date | date:'shortDate' }}</span>
+        </div>
+      </div>
+
+      <div class="error-box" *ngIf="s.last_error_message && s.status !== 'healthy'">
+        <p class="error-text">{{ s.last_error_message }}</p>
+      </div>
+
+      <div class="footer">
+        <span class="last-success" *ngIf="s.last_success_at">
+          Healthy as of {{ s.last_success_at | date:'HH:mm' }}
+        </span>
+        <span class="not-configured" *ngIf="s.status === 'not_configured'">
+          Setup required in <a routerLink="/settings">Settings</a>
+        </span>
+      </div>
+    </mat-card>
+  </div>
+
+  <div class="loading-shimmer" *ngIf="loading && services.length === 0">
+    <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]"></mat-card>
+  </div>
+</div>

@@ -9,6 +9,12 @@
   <app-notification-center
     [(open)]="notifPanelOpen"
   />
+  <div 
+    class="system-status-dot" 
+    [ngClass]="'status-' + systemStatus"
+    [matTooltip]="'System status: ' + systemStatus"
+    routerLink="/system-health"
+  ></div>
   <button
     mat-icon-button
     matTooltip="Customize appearance"

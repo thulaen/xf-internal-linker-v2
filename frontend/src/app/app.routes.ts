@@ -60,8 +60,14 @@ export const routes: Routes = [
   {
     path: 'system-health',
     loadComponent: () =>
-      import('./diagnostics/diagnostics.component').then((m) => m.DiagnosticsComponent),
+      import('./health/health.component').then((m) => m.HealthComponent),
     title: 'System Health — XF Internal Linker',
+  },
+  {
+    path: 'diagnostics',
+    loadComponent: () =>
+      import('./diagnostics/diagnostics.component').then((m) => m.DiagnosticsComponent),
+    title: 'Technical Diagnostics — XF Internal Linker',
   },
   {
     path: 'alerts',

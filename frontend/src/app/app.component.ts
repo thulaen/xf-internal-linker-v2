@@ -10,6 +10,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
+import { HealthService } from './health/health.service';
 import { DashboardService } from './dashboard/dashboard.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
@@ -52,12 +53,14 @@ interface NavSection {
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
   private alertDelivery = inject(AlertDeliveryService);
+  private healthService = inject(HealthService);
   private dashboardSvc = inject(DashboardService);
   private destroyRef = inject(DestroyRef);
 
   customizerOpen = false;
   notifPanelOpen = false;
   openBrokenLinks = 0;
+  systemStatus: 'healthy' | 'degraded' | 'critical' | 'unknown' = 'unknown';
 
   navSections: NavSection[] = [
     {
@@ -110,6 +113,12 @@ export class AppComponent implements OnInit {
           tooltip: 'Background job queue and history',
         },
         {
+          label: 'System Health',
+          icon: 'health_and_safety',
+          route: '/system-health',
+          tooltip: 'Real-time status of data sources and services',
+        },
+        {
           label: 'Settings',
           icon: 'settings',
           route: '/settings',
@@ -128,16 +137,27 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.appearance.load();
     this.alertDelivery.start();
+    
+    // Fetch broken links count for badge
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((data) => {
+      .subscribe((data: any) => {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
       });
+    
     this.dashboardSvc.refresh().subscribe({
       error: () => {
         this.openBrokenLinks = 0;
       },
     });
+
+    // Fetch health summary for status dot
+    this.healthService.getSummary()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (summary: any) => this.systemStatus = summary.system_status,
+        error: () => this.systemStatus = 'unknown'
+      });
   }
 
   get config() {
