@@ -588,8 +588,8 @@
   font-weight: 600;
 
   &--positive {
-    background: #e6f4ea;
-    color: #137333;
+    background: var(--color-google-green-faint);
+    color: var(--color-google-green);
   }
 }
 
@@ -627,7 +627,7 @@
 }
 
 .source-tag {
-  &--promoted { background: #e6f4ea; color: #137333; }
-  &--rejected, &--rolled_back { background: #fce8e6; color: #c5221f; }
-  &--pending { background: #e8f0fe; color: #1967d2; }
+  &--promoted { background: var(--color-google-green-faint); color: var(--color-google-green); }
+  &--rejected, &--rolled_back { background: var(--color-google-red-faint); color: var(--color-google-red); }
+  &--pending { background: var(--color-blue-50); color: var(--color-primary); }
 }

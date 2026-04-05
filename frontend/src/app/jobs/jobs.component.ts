@@ -56,7 +56,7 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   sourceStatus: { api: boolean; wp: boolean } = { api: false, wp: false };
   syncJobs: SyncJob[] = [];
-  displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'actions'];
+  displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'duration', 'success_rate', 'actions'];
 
   jobs: Record<'api' | 'wp' | 'jsonl', SourceJobState> = {
     api:   this.emptyJob(),
@@ -71,6 +71,8 @@ export class JobsComponent implements OnInit, OnDestroy {
     { value: 'titles', label: 'Titles only',  hint: 'Metadata + PageRank / velocity'  },
     { value: 'quick',  label: 'Quick check',  hint: 'IDs and titles only'             },
   ];
+
+  readonly sources: ('api' | 'wp' | 'jsonl')[] = ['api', 'wp', 'jsonl'];
 
   private emptyJob(): SourceJobState {
     return {
@@ -103,6 +105,30 @@ export class JobsComponent implements OnInit, OnDestroy {
       )[0] ?? null;
   }
 
+  getDuration(job: SyncJob): string {
+    if (!job.started_at || !job.completed_at) return '';
+    const start = new Date(job.started_at).getTime();
+    const end = new Date(job.completed_at).getTime();
+    const diff = Math.max(0, end - start);
+    
+    const minutes = Math.floor(diff / 60000);
+    const seconds = Math.floor((diff % 60000) / 1000);
+    
+    if (minutes > 0) return `${minutes}m ${seconds}s`;
+    return `${seconds}s`;
+  }
+
+  getSuccessRate(job: SyncJob): string {
+    // If we have total items in the future, use them. 
+    // Currently, for ML phase we can show completed/queued.
+    if (job.ml_items_queued > 0) {
+      const rate = Math.round((job.ml_items_completed / job.ml_items_queued) * 100);
+      return `${rate}%`;
+    }
+    // For ingest, we just show 100% if completed and there are items.
+    return job.status === 'completed' ? '100%' : '0%';
+  }
+
   ngOnInit(): void {
     this.loadHistory();
     this.loadSourceStatus();
@@ -122,7 +148,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     });
   }
 
-  syncAll(): void {
+  syncAllWpxf(): void {
     if (this.sourceStatus.api && this.jobs['api'].state === 'idle') this.startSourceSync('api');
     if (this.sourceStatus.wp  && this.jobs['wp'].state  === 'idle') this.startSourceSync('wp');
   }
