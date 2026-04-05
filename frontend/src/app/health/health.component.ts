@@ -237,4 +237,23 @@ export class HealthComponent implements OnInit, OnDestroy {
   getEmbeddingProgress(job: SyncJob): number {
     return Math.round((job.embedding_progress ?? 0) * 100);
   }
+
+  /**
+   * Maps a backend service key to the specific frontend element ID on the settings page.
+   * Enables the "Smart Navigation" flow where clicking a health issue takes the user
+   * exactly where they can fix it.
+   */
+  getSettingsFragment(serviceKey: string): string | undefined {
+    const map: Record<string, string> = {
+      'ga4': 'ga4-settings',
+      'gsc': 'gsc-settings',
+      'matomo': 'matomo-settings',
+      'wordpress': 'wordpress-settings',
+      'xenforo': 'xenforo-settings',
+      'weights_plugins': 'ranking-weights',
+      'knowledge_graph': 'silo-architecture',
+      'webhooks': 'dashboard-webhooks'
+    };
+    return map[serviceKey];
+  }
 }

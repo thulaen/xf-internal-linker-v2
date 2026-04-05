@@ -66,7 +66,7 @@
         <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.ranking_weights')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
-      <div class="tab-content">
+      <div class="tab-content" id="ranking-weights">
         <div class="settings-grid">
           <!-- PageRank -->
           <mat-card class="settings-card">
@@ -612,10 +612,10 @@
         <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.silo_architecture')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
-      <div class="tab-content">
+      <div class="tab-content" id="silo-architecture">
         <div class="settings-grid">
           <!-- Silo Mode -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="silo-settings">
             <mat-card-header>
               <mat-card-title>Silo Ranking Mode</mat-card-title>
             </mat-card-header>
@@ -665,7 +665,7 @@
           </mat-card>
 
           <!-- Group List -->
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="silo-groups">
             <mat-card-header>
               <mat-card-title>Manage Silo Groups</mat-card-title>
             </mat-card-header>
@@ -709,7 +709,7 @@
           </mat-card>
 
           <!-- Scope Mapping -->
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="scope-assignments">
             <mat-card-header>
               <mat-card-title>Scope Mapping</mat-card-title>
             </mat-card-header>
@@ -748,9 +748,9 @@
         <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.wordpress_sync')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
-      <div class="tab-content">
+      <div class="tab-content" id="connect-sync">
         <div class="settings-grid">
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="xenforo-settings">
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="title-group">
@@ -801,7 +801,7 @@
             </mat-card-actions>
           </mat-card>
 
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="wordpress-settings">
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <mat-card-title>WordPress Connection</mat-card-title>
@@ -890,7 +890,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="google-settings">
             <mat-card-header>
               <mat-card-title>Google Connection</mat-card-title>
             </mat-card-header>
@@ -951,7 +951,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="ga4-settings">
             <mat-card-header>
               <mat-card-title>GA4 Telemetry</mat-card-title>
             </mat-card-header>
@@ -1135,7 +1135,7 @@
             </mat-card-content>
           </mat-card>
 
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="matomo-settings">
             <mat-card-header>
               <mat-card-title>Matomo Telemetry</mat-card-title>
             </mat-card-header>
@@ -1219,7 +1219,7 @@
           </mat-card>
 
           <!-- Google Search Console -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="gsc-settings">
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <mat-card-title>Google Search Console</mat-card-title>
@@ -1371,10 +1371,10 @@
         <mat-icon class="tab-label-info" [matTooltip]="tip('tabs.library_history')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       
-      <div class="tab-content">
+      <div class="tab-content" id="history-presets">
         <div class="settings-grid">
           <!-- Preset Hero -->
-          <mat-card class="settings-card settings-card--featured">
+          <mat-card class="settings-card settings-card--featured" id="weight-presets">
             <mat-card-header>
               <mat-card-title>Weight Presets</mat-card-title>
             </mat-card-header>
@@ -1430,7 +1430,7 @@
           </mat-card>
 
           <!-- FR-018 Weight Auto-Tuner -->
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="ranking-challengers">
             <mat-card-header>
               <mat-card-title>Auto-Tune (FR-018)</mat-card-title>
               <mat-card-subtitle>C# L-BFGS optimiser proposes weight updates based on GSC, GA4, Matomo, and review signals.</mat-card-subtitle>
@@ -1523,7 +1523,7 @@
           </mat-card>
 
           <!-- History -->
-          <mat-card class="settings-card settings-card--wide">
+          <mat-card class="settings-card settings-card--wide" id="adjustment-history">
             <mat-card-header>
               <mat-card-title>Adjustment History</mat-card-title>
             </mat-card-header>
@@ -1572,11 +1572,11 @@
         <mat-icon style="margin-right: 6px; font-size: 16px; height: 16px; width: 16px;">notifications</mat-icon>
         Notifications
       </ng-template>
-      <div class="settings-tab-content">
+      <div class="settings-tab-content" id="notification-settings">
         <div class="settings-grid settings-grid--single">
 
           <!-- Alert delivery -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="alert-delivery">
             <mat-card-header>
               <mat-card-title>Alert delivery</mat-card-title>
             </mat-card-header>
@@ -1665,7 +1665,7 @@
           </mat-card>
 
           <!-- Quiet hours -->
-          <mat-card class="settings-card">
+          <mat-card class="settings-card" id="quiet-hours">
             <mat-card-header>
               <mat-card-title>Quiet hours</mat-card-title>
             </mat-card-header>

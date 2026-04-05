@@ -236,8 +236,8 @@
           <span class="last-success" *ngIf="s.last_check_at && s.status !== 'healthy'">
             Last checked {{ s.last_check_at | date:'MMM d, HH:mm' }}
           </span>
-          <span class="not-configured" *ngIf="s.status === 'not_configured' || s.status === 'not_enabled'">
-            Action required in <a routerLink="/settings">Settings</a>
+          <span class="not-configured" *ngIf="s.status !== 'healthy' && getSettingsFragment(s.service_key)">
+            Action required in <a [routerLink]="['/settings']" [fragment]="getSettingsFragment(s.service_key)">Settings</a>
           </span>
         </div>
       </mat-card>

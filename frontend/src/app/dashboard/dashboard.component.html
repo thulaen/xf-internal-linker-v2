@@ -96,7 +96,7 @@
 
   <div class="stat-grid" id="suggestion-stats">
     @if (data.open_broken_links > 0) {
-      <mat-card class="stat-card stat-card-warning" routerLink="/link-health" tabindex="0">
+      <mat-card class="stat-card stat-card-warning" [routerLink]="['/link-health']" fragment="link-health-table" tabindex="0">
         <div class="stat-icon warn">
           <mat-icon>link_off</mat-icon>
         </div>

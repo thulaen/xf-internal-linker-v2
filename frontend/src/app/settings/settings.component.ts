@@ -1866,18 +1866,66 @@ export class SettingsComponent implements OnInit, OnDestroy {
   }
 
   ngOnInit(): void {
-    // Check for OAuth status parameters
+    // 1. Check for OAuth status parameters
     const query = this.route.snapshot.queryParams;
     if (query['oauth_success']) {
       this.snack.open('Google account authorized successfully.', 'Dismiss', { duration: 5000 });
-      // Clear query parameters
       window.history.replaceState({}, '', window.location.pathname);
     } else if (query['oauth_error']) {
       this.snack.open(`Google authorization failed: ${query['oauth_error']}`, 'Dismiss', { duration: 6000 });
-      // Clear query parameters
       window.history.replaceState({}, '', window.location.pathname);
     }
+
+    // 2. Listen for fragment changes to auto-switch tabs
+    this.route.fragment.pipe(takeUntil(this.destroy$)).subscribe(fragment => {
+      if (fragment) {
+        this.syncTabWithFragment(fragment);
+      }
+    });
+
     this.reload();
+  }
+
+  /**
+   * Universal Smart Navigation: maps element IDs to their respective tab index.
+   * This ensures that deep-linked content is rendered and visible before the
+   * scroll-highlight system attempts to find it.
+   */
+  private syncTabWithFragment(id: string): void {
+    const tabMap: Record<string, number> = {
+      // Tab 0: Ranking Weights
+      'ranking-weights': 0,
+      
+      // Tab 1: Silo Architecture
+      'silo-architecture': 1,
+      'silo-settings': 1,
+      'silo-groups': 1,
+      'scope-assignments': 1,
+      
+      // Tab 2: Connect & Sync
+      'xenforo-settings': 2,
+      'wordpress-settings': 2,
+      'google-settings': 2,
+      'ga4-settings': 2,
+      'matomo-settings': 2,
+      'gsc-settings': 2,
+      
+      // Tab 3: History & Presets
+      'weight-presets': 3,
+      'adjustment-history': 3,
+      'ranking-challengers': 3,
+
+      // Tab 4: Notifications
+      'notification-settings': 4,
+      'alert-delivery': 4,
+      'quiet-hours': 4
+    };
+
+    const targetIndex = tabMap[id];
+    if (targetIndex !== undefined && targetIndex !== this.selectedTabIndex) {
+      this.selectedTabIndex = targetIndex;
+      localStorage.setItem('settings_active_tab', String(targetIndex));
+    }
   }
 
   reload(): void {

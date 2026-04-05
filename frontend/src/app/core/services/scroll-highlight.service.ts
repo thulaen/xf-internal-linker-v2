@@ -58,7 +58,13 @@ export class ScrollHighlightService {
   scrollToAndHighlight(
     selector: string,
     options: ScrollHighlightOptions = {}
-  ): void {
+  ): boolean {
+    const targetElement = document.querySelector(selector.startsWith('#') ? selector : `#${selector}`) as HTMLElement;
+    
+    if (!targetElement) {
+      return false;
+    }
+
     try {
       // Validate and get the target element
       const targetElement = validateAndGetElement(selector);
@@ -99,9 +105,12 @@ export class ScrollHighlightService {
         fadeDuration,
         onComplete
       );
+
+      return true;
     } catch (error) {
       // Log error but don't crash the app
       console.error('[ScrollHighlight]', error);
+      return false;
     }
   }
 

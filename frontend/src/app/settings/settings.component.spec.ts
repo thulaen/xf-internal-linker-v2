@@ -247,7 +247,10 @@ describe('SettingsComponent', () => {
           useValue: {
             snapshot: {
               queryParams: {},
+              fragment: null,
             },
+            queryParams: of({}),
+            fragment: of(null),
           },
         },
       ],

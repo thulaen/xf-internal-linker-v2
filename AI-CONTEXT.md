@@ -95,6 +95,8 @@ Do not leave mystery changes behind.
 - Avoid unnecessary jargon; if a technical term matters, define it briefly in the same reply.
 - Keep answers simple, direct, and practical.
 - Use examples instead of jargon when possible.
+- **Universal Smart Navigation**: Every UI section must have a unique `id`. Internal links must use `fragment` deep-linking. Hidden content (tabs) must auto-open.
+- **User Friendliness is Paramount**: Always prioritize the operator's experience. Guide them to the exact setting or data point they need.
 - **Strict Theme Rule**: Do not create new themes. `default-theme.scss` is the only theme allowed. This applies to all AI models.
 - Do not assume deep framework or infrastructure knowledge.
 

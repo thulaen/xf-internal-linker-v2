@@ -48,12 +48,26 @@ export class GlobalLinkInterceptorService implements OnDestroy {
       const fragment = this.router.parseUrl(e.urlAfterRedirects).fragment;
       if (!fragment) return;
 
-      // Small delay so the routed component has time to render its DOM
-      // before we try to query the target element.
-      setTimeout(() => {
-        this.scrollHighlight.scrollToAndHighlight(`#${fragment}`);
-      }, 120);
+      // Increase delay and add retry mechanism to handle component/tab rendering
+      this.attemptScrollAndHighlight(fragment);
     });
+  }
+
+  /**
+   * Attempts to scroll and highlight with a retry loop.
+   * This is critical for cross-page navigation where the target might be
+   * inside a tab that takes a few frames to render.
+   */
+  private attemptScrollAndHighlight(fragment: string, attempt = 1): void {
+    setTimeout(() => {
+      const success = this.scrollHighlight.scrollToAndHighlight(`#${fragment}`);
+      
+      // If we failed and have attempts left, try again.
+      // Maximum 4 attempts (0ms, 200ms, 400ms, 600ms total delay)
+      if (!success && attempt < 4) {
+        this.attemptScrollAndHighlight(fragment, attempt + 1);
+      }
+    }, attempt === 1 ? 250 : 150);
   }
 
   ngOnDestroy(): void {

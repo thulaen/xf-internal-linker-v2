@@ -68,7 +68,7 @@
 
             <div class="source-control">
               @if (!sourceStatus.api) {
-                <button mat-stroked-button routerLink="/settings">Configure</button>
+                <button mat-stroked-button [routerLink]="['/settings']" fragment="xenforo-settings">Configure</button>
               } @else if (getJob('api').state === 'idle') {
                 <button mat-button color="primary" (click)="startSourceSync('api')">Sync Now</button>
               } @else if (getJob('api').state === 'running') {
@@ -110,7 +110,7 @@
 
             <div class="source-control">
               @if (!sourceStatus.wp) {
-                <button mat-stroked-button routerLink="/settings">Configure</button>
+                <button mat-stroked-button [routerLink]="['/settings']" fragment="wordpress-settings">Configure</button>
               } @else if (getJob('wp').state === 'idle') {
                 <button mat-button color="primary" (click)="startSourceSync('wp')">Sync Now</button>
               } @else if (getJob('wp').state === 'running') {
