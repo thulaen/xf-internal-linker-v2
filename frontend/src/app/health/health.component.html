@@ -1,8 +1,10 @@
 <div class="health-container">
+
+  <!-- ── Header ─────────────────────────────────────────────────── -->
   <div class="header">
     <div class="header-content">
       <h1>System Health Dashboard</h1>
-      <p class="subtitle">Real-time status of data sources and background services</p>
+      <p class="subtitle">Every service, every requirement, every active job — explained in plain English</p>
     </div>
     <div class="header-actions">
       <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing || loading">
@@ -13,6 +15,7 @@
     </div>
   </div>
 
+  <!-- ── Summary bar ────────────────────────────────────────────── -->
   <mat-card class="summary-card" *ngIf="summary">
     <div class="summary-content">
       <div class="summary-stat">
@@ -23,12 +26,32 @@
         </span>
       </div>
       <div class="summary-stat">
-        <span class="label">Monitored Services</span>
-        <span class="value">{{ summary.total_services }}</span>
+        <span class="label">Healthy</span>
+        <span class="value healthy-val">
+          <mat-icon>check_circle</mat-icon>{{ healthyCount }}
+        </span>
       </div>
       <div class="summary-stat">
-        <span class="label">Degraded</span>
-        <span class="value" [class.warn]="summary.degraded_count > 0">{{ summary.degraded_count }}</span>
+        <span class="label">Warnings</span>
+        <span class="value" [class.warn-val]="warningCount > 0">
+          <mat-icon *ngIf="warningCount > 0">warning</mat-icon>
+          <mat-icon *ngIf="warningCount === 0">check</mat-icon>
+          {{ warningCount }}
+        </span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Errors / Down</span>
+        <span class="value" [class.error-val]="errorCount > 0">
+          <mat-icon *ngIf="errorCount > 0">error</mat-icon>
+          <mat-icon *ngIf="errorCount === 0">check</mat-icon>
+          {{ errorCount }}
+        </span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Not Configured</span>
+        <span class="value" [class.muted-val]="true">
+          <mat-icon>settings</mat-icon>{{ notConfiguredCount }}
+        </span>
       </div>
       <div class="summary-stat last-check">
         <span class="label">Last Heartbeat</span>
@@ -37,82 +60,191 @@
     </div>
   </mat-card>
 
-  <div class="health-grid" *ngIf="!loading || services.length > 0">
-    <mat-card class="service-card" *ngFor="let s of services" [ngClass]="getStatusClass(s.status)">
-      <div class="card-header">
-        <div class="service-identify">
-          <mat-icon class="service-icon">{{ getStatusIcon(s.status) }}</mat-icon>
-          <div class="name-box">
-            <h3 class="service-name">{{ getServiceName(s) }}</h3>
-            <span class="service-description">{{ getServiceDescription(s) }}</span>
+  <!-- ── Setup Checklist ───────────────────────────────────────── -->
+  <section class="checklist-section" *ngIf="checklistGroups.length > 0">
+    <h2 class="section-title">
+      <mat-icon>fact_check</mat-icon>
+      Setup & Requirements
+    </h2>
+    <p class="section-subtitle">Every system requirement, at a glance. Green means working. Anything else needs your attention.</p>
+
+    <div class="checklist-grid">
+      <mat-card class="checklist-card" *ngFor="let group of checklistGroups">
+        <h3 class="group-label">{{ group.label }}</h3>
+        <div class="checklist-rows">
+          <a class="checklist-row"
+             *ngFor="let s of group.services"
+             [href]="'#service-' + s.service_key"
+             [ngClass]="getStatusClass(s.status)">
+            <mat-icon class="row-icon">{{ getStatusIcon(s.status) }}</mat-icon>
+            <div class="row-text">
+              <span class="row-name">{{ getServiceName(s) }}</span>
+              <span class="row-verdict">{{ s.status_label }}</span>
+            </div>
+          </a>
+        </div>
+      </mat-card>
+    </div>
+  </section>
+
+  <!-- ── Active Jobs ───────────────────────────────────────────── -->
+  <section class="jobs-section">
+    <h2 class="section-title">
+      <mat-icon>pending_actions</mat-icon>
+      Active Jobs
+    </h2>
+    <p class="section-subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
+
+    <mat-card class="jobs-card" *ngIf="activeJobs.length > 0">
+      <div class="job-row" *ngFor="let job of activeJobs">
+        <div class="job-header">
+          <div class="job-identity">
+            <mat-icon class="job-icon">sync</mat-icon>
+            <div>
+              <span class="job-title">{{ getJobSourceLabel(job) }} — {{ getJobModeLabel(job) }}</span>
+              <span class="job-message">{{ job.message || 'Preparing…' }}</span>
+            </div>
+          </div>
+          <span class="job-pct">{{ getOverallProgress(job) }}%</span>
+        </div>
+
+        <div class="progress-block">
+          <span class="progress-label">Overall progress</span>
+          <mat-progress-bar mode="determinate" [value]="getOverallProgress(job)"></mat-progress-bar>
+        </div>
+
+        <div class="progress-block ml-phases" *ngIf="hasMLProgress(job)">
+          <div class="ml-phase">
+            <span class="progress-label">SpaCy language analysis</span>
+            <mat-progress-bar mode="determinate" color="accent" [value]="getSpacyProgress(job)"></mat-progress-bar>
+          </div>
+          <div class="ml-phase">
+            <span class="progress-label">BGE embedding</span>
+            <mat-progress-bar mode="determinate" color="accent" [value]="getEmbeddingProgress(job)"></mat-progress-bar>
           </div>
         </div>
-        <button mat-icon-button (click)="refreshService(s.service_key)" 
-                [disabled]="refreshingServices.has(s.service_key)"
-                matTooltip="Re-check now">
-          <mat-icon [class.spin]="refreshingServices.has(s.service_key)">refresh</mat-icon>
-        </button>
-      </div>
 
-      <div class="status-box">
-        <div class="status-badge" [ngClass]="'badge-' + s.status">
-          <mat-icon class="mini-icon">{{ getStatusIcon(s.status) }}</mat-icon>
-          {{ s.status_label }}
+        <div class="job-meta">
+          <span>{{ job.items_synced | number }} items synced</span>
+          <span *ngIf="job.ml_items_queued > 0">{{ job.ml_items_completed | number }} / {{ job.ml_items_queued | number }} AI-enriched</span>
+          <span *ngIf="job.started_at">Started {{ job.started_at | date:'HH:mm:ss' }}</span>
         </div>
-      </div>
-
-      <!-- Plain-English Issue Information -->
-      <div class="issue-box" *ngIf="s.issue_description && s.status !== 'healthy'">
-        <div class="issue-desc">
-          <mat-icon>error_outline</mat-icon>
-          <div class="text-content">
-            <span class="label">The Problem</span>
-            <p>{{ s.issue_description }}</p>
-          </div>
-        </div>
-        <div class="suggested-fix" *ngIf="s.suggested_fix">
-          <mat-icon>auto_fix_high</mat-icon>
-          <div class="text-content">
-            <span class="label">The Fix</span>
-            <p>{{ s.suggested_fix }}</p>
-          </div>
-        </div>
-      </div>
-
-      <div class="metadata-box" *ngIf="s.metadata && (s.metadata.lag_hours !== undefined || s.metadata.node_count || s.metadata.worker_count)">
-        <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
-          <span class="m-label">Data Lag</span>
-          <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h</span>
-        </div>
-        <div class="metric" *ngIf="s.metadata.worker_count !== undefined">
-          <span class="m-label">Active Workers</span>
-          <span class="m-value core">{{ s.metadata.worker_count }}</span>
-        </div>
-        <div class="metric" *ngIf="s.metadata.node_count !== undefined">
-          <span class="m-label">Entities</span>
-          <span class="m-value core">{{ s.metadata.node_count | number }}</span>
-        </div>
-      </div>
-
-      <div class="technical-error" *ngIf="s.last_error_message && s.status !== 'healthy'">
-        <details>
-          <summary>Technical Details</summary>
-          <p class="error-text">{{ s.last_error_message }}</p>
-        </details>
-      </div>
-
-      <div class="footer">
-        <span class="last-success" *ngIf="s.last_success_at && s.status === 'healthy'">
-          Last verified {{ s.last_success_at | date:'HH:mm' }}
-        </span>
-        <span class="not-configured" *ngIf="s.status === 'not_configured' || s.status === 'not_enabled'">
-          Action required in <a routerLink="/settings">Settings</a>
-        </span>
       </div>
     </mat-card>
-  </div>
 
-  <div class="loading-shimmer" *ngIf="loading && services.length === 0">
-    <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]"></mat-card>
-  </div>
+    <mat-card class="jobs-card jobs-empty" *ngIf="activeJobs.length === 0">
+      <mat-icon>check_circle</mat-icon>
+      <span>No jobs currently running. Everything is idle.</span>
+    </mat-card>
+  </section>
+
+  <!-- ── All Services ──────────────────────────────────────────── -->
+  <section class="services-section">
+    <h2 class="section-title">
+      <mat-icon>monitor_heart</mat-icon>
+      All Monitored Services
+    </h2>
+    <p class="section-subtitle">
+      One card per service. Problems are at the top. Healthy services are below.
+      Click the refresh icon on any card to re-check that service right now.
+    </p>
+
+    <div class="health-grid" *ngIf="!loading || services.length > 0">
+      <mat-card class="service-card"
+                *ngFor="let s of services"
+                [ngClass]="getStatusClass(s.status)"
+                [id]="'service-' + s.service_key">
+
+        <div class="card-header">
+          <div class="service-identify">
+            <mat-icon class="service-icon">{{ getStatusIcon(s.status) }}</mat-icon>
+            <div class="name-box">
+              <h3 class="service-name">{{ getServiceName(s) }}</h3>
+              <span class="service-description">{{ getServiceDescription(s) }}</span>
+            </div>
+          </div>
+          <button mat-icon-button (click)="refreshService(s.service_key)"
+                  [disabled]="refreshingServices.has(s.service_key)"
+                  matTooltip="Re-check now">
+            <mat-icon [class.spin]="refreshingServices.has(s.service_key)">refresh</mat-icon>
+          </button>
+        </div>
+
+        <div class="status-box">
+          <div class="status-badge" [ngClass]="'badge-' + s.status">
+            <mat-icon class="mini-icon">{{ getStatusIcon(s.status) }}</mat-icon>
+            {{ s.status_label }}
+          </div>
+        </div>
+
+        <!-- Plain-English Issue Information -->
+        <div class="issue-box" *ngIf="s.issue_description && s.status !== 'healthy'">
+          <div class="issue-desc">
+            <mat-icon>error_outline</mat-icon>
+            <div class="text-content">
+              <span class="label">What's wrong</span>
+              <p>{{ s.issue_description }}</p>
+            </div>
+          </div>
+          <div class="suggested-fix" *ngIf="s.suggested_fix">
+            <mat-icon>auto_fix_high</mat-icon>
+            <div class="text-content">
+              <span class="label">How to fix it</span>
+              <p>{{ s.suggested_fix }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Healthy green confirmation -->
+        <div class="healthy-note" *ngIf="s.status === 'healthy'">
+          <mat-icon>check_circle</mat-icon>
+          <span>Everything looks good here. No action needed.</span>
+        </div>
+
+        <!-- Key metrics -->
+        <div class="metadata-box" *ngIf="s.metadata && (s.metadata.lag_hours !== undefined || s.metadata.node_count || s.metadata.worker_count || s.metadata.plugin_count !== undefined)">
+          <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
+            <span class="m-label">Data lag</span>
+            <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h behind</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.worker_count !== undefined">
+            <span class="m-label">Active workers</span>
+            <span class="m-value core">{{ s.metadata.worker_count }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.node_count !== undefined">
+            <span class="m-label">Entities in graph</span>
+            <span class="m-value core">{{ s.metadata.node_count | number }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.plugin_count !== undefined">
+            <span class="m-label">Active plugins</span>
+            <span class="m-value core">{{ s.metadata.plugin_count }}</span>
+          </div>
+        </div>
+
+        <div class="technical-error" *ngIf="s.last_error_message && s.status !== 'healthy'">
+          <details>
+            <summary>Technical details (for developers)</summary>
+            <p class="error-text">{{ s.last_error_message }}</p>
+          </details>
+        </div>
+
+        <div class="footer">
+          <span class="last-success" *ngIf="s.last_success_at && s.status === 'healthy'">
+            Last verified {{ s.last_success_at | date:'HH:mm' }} today
+          </span>
+          <span class="last-success" *ngIf="s.last_check_at && s.status !== 'healthy'">
+            Last checked {{ s.last_check_at | date:'MMM d, HH:mm' }}
+          </span>
+          <span class="not-configured" *ngIf="s.status === 'not_configured' || s.status === 'not_enabled'">
+            Action required in <a routerLink="/settings">Settings</a>
+          </span>
+        </div>
+      </mat-card>
+    </div>
+
+    <div class="loading-shimmer" *ngIf="loading && services.length === 0">
+      <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]"></mat-card>
+    </div>
+  </section>
+
 </div>

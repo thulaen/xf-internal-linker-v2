@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
+import { map } from 'rxjs/operators';
 
 export interface ServiceHealth {
   service_key: string;
@@ -32,7 +33,9 @@ export class HealthService {
   private baseUrl = '/api/health';
 
   getHealthStatus(): Observable<ServiceHealth[]> {
-    return this.http.get<ServiceHealth[]>(`${this.baseUrl}/`);
+    return this.http.get<any>(`${this.baseUrl}/`).pipe(
+      map(res => Array.isArray(res) ? res : (res.results ?? []))
+    );
   }
 
   getSummary(): Observable<HealthSummary> {

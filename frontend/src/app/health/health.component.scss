@@ -26,9 +26,10 @@
     }
   }
 
+  // ── Summary bar ──────────────────────────────────────────────────
   .summary-card {
     border: var(--card-border);
-    border-radius: 8px;
+    border-radius: var(--card-border-radius);
     box-shadow: none;
     margin-bottom: 24px;
     padding: 16px;
@@ -63,10 +64,13 @@
             height: 18px;
           }
 
-          &.status-healthy { color: var(--color-success); }
+          &.status-healthy  { color: var(--color-success); }
           &.status-degraded { color: var(--color-warning); }
           &.status-critical { color: var(--color-error); }
-          &.warn { color: var(--color-warning); }
+          &.healthy-val     { color: var(--color-success); }
+          &.warn-val        { color: var(--color-warning); }
+          &.error-val       { color: var(--color-error); }
+          &.muted-val       { color: var(--color-text-secondary); }
         }
       }
 
@@ -76,15 +80,239 @@
     }
   }
 
+  // ── Section headings ────────────────────────────────────────────
+  .section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 4px;
+    color: var(--color-text-primary);
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--color-primary);
+    }
+  }
+
+  .section-subtitle {
+    font-size: 13px;
+    color: var(--color-text-secondary);
+    margin: 0 0 16px;
+  }
+
+  // ── Setup Checklist ─────────────────────────────────────────────
+  .checklist-section {
+    margin-bottom: 32px;
+
+    .checklist-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+    }
+
+    .checklist-card {
+      border: var(--card-border);
+      border-radius: var(--card-border-radius);
+      box-shadow: none;
+      padding: 16px;
+
+      &:hover {
+        box-shadow: var(--shadow-md);
+      }
+
+      .group-label {
+        font-size: 12px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: var(--color-text-secondary);
+        margin: 0 0 12px;
+      }
+
+      .checklist-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .checklist-row {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 8px;
+        border-radius: 6px;
+        text-decoration: none;
+        cursor: pointer;
+        transition: background-color 0.15s ease;
+
+        &:hover {
+          background-color: var(--color-bg-faint);
+        }
+
+        .row-icon {
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+          flex-shrink: 0;
+        }
+
+        .row-text {
+          display: flex;
+          flex-direction: column;
+
+          .row-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--color-text-primary);
+          }
+
+          .row-verdict {
+            font-size: 11px;
+            color: var(--color-text-secondary);
+          }
+        }
+
+        &.status-healthy    .row-icon { color: var(--color-success); }
+        &.status-warning    .row-icon,
+        &.status-stale      .row-icon { color: var(--color-warning); }
+        &.status-error      .row-icon,
+        &.status-down       .row-icon { color: var(--color-error); }
+        &.status-not_configured .row-icon,
+        &.status-not_enabled    .row-icon { color: var(--color-text-secondary); }
+      }
+    }
+  }
+
+  // ── Active Jobs ──────────────────────────────────────────────────
+  .jobs-section {
+    margin-bottom: 32px;
+
+    .jobs-card {
+      border: var(--card-border);
+      border-radius: var(--card-border-radius);
+      box-shadow: none;
+      padding: 16px;
+
+      &.jobs-empty {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--color-text-secondary);
+        font-size: 13px;
+        padding: 16px;
+
+        mat-icon {
+          color: var(--color-success);
+          font-size: 18px;
+          width: 18px;
+          height: 18px;
+        }
+      }
+    }
+
+    .job-row {
+      padding: 12px 0;
+      border-bottom: 1px solid var(--color-border-faint);
+
+      &:last-child {
+        border-bottom: none;
+        padding-bottom: 0;
+      }
+
+      &:first-child {
+        padding-top: 0;
+      }
+
+      .job-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        margin-bottom: 12px;
+
+        .job-identity {
+          display: flex;
+          gap: 10px;
+          align-items: flex-start;
+
+          .job-icon {
+            color: var(--color-primary);
+            font-size: 20px;
+            width: 20px;
+            height: 20px;
+            margin-top: 2px;
+          }
+
+          .job-title {
+            font-size: 14px;
+            font-weight: 500;
+            display: block;
+            color: var(--color-text-primary);
+          }
+
+          .job-message {
+            font-size: 12px;
+            color: var(--color-text-secondary);
+            display: block;
+            margin-top: 2px;
+          }
+        }
+
+        .job-pct {
+          font-size: 15px;
+          font-weight: 600;
+          color: var(--color-primary);
+          flex-shrink: 0;
+        }
+      }
+
+      .progress-block {
+        margin-bottom: 8px;
+
+        .progress-label {
+          font-size: 11px;
+          color: var(--color-text-secondary);
+          display: block;
+          margin-bottom: 4px;
+        }
+      }
+
+      .ml-phases {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding-left: 12px;
+        border-left: 2px solid var(--color-border-faint);
+        margin-top: 8px;
+      }
+
+      .job-meta {
+        display: flex;
+        gap: 16px;
+        margin-top: 8px;
+        font-size: 11px;
+        color: var(--color-text-secondary);
+      }
+    }
+  }
+
+  // ── All Services grid ────────────────────────────────────────────
+  .services-section {
+    margin-bottom: 32px;
+  }
+
   .health-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    gap: 16px;
   }
 
   .service-card {
     border: var(--card-border);
-    border-radius: 8px;
+    border-radius: var(--card-border-radius);
     box-shadow: none;
     transition: box-shadow 0.2s ease;
     display: flex;
@@ -145,11 +373,29 @@
           width: 14px;
           height: 14px;
         }
-        
-        &.badge-healthy { background-color: var(--color-success-light); color: var(--color-success); }
-        &.badge-warning, &.badge-stale { background-color: var(--color-warning-light); color: var(--color-warning); }
-        &.badge-error, &.badge-down { background-color: var(--color-error-light); color: var(--color-error); }
-        &.badge-not_configured, &.badge-not_enabled { background-color: var(--color-bg-faint); color: var(--color-text-secondary); }
+
+        &.badge-healthy          { background-color: var(--color-success-light); color: var(--color-success); }
+        &.badge-warning,
+        &.badge-stale            { background-color: var(--color-warning-light); color: var(--color-warning); }
+        &.badge-error,
+        &.badge-down             { background-color: var(--color-error-light); color: var(--color-error); }
+        &.badge-not_configured,
+        &.badge-not_enabled      { background-color: var(--color-bg-faint); color: var(--color-text-secondary); }
+      }
+    }
+
+    .healthy-note {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--color-success);
+      margin-bottom: 12px;
+
+      mat-icon {
+        font-size: 16px;
+        width: 16px;
+        height: 16px;
       }
     }
 
@@ -169,6 +415,7 @@
           width: 18px;
           height: 18px;
           margin-top: 2px;
+          flex-shrink: 0;
         }
 
         .text-content {
@@ -206,6 +453,7 @@
       padding: 12px 0;
       display: flex;
       gap: 24px;
+      flex-wrap: wrap;
 
       .metric {
         display: flex;
@@ -228,11 +476,11 @@
 
     .technical-error {
       margin-bottom: 12px;
-      
+
       details {
         font-size: 11px;
         color: var(--color-text-secondary);
-        
+
         summary {
           cursor: pointer;
           outline: none;
@@ -265,9 +513,26 @@
       }
     }
 
-    &.status-error, &.status-down { border-left: 4px solid var(--color-error); }
-    &.status-warning, &.status-stale { border-left: 4px solid var(--color-warning); }
-    &.status-healthy { border-left: 4px solid var(--color-success); }
+    // Status accent borders
+    &.status-error, &.status-down         { border-left: 4px solid var(--color-error); }
+    &.status-warning, &.status-stale      { border-left: 4px solid var(--color-warning); }
+    &.status-not_configured,
+    &.status-not_enabled                   { border-left: 4px solid var(--color-border); }
+    &.status-healthy                       { border-left: 4px solid var(--color-success); }
+
+    // Healthy cards are visually quieter
+    &.status-healthy {
+      opacity: 0.9;
+      .card-header .service-icon { color: var(--color-success); }
+    }
+
+    // Problem cards have full weight
+    &.status-error, &.status-down {
+      .card-header .service-icon { color: var(--color-error); }
+    }
+    &.status-warning, &.status-stale {
+      .card-header .service-icon { color: var(--color-warning); }
+    }
   }
 
   .spin {
@@ -282,12 +547,12 @@
 
 .shimmer {
   height: 200px;
-  background: linear-gradient(-90deg, #f0f0f0 0%, #f8f8f8 50%, #f0f0f0 100%);
-  background-size: 400% 400%;
+  background-color: var(--color-bg-faint);
   animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes pulse {
-  0% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
+  0%   { opacity: 1; }
+  50%  { opacity: 0.6; }
+  100% { opacity: 1; }
 }
