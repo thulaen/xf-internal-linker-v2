@@ -80,9 +80,11 @@ Do not leave mystery changes behind.
 - Default communication rule: AI should talk to the user in plain English and explain things like they are five.
 - Avoid jargon unless it is necessary. If you must use jargon, explain it immediately in simple language.
 
-### UI / Theming Rule
+### UI / Theming / Global Mandate
 - **No New Themes**: Never create a new CSS/SCSS theme file.
-- **Default Theme Only**: All styling must use or extend `frontend/src/styles/default-theme.scss`. This rule applies to ALL AI models (Antigravity, Claude, Codex, etc.) without exception.
+- **Zero Local Overrides**: Forbidden to use `::ng-deep` or local SCSS for Material/third-party elements.
+- **Global Abstraction**: Move structural overrides to `src/styles/themes/` and use utility classes (e.g., `.ga4-standard-field`).
+- **Default Theme Only**: All styling must use or extend `frontend/src/styles/default-theme.scss`. This applies to ALL AI models without exception.
 
 ### Visual Design Principles (User-First Design)
 - **Readability is Non-Negotiable**: Prioritize high-contrast text and clean, neutral backgrounds. Avoid dark, vibrant gradients for large headers (e.g., deep blue gradients with white text) as they are physically straining to read and feel overbearing.
