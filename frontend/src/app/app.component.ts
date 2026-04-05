@@ -130,7 +130,7 @@ export class AppComponent implements OnInit {
         {
           label: 'System Health',
           icon: 'health_and_safety',
-          route: '/system-health',
+          route: '/health',
           tooltip: 'Real-time status of data sources and services',
         },
         {
