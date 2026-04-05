@@ -26,6 +26,16 @@ class WordPressSettingsApiTests(APITestCase):
                 "sync_enabled": True,
                 "sync_hour": 4,
                 "sync_minute": 15,
+                "health": {
+                    "status": "unknown",
+                    "label": "Health check pending...",
+                    "name": "WordPress Site",
+                    "description": "Secondary content source for blog posts and page linking.",
+                    "issue": "",
+                    "fix": "Wait for the next scheduled health check (30m) or run manually.",
+                    "is_healthy": False,
+                    "last_success": None
+                },
             },
             format="json",
         )
@@ -40,6 +50,16 @@ class WordPressSettingsApiTests(APITestCase):
                 "sync_enabled": True,
                 "sync_hour": 4,
                 "sync_minute": 15,
+                "health": {
+                    "status": "unknown",
+                    "label": "Health check pending...",
+                    "name": "WordPress Site",
+                    "description": "Secondary content source for blog posts and page linking.",
+                    "issue": "",
+                    "fix": "Wait for the next scheduled health check (30m) or run manually.",
+                    "is_healthy": False,
+                    "last_success": None
+                },
             },
         )
         self.assertEqual(AppSetting.objects.get(key="wordpress.base_url").value, "https://blog.example.com")
@@ -60,6 +80,16 @@ class WordPressSettingsApiTests(APITestCase):
                 "sync_enabled": True,
                 "sync_hour": 3,
                 "sync_minute": 0,
+                "health": {
+                    "status": "unknown",
+                    "label": "Health check pending...",
+                    "name": "WordPress Site",
+                    "description": "Secondary content source for blog posts and page linking.",
+                    "issue": "",
+                    "fix": "Wait for the next scheduled health check (30m) or run manually.",
+                    "is_healthy": False,
+                    "last_success": None
+                },
             },
             format="json",
         )
@@ -106,6 +136,16 @@ class WordPressSettingsDefaultsTests(APITestCase):
                 "sync_enabled": False,
                 "sync_hour": 3,
                 "sync_minute": 0,
+                "health": {
+                    "status": "unknown",
+                    "label": "Health check pending...",
+                    "name": "WordPress Site",
+                    "description": "Secondary content source for blog posts and page linking.",
+                    "issue": "",
+                    "fix": "Wait for the next scheduled health check (30m) or run manually.",
+                    "is_healthy": False,
+                    "last_success": None
+                },
             },
         )
 
