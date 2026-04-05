@@ -1,5 +1,5 @@
 @if (scanning || progressMessage || errorMessage) {
-  <mat-card class="scan-status-card">
+  <mat-card class="scan-status-card" id="scan-status">
     <mat-card-content>
       <div class="scan-status-header">
         <div>
@@ -22,7 +22,7 @@
 }
 
 <div class="link-health-controls-surface">
-  <div class="page-header">
+  <div class="page-header" id="link-health-header">
     <h1 class="page-title">
       <mat-icon>link_off</mat-icon>
       Link Health
@@ -49,7 +49,7 @@
     </div>
   </div>
 
-  <div class="summary-row">
+  <div class="summary-row" id="link-health-summary">
     <mat-card class="summary-card summary-open">
       <mat-card-content>
         <span class="summary-label">Open</span>
@@ -70,7 +70,7 @@
     </mat-card>
   </div>
 
-  <div class="filter-bar">
+  <div class="filter-bar" id="link-health-filters">
     <mat-chip-listbox aria-label="Broken link status filter">
       @for (status of statusOptions; track status.value) {
         <mat-chip-option
@@ -122,7 +122,7 @@
 }
 
 @if (!loading && brokenLinks.length > 0) {
-  <div class="table-wrapper">
+  <div class="table-wrapper" id="link-health-table">
     <table mat-table [dataSource]="brokenLinks" [trackBy]="trackById" class="broken-links-table">
       <ng-container matColumnDef="source_thread">
         <th mat-header-cell *matHeaderCellDef>Source thread</th>

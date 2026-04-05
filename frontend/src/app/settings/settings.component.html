@@ -1,4 +1,4 @@
-<div class="page-header page-header--settings">
+<div class="page-header page-header--settings" id="settings-header">
   <div class="header-main">
     <div class="header-copy">
       <h1 class="page-title">
@@ -23,7 +23,7 @@
     <mat-card-content>Loading settings...</mat-card-content>
   </mat-card>
 } @else {
-  <section class="settings-overview">
+  <section class="settings-overview" id="settings-overview">
     <div class="settings-overview__stats">
       <article class="overview-stat">
         <span class="overview-stat__label">Live features on</span>
@@ -51,7 +51,8 @@
     </div>
   </section>
 
-  <mat-tab-group 
+  <mat-tab-group
+    id="settings-tabs"
     [selectedIndex]="selectedTabIndex" 
     (selectedIndexChange)="onTabChange($event)"
     animationDuration="200ms"

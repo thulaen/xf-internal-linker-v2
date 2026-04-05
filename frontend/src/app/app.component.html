@@ -19,6 +19,8 @@
     [ngClass]="'status-' + systemStatus"
     [matTooltip]="'System status: ' + systemStatus"
     routerLink="/health"
+    appScrollHighlight="services-section"
+    [scrollHighlightDelay]="200"
   ></div>
   <button
     mat-icon-button

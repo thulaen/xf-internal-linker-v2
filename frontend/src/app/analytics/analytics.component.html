@@ -1,5 +1,5 @@
 <div class="page-container">
-  <div class="inline-page-header">
+  <div class="inline-page-header" id="analytics-header">
     <h1 class="page-title">
       <mat-icon>analytics</mat-icon>
       Analytics & Insights
@@ -27,7 +27,7 @@
       </mat-button-toggle-group>
     </div>
 
-    <div class="overview-grid">
+    <div class="overview-grid" id="analytics-stats">
       <mat-card class="stat-card">
         <mat-icon class="stat-card__icon">database</mat-icon>
         <mat-card-content class="stat-card__content">
@@ -67,7 +67,7 @@
 
     <div class="main-reports">
       @if (funnel; as funnelData) {
-        <mat-card class="report-card">
+        <mat-card class="report-card" id="analytics-funnel">
           <mat-card-header>
             <mat-card-title>Funnel Performance</mat-card-title>
             <mat-card-subtitle>Last {{ funnelData.days }} days — {{ sourceLabel(selectedSource) }}</mat-card-subtitle>
@@ -99,7 +99,7 @@
       }
 
       @if (versionComparison; as versionData) {
-        <mat-card class="report-card">
+        <mat-card class="report-card" id="analytics-algorithm">
           <mat-card-header>
             <mat-card-title>Algorithm Performance</mat-card-title>
             <mat-card-subtitle>Comparison across different model versions</mat-card-subtitle>
@@ -160,7 +160,7 @@
       }
 
       @if (health; as healthData) {
-        <mat-card class="report-card health-card">
+        <mat-card class="report-card health-card" id="analytics-health">
           <mat-card-header>
             <mat-card-title>System Health</mat-card-title>
             <mat-card-subtitle>Telemetry integrity and tracking coverage</mat-card-subtitle>
@@ -216,7 +216,7 @@
       }
 
       @if (trend; as trendData) {
-        <mat-card class="report-card">
+        <mat-card class="report-card" id="analytics-trend">
           <mat-card-header>
             <mat-card-title>Engagement Trend</mat-card-title>
             <mat-card-subtitle>User interaction trends over the last {{ trendData.items.length }} days</mat-card-subtitle>
@@ -249,7 +249,7 @@
       }
 
       @if (breakdowns; as breakdownData) {
-        <div class="breakdown-grid">
+        <div class="breakdown-grid" id="analytics-breakdowns">
           <mat-card class="report-card">
             <mat-card-header><mat-card-title>Device Mix</mat-card-title></mat-card-header>
             <mat-card-content>
@@ -323,7 +323,7 @@
       }
 
       @if (topSuggestions; as topData) {
-        <mat-card class="report-card">
+        <mat-card class="report-card" id="analytics-top-suggestions">
           <mat-card-header>
             <mat-card-title>Top suggestion rows</mat-card-title>
             <mat-card-subtitle>Highest performing link suggestions by engagement</mat-card-subtitle>
@@ -363,7 +363,7 @@
       }
     </div>
 
-    <div class="system-footer">
+    <div class="system-footer" id="analytics-search-impact">
       <!-- Search Impact Section -->
     <div class="report-section-header">
       <div class="section-title-group">
@@ -644,7 +644,7 @@
       </mat-card>
     </ng-template>
 
-    <div class="footer-grid">
+    <div class="footer-grid" id="analytics-integrations">
         <mat-card class="connection-card">
           <mat-card-header>
             <mat-card-title>GA4 Integration</mat-card-title>

@@ -1,4 +1,4 @@
-<div class="page-header">
+<div class="page-header" id="jobs-header">
   <div class="header-main">
     <h1 class="page-title">
       <mat-icon>pending_actions</mat-icon>
@@ -31,7 +31,7 @@
   <div class="layout-main">
 
     <!-- 1. API Sources (XF & WP) -->
-    <mat-card data-ga4-panel class="sources-card api-sources">
+    <mat-card data-ga4-panel class="sources-card api-sources" id="jobs-api-channels">
       <mat-card-header>
         <mat-card-title>API Channels</mat-card-title>
         <mat-card-subtitle>Direct synchronization with WordPress and XenForo</mat-card-subtitle>
@@ -154,7 +154,7 @@
     </mat-card>
 
     <!-- 2. File Import (JSONL) -->
-    <mat-card data-ga4-panel class="sources-card file-sources">
+    <mat-card data-ga4-panel class="sources-card file-sources" id="jobs-file-import">
       <mat-card-header>
         <mat-card-title>Offline Import</mat-card-title>
         <mat-card-subtitle>Process local .jsonl export files</mat-card-subtitle>
@@ -262,7 +262,7 @@
 
   <!-- ── Right column: History ──────────────────────────────────── -->
   <div class="layout-side">
-    <mat-card data-ga4-panel class="history-card">
+    <mat-card data-ga4-panel class="history-card" id="jobs-history">
       <mat-card-header>
         <mat-card-title>Recent Activity</mat-card-title>
         <mat-card-subtitle>Historical sync logs</mat-card-subtitle>

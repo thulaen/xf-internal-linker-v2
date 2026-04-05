@@ -9,15 +9,15 @@
       Keep an eye on suggestion flow, content imports, and link health from one place.
     </p>
     <div class="dashboard-hero-highlights">
-      <span class="hero-pill">
+      <span class="hero-pill" appScrollHighlight="suggestion-stats" style="cursor:pointer">
         <mat-icon>insights</mat-icon>
         Suggestion queue
       </span>
-      <span class="hero-pill">
+      <span class="hero-pill" appScrollHighlight="sync-activity" style="cursor:pointer">
         <mat-icon>sync</mat-icon>
         Sync activity
       </span>
-      <span class="hero-pill">
+      <span class="hero-pill" appScrollHighlight="system-signals" style="cursor:pointer">
         <mat-icon>monitor_heart</mat-icon>
         System signals
       </span>
@@ -52,10 +52,10 @@
 }
 
 @if (!loading && data) {
-  <section class="dashboard-overview-grid">
+  <section class="dashboard-overview-grid" id="system-signals">
     <app-system-summary [health]="data.system_health"></app-system-summary>
 
-    <section class="sync-banner" [class.no-sync]="!data.last_sync">
+    <section class="sync-banner" id="sync-activity" [class.no-sync]="!data.last_sync">
       @if (data.last_sync) {
         <div class="sync-copy">
           <span class="sync-kicker">Latest sync</span>
@@ -94,7 +94,7 @@
     </section>
   </section>
 
-  <div class="stat-grid">
+  <div class="stat-grid" id="suggestion-stats">
     @if (data.open_broken_links > 0) {
       <mat-card class="stat-card stat-card-warning" routerLink="/link-health" tabindex="0">
         <div class="stat-icon warn">
@@ -154,7 +154,7 @@
   </div>
 
   <section class="dashboard-section-grid">
-    <mat-card class="runs-card dashboard-panel">
+    <mat-card class="runs-card dashboard-panel" id="dashboard-pipeline-runs">
       <mat-card-header>
         <mat-icon mat-card-avatar>history</mat-icon>
         <mat-card-title>Recent Pipeline Runs</mat-card-title>
@@ -225,7 +225,7 @@
       </mat-card-actions>
     </mat-card>
 
-    <mat-card class="imports-card dashboard-panel">
+    <mat-card class="imports-card dashboard-panel" id="dashboard-recent-imports">
       <mat-card-header>
         <mat-icon mat-card-avatar>upload_file</mat-icon>
         <mat-card-title>Recent Imports</mat-card-title>
@@ -265,6 +265,6 @@
       </mat-card-actions>
     </mat-card>
 
-    <app-webhook-log></app-webhook-log>
+    <app-webhook-log id="dashboard-webhooks"></app-webhook-log>
   </section>
 }

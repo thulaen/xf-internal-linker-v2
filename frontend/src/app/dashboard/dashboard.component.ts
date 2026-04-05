@@ -17,6 +17,7 @@ import {
 import { SuggestionService } from '../review/suggestion.service';
 import { SystemSummaryComponent } from './components/system-summary/system-summary.component';
 import { WebhookLogComponent } from './components/webhook-log/webhook-log.component';
+import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 
 @Component({
   selector: 'app-dashboard',
@@ -34,6 +35,7 @@ import { WebhookLogComponent } from './components/webhook-log/webhook-log.compon
     MatTooltipModule,
     SystemSummaryComponent,
     WebhookLogComponent,
+    ScrollHighlightDirective,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

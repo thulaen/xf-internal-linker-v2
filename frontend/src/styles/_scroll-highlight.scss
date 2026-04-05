@@ -1,0 +1,25 @@
+/**
+ * Scroll-and-highlight styling.
+ * Defines the visual appearance and fade animation for highlighted elements.
+ */
+
+// Applied immediately when element is scrolled into view
+.scroll-highlight {
+  background-color: rgba(26, 115, 232, 0.12);      // Primary blue @ 12% opacity
+  border-left: 2px solid var(--color-primary);
+  box-shadow: inset 0 0 8px rgba(26, 115, 232, 0.08);
+
+  // Smooth transition for fade effect
+  transition:
+    background-color 500ms ease-out,
+    border-left-color 500ms ease-out,
+    box-shadow 500ms ease-out;
+}
+
+// Applied after 5.5 seconds to trigger fade animation
+// CSS transition handles the smooth fade to transparent
+.scroll-highlight--fade {
+  background-color: transparent;
+  border-left-color: transparent;
+  box-shadow: inset 0 0 8px rgba(26, 115, 232, 0);
+}

@@ -1,5 +1,5 @@
 <section class="review-shell">
-  <section class="review-hero">
+  <section class="review-hero" id="review-hero">
     <div class="review-hero-copy">
       <span class="review-kicker">Suggestion workspace</span>
       <div class="header-left">
@@ -43,7 +43,7 @@
   </section>
 
   <div class="review-controls-surface">
-    <div class="filter-bar">
+    <div class="filter-bar" id="review-filters">
       <mat-form-field appearance="outline" class="search-field">
         <mat-icon matPrefix>search</mat-icon>
         <input
@@ -139,7 +139,7 @@
     </mat-checkbox>
   </div>
 
-  <div class="cards-list">
+  <div class="cards-list" id="review-cards">
     @for (s of suggestions; track s.suggestion_id) {
       <div
         class="suggestion-card"
@@ -263,6 +263,7 @@
   </div>
 
   <mat-paginator
+    id="review-pagination"
     [length]="totalCount"
     [pageSize]="pageSize"
     [pageIndex]="page - 1"

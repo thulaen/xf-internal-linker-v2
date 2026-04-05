@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { HealthService, ServiceHealth, HealthSummary } from './health.service';
 import { SyncService, SyncJob } from '../jobs/sync.service';
+import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 import { finalize } from 'rxjs';
 
 export interface ChecklistGroup {
@@ -44,6 +45,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
     MatIconModule,
     MatTooltipModule,
     MatProgressBarModule,
+    ScrollHighlightDirective,
   ],
   templateUrl: './health.component.html',
   styleUrls: ['./health.component.scss'],

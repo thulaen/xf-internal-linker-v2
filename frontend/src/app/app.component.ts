@@ -13,11 +13,13 @@ import { MatMenuModule } from '@angular/material/menu';
 import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
 import { AuthService } from './core/services/auth.service';
+import { GlobalLinkInterceptorService } from './core/services/global-link-interceptor.service';
 import { HealthService } from './health/health.service';
 import { DashboardService } from './dashboard/dashboard.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
+import { ScrollHighlightDirective } from './core/directives/scroll-highlight.directive';
 import { environment } from '../environments/environment';
 
 interface NavItem {
@@ -50,6 +52,7 @@ interface NavSection {
     NotificationCenterComponent,
     ThemeCustomizerComponent,
     ScrollToTopComponent,
+    ScrollHighlightDirective,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
@@ -60,6 +63,7 @@ export class AppComponent implements OnInit {
   private alertDelivery = inject(AlertDeliveryService);
   private healthService = inject(HealthService);
   private dashboardSvc = inject(DashboardService);
+  private linkInterceptor = inject(GlobalLinkInterceptorService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
 
@@ -152,6 +156,7 @@ export class AppComponent implements OnInit {
   ngOnInit(): void {
     this.appearance.load();
     this.alertDelivery.start();
+    this.linkInterceptor.init();
     
     // Fetch broken links count for badge
     this.dashboardSvc.data$
@@ -176,6 +181,7 @@ export class AppComponent implements OnInit {
         next: (summary: any) => this.systemStatus = summary.system_status,
         error: () => this.systemStatus = 'unknown'
       });
+
   }
 
   get config() {

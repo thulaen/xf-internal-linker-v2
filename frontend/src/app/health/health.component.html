@@ -61,7 +61,7 @@
   </mat-card>
 
   <!-- ── Setup Checklist ───────────────────────────────────────── -->
-  <section class="checklist-section" *ngIf="checklistGroups.length > 0">
+  <section class="checklist-section" id="checklist-section" *ngIf="checklistGroups.length > 0">
     <h2 class="section-title">
       <mat-icon>fact_check</mat-icon>
       Setup & Requirements
@@ -74,8 +74,9 @@
         <div class="checklist-rows">
           <a class="checklist-row"
              *ngFor="let s of group.services"
-             [href]="'#service-' + s.service_key"
-             [ngClass]="getStatusClass(s.status)">
+             [appScrollHighlight]="'service-' + s.service_key"
+             [ngClass]="getStatusClass(s.status)"
+             style="cursor:pointer">
             <mat-icon class="row-icon">{{ getStatusIcon(s.status) }}</mat-icon>
             <div class="row-text">
               <span class="row-name">{{ getServiceName(s) }}</span>
@@ -88,7 +89,7 @@
   </section>
 
   <!-- ── Active Jobs ───────────────────────────────────────────── -->
-  <section class="jobs-section">
+  <section class="jobs-section" id="jobs-section">
     <h2 class="section-title">
       <mat-icon>pending_actions</mat-icon>
       Active Jobs
@@ -139,7 +140,7 @@
   </section>
 
   <!-- ── All Services ──────────────────────────────────────────── -->
-  <section class="services-section">
+  <section class="services-section" id="services-section">
     <h2 class="section-title">
       <mat-icon>monitor_heart</mat-icon>
       All Monitored Services

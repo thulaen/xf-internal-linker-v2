@@ -1,7 +1,7 @@
 <div class="alerts-page">
 
   <!-- Page header -->
-  <div class="alerts-header">
+  <div class="alerts-header" id="alerts-header">
     <h1 class="alerts-title">Notifications</h1>
     @if (unreadCount > 0) {
       <span class="alerts-unread-badge">{{ unreadCount }} unread</span>
@@ -16,7 +16,7 @@
   </div>
 
   <!-- Filters -->
-  <div class="alerts-filters">
+  <div class="alerts-filters" id="alerts-filters">
     <mat-form-field appearance="outline" class="filter-field">
       <mat-label>Status</mat-label>
       <mat-select [(ngModel)]="filterStatus" (ngModelChange)="loadAlerts()">
@@ -63,7 +63,7 @@
 
   <!-- Alert list -->
   @if (!loading && groupedAlerts.length > 0) {
-    <div class="alerts-container">
+    <div class="alerts-container" id="alerts-list">
       <!-- Table Header -->
       <div class="alerts-list-header">
         <div class="col-icon">Severity</div>
@@ -75,7 +75,7 @@
       <div class="alerts-list">
         @for (alert of groupedAlerts; track alert.allIds.join(',')) {
           <div class="alert-row alert-row--{{ alert.severity }}" [class.alert-row--unread]="alert.status === 'unread'">
-            
+
             <!-- Severity Icon -->
             <div class="col-icon" [matTooltip]="alert.severity | titlecase">
               <mat-icon class="alert-icon">{{ severityIcon(alert.severity) }}</mat-icon>
