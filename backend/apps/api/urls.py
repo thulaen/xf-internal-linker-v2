@@ -35,6 +35,8 @@ from apps.core.views import (
     SlateDiversitySettingsView,
     WeightedAuthorityRecalculateView,
     WeightedAuthoritySettingsView,
+    UserMeView,
+    UserLogoutView,
     GraphCandidateSettingsView,
     ValueModelSettingsView,
     SpamGuardSettingsView,
@@ -76,6 +78,8 @@ router.register(r"weight-challengers", RankingChallengerViewSet, basename="weigh
 router.register(r"health", HealthStatusViewSet, basename="health")
 
 urlpatterns = [
+    path("auth/me/", UserMeView.as_view(), name="user-me"),
+    path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
     path("", include("apps.core.urls")),
     path("analytics/", include("apps.analytics.urls")),
     path("", include(router.urls)),

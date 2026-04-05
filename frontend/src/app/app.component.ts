@@ -8,8 +8,10 @@ import { MatListModule } from '@angular/material/list';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatMenuModule } from '@angular/material/menu';
 import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
+import { AuthService } from './core/services/auth.service';
 import { HealthService } from './health/health.service';
 import { DashboardService } from './dashboard/dashboard.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
@@ -43,6 +45,7 @@ interface NavSection {
     MatIconModule,
     MatButtonModule,
     MatTooltipModule,
+    MatMenuModule,
     NotificationCenterComponent,
     ThemeCustomizerComponent,
     ScrollToTopComponent,
@@ -52,10 +55,13 @@ interface NavSection {
 })
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
+  auth = inject(AuthService);
   private alertDelivery = inject(AlertDeliveryService);
   private healthService = inject(HealthService);
   private dashboardSvc = inject(DashboardService);
   private destroyRef = inject(DestroyRef);
+
+  user$ = this.auth.user$;
 
   customizerOpen = false;
   notifPanelOpen = false;
@@ -171,5 +177,13 @@ export class AppComponent implements OnInit {
   goToAdmin(event: MouseEvent): void {
     event.preventDefault();
     window.open(environment.adminUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  logout(): void {
+    this.auth.logout();
+  }
+
+  login(): void {
+    this.auth.login();
   }
 }

@@ -246,6 +246,112 @@
       color: var(--color-primary);
     }
   }
+
+  .user-menu-btn {
+    height: 40px;
+    padding: 0 12px;
+    margin-left: 8px;
+    border-radius: 20px;
+    color: var(--color-text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    mat-icon {
+      font-size: 20px;
+      width: 20px;
+      height: 20px;
+      color: var(--color-primary);
+    }
+
+    span {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    &:hover {
+      background: var(--color-bg-faint);
+    }
+  }
+
+  .login-btn {
+    height: 32px;
+    line-height: 32px;
+    padding: 0 16px;
+    margin-left: 12px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-primary);
+    border-color: var(--color-border);
+    background: transparent;
+
+    &:hover {
+      background: rgba(26, 115, 232, 0.04);
+      border-color: var(--color-primary);
+    }
+  }
+}
+
+// ── Global Customizations for GA4 Menu ────────────────────────────
+
+// Note: These must be outside the scoped component or use ::ng-deep 
+// but since I'm in app.component.scss (global shell) and it's standalone 
+// we should be careful with isolation. For now I'll use ::ng-deep if needed
+// or just standard global classes if I assume this file is global.
+// Actually, AppComponent is the root, so these are global.
+
+.ga4-menu {
+  margin-top: 8px;
+  border: var(--card-border) !important;
+  box-shadow: var(--shadow-md) !important;
+  border-radius: 8px !important;
+  min-width: 200px !important;
+
+  .menu-header {
+    padding: 16px;
+    
+    .user-info {
+      display: flex;
+      flex-direction: column;
+      
+      .user-name {
+        font-size: 14px;
+        font-weight: 600;
+        color: var(--color-text-primary);
+        line-height: 1.4;
+      }
+      
+      .user-email {
+        font-size: 12px;
+        color: var(--color-text-muted);
+        line-height: 1.2;
+      }
+    }
+  }
+
+  button[mat-menu-item] {
+    height: 40px;
+    font-size: 13px;
+    color: var(--color-text-secondary);
+
+    mat-icon {
+      margin-right: 12px;
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--color-text-muted);
+    }
+
+    &:hover {
+      background: var(--color-bg-faint);
+      color: var(--color-text-primary);
+      
+      mat-icon {
+        color: var(--color-primary);
+      }
+    }
+  }
 }
 
 // ── Content + Footer ──────────────────────────────────────────────

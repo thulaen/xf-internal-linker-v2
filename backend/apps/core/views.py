@@ -2966,3 +2966,39 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
         "traffic_lookback_days": max(1, min(365, _get_int("traffic_lookback_days"))),
         "traffic_fallback_value": max(0.0, min(1.0, _get_float("traffic_fallback_value"))),
     }
+
+
+class UserMeView(APIView):
+    """
+    Returns the currently authenticated user's profile information.
+    Required for the frontend toolbar auth status indicator.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        if request.user.is_authenticated:
+            return Response({
+                "username": request.user.username,
+                "email": request.user.email,
+                "full_name": request.user.get_full_name() or request.user.username,
+                "is_authenticated": True,
+                "is_staff": request.user.is_staff,
+            })
+        return Response({
+            "username": "Guest",
+            "is_authenticated": False,
+            "is_staff": False,
+        })
+
+
+class UserLogoutView(APIView):
+    """
+    Logs out the current user session.
+    Requires a POST request as per Django 5.x standards.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from django.contrib.auth import logout
+        logout(request)
+        return Response({"status": "success", "message": "Logged out successfully."})
