@@ -191,11 +191,11 @@ def check_http_worker_health() -> ServiceHealthResult:
                 suggested_fix="Configure HTTP_WORKER_URL in your environment files."
             )
             
-        health_url = f"{url}/api/v1/health/check"
-        response = requests.post(health_url, json={}, timeout=5)
+        status_url = f"{url}/api/v1/status"
+        response = requests.get(status_url, timeout=5)
         response.raise_for_status()
         data = response.json()
-        
+
         return ServiceHealthResult(
             service_key="http_worker",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -203,7 +203,7 @@ def check_http_worker_health() -> ServiceHealthResult:
             issue_description="The high-performance C# runtime is healthy and responsive.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"version": data.get("version", "unknown"), "url": url}
+            metadata={"version": data.get("build_version", "unknown"), "url": url}
         )
     except Exception as e:
         return ServiceHealthResult(
