@@ -45,7 +45,8 @@ from apps.core.views import (
     WordPressSyncRunView,
     XenForoSettingsView,
 )
-from apps.graph.views import BrokenLinkViewSet
+from apps.graph.views import BrokenLinkViewSet, GraphStatsView, OrphanArticleListView, GraphPathView
+from apps.knowledge_graph.views import EntityListView
 from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
@@ -127,6 +128,10 @@ urlpatterns = [
     path("settings/value-model/", ValueModelSettingsView.as_view(), name="value-model-settings"),
     path("settings/spam-guards/", SpamGuardSettingsView.as_view(), name="settings-spam-guards"),
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
+    path("graph/stats/", GraphStatsView.as_view(), name="graph-stats"),
+    path("graph/entities/", EntityListView.as_view(), name="graph-entities"),
+    path("graph/orphans/", OrphanArticleListView.as_view(), name="graph-orphans"),
+    path("graph/path/", GraphPathView.as_view(), name="graph-path"),
     path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("", include("apps.notifications.urls")),

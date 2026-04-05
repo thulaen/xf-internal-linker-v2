@@ -1,17 +1,441 @@
-<!-- Link Graph page — full implementation in a future phase -->
 <div class="page-header">
   <h1 class="page-title">
     <mat-icon>account_tree</mat-icon>
-    Link Graph
+    Knowledge Graph
   </h1>
 </div>
 
-<mat-card class="placeholder-card">
-  <mat-card-content>
-    <div class="empty-state">
-      <mat-icon>account_tree</mat-icon>
-      <h3>Link Graph</h3>
-      <p>This section will be fully built in a future phase. The scaffolding is in place and ready.</p>
+<mat-tab-group
+  [selectedIndex]="selectedTabIndex"
+  (selectedIndexChange)="onTabChange($event)"
+  animationDuration="200ms"
+  class="graph-tabs">
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 1 — OVERVIEW
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">bar_chart</mat-icon>
+      Overview
+    </ng-template>
+
+    <div class="tab-content">
+      <ng-container *ngIf="loadingStats">
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingStats && stats">
+        <div class="stats-grid">
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <mat-icon class="stat-icon">article</mat-icon>
+              <div class="stat-number">{{ stats.total_nodes | number }}</div>
+              <div class="stat-label">Total Articles</div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <mat-icon class="stat-icon">link</mat-icon>
+              <div class="stat-number">{{ stats.total_edges | number }}</div>
+              <div class="stat-label">Internal Links</div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <mat-icon class="stat-icon">label</mat-icon>
+              <div class="stat-number">{{ stats.entity_count | number }}</div>
+              <div class="stat-label">Entities</div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card stat-card--warning">
+            <mat-card-content>
+              <mat-icon class="stat-icon">link_off</mat-icon>
+              <div class="stat-number">{{ stats.orphan_count | number }}</div>
+              <div class="stat-label">Orphan Articles</div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card stat-card--success">
+            <mat-card-content>
+              <mat-icon class="stat-icon">hub</mat-icon>
+              <div class="stat-number">{{ stats.connected_pct }}%</div>
+              <div class="stat-label">Articles Connected</div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="stat-card">
+            <mat-card-content>
+              <mat-icon class="stat-icon">topic</mat-icon>
+              <div class="stat-number">{{ stats.topic_count | number }}</div>
+              <div class="stat-label">Topics (Silos)</div>
+            </mat-card-content>
+          </mat-card>
+
+        </div>
+      </ng-container>
     </div>
-  </mat-card-content>
-</mat-card>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 2 — TOPICS
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">topic</mat-icon>
+      Topics
+    </ng-template>
+
+    <div class="tab-content">
+      <ng-container *ngIf="loadingTopics">
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingTopics && topics.length === 0">
+        <div class="empty-state">
+          <mat-icon>topic</mat-icon>
+          <h3>No topics yet</h3>
+          <p>Create silo groups in Settings to organise your content into topics.</p>
+        </div>
+      </ng-container>
+
+      <div class="topics-grid" *ngIf="!loadingTopics && topics.length > 0">
+        <mat-card class="topic-card" *ngFor="let topic of topics">
+          <mat-card-header>
+            <mat-icon mat-card-avatar class="topic-icon">label_important</mat-icon>
+            <mat-card-title>{{ topic.name }}</mat-card-title>
+            <mat-card-subtitle>{{ topic.scope_count }} scope{{ topic.scope_count !== 1 ? 's' : '' }}</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content *ngIf="topic.description">
+            <p class="topic-description">{{ topic.description }}</p>
+          </mat-card-content>
+        </mat-card>
+      </div>
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 3 — ENTITIES
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">label</mat-icon>
+      Entities
+    </ng-template>
+
+    <div class="tab-content">
+      <div class="filter-row">
+        <mat-chip-set class="type-chips">
+          <mat-chip
+            [class.chip-active]="entityTypeFilter === ''"
+            (click)="onEntityTypeFilter('')">
+            All
+          </mat-chip>
+          <mat-chip
+            [class.chip-active]="entityTypeFilter === 'keyword'"
+            (click)="onEntityTypeFilter('keyword')">
+            Keyword
+          </mat-chip>
+          <mat-chip
+            [class.chip-active]="entityTypeFilter === 'named_entity'"
+            (click)="onEntityTypeFilter('named_entity')">
+            Named Entity
+          </mat-chip>
+          <mat-chip
+            [class.chip-active]="entityTypeFilter === 'topic_tag'"
+            (click)="onEntityTypeFilter('topic_tag')">
+            Topic Tag
+          </mat-chip>
+        </mat-chip-set>
+
+        <mat-form-field class="search-field" appearance="outline">
+          <mat-label>Search entities</mat-label>
+          <mat-icon matPrefix>search</mat-icon>
+          <input matInput
+            [(ngModel)]="entitySearch"
+            (ngModelChange)="onEntitySearchChange($event)"
+            placeholder="e.g. machine learning" />
+        </mat-form-field>
+      </div>
+
+      <ng-container *ngIf="loadingEntities">
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingEntities && entities.length === 0">
+        <div class="empty-state">
+          <mat-icon>label_off</mat-icon>
+          <h3>No entities found</h3>
+          <p>Run the knowledge graph build to extract entities from your content.</p>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingEntities && entities.length > 0">
+        <table mat-table [dataSource]="entities" class="data-table">
+
+          <ng-container matColumnDef="canonical_form">
+            <th mat-header-cell *matHeaderCellDef>Entity</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="entity-name">{{ row.canonical_form }}</span>
+              <span class="entity-surface" *ngIf="row.surface_form !== row.canonical_form">
+                ({{ row.surface_form }})
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="entity_type">
+            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="entity-type-chip entity-type-chip--{{ row.entity_type }}">
+                {{ entityTypeLabel(row.entity_type) }}
+              </span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="article_count">
+            <th mat-header-cell *matHeaderCellDef>Articles</th>
+            <td mat-cell *matCellDef="let row" class="col-number">{{ row.article_count }}</td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="entityColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: entityColumns;"></tr>
+        </table>
+
+        <mat-paginator
+          [length]="entityCount"
+          [pageSize]="50"
+          [pageSizeOptions]="[50, 100, 200]"
+          (page)="onEntityPageChange($event)">
+        </mat-paginator>
+      </ng-container>
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 4 — HUB ARTICLES
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">hub</mat-icon>
+      Hub Articles
+    </ng-template>
+
+    <div class="tab-content">
+      <p class="tab-description">
+        The 50 most authoritative articles by PageRank score — the best-connected destinations in your site.
+      </p>
+
+      <ng-container *ngIf="loadingHubs">
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingHubs && hubArticles.length === 0">
+        <div class="empty-state">
+          <mat-icon>hub</mat-icon>
+          <h3>No articles yet</h3>
+          <p>Run a sync to import content.</p>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingHubs && hubArticles.length > 0">
+        <table mat-table [dataSource]="hubArticles" class="data-table">
+
+          <ng-container matColumnDef="title">
+            <th mat-header-cell *matHeaderCellDef>Article</th>
+            <td mat-cell *matCellDef="let row">
+              <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
+                {{ row.title }}
+                <mat-icon class="external-icon">open_in_new</mat-icon>
+              </a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="content_type_label">
+            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="content-type-label">{{ row.content_type_label }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="march_2026_pagerank_score">
+            <th mat-header-cell *matHeaderCellDef>Authority</th>
+            <td mat-cell *matCellDef="let row">
+              <div class="pagerank-bar-wrap">
+                <div class="pagerank-bar" [style.width.%]="pagerankBar(row.march_2026_pagerank_score)"></div>
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="hubColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: hubColumns;"></tr>
+        </table>
+      </ng-container>
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 5 — ORPHAN ARTICLES
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">link_off</mat-icon>
+      Orphans
+    </ng-template>
+
+    <div class="tab-content">
+      <p class="tab-description">
+        These articles have no inbound internal links. Adding links to them improves crawlability and authority distribution.
+      </p>
+
+      <ng-container *ngIf="loadingOrphans">
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingOrphans && orphans.length === 0 && orphanCount === 0">
+        <div class="empty-state">
+          <mat-icon>check_circle</mat-icon>
+          <h3>No orphans</h3>
+          <p>Every article has at least one inbound internal link.</p>
+        </div>
+      </ng-container>
+
+      <ng-container *ngIf="!loadingOrphans && orphans.length > 0">
+        <table mat-table [dataSource]="orphans" class="data-table">
+
+          <ng-container matColumnDef="title">
+            <th mat-header-cell *matHeaderCellDef>Article</th>
+            <td mat-cell *matCellDef="let row">
+              <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
+                {{ row.title }}
+                <mat-icon class="external-icon">open_in_new</mat-icon>
+              </a>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="content_type_label">
+            <th mat-header-cell *matHeaderCellDef>Type</th>
+            <td mat-cell *matCellDef="let row">
+              <span class="content-type-label">{{ row.content_type_label }}</span>
+            </td>
+          </ng-container>
+
+          <ng-container matColumnDef="post_date">
+            <th mat-header-cell *matHeaderCellDef>Date</th>
+            <td mat-cell *matCellDef="let row" class="col-date">
+              {{ row.post_date ? (row.post_date | date:'mediumDate') : '—' }}
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="orphanColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: orphanColumns;"></tr>
+        </table>
+
+        <mat-paginator
+          [length]="orphanCount"
+          [pageSize]="orphanPageSize"
+          [pageSizeOptions]="[50, 100, 200]"
+          (page)="onOrphanPageChange($event)">
+        </mat-paginator>
+      </ng-container>
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 6 — LINK PATH EXPLORER
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon">route</mat-icon>
+      Path Explorer
+    </ng-template>
+
+    <div class="tab-content">
+      <p class="tab-description">
+        Find the shortest directed link path between any two articles (up to 4 hops).
+      </p>
+
+      <div class="path-controls">
+        <mat-form-field appearance="outline" class="path-field">
+          <mat-label>From article</mat-label>
+          <mat-icon matPrefix>article</mat-icon>
+          <input matInput
+            [matAutocomplete]="fromAuto"
+            [(ngModel)]="fromQuery"
+            (input)="onFromInput($event)"
+            placeholder="Search by title…" />
+          <mat-autocomplete #fromAuto="matAutocomplete" (optionSelected)="onFromSelected($event)">
+            <mat-option *ngFor="let a of fromResults" [value]="a">
+              {{ a.title }}
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+
+        <mat-icon class="path-arrow-icon">arrow_forward</mat-icon>
+
+        <mat-form-field appearance="outline" class="path-field">
+          <mat-label>To article</mat-label>
+          <mat-icon matPrefix>article</mat-icon>
+          <input matInput
+            [matAutocomplete]="toAuto"
+            [(ngModel)]="toQuery"
+            (input)="onToInput($event)"
+            placeholder="Search by title…" />
+          <mat-autocomplete #toAuto="matAutocomplete" (optionSelected)="onToSelected($event)">
+            <mat-option *ngFor="let a of toResults" [value]="a">
+              {{ a.title }}
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+
+        <button mat-raised-button color="primary"
+          (click)="findPath()"
+          [disabled]="!canFindPath()">
+          <mat-spinner diameter="18" *ngIf="loadingPath"></mat-spinner>
+          <mat-icon *ngIf="!loadingPath">route</mat-icon>
+          Find Path
+        </button>
+      </div>
+
+      <!-- Path result -->
+      <ng-container *ngIf="pathResult">
+        <ng-container *ngIf="pathResult.found">
+          <div class="path-result-header">
+            <mat-icon class="result-icon result-icon--found">check_circle</mat-icon>
+            Path found — {{ pathResult.hops }} hop{{ pathResult.hops !== 1 ? 's' : '' }}
+          </div>
+          <div class="path-chain">
+            <ng-container *ngFor="let node of pathResult.path; let last = last; trackBy: trackByPathNode">
+              <a [href]="node.url" target="_blank" rel="noopener" class="path-node" matTooltip="{{ node.url }}">
+                {{ node.title }}
+              </a>
+              <mat-icon class="chain-arrow" *ngIf="!last">arrow_forward</mat-icon>
+            </ng-container>
+          </div>
+        </ng-container>
+
+        <ng-container *ngIf="!pathResult.found">
+          <div class="path-result-header">
+            <mat-icon class="result-icon result-icon--not-found">cancel</mat-icon>
+            No directed path found within 4 hops.
+          </div>
+        </ng-container>
+      </ng-container>
+
+    </div>
+  </mat-tab>
+
+</mat-tab-group>

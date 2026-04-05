@@ -1,4 +1,4 @@
-"""Graph views — existing-link and broken-link API endpoints."""
+"""Graph views — existing-link, broken-link, and graph explorer API endpoints."""
 
 from __future__ import annotations
 
@@ -9,9 +9,12 @@ from datetime import datetime
 from django.http import StreamingHttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import status, viewsets
-from rest_framework.permissions import AllowAny
+from rest_framework.generics import ListAPIView
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from .serializers import BrokenLinkSerializer
 
@@ -119,3 +122,209 @@ class BrokenLinkViewSet(viewsets.ModelViewSet):
 
 def _isoformat(value: datetime | None) -> str:
     return value.isoformat() if value else ""
+
+
+# ── Graph Explorer Views ──────────────────────────────────────────────────────
+
+
+class GraphStatsView(APIView):
+    """
+    GET /api/graph/stats/
+
+    Returns a summary of the knowledge graph state:
+      total_nodes, total_edges, entity_count, orphan_count,
+      connected_pct, topic_count
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        from apps.content.models import ContentItem, SiloGroup
+        from apps.graph.models import ExistingLink
+        from apps.knowledge_graph.models import EntityNode
+
+        total_nodes = ContentItem.objects.filter(is_deleted=False).count()
+        total_edges = ExistingLink.objects.count()
+        entity_count = EntityNode.objects.count()
+        topic_count = SiloGroup.objects.count()
+
+        linked_ids = (
+            ExistingLink.objects
+            .filter(
+                to_content_item__is_deleted=False,
+                from_content_item__is_deleted=False,
+            )
+            .values_list("to_content_item_id", flat=True)
+            .distinct()
+        )
+        orphan_count = (
+            ContentItem.objects
+            .filter(is_deleted=False)
+            .exclude(pk__in=linked_ids)
+            .count()
+        )
+
+        connected_pct = (
+            round((total_nodes - orphan_count) / total_nodes * 100, 1)
+            if total_nodes > 0
+            else 0.0
+        )
+
+        return Response(
+            {
+                "total_nodes": total_nodes,
+                "total_edges": total_edges,
+                "entity_count": entity_count,
+                "orphan_count": orphan_count,
+                "connected_pct": connected_pct,
+                "topic_count": topic_count,
+            }
+        )
+
+
+class _OrphanPagination(PageNumberPagination):
+    page_size = 50
+    page_size_query_param = "page_size"
+    max_page_size = 200
+
+
+class OrphanArticleListView(ListAPIView):
+    """
+    GET /api/graph/orphans/
+
+    Returns ContentItems that have no inbound ExistingLinks,
+    ordered by pagerank score descending (lowest authority first).
+    """
+
+    pagination_class = _OrphanPagination
+    permission_classes = [IsAuthenticated]
+
+    def get_serializer_class(self):
+        from apps.content.serializers import ContentItemListSerializer
+        return ContentItemListSerializer
+
+    def get_queryset(self):
+        from apps.content.models import ContentItem
+        from apps.graph.models import ExistingLink
+
+        linked_ids = (
+            ExistingLink.objects
+            .filter(
+                to_content_item__is_deleted=False,
+                from_content_item__is_deleted=False,
+            )
+            .values_list("to_content_item_id", flat=True)
+            .distinct()
+        )
+        return (
+            ContentItem.objects
+            .filter(is_deleted=False)
+            .exclude(pk__in=linked_ids)
+            .order_by("march_2026_pagerank_score", "id")
+        )
+
+
+class GraphPathView(APIView):
+    """
+    GET /api/graph/path/?from_id=<int>&to_id=<int>
+
+    Finds the shortest directed link path between two articles using BFS.
+    Max depth: 4 hops.
+
+    Returns:
+      { found: true,  path: [{id, title, url}, ...], hops: N }
+      { found: false, path: [],                       hops: 0 }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        try:
+            from_id = int(request.query_params["from_id"])
+            to_id = int(request.query_params["to_id"])
+        except (KeyError, ValueError, TypeError):
+            return Response(
+                {"detail": "Both from_id and to_id (integers) are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        path = _bfs_path(from_id, to_id, max_depth=4)
+        if path is None:
+            return Response({"found": False, "path": [], "hops": 0})
+        return Response({"found": True, "path": path, "hops": len(path) - 1})
+
+
+def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
+    """BFS over ExistingLink directed edges. Returns node list or None."""
+    from apps.content.models import ContentItem
+    from apps.graph.models import ExistingLink
+
+    # Resolve the start node
+    start = (
+        ContentItem.objects
+        .filter(pk=from_id, is_deleted=False)
+        .values("id", "title", "url")
+        .first()
+    )
+    if start is None:
+        return None
+
+    if from_id == to_id:
+        return [{"id": start["id"], "title": start["title"], "url": start["url"]}]
+
+    # parent[child_id] = (parent_id, child_title, child_url)
+    parent: dict[int, tuple] = {}
+    visited: set[int] = {from_id}
+    frontier: list[int] = [from_id]
+
+    for _ in range(max_depth):
+        if not frontier:
+            break
+
+        edges = (
+            ExistingLink.objects
+            .filter(
+                from_content_item_id__in=frontier,
+                to_content_item__is_deleted=False,
+            )
+            .values(
+                "from_content_item_id",
+                "to_content_item_id",
+                "to_content_item__title",
+                "to_content_item__url",
+            )
+        )
+
+        next_frontier: list[int] = []
+        found = False
+
+        for edge in edges:
+            child_id = edge["to_content_item_id"]
+            if child_id in visited:
+                continue
+            visited.add(child_id)
+            parent[child_id] = (
+                edge["from_content_item_id"],
+                edge["to_content_item__title"],
+                edge["to_content_item__url"],
+            )
+            if child_id == to_id:
+                found = True
+                break
+            next_frontier.append(child_id)
+
+        if found:
+            # Reconstruct path from to_id back to from_id
+            path: list[dict] = []
+            node_id = to_id
+            while node_id in parent:
+                p_id, title, url = parent[node_id]
+                path.append({"id": node_id, "title": title, "url": url})
+                node_id = p_id
+            path.append({"id": start["id"], "title": start["title"], "url": start["url"]})
+            path.reverse()
+            return path
+
+        frontier = next_frontier
+
+    return None

@@ -1,24 +1,426 @@
+// ── Page Header ───────────────────────────────────────────────────────────────
+
 .page-header {
   margin-bottom: 24px;
 
   .page-title {
     display: flex;
     align-items: center;
-    gap: 10px;
-    font-size: 24px;
+    gap: 8px;
+    font-size: 22px;
     font-weight: 500;
     color: var(--color-text-dark-1);
     margin: 0;
 
     mat-icon {
       color: var(--color-primary);
-      font-size: 28px;
-      width: 28px;
-      height: 28px;
+      font-size: 24px;
+      width: 24px;
+      height: 24px;
     }
   }
 }
 
-.placeholder-card {
-  max-width: 600px;
+// ── Tab Shell ─────────────────────────────────────────────────────────────────
+
+.graph-tabs {
+  .tab-icon {
+    margin-right: 4px;
+    font-size: 18px;
+    width: 18px;
+    height: 18px;
+    vertical-align: middle;
+  }
+}
+
+.tab-content {
+  padding: 24px 0;
+}
+
+.tab-description {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0 0 16px;
+  max-width: 640px;
+}
+
+// ── Spinner ───────────────────────────────────────────────────────────────────
+
+.spinner-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px 0;
+}
+
+// ── Empty State ───────────────────────────────────────────────────────────────
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--color-text-muted);
+
+  mat-icon {
+    font-size: 48px;
+    width: 48px;
+    height: 48px;
+    margin-bottom: 16px;
+    opacity: 0.38;
+  }
+
+  h3 {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    margin: 0 0 8px;
+  }
+
+  p {
+    font-size: 13px;
+    margin: 0;
+    max-width: 320px;
+  }
+}
+
+// ── Stats Grid (Tab 1) ────────────────────────────────────────────────────────
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  border: var(--card-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--card-border-radius) !important;
+
+  mat-card-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 24px 16px !important;
+    text-align: center;
+  }
+
+  .stat-icon {
+    color: var(--color-primary);
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+    margin-bottom: 12px;
+    opacity: 0.8;
+  }
+
+  .stat-number {
+    font-size: 28px;
+    font-weight: 600;
+    color: var(--color-text-dark-1);
+    line-height: 1;
+    margin-bottom: 8px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  &:hover {
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  &.stat-card--warning .stat-icon,
+  &.stat-card--warning .stat-number {
+    color: var(--color-warning);
+  }
+
+  &.stat-card--success .stat-icon,
+  &.stat-card--success .stat-number {
+    color: var(--color-success);
+  }
+}
+
+// ── Topics Grid (Tab 2) ───────────────────────────────────────────────────────
+
+.topics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.topic-card {
+  border: var(--card-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--card-border-radius) !important;
+
+  &:hover {
+    box-shadow: var(--shadow-md) !important;
+  }
+
+  .topic-icon {
+    color: var(--color-primary);
+    background: var(--color-blue-50);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    font-size: 22px;
+  }
+
+  .topic-description {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 0;
+    line-height: 1.5;
+  }
+}
+
+// ── Filter Row (Tab 3) ────────────────────────────────────────────────────────
+
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.type-chips {
+  display: flex;
+  gap: 8px;
+
+  mat-chip {
+    cursor: pointer;
+    font-size: 13px;
+
+    &.chip-active {
+      background-color: var(--color-blue-50) !important;
+      color: var(--color-primary) !important;
+    }
+  }
+}
+
+.search-field {
+  min-width: 240px;
+  font-size: 13px;
+}
+
+// ── Entity Type Chips (Tab 3) ─────────────────────────────────────────────────
+
+.entity-type-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+
+  &--keyword {
+    background: var(--color-blue-50);
+    color: var(--color-primary);
+  }
+
+  &--named_entity {
+    background: var(--color-success-light);
+    color: var(--color-success-dark);
+  }
+
+  &--topic_tag {
+    background: #f3e8fd;
+    color: #6a1b9a;
+  }
+}
+
+.entity-name {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.entity-surface {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-left: 4px;
+}
+
+// ── Shared Table Styles ───────────────────────────────────────────────────────
+
+.data-table {
+  width: 100%;
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+
+  th.mat-header-cell {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--color-bg-faint);
+    border-bottom: var(--card-border);
+  }
+
+  td.mat-cell {
+    font-size: 13px;
+    color: var(--color-text-primary);
+    border-bottom: 0.8px solid var(--color-border-faint);
+  }
+
+  tr.mat-row:hover td {
+    background: var(--color-bg-faint);
+  }
+
+  tr.mat-row:last-child td {
+    border-bottom: none;
+  }
+}
+
+.col-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-right: 24px !important;
+}
+
+.col-date {
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+// ── Article Link ──────────────────────────────────────────────────────────────
+
+.article-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-primary);
+  text-decoration: none;
+  font-size: 13px;
+
+  &:hover {
+    text-decoration: underline;
+  }
+
+  .external-icon {
+    font-size: 14px;
+    width: 14px;
+    height: 14px;
+    opacity: 0.6;
+  }
+}
+
+.content-type-label {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+// ── PageRank Bar (Tab 4) ──────────────────────────────────────────────────────
+
+.pagerank-bar-wrap {
+  width: 120px;
+  height: 8px;
+  background: var(--color-border-faint);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.pagerank-bar {
+  height: 100%;
+  background: var(--color-primary);
+  border-radius: 4px;
+  min-width: 2px;
+  transition: width 0.3s ease;
+}
+
+// ── Path Explorer (Tab 6) ─────────────────────────────────────────────────────
+
+.path-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+
+  .path-field {
+    flex: 1;
+    min-width: 200px;
+    max-width: 360px;
+  }
+
+  .path-arrow-icon {
+    color: var(--color-text-muted);
+    font-size: 24px;
+    flex-shrink: 0;
+  }
+
+  button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+}
+
+.path-result-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 16px;
+  color: var(--color-text-secondary);
+
+  .result-icon {
+    font-size: 20px;
+    width: 20px;
+    height: 20px;
+
+    &--found { color: var(--color-success); }
+    &--not-found { color: var(--color-error); }
+  }
+}
+
+.path-chain {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 16px;
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  background: var(--color-bg-faint);
+
+  .path-node {
+    display: inline-flex;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--color-bg-white);
+    border: var(--card-border);
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--color-primary);
+    text-decoration: none;
+    max-width: 240px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    &:hover {
+      box-shadow: var(--shadow-md);
+    }
+  }
+
+  .chain-arrow {
+    color: var(--color-text-muted);
+    font-size: 20px;
+    flex-shrink: 0;
+  }
 }
