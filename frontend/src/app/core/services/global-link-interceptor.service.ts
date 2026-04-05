@@ -4,6 +4,7 @@ import { Router, NavigationEnd } from '@angular/router';
 import { Subject } from 'rxjs';
 import { filter, takeUntil } from 'rxjs/operators';
 import { ScrollHighlightService } from './scroll-highlight.service';
+import { waitForElement, revealHiddenParent, waitForElementVisible } from '../utils/scroll-highlight.utils';
 
 /**
  * Global link interceptor — registered once at app startup, works everywhere forever.
@@ -19,6 +20,8 @@ import { ScrollHighlightService } from './scroll-highlight.service';
  *    Any Angular Router navigation that ends with a fragment
  *    (e.g. routerLink="/page" fragment="section-id", or URL /page#section-id)
  *    automatically triggers scroll + highlight after the route renders.
+ *    Uses MutationObserver to wait for lazy-loaded components instead of
+ *    fragile setTimeout retries.
  *
  * Nothing needs to be added to individual components or templates.
  * Just give an element an id="..." and any link pointing to it works automatically.
@@ -30,6 +33,7 @@ export class GlobalLinkInterceptorService implements OnDestroy {
   private doc = inject(DOCUMENT);
 
   private destroy$ = new Subject<void>();
+  private destroyed = false;
   // Bound reference stored so we can remove the exact same listener on destroy
   private boundClickHandler = this.onDocumentClick.bind(this);
 
@@ -48,29 +52,35 @@ export class GlobalLinkInterceptorService implements OnDestroy {
       const fragment = this.router.parseUrl(e.urlAfterRedirects).fragment;
       if (!fragment) return;
 
-      // Increase delay and add retry mechanism to handle component/tab rendering
-      this.attemptScrollAndHighlight(fragment);
+      this.scrollToFragmentWhenReady(fragment);
     });
   }
 
   /**
-   * Attempts to scroll and highlight with a retry loop.
-   * This is critical for cross-page navigation where the target might be
-   * inside a tab that takes a few frames to render.
+   * Waits for an element to appear in the DOM (via MutationObserver),
+   * reveals it if hidden inside a tab or accordion, confirms it is
+   * visible, then scrolls and highlights.
+   *
+   * Handles lazy-loaded routes, tab panels, expansion panels, and
+   * full page reloads — no setTimeout guessing.
    */
-  private attemptScrollAndHighlight(fragment: string, attempt = 1): void {
-    setTimeout(() => {
-      const success = this.scrollHighlight.scrollToAndHighlight(`#${fragment}`);
-      
-      // If we failed and have attempts left, try again.
-      // Maximum 4 attempts (0ms, 200ms, 400ms, 600ms total delay)
-      if (!success && attempt < 4) {
-        this.attemptScrollAndHighlight(fragment, attempt + 1);
-      }
-    }, attempt === 1 ? 250 : 150);
+  private async scrollToFragmentWhenReady(fragment: string): Promise<void> {
+    const element = await waitForElement(fragment, 5000);
+    if (!element || this.destroyed) return;
+
+    // If inside a hidden tab or collapsed panel, reveal it first
+    await revealHiddenParent(element);
+    if (this.destroyed) return;
+
+    // Wait until the element is actually painted (handles animation delays)
+    await waitForElementVisible(element, 2000);
+    if (this.destroyed) return;
+
+    this.scrollHighlight.scrollToAndHighlight(`#${fragment}`);
   }
 
   ngOnDestroy(): void {
+    this.destroyed = true;
     this.destroy$.next();
     this.destroy$.complete();
     this.doc.removeEventListener('click', this.boundClickHandler, true);

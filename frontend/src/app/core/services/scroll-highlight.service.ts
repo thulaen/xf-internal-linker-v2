@@ -1,16 +1,13 @@
 import { Injectable } from '@angular/core';
-import { Subject, timer } from 'rxjs';
+import { Subscription, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
-import {
-  calculateCenterScroll,
-  validateAndGetElement,
-} from '../utils/scroll-highlight.utils';
+import { validateAndGetElement } from '../utils/scroll-highlight.utils';
 
 /**
  * Configuration options for scroll-and-highlight animation.
  */
 export interface ScrollHighlightOptions {
-  /** Scroll animation behavior: 'smooth' or 'auto'. Default: 'smooth' */
+  /** Scroll animation behavior: 'smooth' or 'auto'. Default: 'auto' */
   scrollBehavior?: 'smooth' | 'auto';
 
   /** Duration to hold the highlight before fading (ms). Default: 6000 */
@@ -22,18 +19,12 @@ export interface ScrollHighlightOptions {
   /** CSS class to apply during highlight. Default: 'scroll-highlight' */
   highlightClass?: string;
 
-  /** Duration of manual scroll animation (ms). Default: 350. Only used if scrollBehavior='auto' */
-  scrollDuration?: number;
-
-  /** Container to scroll (window or element). Default: window */
-  scrollContainer?: HTMLElement | Window;
-
   /** Optional callback when animation completes */
   onComplete?: () => void;
 }
 
 /**
- * Service for smooth scroll-and-highlight navigation.
+ * Service for scroll-and-highlight navigation.
  *
  * Provides a universal way to scroll to any element on the page and highlight it.
  * The element is centered in the viewport, highlighted with a subtle color, held
@@ -47,7 +38,14 @@ export interface ScrollHighlightOptions {
 })
 export class ScrollHighlightService {
   private currentHighlightElement: HTMLElement | null = null;
-  private highlightCancellation$ = new Subject<void>();
+  private highlightSub: Subscription | null = null;
+
+  // Tracks the selector so we can re-find the element after Angular re-renders it.
+  // Angular's @if blocks destroy and recreate DOM elements on data change, so we
+  // must use querySelector each tick rather than holding a stale DOM reference.
+  private activeSelector: string | null = null;
+  private activeHighlightClass: string | null = null;
+  private reapplyInterval: ReturnType<typeof setInterval> | null = null;
 
   /**
    * Scroll to an element and apply highlight animation.
@@ -59,47 +57,41 @@ export class ScrollHighlightService {
     selector: string,
     options: ScrollHighlightOptions = {}
   ): boolean {
-    const targetElement = document.querySelector(selector.startsWith('#') ? selector : `#${selector}`) as HTMLElement;
-    
-    if (!targetElement) {
-      return false;
-    }
-
     try {
-      // Validate and get the target element
       const targetElement = validateAndGetElement(selector);
 
       // Cancel any previous highlight
       this.cancelHighlight();
 
-      // Set default options
       const {
-        scrollBehavior = 'smooth',
+        scrollBehavior = 'auto',
         highlightDuration = 6000,
         fadeDuration = 500,
         highlightClass = 'scroll-highlight',
-        scrollDuration = 350,
-        scrollContainer = window,
         onComplete,
       } = options;
 
-      // Store current element for cleanup
+      // Store the selector string so we can re-find the element if Angular
+      // destroys and recreates it (e.g. inside an @if block on data change).
+      const normalizedSelector = selector.startsWith('#') ? selector : `#${selector}`;
+      this.activeSelector = normalizedSelector;
+      this.activeHighlightClass = highlightClass;
       this.currentHighlightElement = targetElement;
 
-      // Perform smooth scroll to element
-      this.performScroll(
-        targetElement,
-        scrollBehavior,
-        scrollDuration,
-        scrollContainer
-      );
+      // Scroll element into center of viewport.
+      // scrollIntoView handles any scroll container automatically (window, mat-sidenav-content, etc.)
+      this.performScroll(targetElement, scrollBehavior);
 
       // Apply highlight class
       targetElement.classList.add(highlightClass);
 
+      // Keep the class alive across Angular re-renders: poll every 200ms and
+      // reapply to whichever DOM node currently matches the selector.
+      this.startReapplyInterval(normalizedSelector, highlightClass);
+
       // Schedule the highlight animation sequence
       this.scheduleHighlightSequence(
-        targetElement,
+        normalizedSelector,
         highlightClass,
         highlightDuration,
         fadeDuration,
@@ -108,7 +100,6 @@ export class ScrollHighlightService {
 
       return true;
     } catch (error) {
-      // Log error but don't crash the app
       console.error('[ScrollHighlight]', error);
       return false;
     }
@@ -118,92 +109,42 @@ export class ScrollHighlightService {
    * Cancel the current highlight animation immediately.
    */
   cancelHighlight(): void {
-    if (this.currentHighlightElement) {
-      // Emit cancellation signal (cancels pending RxJS timers)
-      this.highlightCancellation$.next();
+    this.stopReapplyInterval();
 
-      // Remove all highlight classes
-      this.currentHighlightElement.classList.remove(
-        'scroll-highlight',
-        'scroll-highlight--fade'
-      );
+    this.highlightSub?.unsubscribe();
+    this.highlightSub = null;
 
-      // Reset state
-      this.currentHighlightElement = null;
-    }
+    const highlightClass = this.activeHighlightClass ?? 'scroll-highlight';
+    const liveEl = this.activeSelector
+      ? document.querySelector<HTMLElement>(this.activeSelector)
+      : this.currentHighlightElement;
+
+    liveEl?.classList.remove(highlightClass, `${highlightClass}--fade`);
+    this.currentHighlightElement = null;
+    this.activeSelector = null;
+    this.activeHighlightClass = null;
   }
 
   /**
-   * Perform the actual scroll animation.
-   * Uses native scrollBehavior='smooth' or manual animation via requestAnimationFrame.
+   * Scroll the element into the center of the viewport.
+   * Uses scrollIntoView which handles any scroll container automatically —
+   * works inside mat-sidenav-content, custom scroll panels, and window.
    */
-  private performScroll(
-    element: HTMLElement,
-    behavior: 'smooth' | 'auto',
-    duration: number,
-    scrollContainer: HTMLElement | Window
-  ): void {
-    if (behavior === 'smooth') {
-      // Use native smooth scroll
-      if (scrollContainer instanceof Window) {
-        window.scrollTo({ top: calculateCenterScroll(element), behavior: 'smooth' });
-      } else {
-        scrollContainer.scrollTo({ top: calculateCenterScroll(element, scrollContainer), behavior: 'smooth' });
-      }
-    } else {
-      // Manual smooth scroll with requestAnimationFrame for custom duration
-      this.animateScroll(
-        calculateCenterScroll(element, scrollContainer),
-        duration,
-        scrollContainer
-      );
-    }
-  }
-
-  /**
-   * Animate scroll over a specific duration using requestAnimationFrame.
-   */
-  private animateScroll(
-    targetScroll: number,
-    duration: number,
-    scrollContainer: HTMLElement | Window
-  ): void {
-    const startScroll =
-      scrollContainer instanceof Window
-        ? window.scrollY || window.pageYOffset
-        : scrollContainer.scrollTop;
-
-    const startTime = performance.now();
-    const distance = targetScroll - startScroll;
-
-    const animate = (currentTime: number) => {
-      const elapsed = currentTime - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-
-      // Ease-out cubic for smooth deceleration
-      const easeProgress = 1 - Math.pow(1 - progress, 3);
-      const currentScroll = startScroll + distance * easeProgress;
-
-      if (scrollContainer instanceof Window) {
-        window.scrollTo(0, currentScroll);
-      } else {
-        scrollContainer.scrollTop = currentScroll;
-      }
-
-      if (progress < 1) {
-        requestAnimationFrame(animate);
-      }
-    };
-
-    requestAnimationFrame(animate);
+  private performScroll(element: HTMLElement, behavior: 'smooth' | 'auto'): void {
+    element.scrollIntoView({
+      behavior: behavior === 'smooth' ? 'smooth' : 'instant',
+      block: 'center',
+    });
   }
 
   /**
    * Schedule the highlight animation sequence (hold + fade).
-   * Uses RxJS timer with switchMap to support cancellation.
+   * Uses RxJS timer with switchMap for cancellation.
+   * Uses querySelector on each callback so that Angular @if re-renders
+   * don't leave us with a stale element reference.
    */
   private scheduleHighlightSequence(
-    element: HTMLElement,
+    selector: string,
     highlightClass: string,
     highlightDuration: number,
     fadeDuration: number,
@@ -211,42 +152,59 @@ export class ScrollHighlightService {
   ): void {
     const fadeStartTime = highlightDuration - fadeDuration;
 
-    this.highlightCancellation$
-      .asObservable()
-      .pipe(
-        switchMap(() =>
-          // Wait for highlight duration, then start fade
-          timer(fadeStartTime).pipe(
-            switchMap(() => {
-              // Apply fade class to trigger CSS transition
-              if (element === this.currentHighlightElement) {
-                element.classList.add(`${highlightClass}--fade`);
-              }
+    this.highlightSub?.unsubscribe();
 
-              // Wait for fade duration, then cleanup
-              return timer(fadeDuration);
-            })
-          )
-        )
+    this.highlightSub = timer(fadeStartTime)
+      .pipe(
+        switchMap(() => {
+          // Stop reapply interval — fade phase begins, class must not be re-added
+          this.stopReapplyInterval();
+          const liveEl = document.querySelector<HTMLElement>(selector);
+          if (liveEl && selector === this.activeSelector) {
+            liveEl.classList.add(`${highlightClass}--fade`);
+          }
+          return timer(fadeDuration);
+        })
       )
       .subscribe(() => {
-        // Cleanup: remove all classes
-        if (element === this.currentHighlightElement) {
-          element.classList.remove(highlightClass, `${highlightClass}--fade`);
-          this.currentHighlightElement = null;
+        const liveEl = document.querySelector<HTMLElement>(selector);
+        if (liveEl) {
+          liveEl.classList.remove(highlightClass, `${highlightClass}--fade`);
         }
-
-        // Call completion callback
-        if (onComplete) {
-          onComplete();
-        }
+        this.currentHighlightElement = null;
+        this.activeSelector = null;
+        this.activeHighlightClass = null;
+        this.highlightSub = null;
+        onComplete?.();
       });
+  }
 
-    // Start the timer sequence by emitting initial signal
-    // This triggers switchMap chain above
-    // We need to emit after a micro-task to allow subscription to be set up
-    Promise.resolve().then(() => {
-      this.highlightCancellation$.next();
-    });
+  /**
+   * Poll every 200ms and reapply the highlight class if Angular has
+   * destroyed and recreated the target element (e.g. inside an @if block).
+   */
+  private startReapplyInterval(selector: string, highlightClass: string): void {
+    this.stopReapplyInterval();
+    this.reapplyInterval = setInterval(() => {
+      if (selector !== this.activeSelector) {
+        this.stopReapplyInterval();
+        return;
+      }
+      const liveEl = document.querySelector<HTMLElement>(selector);
+      if (!liveEl) return;
+      if (liveEl !== this.currentHighlightElement) {
+        this.currentHighlightElement = liveEl;
+      }
+      if (!liveEl.classList.contains(highlightClass)) {
+        liveEl.classList.add(highlightClass);
+      }
+    }, 200);
+  }
+
+  private stopReapplyInterval(): void {
+    if (this.reapplyInterval !== null) {
+      clearInterval(this.reapplyInterval);
+      this.reapplyInterval = null;
+    }
   }
 }

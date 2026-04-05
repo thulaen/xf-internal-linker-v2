@@ -1,4 +1,4 @@
-import { Directive, EventEmitter, HostListener, Input, Output, inject } from '@angular/core';
+import { DestroyRef, Directive, EventEmitter, HostListener, Input, Output, inject } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { ScrollHighlightService, ScrollHighlightOptions } from '../services/scroll-highlight.service';
 
@@ -29,6 +29,16 @@ import { ScrollHighlightService, ScrollHighlightOptions } from '../services/scro
 export class ScrollHighlightDirective {
   private scrollHighlightService = inject(ScrollHighlightService);
   private routerLink = inject(RouterLink, { optional: true });
+  private destroyRef = inject(DestroyRef);
+  private pendingTimeout: ReturnType<typeof setTimeout> | null = null;
+
+  constructor() {
+    this.destroyRef.onDestroy(() => {
+      if (this.pendingTimeout !== null) {
+        clearTimeout(this.pendingTimeout);
+      }
+    });
+  }
 
   /**
    * The ID of the element to scroll to (with or without '#' prefix).
@@ -94,8 +104,9 @@ export class ScrollHighlightDirective {
 
     // If routerLink is present, delay scroll-highlight to allow navigation to complete
     if (this.routerLink) {
-      setTimeout(
+      this.pendingTimeout = setTimeout(
         () => {
+          this.pendingTimeout = null;
           this.scrollHighlightService.scrollToAndHighlight(selector, optionsWithCallback);
         },
         this.scrollHighlightDelay
