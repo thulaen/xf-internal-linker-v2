@@ -1402,6 +1402,18 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
+### FR-046 — Multi-Query Fan-Out for Stage 1 Candidate Retrieval
+**Requested:** 2026-04-05
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Chen et al. arXiv:2402.03216 (bge-m3 multi-vector); Cormack et al. SIGIR 2009 (RRF); Khattab & Zaharia arXiv:2004.12832 (ColBERT); US8,682,892 B1; US9,342,607 B2; US20190138669 A1
+**Spec:** `docs/specs/fr046-query-fan-out-stage1-retrieval.md`
+
+Improves Stage 1 recall for multi-topic destination pages. Instead of embedding a destination as one vector, the page is decomposed into up to N segments (title, intro, body chunks). Each segment is embedded independently, a top-K similarity search is run per segment, and results are merged with Reciprocal Rank Fusion (RRF) before passing to Stage 2. Short pages fall back to the existing single-vector path. **On by default** in the Recommended preset — the short-page fallback makes it safe to ship enabled from day one.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
