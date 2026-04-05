@@ -10,6 +10,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 
 # Customize Django Admin branding
 admin.site.site_header = "XF Internal Linker V2"
@@ -19,6 +20,7 @@ admin.site.index_title = "Administration"
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("apps.api.urls")),
+    path("", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"),
 ]
 
 # Serve media files in development
