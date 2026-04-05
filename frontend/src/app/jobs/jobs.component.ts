@@ -136,15 +136,31 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   loadSourceStatus(): void {
     this.syncService.getSourceStatus().subscribe({
-      next: (s) => { this.sourceStatus = s; },
-      error: () => {},
+      next: (s) => { 
+        if (s && typeof s === 'object') {
+          this.sourceStatus = s; 
+        }
+      },
+      error: () => {
+        // Keep current False state on error
+      },
     });
   }
 
   loadHistory(): void {
     this.syncService.getJobs().subscribe({
-      next: (jobs) => { this.syncJobs = jobs; },
-      error: (err)  => { console.error('Failed to load job history', err); },
+      next: (jobs) => { 
+        // Ensure we only bind to arrays to avoid NG02200 crash
+        if (Array.isArray(jobs)) {
+          this.syncJobs = jobs; 
+        } else {
+          this.syncJobs = [];
+        }
+      },
+      error: (err)  => { 
+        this.syncJobs = [];
+        console.error('Failed to load job history', err); 
+      },
     });
   }
 

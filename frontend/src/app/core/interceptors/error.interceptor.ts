@@ -17,10 +17,10 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       if (status === 0) {
         message = 'Network error — check your connection';
-      } else if (status === 401) {
-        message = 'Session expired — please reload';
-      } else if (status === 403) {
-        message = 'Permission denied';
+      } else if (status === 401 || status === 403) {
+        // Show a "unauthorized" message but stay on the page. 
+        // This satisfies the user's request to let the dropdown work while logged out.
+        message = status === 401 ? 'Session expired — please reload' : 'Permission denied';
       } else if (status === 404) {
         message = 'Resource not found';
       } else if (status >= 500) {
