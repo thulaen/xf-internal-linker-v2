@@ -6,205 +6,342 @@
 </div>
 
 <div class="jobs-layout">
-  
-  <!-- ── Left Column: Active Import ──────────────────────────────── -->
+
+  <!-- ── Left column ────────────────────────────────────────────── -->
   <div class="layout-main">
-    <!-- ── Data Source Selection ────────────────────────────────────── -->
-    <div class="source-grid">
-      <mat-card class="source-card" [class.active]="source === 'api'" (click)="setSource('api')">
-        <mat-card-content>
-          <div class="source-icon xf"><mat-icon>forum</mat-icon></div>
-          <div class="source-info">
-            <span class="source-name">XenForo</span>
-            <span class="source-status" [class.connected]="sourceStatus.api" [class.not-configured]="!sourceStatus.api">
-              <span class="status-dot"></span>
-              {{ sourceStatus.api ? 'Connected' : 'Not configured' }}
-            </span>
-          </div>
-        </mat-card-content>
-      </mat-card>
 
-      <mat-card class="source-card" [class.active]="source === 'wp'" (click)="setSource('wp')">
-        <mat-card-content>
-          <div class="source-icon wp"><mat-icon>description</mat-icon></div>
-          <div class="source-info">
-            <span class="source-name">WordPress</span>
-            <span class="source-status" [class.connected]="sourceStatus.wp" [class.not-configured]="!sourceStatus.wp">
-              <span class="status-dot"></span>
-              {{ sourceStatus.wp ? 'Connected' : 'Not configured' }}
-            </span>
-          </div>
-        </mat-card-content>
-      </mat-card>
+    <!-- Controls bar: mode + sync all -->
+    <div class="controls-bar">
+      <mat-form-field appearance="outline" class="mode-field" subscriptSizing="dynamic">
+        <mat-label>Import mode</mat-label>
+        <mat-select [(ngModel)]="importMode" [disabled]="anyRunning">
+          @for (m of modes; track m.value) {
+            <mat-option [value]="m.value">{{ m.label }} — {{ m.hint }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
 
-      <mat-card class="source-card" [class.active]="source === 'jsonl'" (click)="setSource('jsonl')">
-        <mat-card-content>
-          <div class="source-icon jsonl"><mat-icon>upload_file</mat-icon></div>
-          <div class="source-info">
-            <span class="source-name">JSONL Import</span>
-            <span class="source-status connected">
-              <span class="status-dot"></span>
-              Ready
-            </span>
-          </div>
-        </mat-card-content>
-      </mat-card>
+      @if (sourceStatus.api || sourceStatus.wp) {
+        <button mat-stroked-button color="primary" (click)="syncAll()" [disabled]="!canSyncAll">
+          <mat-icon>sync_alt</mat-icon>
+          Sync All
+        </button>
+      }
     </div>
 
-    <!-- ── Not configured notice (XF or WP) ─────────────────────────── -->
-    @if ((source === 'api' && !sourceStatus.api) || (source === 'wp' && !sourceStatus.wp)) {
-      <div class="source-config-panel">
-        <div class="config-header">
-          <mat-icon>info</mat-icon>
-          <span>{{ source === 'api' ? 'XenForo' : 'WordPress' }} not configured</span>
-        </div>
-        <p class="config-hint">Set up credentials in Settings → Connect &amp; Sync, then come back here to run a sync.</p>
-        <a mat-stroked-button routerLink="/settings">
-          <mat-icon>settings</mat-icon>
-          Go to Settings → Connect &amp; Sync
-        </a>
-      </div>
-    }
-
-    <!-- ── Active Sync Card ────────────────────────────────────────── -->
-    <mat-card class="import-card">
-      <mat-card-header>
-        <mat-card-title>
-          @if (source === 'jsonl') { Import Content } 
-          @else if (source === 'api') { Sync from XenForo }
-          @else { Sync from WordPress }
-        </mat-card-title>
-        <mat-card-subtitle>
-          @if (source === 'jsonl') { Upload a .jsonl export from your server }
-          @else { One-click synchronization via direct API connection }
-        </mat-card-subtitle>
-      </mat-card-header>
-
+    <!-- ── XenForo ─────────────────────────────────────────────── -->
+    <mat-card class="source-card" [class.is-running]="getJob('api').state === 'running'">
       <mat-card-content>
-        <!-- Drop zone for JSONL -->
-        @if (source === 'jsonl' && (state === 'idle' || state === 'uploading')) {
-          <div
-            class="drop-zone"
-            [class.drag-over]="isDragOver"
-            [class.has-file]="!!selectedFile"
-            (dragover)="onDragOver($event)"
-            (dragleave)="onDragLeave()"
-            (drop)="onDrop($event)"
-            (click)="fileInput.click()"
-            role="button"
-            tabindex="0"
-          >
-            <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
-            @if (selectedFile) {
-              <mat-icon class="drop-icon file-selected">task</mat-icon>
-              <span class="drop-primary">{{ selectedFile.name }}</span>
+        <div class="source-row">
+          <div class="source-identity">
+            <div class="source-icon xf"><mat-icon>forum</mat-icon></div>
+            <div class="source-text">
+              <span class="source-name">XenForo</span>
+              <span class="source-status" [class.connected]="sourceStatus.api" [class.not-configured]="!sourceStatus.api">
+                <span class="status-dot"></span>
+                {{ sourceStatus.api ? 'Connected' : 'Not configured' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="last-sync">
+            @if (getLastSync('api'); as last) {
+              <div class="last-sync-date">{{ last.completed_at | date:'MMM d · HH:mm' }}</div>
+              <div class="last-sync-items">{{ last.items_synced | number }} items synced</div>
             } @else {
-              <mat-icon class="drop-icon">cloud_upload</mat-icon>
-              <span class="drop-primary">Drag &amp; drop your .jsonl file here</span>
+              <span class="never-synced">Never synced</span>
             }
           </div>
-        }
 
-        @if (errorMessage) {
-          <div class="error-banner">
-            <mat-icon>error_outline</mat-icon>
-            {{ errorMessage }}
+          <div class="source-action">
+            @if (!sourceStatus.api) {
+              <a mat-stroked-button routerLink="/settings">
+                <mat-icon>settings</mat-icon> Configure
+              </a>
+            } @else if (getJob('api').state === 'idle') {
+              <button mat-flat-button color="primary" (click)="startSourceSync('api')">
+                <mat-icon>play_arrow</mat-icon> Sync Now
+              </button>
+            } @else if (getJob('api').state === 'running') {
+              <button mat-flat-button color="primary" disabled>
+                <span class="btn-running">
+                  <mat-spinner diameter="18"></mat-spinner>
+                  Running
+                </span>
+              </button>
+            } @else if (getJob('api').state === 'completed') {
+              <div class="done-row success">
+                <mat-icon>check_circle</mat-icon>
+                <span>Done</span>
+                <button mat-button (click)="resetJob('api')">Reset</button>
+              </div>
+            } @else if (getJob('api').state === 'failed') {
+              <div class="done-row error">
+                <mat-icon>error</mat-icon>
+                <button mat-button (click)="resetJob('api')">Retry</button>
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (getJob('api').state === 'running') {
+          <div class="inline-progress">
+            <div class="progress-msg">{{ getJob('api').progressMessage }}</div>
+            <div class="progress-phase">
+              <div class="phase-row">
+                <span class="phase-label">Phase 1 — Ingest</span>
+                <span class="phase-pct">{{ getJob('api').ingestProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('api').ingestProgress"></mat-progress-bar>
+            </div>
+            <div class="progress-phase" [class.dimmed]="getJob('api').ingestProgress < 100">
+              <div class="phase-row">
+                <span class="phase-label">Phase 2 — Intelligence</span>
+                <span class="phase-pct">{{ getJob('api').mlProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('api').mlProgress"></mat-progress-bar>
+            </div>
           </div>
         }
 
-        @if (state === 'idle') {
-          <mat-form-field appearance="outline" class="mode-field">
-            <mat-label>Import mode</mat-label>
-            <mat-select [(ngModel)]="importMode">
-              @for (m of modes; track m.value) {
-                <mat-option [value]="m.value">
-                  {{ m.label }} <span class="mode-hint">— {{ m.hint }}</span>
-                </mat-option>
-              }
-            </mat-select>
-          </mat-form-field>
-        }
-
-        <!-- Dual Progress section -->
-        @if (state === 'running' || state === 'uploading') {
-          <div class="progress-section">
-            <div class="progress-header">
-              <span class="progress-message">{{ progressMessage }}</span>
-            </div>
-
-            <div class="dual-progress">
-              <div class="progress-row">
-                <div class="row-label">
-                  <span class="phase">Phase 1: Ingest (C#)</span>
-                  <span class="pct">{{ ingestProgress }}%</span>
-                </div>
-                <mat-progress-bar mode="determinate" [value]="ingestProgress"></mat-progress-bar>
-              </div>
-
-              <div class="progress-row" [class.dimmed]="ingestProgress < 100">
-                <div class="row-label">
-                  <span class="phase">Phase 2: Intelligence (Python)</span>
-                  <span class="pct">{{ mlProgress }}%</span>
-                </div>
-                <mat-progress-bar mode="determinate" [value]="mlProgress"></mat-progress-bar>
-              </div>
-            </div>
-          </div>
-        }
-
-        <!-- Result banners -->
-        @if (state === 'completed') {
+        @if (getJob('api').state === 'completed') {
           <div class="result-banner success">
             <mat-icon>check_circle</mat-icon>
-            <div>
-              <strong>Process complete</strong>
-              <p>{{ progressMessage }}</p>
-            </div>
+            <p>{{ getJob('api').progressMessage }}</p>
           </div>
         }
 
-        @if (state === 'failed') {
-          <div class="result-banner failure">
-            <mat-icon>cancel</mat-icon>
-            <div>
-              <strong>Sync failed</strong>
-              <p>{{ errorMessage }}</p>
-            </div>
+        @if (getJob('api').state === 'failed' && getJob('api').errorMessage) {
+          <div class="inline-error">
+            <mat-icon>error_outline</mat-icon>
+            {{ getJob('api').errorMessage }}
           </div>
         }
       </mat-card-content>
-
-      <mat-divider></mat-divider>
-
-      <mat-card-actions align="end">
-        @if (state === 'completed' || state === 'failed') {
-          <button mat-button (click)="reset()">
-            <mat-icon>refresh</mat-icon>
-            Reset
-          </button>
-        }
-        @if (state === 'idle') {
-          <button
-            mat-flat-button
-            color="primary"
-            [disabled]="source === 'jsonl' && !selectedFile"
-            (click)="source === 'jsonl' ? startImport() : startApiSync(source)"
-          >
-            <mat-icon>play_arrow</mat-icon>
-            Start {{ source === 'jsonl' ? 'Import' : 'Sync' }}
-          </button>
-        }
-        @if (isRunning) {
-          <button mat-flat-button color="primary" disabled>
-            <mat-icon class="spinning">sync</mat-icon>
-            Processing...
-          </button>
-        }
-      </mat-card-actions>
     </mat-card>
+
+    <!-- ── WordPress ───────────────────────────────────────────── -->
+    <mat-card class="source-card" [class.is-running]="getJob('wp').state === 'running'">
+      <mat-card-content>
+        <div class="source-row">
+          <div class="source-identity">
+            <div class="source-icon wp"><mat-icon>description</mat-icon></div>
+            <div class="source-text">
+              <span class="source-name">WordPress</span>
+              <span class="source-status" [class.connected]="sourceStatus.wp" [class.not-configured]="!sourceStatus.wp">
+                <span class="status-dot"></span>
+                {{ sourceStatus.wp ? 'Connected' : 'Not configured' }}
+              </span>
+            </div>
+          </div>
+
+          <div class="last-sync">
+            @if (getLastSync('wp'); as last) {
+              <div class="last-sync-date">{{ last.completed_at | date:'MMM d · HH:mm' }}</div>
+              <div class="last-sync-items">{{ last.items_synced | number }} items synced</div>
+            } @else {
+              <span class="never-synced">Never synced</span>
+            }
+          </div>
+
+          <div class="source-action">
+            @if (!sourceStatus.wp) {
+              <a mat-stroked-button routerLink="/settings">
+                <mat-icon>settings</mat-icon> Configure
+              </a>
+            } @else if (getJob('wp').state === 'idle') {
+              <button mat-flat-button color="primary" (click)="startSourceSync('wp')">
+                <mat-icon>play_arrow</mat-icon> Sync Now
+              </button>
+            } @else if (getJob('wp').state === 'running') {
+              <button mat-flat-button color="primary" disabled>
+                <span class="btn-running">
+                  <mat-spinner diameter="18"></mat-spinner>
+                  Running
+                </span>
+              </button>
+            } @else if (getJob('wp').state === 'completed') {
+              <div class="done-row success">
+                <mat-icon>check_circle</mat-icon>
+                <span>Done</span>
+                <button mat-button (click)="resetJob('wp')">Reset</button>
+              </div>
+            } @else if (getJob('wp').state === 'failed') {
+              <div class="done-row error">
+                <mat-icon>error</mat-icon>
+                <button mat-button (click)="resetJob('wp')">Retry</button>
+              </div>
+            }
+          </div>
+        </div>
+
+        @if (getJob('wp').state === 'running') {
+          <div class="inline-progress">
+            <div class="progress-msg">{{ getJob('wp').progressMessage }}</div>
+            <div class="progress-phase">
+              <div class="phase-row">
+                <span class="phase-label">Phase 1 — Ingest</span>
+                <span class="phase-pct">{{ getJob('wp').ingestProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('wp').ingestProgress"></mat-progress-bar>
+            </div>
+            <div class="progress-phase" [class.dimmed]="getJob('wp').ingestProgress < 100">
+              <div class="phase-row">
+                <span class="phase-label">Phase 2 — Intelligence</span>
+                <span class="phase-pct">{{ getJob('wp').mlProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('wp').mlProgress"></mat-progress-bar>
+            </div>
+          </div>
+        }
+
+        @if (getJob('wp').state === 'completed') {
+          <div class="result-banner success">
+            <mat-icon>check_circle</mat-icon>
+            <p>{{ getJob('wp').progressMessage }}</p>
+          </div>
+        }
+
+        @if (getJob('wp').state === 'failed' && getJob('wp').errorMessage) {
+          <div class="inline-error">
+            <mat-icon>error_outline</mat-icon>
+            {{ getJob('wp').errorMessage }}
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
+    <!-- ── JSONL Import ────────────────────────────────────────── -->
+    <mat-card class="source-card">
+      <mat-card-content>
+        <div class="source-row">
+          <div class="source-identity">
+            <div class="source-icon jsonl"><mat-icon>upload_file</mat-icon></div>
+            <div class="source-text">
+              <span class="source-name">JSONL Import</span>
+              <span class="source-status connected">
+                <span class="status-dot"></span>
+                Ready
+              </span>
+            </div>
+          </div>
+
+          <div class="last-sync">
+            @if (getLastSync('jsonl'); as last) {
+              <div class="last-sync-date">{{ last.completed_at | date:'MMM d · HH:mm' }}</div>
+              <div class="last-sync-items">{{ last.items_synced | number }} items</div>
+            } @else {
+              <span class="never-synced">No imports yet</span>
+            }
+          </div>
+
+          <div class="source-action">
+            @if (getJob('jsonl').state === 'idle') {
+              @if (selectedFile) {
+                <button mat-flat-button color="primary" (click)="startJsonlImport()">
+                  <mat-icon>play_arrow</mat-icon> Start Import
+                </button>
+              } @else {
+                <button mat-stroked-button (click)="jsonlExpanded = !jsonlExpanded">
+                  <mat-icon>upload</mat-icon> Upload File
+                </button>
+              }
+            } @else if (getJob('jsonl').state === 'uploading') {
+              <button mat-flat-button color="primary" disabled>
+                <span class="btn-running">
+                  <mat-spinner diameter="18"></mat-spinner>
+                  Uploading…
+                </span>
+              </button>
+            } @else if (getJob('jsonl').state === 'running') {
+              <button mat-flat-button color="primary" disabled>
+                <span class="btn-running">
+                  <mat-spinner diameter="18"></mat-spinner>
+                  Running
+                </span>
+              </button>
+            } @else if (getJob('jsonl').state === 'completed') {
+              <div class="done-row success">
+                <mat-icon>check_circle</mat-icon>
+                <span>Done</span>
+                <button mat-button (click)="resetJob('jsonl')">Reset</button>
+              </div>
+            } @else if (getJob('jsonl').state === 'failed') {
+              <div class="done-row error">
+                <mat-icon>error</mat-icon>
+                <button mat-button (click)="resetJob('jsonl')">Retry</button>
+              </div>
+            }
+          </div>
+        </div>
+
+        <!-- Drop zone -->
+        @if (jsonlExpanded && getJob('jsonl').state === 'idle') {
+          <div class="jsonl-expand">
+            <div
+              class="drop-zone"
+              [class.drag-over]="isDragOver"
+              [class.has-file]="!!selectedFile"
+              (dragover)="onDragOver($event)"
+              (dragleave)="onDragLeave()"
+              (drop)="onDrop($event)"
+              (click)="fileInput.click()"
+              role="button"
+              tabindex="0"
+            >
+              <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
+              @if (selectedFile) {
+                <mat-icon class="drop-icon file-selected">task</mat-icon>
+                <span class="drop-primary">{{ selectedFile.name }}</span>
+                <span class="drop-hint">Click "Start Import" above to begin</span>
+              } @else {
+                <mat-icon class="drop-icon">cloud_upload</mat-icon>
+                <span class="drop-primary">Drag &amp; drop a .jsonl file here, or click to browse</span>
+              }
+            </div>
+          </div>
+        }
+
+        <!-- JSONL progress -->
+        @if (getJob('jsonl').state === 'running' || getJob('jsonl').state === 'uploading') {
+          <div class="inline-progress">
+            <div class="progress-msg">{{ getJob('jsonl').progressMessage }}</div>
+            <div class="progress-phase">
+              <div class="phase-row">
+                <span class="phase-label">Phase 1 — Ingest</span>
+                <span class="phase-pct">{{ getJob('jsonl').ingestProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('jsonl').ingestProgress"></mat-progress-bar>
+            </div>
+            <div class="progress-phase" [class.dimmed]="getJob('jsonl').ingestProgress < 100">
+              <div class="phase-row">
+                <span class="phase-label">Phase 2 — Intelligence</span>
+                <span class="phase-pct">{{ getJob('jsonl').mlProgress }}%</span>
+              </div>
+              <mat-progress-bar mode="determinate" [value]="getJob('jsonl').mlProgress"></mat-progress-bar>
+            </div>
+          </div>
+        }
+
+        @if (getJob('jsonl').state === 'completed') {
+          <div class="result-banner success">
+            <mat-icon>check_circle</mat-icon>
+            <p>{{ getJob('jsonl').progressMessage }}</p>
+          </div>
+        }
+
+        @if (getJob('jsonl').errorMessage) {
+          <div class="inline-error">
+            <mat-icon>error_outline</mat-icon>
+            {{ getJob('jsonl').errorMessage }}
+          </div>
+        }
+      </mat-card-content>
+    </mat-card>
+
   </div>
 
-  <!-- ── Right Column: History ──────────────────────────────────── -->
+  <!-- ── Right column: History ──────────────────────────────────── -->
   <div class="layout-side">
     <mat-card class="history-card">
       <mat-card-header>
@@ -215,16 +352,12 @@
       <mat-card-content>
         @if (syncJobs.length > 0) {
           <table mat-table [dataSource]="syncJobs" class="history-table">
-            
-            <!-- Date Column -->
+
             <ng-container matColumnDef="created_at">
               <th mat-header-cell *matHeaderCellDef>Date</th>
-              <td mat-cell *matCellDef="let job">
-                {{ job.created_at | date:'MMM d, HH:mm' }}
-              </td>
+              <td mat-cell *matCellDef="let job">{{ job.created_at | date:'MMM d, HH:mm' }}</td>
             </ng-container>
 
-            <!-- Source Column -->
             <ng-container matColumnDef="source">
               <th mat-header-cell *matHeaderCellDef>Source</th>
               <td mat-cell *matCellDef="let job">
@@ -232,36 +365,25 @@
               </td>
             </ng-container>
 
-            <!-- Mode Column -->
             <ng-container matColumnDef="mode">
               <th mat-header-cell *matHeaderCellDef>Mode</th>
-              <td mat-cell *matCellDef="let job">
-                {{ job.mode }}
-              </td>
+              <td mat-cell *matCellDef="let job">{{ job.mode }}</td>
             </ng-container>
 
-            <!-- Status Column -->
             <ng-container matColumnDef="status">
               <th mat-header-cell *matHeaderCellDef>Status</th>
               <td mat-cell *matCellDef="let job">
-                <mat-icon 
-                  [matTooltip]="job.status"
-                  [ngClass]="getStatusClass(job.status)"
-                >
+                <mat-icon [matTooltip]="job.status" [ngClass]="getStatusClass(job.status)">
                   {{ getStatusIcon(job.status) }}
                 </mat-icon>
               </td>
             </ng-container>
 
-            <!-- Progress Column -->
             <ng-container matColumnDef="progress">
-              <th mat-header-cell *matHeaderCellDef>Progress</th>
-              <td mat-cell *matCellDef="let job">
-                {{ job.items_synced }} items
-              </td>
+              <th mat-header-cell *matHeaderCellDef>Items</th>
+              <td mat-cell *matCellDef="let job">{{ job.items_synced | number }}</td>
             </ng-container>
 
-            <!-- Actions Column -->
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let job">
@@ -276,13 +398,13 @@
           </table>
         } @else {
           <div class="empty-state">
-            <div class="empty-icon-wrap">
-              <mat-icon>history_toggle_off</mat-icon>
-            </div>
-            <p>No recent synchronization activity.</p>
+            <mat-icon class="empty-icon">history_toggle_off</mat-icon>
+            <p class="empty-title">No activity yet</p>
+            <p class="empty-hint">Your sync history will appear here.</p>
           </div>
         }
       </mat-card-content>
     </mat-card>
   </div>
+
 </div>
