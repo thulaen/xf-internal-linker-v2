@@ -58,6 +58,8 @@ export class JobsComponent implements OnInit, OnDestroy {
   syncJobs: SyncJob[] = [];
   displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'duration', 'success_rate', 'actions'];
 
+  private historyInterval: ReturnType<typeof setInterval> | null = null;
+
   jobs: Record<'api' | 'wp' | 'jsonl', SourceJobState> = {
     api:   this.emptyJob(),
     wp:    this.emptyJob(),
@@ -129,9 +131,24 @@ export class JobsComponent implements OnInit, OnDestroy {
     return job.status === 'completed' ? '100%' : '0%';
   }
 
+  // A job is "stuck" if it has been running for more than 2 hours without completing.
+  isStuck(job: SyncJob): boolean {
+    if (job.status !== 'running' || !job.started_at) return false;
+    const ageMs = Date.now() - new Date(job.started_at).getTime();
+    return ageMs > 2 * 60 * 60 * 1000;
+  }
+
+  getStatusTooltip(job: SyncJob): string {
+    if (this.isStuck(job)) return 'Job appears stuck — will be cleaned up automatically overnight';
+    if (job.status === 'failed' && job.error_message) return job.error_message;
+    return job.status;
+  }
+
   ngOnInit(): void {
     this.loadHistory();
     this.loadSourceStatus();
+    // Refresh the history table every 30 seconds so status changes are visible.
+    this.historyInterval = setInterval(() => this.loadHistory(), 30_000);
   }
 
   loadSourceStatus(): void {
@@ -347,5 +364,6 @@ export class JobsComponent implements OnInit, OnDestroy {
       j.ws?.close();
       this.clearPolling(j);
     });
+    if (this.historyInterval) clearInterval(this.historyInterval);
   }
 }

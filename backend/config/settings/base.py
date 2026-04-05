@@ -214,6 +214,13 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=0),
         "options": {"queue": "pipeline"},
     },
+    # Stuck job cleanup: 03:30 UTC daily — marks any SyncJob stuck in 'running'
+    # for over 2 hours as failed (handles server restarts / laptop shutdowns mid-sync).
+    "cleanup-stuck-sync-jobs": {
+        "task": "pipeline.cleanup_stuck_sync_jobs",
+        "schedule": crontab(hour=3, minute=30),
+        "options": {"queue": "pipeline"},
+    },
     # FR-019 — daily GSC spike detection: 08:00 UTC (after overnight GSC sync).
     "daily-gsc-spike-check": {
         "task": "pipeline.check_gsc_spikes",

@@ -1801,6 +1801,38 @@ def nightly_data_retention():
     return results
 
 
+@shared_task(name="pipeline.cleanup_stuck_sync_jobs")
+def cleanup_stuck_sync_jobs():
+    """Mark SyncJob records that have been stuck in 'running' for over 2 hours as failed.
+
+    This handles the case where the server was restarted or the laptop shut down
+    mid-sync, leaving a job record that will never complete on its own.
+
+    Scheduled daily at 03:30 UTC (after nightly_data_retention).
+    """
+    from datetime import timedelta
+
+    from django.utils import timezone
+
+    from apps.sync.models import SyncJob
+
+    cutoff = timezone.now() - timedelta(hours=2)
+    stuck = SyncJob.objects.filter(status="running", started_at__lt=cutoff)
+    count = stuck.count()
+
+    if count:
+        stuck.update(
+            status="failed",
+            error_message="Job timed out — server was likely restarted mid-sync.",
+            completed_at=timezone.now(),
+        )
+        logger.info("[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed.", count)
+    else:
+        logger.info("[cleanup_stuck_sync_jobs] No stuck jobs found.")
+
+    return {"jobs_cleaned": count}
+
+
 @shared_task(name="pipeline.sync_single_xf_item")
 def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: int | None = None) -> dict:
     """Real-time sync for a single XenForo item (thread or resource) via webhook."""

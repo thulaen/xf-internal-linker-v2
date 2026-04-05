@@ -167,6 +167,20 @@ class SchedulerDispatchView(views.APIView):
                 status=status.HTTP_200_OK,
             )
 
+        if task_name == "pipeline.cleanup_stuck_sync_jobs":
+            from apps.pipeline.tasks import cleanup_stuck_sync_jobs
+
+            result = cleanup_stuck_sync_jobs.run()
+            return response.Response(
+                {
+                    "status": "completed",
+                    "task": task_name,
+                    "periodic_task_name": periodic_task_name,
+                    "result": result,
+                },
+                status=status.HTTP_200_OK,
+            )
+
         return response.Response(
             {
                 "detail": (

@@ -344,6 +344,7 @@
     &.status-failed    { color: var(--color-error); }
     &.status-running   { color: var(--color-primary); animation: ga4-spin 2s linear infinite; }
     &.status-pending   { color: var(--color-warning); }
+    &.status-stuck     { color: var(--color-warning); }
   }
 }
 
