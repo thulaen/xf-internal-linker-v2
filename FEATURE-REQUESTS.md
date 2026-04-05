@@ -865,6 +865,8 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 ### FR-026 - Authentication & Login Status UI
 **Requested:** 2026-03-28
 **Target phase:** Phase 29
+**Completed phase:** Phase 29
+**Completed:** 2026-04-05
 **Priority:** High
 **Spec draft:** `docs/specs/fr026-authentication-login-status-ui.md`
 

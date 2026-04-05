@@ -1,7 +1,8 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterOutlet, RouterLink, RouterLinkActive } from '@angular/router';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
 import { CommonModule } from '@angular/common';
+import { filter, map, startWith } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -60,8 +61,16 @@ export class AppComponent implements OnInit {
   private healthService = inject(HealthService);
   private dashboardSvc = inject(DashboardService);
   private destroyRef = inject(DestroyRef);
+  private router = inject(Router);
 
-  user$ = this.auth.user$;
+  currentUser$ = this.auth.currentUser$;
+
+  // Hide the app shell on the login page so it gets its own minimal layout
+  isLoginPage$ = this.router.events.pipe(
+    filter(e => e instanceof NavigationEnd),
+    map((e: NavigationEnd) => e.urlAfterRedirects.startsWith('/login')),
+    startWith(this.router.url.startsWith('/login'))
+  );
 
   customizerOpen = false;
   notifPanelOpen = false;
@@ -181,9 +190,5 @@ export class AppComponent implements OnInit {
 
   logout(): void {
     this.auth.logout();
-  }
-
-  login(): void {
-    this.auth.login();
   }
 }

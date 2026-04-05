@@ -56,6 +56,7 @@ from apps.suggestions.views import (
     WeightPresetViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
+from rest_framework.authtoken.views import obtain_auth_token
 
 from apps.api.ml_views import MLDistillView, MLEmbedView
 
@@ -78,6 +79,7 @@ router.register(r"weight-challengers", RankingChallengerViewSet, basename="weigh
 router.register(r"health", HealthStatusViewSet, basename="health")
 
 urlpatterns = [
+    path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
     path("", include("apps.core.urls")),

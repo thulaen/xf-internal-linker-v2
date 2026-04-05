@@ -2970,35 +2970,30 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
 
 class UserMeView(APIView):
     """
-    Returns the currently authenticated user's profile information.
-    Required for the frontend toolbar auth status indicator.
+    Returns the currently authenticated user's profile.
+    Returns 401 when no valid token is provided.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        if request.user.is_authenticated:
-            return Response({
-                "username": request.user.username,
-                "email": request.user.email,
-                "full_name": request.user.get_full_name() or request.user.username,
-                "is_authenticated": True,
-                "is_staff": request.user.is_staff,
-            })
         return Response({
-            "username": "Guest",
-            "is_authenticated": False,
-            "is_staff": False,
+            "id": request.user.id,
+            "username": request.user.username,
+            "email": request.user.email,
+            "is_staff": request.user.is_staff,
+            "date_joined": request.user.date_joined,
         })
 
 
 class UserLogoutView(APIView):
     """
-    Logs out the current user session.
-    Requires a POST request as per Django 5.x standards.
+    Deletes the user's auth token, invalidating all future requests with it.
     """
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from django.contrib.auth import logout
-        logout(request)
-        return Response({"status": "success", "message": "Logged out successfully."})
+        try:
+            request.user.auth_token.delete()
+        except Exception:
+            pass
+        return Response({"status": "success"})

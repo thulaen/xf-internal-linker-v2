@@ -1,4 +1,9 @@
 <!-- XF Internal Linker V2 — Main Application Shell -->
+@if (isLoginPage$ | async) {
+  <!-- Login page uses its own minimal layout — no shell rendered -->
+  <router-outlet />
+} @else {
+
 <!-- ── Top Toolbar (Spans entire width) ────────────────────────── -->
 <mat-toolbar class="app-toolbar">
   @if (config.logoUrl) {
@@ -9,8 +14,8 @@
   <app-notification-center
     [(open)]="notifPanelOpen"
   />
-  <div 
-    class="system-status-dot" 
+  <div
+    class="system-status-dot"
     [ngClass]="'status-' + systemStatus"
     [matTooltip]="'System status: ' + systemStatus"
     routerLink="/system-health"
@@ -26,34 +31,33 @@
     <mat-icon>admin_panel_settings</mat-icon>
   </button>
 
-  @if (user$ | async; as user) {
-    @if (user.is_authenticated) {
-      <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-btn">
-        <mat-icon>account_circle</mat-icon>
-        <span>{{ user.full_name }}</span>
-      </button>
-      <mat-menu #userMenu="matMenu" xPosition="before" class="ga4-menu">
-        <div class="menu-header">
-          <div class="user-info">
-            <span class="user-name">{{ user.full_name }}</span>
-            <span class="user-email">{{ user.email }}</span>
-          </div>
+  @if (currentUser$ | async; as user) {
+    <button
+      mat-button
+      [matMenuTriggerFor]="userMenu"
+      class="user-menu-btn"
+      [matTooltip]="'Signed in as ' + user.username + ' — click to sign out'"
+    >
+      <mat-icon>account_circle</mat-icon>
+      <span>{{ user.username }}</span>
+    </button>
+    <mat-menu #userMenu="matMenu" xPosition="before" class="ga4-menu">
+      <div class="menu-header">
+        <div class="user-info">
+          <span class="user-name">{{ user.username }}</span>
+          <span class="user-email">{{ user.email }}</span>
         </div>
-        <mat-divider></mat-divider>
-        <button mat-menu-item (click)="goToAdmin($event)">
-          <mat-icon>settings</mat-icon>
-          <span>Admin Panel</span>
-        </button>
-        <button mat-menu-item (click)="logout()">
-          <mat-icon>logout</mat-icon>
-          <span>Sign out</span>
-        </button>
-      </mat-menu>
-    } @else {
-      <button mat-stroked-button (click)="login()" class="login-btn">
-        Sign in
+      </div>
+      <mat-divider></mat-divider>
+      <button mat-menu-item (click)="goToAdmin($event)">
+        <mat-icon>settings</mat-icon>
+        <span>Admin Panel</span>
       </button>
-    }
+      <button mat-menu-item (click)="logout()">
+        <mat-icon>logout</mat-icon>
+        <span>Sign out</span>
+      </button>
+    </mat-menu>
   }
 </mat-toolbar>
 
@@ -134,3 +138,5 @@
 @if (config.showScrollToTop) {
   <app-scroll-to-top />
 }
+
+} <!-- end @else (not login page) -->

@@ -1,58 +1,75 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { BehaviorSubject, Observable, tap, catchError, of } from 'rxjs';
+import { Router } from '@angular/router';
+import { BehaviorSubject, Observable, switchMap, tap, catchError, of, map } from 'rxjs';
 
-export interface UserProfile {
+export interface AuthUser {
+  id: number;
   username: string;
-  email?: string;
-  full_name?: string;
-  is_authenticated: boolean;
+  email: string;
   is_staff: boolean;
+  date_joined: string;
 }
+
+const TOKEN_KEY = 'xfil_auth_token';
 
 @Injectable({
   providedIn: 'root',
 })
 export class AuthService {
   private http = inject(HttpClient);
-  
-  private userSub = new BehaviorSubject<UserProfile | null>(null);
-  user$ = this.userSub.asObservable();
+  private router = inject(Router);
+
+  private currentUserSub = new BehaviorSubject<AuthUser | null>(null);
+  private checkingSub = new BehaviorSubject<boolean>(true);
+
+  currentUser$ = this.currentUserSub.asObservable();
+  isLoggedIn$ = this.currentUser$.pipe(map(u => u !== null));
+  isChecking$ = this.checkingSub.asObservable();
 
   constructor() {
-    this.checkSession();
+    this.initAuth();
   }
 
-  checkSession(): void {
-    this.http.get<UserProfile>('/api/auth/me/')
+  private initAuth(): void {
+    const token = localStorage.getItem(TOKEN_KEY);
+    if (!token) {
+      this.checkingSub.next(false);
+      return;
+    }
+    this.http.get<AuthUser>('/api/auth/me/')
       .pipe(
-        tap(user => this.userSub.next(user)),
-        catchError(() => {
-          const guest: UserProfile = { username: 'Guest', is_authenticated: false, is_staff: false };
-          this.userSub.next(guest);
-          return of(guest);
-        })
-      )
-      .subscribe();
-  }
-
-  logout(): void {
-    this.http.post('/api/auth/logout/', {})
-      .pipe(
-        tap(() => {
-          this.userSub.next({ username: 'Guest', is_authenticated: false, is_staff: false });
-          window.location.href = '/';
+        tap(user => {
+          this.currentUserSub.next(user);
+          this.checkingSub.next(false);
         }),
         catchError(() => {
-          window.location.href = '/';
+          localStorage.removeItem(TOKEN_KEY);
+          this.currentUserSub.next(null);
+          this.checkingSub.next(false);
           return of(null);
         })
       )
       .subscribe();
   }
 
-  login(): void {
-    // Django login URL
-    window.location.href = `/admin/login/?next=${encodeURIComponent(window.location.pathname)}`;
+  login(username: string, password: string): Observable<void> {
+    return this.http.post<{ token: string }>('/api/auth/token/', { username, password }).pipe(
+      tap(({ token }) => localStorage.setItem(TOKEN_KEY, token)),
+      switchMap(() => this.http.get<AuthUser>('/api/auth/me/')),
+      tap(user => this.currentUserSub.next(user)),
+      map(() => void 0)
+    );
+  }
+
+  logout(): void {
+    this.http.post('/api/auth/logout/', {}).subscribe({ error: () => {} });
+    localStorage.removeItem(TOKEN_KEY);
+    this.currentUserSub.next(null);
+    this.router.navigate(['/login']);
+  }
+
+  getToken(): string | null {
+    return localStorage.getItem(TOKEN_KEY);
   }
 }
