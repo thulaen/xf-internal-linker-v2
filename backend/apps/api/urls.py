@@ -56,7 +56,15 @@ from apps.suggestions.views import (
     WeightPresetViewSet,
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView
-from rest_framework.authtoken.views import obtain_auth_token
+from rest_framework.authtoken.views import ObtainAuthToken
+
+
+class _CsrfFreeObtainAuthToken(ObtainAuthToken):
+    """Token login endpoint — no session auth so CSRF is never checked."""
+    authentication_classes = []
+
+
+obtain_auth_token = _CsrfFreeObtainAuthToken.as_view()
 
 from apps.api.ml_views import MLDistillView, MLEmbedView
 
