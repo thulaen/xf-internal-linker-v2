@@ -133,6 +133,32 @@ export interface EntityParams {
   page?: number;
 }
 
+export interface GapNode {
+  id: number;
+  title: string;
+  url: string;
+  neglect_score: number;
+  inbound_count: number;
+  pending_suggestion_count: number;
+}
+
+export interface GhostEdge {
+  source: number;
+  target: number;
+  score_final: number;
+  anchor_phrase: string;
+  suggestion_id: string;
+  score_semantic: number;
+  score_keyword: number;
+}
+
+export interface GapAnalysis {
+  nodes: GapNode[];
+  ghost_edges: GhostEdge[];
+  threshold: number;
+  total_ghost_edges: number;
+}
+
 // ── Service ───────────────────────────────────────────────────────────────────
 
 @Injectable({ providedIn: 'root' })
@@ -224,6 +250,19 @@ export class GraphService {
     return this.http
       .get<PageRankEquity>(`${this.base}/graph/pagerank-equity/`)
       .pipe(catchError(() => of(null)));
+  }
+
+  approveSuggestion(suggestionId: string): Observable<unknown> {
+    return this.http.post(`${this.base}/suggestions/${suggestionId}/approve/`, {});
+  }
+
+  getGapAnalysis(threshold = 0.8, limit = 300): Observable<GapAnalysis> {
+    const params = new HttpParams()
+      .set('threshold', threshold.toString())
+      .set('limit', limit.toString());
+    return this.http
+      .get<GapAnalysis>(`${this.base}/graph/gap-analysis/`, { params })
+      .pipe(catchError(() => of({ nodes: [], ghost_edges: [], threshold, total_ghost_edges: 0 })));
   }
 
   searchArticles(query: string): Observable<ContentItemSummary[]> {

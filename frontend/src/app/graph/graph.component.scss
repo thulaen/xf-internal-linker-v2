@@ -787,3 +787,52 @@
   text-align: center;
 }
 
+// ── Coverage Gaps tab (Tab 10) ────────────────────────────────────────────────
+
+.gap-controls-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-md);
+  padding: var(--space-sm) var(--space-md);
+  background: #f8f9fa;
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+}
+
+.gap-slider {
+  flex: 1;
+  min-width: 160px;
+  max-width: 320px;
+}
+
+.gap-summary-row {
+  margin-bottom: var(--space-md);
+}
+
+.gap-table-card {
+  border: var(--card-border) !important;
+  box-shadow: none !important;
+  border-radius: var(--card-border-radius) !important;
+
+  &:hover {
+    box-shadow: var(--shadow-md) !important;
+  }
+}
+
+// ── Quick-Approve Dialog ───────────────────────────────────────────────────────
+
+.gap-dialog-anchor {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text-dark-1);
+  margin: 0 0 var(--space-sm);
+}
+
+.gap-dialog-scores {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  margin: 0;
+}
+

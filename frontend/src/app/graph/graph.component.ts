@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, TemplateRef, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -17,6 +17,8 @@ import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/ma
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
+import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MatSliderModule } from '@angular/material/slider';
 import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
@@ -37,6 +39,8 @@ import {
   PathNode,
   AuditMode,
   PageRankEquity,
+  GapAnalysis,
+  GhostEdge,
 } from './graph.service';
 import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
 
@@ -87,6 +91,8 @@ interface AnchorWarning {
     MatSelectModule,
     MatSnackBarModule,
     MatSlideToggleModule,
+    MatDialogModule,
+    MatSliderModule,
     LinkGraphVizComponent,
     BaseChartDirective,
   ],
@@ -95,6 +101,7 @@ interface AnchorWarning {
 })
 export class GraphComponent implements OnInit {
   @ViewChild(LinkGraphVizComponent) private vizComponent?: LinkGraphVizComponent;
+  @ViewChild('quickApproveDialog') private quickApproveDialogRef!: TemplateRef<unknown>;
 
   selectedTabIndex = 0;
 
@@ -161,6 +168,17 @@ export class GraphComponent implements OnInit {
   loadingFreshness = false;
   readonly churnColumns = ['title', 'churn_count'];
 
+  // ── Tab 6: Network Visualization — Coverage Gaps overlay ─────────
+  showGapsOverlay = false;
+  activeGhostEdge: GhostEdge | null = null;
+  private _gapDialogRef: MatDialogRef<unknown> | null = null;
+
+  // ── Tab 10: Coverage Gaps ─────────────────────────────────────────
+  gapData: GapAnalysis | null = null;
+  gapThreshold = 0.8;
+  loadingGaps = false;
+  readonly gapNodeColumns = ['title', 'inbound_count', 'pending_suggestion_count', 'neglect_score'];
+
   // ── Tab 6: Qualities ─────────────────────────────────────────────
   contextFilter: 'all' | 'contextual' = 'all';
   highlightEdge: { source: number; target: number } | null = null;
@@ -187,7 +205,11 @@ export class GraphComponent implements OnInit {
   /** Tracks which tabs have been loaded at least once. */
   private loadedTabs = new Set<number>();
 
-  constructor(private graphService: GraphService, private snack: MatSnackBar) {}
+  constructor(
+    private graphService: GraphService,
+    private snack: MatSnackBar,
+    private dialog: MatDialog,
+  ) {}
 
   ngOnInit(): void {
     this._setupEntitySearch();
@@ -214,6 +236,7 @@ export class GraphComponent implements OnInit {
       case 6: this._loadQuality(); break;
       // tab 7 (path) loads on demand via button
       case 8: this._loadFreshness(); break;
+      case 9: this._loadGaps(); break;
     }
   }
 
@@ -609,6 +632,54 @@ export class GraphComponent implements OnInit {
     } else {
       this._buildVelocityChart();
     }
+  }
+
+  // ── Coverage Gaps ─────────────────────────────────────────────────
+
+  private _loadGaps(): void {
+    this.loadingGaps = true;
+    this.graphService.getGapAnalysis(this.gapThreshold).subscribe({
+      next: (data) => { this.gapData = data; this.loadingGaps = false; },
+      error: () => { this.loadingGaps = false; },
+    });
+  }
+
+  reloadGaps(): void {
+    this.loadedTabs.delete(9);
+    this._loadGaps();
+  }
+
+  onGapsOverlayToggle(): void {
+    if (this.showGapsOverlay && !this.gapData) {
+      this._loadGaps();
+    }
+  }
+
+  onGhostEdgeClicked(edge: GhostEdge): void {
+    this.activeGhostEdge = edge;
+    this._gapDialogRef = this.dialog.open(this.quickApproveDialogRef, { width: '480px' });
+    this._gapDialogRef.afterClosed().subscribe(() => { this.activeGhostEdge = null; });
+  }
+
+  approveGhostEdge(): void {
+    if (!this.activeGhostEdge) return;
+    const edge = this.activeGhostEdge;
+    this.graphService.approveSuggestion(edge.suggestion_id).subscribe({
+      next: () => {
+        if (this.gapData) {
+          this.gapData = {
+            ...this.gapData,
+            ghost_edges: this.gapData.ghost_edges.filter((ge) => ge.suggestion_id !== edge.suggestion_id),
+            total_ghost_edges: this.gapData.total_ghost_edges - 1,
+          };
+        }
+        this._gapDialogRef?.close();
+        this.snack.open('Suggestion approved', 'OK', { duration: 3000 });
+      },
+      error: () => {
+        this.snack.open('Failed to approve suggestion', 'Dismiss', { duration: 4000 });
+      },
+    });
   }
 
   private _buildVelocityChart(): void {

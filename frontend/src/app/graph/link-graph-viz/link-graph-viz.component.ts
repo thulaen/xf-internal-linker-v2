@@ -14,7 +14,7 @@ import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as d3 from 'd3';
 
-import { GraphLink, GraphNode, GraphTopology } from '../graph.service';
+import { GhostEdge, GraphLink, GraphNode, GraphTopology } from '../graph.service';
 
 // D3 simulation node type — extends GraphNode with x/y/fx/fy fields.
 interface SimNode extends GraphNode {
@@ -51,7 +51,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() contextFilter: 'all' | 'contextual' = 'all';
   @Input() highlightEdge: { source: number; target: number } | null = null;
   @Input() churnyIds: Set<number> = new Set();
+  @Input() ghostEdges: GhostEdge[] = [];
+  @Input() showGhostEdges = false;
   @Output() nodeSelected = new EventEmitter<GraphNode | null>();
+  @Output() ghostEdgeClicked = new EventEmitter<GhostEdge>();
 
   @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
   @ViewChild('wrapper') wrapperRef!: ElementRef<HTMLDivElement>;
@@ -64,10 +67,12 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   private viewReady = false;
   private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   private simNodes: SimNode[] = [];
+  private nodeMap = new Map<number, SimNode>();
   private _siloColor: d3.ScaleOrdinal<number, string> | null = null;
   private _orphanColor = '';
   private linkSel: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null = null;
   private churnRingSel: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown> | null = null;
+  private ghostLinkGroup: d3.Selection<SVGGElement, unknown, null, undefined> | null = null;
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -86,6 +91,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       this._applyContextFilter();
     } else if (changes['highlightEdge'] && this.viewReady) {
       this._applyEdgeBlink();
+    } else if ((changes['ghostEdges'] || changes['showGhostEdges']) && this.viewReady) {
+      this._applyGhostEdges();
     }
   }
 
@@ -131,6 +138,12 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     // Deep-clone so D3 mutation doesn't affect the original input.
     this.simNodes = nodes.map((n) => ({ ...n }));
     const simNodes = this.simNodes;
+
+    // Build a lookup map used by ghost-edge positioning.
+    this.nodeMap.clear();
+    for (const n of simNodes) {
+      this.nodeMap.set(n.id, n);
+    }
     const simLinks: SimLink[] = links.map((l) => ({
       source: l.source as unknown as SimNode,
       target: l.target as unknown as SimNode,
@@ -199,6 +212,11 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     this.linkSel = link;
     this._applyContextFilter();
 
+    // ── Ghost edges (Coverage Gap overlay) ────────────────────────────────────
+
+    this.ghostLinkGroup = container.append('g').attr('class', 'ghost-links');
+    this._applyGhostEdges();
+
     // ── Churn rings (rendered behind nodes) ───────────────────────────────────
 
     const churnyNodes = simNodes.filter((d) => this.churnyIds.has(d.id));
@@ -256,11 +274,15 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
         } else {
           this.isSimulating = false;
           this._applyPositions(nodeGroup, link);
+          this._applyGhostPositions();
         }
       };
       requestAnimationFrame(step);
     } else {
-      this.simulation.on('tick', () => this._applyPositions(nodeGroup, link));
+      this.simulation.on('tick', () => {
+        this._applyPositions(nodeGroup, link);
+        this._applyGhostPositions();
+      });
     }
 
     this._renderLegend(svg, width, height);
@@ -359,6 +381,55 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
           .attr('fill', 'var(--color-text-muted)')
           .text(label);
       });
+  }
+
+  private _applyGhostEdges(): void {
+    if (!this.ghostLinkGroup) return;
+
+    const visible = this.showGhostEdges
+      ? this.ghostEdges.filter((ge) => this.nodeMap.has(ge.source) && this.nodeMap.has(ge.target))
+      : [];
+
+    this.ghostLinkGroup
+      .selectAll<SVGLineElement, GhostEdge>('line')
+      .data(visible, (d) => d.suggestion_id)
+      .join('line')
+      .attr('class', 'ghost-edge')
+      .attr('stroke', 'var(--color-primary)')
+      .attr('stroke-opacity', 0.5)
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '6,4')
+      .style('cursor', 'pointer')
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        this.ghostEdgeClicked.emit(d);
+      })
+      .on('mouseover', (event, d) => {
+        d3.select(this.tooltipRef.nativeElement)
+          .style('display', 'block')
+          .style('left', `${event.offsetX + 12}px`)
+          .style('top', `${event.offsetY - 10}px`)
+          .html(
+            `<strong>Potential link</strong><br>` +
+            `"${d.anchor_phrase}"<br>` +
+            `Score: ${d.score_final.toFixed(2)}`
+          );
+      })
+      .on('mouseout', () => {
+        d3.select(this.tooltipRef.nativeElement).style('display', 'none');
+      });
+
+    this._applyGhostPositions();
+  }
+
+  private _applyGhostPositions(): void {
+    if (!this.ghostLinkGroup) return;
+    this.ghostLinkGroup
+      .selectAll<SVGLineElement, GhostEdge>('line')
+      .attr('x1', (d) => this.nodeMap.get(d.source)?.x ?? 0)
+      .attr('y1', (d) => this.nodeMap.get(d.source)?.y ?? 0)
+      .attr('x2', (d) => this.nodeMap.get(d.target)?.x ?? 0)
+      .attr('y2', (d) => this.nodeMap.get(d.target)?.y ?? 0);
   }
 
   private _edgeColor(ctx: string): string {

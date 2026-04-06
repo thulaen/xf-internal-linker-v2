@@ -47,6 +47,7 @@ from apps.core.views import (
 )
 from apps.graph.views import (
     BrokenLinkViewSet,
+    GapAnalysisView,
     GraphStatsView,
     GraphTopologyView,
     PageRankEquityView,
@@ -169,6 +170,7 @@ urlpatterns = [
     path("graph/path/", GraphPathView.as_view(), name="graph-path"),
     path("graph/topology/", GraphTopologyView.as_view(), name="graph-topology"),
     path("graph/pagerank-equity/", PageRankEquityView.as_view(), name="graph-pagerank-equity"),
+    path("graph/gap-analysis/", GapAnalysisView.as_view(), name="graph-gap-analysis"),
     path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("", include("apps.notifications.urls")),

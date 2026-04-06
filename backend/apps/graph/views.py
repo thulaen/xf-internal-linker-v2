@@ -608,6 +608,153 @@ class PageRankEquityView(APIView):
         })
 
 
+class GapAnalysisView(APIView):
+    """
+    GET /api/graph/gap-analysis/
+
+    Compares pending AI suggestions against live ExistingLinks to surface
+    "ghost edges" — high-confidence suggestions where no real link yet exists.
+
+    Query params:
+      ?threshold=<float>   Minimum score_final to include (default 0.8, range 0.5–1.0).
+      ?limit=<int>         Max nodes to return (default 300, max 1000).
+
+    Returns:
+      {
+        "nodes":             [...],   # unique ContentItems involved in ghost edges
+        "ghost_edges":       [...],   # pending suggestions with no ExistingLink
+        "threshold":         0.8,
+        "total_ghost_edges": N,
+      }
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        from apps.content.models import ContentItem
+        from apps.graph.models import ExistingLink
+        from apps.suggestions.models import Suggestion
+
+        try:
+            threshold = float(request.query_params.get("threshold", 0.8))
+            threshold = max(0.5, min(1.0, threshold))
+        except (ValueError, TypeError):
+            threshold = 0.8
+
+        try:
+            limit = min(int(request.query_params.get("limit", 300)), 1000)
+        except (ValueError, TypeError):
+            limit = 300
+
+        # Step 1: All pending high-confidence suggestions.
+        suggestions = list(
+            Suggestion.objects
+            .filter(status="pending", score_final__gte=threshold)
+            .values(
+                "suggestion_id",
+                "host_id",
+                "destination_id",
+                "anchor_phrase",
+                "score_final",
+                "score_semantic",
+                "score_keyword",
+            )
+        )
+
+        if not suggestions:
+            return Response({
+                "nodes": [],
+                "ghost_edges": [],
+                "threshold": threshold,
+                "total_ghost_edges": 0,
+            })
+
+        # Step 2: Build set of existing (host → dest) link pairs.
+        host_ids = {s["host_id"] for s in suggestions}
+        dest_ids = {s["destination_id"] for s in suggestions}
+
+        existing_pairs: set[tuple[int, int]] = set(
+            ExistingLink.objects
+            .filter(
+                from_content_item_id__in=host_ids,
+                to_content_item_id__in=dest_ids,
+            )
+            .values_list("from_content_item_id", "to_content_item_id")
+        )
+
+        # Step 3: Ghost edges = suggestions where no real link exists yet.
+        ghost_edges = [
+            {
+                "source": s["host_id"],
+                "target": s["destination_id"],
+                "score_final": float(s["score_final"]),
+                "anchor_phrase": s["anchor_phrase"] or "",
+                "suggestion_id": str(s["suggestion_id"]),
+                "score_semantic": float(s["score_semantic"] or 0),
+                "score_keyword": float(s["score_keyword"] or 0),
+            }
+            for s in suggestions
+            if (s["host_id"], s["destination_id"]) not in existing_pairs
+        ]
+
+        total_ghost_edges = len(ghost_edges)
+
+        # Step 4: Unique node IDs that appear in ghost edges.
+        ghost_node_ids: set[int] = set()
+        for ge in ghost_edges:
+            ghost_node_ids.add(ge["source"])
+            ghost_node_ids.add(ge["target"])
+
+        if not ghost_node_ids:
+            return Response({
+                "nodes": [],
+                "ghost_edges": [],
+                "threshold": threshold,
+                "total_ghost_edges": 0,
+            })
+
+        # Step 5: Annotate nodes with their real inbound link count.
+        node_rows = list(
+            ContentItem.objects
+            .filter(pk__in=ghost_node_ids, is_deleted=False)
+            .annotate(inbound_count=Count("incoming_links"))
+            .values("id", "title", "url", "inbound_count")
+        )
+
+        # Step 6: Compute per-destination neglect score.
+        # neglect_score = Σ(ghost score_final for this dest) / (inbound_count + 1)
+        dest_score_sum: dict[int, float] = {}
+        dest_ghost_count: dict[int, int] = {}
+        for ge in ghost_edges:
+            t = ge["target"]
+            dest_score_sum[t] = dest_score_sum.get(t, 0.0) + ge["score_final"]
+            dest_ghost_count[t] = dest_ghost_count.get(t, 0) + 1
+
+        nodes = []
+        for row in node_rows:
+            nid = row["id"]
+            inbound = row["inbound_count"]
+            neglect = round(dest_score_sum.get(nid, 0.0) / (inbound + 1), 4)
+            nodes.append({
+                "id": nid,
+                "title": row["title"],
+                "url": row["url"],
+                "neglect_score": neglect,
+                "inbound_count": inbound,
+                "pending_suggestion_count": dest_ghost_count.get(nid, 0),
+            })
+
+        nodes.sort(key=lambda n: n["neglect_score"], reverse=True)
+        nodes = nodes[:limit]
+
+        return Response({
+            "nodes": nodes,
+            "ghost_edges": ghost_edges,
+            "threshold": threshold,
+            "total_ghost_edges": total_ghost_edges,
+        })
+
+
 def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
     """BFS over ExistingLink directed edges. Returns node list or None."""
     from apps.content.models import ContentItem

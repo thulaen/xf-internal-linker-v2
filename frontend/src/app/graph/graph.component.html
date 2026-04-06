@@ -443,6 +443,12 @@
             color="primary">
             History Mode
           </mat-slide-toggle>
+          <mat-slide-toggle
+            [(ngModel)]="showGapsOverlay"
+            (change)="onGapsOverlayToggle()"
+            color="primary">
+            Show Coverage Gaps
+          </mat-slide-toggle>
         </div>
 
         @if (historyMode) {
@@ -471,7 +477,10 @@
               [contextFilter]="contextFilter"
               [highlightEdge]="highlightEdge"
               [churnyIds]="churnyIds"
-              (nodeSelected)="onNodeSelected($event)">
+              [ghostEdges]="gapData?.ghost_edges ?? []"
+              [showGhostEdges]="showGapsOverlay"
+              (nodeSelected)="onNodeSelected($event)"
+              (ghostEdgeClicked)="onGhostEdgeClicked($event)">
             </app-link-graph-viz>
           </div>
 
@@ -956,4 +965,125 @@
     </div>
   </mat-tab>
 
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 10 — COVERAGE GAPS
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon icon-md">find_replace</mat-icon>
+      Coverage Gaps
+    </ng-template>
+
+    <div class="tab-content">
+      <p class="tab-description">
+        Pages with high-confidence pending suggestions but few real inbound links.
+        A high Neglect Score means AI thinks a link is valuable, but none exists yet.
+      </p>
+
+      <!-- Threshold controls -->
+      <div class="gap-controls-row">
+        <span class="slider-label">Min. score threshold: <strong>{{ gapThreshold | number:'1.2-2' }}</strong></span>
+        <mat-slider min="0.7" max="0.99" step="0.01" discrete color="primary" class="gap-slider">
+          <input matSliderThumb [(ngModel)]="gapThreshold" />
+        </mat-slider>
+        <button mat-stroked-button (click)="reloadGaps()" [disabled]="loadingGaps">
+          <mat-icon>refresh</mat-icon>
+          Reload
+        </button>
+      </div>
+
+      @if (loadingGaps) {
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      } @else if (gapData) {
+
+        <!-- Summary chips -->
+        <div class="gap-summary-row">
+          <mat-chip-set>
+            <mat-chip>
+              <mat-icon matChipAvatar>link_off</mat-icon>
+              {{ gapData.total_ghost_edges | number }} Ghost Edges
+            </mat-chip>
+            <mat-chip>
+              <mat-icon matChipAvatar>article</mat-icon>
+              {{ gapData.nodes.length | number }} Pages with Gaps
+            </mat-chip>
+          </mat-chip-set>
+        </div>
+
+        @if (gapData.nodes.length === 0) {
+          <div class="empty-state">
+            <mat-icon class="empty-icon">check_circle</mat-icon>
+            <h3>No coverage gaps above this threshold</h3>
+            <p>Lower the score threshold or run the pipeline to generate new suggestions.</p>
+          </div>
+        } @else {
+          <mat-card class="gap-table-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>find_replace</mat-icon>
+              <mat-card-title>Most Neglected Pages</mat-card-title>
+              <mat-card-subtitle>Sorted by Neglect Score (highest first)</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <table mat-table [dataSource]="gapData.nodes" class="data-table">
+
+                <ng-container matColumnDef="title">
+                  <th mat-header-cell *matHeaderCellDef>Page</th>
+                  <td mat-cell *matCellDef="let row">
+                    <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
+                      {{ row.title }}
+                      <mat-icon class="external-icon icon-xs">open_in_new</mat-icon>
+                    </a>
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="inbound_count">
+                  <th mat-header-cell *matHeaderCellDef class="col-number">Real Inbound Links</th>
+                  <td mat-cell *matCellDef="let row" class="col-number">{{ row.inbound_count }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="pending_suggestion_count">
+                  <th mat-header-cell *matHeaderCellDef class="col-number">Ghost Edges</th>
+                  <td mat-cell *matCellDef="let row" class="col-number">{{ row.pending_suggestion_count }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="neglect_score">
+                  <th mat-header-cell *matHeaderCellDef class="col-number">Neglect Score</th>
+                  <td mat-cell *matCellDef="let row" class="col-number">
+                    <strong>{{ row.neglect_score | number:'1.2-2' }}</strong>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="gapNodeColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: gapNodeColumns;"></tr>
+              </table>
+            </mat-card-content>
+          </mat-card>
+        }
+      }
+    </div>
+  </mat-tab>
+
 </mat-tab-group>
+
+<!-- Quick-Approve Dialog Template -->
+<ng-template #quickApproveDialog>
+  <h2 mat-dialog-title>Approve Suggestion</h2>
+  <mat-dialog-content *ngIf="activeGhostEdge">
+    <p class="gap-dialog-anchor">"{{ activeGhostEdge.anchor_phrase }}"</p>
+    <p class="gap-dialog-scores">
+      Final score: <strong>{{ activeGhostEdge.score_final | number:'1.2-2' }}</strong>
+      &nbsp;·&nbsp;
+      Semantic: {{ activeGhostEdge.score_semantic | number:'1.2-2' }}
+      &nbsp;·&nbsp;
+      Keyword: {{ activeGhostEdge.score_keyword | number:'1.2-2' }}
+    </p>
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-raised-button color="primary" (click)="approveGhostEdge()">
+      Approve
+    </button>
+  </mat-dialog-actions>
+</ng-template>

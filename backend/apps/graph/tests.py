@@ -9,10 +9,11 @@ from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APITestCase
 
-from apps.content.models import ContentItem, Post, ScopeItem
+from apps.content.models import ContentItem, Post, Sentence, ScopeItem
 from apps.graph.models import ExistingLink, LinkFreshnessEdge
 from apps.graph.services import graph_sync
 from apps.graph.services import http_worker_client
+from apps.suggestions.models import PipelineRun, Suggestion
 
 
 class HttpWorkerClientTests(SimpleTestCase):
@@ -257,3 +258,105 @@ class GraphTopologyViewTests(APITestCase):
         edge = response.data["links"][0]
         self.assertIn("context", edge)
         self.assertEqual(edge["context"], "contextual")
+
+
+class GapAnalysisViewTests(APITestCase):
+    """FR-036: Suggestion vs. Reality Coverage Gap Analysis."""
+
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="gaptest", password="x")
+        self.client.force_authenticate(user=self.user)
+
+        self.scope = ScopeItem.objects.create(scope_id=99, scope_type="node", title="Scope")
+        self.host = ContentItem.objects.create(
+            content_id=301,
+            content_type="thread",
+            title="Host Article",
+            scope=self.scope,
+            url="https://forum.example.com/host.301",
+        )
+        self.dest = ContentItem.objects.create(
+            content_id=302,
+            content_type="thread",
+            title="Destination Article",
+            scope=self.scope,
+            url="https://forum.example.com/dest.302",
+        )
+        post = Post.objects.create(
+            content_item=self.host,
+            raw_bbcode="Body",
+            clean_text="A relevant sentence.",
+        )
+        sentence = Sentence.objects.create(
+            content_item=self.host,
+            post=post,
+            text="A relevant sentence.",
+            position=0,
+            char_count=20,
+            start_char=0,
+            end_char=20,
+            word_position=0,
+        )
+        run = PipelineRun.objects.create(run_state="completed")
+        self.suggestion = Suggestion.objects.create(
+            pipeline_run=run,
+            destination=self.dest,
+            destination_title=self.dest.title,
+            host=self.host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="relevant sentence",
+            anchor_start=2,
+            anchor_end=19,
+            anchor_confidence="strong",
+            score_semantic=0.88,
+            score_keyword=0.85,
+            score_final=0.9,
+            status="pending",
+        )
+
+    def test_ghost_edge_returned_when_no_existing_link(self):
+        response = self.client.get("/api/graph/gap-analysis/?threshold=0.8")
+        self.assertEqual(response.status_code, 200)
+        ghost_edges = response.data["ghost_edges"]
+        self.assertEqual(len(ghost_edges), 1)
+        self.assertEqual(ghost_edges[0]["source"], self.host.pk)
+        self.assertEqual(ghost_edges[0]["target"], self.dest.pk)
+        self.assertAlmostEqual(ghost_edges[0]["score_final"], 0.9, places=2)
+        self.assertEqual(response.data["total_ghost_edges"], 1)
+
+    def test_ghost_edge_excluded_when_existing_link_present(self):
+        ExistingLink.objects.create(
+            from_content_item=self.host,
+            to_content_item=self.dest,
+            anchor_text="relevant sentence",
+        )
+        response = self.client.get("/api/graph/gap-analysis/?threshold=0.8")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["ghost_edges"]), 0)
+        self.assertEqual(response.data["total_ghost_edges"], 0)
+
+    def test_suggestion_below_threshold_excluded(self):
+        response = self.client.get("/api/graph/gap-analysis/?threshold=0.95")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.data["ghost_edges"]), 0)
+
+    def test_empty_response_when_no_pending_suggestions(self):
+        self.suggestion.status = "approved"
+        self.suggestion.save()
+        response = self.client.get("/api/graph/gap-analysis/")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["nodes"], [])
+        self.assertEqual(response.data["ghost_edges"], [])
+        self.assertEqual(response.data["total_ghost_edges"], 0)
+
+    def test_neglect_score_present_in_nodes(self):
+        response = self.client.get("/api/graph/gap-analysis/?threshold=0.8")
+        self.assertEqual(response.status_code, 200)
+        nodes = response.data["nodes"]
+        # The destination should appear with a neglect_score
+        dest_node = next((n for n in nodes if n["id"] == self.dest.pk), None)
+        self.assertIsNotNone(dest_node)
+        self.assertGreater(dest_node["neglect_score"], 0)
+        self.assertEqual(dest_node["pending_suggestion_count"], 1)
