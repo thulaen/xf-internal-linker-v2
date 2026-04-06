@@ -45,7 +45,15 @@ from apps.core.views import (
     WordPressSyncRunView,
     XenForoSettingsView,
 )
-from apps.graph.views import BrokenLinkViewSet, GraphStatsView, GraphTopologyView, OrphanArticleListView, GraphPathView
+from apps.graph.views import (
+    BrokenLinkViewSet,
+    GraphStatsView,
+    GraphTopologyView,
+    OrphanArticleListView,
+    OrphanExportCSVView,
+    OrphanSuggestView,
+    GraphPathView,
+)
 from apps.knowledge_graph.views import EntityListView
 from apps.cooccurrence.views import (
     CoOccurrencePairListView,
@@ -155,6 +163,8 @@ urlpatterns = [
     path("graph/stats/", GraphStatsView.as_view(), name="graph-stats"),
     path("graph/entities/", EntityListView.as_view(), name="graph-entities"),
     path("graph/orphans/", OrphanArticleListView.as_view(), name="graph-orphans"),
+    path("graph/orphans/export-csv/", OrphanExportCSVView.as_view(), name="graph-orphans-export-csv"),
+    path("graph/orphans/<int:pk>/suggest/", OrphanSuggestView.as_view(), name="graph-orphan-suggest"),
     path("graph/path/", GraphPathView.as_view(), name="graph-path"),
     path("graph/topology/", GraphTopologyView.as_view(), name="graph-topology"),
     path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),

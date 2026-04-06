@@ -2,6 +2,7 @@
 
 from rest_framework import serializers
 
+from apps.content.serializers import ContentItemListSerializer
 from .models import BrokenLink
 
 
@@ -41,3 +42,13 @@ class BrokenLinkSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
+
+
+class OrphanAuditSerializer(ContentItemListSerializer):
+    """Extends the content list serializer with inbound link count for the audit table."""
+
+    inbound_link_count = serializers.IntegerField(read_only=True)
+
+    class Meta(ContentItemListSerializer.Meta):
+        fields = [*ContentItemListSerializer.Meta.fields, "inbound_link_count"]
+        read_only_fields = fields

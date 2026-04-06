@@ -114,6 +114,7 @@ def run_pipeline(
     *,
     rerun_mode: str = "skip_pending",
     destination_scope_ids: set[int] | None = None,
+    destination_content_item_ids: set[int] | None = None,
     host_scope_ids: set[int] | None = None,
     progress_fn: Callable[[float, str], None] | None = None,
 ) -> PipelineResult:
@@ -123,6 +124,7 @@ def run_pipeline(
         run_id: UUID string of the PipelineRun record.
         rerun_mode: 'skip_pending' | 'supersede_pending' | 'full_regenerate'
         destination_scope_ids: Restrict destinations to these ScopeItem PKs.
+        destination_content_item_ids: Restrict destinations to these ContentItem PKs.
         host_scope_ids: Restrict hosts to these ScopeItem PKs.
         progress_fn: Optional callback(progress_0_to_1, message) for live updates.
     """
@@ -190,7 +192,7 @@ def run_pipeline(
         _progress(0.14, "Building rare-term propagation profiles...")
         rare_term_source_records = (
             content_records
-            if destination_scope_ids is None and host_scope_ids is None
+            if destination_scope_ids is None and host_scope_ids is None and destination_content_item_ids is None
             else _load_content_records()
         )
         rare_term_profiles = build_rare_term_profiles(
@@ -207,6 +209,7 @@ def run_pipeline(
     destination_keys, dest_embeddings = _load_destination_embeddings(
         content_records,
         pending_destinations=pending_destinations,
+        destination_content_item_ids=destination_content_item_ids,
     )
     items_in_scope = len(destination_keys)
 
@@ -796,6 +799,7 @@ def _load_destination_embeddings(
     content_records: dict[ContentKey, ContentRecord],
     *,
     pending_destinations: set[ContentKey],
+    destination_content_item_ids: set[int] | None = None,
 ) -> tuple[tuple[ContentKey, ...], np.ndarray]:
     """Load L2-normalized destination embeddings from pgvector."""
     from apps.content.models import ContentItem
@@ -803,6 +807,7 @@ def _load_destination_embeddings(
     candidate_keys = [
         key for key in content_records
         if key not in pending_destinations
+        and (destination_content_item_ids is None or key[0] in destination_content_item_ids)
     ]
     if not candidate_keys:
         return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)

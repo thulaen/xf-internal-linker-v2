@@ -55,6 +55,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   private simulation: d3.Simulation<SimNode, SimLink> | null = null;
   private resizeObserver: ResizeObserver | null = null;
   private viewReady = false;
+  private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
+  private simNodes: SimNode[] = [];
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -110,7 +112,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     const { width, height } = this._dims();
 
     // Deep-clone so D3 mutation doesn't affect the original input.
-    const simNodes: SimNode[] = nodes.map((n) => ({ ...n }));
+    this.simNodes = nodes.map((n) => ({ ...n }));
+    const simNodes = this.simNodes;
     const simLinks: SimLink[] = links.map((l) => ({
       source: l.source as unknown as SimNode,
       target: l.target as unknown as SimNode,
@@ -131,6 +134,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     const siloIds = [...new Set(simNodes.map((n) => n.silo_id))];
     const color = d3.scaleOrdinal<number, string>(d3.schemeTableau10).domain(siloIds);
 
+    // Orphan nodes use the error/danger colour from the theme.
+    const orphanColor = getComputedStyle(document.documentElement)
+      .getPropertyValue('--graph-node-orphan').trim();
+
     // ── SVG setup ────────────────────────────────────────────────────────────
 
     const svg = d3.select(svgEl)
@@ -140,13 +147,12 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     // Zoom/pan container.
     const container = svg.append('g').attr('class', 'graph-container');
 
-    svg.call(
-      d3.zoom<SVGSVGElement, unknown>()
-        .scaleExtent([0.1, 8])
-        .on('zoom', (event) => {
-          container.attr('transform', event.transform);
-        })
-    );
+    this.zoomBehavior = d3.zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.1, 8])
+      .on('zoom', (event) => {
+        container.attr('transform', event.transform);
+      });
+    svg.call(this.zoomBehavior);
 
     // ── Force simulation ──────────────────────────────────────────────────────
 
@@ -178,7 +184,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       .join('circle')
       .attr('class', 'node')
       .attr('r', (d) => this._nodeRadius(d))
-      .attr('fill', (d) => color(d.silo_id))
+      .attr('fill', (d) => d.in_degree === 0 ? orphanColor : color(d.silo_id))
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
       .call(this._drag(this.simulation))
@@ -289,5 +295,39 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     nodeGroup.attr('opacity', 1);
     link.attr('stroke-opacity', 0.4);
     d3.select(this.tooltipRef.nativeElement).style('display', 'none');
+  }
+
+  /**
+   * Programmatically zoom to a node and select it.
+   * Returns false if the node is not in the current topology.
+   */
+  focusNode(nodeId: number): boolean {
+    const node = this.simNodes.find((n) => n.id === nodeId);
+    if (!node || node.x == null || node.y == null) return false;
+
+    this.nodeSelected.emit(node);
+
+    const svgEl = this.svgRef?.nativeElement;
+    if (!svgEl || !this.zoomBehavior) return false;
+
+    const { width, height } = this._dims();
+    const scale = 2;
+    const transform = d3.zoomIdentity
+      .translate(width / 2, height / 2)
+      .scale(scale)
+      .translate(-node.x, -node.y);
+
+    d3.select(svgEl)
+      .transition()
+      .duration(750)
+      .call(this.zoomBehavior.transform as any, transform);
+
+    // Highlight the focused node with a thicker stroke.
+    d3.select(svgEl)
+      .selectAll<SVGCircleElement, SimNode>('.node')
+      .attr('stroke-width', (d) => d.id === nodeId ? 3 : 1.5)
+      .attr('stroke', (d) => d.id === nodeId ? 'var(--color-primary)' : '#fff');
+
+    return true;
   }
 }

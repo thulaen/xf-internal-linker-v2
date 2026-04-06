@@ -318,6 +318,60 @@
   color: var(--color-text-muted);
 }
 
+// ── Audit Tab (Tab 5) ─────────────────────────────────────────────
+
+.audit-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.audit-mode-select {
+  min-width: 220px;
+  font-size: 13px;
+}
+
+.export-btn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.audit-title-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.audit-focus-link {
+  cursor: pointer;
+}
+
+.audit-external-link {
+  color: var(--color-text-muted);
+  display: inline-flex;
+  align-items: center;
+
+  &:hover {
+    color: var(--color-primary);
+  }
+}
+
+.col-actions {
+  text-align: right;
+  white-space: nowrap;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+  }
+}
+
 // ── PageRank Bar (Tab 4) ──────────────────────────────────────────────────────
 
 .pagerank-bar-wrap {

@@ -475,6 +475,11 @@ def run_pipeline(
             if destination_scope and "scope_ids" in destination_scope
             else None
         )
+        destination_content_item_ids = (
+            set(destination_scope["content_item_ids"])
+            if destination_scope and "content_item_ids" in destination_scope
+            else None
+        )
         host_scope_ids = (
             set(host_scope["scope_ids"])
             if host_scope and "scope_ids" in host_scope
@@ -484,6 +489,7 @@ def run_pipeline(
             run_id=run_id,
             rerun_mode=rerun_mode,
             destination_scope_ids=destination_scope_ids,
+            destination_content_item_ids=destination_content_item_ids,
             host_scope_ids=host_scope_ids,
             progress_fn=_progress,
         )

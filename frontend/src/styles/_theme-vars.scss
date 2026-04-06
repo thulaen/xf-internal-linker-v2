@@ -100,7 +100,7 @@
   --graph-canvas-bg:      #f8f9fa;
   --graph-node-default:   #1a73e8;
   --graph-node-hub:       #ea4335;
-  --graph-node-orphan:    #80868b;
+  --graph-node-orphan:    var(--color-error);
   --graph-node-new:       #34a853;
   --graph-edge-default:   rgba(95, 99, 104, 0.25);
   --graph-edge-selected:  #1a73e8;

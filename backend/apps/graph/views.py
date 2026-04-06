@@ -16,7 +16,7 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from .serializers import BrokenLinkSerializer
+from .serializers import BrokenLinkSerializer, OrphanAuditSerializer
 
 
 class BrokenLinkViewSet(viewsets.ModelViewSet):
@@ -188,39 +188,157 @@ class _OrphanPagination(PageNumberPagination):
     max_page_size = 200
 
 
+def _get_audit_queryset(mode: str = "orphan"):
+    """Return the queryset for the orphan/low-authority audit.
+
+    Args:
+        mode: ``"orphan"`` returns pages with zero inbound links.
+              ``"low_authority"`` returns pages below the 5th percentile PageRank.
+    """
+    from django.db.models import Count, IntegerField, Value
+
+    from apps.content.models import ContentItem
+    from apps.graph.models import ExistingLink
+
+    base = ContentItem.objects.filter(is_deleted=False).select_related("scope")
+
+    if mode == "low_authority":
+        total = base.count()
+        if total == 0:
+            return base.none()
+        offset = max(0, int(total * 0.05) - 1)
+        threshold_qs = (
+            base
+            .order_by("march_2026_pagerank_score")
+            .values_list("march_2026_pagerank_score", flat=True)[offset:offset + 1]
+        )
+        threshold_list = list(threshold_qs)
+        if not threshold_list:
+            return base.none()
+        threshold = threshold_list[0]
+        return (
+            base
+            .filter(march_2026_pagerank_score__lte=threshold)
+            .annotate(inbound_link_count=Count("incoming_links"))
+            .order_by("march_2026_pagerank_score", "id")
+        )
+
+    # Default: orphan mode — pages with no inbound links.
+    linked_ids = (
+        ExistingLink.objects
+        .filter(
+            to_content_item__is_deleted=False,
+            from_content_item__is_deleted=False,
+        )
+        .values_list("to_content_item_id", flat=True)
+        .distinct()
+    )
+    return (
+        base
+        .exclude(pk__in=linked_ids)
+        .annotate(inbound_link_count=Value(0, output_field=IntegerField()))
+        .order_by("march_2026_pagerank_score", "id")
+    )
+
+
 class OrphanArticleListView(ListAPIView):
     """
-    GET /api/graph/orphans/
+    GET /api/graph/orphans/?mode=orphan|low_authority
 
-    Returns ContentItems that have no inbound ExistingLinks,
-    ordered by pagerank score descending (lowest authority first).
+    Returns ContentItems that are structurally weak:
+      - ``orphan`` (default): pages with zero inbound internal links.
+      - ``low_authority``: pages below the 5th percentile PageRank.
     """
 
     pagination_class = _OrphanPagination
     permission_classes = [IsAuthenticated]
-
-    def get_serializer_class(self):
-        from apps.content.serializers import ContentItemListSerializer
-        return ContentItemListSerializer
+    serializer_class = OrphanAuditSerializer
 
     def get_queryset(self):
-        from apps.content.models import ContentItem
-        from apps.graph.models import ExistingLink
+        mode = self.request.query_params.get("mode", "orphan")
+        return _get_audit_queryset(mode)
 
-        linked_ids = (
-            ExistingLink.objects
-            .filter(
-                to_content_item__is_deleted=False,
-                from_content_item__is_deleted=False,
-            )
-            .values_list("to_content_item_id", flat=True)
-            .distinct()
+
+class OrphanExportCSVView(APIView):
+    """
+    GET /api/graph/orphans/export-csv/?mode=orphan|low_authority
+
+    Streams the audit list as a CSV download.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> StreamingHttpResponse:
+        mode = request.query_params.get("mode", "orphan")
+        queryset = _get_audit_queryset(mode)
+
+        class Echo:
+            def write(self, value: str) -> str:
+                return value
+
+        writer = csv.writer(Echo())
+
+        def _rows():
+            yield writer.writerow([
+                "id", "title", "url", "scope_title",
+                "inbound_link_count", "pagerank_score",
+            ])
+            for item in queryset.iterator(chunk_size=250):
+                yield writer.writerow([
+                    item.id,
+                    item.title,
+                    item.url,
+                    item.scope.title if item.scope else "",
+                    item.inbound_link_count,
+                    item.march_2026_pagerank_score,
+                ])
+
+        label = "low-authority" if mode == "low_authority" else "orphan"
+        response = StreamingHttpResponse(_rows(), content_type="text/csv")
+        response["Content-Disposition"] = (
+            f'attachment; filename="{label}-audit-{datetime.utcnow().strftime("%Y%m%d-%H%M%S")}.csv"'
         )
-        return (
-            ContentItem.objects
-            .filter(is_deleted=False)
-            .exclude(pk__in=linked_ids)
-            .order_by("march_2026_pagerank_score", "id")
+        return response
+
+
+class OrphanSuggestView(APIView):
+    """
+    POST /api/graph/orphans/<pk>/suggest/
+
+    Triggers a pipeline run scoped to a single content item as the destination,
+    generating inbound link suggestions for it.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk: int) -> Response:
+        from apps.content.models import ContentItem
+        from apps.pipeline.tasks import dispatch_pipeline_run
+        from apps.suggestions.models import PipelineRun
+        from apps.suggestions.serializers import PipelineRunSerializer
+
+        try:
+            content_item = ContentItem.objects.get(pk=pk, is_deleted=False)
+        except ContentItem.DoesNotExist:
+            return Response(
+                {"detail": "Content item not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        run = PipelineRun.objects.create(
+            rerun_mode="skip_pending",
+            host_scope={},
+            destination_scope={"content_item_ids": [content_item.pk]},
+        )
+        dispatch_pipeline_run(
+            run_id=str(run.run_id),
+            host_scope=run.host_scope,
+            destination_scope=run.destination_scope,
+            rerun_mode=run.rerun_mode,
+        )
+        return Response(
+            PipelineRunSerializer(run).data,
+            status=status.HTTP_201_CREATED,
         )
 
 

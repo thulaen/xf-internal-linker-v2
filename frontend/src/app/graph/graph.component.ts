@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -14,6 +14,8 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
+import { MatSelectModule } from '@angular/material/select';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
 
 import {
@@ -28,6 +30,7 @@ import {
   SiloGroupSummary,
   PathResult,
   PathNode,
+  AuditMode,
 } from './graph.service';
 import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
 
@@ -50,12 +53,16 @@ import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component
     MatInputModule,
     MatTooltipModule,
     MatAutocompleteModule,
+    MatSelectModule,
+    MatSnackBarModule,
     LinkGraphVizComponent,
   ],
   templateUrl: './graph.component.html',
   styleUrls: ['./graph.component.scss'],
 })
 export class GraphComponent implements OnInit {
+  @ViewChild(LinkGraphVizComponent) private vizComponent?: LinkGraphVizComponent;
+
   selectedTabIndex = 0;
 
   // ── Tab 1: Overview ──────────────────────────────────────────────
@@ -81,13 +88,15 @@ export class GraphComponent implements OnInit {
   loadingHubs = false;
   hubColumns = ['title', 'content_type_label', 'march_2026_pagerank_score'];
 
-  // ── Tab 5: Orphan Articles ───────────────────────────────────────
-  orphans: ContentItemSummary[] = [];
-  orphanCount = 0;
-  loadingOrphans = false;
-  orphanPage = 1;
-  orphanPageSize = 50;
-  orphanColumns = ['title', 'content_type_label', 'post_date'];
+  // ── Tab 5: Audits (Orphan & Low-Authority Pages) ─────────────────
+  auditItems: ContentItemSummary[] = [];
+  auditCount = 0;
+  loadingAudit = false;
+  auditPage = 1;
+  auditPageSize = 50;
+  auditMode: AuditMode = 'orphan';
+  auditColumns = ['title', 'scope_title', 'inbound_link_count', 'march_2026_pagerank_score', 'actions'];
+  suggestingId: number | null = null;
 
   // ── Tab 6: Network Visualization ────────────────────────────────
   topology: GraphTopology = { nodes: [], links: [] };
@@ -110,7 +119,7 @@ export class GraphComponent implements OnInit {
   /** Tracks which tabs have been loaded at least once. */
   private loadedTabs = new Set<number>();
 
-  constructor(private graphService: GraphService) {}
+  constructor(private graphService: GraphService, private snack: MatSnackBar) {}
 
   ngOnInit(): void {
     this._setupEntitySearch();
@@ -132,7 +141,7 @@ export class GraphComponent implements OnInit {
       case 1: this._loadTopics(); break;
       case 2: this._loadEntities(); break;
       case 3: this._loadHubs(); break;
-      case 4: this._loadOrphans(); break;
+      case 4: this._loadAudit(); break;
       case 5: this._loadTopology(); break;
       // tab 6 (path) loads on demand via button
     }
@@ -225,32 +234,77 @@ export class GraphComponent implements OnInit {
     return Math.min(Math.round(score * 100), 100);
   }
 
-  // ── Orphan Articles ──────────────────────────────────────────────
+  // ── Audits (Orphan & Low-Authority Pages) ────────────────────────
 
-  private _loadOrphans(): void {
-    this.loadingOrphans = true;
-    this.graphService.getOrphans(this.orphanPage, this.orphanPageSize).subscribe({
+  private _loadAudit(): void {
+    this.loadingAudit = true;
+    this.graphService.getOrphans(this.auditPage, this.auditPageSize, this.auditMode).subscribe({
       next: (res) => {
-        this.orphans = res.results;
-        this.orphanCount = res.count;
-        this.loadingOrphans = false;
+        this.auditItems = res.results;
+        this.auditCount = res.count;
+        this.loadingAudit = false;
       },
-      error: () => { this.loadingOrphans = false; },
+      error: () => { this.loadingAudit = false; },
     });
   }
 
-  onOrphanPageChange(event: PageEvent): void {
-    this.orphanPage = event.pageIndex + 1;
-    this.orphanPageSize = event.pageSize;
-    this.loadingOrphans = true;
-    this.graphService.getOrphans(this.orphanPage, this.orphanPageSize).subscribe({
-      next: (res) => {
-        this.orphans = res.results;
-        this.orphanCount = res.count;
-        this.loadingOrphans = false;
+  onAuditPageChange(event: PageEvent): void {
+    this.auditPage = event.pageIndex + 1;
+    this.auditPageSize = event.pageSize;
+    this._loadAudit();
+  }
+
+  onAuditModeChange(mode: AuditMode): void {
+    this.auditMode = mode;
+    this.auditPage = 1;
+    this.loadedTabs.delete(4);
+    this._loadAudit();
+  }
+
+  exportAuditCsv(): void {
+    this.graphService.exportOrphansCsv(this.auditMode).subscribe({
+      next: (blob) => {
+        const url = window.URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        const label = this.auditMode === 'low_authority' ? 'low-authority' : 'orphan';
+        anchor.download = `${label}-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+        anchor.click();
+        window.URL.revokeObjectURL(url);
       },
-      error: () => { this.loadingOrphans = false; },
+      error: () => {
+        this.snack.open('Failed to export CSV', 'Dismiss', { duration: 4000 });
+      },
     });
+  }
+
+  suggestLinks(item: ContentItemSummary): void {
+    this.suggestingId = item.id;
+    this.graphService.suggestLinksForOrphan(item.id).subscribe({
+      next: () => {
+        this.suggestingId = null;
+        this.snack.open(`Pipeline started for "${item.title}"`, 'OK', { duration: 4000 });
+      },
+      error: () => {
+        this.suggestingId = null;
+        this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  focusInGraph(item: ContentItemSummary): void {
+    this.selectedTabIndex = 5;
+    this._loadTab(5);
+    setTimeout(() => {
+      const found = this.vizComponent?.focusNode(item.id);
+      if (found === false) {
+        this.snack.open(
+          'This page is not in the network view (only the top 500 pages by authority are shown).',
+          'OK',
+          { duration: 5000 },
+        );
+      }
+    }, 400);
   }
 
   // ── Path Explorer ─────────────────────────────────────────────────

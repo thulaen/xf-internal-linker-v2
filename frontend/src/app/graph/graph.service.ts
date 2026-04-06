@@ -52,8 +52,10 @@ export interface ContentItemSummary {
   content_type_label: string;
   title: string;
   url: string;
+  scope_title: string;
   march_2026_pagerank_score: number;
   velocity_score: number;
+  inbound_link_count: number;
   post_date: string | null;
   is_deleted: boolean;
 }
@@ -87,6 +89,8 @@ export interface SiloGroupSummary {
   description: string;
   scope_count: number;
 }
+
+export type AuditMode = 'orphan' | 'low_authority';
 
 export interface EntityParams {
   entity_type?: EntityType | '';
@@ -142,13 +146,26 @@ export class GraphService {
       );
   }
 
-  getOrphans(page: number = 1, pageSize: number = 50): Observable<PaginatedResult<ContentItemSummary>> {
+  getOrphans(page: number = 1, pageSize: number = 50, mode: AuditMode = 'orphan'): Observable<PaginatedResult<ContentItemSummary>> {
     const params = new HttpParams()
       .set('page', String(page))
-      .set('page_size', String(pageSize));
+      .set('page_size', String(pageSize))
+      .set('mode', mode);
     return this.http
       .get<PaginatedResult<ContentItemSummary>>(`${this.base}/graph/orphans/`, { params })
       .pipe(catchError(() => of({ count: 0, next: null, previous: null, results: [] })));
+  }
+
+  exportOrphansCsv(mode: AuditMode = 'orphan'): Observable<Blob> {
+    const params = new HttpParams().set('mode', mode);
+    return this.http.get(`${this.base}/graph/orphans/export-csv/`, {
+      params,
+      responseType: 'blob',
+    });
+  }
+
+  suggestLinksForOrphan(contentItemId: number): Observable<unknown> {
+    return this.http.post(`${this.base}/graph/orphans/${contentItemId}/suggest/`, {});
   }
 
   findPath(fromId: number, toId: number): Observable<PathResult> {
