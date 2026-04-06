@@ -74,6 +74,7 @@ export interface GraphLink {
   source: number;
   target: number;
   context: string;
+  anchor: string;
   weight: number;
 }
 

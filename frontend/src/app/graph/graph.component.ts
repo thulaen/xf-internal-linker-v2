@@ -18,6 +18,8 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
+import { BaseChartDirective } from 'ng2-charts';
+import { ChartData } from 'chart.js';
 
 import {
   GraphService,
@@ -35,6 +37,31 @@ import {
   PageRankEquity,
 } from './graph.service';
 import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
+
+// ── Qualities tab local types ─────────────────────────────────────────────────
+
+interface PageQualityRow {
+  id: number;
+  title: string;
+  inbound: number;
+  contextual: number;
+  contextualPct: number;
+  qualityLabel: 'High' | 'Medium' | 'Low';
+}
+
+interface IsolatedLinkRow {
+  source: number;
+  srcTitle: string;
+  target: number;
+  tgtTitle: string;
+  anchor: string;
+}
+
+interface AnchorWarning {
+  anchor: string;
+  count: number;
+  pct: number;
+}
 
 @Component({
   selector: 'app-graph',
@@ -59,6 +86,7 @@ import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component
     MatSnackBarModule,
     MatSlideToggleModule,
     LinkGraphVizComponent,
+    BaseChartDirective,
   ],
   templateUrl: './graph.component.html',
   styleUrls: ['./graph.component.scss'],
@@ -111,6 +139,17 @@ export class GraphComponent implements OnInit {
   loadingEquity = false;
   readonly authorityColumns = ['rank', 'title', 'silo_name', 'in_degree', 'out_degree', 'pagerank'];
 
+  // ── Tab 6: Qualities ─────────────────────────────────────────────
+  contextFilter: 'all' | 'contextual' = 'all';
+  highlightEdge: { source: number; target: number } | null = null;
+  contextPieData: ChartData<'pie'> | null = null;
+  anchorBarData: ChartData<'bar'> | null = null;
+  pageQualityRows: PageQualityRow[] = [];
+  isolatedLinks: IsolatedLinkRow[] = [];
+  anchorWarnings: AnchorWarning[] = [];
+  readonly qualityColumns = ['title', 'inbound', 'contextualPct', 'qualityLabel'];
+  readonly isolatedColumns = ['srcTitle', 'tgtTitle', 'anchor', 'jump'];
+
   // ── Tab 7: Path Explorer ─────────────────────────────────────────
   fromQuery = '';
   toQuery = '';
@@ -150,7 +189,8 @@ export class GraphComponent implements OnInit {
       case 3: this._loadHubs(); break;
       case 4: this._loadAudit(); break;
       case 5: this._loadTopology(); break;
-      // tab 6 (path) loads on demand via button
+      case 6: this._loadQuality(); break;
+      // tab 7 (path) loads on demand via button
     }
   }
 
@@ -378,13 +418,18 @@ export class GraphComponent implements OnInit {
 
   // ── Network Visualization ─────────────────────────────────────────
 
-  private _loadTopology(): void {
+  private _loadTopology(onLoaded?: () => void): void {
+    if (this.topology.nodes.length > 0 && !this.loadingTopology) {
+      onLoaded?.();
+      return;
+    }
     this.loadingTopology = true;
     this.graphService.getTopology(500).subscribe({
       next: (t) => {
         this.topology = t;
         this.loadingTopology = false;
         this._loadPageRankEquity();
+        onLoaded?.();
       },
       error: () => { this.loadingTopology = false; },
     });
@@ -416,5 +461,104 @@ export class GraphComponent implements OnInit {
 
   nodeTitle(id: number): string {
     return this.topology.nodes.find((n) => n.id === id)?.title ?? String(id);
+  }
+
+  // ── Qualities ─────────────────────────────────────────────────────
+
+  private _loadQuality(): void {
+    this._loadTopology(() => this._computeQuality());
+  }
+
+  private _computeQuality(): void {
+    const { nodes, links } = this.topology;
+    const total = links.length;
+    if (total === 0) return;
+
+    // Pie chart: links by context class
+    const nContextual  = links.filter((l) => l.context === 'contextual').length;
+    const nWeak        = links.filter((l) => l.context === 'weak_context').length;
+    const nIsolated    = links.filter((l) => l.context === 'isolated').length;
+    this.contextPieData = {
+      labels: ['Contextual', 'Weak Context', 'Isolated'],
+      datasets: [{
+        data: [nContextual, nWeak, nIsolated],
+        backgroundColor: ['#1a73e8', '#f9ab00', '#d93025'],
+        borderWidth: 1,
+        borderColor: '#fff',
+      }],
+    };
+
+    // Anchor frequency bar chart (top 15)
+    const anchorCount = new Map<string, number>();
+    for (const l of links) {
+      if (l.anchor) {
+        anchorCount.set(l.anchor, (anchorCount.get(l.anchor) ?? 0) + 1);
+      }
+    }
+    const sortedAnchors = [...anchorCount.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 15);
+    this.anchorBarData = {
+      labels: sortedAnchors.map(([text]) => text.length > 30 ? text.slice(0, 30) + '\u2026' : text),
+      datasets: [{
+        label: 'Link count',
+        data: sortedAnchors.map(([, count]) => count),
+        backgroundColor: '#1a73e8',
+      }],
+    };
+
+    // Anchor warnings: any single anchor > 5% of all links
+    this.anchorWarnings = sortedAnchors
+      .filter(([, count]) => count / total > 0.05)
+      .map(([anchor, count]) => ({ anchor, count, pct: Math.round(count / total * 100) }));
+
+    // Per-page quality scores (grouped by target page)
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    const inboundMap = new Map<number, { contextual: number; total: number }>();
+    for (const l of links) {
+      const entry = inboundMap.get(l.target) ?? { contextual: 0, total: 0 };
+      entry.total++;
+      if (l.context === 'contextual') entry.contextual++;
+      inboundMap.set(l.target, entry);
+    }
+    this.pageQualityRows = [...inboundMap.entries()]
+      .map(([id, { contextual: ctx, total: tot }]) => {
+        const pct = Math.round(ctx / tot * 100);
+        return {
+          id,
+          title: nodeMap.get(id)?.title ?? String(id),
+          inbound: tot,
+          contextual: ctx,
+          contextualPct: pct,
+          qualityLabel: (pct >= 75 ? 'High' : pct >= 40 ? 'Medium' : 'Low') as 'High' | 'Medium' | 'Low',
+        };
+      })
+      .sort((a, b) => a.contextualPct - b.contextualPct);
+
+    // Isolated links list (capped at 200 rows for performance)
+    this.isolatedLinks = links
+      .filter((l) => l.context === 'isolated')
+      .slice(0, 200)
+      .map((l) => ({
+        source: l.source,
+        srcTitle: nodeMap.get(l.source)?.title ?? String(l.source),
+        target: l.target,
+        tgtTitle: nodeMap.get(l.target)?.title ?? String(l.target),
+        anchor: l.anchor,
+      }));
+  }
+
+  onIsolatedRowHover(row: IsolatedLinkRow | null): void {
+    this.highlightEdge = row ? { source: row.source, target: row.target } : null;
+  }
+
+  jumpToNetworkTab(source: number, target: number): void {
+    this.highlightEdge = { source, target };
+    this.selectedTabIndex = 5;
+    this._loadTab(5);
+  }
+
+  qualityBadgeClass(label: 'High' | 'Medium' | 'Low'): string {
+    return label === 'High' ? 'quality-high' : label === 'Medium' ? 'quality-medium' : 'quality-low';
   }
 }

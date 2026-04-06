@@ -434,7 +434,7 @@ class GraphTopologyView(APIView):
                 from_content_item_id__in=node_ids,
                 to_content_item_id__in=node_ids,
             )
-            .values("from_content_item_id", "to_content_item_id", "context_class")
+            .values("from_content_item_id", "to_content_item_id", "context_class", "anchor_text")
         )
 
         links: list[dict] = [
@@ -442,6 +442,7 @@ class GraphTopologyView(APIView):
                 "source": row["from_content_item_id"],
                 "target": row["to_content_item_id"],
                 "context": row["context_class"] or "contextual",
+                "anchor": row["anchor_text"] or "",
                 "weight": 1.0,
             }
             for row in links_qs

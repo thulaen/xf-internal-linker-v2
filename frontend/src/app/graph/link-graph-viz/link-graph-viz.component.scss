@@ -18,9 +18,17 @@
   }
 
   .edge {
-    stroke: #bdc1c6;
     stroke-width: 1px;
   }
+}
+
+@keyframes edge-blink {
+  0%, 100% { stroke-opacity: 0.4; }
+  50%       { stroke-opacity: 1; stroke: var(--color-primary); }
+}
+
+.force-graph .edge--blink {
+  animation: edge-blink 0.8s ease-in-out 3;
 }
 
 .sim-overlay {

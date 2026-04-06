@@ -5,7 +5,9 @@ from statistics import median
 from time import perf_counter
 from unittest.mock import MagicMock, patch
 
+from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase, TestCase, override_settings
+from rest_framework.test import APITestCase
 
 from apps.content.models import ContentItem, Post, ScopeItem
 from apps.graph.models import ExistingLink, LinkFreshnessEdge
@@ -214,3 +216,44 @@ def _peak_working_set_bytes() -> int:
         return peak if peak > 10_000_000 else peak * 1024
     except Exception:
         return 0
+
+
+class GraphTopologyViewTests(APITestCase):
+    """FR-034: topology edges must include the 'anchor' field."""
+
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="topo_tester", password="pass")
+        self.client.force_authenticate(user=user)
+
+        self.scope = ScopeItem.objects.create(scope_id=99, scope_type="node", title="Scope")
+        self.src = ContentItem.objects.create(
+            content_id=101, content_type="thread", title="Source",
+            scope=self.scope, url="https://forum.example.com/threads/source.101",
+        )
+        self.tgt = ContentItem.objects.create(
+            content_id=102, content_type="thread", title="Target",
+            scope=self.scope, url="https://forum.example.com/threads/target.102",
+        )
+        from apps.graph.models import ExistingLink
+        ExistingLink.objects.create(
+            from_content_item=self.src,
+            to_content_item=self.tgt,
+            anchor_text="click here",
+            context_class="contextual",
+        )
+
+    def test_topology_edges_include_anchor_field(self):
+        response = self.client.get("/api/graph/topology/")
+        self.assertEqual(response.status_code, 200)
+        links = response.data["links"]
+        self.assertGreater(len(links), 0)
+        edge = links[0]
+        self.assertIn("anchor", edge, "topology edge must expose anchor field (FR-034)")
+        self.assertEqual(edge["anchor"], "click here")
+
+    def test_topology_edges_include_context_field(self):
+        response = self.client.get("/api/graph/topology/")
+        self.assertEqual(response.status_code, 200)
+        edge = response.data["links"][0]
+        self.assertIn("context", edge)
+        self.assertEqual(edge["context"], "contextual")

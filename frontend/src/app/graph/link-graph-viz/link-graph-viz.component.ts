@@ -27,6 +27,7 @@ interface SimNode extends GraphNode {
 // D3 simulation link type — source/target become SimNode references after init.
 interface SimLink extends d3.SimulationLinkDatum<SimNode> {
   context: string;
+  anchor: string;
   weight: number;
 }
 
@@ -47,6 +48,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   @Input() heatmapMode = false;
   @Input() prMin = 0;
   @Input() prMax = 1;
+  @Input() contextFilter: 'all' | 'contextual' = 'all';
+  @Input() highlightEdge: { source: number; target: number } | null = null;
   @Output() nodeSelected = new EventEmitter<GraphNode | null>();
 
   @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
@@ -62,6 +65,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   private simNodes: SimNode[] = [];
   private _siloColor: d3.ScaleOrdinal<number, string> | null = null;
   private _orphanColor = '';
+  private linkSel: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null = null;
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -76,6 +80,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       this._buildGraph();
     } else if ((changes['heatmapMode'] || changes['prMin'] || changes['prMax']) && this.viewReady) {
       this._applyColorMode();
+    } else if (changes['contextFilter'] && this.viewReady) {
+      this._applyContextFilter();
+    } else if (changes['highlightEdge'] && this.viewReady) {
+      this._applyEdgeBlink();
     }
   }
 
@@ -125,6 +133,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       source: l.source as unknown as SimNode,
       target: l.target as unknown as SimNode,
       context: l.context,
+      anchor: l.anchor,
       weight: l.weight,
     }));
 
@@ -182,7 +191,11 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       .data(simLinks)
       .join('line')
       .attr('class', 'edge')
+      .attr('stroke', (l) => this._edgeColor(l.context))
       .attr('stroke-opacity', 0.4);
+
+    this.linkSel = link;
+    this._applyContextFilter();
 
     // ── Nodes ─────────────────────────────────────────────────────────────────
 
@@ -325,6 +338,28 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
           .attr('fill', 'var(--color-text-muted)')
           .text(label);
       });
+  }
+
+  private _edgeColor(ctx: string): string {
+    if (ctx === 'isolated')     return '#d93025'; // red
+    if (ctx === 'weak_context') return '#f9ab00'; // amber
+    return '#bdc1c6';                             // gray (contextual)
+  }
+
+  private _applyContextFilter(): void {
+    this.linkSel?.attr('display', (l) => {
+      if (this.contextFilter === 'contextual' && l.context !== 'contextual') return 'none';
+      return null;
+    });
+  }
+
+  private _applyEdgeBlink(): void {
+    this.linkSel?.classed('edge--blink', (l) => {
+      if (!this.highlightEdge) return false;
+      const s = typeof l.source === 'object' ? (l.source as SimNode).id : (l.source as number);
+      const t = typeof l.target === 'object' ? (l.target as SimNode).id : (l.target as number);
+      return s === this.highlightEdge.source && t === this.highlightEdge.target;
+    });
   }
 
   private _onHover(

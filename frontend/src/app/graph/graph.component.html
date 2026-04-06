@@ -431,6 +431,12 @@
             color="primary">
             Show Authority Heatmap
           </mat-slide-toggle>
+          <mat-slide-toggle
+            [checked]="contextFilter === 'contextual'"
+            (change)="contextFilter = $event.checked ? 'contextual' : 'all'"
+            color="primary">
+            Contextual links only
+          </mat-slide-toggle>
         </div>
 
         <div class="network-layout">
@@ -440,6 +446,8 @@
               [heatmapMode]="heatmapMode"
               [prMin]="pageRankEquity?.pr_min ?? 0"
               [prMax]="pageRankEquity?.pr_max ?? 1"
+              [contextFilter]="contextFilter"
+              [highlightEdge]="highlightEdge"
               (nodeSelected)="onNodeSelected($event)">
             </app-link-graph-viz>
           </div>
@@ -550,7 +558,213 @@
   </mat-tab>
 
   <!-- ═══════════════════════════════════════════════════════════════
-       TAB 7 — LINK PATH EXPLORER
+       TAB 7 — LINK CONTEXT QUALITY AUDIT
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon icon-md">verified</mat-icon>
+      Qualities
+    </ng-template>
+
+    <div class="tab-content">
+      @if (topology.nodes.length === 0 && !loadingTopology) {
+        <div class="empty-state">
+          <mat-icon class="empty-icon">bar_chart</mat-icon>
+          <h3>No link data yet</h3>
+          <p>Visit the Network tab first to load the link graph, then return here.</p>
+        </div>
+      } @else if (loadingTopology) {
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      } @else {
+
+        <p class="tab-description">
+          Audit the contextual quality of your internal links.
+          Links are classified as <strong>contextual</strong> (surrounded by prose on both sides),
+          <strong>weak context</strong> (prose on one side only), or
+          <strong>isolated</strong> (no surrounding text).
+        </p>
+
+        <!-- Context distribution + filter ──────────────────────────────── -->
+        <div class="qualities-top-row">
+
+          <mat-card class="qualities-chart-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>donut_large</mat-icon>
+              <mat-card-title>Context Distribution</mat-card-title>
+              <mat-card-subtitle>All {{ topology.links.length | number }} links</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content class="chart-content">
+              @if (contextPieData) {
+                <canvas baseChart
+                  [data]="contextPieData"
+                  type="pie"
+                  class="qualities-pie">
+                </canvas>
+              }
+              <div class="context-legend">
+                <span class="legend-dot dot-contextual"></span> Contextual
+                <span class="legend-dot dot-weak"></span> Weak Context
+                <span class="legend-dot dot-isolated"></span> Isolated
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="qualities-filter-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>filter_alt</mat-icon>
+              <mat-card-title>Network Graph Filter</mat-card-title>
+              <mat-card-subtitle>Applies to the Network tab</mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <mat-slide-toggle
+                [checked]="contextFilter === 'contextual'"
+                (change)="contextFilter = $event.checked ? 'contextual' : 'all'"
+                color="primary">
+                Show contextual links only
+              </mat-slide-toggle>
+              <p class="filter-hint">
+                When on, the Network graph hides weak-context and isolated edges so you
+                can see just the body-content link skeleton.
+              </p>
+            </mat-card-content>
+          </mat-card>
+
+        </div>
+
+        <!-- Anchor text analysis ──────────────────────────────────────── -->
+        <mat-card class="qualities-section-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>text_fields</mat-icon>
+            <mat-card-title>Anchor Text Frequency</mat-card-title>
+            <mat-card-subtitle>Top 15 anchor texts by link count</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (anchorWarnings.length > 0) {
+              <div class="anchor-warnings">
+                <mat-icon class="warning-icon">warning</mat-icon>
+                <span>Over-optimised anchors detected — same text used on &gt;5% of all links:</span>
+                <mat-chip-set>
+                  @for (w of anchorWarnings; track w.anchor) {
+                    <mat-chip [matTooltip]="w.count + ' links (' + w.pct + '%)'">
+                      {{ w.anchor }}
+                    </mat-chip>
+                  }
+                </mat-chip-set>
+              </div>
+            }
+            @if (anchorBarData) {
+              <canvas baseChart
+                [data]="anchorBarData"
+                type="bar"
+                class="qualities-bar">
+              </canvas>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Per-page quality scores ───────────────────────────────────── -->
+        <mat-card class="qualities-section-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>grade</mat-icon>
+            <mat-card-title>Page Link Quality</mat-card-title>
+            <mat-card-subtitle>Sorted worst-first — pages receiving mostly isolated inbound links</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <table mat-table [dataSource]="pageQualityRows" class="data-table">
+
+              <ng-container matColumnDef="title">
+                <th mat-header-cell *matHeaderCellDef>Article</th>
+                <td mat-cell *matCellDef="let row" class="title-cell">{{ row.title }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="inbound">
+                <th mat-header-cell *matHeaderCellDef>Inbound Links</th>
+                <td mat-cell *matCellDef="let row" class="col-number">{{ row.inbound }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="contextualPct">
+                <th mat-header-cell *matHeaderCellDef>% Contextual</th>
+                <td mat-cell *matCellDef="let row" class="col-number">{{ row.contextualPct }}%</td>
+              </ng-container>
+
+              <ng-container matColumnDef="qualityLabel">
+                <th mat-header-cell *matHeaderCellDef>Quality</th>
+                <td mat-cell *matCellDef="let row">
+                  <span class="quality-badge" [class]="qualityBadgeClass(row.qualityLabel)">
+                    {{ row.qualityLabel }}
+                  </span>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="qualityColumns; sticky: true"></tr>
+              <tr mat-row *matRowDef="let row; columns: qualityColumns;"></tr>
+            </table>
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Isolated links audit list ─────────────────────────────────── -->
+        @if (isolatedLinks.length > 0) {
+          <mat-card class="qualities-section-card">
+            <mat-card-header>
+              <mat-icon mat-card-avatar>link_off</mat-icon>
+              <mat-card-title>Isolated Links</mat-card-title>
+              <mat-card-subtitle>
+                {{ isolatedLinks.length }} isolated link{{ isolatedLinks.length === 1 ? '' : 's' }} found — hover a row to highlight the edge in the Network graph
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <table mat-table [dataSource]="isolatedLinks" class="data-table">
+
+                <ng-container matColumnDef="srcTitle">
+                  <th mat-header-cell *matHeaderCellDef>Source</th>
+                  <td mat-cell *matCellDef="let row" class="title-cell">{{ row.srcTitle }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="tgtTitle">
+                  <th mat-header-cell *matHeaderCellDef>Target</th>
+                  <td mat-cell *matCellDef="let row" class="title-cell">{{ row.tgtTitle }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="anchor">
+                  <th mat-header-cell *matHeaderCellDef>Anchor Text</th>
+                  <td mat-cell *matCellDef="let row">
+                    @if (row.anchor) {
+                      <code class="anchor-code">{{ row.anchor }}</code>
+                    } @else {
+                      <span class="muted-text">—</span>
+                    }
+                  </td>
+                </ng-container>
+
+                <ng-container matColumnDef="jump">
+                  <th mat-header-cell *matHeaderCellDef></th>
+                  <td mat-cell *matCellDef="let row">
+                    <button mat-icon-button
+                      matTooltip="View in Network graph"
+                      (click)="jumpToNetworkTab(row.source, row.target)">
+                      <mat-icon class="icon-sm">open_in_new</mat-icon>
+                    </button>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="isolatedColumns; sticky: true"></tr>
+                <tr mat-row *matRowDef="let row; columns: isolatedColumns;"
+                  (mouseenter)="onIsolatedRowHover(row)"
+                  (mouseleave)="onIsolatedRowHover(null)">
+                </tr>
+              </table>
+            </mat-card-content>
+          </mat-card>
+        }
+
+      }
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 8 — LINK PATH EXPLORER
   ════════════════════════════════════════════════════════════════ -->
   <mat-tab>
     <ng-template mat-tab-label>

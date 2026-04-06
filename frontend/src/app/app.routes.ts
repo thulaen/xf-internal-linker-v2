@@ -46,6 +46,7 @@ export const routes: Routes = [
     path: 'graph',
     loadComponent: () =>
       import('./graph/graph.component').then((m) => m.GraphComponent),
+    providers: [provideCharts(withDefaultRegisterables())],
     title: 'Link Graph — XF Internal Linker',
     canActivate: [authGuard],
   },
