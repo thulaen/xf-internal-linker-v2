@@ -137,6 +137,66 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "internal_search.baseline_days": "28",
     "internal_search.max_active_queries": "200",
     "internal_search.min_recent_count": "3",
+    # FR-047 — Navigation Path Prediction
+    # Forward-declared: inert until FR-047 is implemented and reads these keys.
+    # Research basis: US7584181B2 (implicit links from user access patterns) plus
+    # first-order Markov transition models on GA4 page_view sequences. Starting
+    # weight is 0.04 because directional navigation data is a strong behavioural
+    # signal, but it depends on sufficient GA4 session volume to be reliable.
+    # Raise to 0.06 after validating that transition counts are stable across
+    # pipeline runs on a live site with >50 sessions per source page.
+    "navigation_path.enabled": "true",
+    "navigation_path.ranking_weight": "0.04",
+    "navigation_path.lookback_days": "90",
+    "navigation_path.min_sessions": "50",
+    "navigation_path.min_transition_count": "5",
+    "navigation_path.w_direct": "0.6",
+    "navigation_path.w_shortcut": "0.4",
+    # FR-048 — Topical Authority Cluster Density
+    # Forward-declared: inert until FR-048 is implemented and reads these keys.
+    # Research basis: HITS hub/authority scoring, Majestic Topical Trust Flow,
+    # HDBSCAN clustering on existing bge-m3 embeddings. Starting weight is 0.04
+    # because topical depth is a well-established SEO signal but the cluster
+    # quality depends on site size and content diversity. min_cluster_size=5
+    # prevents noise clusters from inflating scores. Raise to 0.06 after
+    # verifying that HDBSCAN produces stable, meaningful clusters on the target
+    # site's embedding space.
+    "topical_cluster.enabled": "true",
+    "topical_cluster.ranking_weight": "0.04",
+    "topical_cluster.min_cluster_size": "5",
+    "topical_cluster.min_site_pages": "20",
+    "topical_cluster.max_staleness_days": "14",
+    "topical_cluster.fallback_value": "0.5",
+    # FR-049 — Query Intent Funnel Alignment
+    # Forward-declared: inert until FR-049 is implemented and reads these keys.
+    # Research basis: WO2015200404A1 (query intent identification) and
+    # US20110289063A1 (determining query intent). Starting weight is 0.03
+    # because keyword-pattern intent classification is a coarse heuristic in v1
+    # and the funnel model assumes a linear journey that not all content follows.
+    # Raise to 0.05 after validating that GSC-based intent classification
+    # produces stable, sensible stage assignments across a live site.
+    "intent_funnel.enabled": "true",
+    "intent_funnel.ranking_weight": "0.03",
+    "intent_funnel.optimal_offset": "1",
+    "intent_funnel.sigma": "1.2",
+    "intent_funnel.min_confidence": "0.25",
+    "intent_funnel.navigational_confidence_threshold": "0.6",
+    # FR-050 — Seasonality & Temporal Demand Matching
+    # Forward-declared: inert until FR-050 is implemented and reads these keys.
+    # Research basis: US9081857B1 (freshness and seasonality-based content
+    # determinations) plus classical seasonal decomposition. Starting weight is
+    # 0.03 because seasonal scoring requires 12+ months of clean GA4/GSC data
+    # and the signal is inherently noisy for sites with weak seasonal patterns.
+    # Raise to 0.05 after confirming that seasonal_strength correctly separates
+    # seasonal from perennial pages on a live site.
+    "seasonality.enabled": "true",
+    "seasonality.ranking_weight": "0.03",
+    "seasonality.min_history_months": "12",
+    "seasonality.min_seasonal_strength": "0.3",
+    "seasonality.anticipation_window_months": "3",
+    "seasonality.w_current": "0.7",
+    "seasonality.w_anticipation": "0.3",
+    "seasonality.index_cap": "3.0",
     # FR-021 - Graph-Based Link Candidate Generation
     "graph_candidate.enabled": "true",
     "graph_candidate.walk_steps_per_entity": "1000",

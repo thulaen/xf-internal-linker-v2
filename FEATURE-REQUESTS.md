@@ -1441,6 +1441,129 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ---
 
+### FR-047 — Navigation Path Prediction
+**Requested:** 2026-04-06
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US7584181B2 (*Implicit Links Search Enhancement System and Method*), first-order Markov chain navigation models, Kleinberg sequential pattern mining.
+**Spec:** `docs/specs/fr047-navigation-path-prediction.md`
+
+### What's wanted
+- Detect ordered user navigation sequences from GA4 page_view events and recommend links that shortcut common multi-hop journeys.
+- Use directional transition probabilities (A → B, not just {A, B} co-occurrence) as a ranking signal.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_navigation_path` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when GA4 data is missing, source page has fewer than `min_sessions`, or transition count is below `min_transition_count`.
+- Builds a first-order Markov transition matrix from session-grouped page_view sequences. Computes direct transition probability `P(dest | source)` and indirect shortcut value through intermediate pages.
+- Confidence damping blends toward neutral when evidence is thin.
+- New suggestion diagnostics field: `navigation_path_diagnostics`.
+- New settings: `navigation_path.enabled`, `navigation_path.ranking_weight` (default `0.0`), `navigation_path.lookback_days`, `navigation_path.min_sessions`, `navigation_path.min_transition_count`, `navigation_path.w_direct`, `navigation_path.w_shortcut`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-025`. FR-025 is unordered session co-occurrence; FR-047 is ordered Markov transition sequences. They are complementary, not overlapping.
+- Keep this separate from `FR-024`. FR-024 measures single-page dwell; FR-047 measures page-to-page transitions.
+- Consumes existing GA4 `page_view` events from FR-016 — do not add new GA4 import logic.
+- Daily batch aggregation only in v1. No real-time streaming.
+- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- Full spec: `docs/specs/fr047-navigation-path-prediction.md`.
+
+---
+
+### FR-048 — Topical Authority Cluster Density
+**Requested:** 2026-04-06
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Kleinberg HITS algorithm (1999), Majestic Topical Trust Flow methodology, HDBSCAN density-based clustering (Campello et al. 2013), Google Search Quality Evaluator Guidelines topical authority concept.
+**Spec:** `docs/specs/fr048-topical-authority-cluster-density.md`
+
+### What's wanted
+- Score destination pages higher when the site has deep topical coverage around that destination's subject.
+- Use semantic embedding clusters (not URL structure) to measure topical depth.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_topical_cluster` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when clustering is disabled, site has fewer than `min_site_pages` pages, page is a noise outlier, or clusters are stale.
+- Clusters all site pages using existing bge-m3 embeddings via HDBSCAN. Computes per-page density as `log(cluster_size) / log(max_cluster_size)`, bounded to `[0.5, 1.0]`.
+- Optional staleness decay blends toward neutral as cluster assignments age beyond `max_staleness_days`.
+- New suggestion diagnostics field: `topical_cluster_diagnostics`.
+- New settings: `topical_cluster.enabled`, `topical_cluster.ranking_weight` (default `0.0`), `topical_cluster.min_cluster_size`, `topical_cluster.min_site_pages`, `topical_cluster.max_staleness_days`, `topical_cluster.fallback_value`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-039`. FR-039 scores individual salient terms on one page; FR-048 measures the size of the topic cluster the page belongs to.
+- Keep this separate from silo-aware ranking. Silo groups by URL path prefix; FR-048 groups by semantic embedding similarity.
+- Keep this separate from `FR-015`. FR-015 diversifies the suggestion slate; FR-048 scores individual destinations by cluster depth.
+- Uses existing `ContentItem.embedding` vectors — do not re-embed pages.
+- HDBSCAN runs daily or per-pipeline-run, not per-suggestion. Cache cluster assignments on `ContentItem`.
+- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- Full spec: `docs/specs/fr048-topical-authority-cluster-density.md`.
+
+---
+
+### FR-049 — Query Intent Funnel Alignment
+**Requested:** 2026-04-06
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent WO2015200404A1 (*Query Intent Identification from Reformulations*), patent US20110289063A1 (*Determining Query Intent*), standard search marketing funnel models (informational → commercial investigation → transactional).
+**Spec:** `docs/specs/fr049-query-intent-funnel-alignment.md`
+
+### What's wanted
+- Classify each page into an intent stage (navigational, informational, commercial, transactional) using GSC query patterns and content keyword matching.
+- Boost links that move users one stage forward through the buyer journey funnel.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_intent_funnel` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when intent classification confidence is below `min_confidence`, GSC data is missing and content-only fallback is inconclusive, or either page is navigational.
+- Classifies pages via keyword pattern matching against GSC query strings (primary) or page title/body (fallback). Computes funnel distance between source and destination stages. Maps distance to a Gaussian alignment score peaked at `+1` (one stage forward).
+- Confidence damping from both source and destination classifications.
+- New suggestion diagnostics field: `intent_funnel_diagnostics`.
+- New settings: `intent_funnel.enabled`, `intent_funnel.ranking_weight` (default `0.0`), `intent_funnel.optimal_offset`, `intent_funnel.sigma`, `intent_funnel.min_confidence`, `intent_funnel.navigational_confidence_threshold`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-047`. FR-047 models observed navigation transitions (where users *go*); FR-049 models intent-stage progression (where users *should logically go next*).
+- Keep this separate from `FR-025`. FR-025 is unordered session co-occurrence; FR-049 is directed funnel alignment.
+- Keep this separate from `FR-016` / `FR-017`. FR-016/017 aggregate traffic metrics; FR-049 classifies queries by intent type.
+- Consumes existing GSC query data from FR-017 — do not add new GSC import logic.
+- Keyword pattern matching only in v1. No external NLP or ML models.
+- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- Full spec: `docs/specs/fr049-query-intent-funnel-alignment.md`.
+
+---
+
+### FR-050 — Seasonality & Temporal Demand Matching
+**Requested:** 2026-04-06
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US9081857B1 (*Freshness and Seasonality-Based Content Determinations*), classical time-series seasonal decomposition, Google QDF (Query Deserves Freshness) concept.
+**Spec:** `docs/specs/fr050-seasonality-temporal-demand.md`
+
+### What's wanted
+- Detect annual seasonal traffic patterns per page from 12+ months of GA4/GSC history.
+- Dynamically boost destinations whose seasonal peak is approaching and dampen destinations in their off-season.
+
+### Specific controls / behaviour
+- New suggestion-level score: `score_seasonality` bounded `[0.5, 1.0]`.
+- Neutral `0.5` when page has no seasonal pattern (`seasonal_strength < min_seasonal_strength`), fewer than `min_history_months` of data, or feature is disabled.
+- Computes a 12-month seasonal index per page via ratio-to-moving-average decomposition. Measures seasonal strength as variance ratio. Blends current-month index with an anticipation bonus for pages whose peak is within `anticipation_window_months`. Seasonal strength gates the final score so weakly-seasonal pages stay near neutral.
+- New suggestion diagnostics field: `seasonality_diagnostics`.
+- New settings: `seasonality.enabled`, `seasonality.ranking_weight` (default `0.0`), `seasonality.min_history_months`, `seasonality.min_seasonal_strength`, `seasonality.anticipation_window_months`, `seasonality.w_current`, `seasonality.w_anticipation`, `seasonality.index_cap`.
+
+### Implementation notes for the AI
+- Keep this separate from `FR-023`. FR-023 is reactive (recent traffic momentum); FR-050 is predictive (annual seasonal curves).
+- Keep this separate from `FR-016` / `FR-017`. FR-016/017 aggregate raw traffic; FR-050 decomposes traffic into seasonal components.
+- Keep this separate from `FR-044`. FR-044 detects short-term search demand bursts; FR-050 detects predictable annual cycles.
+- Consumes existing GA4/GSC data from FR-016/FR-017 — do not add new import logic.
+- Monthly model recomputation only. No real-time seasonal updates.
+- Simple ratio-to-moving-average decomposition in v1. No Prophet, ARIMA, or external time-series libraries.
+- This changes hot ranking behavior, so the implementation phase must include both a Python reference path and a C++ batch fast path with parity tests.
+- Full spec: `docs/specs/fr050-seasonality-temporal-demand.md`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1464,4 +1587,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-04 (Phase 20 / FR-017 is now complete. All 5 slices shipped: Django models, Angular GSC settings UI, Python GSC importer, C# attribution engine, and Angular Search Impact tab with Chart.js scatter plot, cohort analysis by platform and anchor family, and reward-label table. FR-038 and FR-039 added as new ranking signal backlog items at Phases 41 and 42. FR-040 Multimedia Boost added at Phase 43. FR-041 through FR-044 added as future ranking/quality backlog items at Phases 44 through 47. FR-045 Anchor Diversity added as a new anti-spam ranking backlog item at Phase 48.)*
+*Last updated: 2026-04-06 (FR-047 Navigation Path Prediction, FR-048 Topical Authority Cluster Density, FR-049 Query Intent Funnel Alignment, and FR-050 Seasonality & Temporal Demand Matching added as new ranking signal backlog items with full math specs.)*
