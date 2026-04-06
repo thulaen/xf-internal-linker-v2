@@ -12,5 +12,6 @@ urlpatterns = [
     path('overview/', views.DiagnosticsOverviewView.as_view(), name='diagnostics-overview'),
     path('features/', views.FeatureReadinessView.as_view(), name='feature-readiness'),
     path('resources/', views.ResourceUsageView.as_view(), name='resource-usage'),
+    path('weights/', views.WeightDiagnosticsView.as_view(), name='weight-diagnostics'),
     path('internal/scheduler/dispatch/', views.SchedulerDispatchView.as_view(), name='scheduler-dispatch'),
 ]

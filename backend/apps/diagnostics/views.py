@@ -1,13 +1,18 @@
 import hmac
 
 from django.conf import settings
+from django.db import connection
+from django.utils import timezone
+from datetime import timedelta
 from rest_framework import status, viewsets, response, views
 from rest_framework.permissions import AllowAny
 from rest_framework.decorators import action
 from .models import ServiceStatusSnapshot, SystemConflict
 from .serializers import ServiceStatusSerializer, SystemConflictSerializer, ErrorLogSerializer
 from apps.audit.models import ErrorLog
-from .health import run_health_checks, detect_conflicts, get_resource_usage, get_feature_readinessMatrix
+from apps.core.models import AppSetting
+from .health import run_health_checks, detect_conflicts, get_resource_usage, get_feature_readinessMatrix, check_native_scoring
+from .signal_registry import SIGNALS
 
 
 class DiagnosticsOverviewView(views.APIView):
@@ -191,3 +196,137 @@ class SchedulerDispatchView(views.APIView):
             },
             status=status.HTTP_400_BAD_REQUEST,
         )
+
+
+class WeightDiagnosticsView(views.APIView):
+    """
+    FR-028: Algorithm Weight Diagnostics.
+    Provides a read-only view of all 23 ranking and value model signals,
+    their current weights, storage usage, and C++ acceleration status.
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        # 1. Fetch current settings/weights
+        settings = {s.key: s.value for s in AppSetting.objects.all()}
+        
+        # 2. Get C++ status
+        native_status = check_native_scoring()
+        cpp_module_map = {
+            m["module"]: m for m in native_status.get("module_statuses", [])
+        }
+        
+        # 3. Get recent error counts per area (last 24h)
+        yesterday = timezone.now() - timedelta(hours=24)
+        error_counts = {}
+        # Simple heuristic: map signal keywords to job_type or step
+        logs = ErrorLog.objects.filter(created_at__gte=yesterday, acknowledged=False)
+        for log in logs:
+            key = f"{log.job_type}:{log.step}".lower()
+            error_counts[key] = error_counts.get(key, 0) + 1
+
+        # 4. Gather storage stats for referenced tables
+        table_stats = self._get_table_stats()
+
+        # 5. Build final payload
+        signal_data = []
+        for sig in SIGNALS:
+            # Resolve weight
+            weight_val = settings.get(sig.weight_key, "0.0") if sig.weight_key else "N/A"
+            try:
+                weight_display = float(weight_val) if weight_val != "N/A" else 0.0
+            except ValueError:
+                weight_display = weight_val
+
+            # Resolve C++ status
+            cpp_active = False
+            cpp_status = "Not Supported"
+            if sig.cpp_kernel:
+                mod_name = sig.cpp_kernel.split(".")[0]
+                mod_info = cpp_module_map.get(mod_name)
+                if mod_info:
+                    cpp_active = mod_info.get("state") == "healthy"
+                    cpp_status = "Active (C++)" if cpp_active else "Degraded (Python Fallback)"
+                else:
+                    cpp_status = "Available (Not Loaded)"
+
+            # Resolve storage
+            # sig.table_name might contain multiple tables or extra info, take first word as table name
+            raw_table = sig.table_name.split(" ")[0].lower()
+            stats = table_stats.get(raw_table, {"rows": 0, "size_bytes": 0})
+
+            # Resolve errors
+            # Look for signal ID or job_type matches in error_counts
+            err_count = 0
+            for err_key, count in error_counts.items():
+                if sig.id.lower() in err_key or (sig.cpp_kernel and sig.cpp_kernel.split(".")[0].lower() in err_key):
+                    err_count += count
+
+            signal_data.append({
+                "id": sig.id,
+                "name": sig.name,
+                "type": sig.type,
+                "description": sig.description,
+                "weight": weight_display,
+                "cpp_acceleration": {
+                    "active": cpp_active,
+                    "status_label": cpp_status,
+                    "kernel": sig.cpp_kernel
+                },
+                "storage": {
+                    "table": raw_table,
+                    "row_count": stats["rows"],
+                    "size_bytes": stats["size_bytes"],
+                    "size_human": self._human_size(stats["size_bytes"])
+                },
+                "health": {
+                    "status": "healthy" if err_count == 0 else "degraded",
+                    "recent_errors": err_count
+                }
+            })
+
+        return response.Response({
+            "signals": signal_data,
+            "summary": {
+                "total_signals": len(SIGNALS),
+                "cpp_accelerated_count": sum(1 for s in signal_data if s["cpp_acceleration"]["active"]),
+                "healthy_count": sum(1 for s in signal_data if s["health"]["status"] == "healthy"),
+                "last_refreshed": timezone.now()
+            }
+        })
+
+    def _get_table_stats(self):
+        """Fetch row counts and disk usage for core algorithm tables."""
+        tables = [
+            "content_contentitem", "content_sentence", "graph_existinglink",
+            "analytics_searchmetric", "analytics_suggestiontelemetrydaily",
+            "cooccurrence_sessioncooccurrencepair", "graph_clickdistance",
+            "audit_errorlog"
+        ]
+        stats = {}
+        with connection.cursor() as cursor:
+            for table in tables:
+                try:
+                    # Get approximate row count and total size including indexes
+                    cursor.execute(f"""
+                        SELECT 
+                            (reltuples)::bigint AS row_count,
+                            pg_total_relation_size(quote_ident(relname)) AS total_bytes
+                        FROM pg_class
+                        WHERE relname = %s;
+                    """, [table])
+                    row = cursor.fetchone()
+                    if row:
+                        stats[table] = {"rows": row[0], "size_bytes": row[1]}
+                    else:
+                        stats[table] = {"rows": 0, "size_bytes": 0}
+                except Exception:
+                    stats[table] = {"rows": 0, "size_bytes": 0}
+        return stats
+
+    def _human_size(self, bytes_val):
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if bytes_val < 1024.0:
+                return f"{bytes_val:.1f} {unit}"
+            bytes_val /= 1024.0
+        return f"{bytes_val:.1f} PB"

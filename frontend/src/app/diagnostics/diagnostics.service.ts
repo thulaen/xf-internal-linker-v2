@@ -99,6 +99,39 @@ export interface DiagnosticsOverview {
   top_urgent_issues: SystemConflict[];
 }
 
+export interface WeightSignal {
+  id: string;
+  name: string;
+  type: 'ranking' | 'value';
+  description: string;
+  weight: number | string;
+  cpp_acceleration: {
+    active: boolean;
+    status_label: string;
+    kernel: string | null;
+  };
+  storage: {
+    table: string;
+    row_count: number;
+    size_bytes: number;
+    size_human: string;
+  };
+  health: {
+    status: 'healthy' | 'degraded';
+    recent_errors: number;
+  };
+}
+
+export interface WeightDiagnosticsResponse {
+  signals: WeightSignal[];
+  summary: {
+    total_signals: number;
+    cpp_accelerated_count: number;
+    healthy_count: number;
+    last_refreshed: string;
+  };
+}
+
 @Injectable({ providedIn: 'root' })
 export class DiagnosticsService {
   private http = inject(HttpClient);
@@ -142,5 +175,9 @@ export class DiagnosticsService {
 
   acknowledgeError(id: number): Observable<any> {
     return this.http.post(`${this.baseUrl}/errors/${id}/acknowledge/`, {});
+  }
+
+  getWeightDiagnostics(): Observable<WeightDiagnosticsResponse> {
+    return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`);
   }
 }

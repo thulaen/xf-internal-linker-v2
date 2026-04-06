@@ -934,6 +934,8 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### FR-028 - Algorithm Weight Diagnostics Tab
 **Requested:** 2026-03-28
 **Target phase:** Phase 31
+**Completed phase:** Phase 31
+**Completed:** 2026-04-06
 **Priority:** High
 **Spec draft:** `docs/specs/fr028-algorithm-weight-diagnostics-tab.md`
 

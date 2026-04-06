@@ -1,0 +1,130 @@
+<mat-card class="settings-card settings-card--wide" id="algorithm-diagnostics">
+  <mat-card-header>
+    <div mat-card-avatar>
+      <mat-icon color="primary" style="font-size: 32px; width: 32px; height: 32px;">hub</mat-icon>
+    </div>
+    <mat-card-title>Algorithm Weight & Signal Diagnostics</mat-card-title>
+    <mat-card-subtitle>
+      Read-only visibility into the 23 scoring components that drive link discovery.
+    </mat-card-subtitle>
+    <div style="flex: 1"></div>
+    <button mat-icon-button (click)="loadData()" [disabled]="loading" matTooltip="Refresh diagnostics">
+      <mat-icon [class.rotating]="loading">refresh</mat-icon>
+    </button>
+  </mat-card-header>
+
+  <mat-card-content class="card-content" style="padding-top: 16px;">
+    @if (loading && !data) {
+      <mat-progress-bar mode="indeterminate" color="primary"></mat-progress-bar>
+      <p class="hint" style="margin-top: 16px;">Gathering signal metadata and storage metrics...</p>
+    } @else if (error) {
+      <div class="empty-state">
+        <div class="empty-icon-wrap">
+          <mat-icon color="warn">error</mat-icon>
+        </div>
+        <h3>Failed to load diagnostics</h3>
+        <p>{{ error }}</p>
+        <button mat-flat-button color="primary" (click)="loadData()">Retry Discovery</button>
+      </div>
+    } @else {
+      <!-- Summary Chips -->
+      <div class="summary-chips-row mb-3" style="display: flex; gap: 16px; align-items: center; flex-wrap: wrap;">
+        <div class="summary-chip" style="background: var(--color-blue-50); border: 1px solid var(--color-blue-100); padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+           <mat-icon style="color: var(--color-primary); font-size: 18px; width: 18px; height: 18px;">analytics</mat-icon>
+           <span style="font-size: 13px; font-weight: 500; color: var(--color-primary);">{{ data?.summary?.total_signals }} Total Signals</span>
+        </div>
+        <div class="summary-chip" style="background: var(--color-google-green-faint); border: 1px solid var(--color-google-green); padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+           <mat-icon style="color: var(--color-google-green); font-size: 18px; width: 18px; height: 18px;">speed</mat-icon>
+           <span style="font-size: 13px; font-weight: 500; color: var(--color-google-green);">{{ data?.summary?.cpp_accelerated_count }} C++ Kernels Active</span>
+        </div>
+        <div class="summary-chip" [style.background]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green-faint)' : 'var(--color-warning-light)'" 
+             [style.border]="data?.summary?.healthy_count === data?.summary?.total_signals ? '1px solid var(--color-google-green)' : '1px solid var(--color-warning)'"
+             style="padding: 8px 16px; border-radius: 8px; display: flex; align-items: center; gap: 8px;">
+           <mat-icon [style.color]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'" 
+                     style="font-size: 18px; width: 18px; height: 18px;">
+             {{ data?.summary?.healthy_count === data?.summary?.total_signals ? 'check_circle' : 'report_problem' }}
+           </mat-icon>
+           <span [style.color]="data?.summary?.healthy_count === data?.summary?.total_signals ? 'var(--color-google-green)' : 'var(--color-warning)'"
+                 style="font-size: 13px; font-weight: 500;">
+             {{ data?.summary?.healthy_count }} / {{ data?.summary?.total_signals }} Healthy
+           </span>
+        </div>
+        <div style="flex: 1"></div>
+        <span class="hint" style="font-size: 11px;">Last Refreshed: {{ data?.summary?.last_refreshed | date:'HH:mm:ss' }}</span>
+      </div>
+
+      <div class="table-container shadow-faint" style="border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden;">
+        <table mat-table [dataSource]="data?.signals || []" class="diagnostics-table mat-elevation-z0">
+
+          <!-- Name & Description -->
+          <ng-container matColumnDef="name">
+            <th mat-header-cell *matHeaderCellDef>Signal Name</th>
+            <td mat-cell *matCellDef="let sig">
+              <div class="signal-info">
+                <div class="signal-name" style="font-weight: 800; color: var(--color-text-primary); font-size: 13px;">{{ sig.name }}</div>
+                <div class="signal-desc hint" style="font-size: 11px; margin-top: 2px;">{{ sig.description }}</div>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Type & Weight -->
+          <ng-container matColumnDef="weight">
+            <th mat-header-cell *matHeaderCellDef style="text-align: center;">Weight</th>
+            <td mat-cell *matCellDef="let sig" style="text-align: center;">
+              <div class="weight-chip" style="display: inline-block; padding: 4px 10px; border-radius: 4px; background: var(--color-bg-faint); font-family: monospace; font-weight: 700; color: var(--color-primary); min-width: 60px;">
+                {{ sig.weight === 'N/A' ? 'SKIP' : (sig.weight | number:'1.2-2') }}
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- C++ Status -->
+          <ng-container matColumnDef="cpp">
+            <th mat-header-cell *matHeaderCellDef>Acceleration</th>
+            <td mat-cell *matCellDef="let sig">
+              <div class="cpp-group" style="display: flex; align-items: center; gap: 8px;">
+                <mat-icon [style.color]="sig.cpp_acceleration.active ? 'var(--color-google-green)' : 'var(--color-text-disabled)'" 
+                          [matTooltip]="sig.cpp_acceleration.kernel || 'No C++ kernel defined'"
+                          style="font-size: 18px; width: 18px; height: 18px; vertical-align: middle;">
+                  {{ sig.cpp_acceleration.active ? 'bolt' : 'code' }}
+                </mat-icon>
+                <span class="hint" style="font-size: 12px;">{{ sig.cpp_acceleration.status_label }}</span>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Storage -->
+          <ng-container matColumnDef="storage">
+            <th mat-header-cell *matHeaderCellDef>Table Size</th>
+            <td mat-cell *matCellDef="let sig">
+              <div class="storage-info">
+                <div style="font-weight: 600; font-size: 12px; color: var(--color-text-secondary);">{{ sig.storage.size_human }}</div>
+                <div class="hint" style="font-size: 11px;">~{{ sig.storage.row_count | number }} rows</div>
+              </div>
+            </td>
+          </ng-container>
+
+          <!-- Health -->
+          <ng-container matColumnDef="health">
+            <th mat-header-cell *matHeaderCellDef style="text-align: right; padding-right: 24px;">Health</th>
+            <td mat-cell *matCellDef="let sig" style="text-align: right; padding-right: 24px;">
+              <div style="display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end;">
+                 @if (sig.health.recent_errors > 0) {
+                   <span class="error-count" style="color: var(--color-error); font-weight: 600; font-size: 11px;">
+                     {{ sig.health.recent_errors }} ERR
+                   </span>
+                 }
+                 <mat-icon [style.color]="getHealthColor(sig.health.status)"
+                           style="font-size: 20px; width: 20px; height: 20px;">
+                   {{ getHealthIcon(sig.health.status) }}
+                 </mat-icon>
+              </div>
+            </td>
+          </ng-container>
+
+          <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
+          <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="signal-row"></tr>
+        </table>
+      </div>
+    }
+  </mat-card-content>
+</mat-card>

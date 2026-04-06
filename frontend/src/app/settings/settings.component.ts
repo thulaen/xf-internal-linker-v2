@@ -56,6 +56,7 @@ import {
   ValueModelSettings,
   SpamGuardSettings,
 } from './silo-settings.service';
+import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 
 interface SettingTooltip {
   definition: string;
@@ -110,6 +111,13 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     default: '0.45',
     example: 'Raising to 0.9 gives isolated pages full credit. Lowering to 0.1 nearly ignores them.',
     range: '0.1 to 1',
+  },
+  'tabs.diagnostics': {
+    definition: 'Diagnostic view of all 23 algorithm signals and scoring components.',
+    impact: 'Provides transparency into why certain links are suggested and allows monitoring of C++ acceleration and storage health.',
+    default: 'N/A',
+    example: 'Check this tab if you suspect a specific signal (e.g. Semantic Similarity) is misconfigured or underperforming.',
+    range: 'N/A',
   },
   // Link Freshness
   'linkFreshness.ranking_weight': {
@@ -1338,7 +1346,6 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
   styleUrls: ['./settings.component.scss'],
   imports: [
     CommonModule,
-    DatePipe,
     FormsModule,
     MatButtonModule,
     MatCardModule,
@@ -1352,6 +1359,8 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatTooltipModule,
     MatDividerModule,
     MatProgressSpinnerModule,
+    DatePipe,
+    WeightDiagnosticsCardComponent
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy {
@@ -2000,7 +2009,11 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // Tab 4: Notifications
       'notification-settings': 4,
       'alert-delivery': 4,
-      'quiet-hours': 4
+      'quiet-hours': 4,
+
+      // Tab 5: Diagnostics
+      'diagnostics-weights': 5,
+      'algorithm-diagnostics': 5
     };
 
     const targetIndex = tabMap[id];
