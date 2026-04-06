@@ -2,13 +2,46 @@
 # Automatically enforce test checks before pushing to repository
 # This prevents AI agents and developers from breaking CI with bad commits.
 
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
 echo "========================================="
-echo "Running Pre-push checks (Backend + Frontend)"
+echo "Running Pre-push checks (Full CI parity)"
 echo "========================================="
 
-# 1. Backend tests
+# 1. Auto-generate any missing Django migrations and commit them
+echo "=> Checking Django migrations..."
+cd "$REPO_ROOT/backend" || exit 1
+export DJANGO_SETTINGS_MODULE=config.settings.ci
+export DJANGO_SECRET_KEY=ci-fake-secret-key
+python manage.py makemigrations
+if [ $? -ne 0 ]; then
+  echo "[ERROR] makemigrations failed. Push aborted."
+  exit 1
+fi
+
+# If new migration files were created, auto-commit them
+NEW_MIGRATIONS=$(git -C "$REPO_ROOT" status --short -- backend/ | grep -E "^\?\?|^A |^ M" | grep "migrations/")
+if [ -n "$NEW_MIGRATIONS" ]; then
+  echo "=> New migrations detected — committing automatically..."
+  git -C "$REPO_ROOT" add backend/
+  git -C "$REPO_ROOT" commit -m "chore(migrations): auto-generate missing migrations [pre-push]"
+  if [ $? -ne 0 ]; then
+    echo "[ERROR] Failed to commit auto-generated migrations. Push aborted."
+    exit 1
+  fi
+fi
+
+# Confirm no further migrations are needed
+python manage.py makemigrations --check --dry-run
+if [ $? -ne 0 ]; then
+  echo "[ERROR] Migration check failed even after auto-generate. Push aborted."
+  exit 1
+fi
+cd "$REPO_ROOT"
+
+# 2. Backend tests
 echo "=> Testing Django Backend..."
-cd backend || exit 1
+cd "$REPO_ROOT/backend" || exit 1
 export DJANGO_SETTINGS_MODULE=config.settings.test
 export DJANGO_SECRET_KEY=ci-fake-secret-key
 python manage.py test --verbosity=1
@@ -16,16 +49,25 @@ if [ $? -ne 0 ]; then
   echo "[ERROR] Backend tests failed. Push aborted."
   exit 1
 fi
-cd ..
+cd "$REPO_ROOT"
 
-# 2. Frontend tests
+# 3. Frontend tests
 echo "=> Testing Angular Frontend..."
-cd frontend || exit 1
+cd "$REPO_ROOT/frontend" || exit 1
 npm run test:ci || { echo "[ERROR] Frontend tests failed. Push aborted."; exit 1; }
 
 echo "=> Building Angular Production Bundle..."
 npm run build:prod || { echo "[ERROR] Frontend production build failed. Push aborted."; exit 1; }
-cd ..
+cd "$REPO_ROOT"
+
+# 4. Docker Compose validation
+echo "=> Validating docker-compose.yml..."
+cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
+docker compose -f "$REPO_ROOT/docker-compose.yml" config > /dev/null
+if [ $? -ne 0 ]; then
+  echo "[ERROR] docker-compose.yml is invalid. Push aborted."
+  exit 1
+fi
 
 echo "========================================="
 echo "All checks passed! Push proceeding..."
