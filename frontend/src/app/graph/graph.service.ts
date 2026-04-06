@@ -78,9 +78,24 @@ export interface GraphLink {
   weight: number;
 }
 
+export interface HistoryPoint {
+  date: string;
+  created: number;
+  deleted: number;
+}
+
+export interface ChurnNode {
+  id: number;
+  title: string;
+  churn_count: number;
+}
+
 export interface GraphTopology {
   nodes: GraphNode[];
   links: GraphLink[];
+  history: HistoryPoint[];
+  churny_ids: number[];
+  churny_nodes: ChurnNode[];
 }
 
 export interface SiloGroupSummary {
@@ -197,11 +212,12 @@ export class GraphService {
       .pipe(catchError(() => of({ found: false, path: [], hops: 0 })));
   }
 
-  getTopology(limit = 500): Observable<GraphTopology> {
-    const params = new HttpParams().set('limit', String(limit));
+  getTopology(limit = 500, at?: string): Observable<GraphTopology> {
+    let params = new HttpParams().set('limit', String(limit));
+    if (at) params = params.set('at', at);
     return this.http
       .get<GraphTopology>(`${this.base}/graph/topology/`, { params })
-      .pipe(catchError(() => of({ nodes: [], links: [] })));
+      .pipe(catchError(() => of({ nodes: [], links: [], history: [], churny_ids: [], churny_nodes: [] })));
   }
 
   getPageRankEquity(): Observable<PageRankEquity | null> {

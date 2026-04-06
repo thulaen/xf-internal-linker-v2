@@ -437,7 +437,29 @@
             color="primary">
             Contextual links only
           </mat-slide-toggle>
+          <mat-slide-toggle
+            [(ngModel)]="historyMode"
+            (change)="onHistoryModeChange()"
+            color="primary">
+            History Mode
+          </mat-slide-toggle>
         </div>
+
+        @if (historyMode) {
+          <div class="history-slider-row">
+            <mat-icon class="history-icon">history</mat-icon>
+            <span class="slider-label">View graph as it was on:</span>
+            <input
+              type="date"
+              class="history-date-input"
+              [max]="today"
+              [(ngModel)]="historyDate"
+              (change)="onHistoryDateChange(historyDate)" />
+            <span class="slider-label" *ngIf="historyDate">
+              Showing {{ topology.links.length | number }} edges active on {{ historyDate }}
+            </span>
+          </div>
+        }
 
         <div class="network-layout">
           <div class="graph-canvas">
@@ -448,6 +470,7 @@
               [prMax]="pageRankEquity?.pr_max ?? 1"
               [contextFilter]="contextFilter"
               [highlightEdge]="highlightEdge"
+              [churnyIds]="churnyIds"
               (nodeSelected)="onNodeSelected($event)">
             </app-link-graph-viz>
           </div>
@@ -844,6 +867,92 @@
         </ng-container>
       </ng-container>
 
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 9 — FRESHNESS / VELOCITY TIMELINE
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon icon-md">timeline</mat-icon>
+      Freshness
+    </ng-template>
+
+    <div class="tab-content">
+      @if (loadingFreshness) {
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      } @else {
+
+        <!-- Velocity chart card -->
+        <mat-card class="freshness-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>show_chart</mat-icon>
+            <mat-card-title>Link Network Velocity (Last 30 Days)</mat-card-title>
+            <mat-card-subtitle>Links created vs. links that disappeared each day</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (!velocityChartData) {
+              <div class="spinner-center">
+                <mat-spinner diameter="24"></mat-spinner>
+              </div>
+            } @else if (velocityChartData.labels?.length === 0) {
+              <div class="empty-state">
+                <mat-icon class="empty-icon">timeline</mat-icon>
+                <h3>No link history yet</h3>
+                <p>Run at least two syncs to start recording link changes over time.</p>
+              </div>
+            } @else {
+              <div class="velocity-chart-wrap">
+                <canvas baseChart
+                  [data]="velocityChartData"
+                  [options]="velocityChartOptions"
+                  type="line">
+                </canvas>
+              </div>
+            }
+          </mat-card-content>
+        </mat-card>
+
+        <!-- Churn alert card -->
+        <mat-card class="freshness-card">
+          <mat-card-header>
+            <mat-icon mat-card-avatar>bolt</mat-icon>
+            <mat-card-title>High-Churn Pages</mat-card-title>
+            <mat-card-subtitle>Pages where links disappeared 2 or more times in the last 30 days</mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            @if (churnTable.length === 0) {
+              <div class="empty-state">
+                <mat-icon class="empty-icon">bolt</mat-icon>
+                <h3>No high-churn pages</h3>
+                <p>No pages have had repeated link disappearances in the last 30 days.</p>
+              </div>
+            } @else {
+              <table mat-table [dataSource]="churnTable" class="data-table">
+
+                <ng-container matColumnDef="title">
+                  <th mat-header-cell *matHeaderCellDef>Page</th>
+                  <td mat-cell *matCellDef="let row">{{ row.title }}</td>
+                </ng-container>
+
+                <ng-container matColumnDef="churn_count">
+                  <th mat-header-cell *matHeaderCellDef class="col-number">Disappearances</th>
+                  <td mat-cell *matCellDef="let row" class="col-number">
+                    <span class="churn-badge">{{ row.churn_count }}</span>
+                  </td>
+                </ng-container>
+
+                <tr mat-header-row *matHeaderRowDef="churnColumns"></tr>
+                <tr mat-row *matRowDef="let row; columns: churnColumns;"></tr>
+              </table>
+            }
+          </mat-card-content>
+        </mat-card>
+
+      }
     </div>
   </mat-tab>
 

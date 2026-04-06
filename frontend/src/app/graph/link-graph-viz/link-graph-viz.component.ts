@@ -44,12 +44,13 @@ const MIN_RADIUS = 4;
   styleUrls: ['./link-graph-viz.component.scss'],
 })
 export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestroy {
-  @Input() topology: GraphTopology = { nodes: [], links: [] };
+  @Input() topology: GraphTopology = { nodes: [], links: [], history: [], churny_ids: [], churny_nodes: [] };
   @Input() heatmapMode = false;
   @Input() prMin = 0;
   @Input() prMax = 1;
   @Input() contextFilter: 'all' | 'contextual' = 'all';
   @Input() highlightEdge: { source: number; target: number } | null = null;
+  @Input() churnyIds: Set<number> = new Set();
   @Output() nodeSelected = new EventEmitter<GraphNode | null>();
 
   @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
@@ -66,6 +67,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   private _siloColor: d3.ScaleOrdinal<number, string> | null = null;
   private _orphanColor = '';
   private linkSel: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown> | null = null;
+  private churnRingSel: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown> | null = null;
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -197,6 +199,21 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     this.linkSel = link;
     this._applyContextFilter();
 
+    // ── Churn rings (rendered behind nodes) ───────────────────────────────────
+
+    const churnyNodes = simNodes.filter((d) => this.churnyIds.has(d.id));
+    this.churnRingSel = container.append('g')
+      .attr('class', 'churn-rings')
+      .selectAll<SVGCircleElement, SimNode>('circle')
+      .data(churnyNodes)
+      .join('circle')
+      .attr('class', 'churn-ring')
+      .attr('r', (d) => this._nodeRadius(d) + 4)
+      .attr('fill', 'none')
+      .attr('stroke', '#f9ab00')
+      .attr('stroke-width', 2)
+      .attr('stroke-dasharray', '4 2');
+
     // ── Nodes ─────────────────────────────────────────────────────────────────
 
     const nodeGroup = container.append('g')
@@ -261,6 +278,10 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
 
     nodeGroup
       .attr('cx', (d) => d.x ?? 0)
+      .attr('cy', (d) => d.y ?? 0);
+
+    this.churnRingSel
+      ?.attr('cx', (d) => d.x ?? 0)
       .attr('cy', (d) => d.y ?? 0);
   }
 

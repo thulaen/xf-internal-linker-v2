@@ -19,7 +19,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
-import { ChartData } from 'chart.js';
+import { ChartData, ChartOptions } from 'chart.js';
 
 import {
   GraphService,
@@ -27,6 +27,8 @@ import {
   GraphNode,
   GraphLink,
   GraphTopology,
+  HistoryPoint,
+  ChurnNode,
   EntityNode,
   EntityType,
   ContentItemSummary,
@@ -130,14 +132,34 @@ export class GraphComponent implements OnInit {
   suggestingId: number | null = null;
 
   // ── Tab 6: Network Visualization ────────────────────────────────
-  topology: GraphTopology = { nodes: [], links: [] };
+  topology: GraphTopology = { nodes: [], links: [], history: [], churny_ids: [], churny_nodes: [] };
   loadingTopology = false;
   selectedNode: GraphNode | null = null;
   selectedNodeLinks: { inbound: GraphLink[]; outbound: GraphLink[] } = { inbound: [], outbound: [] };
   heatmapMode = false;
+  historyMode = false;
+  historyDate = '';
+  churnyIds: Set<number> = new Set();
   pageRankEquity: PageRankEquity | null = null;
   loadingEquity = false;
   readonly authorityColumns = ['rank', 'title', 'silo_name', 'in_degree', 'out_degree', 'pagerank'];
+  readonly today = new Date().toISOString().slice(0, 10);
+
+  // ── Tab 9: Freshness ─────────────────────────────────────────────
+  velocityChartData: ChartData<'line'> | null = null;
+  velocityChartOptions: ChartOptions<'line'> = {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { position: 'top' } },
+    scales: {
+      x: { ticks: { maxTicksLimit: 15, font: { size: 11 } } },
+      y: { stacked: false, beginAtZero: true, ticks: { precision: 0 } },
+    },
+  };
+  churnTable: ChurnNode[] = [];
+  loadingFreshness = false;
+  readonly churnColumns = ['title', 'churn_count'];
 
   // ── Tab 6: Qualities ─────────────────────────────────────────────
   contextFilter: 'all' | 'contextual' = 'all';
@@ -191,6 +213,7 @@ export class GraphComponent implements OnInit {
       case 5: this._loadTopology(); break;
       case 6: this._loadQuality(); break;
       // tab 7 (path) loads on demand via button
+      case 8: this._loadFreshness(); break;
     }
   }
 
@@ -418,17 +441,18 @@ export class GraphComponent implements OnInit {
 
   // ── Network Visualization ─────────────────────────────────────────
 
-  private _loadTopology(onLoaded?: () => void): void {
-    if (this.topology.nodes.length > 0 && !this.loadingTopology) {
+  private _loadTopology(onLoaded?: () => void, at?: string): void {
+    if (!at && this.topology.nodes.length > 0 && !this.loadingTopology) {
       onLoaded?.();
       return;
     }
     this.loadingTopology = true;
-    this.graphService.getTopology(500).subscribe({
+    this.graphService.getTopology(500, at).subscribe({
       next: (t) => {
         this.topology = t;
+        this.churnyIds = new Set(t.churny_ids);
         this.loadingTopology = false;
-        this._loadPageRankEquity();
+        if (!at) this._loadPageRankEquity();
         onLoaded?.();
       },
       error: () => { this.loadingTopology = false; },
@@ -445,6 +469,19 @@ export class GraphComponent implements OnInit {
 
   onHeatmapToggle(checked: boolean): void {
     this.heatmapMode = checked;
+  }
+
+  onHistoryModeChange(): void {
+    if (!this.historyMode) {
+      // Restore live topology when history mode is turned off.
+      this.loadedTabs.delete(5);
+      this._loadTopology();
+    }
+  }
+
+  onHistoryDateChange(date: string): void {
+    if (!date) return;
+    this._loadTopology(undefined, date);
   }
 
   onNodeSelected(node: GraphNode | null): void {
@@ -560,5 +597,52 @@ export class GraphComponent implements OnInit {
 
   qualityBadgeClass(label: 'High' | 'Medium' | 'Low'): string {
     return label === 'High' ? 'quality-high' : label === 'Medium' ? 'quality-medium' : 'quality-low';
+  }
+
+  // ── Freshness ─────────────────────────────────────────────────────
+
+  private _loadFreshness(): void {
+    // Reuse topology already fetched for the Network tab; fetch if not yet loaded.
+    if (this.topology.nodes.length === 0) {
+      this.loadingFreshness = true;
+      this._loadTopology(() => { this._buildVelocityChart(); this.loadingFreshness = false; });
+    } else {
+      this._buildVelocityChart();
+    }
+  }
+
+  private _buildVelocityChart(): void {
+    const history: HistoryPoint[] = this.topology.history;
+    if (history.length === 0) {
+      this.velocityChartData = { labels: [], datasets: [] };
+      this.churnTable = [];
+      return;
+    }
+
+    this.velocityChartData = {
+      labels: history.map((h) => h.date),
+      datasets: [
+        {
+          label: 'Links Created',
+          data: history.map((h) => h.created),
+          fill: true,
+          borderColor: '#1a73e8',
+          backgroundColor: 'rgba(26,115,232,0.12)',
+          pointRadius: 3,
+          tension: 0.3,
+        },
+        {
+          label: 'Links Disappeared',
+          data: history.map((h) => h.deleted),
+          fill: true,
+          borderColor: '#c5221f',
+          backgroundColor: 'rgba(197,34,31,0.12)',
+          pointRadius: 3,
+          tension: 0.3,
+        },
+      ],
+    };
+
+    this.churnTable = this.topology.churny_nodes;
   }
 }

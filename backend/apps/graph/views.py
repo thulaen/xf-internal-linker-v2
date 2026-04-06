@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import csv
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from django.db.models import Count, Q
+from django.db.models.functions import TruncDate
+from django.utils import timezone
+from django.utils.dateparse import parse_date
 
 from django.http import StreamingHttpResponse
 from django_filters.rest_framework import DjangoFilterBackend
@@ -379,22 +384,29 @@ class GraphTopologyView(APIView):
     Returns nodes and links for the D3.js force-directed link graph.
 
     Query params:
-      ?limit=<int>   Max number of nodes (default 500, max 1000).
-                     Nodes are selected by descending PageRank so the most
-                     connected articles appear first.
+      ?limit=<int>        Max number of nodes (default 500, max 1000).
+                          Nodes are selected by descending PageRank so the most
+                          connected articles appear first.
+      ?at=YYYY-MM-DD      Return the historical edge set active on that date,
+                          sourced from LinkFreshnessEdge instead of ExistingLink.
+                          When omitted the current live edges are returned.
     """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request) -> Response:
         from apps.content.models import ContentItem
-        from apps.graph.models import ExistingLink
-        from django.db.models import Count
+        from apps.graph.models import ExistingLink, LinkFreshnessEdge
 
         try:
             limit = min(int(request.query_params.get("limit", 500)), 1000)
         except (ValueError, TypeError):
             limit = 500
+
+        at_date = None
+        at_raw = request.query_params.get("at")
+        if at_raw:
+            at_date = parse_date(at_raw)
 
         # One query: top-N nodes annotated with in/out degree counts.
         qs = (
@@ -427,28 +439,101 @@ class GraphTopologyView(APIView):
                 "out_degree": row["out_degree"],
             })
 
-        # Only include edges where both endpoints are in the node set.
-        links_qs = (
-            ExistingLink.objects
-            .filter(
-                from_content_item_id__in=node_ids,
-                to_content_item_id__in=node_ids,
+        if at_date:
+            # Historical edge set: edges active on `at_date` from LinkFreshnessEdge.
+            freshness_qs = (
+                LinkFreshnessEdge.objects
+                .filter(
+                    from_content_item_id__in=node_ids,
+                    to_content_item_id__in=node_ids,
+                    first_seen_at__date__lte=at_date,
+                )
+                .filter(
+                    Q(is_active=True) | Q(last_disappeared_at__date__gte=at_date)
+                )
+                .values("from_content_item_id", "to_content_item_id")
             )
-            .values("from_content_item_id", "to_content_item_id", "context_class", "anchor_text")
+            links: list[dict] = [
+                {
+                    "source": row["from_content_item_id"],
+                    "target": row["to_content_item_id"],
+                    "context": "contextual",
+                    "anchor": "",
+                    "weight": 1.0,
+                }
+                for row in freshness_qs
+            ]
+        else:
+            # Current live edges from ExistingLink.
+            links_qs = (
+                ExistingLink.objects
+                .filter(
+                    from_content_item_id__in=node_ids,
+                    to_content_item_id__in=node_ids,
+                )
+                .values("from_content_item_id", "to_content_item_id", "context_class", "anchor_text")
+            )
+            links = [
+                {
+                    "source": row["from_content_item_id"],
+                    "target": row["to_content_item_id"],
+                    "context": row["context_class"] or "contextual",
+                    "anchor": row["anchor_text"] or "",
+                    "weight": 1.0,
+                }
+                for row in links_qs
+            ]
+
+        # ── History: daily created / deleted counts for the last 30 days ──────
+        thirty_days_ago = timezone.now() - timedelta(days=30)
+
+        created_qs = (
+            LinkFreshnessEdge.objects
+            .filter(first_seen_at__gte=thirty_days_ago)
+            .annotate(day=TruncDate("first_seen_at"))
+            .values("day")
+            .annotate(count=Count("id"))
+            .order_by("day")
+        )
+        deleted_qs = (
+            LinkFreshnessEdge.objects
+            .filter(
+                last_disappeared_at__isnull=False,
+                last_disappeared_at__gte=thirty_days_ago,
+            )
+            .annotate(day=TruncDate("last_disappeared_at"))
+            .values("day")
+            .annotate(count=Count("id"))
+            .order_by("day")
         )
 
-        links: list[dict] = [
-            {
-                "source": row["from_content_item_id"],
-                "target": row["to_content_item_id"],
-                "context": row["context_class"] or "contextual",
-                "anchor": row["anchor_text"] or "",
-                "weight": 1.0,
-            }
-            for row in links_qs
+        created_map = {r["day"].isoformat(): r["count"] for r in created_qs}
+        deleted_map = {r["day"].isoformat(): r["count"] for r in deleted_qs}
+        all_days = sorted(set(list(created_map) + list(deleted_map)))
+        history = [
+            {"date": d, "created": created_map.get(d, 0), "deleted": deleted_map.get(d, 0)}
+            for d in all_days
         ]
 
-        return Response({"nodes": nodes, "links": links})
+        # ── Churny nodes: pages with repeated link disappearances ─────────────
+        churny_qs = list(
+            LinkFreshnessEdge.objects
+            .filter(
+                last_disappeared_at__isnull=False,
+                last_disappeared_at__gte=thirty_days_ago,
+            )
+            .values("from_content_item_id", "from_content_item__title")
+            .annotate(churn_count=Count("id"))
+            .filter(churn_count__gte=2)
+            .order_by("-churn_count")[:20]
+        )
+        churny_ids = [r["from_content_item_id"] for r in churny_qs]
+        churny_nodes = [
+            {"id": r["from_content_item_id"], "title": r["from_content_item__title"], "churn_count": r["churn_count"]}
+            for r in churny_qs
+        ]
+
+        return Response({"nodes": nodes, "links": links, "history": history, "churny_ids": churny_ids, "churny_nodes": churny_nodes})
 
 
 class PageRankEquityView(APIView):
