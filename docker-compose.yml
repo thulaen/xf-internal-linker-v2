@@ -7,7 +7,7 @@ services:
   postgres:
     image: pgvector/pgvector:pg17
     container_name: xf_linker_postgres
-    restart: unless-stopped
+    restart: always
     mem_limit: 2g
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xf_linker}
@@ -31,7 +31,7 @@ services:
   redis:
     image: redis:7.4-alpine
     container_name: xf_linker_redis
-    restart: unless-stopped
+    restart: always
     mem_limit: 640m
     command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
@@ -54,7 +54,7 @@ services:
       dockerfile: Dockerfile
     image: xf-linker-backend:latest
     container_name: xf_linker_backend
-    restart: unless-stopped
+    restart: always
     mem_limit: 2560m
     env_file: .env
     deploy:
@@ -81,6 +81,12 @@ services:
       - media_files:/app/media
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/system/health/"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 90s
     depends_on:
       postgres:
         condition: service_healthy
@@ -103,7 +109,7 @@ services:
   celery-worker:
     image: xf-linker-backend:latest
     container_name: xf_linker_celery_worker
-    restart: unless-stopped
+    restart: always
     mem_limit: 3g
     env_file: .env
     deploy:
@@ -127,6 +133,12 @@ services:
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
     volumes:
       - ./backend:/app
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config.celery inspect ping -t 10 2>&1 | grep -q pong"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 120s
     depends_on:
       postgres:
         condition: service_healthy
@@ -146,15 +158,22 @@ services:
       context: ./nginx
       dockerfile: Dockerfile
     container_name: xf_linker_nginx
-    restart: unless-stopped
+    restart: always
     mem_limit: 128m
     ports:
       - "80:80"
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - frontend_dist:/usr/share/nginx/html:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://localhost/ || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 15s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   # ─────────────────────────────────────────────
   # Angular Frontend (Development) — Port 4200
@@ -165,7 +184,7 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     container_name: xf_linker_frontend
-    restart: unless-stopped
+    restart: always
     mem_limit: 1g
     environment:
       - CHOKIDAR_USEPOLLING=1
@@ -174,8 +193,15 @@ services:
     volumes:
       - ./frontend:/app
       - /app/node_modules
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4200/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 180s
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
   http-worker-api:
     build:
@@ -183,7 +209,7 @@ services:
       dockerfile: Dockerfile
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_api
-    restart: unless-stopped
+    restart: always
     mem_limit: 384m
     environment:
       SERVICE_MODE: api
@@ -207,6 +233,12 @@ services:
       HttpWorker__SchemaVersion: v1
     ports:
       - "8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/status"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     depends_on:
       redis:
         condition: service_healthy
@@ -214,7 +246,7 @@ services:
   http-worker-queue:
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_queue
-    restart: unless-stopped
+    restart: always
     mem_limit: 768m
     environment:
       SERVICE_MODE: worker
@@ -236,6 +268,12 @@ services:
       HttpWorker__Progress__StreamTtlSeconds: 3600
       HttpWorker__Progress__MaxLen: 512
       HttpWorker__SchemaVersion: v1
+    healthcheck:
+      test: ["CMD-SHELL", "ps aux | grep -v grep | grep -q dotnet || exit 1"]
+      interval: 30s
+      timeout: 15s
+      retries: 3
+      start_period: 30s
     depends_on:
       redis:
         condition: service_healthy

@@ -23,6 +23,7 @@ RUN dotnet publish src/HttpWorker.Api/HttpWorker.Api.csproj -c ${CONFIGURATION} 
 RUN dotnet publish src/HttpWorker.Worker/HttpWorker.Worker.csproj -c ${CONFIGURATION} -o /app/worker /p:UseAppHost=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 COPY --from=publish /app /app
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
