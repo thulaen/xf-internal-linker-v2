@@ -450,6 +450,78 @@ class GraphTopologyView(APIView):
         return Response({"nodes": nodes, "links": links})
 
 
+class PageRankEquityView(APIView):
+    """
+    GET /api/graph/pagerank-equity/
+
+    Returns PageRank distribution stats for the authority heatmap (FR-033):
+      pr_min, pr_max, total_nodes, concentration_warning, concentration_ratio,
+      top_authorities (top 20 pages by PageRank with silo name and degree counts).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        from django.db.models import Count, Max, Min, Sum
+
+        from apps.content.models import ContentItem
+
+        qs = (
+            ContentItem.objects
+            .filter(is_deleted=False)
+            .select_related("scope__silo_group")
+        )
+
+        agg = qs.aggregate(
+            pr_min=Min("march_2026_pagerank_score"),
+            pr_max=Max("march_2026_pagerank_score"),
+            pr_total=Sum("march_2026_pagerank_score"),
+            total_nodes=Count("id"),
+        )
+
+        pr_total = agg["pr_total"] or 1.0  # guard division by zero
+        top_5_pct = max(1, int((agg["total_nodes"] or 0) * 0.05))
+        top_sum = (
+            qs
+            .order_by("-march_2026_pagerank_score")[:top_5_pct]
+            .aggregate(s=Sum("march_2026_pagerank_score"))["s"]
+        ) or 0.0
+        ratio = top_sum / pr_total
+
+        top_pages = (
+            qs
+            .annotate(
+                in_degree=Count("incoming_links", distinct=True),
+                out_degree=Count("outgoing_links", distinct=True),
+            )
+            .order_by("-march_2026_pagerank_score")[:20]
+        )
+
+        return Response({
+            "pr_min": float(agg["pr_min"] or 0.0),
+            "pr_max": float(agg["pr_max"] or 0.0),
+            "total_nodes": agg["total_nodes"] or 0,
+            "concentration_warning": ratio > 0.5,
+            "concentration_ratio": round(ratio, 4),
+            "top_authorities": [
+                {
+                    "id": p.id,
+                    "title": p.title,
+                    "url": p.url,
+                    "silo_name": (
+                        p.scope.silo_group.name
+                        if p.scope and p.scope.silo_group
+                        else ""
+                    ),
+                    "pagerank": float(p.march_2026_pagerank_score or 0.0),
+                    "in_degree": p.in_degree,
+                    "out_degree": p.out_degree,
+                }
+                for p in top_pages
+            ],
+        })
+
+
 def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
     """BFS over ExistingLink directed edges. Returns node list or None."""
     from apps.content.models import ContentItem

@@ -92,6 +92,25 @@ export interface SiloGroupSummary {
 
 export type AuditMode = 'orphan' | 'low_authority';
 
+export interface PageRankAuthority {
+  id: number;
+  title: string;
+  url: string;
+  silo_name: string;
+  pagerank: number;
+  in_degree: number;
+  out_degree: number;
+}
+
+export interface PageRankEquity {
+  pr_min: number;
+  pr_max: number;
+  total_nodes: number;
+  concentration_warning: boolean;
+  concentration_ratio: number;
+  top_authorities: PageRankAuthority[];
+}
+
 export interface EntityParams {
   entity_type?: EntityType | '';
   search?: string;
@@ -182,6 +201,12 @@ export class GraphService {
     return this.http
       .get<GraphTopology>(`${this.base}/graph/topology/`, { params })
       .pipe(catchError(() => of({ nodes: [], links: [] })));
+  }
+
+  getPageRankEquity(): Observable<PageRankEquity | null> {
+    return this.http
+      .get<PageRankEquity>(`${this.base}/graph/pagerank-equity/`)
+      .pipe(catchError(() => of(null)));
   }
 
   searchArticles(query: string): Observable<ContentItemSummary[]> {

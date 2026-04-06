@@ -423,10 +423,23 @@
           Force-directed map of the top {{ topology.nodes.length | number }} articles by PageRank.
           Nodes are coloured by topic silo. Drag to pin, scroll to zoom, click a node to inspect its links.
         </p>
+
+        <div class="network-settings-bar">
+          <mat-slide-toggle
+            [checked]="heatmapMode"
+            (change)="onHeatmapToggle($event.checked)"
+            color="primary">
+            Show Authority Heatmap
+          </mat-slide-toggle>
+        </div>
+
         <div class="network-layout">
           <div class="graph-canvas">
             <app-link-graph-viz
               [topology]="topology"
+              [heatmapMode]="heatmapMode"
+              [prMin]="pageRankEquity?.pr_min ?? 0"
+              [prMax]="pageRankEquity?.pr_max ?? 1"
               (nodeSelected)="onNodeSelected($event)">
             </app-link-graph-viz>
           </div>
@@ -466,6 +479,72 @@
             </mat-card>
           }
         </div>
+
+        @if (pageRankEquity?.concentration_warning) {
+          <div class="concentration-warning">
+            <mat-icon>warning</mat-icon>
+            <span>
+              Authority is heavily concentrated: the top
+              {{ pageRankEquity!.total_nodes * 0.05 | number:'1.0-0' }} pages hold
+              {{ pageRankEquity!.concentration_ratio * 100 | number:'1.0-0' }}% of all PageRank.
+              Build more distributed internal links to improve site-wide equity.
+            </span>
+          </div>
+        }
+
+        @if (pageRankEquity && pageRankEquity.top_authorities.length > 0) {
+          <div class="authorities-section">
+            <h3 class="authorities-heading">
+              <mat-icon>bolt</mat-icon>
+              Power Pages — Top 20 by Authority
+            </h3>
+            <table mat-table [dataSource]="pageRankEquity.top_authorities" class="data-table authorities-table">
+
+              <ng-container matColumnDef="rank">
+                <th mat-header-cell *matHeaderCellDef>#</th>
+                <td mat-cell *matCellDef="let row; let i = index" class="col-number">{{ i + 1 }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="title">
+                <th mat-header-cell *matHeaderCellDef>Article</th>
+                <td mat-cell *matCellDef="let row">
+                  <a [href]="row.url" target="_blank" rel="noopener" class="article-link">
+                    {{ row.title }}
+                    <mat-icon class="icon-xs">open_in_new</mat-icon>
+                  </a>
+                </td>
+              </ng-container>
+
+              <ng-container matColumnDef="silo_name">
+                <th mat-header-cell *matHeaderCellDef>Silo</th>
+                <td mat-cell *matCellDef="let row">{{ row.silo_name || '—' }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="in_degree">
+                <th mat-header-cell *matHeaderCellDef>Inbound</th>
+                <td mat-cell *matCellDef="let row" class="col-number">{{ row.in_degree }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="out_degree">
+                <th mat-header-cell *matHeaderCellDef>Outbound</th>
+                <td mat-cell *matCellDef="let row" class="col-number">{{ row.out_degree }}</td>
+              </ng-container>
+
+              <ng-container matColumnDef="pagerank">
+                <th mat-header-cell *matHeaderCellDef>Authority</th>
+                <td mat-cell *matCellDef="let row">
+                  <div class="pagerank-bar-wrap">
+                    <div class="pagerank-bar" [style.width.%]="pagerankBar(row.pagerank)"></div>
+                  </div>
+                </td>
+              </ng-container>
+
+              <tr mat-header-row *matHeaderRowDef="authorityColumns"></tr>
+              <tr mat-row *matRowDef="let row; columns: authorityColumns;"></tr>
+            </table>
+          </div>
+        }
+
       }
     </div>
   </mat-tab>

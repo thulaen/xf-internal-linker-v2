@@ -16,6 +16,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatAutocompleteModule, MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
 
 import {
@@ -31,6 +32,7 @@ import {
   PathResult,
   PathNode,
   AuditMode,
+  PageRankEquity,
 } from './graph.service';
 import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
 
@@ -55,6 +57,7 @@ import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component
     MatAutocompleteModule,
     MatSelectModule,
     MatSnackBarModule,
+    MatSlideToggleModule,
     LinkGraphVizComponent,
   ],
   templateUrl: './graph.component.html',
@@ -103,6 +106,10 @@ export class GraphComponent implements OnInit {
   loadingTopology = false;
   selectedNode: GraphNode | null = null;
   selectedNodeLinks: { inbound: GraphLink[]; outbound: GraphLink[] } = { inbound: [], outbound: [] };
+  heatmapMode = false;
+  pageRankEquity: PageRankEquity | null = null;
+  loadingEquity = false;
+  readonly authorityColumns = ['rank', 'title', 'silo_name', 'in_degree', 'out_degree', 'pagerank'];
 
   // ── Tab 7: Path Explorer ─────────────────────────────────────────
   fromQuery = '';
@@ -374,9 +381,25 @@ export class GraphComponent implements OnInit {
   private _loadTopology(): void {
     this.loadingTopology = true;
     this.graphService.getTopology(500).subscribe({
-      next: (t) => { this.topology = t; this.loadingTopology = false; },
+      next: (t) => {
+        this.topology = t;
+        this.loadingTopology = false;
+        this._loadPageRankEquity();
+      },
       error: () => { this.loadingTopology = false; },
     });
+  }
+
+  private _loadPageRankEquity(): void {
+    this.loadingEquity = true;
+    this.graphService.getPageRankEquity().subscribe({
+      next: (eq) => { this.pageRankEquity = eq; this.loadingEquity = false; },
+      error: () => { this.loadingEquity = false; },
+    });
+  }
+
+  onHeatmapToggle(checked: boolean): void {
+    this.heatmapMode = checked;
   }
 
   onNodeSelected(node: GraphNode | null): void {

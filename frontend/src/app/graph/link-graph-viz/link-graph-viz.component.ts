@@ -44,6 +44,9 @@ const MIN_RADIUS = 4;
 })
 export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestroy {
   @Input() topology: GraphTopology = { nodes: [], links: [] };
+  @Input() heatmapMode = false;
+  @Input() prMin = 0;
+  @Input() prMax = 1;
   @Output() nodeSelected = new EventEmitter<GraphNode | null>();
 
   @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
@@ -57,6 +60,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   private viewReady = false;
   private zoomBehavior: d3.ZoomBehavior<SVGSVGElement, unknown> | null = null;
   private simNodes: SimNode[] = [];
+  private _siloColor: d3.ScaleOrdinal<number, string> | null = null;
+  private _orphanColor = '';
 
   ngAfterViewInit(): void {
     this.viewReady = true;
@@ -69,6 +74,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['topology'] && this.viewReady) {
       this._buildGraph();
+    } else if ((changes['heatmapMode'] || changes['prMin'] || changes['prMax']) && this.viewReady) {
+      this._applyColorMode();
     }
   }
 
@@ -133,10 +140,12 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     // Colour scale — one colour per unique silo_id.
     const siloIds = [...new Set(simNodes.map((n) => n.silo_id))];
     const color = d3.scaleOrdinal<number, string>(d3.schemeTableau10).domain(siloIds);
+    this._siloColor = color;
 
     // Orphan nodes use the error/danger colour from the theme.
     const orphanColor = getComputedStyle(document.documentElement)
       .getPropertyValue('--graph-node-orphan').trim();
+    this._orphanColor = orphanColor;
 
     // ── SVG setup ────────────────────────────────────────────────────────────
 
@@ -184,7 +193,7 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       .join('circle')
       .attr('class', 'node')
       .attr('r', (d) => this._nodeRadius(d))
-      .attr('fill', (d) => d.in_degree === 0 ? orphanColor : color(d.silo_id))
+      .attr('fill', (d) => this._nodeColor(d))
       .attr('stroke', '#fff')
       .attr('stroke-width', 1.5)
       .call(this._drag(this.simulation))
@@ -223,6 +232,8 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
     } else {
       this.simulation.on('tick', () => this._applyPositions(nodeGroup, link));
     }
+
+    this._renderLegend(svg, width, height);
   }
 
   private _applyPositions(
@@ -254,6 +265,65 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
       .on('end', (event) => {
         if (!event.active) sim.alphaTarget(0);
         // Leave fx/fy set — node stays pinned where the user dropped it.
+      });
+  }
+
+  private _nodeColor(d: SimNode): string {
+    if (this.heatmapMode) {
+      const lo = this.prMin > 0 ? this.prMin : 1e-9;
+      const hi = this.prMax > lo ? this.prMax : lo * 10;
+      const scale = d3.scaleLog<number>().domain([lo, hi]).range([0, 1]).clamp(true);
+      return d3.interpolateRdYlBu(1 - scale(Math.max(d.pagerank, lo)));
+    }
+    return d.in_degree === 0
+      ? this._orphanColor
+      : (this._siloColor ? this._siloColor(d.silo_id) : '#aaa');
+  }
+
+  private _applyColorMode(): void {
+    if (!this.svgRef?.nativeElement) return;
+    d3.select(this.svgRef.nativeElement)
+      .selectAll<SVGCircleElement, SimNode>('.node')
+      .attr('fill', (d) => this._nodeColor(d));
+    const { width, height } = this._dims();
+    this._renderLegend(d3.select(this.svgRef.nativeElement), width, height);
+  }
+
+  private _renderLegend(
+    svg: d3.Selection<SVGSVGElement, unknown, null, undefined>,
+    width: number,
+    height: number
+  ): void {
+    svg.select('.heatmap-legend').remove();
+    svg.select('defs #heatmap-grad').remove();
+    if (!this.heatmapMode) return;
+
+    const BAR_W = 120, BAR_H = 10, M = 16;
+    let defs = svg.select<SVGDefsElement>('defs');
+    if (defs.empty()) defs = svg.append('defs') as d3.Selection<SVGDefsElement, unknown, null, undefined>;
+    const grad = defs.append('linearGradient').attr('id', 'heatmap-grad');
+    d3.range(0, 1.01, 0.1).forEach(t => {
+      grad.append('stop')
+        .attr('offset', `${Math.round(t * 100)}%`)
+        .attr('stop-color', d3.interpolateRdYlBu(1 - t));
+    });
+
+    const g = svg.append('g')
+      .attr('class', 'heatmap-legend')
+      .attr('transform', `translate(${M}, ${height - M - BAR_H - 16})`);
+
+    g.append('rect')
+      .attr('width', BAR_W).attr('height', BAR_H).attr('rx', 2)
+      .attr('fill', 'url(#heatmap-grad)');
+
+    ([{ x: 0, anchor: 'start', label: 'Low' }, { x: BAR_W, anchor: 'end', label: 'High' }] as const)
+      .forEach(({ x, anchor, label }) => {
+        g.append('text')
+          .attr('x', x).attr('y', BAR_H + 12)
+          .attr('font-size', '10px')
+          .attr('text-anchor', anchor)
+          .attr('fill', 'var(--color-text-muted)')
+          .text(label);
       });
   }
 
