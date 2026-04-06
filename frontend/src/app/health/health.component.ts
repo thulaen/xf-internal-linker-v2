@@ -18,7 +18,7 @@ export interface ChecklistGroup {
 
 const SERVICE_GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Infrastructure', keys: ['database', 'redis', 'celery', 'http_worker'] },
-  { label: 'AI & Models', keys: ['ml_models', 'native_scoring'] },
+  { label: 'AI & Models', keys: ['ml_models', 'native_scoring', 'gpu_faiss'] },
   { label: 'Analytics Credentials', keys: ['ga4', 'gsc', 'matomo'] },
   { label: 'Content Sources', keys: ['xenforo', 'wordpress'] },
   { label: 'Features', keys: ['knowledge_graph', 'weights_plugins', 'webhooks'] },

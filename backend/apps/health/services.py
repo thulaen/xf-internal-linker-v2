@@ -315,10 +315,86 @@ def check_ml_models_health() -> ServiceHealthResult:
             last_error_message=str(e)
         )
 
+@HealthCheckRegistry.register(
+    "gpu_faiss",
+    name="GPU & FAISS Index",
+    description="CUDA GPU availability and persistent FAISS vector index for Stage 1 pipeline search."
+)
+def check_gpu_faiss_health() -> ServiceHealthResult:
+    try:
+        import torch
+        from apps.pipeline.services.faiss_index import is_faiss_gpu_active, get_faiss_status
+
+        cuda_available = torch.cuda.is_available()
+        faiss_status = get_faiss_status()
+        faiss_active = faiss_status.get("active", False)
+        faiss_device = faiss_status.get("device", "none")
+        faiss_vectors = faiss_status.get("vectors", 0)
+        faiss_vram_mb = faiss_status.get("vram_mb", 0)
+
+        meta = {
+            "cuda_available": cuda_available,
+            "faiss_active": faiss_active,
+            "faiss_device": faiss_device,
+            "faiss_vectors": faiss_vectors,
+        }
+
+        if cuda_available:
+            props = torch.cuda.get_device_properties(0)
+            total_vram_mb = props.total_memory // (1024 * 1024)
+            used_vram_mb = (props.total_memory - torch.cuda.mem_get_info(0)[0]) // (1024 * 1024)
+            meta["gpu_name"] = props.name
+            meta["vram_total_mb"] = total_vram_mb
+            meta["vram_used_mb"] = used_vram_mb
+            meta["faiss_vram_mb"] = faiss_vram_mb
+
+        if not faiss_active:
+            return ServiceHealthResult(
+                service_key="gpu_faiss",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="FAISS index not loaded.",
+                issue_description="The FAISS vector index has not been built yet. Stage 1 pipeline is running on the slower NumPy CPU path.",
+                suggested_fix="Trigger a pipeline run or wait for the next Celery Beat refresh (every 15 minutes). Check that content items have embeddings.",
+                last_error_at=timezone.now(),
+                metadata=meta
+            )
+
+        on_gpu = "GPU" in faiss_device
+        if not on_gpu:
+            return ServiceHealthResult(
+                service_key="gpu_faiss",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"FAISS on CPU ({faiss_vectors:,} vectors).",
+                issue_description="FAISS index is loaded but running on CPU, not GPU. Stage 1 search is faster than NumPy but not at full GPU speed.",
+                suggested_fix="Ensure ML_PERFORMANCE_MODE=HIGH_PERFORMANCE in your .env and that CUDA drivers are available inside the container.",
+                last_success_at=timezone.now(),
+                metadata=meta
+            )
+
+        return ServiceHealthResult(
+            service_key="gpu_faiss",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"FAISS-GPU active ({faiss_vectors:,} vectors, {faiss_vram_mb} MB VRAM).",
+            issue_description=f"Persistent FAISS index is live on {faiss_device} with {faiss_vectors:,} content embeddings.",
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=meta
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="gpu_faiss",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="GPU/FAISS check failed.",
+            issue_description=f"Could not query GPU or FAISS index status: {str(e)}",
+            suggested_fix="Ensure PyTorch and faiss-gpu-cu12 are installed in the backend container.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
 # ── Analytics & Data Checkers ─────────────────────────────────────
 
 @HealthCheckRegistry.register(
-    "ga4", 
+    "ga4",
     name="Google Analytics 4", 
     description="Integration with Google Analytics Data API for telemetry metrics."
 )
