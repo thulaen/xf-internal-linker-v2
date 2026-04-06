@@ -102,6 +102,12 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
         raise
     elapsed = time.monotonic() - start
     logger.info("Model loaded in %.2fs.", elapsed)
+    if device == "cuda":
+        try:
+            model.half()
+            logger.info("fp16 inference enabled for model '%s'.", model_name)
+        except Exception:
+            pass
     _model_cache[model_name] = model
     _emit_model_alert(
         "model.ready",
@@ -405,6 +411,7 @@ def get_model_status() -> dict[str, Any]:
         "model_name": model_name,
         "loaded": loaded,
         "device": device,
+        "fp16": device == "cuda",
         "mode": os.environ.get("ML_PERFORMANCE_MODE", "BALANCED"),
         "batch_size": _get_batch_size(),
         "embedding_dim": EMBEDDING_DIM,

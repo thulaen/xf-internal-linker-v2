@@ -67,6 +67,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
+      ML_PERFORMANCE_MODE: HIGH_PERFORMANCE
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
@@ -116,6 +117,7 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
+      ML_PERFORMANCE_MODE: HIGH_PERFORMANCE
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
