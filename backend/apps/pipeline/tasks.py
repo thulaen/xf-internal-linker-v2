@@ -582,6 +582,14 @@ def generate_embeddings(
         # The service now handles granular progress reporting if job_id is provided
         stats = generate_all_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
 
+        # Rebuild FAISS index so new embeddings are available immediately
+        # without waiting for the 15-minute periodic refresh.
+        try:
+            from apps.pipeline.services.faiss_index import build_faiss_index
+            build_faiss_index()
+        except Exception:
+            logger.warning("FAISS index rebuild after embeddings failed", exc_info=True)
+
         if job:
             job.status = "completed"
             job.completed_at = timezone.now()

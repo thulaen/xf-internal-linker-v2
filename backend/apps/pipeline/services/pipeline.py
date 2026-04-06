@@ -895,11 +895,19 @@ def _stage1_candidates(
     if not host_keys:
         return {}
 
-    from .faiss_index import is_faiss_gpu_active, faiss_search
+    from .faiss_index import is_faiss_gpu_active, faiss_search, build_faiss_index, HAS_FAISS
 
     host_pk_set = {pk for pk, _ in host_keys}
 
-    if is_faiss_gpu_active():
+    use_faiss = is_faiss_gpu_active()
+
+    if not use_faiss and HAS_FAISS:
+        # JIT build: FAISS is installed but index not yet populated in this process.
+        logger.info("FAISS index not active — building just-in-time for Stage 1")
+        build_faiss_index()
+        use_faiss = is_faiss_gpu_active()
+
+    if use_faiss:
         # FAISS path — persistent GPU (or CPU-FAISS) index, no per-run DB fetch
         result: dict[ContentKey, list[int]] = {}
         n_dest = len(destination_keys)
@@ -923,7 +931,12 @@ def _stage1_candidates(
 
         return result
 
-    # NumPy fallback path (unchanged) -----------------------------------------
+    if HAS_FAISS:
+        # FAISS installed but no embeddings in DB — return empty (NumPy would too).
+        logger.warning("FAISS installed but no embeddings in DB — returning empty Stage 1 results")
+        return {}
+
+    # NumPy fallback path — faiss package not installed -------------------------
     from apps.content.models import ContentItem
     host_pks_list = [pk for pk, _ in host_keys]
     host_emb_qs = ContentItem.objects.filter(
