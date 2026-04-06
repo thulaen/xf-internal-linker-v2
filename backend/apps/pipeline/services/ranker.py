@@ -340,7 +340,7 @@ def score_destination_matches(
     sentence_records: Mapping[int, SentenceRecord],
     existing_links: set[ExistingLinkKey],
     existing_outgoing_counts: Mapping[ContentKey, int] | None = None,
-    max_existing_links_per_host: int = 3,
+    max_existing_links_per_host: int = 2,
     max_anchor_words: int = 4,
     learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]] | None = None,
     rare_term_profiles: Mapping[ContentKey, RareTermProfile] | None = None,

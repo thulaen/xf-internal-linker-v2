@@ -73,10 +73,24 @@
           </p>
           <span class="sync-meta">{{ data.last_sync.completed_at | date:'medium' }}</span>
         </div>
-        <a mat-stroked-button routerLink="/jobs">
-          <mat-icon>visibility</mat-icon>
-          View Jobs
-        </a>
+        <div class="sync-actions">
+          <button
+            mat-stroked-button
+            [disabled]="syncing"
+            (click)="catchUpSync()"
+          >
+            @if (syncing) {
+              <mat-spinner diameter="16"></mat-spinner>
+            } @else {
+              <mat-icon>sync</mat-icon>
+            }
+            Sync Now
+          </button>
+          <a mat-stroked-button routerLink="/jobs">
+            <mat-icon>visibility</mat-icon>
+            View Jobs
+          </a>
+        </div>
       } @else {
         <div class="sync-copy">
           <span class="sync-kicker">Latest sync</span>
@@ -86,13 +100,46 @@
           </div>
           <p>Import data to start filling the dashboard with live site activity.</p>
         </div>
-        <a mat-flat-button color="primary" routerLink="/jobs">
-          <mat-icon>upload_file</mat-icon>
-          Import Data
-        </a>
+        <div class="sync-actions">
+          <button
+            mat-stroked-button
+            [disabled]="syncing"
+            (click)="catchUpSync()"
+          >
+            @if (syncing) {
+              <mat-spinner diameter="16"></mat-spinner>
+            } @else {
+              <mat-icon>sync</mat-icon>
+            }
+            Sync Now
+          </button>
+          <a mat-flat-button color="primary" routerLink="/jobs">
+            <mat-icon>upload_file</mat-icon>
+            Import Data
+          </a>
+        </div>
       }
     </section>
   </section>
+
+  @if (daysSinceLastRun !== null && daysSinceLastRun >= 14) {
+    <section class="recalc-nudge">
+      <mat-icon class="nudge-icon">update</mat-icon>
+      <div class="nudge-copy">
+        <strong>It's been {{ daysSinceLastRun }} days</strong> since your last pipeline run.
+        New content may have suggestions waiting.
+      </div>
+      <button
+        mat-flat-button
+        color="primary"
+        [disabled]="startingPipeline"
+        (click)="runPipeline()"
+      >
+        <mat-icon>play_arrow</mat-icon>
+        Run Pipeline
+      </button>
+    </section>
+  }
 
   <div class="stat-grid" id="suggestion-stats">
     @if (data.open_broken_links > 0) {

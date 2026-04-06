@@ -24,6 +24,7 @@ import {
 } from './suggestion.service';
 import { highlightText } from '../core/utils/highlight.utils';
 import { HighlightPipe } from '../core/pipes/highlight.pipe';
+import { RunPipelineDialogComponent, RunPipelineDialogResult } from '../core/run-pipeline-dialog.component';
 import {
   SuggestionDetailDialogComponent,
   DialogData,
@@ -276,20 +277,29 @@ export class ReviewComponent implements OnInit {
   // ── Pipeline trigger ─────────────────────────────────────────────
 
   runPipeline(): void {
-    this.startingPipeline = true;
-    this.svc.startPipeline().subscribe({
-      next: (run) => {
-        this.startingPipeline = false;
-        this.snack.open(
-          `Pipeline started (run ${run.run_id.slice(0, 8)})`,
-          'Dismiss',
-          { duration: 5000 }
-        );
-      },
-      error: () => {
-        this.startingPipeline = false;
-        this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
-      },
+    const ref = this.dialog.open<
+      RunPipelineDialogComponent,
+      void,
+      RunPipelineDialogResult | null
+    >(RunPipelineDialogComponent, { width: '420px' });
+
+    ref.afterClosed().subscribe((result) => {
+      if (!result) return;
+      this.startingPipeline = true;
+      this.svc.startPipeline(result.rerunMode).subscribe({
+        next: (run) => {
+          this.startingPipeline = false;
+          this.snack.open(
+            `Pipeline started (run ${run.run_id.slice(0, 8)})`,
+            'Dismiss',
+            { duration: 5000 }
+          );
+        },
+        error: () => {
+          this.startingPipeline = false;
+          this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
+        },
+      });
     });
   }
 

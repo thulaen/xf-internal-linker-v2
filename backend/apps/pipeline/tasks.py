@@ -1752,11 +1752,16 @@ def nightly_data_retention():
     Scheduled daily at 03:00 UTC.
 
     Retention policy:
-        SearchMetric rows       — 12 months
-        PipelineRun logs        — 90 days
-        ImpactReport            — FOREVER (never purged)
-        Suggestion              — FOREVER (never purged)
-        WeightAdjustmentHistory — FOREVER (never purged)
+        SearchMetric rows           — 12 months
+        PipelineRun logs            — 90 days
+        ContentMetricSnapshot       — keep last 2 per item
+        Superseded Suggestions      — 30 days
+        AuditEntry                  — 6 months (180 days)
+        ErrorLog                    — 30 days
+        WebhookReceipt              — 30 days
+        ImpactReport                — FOREVER (never purged)
+        Suggestion (non-superseded) — FOREVER (never purged)
+        WeightAdjustmentHistory     — FOREVER (never purged)
     """
     import traceback
     from datetime import timedelta
@@ -1819,6 +1824,76 @@ def nightly_data_retention():
             error_message="ContentMetricSnapshot retention purge failed.",
             raw_exception=raw,
             why="Check database connectivity and the content.ContentMetricSnapshot table.",
+        )
+
+    # --- Superseded suggestions: 30 days ---
+    try:
+        from apps.suggestions.models import Suggestion
+
+        cutoff_30d = now - timedelta(days=30)
+        deleted, _ = Suggestion.objects.filter(
+            status="superseded", updated_at__lt=cutoff_30d
+        ).delete()
+        results["superseded_suggestions_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d superseded Suggestion rows older than 30 days.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] Superseded Suggestion purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="superseded_suggestion_purge",
+            error_message="Superseded Suggestion retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the suggestions.Suggestion table.",
+        )
+
+    # --- AuditEntry: 6 months (180 days) ---
+    try:
+        from apps.audit.models import AuditEntry
+
+        cutoff_180d = now - timedelta(days=180)
+        deleted, _ = AuditEntry.objects.filter(created_at__lt=cutoff_180d).delete()
+        results["audit_entries_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d AuditEntry rows older than 6 months.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] AuditEntry purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="audit_entry_purge",
+            error_message="AuditEntry retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the audit.AuditEntry table.",
+        )
+
+    # --- ErrorLog: 30 days ---
+    try:
+        cutoff_30d_err = now - timedelta(days=30)
+        deleted, _ = ErrorLog.objects.filter(created_at__lt=cutoff_30d_err).delete()
+        results["error_logs_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d ErrorLog rows older than 30 days.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] ErrorLog purge failed.")
+        # Cannot log to ErrorLog about ErrorLog failure — just log to stderr.
+
+    # --- WebhookReceipt: 30 days ---
+    try:
+        from apps.sync.models import WebhookReceipt
+
+        cutoff_30d_wh = now - timedelta(days=30)
+        deleted, _ = WebhookReceipt.objects.filter(created_at__lt=cutoff_30d_wh).delete()
+        results["webhook_receipts_deleted"] = deleted
+        logger.info("[nightly_data_retention] Deleted %d WebhookReceipt rows older than 30 days.", deleted)
+    except Exception:
+        raw = traceback.format_exc()
+        logger.exception("[nightly_data_retention] WebhookReceipt purge failed.")
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="webhook_receipt_purge",
+            error_message="WebhookReceipt retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the sync.WebhookReceipt table.",
         )
 
     logger.info("[nightly_data_retention] Complete. Results: %s", results)

@@ -2808,7 +2808,7 @@ class ValueModelSettingsView(APIView):
 
 
 DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
-    "max_existing_links_per_host": 3,
+    "max_existing_links_per_host": 2,
     "max_anchor_words": 4,
     "paragraph_window": 3,
 }

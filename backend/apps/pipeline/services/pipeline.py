@@ -420,7 +420,7 @@ def _get_max_existing_links_per_host() -> int:
     have before the pipeline stops adding new suggestions to it.
 
     Configurable via AppSetting key ``spam_guards.max_existing_links_per_host``.
-    Default: 3 — Ntoulas et al. (US20060184500A1) anchor-word fraction research
+    Default: 2 — Ntoulas et al. (US20060184500A1) anchor-word fraction research
     and the 2024 Google API leak findings support this as a conservative cap.
     """
     try:
@@ -430,7 +430,7 @@ def _get_max_existing_links_per_host() -> int:
             return int(setting.value)
     except Exception:
         logger.exception("Failed to load spam_guards.max_existing_links_per_host; using default.")
-    return 3
+    return 2
 
 
 def _get_max_anchor_words() -> int:
