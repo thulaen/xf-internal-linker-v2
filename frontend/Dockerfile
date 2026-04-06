@@ -8,7 +8,7 @@ FROM node:22-slim
 # Avoid 'npm install' issues in some environments
 ENV CI=true
 ENV CHROME_BIN=/usr/bin/chromium
-ENV NODE_OPTIONS=--max-old-space-size=4096
+ENV NODE_OPTIONS=--max-old-space-size=768
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     chromium \

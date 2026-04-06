@@ -8,7 +8,7 @@ services:
     image: pgvector/pgvector:pg17
     container_name: xf_linker_postgres
     restart: unless-stopped
-    mem_limit: 5g
+    mem_limit: 2g
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-xf_linker}
       POSTGRES_USER: ${POSTGRES_USER:-xf_linker_user}
@@ -32,7 +32,7 @@ services:
     image: redis:7.4-alpine
     container_name: xf_linker_redis
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 640m
     command: redis-server --maxmemory 512mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
@@ -55,7 +55,7 @@ services:
     image: xf-linker-backend:latest
     container_name: xf_linker_backend
     restart: unless-stopped
-    mem_limit: 3g
+    mem_limit: 2560m
     env_file: .env
     deploy:
       resources:
@@ -67,7 +67,6 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
-      ML_PERFORMANCE_MODE: HIGH_PERFORMANCE
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
@@ -105,7 +104,7 @@ services:
     image: xf-linker-backend:latest
     container_name: xf_linker_celery_worker
     restart: unless-stopped
-    mem_limit: 4g
+    mem_limit: 3g
     env_file: .env
     deploy:
       resources:
@@ -117,7 +116,6 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
-      ML_PERFORMANCE_MODE: HIGH_PERFORMANCE
       HTTP_WORKER_ENABLED: "true"
       HTTP_WORKER_URL: http://http-worker-api:8080
       HTTP_WORKER_SCHEMA_VERSION: v1
@@ -149,7 +147,7 @@ services:
       dockerfile: Dockerfile
     container_name: xf_linker_nginx
     restart: unless-stopped
-    mem_limit: 256m
+    mem_limit: 128m
     ports:
       - "80:80"
     volumes:
@@ -168,7 +166,7 @@ services:
       dockerfile: Dockerfile
     container_name: xf_linker_frontend
     restart: unless-stopped
-    mem_limit: 2g
+    mem_limit: 1g
     environment:
       - CHOKIDAR_USEPOLLING=1
     ports:
@@ -186,7 +184,7 @@ services:
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_api
     restart: unless-stopped
-    mem_limit: 512m
+    mem_limit: 384m
     environment:
       SERVICE_MODE: api
       HttpWorker__Redis__ConnectionString: redis:6379
@@ -194,7 +192,7 @@ services:
       HttpWorker__Redis__ResultTtlSeconds: 3600
       HttpWorker__Redis__DeadLetterTtlSeconds: 86400
       HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 50
+      HttpWorker__Http__MaxConcurrency: 25
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
       HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
@@ -217,7 +215,7 @@ services:
     image: xf-linker-http-worker:latest
     container_name: xf_linker_http_worker_queue
     restart: unless-stopped
-    mem_limit: 1g
+    mem_limit: 768m
     environment:
       SERVICE_MODE: worker
       HttpWorker__Redis__ConnectionString: redis:6379
@@ -225,7 +223,7 @@ services:
       HttpWorker__Redis__ResultTtlSeconds: 3600
       HttpWorker__Redis__DeadLetterTtlSeconds: 86400
       HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 50
+      HttpWorker__Http__MaxConcurrency: 25
       HttpWorker__Http__MaxBodyBytes: 5242880
       HttpWorker__Http__MaxRedirectHops: 3
       HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
