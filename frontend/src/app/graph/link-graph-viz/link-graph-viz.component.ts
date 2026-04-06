@@ -1,0 +1,293 @@
+import {
+  AfterViewInit,
+  Component,
+  ElementRef,
+  EventEmitter,
+  Input,
+  OnChanges,
+  OnDestroy,
+  Output,
+  SimpleChanges,
+  ViewChild,
+} from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import * as d3 from 'd3';
+
+import { GraphLink, GraphNode, GraphTopology } from '../graph.service';
+
+// D3 simulation node type — extends GraphNode with x/y/fx/fy fields.
+interface SimNode extends GraphNode {
+  x?: number;
+  y?: number;
+  fx?: number | null;
+  fy?: number | null;
+}
+
+// D3 simulation link type — source/target become SimNode references after init.
+interface SimLink extends d3.SimulationLinkDatum<SimNode> {
+  context: string;
+  weight: number;
+}
+
+/** Max radius a node can reach (px). */
+const MAX_RADIUS = 20;
+/** Base radius for a zero-pagerank node (px). */
+const MIN_RADIUS = 4;
+
+@Component({
+  selector: 'app-link-graph-viz',
+  standalone: true,
+  imports: [CommonModule, MatProgressSpinnerModule],
+  templateUrl: './link-graph-viz.component.html',
+  styleUrls: ['./link-graph-viz.component.scss'],
+})
+export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestroy {
+  @Input() topology: GraphTopology = { nodes: [], links: [] };
+  @Output() nodeSelected = new EventEmitter<GraphNode | null>();
+
+  @ViewChild('svgContainer') svgRef!: ElementRef<SVGSVGElement>;
+  @ViewChild('wrapper') wrapperRef!: ElementRef<HTMLDivElement>;
+  @ViewChild('tooltip') tooltipRef!: ElementRef<HTMLDivElement>;
+
+  isSimulating = false;
+
+  private simulation: d3.Simulation<SimNode, SimLink> | null = null;
+  private resizeObserver: ResizeObserver | null = null;
+  private viewReady = false;
+
+  ngAfterViewInit(): void {
+    this.viewReady = true;
+    this._setupResizeObserver();
+    if (this.topology.nodes.length > 0) {
+      this._buildGraph();
+    }
+  }
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes['topology'] && this.viewReady) {
+      this._buildGraph();
+    }
+  }
+
+  ngOnDestroy(): void {
+    this.simulation?.stop();
+    this.resizeObserver?.disconnect();
+  }
+
+  // ── Internal ──────────────────────────────────────────────────────────────
+
+  private _setupResizeObserver(): void {
+    this.resizeObserver = new ResizeObserver(() => {
+      if (this.simulation) {
+        const { width, height } = this._dims();
+        this.simulation.force('center', d3.forceCenter(width / 2, height / 2));
+        this.simulation.alpha(0.1).restart();
+      }
+    });
+    this.resizeObserver.observe(this.wrapperRef.nativeElement);
+  }
+
+  private _dims(): { width: number; height: number } {
+    const el = this.wrapperRef.nativeElement;
+    return { width: el.clientWidth || 800, height: el.clientHeight || 560 };
+  }
+
+  private _nodeRadius(node: SimNode): number {
+    const r = Math.log(node.pagerank * 100 + 1) * 3 + MIN_RADIUS;
+    return Math.min(r, MAX_RADIUS);
+  }
+
+  private _buildGraph(): void {
+    this.simulation?.stop();
+
+    const svgEl = this.svgRef.nativeElement;
+    d3.select(svgEl).selectAll('*').remove();
+
+    const { nodes, links } = this.topology;
+    if (nodes.length === 0) return;
+
+    const { width, height } = this._dims();
+
+    // Deep-clone so D3 mutation doesn't affect the original input.
+    const simNodes: SimNode[] = nodes.map((n) => ({ ...n }));
+    const simLinks: SimLink[] = links.map((l) => ({
+      source: l.source as unknown as SimNode,
+      target: l.target as unknown as SimNode,
+      context: l.context,
+      weight: l.weight,
+    }));
+
+    // Build a map for quick neighbor lookup during hover.
+    const neighborSet = new Map<number, Set<number>>();
+    for (const l of links) {
+      if (!neighborSet.has(l.source)) neighborSet.set(l.source, new Set());
+      if (!neighborSet.has(l.target)) neighborSet.set(l.target, new Set());
+      neighborSet.get(l.source)!.add(l.target);
+      neighborSet.get(l.target)!.add(l.source);
+    }
+
+    // Colour scale — one colour per unique silo_id.
+    const siloIds = [...new Set(simNodes.map((n) => n.silo_id))];
+    const color = d3.scaleOrdinal<number, string>(d3.schemeTableau10).domain(siloIds);
+
+    // ── SVG setup ────────────────────────────────────────────────────────────
+
+    const svg = d3.select(svgEl)
+      .attr('width', width)
+      .attr('height', height);
+
+    // Zoom/pan container.
+    const container = svg.append('g').attr('class', 'graph-container');
+
+    svg.call(
+      d3.zoom<SVGSVGElement, unknown>()
+        .scaleExtent([0.1, 8])
+        .on('zoom', (event) => {
+          container.attr('transform', event.transform);
+        })
+    );
+
+    // ── Force simulation ──────────────────────────────────────────────────────
+
+    this.simulation = d3.forceSimulation<SimNode, SimLink>(simNodes)
+      .force('link', d3.forceLink<SimNode, SimLink>(simLinks)
+        .id((d) => d.id)
+        .strength((l) => l.weight * 0.3)
+      )
+      .force('charge', d3.forceManyBody().strength(-120))
+      .force('center', d3.forceCenter(width / 2, height / 2))
+      .force('collide', d3.forceCollide<SimNode>().radius((d) => this._nodeRadius(d) + 2));
+
+    // ── Edges ─────────────────────────────────────────────────────────────────
+
+    const link = container.append('g')
+      .attr('class', 'links')
+      .selectAll<SVGLineElement, SimLink>('line')
+      .data(simLinks)
+      .join('line')
+      .attr('class', 'edge')
+      .attr('stroke-opacity', 0.4);
+
+    // ── Nodes ─────────────────────────────────────────────────────────────────
+
+    const nodeGroup = container.append('g')
+      .attr('class', 'nodes')
+      .selectAll<SVGCircleElement, SimNode>('circle')
+      .data(simNodes)
+      .join('circle')
+      .attr('class', 'node')
+      .attr('r', (d) => this._nodeRadius(d))
+      .attr('fill', (d) => color(d.silo_id))
+      .attr('stroke', '#fff')
+      .attr('stroke-width', 1.5)
+      .call(this._drag(this.simulation))
+      .on('mouseover', (event, d) => this._onHover(event, d, nodeGroup, link, neighborSet))
+      .on('mouseout', () => this._onHoverEnd(nodeGroup, link))
+      .on('click', (event, d) => {
+        event.stopPropagation();
+        this.nodeSelected.emit(d);
+      });
+
+    // Click on empty canvas deselects.
+    svg.on('click', () => this.nodeSelected.emit(null));
+
+    // ── Tick ──────────────────────────────────────────────────────────────────
+
+    const isLarge = simNodes.length > 500;
+
+    if (isLarge) {
+      // Pre-compute layout without live rendering to keep the UI responsive.
+      this.isSimulating = true;
+      this.simulation.stop();
+
+      const TICKS = 300;
+      let tick = 0;
+      const step = () => {
+        if (tick < TICKS) {
+          this.simulation!.tick();
+          tick++;
+          requestAnimationFrame(step);
+        } else {
+          this.isSimulating = false;
+          this._applyPositions(nodeGroup, link);
+        }
+      };
+      requestAnimationFrame(step);
+    } else {
+      this.simulation.on('tick', () => this._applyPositions(nodeGroup, link));
+    }
+  }
+
+  private _applyPositions(
+    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
+    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>
+  ): void {
+    link
+      .attr('x1', (d) => (d.source as SimNode).x ?? 0)
+      .attr('y1', (d) => (d.source as SimNode).y ?? 0)
+      .attr('x2', (d) => (d.target as SimNode).x ?? 0)
+      .attr('y2', (d) => (d.target as SimNode).y ?? 0);
+
+    nodeGroup
+      .attr('cx', (d) => d.x ?? 0)
+      .attr('cy', (d) => d.y ?? 0);
+  }
+
+  private _drag(sim: d3.Simulation<SimNode, SimLink>): d3.DragBehavior<SVGCircleElement, SimNode, SimNode | d3.SubjectPosition> {
+    return d3.drag<SVGCircleElement, SimNode>()
+      .on('start', (event, d) => {
+        if (!event.active) sim.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+      })
+      .on('drag', (event, d) => {
+        d.fx = event.x;
+        d.fy = event.y;
+      })
+      .on('end', (event) => {
+        if (!event.active) sim.alphaTarget(0);
+        // Leave fx/fy set — node stays pinned where the user dropped it.
+      });
+  }
+
+  private _onHover(
+    event: MouseEvent,
+    hovered: SimNode,
+    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
+    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>,
+    neighborSet: Map<number, Set<number>>
+  ): void {
+    const neighbors = neighborSet.get(hovered.id) ?? new Set<number>();
+
+    nodeGroup.attr('opacity', (d) =>
+      d.id === hovered.id || neighbors.has(d.id) ? 1 : 0.15
+    );
+    link.attr('stroke-opacity', (l) => {
+      const s = (l.source as SimNode).id;
+      const t = (l.target as SimNode).id;
+      return s === hovered.id || t === hovered.id ? 0.8 : 0.05;
+    });
+
+    // Tooltip
+    const tooltip = d3.select(this.tooltipRef.nativeElement);
+    tooltip
+      .style('display', 'block')
+      .style('left', `${event.offsetX + 12}px`)
+      .style('top', `${event.offsetY - 10}px`)
+      .html(
+        `<strong>${hovered.title}</strong><br>` +
+        `In: ${hovered.in_degree} &nbsp; Out: ${hovered.out_degree}<br>` +
+        `Silo: ${hovered.silo_id}`
+      );
+  }
+
+  private _onHoverEnd(
+    nodeGroup: d3.Selection<SVGCircleElement, SimNode, SVGGElement, unknown>,
+    link: d3.Selection<SVGLineElement, SimLink, SVGGElement, unknown>
+  ): void {
+    nodeGroup.attr('opacity', 1);
+    link.attr('stroke-opacity', 0.4);
+    d3.select(this.tooltipRef.nativeElement).style('display', 'none');
+  }
+}

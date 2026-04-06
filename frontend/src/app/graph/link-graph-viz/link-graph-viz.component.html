@@ -1,0 +1,10 @@
+<div #wrapper class="viz-wrapper">
+  @if (isSimulating) {
+    <div class="sim-overlay">
+      <mat-spinner diameter="48"></mat-spinner>
+      <p class="sim-label">Computing layout…</p>
+    </div>
+  }
+  <svg #svgContainer class="force-graph"></svg>
+  <div #tooltip class="graph-tooltip"></div>
+</div>

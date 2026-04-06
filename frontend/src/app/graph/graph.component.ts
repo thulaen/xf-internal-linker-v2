@@ -19,6 +19,9 @@ import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
 import {
   GraphService,
   GraphStats,
+  GraphNode,
+  GraphLink,
+  GraphTopology,
   EntityNode,
   EntityType,
   ContentItemSummary,
@@ -26,6 +29,7 @@ import {
   PathResult,
   PathNode,
 } from './graph.service';
+import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
 
 @Component({
   selector: 'app-graph',
@@ -46,6 +50,7 @@ import {
     MatInputModule,
     MatTooltipModule,
     MatAutocompleteModule,
+    LinkGraphVizComponent,
   ],
   templateUrl: './graph.component.html',
   styleUrls: ['./graph.component.scss'],
@@ -84,7 +89,13 @@ export class GraphComponent implements OnInit {
   orphanPageSize = 50;
   orphanColumns = ['title', 'content_type_label', 'post_date'];
 
-  // ── Tab 6: Path Explorer ─────────────────────────────────────────
+  // ── Tab 6: Network Visualization ────────────────────────────────
+  topology: GraphTopology = { nodes: [], links: [] };
+  loadingTopology = false;
+  selectedNode: GraphNode | null = null;
+  selectedNodeLinks: { inbound: GraphLink[]; outbound: GraphLink[] } = { inbound: [], outbound: [] };
+
+  // ── Tab 7: Path Explorer ─────────────────────────────────────────
   fromQuery = '';
   toQuery = '';
   fromArticle: ContentItemSummary | null = null;
@@ -122,7 +133,8 @@ export class GraphComponent implements OnInit {
       case 2: this._loadEntities(); break;
       case 3: this._loadHubs(); break;
       case 4: this._loadOrphans(); break;
-      // tab 5 (path) loads on demand via button
+      case 5: this._loadTopology(); break;
+      // tab 6 (path) loads on demand via button
     }
   }
 
@@ -301,5 +313,31 @@ export class GraphComponent implements OnInit {
 
   trackByPathNode(_i: number, node: PathNode): number {
     return node.id;
+  }
+
+  // ── Network Visualization ─────────────────────────────────────────
+
+  private _loadTopology(): void {
+    this.loadingTopology = true;
+    this.graphService.getTopology(500).subscribe({
+      next: (t) => { this.topology = t; this.loadingTopology = false; },
+      error: () => { this.loadingTopology = false; },
+    });
+  }
+
+  onNodeSelected(node: GraphNode | null): void {
+    this.selectedNode = node;
+    if (!node) {
+      this.selectedNodeLinks = { inbound: [], outbound: [] };
+      return;
+    }
+    this.selectedNodeLinks = {
+      inbound: this.topology.links.filter((l) => l.target === node.id),
+      outbound: this.topology.links.filter((l) => l.source === node.id),
+    };
+  }
+
+  nodeTitle(id: number): string {
+    return this.topology.nodes.find((n) => n.id === id)?.title ?? String(id);
   }
 }

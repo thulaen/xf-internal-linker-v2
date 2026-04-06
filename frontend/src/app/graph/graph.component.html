@@ -355,7 +355,79 @@
   </mat-tab>
 
   <!-- ═══════════════════════════════════════════════════════════════
-       TAB 6 — LINK PATH EXPLORER
+       TAB 6 — NETWORK VISUALIZATION
+  ════════════════════════════════════════════════════════════════ -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      <mat-icon class="tab-icon icon-md">account_tree</mat-icon>
+      Network
+    </ng-template>
+
+    <div class="tab-content">
+      @if (loadingTopology) {
+        <div class="spinner-center">
+          <mat-spinner diameter="48"></mat-spinner>
+        </div>
+      } @else if (topology.nodes.length === 0) {
+        <div class="empty-state">
+          <mat-icon class="empty-icon">hub</mat-icon>
+          <h3>No link data yet</h3>
+          <p>Run a sync to populate existing links, then return here.</p>
+        </div>
+      } @else {
+        <p class="tab-description">
+          Force-directed map of the top {{ topology.nodes.length | number }} articles by PageRank.
+          Nodes are coloured by topic silo. Drag to pin, scroll to zoom, click a node to inspect its links.
+        </p>
+        <div class="network-layout">
+          <div class="graph-canvas">
+            <app-link-graph-viz
+              [topology]="topology"
+              (nodeSelected)="onNodeSelected($event)">
+            </app-link-graph-viz>
+          </div>
+
+          @if (selectedNode) {
+            <mat-card class="node-sidebar">
+              <mat-card-header>
+                <mat-icon mat-card-avatar>article</mat-icon>
+                <mat-card-title>{{ selectedNode.title }}</mat-card-title>
+                <mat-card-subtitle>{{ selectedNode.type }}</mat-card-subtitle>
+              </mat-card-header>
+              <mat-card-content>
+                <mat-chip-set class="node-chips">
+                  <mat-chip>PageRank {{ selectedNode.pagerank | number:'1.2-2' }}</mat-chip>
+                  <mat-chip>{{ selectedNode.in_degree }} in</mat-chip>
+                  <mat-chip>{{ selectedNode.out_degree }} out</mat-chip>
+                </mat-chip-set>
+
+                @if (selectedNodeLinks.inbound.length > 0) {
+                  <p class="sidebar-section-label">Inbound links</p>
+                  <ul class="link-list">
+                    @for (l of selectedNodeLinks.inbound; track l.source) {
+                      <li>{{ nodeTitle(l.source) }}</li>
+                    }
+                  </ul>
+                }
+
+                @if (selectedNodeLinks.outbound.length > 0) {
+                  <p class="sidebar-section-label">Outbound links</p>
+                  <ul class="link-list">
+                    @for (l of selectedNodeLinks.outbound; track l.target) {
+                      <li>{{ nodeTitle(l.target) }}</li>
+                    }
+                  </ul>
+                }
+              </mat-card-content>
+            </mat-card>
+          }
+        </div>
+      }
+    </div>
+  </mat-tab>
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       TAB 7 — LINK PATH EXPLORER
   ════════════════════════════════════════════════════════════════ -->
   <mat-tab>
     <ng-template mat-tab-label>

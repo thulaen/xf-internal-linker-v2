@@ -421,3 +421,64 @@
     flex-shrink: 0;
   }
 }
+
+// ── Network Visualization Tab ─────────────────────────────────────────────────
+
+.network-layout {
+  display: flex;
+  gap: var(--space-md);
+  height: 600px;
+  margin-top: var(--space-md);
+}
+
+.graph-canvas {
+  flex: 1;
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  overflow: hidden;
+  min-width: 0;
+}
+
+.node-sidebar {
+  width: 280px;
+  flex-shrink: 0;
+  overflow-y: auto;
+  box-shadow: none;
+  border: var(--card-border);
+
+  .node-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    margin-bottom: var(--space-md);
+  }
+
+  .sidebar-section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-secondary);
+    margin: var(--space-sm) 0 var(--space-xs);
+  }
+
+  .link-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+
+    li {
+      font-size: 12px;
+      color: var(--color-text-dark-1);
+      padding: var(--space-xs) 0;
+      border-bottom: 0.8px solid var(--color-border);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+
+      &:last-child {
+        border-bottom: none;
+      }
+    }
+  }
+}

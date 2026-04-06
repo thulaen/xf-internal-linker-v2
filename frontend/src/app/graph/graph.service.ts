@@ -58,6 +58,28 @@ export interface ContentItemSummary {
   is_deleted: boolean;
 }
 
+export interface GraphNode {
+  id: number;
+  title: string;
+  type: string;
+  silo_id: number;
+  pagerank: number;
+  in_degree: number;
+  out_degree: number;
+}
+
+export interface GraphLink {
+  source: number;
+  target: number;
+  context: string;
+  weight: number;
+}
+
+export interface GraphTopology {
+  nodes: GraphNode[];
+  links: GraphLink[];
+}
+
 export interface SiloGroupSummary {
   id: number;
   name: string;
@@ -136,6 +158,13 @@ export class GraphService {
     return this.http
       .get<PathResult>(`${this.base}/graph/path/`, { params })
       .pipe(catchError(() => of({ found: false, path: [], hops: 0 })));
+  }
+
+  getTopology(limit = 500): Observable<GraphTopology> {
+    const params = new HttpParams().set('limit', String(limit));
+    return this.http
+      .get<GraphTopology>(`${this.base}/graph/topology/`, { params })
+      .pipe(catchError(() => of({ nodes: [], links: [] })));
   }
 
   searchArticles(query: string): Observable<ContentItemSummary[]> {

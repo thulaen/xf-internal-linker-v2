@@ -254,6 +254,84 @@ class GraphPathView(APIView):
         return Response({"found": True, "path": path, "hops": len(path) - 1})
 
 
+class GraphTopologyView(APIView):
+    """
+    GET /api/graph/topology/
+
+    Returns nodes and links for the D3.js force-directed link graph.
+
+    Query params:
+      ?limit=<int>   Max number of nodes (default 500, max 1000).
+                     Nodes are selected by descending PageRank so the most
+                     connected articles appear first.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request) -> Response:
+        from apps.content.models import ContentItem
+        from apps.graph.models import ExistingLink
+        from django.db.models import Count
+
+        try:
+            limit = min(int(request.query_params.get("limit", 500)), 1000)
+        except (ValueError, TypeError):
+            limit = 500
+
+        # One query: top-N nodes annotated with in/out degree counts.
+        qs = (
+            ContentItem.objects
+            .filter(is_deleted=False)
+            .annotate(
+                in_degree=Count("incoming_links", distinct=True),
+                out_degree=Count("outgoing_links", distinct=True),
+            )
+            .values(
+                "id", "title", "content_type",
+                "scope_id",
+                "march_2026_pagerank_score",
+                "in_degree", "out_degree",
+            )
+            .order_by("-march_2026_pagerank_score")[:limit]
+        )
+
+        node_ids: set[int] = set()
+        nodes: list[dict] = []
+        for row in qs:
+            node_ids.add(row["id"])
+            nodes.append({
+                "id": row["id"],
+                "title": row["title"],
+                "type": row["content_type"],
+                "silo_id": row["scope_id"] or 0,
+                "pagerank": float(row["march_2026_pagerank_score"] or 0),
+                "in_degree": row["in_degree"],
+                "out_degree": row["out_degree"],
+            })
+
+        # Only include edges where both endpoints are in the node set.
+        links_qs = (
+            ExistingLink.objects
+            .filter(
+                from_content_item_id__in=node_ids,
+                to_content_item_id__in=node_ids,
+            )
+            .values("from_content_item_id", "to_content_item_id", "context_class")
+        )
+
+        links: list[dict] = [
+            {
+                "source": row["from_content_item_id"],
+                "target": row["to_content_item_id"],
+                "context": row["context_class"] or "contextual",
+                "weight": 1.0,
+            }
+            for row in links_qs
+        ]
+
+        return Response({"nodes": nodes, "links": links})
+
+
 def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
     """BFS over ExistingLink directed edges. Returns node list or None."""
     from apps.content.models import ContentItem
