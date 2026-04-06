@@ -20,15 +20,26 @@ def record_webhook(source, event_type, payload, status='received', error_message
         logger.error("Failed to record webhook receipt: %s", e)
         return None
 
+def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
+    """Check AppSetting first, fall back to Django env var."""
+    try:
+        from apps.core.models import AppSetting
+        db = AppSetting.objects.filter(key=app_setting_key).first()
+        if db and db.value:
+            return db.value
+    except Exception:
+        pass
+    return getattr(settings, env_var, "")
+
 def verify_xf_signature(payload_body, signature):
     """
     Verify that the webhook comes from XenForo.
     XF sends X-Xf-Webhook-Secret in the header if configured.
     """
-    secret = getattr(settings, "XENFORO_WEBHOOK_SECRET", "")
+    secret = _get_webhook_secret("webhook.xenforo_secret", "XENFORO_WEBHOOK_SECRET")
     if not secret:
-        logger.warning("XENFORO_WEBHOOK_SECRET is not set in Django settings.")
-        return True 
+        logger.warning("XENFORO_WEBHOOK_SECRET is not set.")
+        return True
 
     return payload_body == secret or signature == secret
 
@@ -37,11 +48,11 @@ def verify_wp_signature(payload_body, signature):
     Verify that the webhook comes from WordPress.
     We expect the same secret mechanism as XF for simplicity.
     """
-    secret = getattr(settings, "WORDPRESS_WEBHOOK_SECRET", "")
+    secret = _get_webhook_secret("webhook.wordpress_secret", "WORDPRESS_WEBHOOK_SECRET")
     if not secret:
-        logger.warning("WORDPRESS_WEBHOOK_SECRET is not set in Django settings.")
-        return True 
-        
+        logger.warning("WORDPRESS_WEBHOOK_SECRET is not set.")
+        return True
+
     return payload_body == secret or signature == secret
 
 def process_xf_webhook(event_type, payload):

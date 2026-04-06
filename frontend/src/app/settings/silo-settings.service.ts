@@ -79,6 +79,16 @@ export interface WordPressSettingsUpdate {
   app_password?: string;
 }
 
+export interface WebhookSettings {
+  xf_secret_configured: boolean;
+  wp_secret_configured: boolean;
+}
+
+export interface WebhookSettingsUpdate {
+  xf_webhook_secret?: string;
+  wp_webhook_secret?: string;
+}
+
 export interface WeightedAuthoritySettings {
   ranking_weight: number;
   position_bias: number;
@@ -561,6 +571,14 @@ export class SiloSettingsService {
 
   testWebhookEndpoints(): Observable<AnalyticsConnectionResult> {
     return this.http.post<AnalyticsConnectionResult>('/api/settings/webhooks/test/', {});
+  }
+
+  getWebhookSettings(): Observable<WebhookSettings> {
+    return this.http.get<WebhookSettings>('/api/settings/webhooks/');
+  }
+
+  updateWebhookSettings(payload: WebhookSettingsUpdate): Observable<WebhookSettings> {
+    return this.http.put<WebhookSettings>('/api/settings/webhooks/', payload);
   }
 
   updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {

@@ -2297,6 +2297,58 @@ class WebhookTestView(APIView):
         })
 
 
+class WebhookSettingsView(APIView):
+    """
+    GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
+    PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
+    """
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        xf = (_get_app_setting_value("webhook.xenforo_secret", getattr(django_settings, "XENFORO_WEBHOOK_SECRET", "")) or "").strip()
+        wp = (_get_app_setting_value("webhook.wordpress_secret", getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", "")) or "").strip()
+        return Response({
+            "xf_secret_configured": bool(xf),
+            "wp_secret_configured": bool(wp),
+        })
+
+    def put(self, request):
+        from apps.core.models import AppSetting
+
+        xf_secret = (request.data.get("xf_webhook_secret") or "").strip()
+        wp_secret = (request.data.get("wp_webhook_secret") or "").strip()
+
+        if xf_secret:
+            AppSetting.objects.update_or_create(
+                key="webhook.xenforo_secret",
+                defaults={
+                    "value": xf_secret,
+                    "value_type": "str",
+                    "category": "api",
+                    "description": "XenForo webhook secret",
+                    "is_secret": True,
+                },
+            )
+        if wp_secret:
+            AppSetting.objects.update_or_create(
+                key="webhook.wordpress_secret",
+                defaults={
+                    "value": wp_secret,
+                    "value_type": "str",
+                    "category": "api",
+                    "description": "WordPress webhook secret",
+                    "is_secret": True,
+                },
+            )
+
+        xf = (_get_app_setting_value("webhook.xenforo_secret", getattr(django_settings, "XENFORO_WEBHOOK_SECRET", "")) or "").strip()
+        wp = (_get_app_setting_value("webhook.wordpress_secret", getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", "")) or "").strip()
+        return Response({
+            "xf_secret_configured": bool(xf),
+            "wp_secret_configured": bool(wp),
+        })
+
+
 def _save_appearance_key(key: str, value) -> None:
     """Persist a single key into the appearance config AppSetting blob."""
     from apps.core.models import AppSetting

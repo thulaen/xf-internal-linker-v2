@@ -55,6 +55,8 @@ import {
   GraphCandidateSettings,
   ValueModelSettings,
   SpamGuardSettings,
+  WebhookSettings,
+  WebhookSettingsUpdate,
 } from './silo-settings.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 
@@ -1420,6 +1422,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   savingSlate = false;
   savingXenForo = false;
   savingWordPress = false;
+  savingWebhooks = false;
   recalculatingWeightedAuthority = false;
   recalculatingLinkFreshness = false;
   recalculatingClickDistance = false;
@@ -1646,6 +1649,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     health: this.DEFAULT_HEALTH,
   };
   wordpressPassword = '';
+
+  webhookSettings: WebhookSettings = { xf_secret_configured: false, wp_secret_configured: false };
+  xfWebhookSecret = '';
+  wpWebhookSecret = '';
 
   // Weight presets
   weightPresets: WeightPreset[] = [];
@@ -1999,6 +2006,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       // Tab 2: Connect & Sync
       'xenforo-settings': 2,
       'wordpress-settings': 2,
+      'webhook-settings': 2,
       'google-settings': 2,
       'ga4-settings': 2,
       'matomo-settings': 2,
@@ -2042,6 +2050,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
       matomoTelemetry: this.siloSvc.getMatomoTelemetrySettings(),
       xenforo: this.siloSvc.getXenForoSettings(),
       wordpress: this.siloSvc.getWordPressSettings(),
+      webhookSettings: this.siloSvc.getWebhookSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
       spamGuards: this.siloSvc.getSpamGuardSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
@@ -2076,6 +2085,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.matomoTelemetry = { ...this.matomoTelemetry, ...data.matomoTelemetry };
         this.xenforo = { ...this.xenforo, ...data.xenforo };
         this.wordpress = { ...this.wordpress, ...data.wordpress };
+        this.webhookSettings = { ...this.webhookSettings, ...data.webhookSettings };
         this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
         this.spamGuards = { ...this.spamGuards, ...data.spamGuards };
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
@@ -3014,6 +3024,29 @@ export class SettingsComponent implements OnInit, OnDestroy {
       error: (error) => {
         this.savingWordPress = false;
         this.snack.open(error?.error?.detail || 'Failed to save WordPress settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  get xfWebhookUrl(): string { return `${window.location.origin}/api/sync/webhooks/xenforo/`; }
+  get wpWebhookUrl(): string { return `${window.location.origin}/api/sync/webhooks/wordpress/`; }
+
+  saveWebhookSettings(): void {
+    const payload: WebhookSettingsUpdate = {};
+    if (this.xfWebhookSecret.trim()) payload.xf_webhook_secret = this.xfWebhookSecret.trim();
+    if (this.wpWebhookSecret.trim()) payload.wp_webhook_secret = this.wpWebhookSecret.trim();
+    this.savingWebhooks = true;
+    this.siloSvc.updateWebhookSettings(payload).subscribe({
+      next: (result) => {
+        this.webhookSettings = result;
+        this.xfWebhookSecret = '';
+        this.wpWebhookSecret = '';
+        this.savingWebhooks = false;
+        this.snack.open('Webhook secrets saved.', undefined, { duration: 2500 });
+      },
+      error: (err) => {
+        this.savingWebhooks = false;
+        this.snack.open(err?.error?.detail || 'Failed to save webhook secrets.', 'Dismiss', { duration: 4000 });
       },
     });
   }

@@ -986,20 +986,61 @@
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="title-group">
                   <mat-card-title>Webhook Endpoints</mat-card-title>
-                  <mat-card-subtitle>Verify that incoming webhook receivers for XenForo and WordPress are alive</mat-card-subtitle>
+                  <mat-card-subtitle>Configure secrets and verify incoming webhook receivers for XenForo and WordPress</mat-card-subtitle>
                 </div>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content">
-              <p class="hint">
-                XenForo and WordPress push real-time updates to this app via webhooks.
-                This test checks that both receiver endpoints are reachable and responding.
-              </p>
+              <div class="wordpress-form">
+                <p class="hint">
+                  Point your XenForo and WordPress installations to these URLs, then set a shared secret below so only authorised requests are accepted.
+                </p>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>XenForo Receiver URL</mat-label>
+                  <input matInput [value]="xfWebhookUrl" readonly />
+                  <mat-hint>Paste this into XenForo Admin → Webhooks → URL</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>WordPress Receiver URL</mat-label>
+                  <input matInput [value]="wpWebhookUrl" readonly />
+                  <mat-hint>Paste this into your WordPress webhook plugin settings</mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>XenForo Webhook Secret</mat-label>
+                  <input matInput type="password" [(ngModel)]="xfWebhookSecret" placeholder="Enter a secret to validate incoming requests" />
+                  <mat-hint>
+                    @if (webhookSettings.xf_secret_configured) {
+                      Secret set. Leave blank to keep current.
+                    } @else {
+                      No secret set — all incoming XenForo webhooks will be accepted.
+                    }
+                  </mat-hint>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>WordPress Webhook Secret</mat-label>
+                  <input matInput type="password" [(ngModel)]="wpWebhookSecret" placeholder="Enter a secret to validate incoming requests" />
+                  <mat-hint>
+                    @if (webhookSettings.wp_secret_configured) {
+                      Secret set. Leave blank to keep current.
+                    } @else {
+                      No secret set — all incoming WordPress webhooks will be accepted.
+                    }
+                  </mat-hint>
+                </mat-form-field>
+              </div>
             </mat-card-content>
             <mat-card-actions align="end">
               <button mat-stroked-button [disabled]="testingWebhooks" (click)="testWebhookEndpoints()">
                 @if (testingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
                 <mat-icon>hub</mat-icon> Test Webhook Endpoints
+              </button>
+              <button mat-flat-button color="primary" [disabled]="savingWebhooks" (click)="saveWebhookSettings()">
+                @if (savingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
+                Save
               </button>
             </mat-card-actions>
           </mat-card>
