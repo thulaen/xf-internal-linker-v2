@@ -45,6 +45,27 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ## COMPLETED
 
+### FR-032 - Automated Orphan & Low-Authority Page Identification
+**Requested:** 2026-04-03
+**Target phase:** Phase 35
+**Completed phase:** Phase 35
+**Priority:** High
+**Spec draft:** `docs/specs/fr032-orphan-page-identification.md`
+**Completed:** 2026-04-06
+
+- Implemented exactly against `docs/specs/fr032-orphan-page-identification.md`.
+- Upgraded the existing Orphans tab into a full Audits tab with two modes: orphan detection (zero inbound links) and low-authority detection (below 5th percentile PageRank).
+- Added `OrphanAuditSerializer` with `inbound_link_count` annotation.
+- Backend supports `?mode=orphan|low_authority` filter on `GET /api/graph/orphans/`.
+- Added CSV export endpoint (`GET /api/graph/orphans/export-csv/`).
+- Added single-page pipeline trigger (`POST /api/graph/orphans/<pk>/suggest/`) with `content_item_ids` support in the pipeline for precise destination targeting.
+- Frontend Audits tab includes filter dropdown, CSV export button, "Suggest Links" action per row, and click-to-focus cross-tab interaction that zooms to the node in the D3 network graph.
+- Orphan nodes in the D3 visualization are now colored red (`var(--color-error)`) for high-contrast visibility.
+- Deep-linked discovery (click depth > 5) deferred to Phase 2 as noted in the spec.
+- Verified: 185 backend tests pass, 18 frontend tests pass, production build clean.
+
+---
+
 ### FR-019 - Operator Alerts, Notification Center & Desktop Attention Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 22
@@ -1058,23 +1079,9 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### FR-032 - Automated Orphan & Low-Authority Page Identification
 **Requested:** 2026-04-03
 **Target phase:** Phase 35
+**Status:** Complete (Phase 35, commit 2b59761, 2026-04-06)
 **Priority:** High
 **Spec draft:** `docs/specs/fr032-orphan-page-identification.md`
-
-### What's wanted
-- Actionable auditing of "dead-end" or "lost" content that receives zero internal links.
-- A dedicated "Audit" view within the Link Graph page to identify structural SEO weaknesses.
-
-### Specific controls / behaviour
-- **Orphan Detection**: List all `ContentItem` rows where `inbound_link_count == 0`.
-- **Low Integrity Warning**: Flag pages with PageRank scores below the bottom 5th percentile.
-- **Deep-Linked Discovery**: Flag pages that are ≥ 5 clicks away from the dashboard root (crawl depth audit).
-- **Interactive Resolution**: One-click "Generate Suggestion" button next to every orphan to trigger the AI ranker.
-
-### Implementation notes for the AI
-- `inbound_link_count` is already maintained via `GraphSyncService`.
-- Use a standard Material Table for the audit list.
-- Query optimization: Filter orphans in the database, do not pull all nodes to the frontend just to count.
 
 ---
 

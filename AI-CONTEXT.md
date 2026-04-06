@@ -42,13 +42,14 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Status: Phase 31 / FR-028 (Algorithm Weight Diagnostics Tab) is complete.
-- Active target for the next session: Phase 32 / FR-029 (Search Console Performance Alerts & Automated Weekly Emails)
-- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), Social Scoring (FR-023), Engagement Signal (FR-024), Co-Occurrence (FR-025), and Weight Diagnostics (FR-028) are fully implemented and verified.
+- Status: Phase 35 / FR-032 (Automated Orphan & Low-Authority Page Identification) is complete.
+- Active target for the next session: Phase 36 / FR-033 (Internal PageRank Heatmap)
+- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), Social Scoring (FR-023), Engagement Signal (FR-024), Co-Occurrence (FR-025), Weight Diagnostics (FR-028), GPU Embeddings (FR-029), FAISS-GPU (FR-030), D3 Link Graph (FR-031), and Orphan Audit (FR-032) are fully implemented and verified.
 - Verification completed:
-  - `python backend/manage.py test apps.health` (Verified by thulaen in commit 8020899)
-  - `dotnet test` (Graph Candidate logic verified in HttpWorker.Tests)
-  - `frontend/src/app/health` components fully landing in the UI.
+  - `python backend/manage.py test` — 185 tests pass (commit 2b59761)
+  - `ng test` — 18 frontend tests pass
+  - `ng build --configuration=production` — clean build
+  - `docker-compose build` — backend image builds successfully
   - Phase 29 / FR-026 (Auth & Login) is also landed and verified.
 
 ## AI Handoff And Git Hygiene
