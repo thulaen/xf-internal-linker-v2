@@ -166,6 +166,7 @@ describe('SettingsComponent', () => {
               sync_hour: 3,
               sync_minute: 0,
             }),
+            getWebhookSettings: () => of({ xf_secret_configured: false, wp_secret_configured: false }),
             getClickDistanceSettings: () => of({
               ranking_weight: 0.07,
               k_cd: 4,
