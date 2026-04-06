@@ -159,6 +159,11 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "value_model.engagement_words_per_minute": "200",
     "value_model.engagement_cap_ratio": "1.5",
     "value_model.engagement_fallback_value": "0.5",
+    # FR-025 - Session Co-Occurrence Signal
+    "value_model.co_occurrence_signal_enabled": "true",
+    "value_model.w_cooccurrence": "0.15",
+    "value_model.co_occurrence_fallback_value": "0.5",
+    "value_model.co_occurrence_min_co_sessions": "5",
 }
 
 

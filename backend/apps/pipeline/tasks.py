@@ -511,6 +511,12 @@ def run_pipeline(
             suggestions_created=result.suggestions_created,
             destinations_processed=result.items_in_scope,
         )
+        # FR-025: compute value model scores (including co-occurrence signal) post-pipeline
+        try:
+            from apps.cooccurrence.tasks import apply_value_model_scores
+            apply_value_model_scores.delay(run_id)
+        except Exception:
+            logger.warning("apply_value_model_scores could not be queued for run %s", run_id)
         _emit_job_alert(
             "job.completed",
             "success",

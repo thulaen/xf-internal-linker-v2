@@ -478,6 +478,7 @@ class Suggestion(TimestampedModel):
             ("embedding", "Embedding Similarity"),
             ("graph_walk", "Pixie Graph Walk"),
             ("both", "Both Channel Match"),
+            ("behavioral_hub", "Behavioral Hub"),
         ],
         default="embedding",
         db_index=True,

@@ -93,6 +93,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'behavioral-hubs',
+    loadComponent: () =>
+      import('./behavioral-hubs/behavioral-hubs.component').then((m) => m.BehavioralHubsComponent),
+    title: 'Behavioral Hubs — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '/dashboard',
   },

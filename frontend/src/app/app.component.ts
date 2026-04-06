@@ -115,6 +115,12 @@ export class AppComponent implements OnInit {
           tooltip: 'Visualize the internal link graph',
         },
         {
+          label: 'Behavioral Hubs',
+          icon: 'hub',
+          route: '/behavioral-hubs',
+          tooltip: 'Co-navigation article clusters from GA4 session data',
+        },
+        {
           label: 'Analytics',
           icon: 'bar_chart',
           route: '/analytics',

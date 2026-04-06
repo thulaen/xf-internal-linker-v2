@@ -63,6 +63,7 @@ LOCAL_APPS = [
     "apps.notifications",
     "apps.knowledge_graph",
     "apps.health",
+    "apps.cooccurrence",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -246,6 +247,12 @@ CELERY_BEAT_SCHEDULE = {
         "task": "health.run_all_health_checks",
         "schedule": 1800.0,
         "options": {"queue": "pipeline"},
+    },
+    # FR-025 — weekly session co-occurrence rebuild: Monday 04:30 UTC.
+    "weekly-session-cooccurrence": {
+        "task": "cooccurrence.compute_session_cooccurrence",
+        "schedule": crontab(hour=4, minute=30, day_of_week=1),
+        "options": {"queue": "default"},
     },
 }
 

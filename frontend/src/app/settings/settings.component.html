@@ -643,6 +643,44 @@
                   </mat-form-field>
                 </div>
               }
+
+              <!-- FR-025 — Session Co-Occurrence Signal -->
+              @if (valueModel.enabled) {
+                <p class="hint sub-section-hint">Session Co-Occurrence Signal</p>
+                <div class="number-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Co-occurrence signal</mat-label>
+                    <mat-select [(ngModel)]="valueModel.co_occurrence_signal_enabled" [compareWith]="compareBooleans">
+                      <mat-option [value]="true">Enabled</mat-option>
+                      <mat-option [value]="false">Disabled</mat-option>
+                    </mat-select>
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.co_occurrence_signal_enabled')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.co_occurrence_signal_enabled">
+                    <mat-label>Co-occurrence weight</mat-label>
+                    <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.w_cooccurrence" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_cooccurrence')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.co_occurrence_signal_enabled">
+                    <mat-label>Min co-sessions</mat-label>
+                    <input matInput type="number" min="1" max="100" step="1" [(ngModel)]="valueModel.co_occurrence_min_co_sessions" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.co_occurrence_min_co_sessions')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.co_occurrence_signal_enabled">
+                    <mat-label>Fallback value</mat-label>
+                    <input matInput type="number" min="0" max="1" step="0.05" [(ngModel)]="valueModel.co_occurrence_fallback_value" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.co_occurrence_fallback_value')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                </div>
+              }
             </mat-card-content>
           </mat-card>
         </div>

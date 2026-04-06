@@ -47,6 +47,18 @@ from apps.core.views import (
 )
 from apps.graph.views import BrokenLinkViewSet, GraphStatsView, OrphanArticleListView, GraphPathView
 from apps.knowledge_graph.views import EntityListView
+from apps.cooccurrence.views import (
+    CoOccurrencePairListView,
+    CoOccurrencePairBySourceView,
+    CoOccurrenceRunListView,
+    TriggerCoOccurrenceView,
+    BehavioralHubListView,
+    BehavioralHubDetailView,
+    BehavioralHubMemberView,
+    BehavioralHubMemberDetailView,
+    TriggerHubDetectionView,
+    CoOccurrenceSettingsView,
+)
 from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
@@ -130,6 +142,16 @@ urlpatterns = [
     path("settings/value-model/", ValueModelSettingsView.as_view(), name="value-model-settings"),
     path("settings/spam-guards/", SpamGuardSettingsView.as_view(), name="settings-spam-guards"),
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
+    path("settings/cooccurrence/", CoOccurrenceSettingsView.as_view(), name="cooccurrence-settings"),
+    path("cooccurrence/pairs/", CoOccurrencePairListView.as_view(), name="cooccurrence-pairs"),
+    path("cooccurrence/pairs/<int:source_id>/", CoOccurrencePairBySourceView.as_view(), name="cooccurrence-pairs-by-source"),
+    path("cooccurrence/runs/", CoOccurrenceRunListView.as_view(), name="cooccurrence-runs"),
+    path("cooccurrence/compute/", TriggerCoOccurrenceView.as_view(), name="cooccurrence-compute"),
+    path("behavioral-hubs/", BehavioralHubListView.as_view(), name="behavioral-hubs"),
+    path("behavioral-hubs/detect/", TriggerHubDetectionView.as_view(), name="behavioral-hub-detect"),
+    path("behavioral-hubs/<uuid:hub_id>/", BehavioralHubDetailView.as_view(), name="behavioral-hub-detail"),
+    path("behavioral-hubs/<uuid:hub_id>/members/", BehavioralHubMemberView.as_view(), name="behavioral-hub-members"),
+    path("behavioral-hubs/<uuid:hub_id>/members/<int:content_item_id>/", BehavioralHubMemberDetailView.as_view(), name="behavioral-hub-member-detail"),
     path("graph/stats/", GraphStatsView.as_view(), name="graph-stats"),
     path("graph/entities/", EntityListView.as_view(), name="graph-entities"),
     path("graph/orphans/", OrphanArticleListView.as_view(), name="graph-orphans"),

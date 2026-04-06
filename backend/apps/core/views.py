@@ -175,6 +175,11 @@ DEFAULT_VALUE_MODEL_SETTINGS = {
     "engagement_words_per_minute": recommended_int("value_model.engagement_words_per_minute"),
     "engagement_cap_ratio": recommended_float("value_model.engagement_cap_ratio"),
     "engagement_fallback_value": recommended_float("value_model.engagement_fallback_value"),
+    # FR-025 co-occurrence signal
+    "co_occurrence_signal_enabled": recommended_bool("value_model.co_occurrence_signal_enabled"),
+    "w_cooccurrence": recommended_float("value_model.w_cooccurrence"),
+    "co_occurrence_fallback_value": recommended_float("value_model.co_occurrence_fallback_value"),
+    "co_occurrence_min_co_sessions": recommended_int("value_model.co_occurrence_min_co_sessions"),
 }
 
 # Allowed MIME types for site asset uploads
@@ -2765,6 +2770,27 @@ class ValueModelSettingsView(APIView):
                 "value_type": "float",
                 "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
             },
+            # FR-025 co-occurrence signal
+            "value_model.co_occurrence_signal_enabled": {
+                "value": "true" if validated["co_occurrence_signal_enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether the FR-025 session co-occurrence signal is active.",
+            },
+            "value_model.w_cooccurrence": {
+                "value": str(validated["w_cooccurrence"]),
+                "value_type": "float",
+                "description": "Value component weight: session co-occurrence signal.",
+            },
+            "value_model.co_occurrence_fallback_value": {
+                "value": str(validated["co_occurrence_fallback_value"]),
+                "value_type": "float",
+                "description": "Fallback signal value when no co-occurrence pair exists.",
+            },
+            "value_model.co_occurrence_min_co_sessions": {
+                "value": str(validated["co_occurrence_min_co_sessions"]),
+                "value_type": "int",
+                "description": "Minimum co-session count for a pair to be used in scoring.",
+            },
         }
 
         for key, row in rows.items():
@@ -3014,6 +3040,11 @@ def _read_value_model_settings() -> dict[str, float | int | bool]:
         "engagement_words_per_minute": _read_int("value_model.engagement_words_per_minute", DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"]),
         "engagement_cap_ratio": _read_float("value_model.engagement_cap_ratio", DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"]),
         "engagement_fallback_value": _read_float("value_model.engagement_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"]),
+        # FR-025 co-occurrence signal
+        "co_occurrence_signal_enabled": _read_bool("value_model.co_occurrence_signal_enabled", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_signal_enabled"]),
+        "w_cooccurrence": _read_float("value_model.w_cooccurrence", DEFAULT_VALUE_MODEL_SETTINGS["w_cooccurrence"]),
+        "co_occurrence_fallback_value": _read_float("value_model.co_occurrence_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_fallback_value"]),
+        "co_occurrence_min_co_sessions": _read_int("value_model.co_occurrence_min_co_sessions", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_min_co_sessions"]),
     }
 
 
@@ -3053,6 +3084,11 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
         "engagement_words_per_minute": max(50, min(600, _get_int("engagement_words_per_minute"))),
         "engagement_cap_ratio": max(1.0, min(5.0, _get_float("engagement_cap_ratio"))),
         "engagement_fallback_value": max(0.0, min(1.0, _get_float("engagement_fallback_value"))),
+        # FR-025 co-occurrence signal
+        "co_occurrence_signal_enabled": _get_bool("co_occurrence_signal_enabled"),
+        "w_cooccurrence": max(0.0, min(1.0, _get_float("w_cooccurrence"))),
+        "co_occurrence_fallback_value": max(0.0, min(1.0, _get_float("co_occurrence_fallback_value"))),
+        "co_occurrence_min_co_sessions": max(1, min(100, _get_int("co_occurrence_min_co_sessions"))),
     }
 
 

@@ -300,6 +300,11 @@ export interface ValueModelSettings {
   engagement_words_per_minute: number;
   engagement_cap_ratio: number;
   engagement_fallback_value: number;
+  // FR-025 co-occurrence signal
+  co_occurrence_signal_enabled: boolean;
+  w_cooccurrence: number;
+  co_occurrence_fallback_value: number;
+  co_occurrence_min_co_sessions: number;
 }
 
 export interface SpamGuardSettings {

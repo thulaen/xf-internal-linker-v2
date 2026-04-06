@@ -434,6 +434,35 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: '0.5 is neutral — it neither boosts nor penalises untracked pages.',
     range: '0 to 1',
   },
+  // FR-025 co-occurrence signal
+  'valueModel.co_occurrence_signal_enabled': {
+    definition: 'Whether session co-occurrence data is used to boost link candidates.',
+    impact: 'Pages frequently read together in the same GA4 session are ranked higher as link pairs.',
+    default: 'true',
+    example: 'Disable if you have no GA4 session data yet.',
+    range: 'on / off',
+  },
+  'valueModel.w_cooccurrence': {
+    definition: 'How much session co-occurrence contributes to the value model score.',
+    impact: 'Higher values give more weight to reader-navigation patterns over text similarity.',
+    default: '0.15',
+    example: 'Raise to 0.25 once you have 90+ days of session data.',
+    range: '0 to 1.0',
+  },
+  'valueModel.co_occurrence_fallback_value': {
+    definition: 'Score assigned to pairs with no co-occurrence data.',
+    impact: 'New or unpopular article pairs with no session history receive this neutral value.',
+    default: '0.5',
+    example: '0.5 is neutral — use lower to actively penalise unknown pairs.',
+    range: '0 to 1',
+  },
+  'valueModel.co_occurrence_min_co_sessions': {
+    definition: 'Minimum number of shared sessions for a co-occurrence pair to count.',
+    impact: 'Lower values include noisier pairs; higher values require stronger evidence.',
+    default: '5',
+    example: 'Raise to 10 on high-traffic sites to filter coincidental co-reads.',
+    range: '1 to 100',
+  },
   // Click Distance
   'ga4Gsc.ranking_weight': {
     definition: 'How much first-party search and behavior data influences the final ranking.',
@@ -1370,6 +1399,10 @@ export class SettingsComponent implements OnInit, OnDestroy {
     engagement_words_per_minute: 200,
     engagement_cap_ratio: 1.5,
     engagement_fallback_value: 0.5,
+    co_occurrence_signal_enabled: true,
+    w_cooccurrence: 0.15,
+    co_occurrence_fallback_value: 0.5,
+    co_occurrence_min_co_sessions: 5,
   };
   savingValueModel = false;
   savingClickDistance = false;

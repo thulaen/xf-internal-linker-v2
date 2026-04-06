@@ -1,0 +1,226 @@
+<div class="page-container">
+
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-row">
+      <h1 class="page-title">Behavioral Hubs</h1>
+      <div class="header-actions">
+        <button mat-stroked-button (click)="triggerCompute()" [disabled]="triggeringCompute" class="action-btn">
+          @if (triggeringCompute) {
+            <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+          } @else {
+            <mat-icon>sync</mat-icon>
+          }
+          Compute Co-Occurrence
+        </button>
+        <button mat-stroked-button (click)="triggerDetect()" [disabled]="triggeringDetect" class="action-btn">
+          @if (triggeringDetect) {
+            <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+          } @else {
+            <mat-icon>hub</mat-icon>
+          }
+          Rebuild Hubs
+        </button>
+      </div>
+    </div>
+    <p class="page-subtitle">
+      Articles your readers frequently visit together in the same session.
+      Co-occurrence data comes from GA4 session paths and is rebuilt weekly.
+    </p>
+
+    <!-- Stats row -->
+    <div class="stats-row">
+      <div class="stat-chip">
+        <mat-icon>group_work</mat-icon>
+        <span>{{ totalHubs }} hubs</span>
+      </div>
+      @if (settings) {
+        <div class="stat-chip">
+          <mat-icon>swap_horiz</mat-icon>
+          <span>{{ settings.last_run_pairs_written | number }} pairs</span>
+        </div>
+        @if (settings.last_run_at) {
+          <div class="stat-chip">
+            <mat-icon>schedule</mat-icon>
+            <span>Last run: {{ settings.last_run_at | date:'mediumDate' }}</span>
+          </div>
+        }
+      }
+      @if (lastRun && lastRun.status === 'running') {
+        <div class="stat-chip running">
+          <mat-spinner diameter="14"></mat-spinner>
+          <span>Computing…</span>
+        </div>
+      }
+    </div>
+  </div>
+
+  <div class="content-layout">
+
+    <!-- Hub list -->
+    <mat-card class="hubs-card">
+      <mat-card-content>
+
+        @if (loadingHubs && hubs.length === 0) {
+          <div class="loading-center">
+            <mat-spinner diameter="48"></mat-spinner>
+          </div>
+        } @else if (hubs.length === 0) {
+          <div class="empty-state">
+            <mat-icon class="empty-icon">hub</mat-icon>
+            <h3>No behavioral hubs detected yet</h3>
+            <p>Run <strong>Compute Co-Occurrence</strong> to fetch GA4 session data, then <strong>Rebuild Hubs</strong> to cluster co-read articles.</p>
+          </div>
+        } @else {
+          <mat-table [dataSource]="hubs" class="hubs-table">
+
+            <ng-container matColumnDef="name">
+              <mat-header-cell *matHeaderCellDef>Hub</mat-header-cell>
+              <mat-cell *matCellDef="let hub">
+                <span class="hub-name">{{ hub.name }}</span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="member_count">
+              <mat-header-cell *matHeaderCellDef>Members</mat-header-cell>
+              <mat-cell *matCellDef="let hub">{{ hub.member_count }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="auto_link_enabled">
+              <mat-header-cell *matHeaderCellDef>Auto-link</mat-header-cell>
+              <mat-cell *matCellDef="let hub">
+                @if (hub.auto_link_enabled) {
+                  <mat-icon class="icon-on" matTooltip="Auto-link enabled">check_circle</mat-icon>
+                } @else {
+                  <mat-icon class="icon-off" matTooltip="Auto-link disabled">radio_button_unchecked</mat-icon>
+                }
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="detection_method">
+              <mat-header-cell *matHeaderCellDef>Method</mat-header-cell>
+              <mat-cell *matCellDef="let hub">
+                <span class="method-tag">{{ hub.detection_method === 'manual' ? 'Manual' : 'Auto' }}</span>
+              </mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="updated_at">
+              <mat-header-cell *matHeaderCellDef>Updated</mat-header-cell>
+              <mat-cell *matCellDef="let hub">{{ hub.updated_at | date:'mediumDate' }}</mat-cell>
+            </ng-container>
+
+            <ng-container matColumnDef="actions">
+              <mat-header-cell *matHeaderCellDef></mat-header-cell>
+              <mat-cell *matCellDef="let hub">
+                <button mat-icon-button (click)="openHub(hub)" matTooltip="View hub details">
+                  <mat-icon>chevron_right</mat-icon>
+                </button>
+              </mat-cell>
+            </ng-container>
+
+            <mat-header-row *matHeaderRowDef="hubColumns"></mat-header-row>
+            <mat-row *matRowDef="let row; columns: hubColumns;" [class.selected-row]="selectedHub?.hub_id === row.hub_id"></mat-row>
+          </mat-table>
+
+          <mat-paginator
+            [length]="totalHubs"
+            [pageSize]="pageSize"
+            [pageSizeOptions]="[25, 50, 100]"
+            (page)="onPageChange($event)"
+          ></mat-paginator>
+        }
+
+      </mat-card-content>
+    </mat-card>
+
+    <!-- Hub detail panel -->
+    @if (loadingDetail) {
+      <mat-card class="detail-card">
+        <mat-card-content>
+          <div class="loading-center">
+            <mat-spinner diameter="48"></mat-spinner>
+          </div>
+        </mat-card-content>
+      </mat-card>
+    } @else if (selectedHub) {
+      <mat-card class="detail-card">
+        <mat-card-header>
+          <mat-card-title>{{ selectedHub.name }}</mat-card-title>
+          <button mat-icon-button (click)="closeDetail()" matTooltip="Close" class="close-btn">
+            <mat-icon>close</mat-icon>
+          </button>
+        </mat-card-header>
+        <mat-card-content>
+
+          <!-- Edit name -->
+          <div class="detail-section">
+            <label class="section-label">Hub name</label>
+            <div class="name-row">
+              <mat-form-field appearance="outline" class="name-field">
+                <input matInput [(ngModel)]="editName" placeholder="Hub name" />
+              </mat-form-field>
+              <button mat-stroked-button (click)="saveName()" [disabled]="savingName || !editName.trim()">
+                @if (savingName) { <mat-spinner diameter="18" class="btn-spinner"></mat-spinner> } @else { Save }
+              </button>
+            </div>
+          </div>
+
+          <!-- Auto-link toggle -->
+          <div class="detail-section">
+            <label class="section-label">Auto-link</label>
+            <div class="autolink-row">
+              <span class="autolink-status">
+                @if (selectedHub.auto_link_enabled) {
+                  <mat-icon class="icon-on">check_circle</mat-icon> Enabled — hub-pair suggestions are flagged as behavioral hub candidates.
+                } @else {
+                  <mat-icon class="icon-off">radio_button_unchecked</mat-icon> Disabled.
+                }
+              </span>
+              <button mat-stroked-button (click)="toggleAutoLink()" [disabled]="togglingAutoLink">
+                @if (togglingAutoLink) {
+                  <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+                } @else {
+                  {{ selectedHub.auto_link_enabled ? 'Disable' : 'Enable' }}
+                }
+              </button>
+            </div>
+          </div>
+
+          <mat-divider></mat-divider>
+
+          <!-- Members -->
+          <div class="detail-section">
+            <label class="section-label">Members ({{ selectedHub.member_count }})</label>
+            @if (selectedHub.members.length === 0) {
+              <p class="no-members">No active members.</p>
+            } @else {
+              <div class="members-list">
+                @for (member of selectedHub.members; track member.id) {
+                  @if (member.membership_source !== 'manual_remove_override') {
+                    <div class="member-row">
+                      <div class="member-info">
+                        <span class="member-title">{{ member.content_item_title || 'Content #' + member.content_item_id }}</span>
+                        <span class="member-meta">
+                          Jaccard: {{ member.co_occurrence_strength | number:'1.3-3' }}
+                          &nbsp;·&nbsp;
+                          <span class="membership-tag" [class.manual]="member.membership_source === 'manual_add'">
+                            {{ membershipLabel(member.membership_source) }}
+                          </span>
+                        </span>
+                      </div>
+                      <button mat-icon-button (click)="removeMember(member)" matTooltip="Remove from hub" class="remove-btn">
+                        <mat-icon>remove_circle_outline</mat-icon>
+                      </button>
+                    </div>
+                  }
+                }
+              </div>
+            }
+          </div>
+
+        </mat-card-content>
+      </mat-card>
+    }
+
+  </div>
+</div>
