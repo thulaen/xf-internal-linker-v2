@@ -890,10 +890,39 @@ def _stage1_candidates(
     if not host_keys:
         return {}
 
+    from .faiss_index import is_faiss_gpu_active, faiss_search
+
+    host_pk_set = {pk for pk, _ in host_keys}
+
+    if is_faiss_gpu_active():
+        # FAISS path — persistent GPU (or CPU-FAISS) index, no per-run DB fetch
+        result: dict[ContentKey, list[int]] = {}
+        n_dest = len(destination_keys)
+
+        for block_start in range(0, n_dest, block_size):
+            block_end = min(block_start + block_size, n_dest)
+            dest_block = dest_embeddings[block_start:block_end]
+            dest_keys_block = destination_keys[block_start:block_end]
+
+            hits_per_query = faiss_search(dest_block, k=top_k, host_pk_set=host_pk_set)
+
+            for dest_key, hits in zip(dest_keys_block, hits_per_query):
+                sentence_ids: list[int] = []
+                for pk, ct in hits:
+                    host_key = (pk, ct)
+                    if host_key == dest_key:
+                        continue
+                    sentence_ids.extend(content_to_sentence_ids.get(host_key, []))
+                if sentence_ids:
+                    result[dest_key] = sentence_ids
+
+        return result
+
+    # NumPy fallback path (unchanged) -----------------------------------------
     from apps.content.models import ContentItem
-    host_pks = [pk for pk, _ in host_keys]
+    host_pks_list = [pk for pk, _ in host_keys]
     host_emb_qs = ContentItem.objects.filter(
-        pk__in=host_pks,
+        pk__in=host_pks_list,
         embedding__isnull=False,
     ).values_list("pk", "content_type", "embedding")
 

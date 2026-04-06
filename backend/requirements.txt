@@ -57,3 +57,4 @@ requests==2.32.3                     # HTTP client (XenForo/WP API calls)
 pyarrow==17.0.0
 pyroaring==1.0.4
 pybind11==2.13.6
+faiss-gpu-cu12>=1.8.0               # FR-030: GPU vector search (Linux/CUDA 12 only)

@@ -2346,3 +2346,14 @@ def check_gsc_spikes(self) -> dict:
 
     logger.info("check_gsc_spikes: %d spike alerts emitted.", alerts_emitted)
     return {"alerts_emitted": alerts_emitted}
+
+
+# ---------------------------------------------------------------------------
+# FR-030 — FAISS-GPU index refresh
+# ---------------------------------------------------------------------------
+
+@shared_task(name="pipeline.refresh_faiss_index")
+def refresh_faiss_index():
+    """FR-030 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
+    from apps.pipeline.services.faiss_index import build_faiss_index
+    build_faiss_index()

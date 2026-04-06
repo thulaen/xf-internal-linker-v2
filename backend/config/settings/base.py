@@ -254,6 +254,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=4, minute=30, day_of_week=1),
         "options": {"queue": "default"},
     },
+    # FR-030 — FAISS-GPU index refresh: every 15 minutes.
+    "refresh-faiss-index": {
+        "task": "pipeline.refresh_faiss_index",
+        "schedule": crontab(minute="*/15"),
+        "options": {"queue": "pipeline"},
+    },
 }
 
 
