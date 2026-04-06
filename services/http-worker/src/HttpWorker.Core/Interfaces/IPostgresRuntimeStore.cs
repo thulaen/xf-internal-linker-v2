@@ -46,4 +46,7 @@ public interface IPostgresRuntimeStore
     Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
 
     Task<Dictionary<int, List<GSCDailyMetrics>>> GetDailyTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
+
+    Task<Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>>
+        GetEngagementMetricsAsync(int lookbackDays, CancellationToken cancellationToken);
 }

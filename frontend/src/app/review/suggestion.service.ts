@@ -306,12 +306,23 @@ export interface ValueModelDiagnostics {
   score_freshness: number;
   score_authority: number;
   score_penalty: number;
+  // FR-024 engagement signal
+  engagement_signal?: number;
+  read_through_rate_raw?: number;
+  engagement_quality_raw?: number;
+  avg_engagement_time_seconds?: number;
+  avg_bounce_rate?: number;
+  word_count?: number;
+  estimated_read_time_seconds?: number;
+  engagement_metric_rows_used?: number;
+  engagement_fallback_used?: boolean;
   applied_weights: {
     w_relevance: number;
     w_traffic: number;
     w_freshness: number;
     w_authority: number;
     w_penalty: number;
+    w_engagement?: number;
   };
 }
 

@@ -17,6 +17,7 @@ public sealed class GraphCandidateService : IGraphCandidateService
         int sourceArticleId,
         KnowledgeGraphData graphData,
         Dictionary<int, float> trafficMetrics,
+        Dictionary<int, EngagementSignalData> engagementSignals,
         CancellationToken cancellationToken)
     {
         if (graphData.Edges.Count == 0) return [];
@@ -96,7 +97,8 @@ public sealed class GraphCandidateService : IGraphCandidateService
             float pixieRelevance = (float)Math.Sqrt(hit.Value);
             float trafficValue = trafficMetrics.GetValueOrDefault(hit.Key, 0f);
 
-            var (valueScore, diagJson) = CalculateValueScore(pixieRelevance, trafficValue, hit.Key, graphData);
+            var engData = engagementSignals.GetValueOrDefault(hit.Key);
+            var (valueScore, diagJson) = CalculateValueScore(pixieRelevance, trafficValue, hit.Key, graphData, engData);
 
             suggestions.Add(new PipelineSuggestion
             {
@@ -129,32 +131,39 @@ public sealed class GraphCandidateService : IGraphCandidateService
         return items[^1].Id;
     }
 
-    private (float Score, string Diagnostics) CalculateValueScore(float pixieRelevance, float traffic, int articleId, KnowledgeGraphData graphData)
+    private (float Score, string Diagnostics) CalculateValueScore(
+        float pixieRelevance, float traffic, int articleId,
+        KnowledgeGraphData graphData, EngagementSignalData? engagement)
     {
         // Normalization (Instagram-style signals)
         // relevance is sqrt(hits) -> 2000 walks, average hits 10-50 per top node. sqrt(50) ~ 7.
         float normRel = Math.Min(pixieRelevance / 10f, 1.0f);
-        
+
         // Traffic normalization (Clicks over lookback window)
         // High traffic pages might have 10k clicks. Low might have 0.
         float normTraff = (float)(Math.Log10(traffic + 1) / 4.0); // Log scale, maxing around 10k clicks
         normTraff = Math.Clamp(normTraff, 0f, 1f);
 
         var p = _options.Pipeline;
-        float score = (p.WeightRelevance * normRel) + (p.WeightTraffic * normTraff);
-        
-        // Loading real Authority (PageRank) and Freshness
-        float normAuth = 0.5f; 
-        float normFresh = 0.5f;
 
+        // Authority (PageRank) and Freshness
+        float normAuth = 0.5f;
+        float normFresh = 0.5f;
         if (graphData.ArticleMetrics.TryGetValue(articleId, out var metrics))
         {
             normAuth = metrics.PageRank;
             normFresh = metrics.Freshness;
         }
 
-        score += (p.WeightAuthority * normAuth);
-        score += (p.WeightFreshness * normFresh);
+        float score = (p.WeightRelevance * normRel)
+                    + (p.WeightTraffic * normTraff)
+                    + (p.WeightAuthority * normAuth)
+                    + (p.WeightFreshness * normFresh);
+
+        // FR-024: engagement signal (read-through rate, pre-normalized site-wide)
+        float engSignal = engagement?.NormalizedSignal ?? p.EngagementFallbackValue;
+        if (p.EngagementSignalEnabled)
+            score += p.WeightEngagement * engSignal;
 
         var diagnostics = new
         {
@@ -164,10 +173,20 @@ public sealed class GraphCandidateService : IGraphCandidateService
             norm_traffic = normTraff,
             norm_authority = normAuth,
             norm_freshness = normFresh,
+            engagement_signal = engSignal,
+            read_through_rate_raw = engagement?.ReadThroughRateRaw,
+            engagement_quality_raw = engagement?.EngagementQualityRaw,
+            avg_engagement_time_seconds = engagement?.AvgEngagementTimeSecs,
+            avg_bounce_rate = engagement?.AvgBounceRate,
+            word_count = engagement?.WordCount ?? 0,
+            estimated_read_time_seconds = engagement?.EstimatedReadTimeSecs,
+            engagement_metric_rows_used = engagement?.RowsUsed ?? 0,
+            engagement_fallback_used = engagement?.FallbackUsed ?? true,
             w_rel = p.WeightRelevance,
             w_traff = p.WeightTraffic,
             w_auth = p.WeightAuthority,
-            w_fresh = p.WeightFreshness
+            w_fresh = p.WeightFreshness,
+            w_engagement = p.WeightEngagement
         };
 
         return (score, System.Text.Json.JsonSerializer.Serialize(diagnostics));

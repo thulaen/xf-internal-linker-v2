@@ -8,5 +8,6 @@ public interface IGraphCandidateService
         int sourceArticleId,
         KnowledgeGraphData graphData,
         Dictionary<int, float> trafficMetrics,
+        Dictionary<int, EngagementSignalData> engagementSignals,
         CancellationToken cancellationToken);
 }

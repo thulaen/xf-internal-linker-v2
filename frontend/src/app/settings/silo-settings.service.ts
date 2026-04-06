@@ -293,6 +293,13 @@ export interface ValueModelSettings {
   w_penalty: number;
   traffic_lookback_days: number;
   traffic_fallback_value: number;
+  // FR-024 engagement signal
+  engagement_signal_enabled: boolean;
+  w_engagement: number;
+  engagement_lookback_days: number;
+  engagement_words_per_minute: number;
+  engagement_cap_ratio: number;
+  engagement_fallback_value: number;
 }
 
 export interface SpamGuardSettings {

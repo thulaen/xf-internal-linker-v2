@@ -399,6 +399,28 @@
               - freshness weight {{ vmd.applied_weights.w_freshness }}
             }
           </p>
+          @if (vmd.engagement_signal !== undefined) {
+            @if (vmd.engagement_fallback_used) {
+              <p class="meta-line">
+                <mat-icon class="icon-sm">info_outline</mat-icon>
+                No engagement data — using neutral fallback (0.5).
+              </p>
+            } @else {
+              <p class="meta-line">
+                <mat-icon class="icon-sm">visibility</mat-icon>
+                Engagement signal: {{ (vmd.engagement_signal! * 100).toFixed(0) }}/100
+                — readers typically reach {{ (vmd.read_through_rate_raw! * 100).toFixed(0) }}% of this article.
+              </p>
+              <p class="meta-line">
+                Avg time on page: {{ vmd.avg_engagement_time_seconds?.toFixed(0) }}s
+                &nbsp;·&nbsp; Est. read time: {{ vmd.estimated_read_time_seconds?.toFixed(0) }}s
+                @if (vmd.avg_bounce_rate !== undefined && vmd.avg_bounce_rate !== null) {
+                  &nbsp;·&nbsp; Bounce rate: {{ (vmd.avg_bounce_rate! * 100).toFixed(0) }}%
+                }
+                &nbsp;·&nbsp; {{ vmd.engagement_metric_rows_used }} data rows used.
+              </p>
+            }
+          }
         }
       }
     </section>

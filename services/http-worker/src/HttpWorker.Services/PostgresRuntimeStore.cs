@@ -872,4 +872,66 @@ public sealed class PostgresRuntimeStore : IPostgresRuntimeStore
 
         return metrics;
     }
+
+    public async Task<Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>>
+        GetEngagementMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+    {
+        var result = new Dictionary<int, (float, float?, int, int)>();
+        await using var connection = await OpenConnectionAsync(cancellationToken);
+        var startDate = DateTime.UtcNow.Date.AddDays(-lookbackDays);
+
+        // Step 1: rolling engagement averages from SearchMetric
+        await using (var cmd = new NpgsqlCommand(
+            """
+            SELECT content_item_id,
+                   AVG(avg_engagement_time)::float AS avg_eng,
+                   AVG(bounce_rate)::float          AS avg_bounce,
+                   COUNT(*)::int                    AS rows_used
+            FROM   analytics_searchmetric
+            WHERE  date >= @start
+              AND  avg_engagement_time IS NOT NULL
+            GROUP  BY content_item_id
+            """, connection))
+        {
+            cmd.Parameters.AddWithValue("start", startDate);
+            await using var reader = await cmd.ExecuteReaderAsync(cancellationToken);
+            while (await reader.ReadAsync(cancellationToken))
+            {
+                int id = reader.GetInt32(0);
+                float eng = reader.GetFloat(1);
+                float? bounce = reader.IsDBNull(2) ? null : reader.GetFloat(2);
+                int rows = reader.GetInt32(3);
+                result[id] = (eng, bounce, 0, rows); // word count filled in step 2
+            }
+        }
+
+        if (result.Count == 0) return result;
+
+        // Step 2: word count from distilled_text for items that have engagement data
+        var ids = result.Keys.ToArray();
+        await using (var cmd2 = new NpgsqlCommand(
+            """
+            SELECT id,
+                   COALESCE(
+                       array_length(regexp_split_to_array(trim(distilled_text), '\s+'), 1), 0
+                   ) AS wc
+            FROM   content_contentitem
+            WHERE  id = ANY(@ids)
+              AND  distilled_text IS NOT NULL
+              AND  distilled_text <> ''
+            """, connection))
+        {
+            cmd2.Parameters.AddWithValue("ids", ids);
+            await using var reader2 = await cmd2.ExecuteReaderAsync(cancellationToken);
+            while (await reader2.ReadAsync(cancellationToken))
+            {
+                int id = reader2.GetInt32(0);
+                int wc = reader2.GetInt32(1);
+                if (result.TryGetValue(id, out var cur))
+                    result[id] = (cur.Item1, cur.Item2, wc, cur.Item4);
+            }
+        }
+
+        return result;
+    }
 }

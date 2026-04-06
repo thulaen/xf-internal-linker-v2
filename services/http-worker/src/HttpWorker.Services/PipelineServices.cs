@@ -312,6 +312,11 @@ public class RunPipelineService(
             trafficMetrics = await runtimeStore.GetTrafficMetricsAsync(options.Value.Pipeline.TrafficLookbackDays, cancellationToken);
         }
 
+        // FR-024: Load raw engagement metrics and normalize site-wide
+        var rawEngagement = await runtimeStore.GetEngagementMetricsAsync(
+            options.Value.Pipeline.EngagementLookbackDays, cancellationToken);
+        var engagementSignals = ComputeNormalizedEngagementSignals(rawEngagement, options.Value.Pipeline);
+
         var destinations = await runtimeStore.GetDestinationNodesAsync(destScopeIds, cancellationToken);
         var hosts = await runtimeStore.GetHostNodesAsync(hostScopeIds, cancellationToken);
 
@@ -338,7 +343,7 @@ public class RunPipelineService(
                 {
                     var dest = destinations[destOuterIdx + d];
                     var graphCandidates = await graphCandidateService.GenerateGraphCandidatesAsync(
-                        dest.ContentId, graphData, trafficMetrics, cancellationToken);
+                        dest.ContentId, graphData, trafficMetrics, engagementSignals, cancellationToken);
                     
                     graphCandidateMap[dest.ContentId] = graphCandidates.ToList();
                 }
@@ -452,11 +457,60 @@ public class RunPipelineService(
         await Task.WhenAll(readerTask, writerTask);
 
         sw.Stop();
-        return new RunPipelineResult 
-        { 
+        return new RunPipelineResult
+        {
             SuggestionsCreated = suggestionsCreated,
             DurationSeconds = sw.Elapsed.TotalSeconds,
             ItemsInScope = hosts.Count + destinations.Count
         };
+    }
+
+    // FR-024: site-wide normalization of raw engagement data into [0,1] signals
+    private static Dictionary<int, EngagementSignalData> ComputeNormalizedEngagementSignals(
+        Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)> rawData,
+        PipelineOptions opts)
+    {
+        if (rawData.Count == 0) return [];
+
+        // Step 1: compute raw RTR and engagement quality per item
+        var rtrMap = new Dictionary<int, (float rtr, float eq, float engTime, float? bounce, int wc, int rows)>(rawData.Count);
+        foreach (var (id, (engTime, bounce, wc, rows)) in rawData)
+        {
+            float estReadSecs = wc > 0 ? (wc / (float)opts.EngagementWordsPerMinute) * 60f : 0f;
+            float rtr = (wc <= 0 || estReadSecs <= 0f)
+                ? opts.EngagementFallbackValue
+                : engTime / estReadSecs;
+            float eq = bounce.HasValue ? rtr * (1f - bounce.Value) : rtr;
+            rtrMap[id] = (rtr, eq, engTime, bounce, wc, rows);
+        }
+
+        // Step 2: cap at cap_ratio, then min-max normalize across the site
+        float capRatio = opts.EngagementCapRatio;
+        var cappedValues = rtrMap.Values.Select(v => Math.Min(v.eq, capRatio)).ToList();
+        float minEq = cappedValues.Min();
+        float maxEq = cappedValues.Max();
+        float range = maxEq - minEq;
+
+        var result = new Dictionary<int, EngagementSignalData>(rtrMap.Count);
+        foreach (var (id, (rtr, eq, engTime, bounce, wc, rows)) in rtrMap)
+        {
+            float cappedEq = Math.Min(eq, capRatio);
+            float normalized = range > 0f
+                ? Math.Clamp((cappedEq - minEq) / range, 0f, 1f)
+                : 0.5f;
+            float estReadSecs = wc > 0 ? (wc / (float)opts.EngagementWordsPerMinute) * 60f : 0f;
+            result[id] = new EngagementSignalData(
+                NormalizedSignal: normalized,
+                ReadThroughRateRaw: rtr,
+                EngagementQualityRaw: eq,
+                AvgEngagementTimeSecs: engTime,
+                AvgBounceRate: bounce,
+                WordCount: wc,
+                EstimatedReadTimeSecs: estReadSecs,
+                RowsUsed: rows,
+                FallbackUsed: false
+            );
+        }
+        return result;
     }
 }

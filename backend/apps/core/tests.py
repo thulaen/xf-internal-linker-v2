@@ -609,3 +609,93 @@ class GA4GSCSettingsApiTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
         build_service_mock.assert_called_once()
+
+
+
+class ValueModelEngagementSettingsTests(APITestCase):
+    """FR-024: tests for the engagement signal fields added to /api/settings/value-model/."""
+
+    def setUp(self):
+        user = get_user_model().objects.create_user(username="engagement-user", password="pass")
+        self.client.force_authenticate(user=user)
+
+    def test_get_returns_all_14_keys(self):
+        response = self.client.get("/api/settings/value-model/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # Original 8 keys
+        for key in ("enabled", "w_relevance", "w_traffic", "w_freshness",
+                    "w_authority", "w_penalty", "traffic_lookback_days", "traffic_fallback_value"):
+            self.assertIn(key, data, msg=f"Missing original key: {key}")
+        # FR-024 engagement keys
+        for key in ("engagement_signal_enabled", "w_engagement", "engagement_lookback_days",
+                    "engagement_words_per_minute", "engagement_cap_ratio", "engagement_fallback_value"):
+            self.assertIn(key, data, msg=f"Missing engagement key: {key}")
+
+    def test_get_returns_correct_engagement_defaults(self):
+        response = self.client.get("/api/settings/value-model/")
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data["engagement_signal_enabled"])
+        self.assertAlmostEqual(data["w_engagement"], 0.1, places=4)
+        self.assertEqual(data["engagement_lookback_days"], 30)
+        self.assertEqual(data["engagement_words_per_minute"], 200)
+        self.assertAlmostEqual(data["engagement_cap_ratio"], 1.5, places=4)
+        self.assertAlmostEqual(data["engagement_fallback_value"], 0.5, places=4)
+
+    def test_put_persists_engagement_settings_and_round_trips(self):
+        payload = {
+            "enabled": True,
+            "w_relevance": 0.4,
+            "w_traffic": 0.3,
+            "w_freshness": 0.1,
+            "w_authority": 0.1,
+            "w_penalty": 0.5,
+            "traffic_lookback_days": 90,
+            "traffic_fallback_value": 0.5,
+            "engagement_signal_enabled": False,
+            "w_engagement": 0.2,
+            "engagement_lookback_days": 60,
+            "engagement_words_per_minute": 250,
+            "engagement_cap_ratio": 2.0,
+            "engagement_fallback_value": 0.4,
+        }
+        put_response = self.client.put("/api/settings/value-model/", payload, format="json")
+        self.assertEqual(put_response.status_code, 200)
+
+        get_response = self.client.get("/api/settings/value-model/")
+        data = get_response.json()
+        self.assertFalse(data["engagement_signal_enabled"])
+        self.assertAlmostEqual(data["w_engagement"], 0.2, places=4)
+        self.assertEqual(data["engagement_lookback_days"], 60)
+        self.assertEqual(data["engagement_words_per_minute"], 250)
+        self.assertAlmostEqual(data["engagement_cap_ratio"], 2.0, places=4)
+        self.assertAlmostEqual(data["engagement_fallback_value"], 0.4, places=4)
+
+    def test_put_clamps_w_engagement_to_zero_one(self):
+        payload = {
+            "enabled": True, "w_relevance": 0.4, "w_traffic": 0.3,
+            "w_freshness": 0.1, "w_authority": 0.1, "w_penalty": 0.5,
+            "traffic_lookback_days": 90, "traffic_fallback_value": 0.5,
+            "engagement_signal_enabled": True,
+            "w_engagement": 99.9,  # out of range
+            "engagement_lookback_days": 30, "engagement_words_per_minute": 200,
+            "engagement_cap_ratio": 1.5, "engagement_fallback_value": 0.5,
+        }
+        response = self.client.put("/api/settings/value-model/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertAlmostEqual(response.json()["w_engagement"], 1.0, places=4)
+
+    def test_put_clamps_engagement_lookback_days(self):
+        payload = {
+            "enabled": True, "w_relevance": 0.4, "w_traffic": 0.3,
+            "w_freshness": 0.1, "w_authority": 0.1, "w_penalty": 0.5,
+            "traffic_lookback_days": 90, "traffic_fallback_value": 0.5,
+            "engagement_signal_enabled": True, "w_engagement": 0.1,
+            "engagement_lookback_days": -5,  # below minimum
+            "engagement_words_per_minute": 200,
+            "engagement_cap_ratio": 1.5, "engagement_fallback_value": 0.5,
+        }
+        response = self.client.put("/api/settings/value-model/", payload, format="json")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["engagement_lookback_days"], 1)

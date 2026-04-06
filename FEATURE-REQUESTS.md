@@ -809,8 +809,22 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 ### FR-024 - TikTok Read-Through Rate — Engagement Signal
 **Requested:** 2026-03-28
 **Target phase:** Phase 27
+**Completed phase:** Phase 27
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`
+**Completed:** 2026-04-06
+
+- Implemented exactly against `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`.
+- Added `EngagementSignalData` record to C# contracts.
+- Added 6 new `PipelineOptions` fields (`EngagementSignalEnabled`, `WeightEngagement`, `EngagementLookbackDays`, `EngagementWordsPerMinute`, `EngagementCapRatio`, `EngagementFallbackValue`).
+- Added `GetEngagementMetricsAsync` to `IPostgresRuntimeStore` and `PostgresRuntimeStore` (rolling average of `avg_engagement_time` + `bounce_rate` from `analytics_searchmetric`, word count from `content_contentitem.distilled_text`).
+- Added site-wide `ComputeNormalizedEngagementSignals` in `PipelineServices` (cap + min-max normalize).
+- Updated `GraphCandidateService.CalculateValueScore` with sixth signal slot and full diagnostic fields.
+- Extended Django `DEFAULT_VALUE_MODEL_SETTINGS`, `_read_value_model_settings`, `_validate_value_model_settings`, and `ValueModelSettingsView.put` with 6 new engagement keys.
+- Added `recommended_weights.py` keys and migration `0024_upsert_engagement_signal_preset_keys.py`.
+- Extended Angular `ValueModelSettings` interface, settings tooltips, `valueModel` initializer, and settings card HTML with engagement sub-section.
+- Extended `ValueModelDiagnostics` interface and review detail panel with full engagement breakdown.
+- Verified: Django 5 tests pass, Angular build clean (no warnings), Angular 18 tests 18/18, no migration drift.
 
 ### What's wanted
 - Inspired by TikTok's completion rate signal: articles that hold human attention all the way through are better link destinations than keyword-stuffed pages people immediately bounce from.

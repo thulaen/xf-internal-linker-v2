@@ -42,9 +42,9 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Status: Phase 26 / FR-023 (Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts) is complete.
-- Active target for the next session: Phase 27 / FR-024 (TikTok Read-Through Rate Sync & Score)
-- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), and Social Scoring (FR-023) are fully implemented and verified.
+- Status: Phase 27 / FR-024 (TikTok Read-Through Rate — Engagement Signal) is complete.
+- Active target for the next session: Phase 28 / FR-025 (Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering)
+- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), Social Scoring (FR-023), and Engagement Signal (FR-024) are fully implemented and verified.
 - Verification completed:
   - `python backend/manage.py test apps.health` (Verified by thulaen in commit 8020899)
   - `dotnet test` (Graph Candidate logic verified in HttpWorker.Tests)
@@ -192,9 +192,10 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 24 | FR-021 | Complete | Graph-Based Link Candidate Generation (Pixie Random Walk) |
 | 25 | FR-022 | Complete | Data Source & System Health Check Dashboard |
 | 26 | FR-023 | Complete | Reddit Hot Decay, Wilson Score CTR Confidence & Traffic Spike Alerts |
+| 27 | FR-024 | Complete | TikTok Read-Through Rate — Engagement Signal (sixth value model slot) |
 | 29 | FR-026 | Complete | Authentication & Login Status UI |
 
-- Next exact target: Phase 27 / `FR-024 - TikTok Read-Through Rate Sync & Score`
+- Next exact target: Phase 28 / `FR-025 - Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering`
 - Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer
 - Current continuity state: Phases 24, 25, 26, and 29 are complete and verified (commits 5b89804, 8020899, 89d3437, 26d3437).
 - Next session type: implement FR-024 TikTok Read-Through Rate.
@@ -276,6 +277,38 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-06 - Phase 27 / FR-024: TikTok Read-Through Rate Engagement Signal
+
+- AI/tool: Claude
+- Intentional files changed:
+  - `services/http-worker/src/HttpWorker.Core/Contracts/V1/GraphSyncContracts.cs`
+  - `services/http-worker/src/HttpWorker.Services/HttpWorkerOptions.cs`
+  - `services/http-worker/src/HttpWorker.Core/Interfaces/IPostgresRuntimeStore.cs`
+  - `services/http-worker/src/HttpWorker.Services/PostgresRuntimeStore.cs`
+  - `services/http-worker/src/HttpWorker.Core/Interfaces/IGraphCandidateService.cs`
+  - `services/http-worker/src/HttpWorker.Services/GraphCandidateService.cs`
+  - `services/http-worker/src/HttpWorker.Services/PipelineServices.cs`
+  - `services/http-worker/tests/HttpWorker.Tests/EngagementSignalTests.cs` (new)
+  - `backend/apps/suggestions/recommended_weights.py`
+  - `backend/apps/core/views.py`
+  - `backend/apps/suggestions/migrations/0024_upsert_engagement_signal_preset_keys.py` (new)
+  - `backend/apps/core/tests.py`
+  - `frontend/src/app/settings/silo-settings.service.ts`
+  - `frontend/src/app/settings/settings.component.ts`
+  - `frontend/src/app/settings/settings.component.html`
+  - `frontend/src/app/review/suggestion.service.ts`
+  - `frontend/src/app/review/suggestion-detail-dialog.component.html`
+  - `AI-CONTEXT.md`
+  - `FEATURE-REQUESTS.md`
+- What changed: Added `engagement_signal` as the sixth slot in the FR-021 value model (C# GraphCandidateService). Loads rolling engagement averages from `analytics_searchmetric`, word counts from `content_contentitem.distilled_text`, applies read-through rate × (1 − bounce) formula, site-wide min-max normalization in PipelineServices. Django settings API extended with 6 new `value_model.engagement_*` keys. Angular settings card shows engagement sub-section; review detail panel shows full engagement breakdown.
+- Verification that passed:
+  - `python backend/manage.py makemigrations --check --dry-run --settings=config.settings.test` — no drift
+  - `python backend/manage.py test apps.core.tests.ValueModelEngagementSettingsTests --settings=config.settings.test` — 5 tests, OK
+  - `scripts/build-frontend.ps1` — build succeeded, no warnings
+  - `scripts/test-frontend.ps1` — 18 tests, all SUCCESS
+  - Note: `dotnet build` / `dotnet test` could not run in this shell environment (dotnet not on PATH). C# changes should be verified on first `docker-compose build` or direct `dotnet build` run.
+- Commit/push state: Changes are currently uncommitted.
 
 ### 2026-04-04 - FR-017 Slice 5: Search Impact Reporting UI
 

@@ -152,6 +152,13 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "value_model.w_penalty": "0.5",
     "value_model.traffic_lookback_days": "90",
     "value_model.traffic_fallback_value": "0.5",
+    # FR-024 - TikTok Read-Through Rate Engagement Signal
+    "value_model.engagement_signal_enabled": "true",
+    "value_model.w_engagement": "0.1",
+    "value_model.engagement_lookback_days": "30",
+    "value_model.engagement_words_per_minute": "200",
+    "value_model.engagement_cap_ratio": "1.5",
+    "value_model.engagement_fallback_value": "0.5",
 }
 
 

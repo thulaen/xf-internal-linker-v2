@@ -391,6 +391,49 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: '0.1 ensures new content isn\'t blocked if relevance is strong.',
     range: '0 to 0.5',
   },
+  // FR-024 engagement signal
+  'valueModel.engagement_signal_enabled': {
+    definition: 'Whether read-through rate is used to score link destinations.',
+    impact: 'Pages that hold reader attention rank higher as link destinations.',
+    default: 'true',
+    example: 'Disable if you have no GA4 engagement data yet.',
+    range: 'on / off',
+  },
+  'valueModel.w_engagement': {
+    definition: 'How much read-through rate contributes to the value model score.',
+    impact: 'Higher values favour pages with long average session times.',
+    default: '0.1',
+    example: 'Raise to 0.2 after you have 90 days of GA4 data.',
+    range: '0 to 0.5',
+  },
+  'valueModel.engagement_lookback_days': {
+    definition: 'How many days of GA4 data to average for engagement metrics.',
+    impact: 'Longer windows are more stable; shorter windows react faster to changes.',
+    default: '30',
+    example: '7 for fast-moving content, 90 for evergreen articles.',
+    range: '1 to 365',
+  },
+  'valueModel.engagement_words_per_minute': {
+    definition: 'Reading speed used to estimate how long each article takes to read.',
+    impact: 'Affects estimated read time, which divides into GA4 average engagement time.',
+    default: '200',
+    example: 'Lower for dense technical content, keep 200 for general posts.',
+    range: '50 to 600',
+  },
+  'valueModel.engagement_cap_ratio': {
+    definition: 'Raw read-through rates above this are capped before normalization.',
+    impact: 'Prevents a handful of extreme outliers from collapsing all other scores to near-zero.',
+    default: '1.5',
+    example: 'Pages with very long dwell times (tabbed, re-reading) are capped here.',
+    range: '1.0 to 5.0',
+  },
+  'valueModel.engagement_fallback_value': {
+    definition: 'Score assigned to pages with no GA4 engagement data.',
+    impact: 'New pages without analytics history receive this neutral value.',
+    default: '0.5',
+    example: '0.5 is neutral — it neither boosts nor penalises untracked pages.',
+    range: '0 to 1',
+  },
   // Click Distance
   'ga4Gsc.ranking_weight': {
     definition: 'How much first-party search and behavior data influences the final ranking.',
@@ -1321,6 +1364,12 @@ export class SettingsComponent implements OnInit, OnDestroy {
     w_penalty: 0.2,
     traffic_lookback_days: 30,
     traffic_fallback_value: 0.1,
+    engagement_signal_enabled: true,
+    w_engagement: 0.1,
+    engagement_lookback_days: 30,
+    engagement_words_per_minute: 200,
+    engagement_cap_ratio: 1.5,
+    engagement_fallback_value: 0.5,
   };
   savingValueModel = false;
   savingClickDistance = false;

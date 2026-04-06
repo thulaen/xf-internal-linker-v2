@@ -598,6 +598,51 @@
                   </button>
                 </mat-form-field>
               </div>
+
+              <!-- FR-024 — Engagement Quality Signal (Read-Through Rate) -->
+              @if (valueModel.enabled) {
+                <p class="hint sub-section-hint">Engagement Quality Signal (Read-Through Rate)</p>
+                <div class="number-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Engagement signal</mat-label>
+                    <mat-select [(ngModel)]="valueModel.engagement_signal_enabled" [compareWith]="compareBooleans">
+                      <mat-option [value]="true">Enabled</mat-option>
+                      <mat-option [value]="false">Disabled</mat-option>
+                    </mat-select>
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.engagement_signal_enabled')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.engagement_signal_enabled">
+                    <mat-label>Engagement weight</mat-label>
+                    <input matInput type="number" min="0" max="0.5" step="0.05" [(ngModel)]="valueModel.w_engagement" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.w_engagement')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.engagement_signal_enabled">
+                    <mat-label>Lookback window (days)</mat-label>
+                    <input matInput type="number" min="1" max="365" step="7" [(ngModel)]="valueModel.engagement_lookback_days" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.engagement_lookback_days')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.engagement_signal_enabled">
+                    <mat-label>Reading speed (WPM)</mat-label>
+                    <input matInput type="number" min="50" max="600" step="10" [(ngModel)]="valueModel.engagement_words_per_minute" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.engagement_words_per_minute')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.engagement_signal_enabled">
+                    <mat-label>Cap ratio</mat-label>
+                    <input matInput type="number" min="1" max="5" step="0.1" [(ngModel)]="valueModel.engagement_cap_ratio" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.engagement_cap_ratio')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                </div>
+              }
             </mat-card-content>
           </mat-card>
         </div>

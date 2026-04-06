@@ -69,4 +69,12 @@ public sealed class PipelineOptions
     public float HotClicksWeight { get; set; } = 1.0f;
     public float HotImpressionsWeight { get; set; } = 0.05f;
     public int HotLookbackDays { get; set; } = 90;
+
+    // Engagement Signal (FR-024 / TikTok Read-Through Rate)
+    public bool EngagementSignalEnabled { get; set; } = true;
+    public float WeightEngagement { get; set; } = 0.1f;
+    public int EngagementLookbackDays { get; set; } = 30;
+    public int EngagementWordsPerMinute { get; set; } = 200;
+    public float EngagementCapRatio { get; set; } = 1.5f;
+    public float EngagementFallbackValue { get; set; } = 0.5f;
 }

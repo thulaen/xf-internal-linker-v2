@@ -168,6 +168,13 @@ DEFAULT_VALUE_MODEL_SETTINGS = {
     "w_penalty": recommended_float("value_model.w_penalty"),
     "traffic_lookback_days": recommended_int("value_model.traffic_lookback_days"),
     "traffic_fallback_value": recommended_float("value_model.traffic_fallback_value"),
+    # FR-024 engagement signal
+    "engagement_signal_enabled": recommended_bool("value_model.engagement_signal_enabled"),
+    "w_engagement": recommended_float("value_model.w_engagement"),
+    "engagement_lookback_days": recommended_int("value_model.engagement_lookback_days"),
+    "engagement_words_per_minute": recommended_int("value_model.engagement_words_per_minute"),
+    "engagement_cap_ratio": recommended_float("value_model.engagement_cap_ratio"),
+    "engagement_fallback_value": recommended_float("value_model.engagement_fallback_value"),
 }
 
 # Allowed MIME types for site asset uploads
@@ -2728,6 +2735,36 @@ class ValueModelSettingsView(APIView):
                 "value_type": "float",
                 "description": "Default traffic score to use if no data exists.",
             },
+            "value_model.engagement_signal_enabled": {
+                "value": "true" if validated["engagement_signal_enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-024 engagement (read-through rate) signal is active.",
+            },
+            "value_model.w_engagement": {
+                "value": str(validated["w_engagement"]),
+                "value_type": "float",
+                "description": "Value component weight: engagement / read-through rate signal.",
+            },
+            "value_model.engagement_lookback_days": {
+                "value": str(validated["engagement_lookback_days"]),
+                "value_type": "int",
+                "description": "Rolling window (days) for averaging SearchMetric engagement rows.",
+            },
+            "value_model.engagement_words_per_minute": {
+                "value": str(validated["engagement_words_per_minute"]),
+                "value_type": "int",
+                "description": "WPM constant used to estimate article read time.",
+            },
+            "value_model.engagement_cap_ratio": {
+                "value": str(validated["engagement_cap_ratio"]),
+                "value_type": "float",
+                "description": "Cap applied to raw read-through rate before site-wide normalization.",
+            },
+            "value_model.engagement_fallback_value": {
+                "value": str(validated["engagement_fallback_value"]),
+                "value_type": "float",
+                "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
+            },
         }
 
         for key, row in rows.items():
@@ -2971,6 +3008,12 @@ def _read_value_model_settings() -> dict[str, float | int | bool]:
         "w_penalty": _read_float("value_model.w_penalty", DEFAULT_VALUE_MODEL_SETTINGS["w_penalty"]),
         "traffic_lookback_days": _read_int("value_model.traffic_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["traffic_lookback_days"]),
         "traffic_fallback_value": _read_float("value_model.traffic_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["traffic_fallback_value"]),
+        "engagement_signal_enabled": _read_bool("value_model.engagement_signal_enabled", DEFAULT_VALUE_MODEL_SETTINGS["engagement_signal_enabled"]),
+        "w_engagement": _read_float("value_model.w_engagement", DEFAULT_VALUE_MODEL_SETTINGS["w_engagement"]),
+        "engagement_lookback_days": _read_int("value_model.engagement_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["engagement_lookback_days"]),
+        "engagement_words_per_minute": _read_int("value_model.engagement_words_per_minute", DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"]),
+        "engagement_cap_ratio": _read_float("value_model.engagement_cap_ratio", DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"]),
+        "engagement_fallback_value": _read_float("value_model.engagement_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"]),
     }
 
 
@@ -3004,6 +3047,12 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
         "w_penalty": max(0.0, min(1.0, _get_float("w_penalty"))),
         "traffic_lookback_days": max(1, min(365, _get_int("traffic_lookback_days"))),
         "traffic_fallback_value": max(0.0, min(1.0, _get_float("traffic_fallback_value"))),
+        "engagement_signal_enabled": _get_bool("engagement_signal_enabled"),
+        "w_engagement": max(0.0, min(1.0, _get_float("w_engagement"))),
+        "engagement_lookback_days": max(1, min(365, _get_int("engagement_lookback_days"))),
+        "engagement_words_per_minute": max(50, min(600, _get_int("engagement_words_per_minute"))),
+        "engagement_cap_ratio": max(1.0, min(5.0, _get_float("engagement_cap_ratio"))),
+        "engagement_fallback_value": max(0.0, min(1.0, _get_float("engagement_fallback_value"))),
     }
 
 
