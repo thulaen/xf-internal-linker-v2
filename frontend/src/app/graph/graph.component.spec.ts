@@ -49,6 +49,7 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 2, target: 1, context: 'weak_context', anchor: 'read more', weight: 1 },
         { source: 2, target: 1, context: 'isolated',    anchor: '',           weight: 1 },
       ],
+      history: [], churny_ids: [], churny_nodes: [],
     };
 
     (component as any)._computeQuality();
@@ -73,6 +74,9 @@ describe('GraphComponent — _computeQuality()', () => {
         { id: 2, title: 'B', type: 'thread', silo_id: 0, pagerank: 0, in_degree: 0, out_degree: 20 },
       ],
       links,
+      history: [],
+      churny_ids: [],
+      churny_nodes: [],
     };
 
     (component as any)._computeQuality();
@@ -97,6 +101,7 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 3, target: 2, context: 'contextual',  anchor: '', weight: 1 },
         { source: 3, target: 2, context: 'contextual',  anchor: '', weight: 1 },
       ],
+      history: [], churny_ids: [], churny_nodes: [],
     };
 
     (component as any)._computeQuality();
@@ -120,6 +125,7 @@ describe('GraphComponent — _computeQuality()', () => {
         { source: 2, target: 1, context: 'isolated',   anchor: 'bare link', weight: 1 },
         { source: 2, target: 1, context: 'contextual', anchor: 'good link', weight: 1 },
       ],
+      history: [], churny_ids: [], churny_nodes: [],
     };
 
     (component as any)._computeQuality();
