@@ -85,8 +85,10 @@ def emit_operator_alert(
             try:
                 from apps.audit.models import ErrorLog
                 error_log = ErrorLog.objects.get(pk=error_log_id)
-            except Exception:
+            except ErrorLog.DoesNotExist:
                 pass
+            except Exception:
+                logger.debug("Failed to fetch ErrorLog %s", error_log_id, exc_info=True)
 
         alert = OperatorAlert.objects.create(
             event_type=event_type,

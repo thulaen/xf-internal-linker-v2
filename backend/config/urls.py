@@ -20,8 +20,12 @@ admin.site.index_title = "Administration"
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("api/", include("apps.api.urls")),
-    path("", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"),
 ]
+
+if settings.DEBUG:
+    urlpatterns += [
+        path("", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"),
+    ]
 
 # Serve media files in development
 if settings.DEBUG:

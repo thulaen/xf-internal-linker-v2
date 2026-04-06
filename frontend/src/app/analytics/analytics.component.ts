@@ -1,5 +1,6 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -51,6 +52,7 @@ import {
 export class AnalyticsComponent implements OnInit {
   private analyticsSvc = inject(AnalyticsService);
   private snack = inject(MatSnackBar);
+  private destroyRef = inject(DestroyRef);
 
   loading = true;
   error = '';
@@ -256,7 +258,7 @@ export class AnalyticsComponent implements OnInit {
 
   loadSearchImpacts(): void {
     this.loadingImpacts = true;
-    this.analyticsSvc.getSearchImpactList(this.selectedImpactWindow).subscribe({
+    this.analyticsSvc.getSearchImpactList(this.selectedImpactWindow).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.searchImpacts = res.items;
         this.loadingImpacts = false;
@@ -355,7 +357,7 @@ export class AnalyticsComponent implements OnInit {
     this.selectedImpactDetail = null;
     this.loadingDetail = true;
 
-    this.analyticsSvc.getSearchImpactDetail(impact.suggestion_id, this.selectedImpactWindow).subscribe({
+    this.analyticsSvc.getSearchImpactDetail(impact.suggestion_id, this.selectedImpactWindow).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.selectedImpactDetail = res;
         this.loadingDetail = false;
@@ -380,7 +382,7 @@ export class AnalyticsComponent implements OnInit {
       topSuggestions: this.analyticsSvc.getTopSuggestions(this.selectedSource),
       versionComparison: this.analyticsSvc.getTelemetryByVersion(this.selectedSource),
       geoDetail: this.analyticsSvc.getTelemetryGeoDetail(this.selectedSource),
-    }).subscribe({
+    }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ overview, integration, health, breakdowns, funnel, trend, topSuggestions, versionComparison, geoDetail }) => {
         this.overview = overview;
         this.integration = integration;
@@ -688,7 +690,7 @@ export class AnalyticsComponent implements OnInit {
 
   runGa4Sync(): void {
     this.syncingGa4 = true;
-    this.analyticsSvc.runGa4Sync().subscribe({
+    this.analyticsSvc.runGa4Sync().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.syncingGa4 = false;
         this.snack.open(response.message, undefined, { duration: 3000 });
@@ -703,7 +705,7 @@ export class AnalyticsComponent implements OnInit {
 
   runMatomoSync(): void {
     this.syncingMatomo = true;
-    this.analyticsSvc.runMatomoSync().subscribe({
+    this.analyticsSvc.runMatomoSync().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (response) => {
         this.syncingMatomo = false;
         this.snack.open(response.message, undefined, { duration: 3000 });

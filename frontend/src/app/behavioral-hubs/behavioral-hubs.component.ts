@@ -1,4 +1,4 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -43,8 +43,9 @@ import {
   templateUrl: './behavioral-hubs.component.html',
   styleUrls: ['./behavioral-hubs.component.scss'],
 })
-export class BehavioralHubsComponent implements OnInit {
+export class BehavioralHubsComponent implements OnInit, OnDestroy {
   private svc = inject(BehavioralHubService);
+  private detectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Hub list state
   hubs: BehavioralHub[] = [];
@@ -75,6 +76,12 @@ export class BehavioralHubsComponent implements OnInit {
     this.loadHubs();
     this.loadRuns();
     this.loadSettings();
+  }
+
+  ngOnDestroy(): void {
+    if (this.detectTimeout) {
+      clearTimeout(this.detectTimeout);
+    }
   }
 
   loadHubs(): void {
@@ -204,7 +211,7 @@ export class BehavioralHubsComponent implements OnInit {
     this.svc.triggerDetection().subscribe({
       next: () => {
         this.triggeringDetect = false;
-        setTimeout(() => this.loadHubs(), 2000);
+        this.detectTimeout = setTimeout(() => this.loadHubs(), 2000);
       },
       error: () => {
         this.triggeringDetect = false;

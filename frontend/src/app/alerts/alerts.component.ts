@@ -5,7 +5,8 @@
  * Supports mark-read, acknowledge, resolve, and bulk-acknowledge-all.
  */
 
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
@@ -50,6 +51,7 @@ export interface GroupedAlert extends OperatorAlert {
 export class AlertsComponent implements OnInit {
   private notifSvc = inject(NotificationService);
   private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
 
   alerts: OperatorAlert[] = [];
   groupedAlerts: GroupedAlert[] = [];
@@ -96,7 +98,7 @@ export class AlertsComponent implements OnInit {
     if (this.filterSeverity) params['severity'] = this.filterSeverity;
     if (this.filterSourceArea) params['source_area'] = this.filterSourceArea;
 
-    this.notifSvc.loadAlerts(params).subscribe({
+    this.notifSvc.loadAlerts(params).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (data) => {
         this.alerts = data;
         this.groupedAlerts = this.groupAlerts(data);
@@ -144,7 +146,7 @@ export class AlertsComponent implements OnInit {
   }
 
   onAcknowledgeAll(): void {
-    this.notifSvc.acknowledgeAll().subscribe({
+    this.notifSvc.acknowledgeAll().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.loadAlerts(),
       error: (err) => { console.error('Failed to acknowledge all alerts', err); this.loadAlerts(); },
     });
@@ -153,21 +155,21 @@ export class AlertsComponent implements OnInit {
   onMarkRead(alert: GroupedAlert): void {
     // For grouped alerts, we mark the primary ID as read.
     // In a more complex system, we'd iterate this.notifSvc.markRead for allId in alert.allIds
-    this.notifSvc.markRead(alert.alert_id).subscribe({
+    this.notifSvc.markRead(alert.alert_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.loadAlerts(),
       error: (err) => { console.error('Failed to mark alert as read', err); this.loadAlerts(); },
     });
   }
 
   onAcknowledge(alert: GroupedAlert): void {
-    this.notifSvc.acknowledge(alert.alert_id).subscribe({
+    this.notifSvc.acknowledge(alert.alert_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.loadAlerts(),
       error: (err) => { console.error('Failed to acknowledge alert', err); this.loadAlerts(); },
     });
   }
 
   onResolve(alert: GroupedAlert): void {
-    this.notifSvc.resolve(alert.alert_id).subscribe({
+    this.notifSvc.resolve(alert.alert_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => this.loadAlerts(),
       error: (err) => { console.error('Failed to resolve alert', err); this.loadAlerts(); },
     });
@@ -175,7 +177,7 @@ export class AlertsComponent implements OnInit {
 
   openRelated(alert: OperatorAlert): void {
     if (alert.related_route) {
-      this.notifSvc.markRead(alert.alert_id).subscribe({
+      this.notifSvc.markRead(alert.alert_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         error: (err) => console.error('Failed to mark alert as read', err),
       });
       this.router.navigateByUrl(alert.related_route);

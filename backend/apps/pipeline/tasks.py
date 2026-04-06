@@ -942,7 +942,7 @@ def import_content(
             post.char_count = len(clean_text)
             post.word_count = len(clean_text.split())
             post.xf_post_id = first_post_id
-            post.save()
+            post.save(update_fields=["raw_bbcode", "clean_text", "char_count", "word_count", "xf_post_id"])
 
             Sentence.objects.filter(content_item=content_item).delete()
             spans = split_sentence_spans(clean_text)
@@ -1150,7 +1150,7 @@ def import_content(
         job.items_synced = items_synced
         job.items_updated = items_updated
         job.message = f"Import complete. {items_synced} synced, {items_updated} updated."
-        job.save()
+        job.save(update_fields=["status", "progress", "completed_at", "items_synced", "items_updated", "message"])
         _publish_progress(
             job_id,
             "completed",
@@ -1171,7 +1171,7 @@ def import_content(
         job.status = "failed"
         job.error_message = str(exc)
         job.completed_at = timezone.now()
-        job.save()
+        job.save(update_fields=["status", "error_message", "completed_at"])
         _publish_progress(job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc))
         _emit_job_alert(
             "job.failed",

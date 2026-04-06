@@ -131,7 +131,7 @@ REDIS_URL = env("REDIS_URL", default="redis://redis:6379/0")
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": env("REDIS_URL", default="redis://redis:6379/1"),
+        "LOCATION": env("REDIS_CACHE_URL", default="redis://redis:6379/1"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         },
@@ -153,7 +153,7 @@ CHANNEL_LAYERS = {
     "default": {
         "BACKEND": "channels_redis.core.RedisChannelLayer",
         "CONFIG": {
-            "hosts": [env("REDIS_URL", default="redis://redis:6379/3")],
+            "hosts": [env("REDIS_CHANNELS_URL", default="redis://redis:6379/3")],
         },
     }
 }
@@ -161,7 +161,7 @@ CHANNEL_LAYERS = {
 
 # ── Celery ────────────────────────────────────────────────────────
 
-CELERY_BROKER_URL = env("REDIS_URL", default="redis://redis:6379/2")
+CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://redis:6379/2")
 CELERY_RESULT_BACKEND = "django-db"  # Store results in PostgreSQL
 CELERY_CACHE_BACKEND = "default"
 CELERY_ACCEPT_CONTENT = ["json"]

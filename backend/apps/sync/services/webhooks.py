@@ -28,7 +28,7 @@ def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
         if db and db.value:
             return db.value
     except Exception:
-        pass
+        logger.debug("Could not load webhook secret from AppSetting %s", app_setting_key, exc_info=True)
     return getattr(settings, env_var, "")
 
 def verify_xf_signature(payload_body, signature):

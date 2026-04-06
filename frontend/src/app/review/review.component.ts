@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -68,6 +69,7 @@ export class ReviewComponent implements OnInit {
   private svc = inject(SuggestionService);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
+  private destroyRef = inject(DestroyRef);
 
   // ── Data ─────────────────────────────────────────────────────────
   suggestions: Suggestion[] = [];
@@ -127,7 +129,7 @@ export class ReviewComponent implements OnInit {
       page: this.page,
       same_silo: this.sameSiloOnly,
     };
-    this.svc.list(filters).subscribe({
+    this.svc.list(filters).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (res) => {
         this.suggestions = res.results;
         this.totalCount = res.count;
@@ -201,7 +203,7 @@ export class ReviewComponent implements OnInit {
 
   quickApprove(s: Suggestion, event: Event): void {
     event.stopPropagation();
-    this.svc.approve(s.suggestion_id).subscribe({
+    this.svc.approve(s.suggestion_id).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.replaceSuggestion(updated);
         this.snack.open('Approved', undefined, { duration: 2000 });
@@ -212,7 +214,7 @@ export class ReviewComponent implements OnInit {
 
   quickReject(s: Suggestion, reason: string, event: Event): void {
     event.stopPropagation();
-    this.svc.reject(s.suggestion_id, reason).subscribe({
+    this.svc.reject(s.suggestion_id, reason).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
         this.replaceSuggestion(updated);
         this.snack.open('Rejected', undefined, { duration: 2000 });
@@ -225,7 +227,7 @@ export class ReviewComponent implements OnInit {
 
   batchApprove(): void {
     const ids = [...this.selectedIds];
-    this.svc.batchAction('approve', ids).subscribe({
+    this.svc.batchAction('approve', ids).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ updated }) => {
         this.snack.open(`Approved ${updated} suggestions`, undefined, { duration: 3000 });
         this.load();
@@ -236,7 +238,7 @@ export class ReviewComponent implements OnInit {
 
   batchReject(reason: string): void {
     const ids = [...this.selectedIds];
-    this.svc.batchAction('reject', ids, reason).subscribe({
+    this.svc.batchAction('reject', ids, reason).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ updated }) => {
         this.snack.open(`Rejected ${updated} suggestions`, undefined, { duration: 3000 });
         this.load();
@@ -258,7 +260,7 @@ export class ReviewComponent implements OnInit {
       width: '95vw',
     });
 
-    ref.afterClosed().subscribe({
+    ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         if (result) {
           this.replaceSuggestion(result.suggestion);
@@ -283,10 +285,10 @@ export class ReviewComponent implements OnInit {
       RunPipelineDialogResult | null
     >(RunPipelineDialogComponent, { width: '420px' });
 
-    ref.afterClosed().subscribe((result) => {
+    ref.afterClosed().pipe(takeUntilDestroyed(this.destroyRef)).subscribe((result) => {
       if (!result) return;
       this.startingPipeline = true;
-      this.svc.startPipeline(result.rerunMode).subscribe({
+      this.svc.startPipeline(result.rerunMode).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
         next: (run) => {
           this.startingPipeline = false;
           this.snack.open(
