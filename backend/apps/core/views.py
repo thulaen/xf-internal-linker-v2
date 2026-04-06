@@ -2140,6 +2140,163 @@ class XenForoSettingsView(APIView):
         return Response({"status": "saved"})
 
 
+class XenForoTestConnectionView(APIView):
+    """POST /api/settings/xenforo/test-connection/ — verify XenForo API credentials."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import requests as http_requests
+
+        base_url = (
+            request.data.get("base_url")
+            or _get_app_setting_value("xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", ""))
+            or ""
+        ).strip().rstrip("/")
+        api_key = (
+            request.data.get("api_key")
+            or _get_app_setting_value("xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", ""))
+            or ""
+        ).strip()
+
+        if not base_url or not api_key:
+            return Response(
+                {"status": "not_configured", "message": "Both Forum URL and API Key are required."},
+                status=400,
+            )
+
+        try:
+            resp = http_requests.get(
+                f"{base_url}/api/me",
+                headers={"XF-Api-Key": api_key},
+                timeout=10,
+            )
+            payload = resp.json()
+        except Exception as exc:
+            return Response(
+                {"status": "error", "message": f"Could not reach XenForo: {exc}"},
+                status=502,
+            )
+
+        if resp.status_code != 200:
+            errors = payload.get("errors", [])
+            detail = errors[0].get("message", "Authentication failed.") if errors else f"HTTP {resp.status_code}"
+            return Response({"status": "error", "message": detail}, status=400)
+
+        username = payload.get("me", {}).get("username", "unknown")
+        return Response({"status": "connected", "message": f"Connected to XenForo as '{username}'."})
+
+
+class WordPressTestConnectionView(APIView):
+    """POST /api/settings/wordpress/test-connection/ — verify WordPress REST API credentials."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        import requests as http_requests
+
+        base_url = (
+            request.data.get("base_url")
+            or _get_app_setting_value("wordpress.base_url", getattr(django_settings, "WORDPRESS_BASE_URL", ""))
+            or ""
+        ).strip().rstrip("/")
+        username = (
+            request.data.get("username")
+            or _get_app_setting_value("wordpress.username", getattr(django_settings, "WORDPRESS_USERNAME", ""))
+            or ""
+        ).strip()
+        app_password = (
+            request.data.get("app_password")
+            or _get_app_setting_value("wordpress.app_password", getattr(django_settings, "WORDPRESS_APP_PASSWORD", ""))
+            or ""
+        ).strip()
+
+        if not base_url or not username or not app_password:
+            return Response(
+                {"status": "not_configured", "message": "Site URL, username, and app password are all required."},
+                status=400,
+            )
+
+        try:
+            resp = http_requests.get(
+                f"{base_url}/wp-json/wp/v2/users/me",
+                auth=(username, app_password),
+                timeout=10,
+            )
+            payload = resp.json()
+        except Exception as exc:
+            return Response(
+                {"status": "error", "message": f"Could not reach WordPress: {exc}"},
+                status=502,
+            )
+
+        if resp.status_code != 200:
+            detail = payload.get("message", f"HTTP {resp.status_code}")
+            return Response({"status": "error", "message": detail}, status=400)
+
+        display_name = payload.get("name", "unknown")
+        return Response({"status": "connected", "message": f"Connected to WordPress as '{display_name}'."})
+
+
+class WebhookTestView(APIView):
+    """POST /api/settings/webhooks/test/ — verify internal webhook receiver endpoints are alive."""
+
+    permission_classes = [AllowAny]
+
+    def post(self, request):
+        from django.test import RequestFactory
+
+        from apps.sync.views import WordPressWebhookView, XenForoWebhookView
+
+        factory = RequestFactory()
+        results = {}
+
+        # Test XenForo webhook endpoint
+        try:
+            xf_request = factory.post(
+                "/api/sync/webhooks/xenforo/",
+                data={"event": "connection_test"},
+                content_type="application/json",
+            )
+            xf_response = XenForoWebhookView.as_view()(xf_request)
+            results["xenforo"] = {
+                "status": "ok" if xf_response.status_code in (200, 403) else "error",
+                "http_status": xf_response.status_code,
+                "message": "Endpoint reachable." if xf_response.status_code == 200
+                else "Endpoint reachable but webhook secret mismatch — check XENFORO_WEBHOOK_SECRET."
+                if xf_response.status_code == 403
+                else f"Unexpected response: HTTP {xf_response.status_code}",
+            }
+        except Exception as exc:
+            results["xenforo"] = {"status": "error", "message": str(exc)}
+
+        # Test WordPress webhook endpoint
+        try:
+            wp_request = factory.post(
+                "/api/sync/webhooks/wordpress/",
+                data={"event": "connection_test"},
+                content_type="application/json",
+            )
+            wp_response = WordPressWebhookView.as_view()(wp_request)
+            results["wordpress"] = {
+                "status": "ok" if wp_response.status_code in (200, 403) else "error",
+                "http_status": wp_response.status_code,
+                "message": "Endpoint reachable." if wp_response.status_code == 200
+                else "Endpoint reachable but webhook secret mismatch — check WORDPRESS_WEBHOOK_SECRET."
+                if wp_response.status_code == 403
+                else f"Unexpected response: HTTP {wp_response.status_code}",
+            }
+        except Exception as exc:
+            results["wordpress"] = {"status": "error", "message": str(exc)}
+
+        all_ok = all(r.get("status") == "ok" for r in results.values())
+        return Response({
+            "status": "connected" if all_ok else "partial",
+            "message": "All webhook endpoints are reachable." if all_ok else "Some webhook endpoints have issues.",
+            "details": results,
+        })
+
+
 def _save_appearance_key(key: str, value) -> None:
     """Persist a single key into the appearance config AppSetting blob."""
     from apps.core.models import AppSetting

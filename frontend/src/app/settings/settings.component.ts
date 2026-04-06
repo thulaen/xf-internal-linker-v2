@@ -1432,6 +1432,9 @@ export class SettingsComponent implements OnInit, OnDestroy {
   testingGA4TelemetryRead = false;
   testingMatomoTelemetry = false;
   testingGSCConnection = false;
+  testingXenForo = false;
+  testingWordPress = false;
+  testingWebhooks = false;
   runningGSCSync = false;
   savingGoogleAuth = false;
   savingNotifPrefs = false;
@@ -2481,6 +2484,58 @@ export class SettingsComponent implements OnInit, OnDestroy {
           connection_status: 'error',
           connection_message: message,
         };
+        this.snack.open(message, 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  testXenForoConnection(): void {
+    this.testingXenForo = true;
+    this.siloSvc.testXenForoConnection({
+      base_url: this.xenforo.base_url?.trim() || undefined,
+      api_key: this.xfApiKey?.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingXenForo = false;
+        this.snack.open(result.message, undefined, { duration: 3500 });
+      },
+      error: (error) => {
+        this.testingXenForo = false;
+        const message = error?.error?.message || error?.error?.detail || 'XenForo connection failed';
+        this.snack.open(message, 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  testWordPressConnection(): void {
+    this.testingWordPress = true;
+    this.siloSvc.testWordPressConnection({
+      base_url: this.wordpress.base_url?.trim() || undefined,
+      username: this.wordpress.username?.trim() || undefined,
+      app_password: this.wordpressPassword?.trim() || undefined,
+    }).subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingWordPress = false;
+        this.snack.open(result.message, undefined, { duration: 3500 });
+      },
+      error: (error) => {
+        this.testingWordPress = false;
+        const message = error?.error?.message || error?.error?.detail || 'WordPress connection failed';
+        this.snack.open(message, 'Dismiss', { duration: 4500 });
+      },
+    });
+  }
+
+  testWebhookEndpoints(): void {
+    this.testingWebhooks = true;
+    this.siloSvc.testWebhookEndpoints().subscribe({
+      next: (result: AnalyticsConnectionResult) => {
+        this.testingWebhooks = false;
+        this.snack.open(result.message, undefined, { duration: 3500 });
+      },
+      error: (error) => {
+        this.testingWebhooks = false;
+        const message = error?.error?.message || error?.error?.detail || 'Webhook test failed';
         this.snack.open(message, 'Dismiss', { duration: 4500 });
       },
     });

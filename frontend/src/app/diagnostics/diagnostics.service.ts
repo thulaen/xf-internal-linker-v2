@@ -132,6 +132,17 @@ export interface WeightDiagnosticsResponse {
   };
 }
 
+export interface ErrorLogEntry {
+  id: number;
+  job_type: string;
+  step: string;
+  error_message: string;
+  raw_exception: string;
+  why: string;
+  acknowledged: boolean;
+  created_at: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DiagnosticsService {
   private http = inject(HttpClient);
@@ -169,8 +180,8 @@ export class DiagnosticsService {
     return this.http.get<ResourceUsage>(`${this.baseUrl}/resources/`);
   }
 
-  getErrors(): Observable<any[]> {
-    return this.http.get<any[]>(`${this.baseUrl}/errors/`);
+  getErrors(): Observable<ErrorLogEntry[]> {
+    return this.http.get<ErrorLogEntry[]>(`${this.baseUrl}/errors/`);
   }
 
   acknowledgeError(id: number): Observable<any> {

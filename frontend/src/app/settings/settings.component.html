@@ -877,6 +877,10 @@
               </div>
             </mat-card-content>
             <mat-card-actions align="end">
+              <button mat-stroked-button [disabled]="testingXenForo" (click)="testXenForoConnection()">
+                @if (testingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
+                <mat-icon>wifi_tethering</mat-icon> Test Connection
+              </button>
               <button mat-flat-button color="primary" [disabled]="savingXenForo" (click)="saveXenForoSettings()">
                 @if (savingXenForo) { <mat-spinner diameter="18"></mat-spinner> }
                 Save
@@ -962,6 +966,10 @@
                 </div>
 
                 <div class="action-buttons">
+                  <button mat-stroked-button [disabled]="testingWordPress" (click)="testWordPressConnection()">
+                    @if (testingWordPress) { <mat-spinner diameter="18"></mat-spinner> }
+                    <mat-icon>wifi_tethering</mat-icon> Test Connection
+                  </button>
                   <button mat-stroked-button [disabled]="savingWordPress || !wordpress.app_password_configured" (click)="clearWordPressPassword()">
                     <mat-icon>key_off</mat-icon> Clear Password
                   </button>
@@ -971,6 +979,29 @@
                 </div>
               </div>
             </mat-card-content>
+          </mat-card>
+
+          <mat-card class="settings-card settings-card--wide" id="webhook-settings">
+            <mat-card-header>
+              <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="title-group">
+                  <mat-card-title>Webhook Endpoints</mat-card-title>
+                  <mat-card-subtitle>Verify that incoming webhook receivers for XenForo and WordPress are alive</mat-card-subtitle>
+                </div>
+              </div>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">
+                XenForo and WordPress push real-time updates to this app via webhooks.
+                This test checks that both receiver endpoints are reachable and responding.
+              </p>
+            </mat-card-content>
+            <mat-card-actions align="end">
+              <button mat-stroked-button [disabled]="testingWebhooks" (click)="testWebhookEndpoints()">
+                @if (testingWebhooks) { <mat-spinner diameter="18"></mat-spinner> }
+                <mat-icon>hub</mat-icon> Test Webhook Endpoints
+              </button>
+            </mat-card-actions>
           </mat-card>
 
           <mat-card class="settings-card settings-card--wide" id="google-settings">

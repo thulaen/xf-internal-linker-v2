@@ -101,6 +101,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'error-log',
+    loadComponent: () =>
+      import('./error-log/error-log.component').then((m) => m.ErrorLogComponent),
+    title: 'Error Log — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '/dashboard',
   },

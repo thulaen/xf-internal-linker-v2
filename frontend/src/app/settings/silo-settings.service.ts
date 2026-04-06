@@ -551,6 +551,18 @@ export class SiloSettingsService {
     return this.http.post<AnalyticsConnectionResult>('/api/analytics/settings/matomo/test-connection/', payload);
   }
 
+  testXenForoConnection(payload: { base_url?: string; api_key?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/settings/xenforo/test-connection/', payload);
+  }
+
+  testWordPressConnection(payload: { base_url?: string; username?: string; app_password?: string }): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/settings/wordpress/test-connection/', payload);
+  }
+
+  testWebhookEndpoints(): Observable<AnalyticsConnectionResult> {
+    return this.http.post<AnalyticsConnectionResult>('/api/settings/webhooks/test/', {});
+  }
+
   updateClickDistanceSettings(payload: ClickDistanceSettings): Observable<ClickDistanceSettings> {
     return this.http.put<ClickDistanceSettings>('/api/settings/click-distance/', payload);
   }

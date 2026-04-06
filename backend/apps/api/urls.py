@@ -41,9 +41,12 @@ from apps.core.views import (
     ValueModelSettingsView,
     SpamGuardSettingsView,
     GraphRebuildView,
+    WebhookTestView,
     WordPressSettingsView,
     WordPressSyncRunView,
+    WordPressTestConnectionView,
     XenForoSettingsView,
+    XenForoTestConnectionView,
 )
 from apps.graph.views import (
     BrokenLinkViewSet,
@@ -145,7 +148,10 @@ urlpatterns = [
     path("settings/cs-tune/evaluate/<str:run_id>/", ChallengerEvaluateView.as_view(), name="cs-tune-evaluate"),
     path("internal/weight-challenger/", WeightChallengerInternalView.as_view(), name="internal-weight-challenger"),
     path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
+    path("settings/wordpress/test-connection/", WordPressTestConnectionView.as_view(), name="wordpress-test-connection"),
     path("settings/xenforo/", XenForoSettingsView.as_view(), name="xenforo-settings"),
+    path("settings/xenforo/test-connection/", XenForoTestConnectionView.as_view(), name="xenforo-test-connection"),
+    path("settings/webhooks/test/", WebhookTestView.as_view(), name="webhook-test"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),
     path("settings/graph-candidate/", GraphCandidateSettingsView.as_view(), name="graph-candidate-settings"),

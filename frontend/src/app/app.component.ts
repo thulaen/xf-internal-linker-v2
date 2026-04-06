@@ -155,6 +155,12 @@ export class AppComponent implements OnInit {
           route: '/alerts',
           tooltip: 'Operator alert center',
         },
+        {
+          label: 'Error Log',
+          icon: 'bug_report',
+          route: '/error-log',
+          tooltip: 'Background job errors with plain-English explanations',
+        },
       ],
     },
   ];
