@@ -141,6 +141,10 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     return this.services.filter(service => !runtimeSummaryServices.has(service.service_name));
   }
 
+  trackServiceName(_index: number, service: ServiceStatus): string {
+    return service.service_name;
+  }
+
   private buildRuntimeLaneCards(services: ServiceStatus[]): RuntimeLaneCard[] {
     const runtimeService = services.find(service => service.service_name === 'runtime_lanes');
     const httpWorkerService = services.find(service => service.service_name === 'http_worker');

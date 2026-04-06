@@ -97,7 +97,7 @@
     <p class="section-subtitle">Jobs currently running in the background. Progress updates every 5 seconds.</p>
 
     <mat-card class="jobs-card" *ngIf="activeJobs.length > 0">
-      <div class="job-row" *ngFor="let job of activeJobs">
+      <div class="job-row" *ngFor="let job of activeJobs; trackBy: trackJobId">
         <div class="job-header">
           <div class="job-identity">
             <mat-icon class="job-icon icon-base">sync</mat-icon>

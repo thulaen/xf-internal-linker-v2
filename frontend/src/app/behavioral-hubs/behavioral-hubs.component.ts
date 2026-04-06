@@ -182,7 +182,7 @@ export class BehavioralHubsComponent implements OnInit {
           ).length;
         }
       },
-      error: () => {},
+      error: (err) => { console.error('Failed to remove hub member', err); this.openHub(this.selectedHub!); },
     });
   }
 

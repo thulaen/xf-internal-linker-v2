@@ -167,7 +167,7 @@
         <section class="services-section">
           <h2>Core Runtime & Services</h2>
           <div class="services-grid">
-            <app-service-card *ngFor="let s of coreServices" [service]="s"></app-service-card>
+            <app-service-card *ngFor="let s of coreServices; trackBy: trackServiceName" [service]="s"></app-service-card>
           </div>
         </section>
       </div>

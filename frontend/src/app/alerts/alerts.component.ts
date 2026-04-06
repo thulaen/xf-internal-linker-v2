@@ -144,26 +144,40 @@ export class AlertsComponent implements OnInit {
   }
 
   onAcknowledgeAll(): void {
-    this.notifSvc.acknowledgeAll().subscribe(() => this.loadAlerts());
+    this.notifSvc.acknowledgeAll().subscribe({
+      next: () => this.loadAlerts(),
+      error: (err) => { console.error('Failed to acknowledge all alerts', err); this.loadAlerts(); },
+    });
   }
 
   onMarkRead(alert: GroupedAlert): void {
     // For grouped alerts, we mark the primary ID as read.
     // In a more complex system, we'd iterate this.notifSvc.markRead for allId in alert.allIds
-    this.notifSvc.markRead(alert.alert_id).subscribe(() => this.loadAlerts());
+    this.notifSvc.markRead(alert.alert_id).subscribe({
+      next: () => this.loadAlerts(),
+      error: (err) => { console.error('Failed to mark alert as read', err); this.loadAlerts(); },
+    });
   }
 
   onAcknowledge(alert: GroupedAlert): void {
-    this.notifSvc.acknowledge(alert.alert_id).subscribe(() => this.loadAlerts());
+    this.notifSvc.acknowledge(alert.alert_id).subscribe({
+      next: () => this.loadAlerts(),
+      error: (err) => { console.error('Failed to acknowledge alert', err); this.loadAlerts(); },
+    });
   }
 
   onResolve(alert: GroupedAlert): void {
-    this.notifSvc.resolve(alert.alert_id).subscribe(() => this.loadAlerts());
+    this.notifSvc.resolve(alert.alert_id).subscribe({
+      next: () => this.loadAlerts(),
+      error: (err) => { console.error('Failed to resolve alert', err); this.loadAlerts(); },
+    });
   }
 
   openRelated(alert: OperatorAlert): void {
     if (alert.related_route) {
-      this.notifSvc.markRead(alert.alert_id).subscribe();
+      this.notifSvc.markRead(alert.alert_id).subscribe({
+        error: (err) => console.error('Failed to mark alert as read', err),
+      });
       this.router.navigateByUrl(alert.related_route);
     }
   }

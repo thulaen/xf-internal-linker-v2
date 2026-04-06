@@ -238,6 +238,10 @@ export class HealthComponent implements OnInit, OnDestroy {
     return Math.round((job.embedding_progress ?? 0) * 100);
   }
 
+  trackJobId(_index: number, job: SyncJob): string {
+    return job.job_id;
+  }
+
   /**
    * Maps a backend service key to the specific frontend element ID on the settings page.
    * Enables the "Smart Navigation" flow where clicking a health issue takes the user

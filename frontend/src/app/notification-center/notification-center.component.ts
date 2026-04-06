@@ -8,12 +8,14 @@
 
 import {
   Component,
+  DestroyRef,
   EventEmitter,
   Input,
   OnInit,
   Output,
   inject,
 } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { Router } from '@angular/router';
 import { MatBadgeModule } from '@angular/material/badge';
@@ -51,6 +53,7 @@ export class NotificationCenterComponent implements OnInit {
 
   protected notifSvc = inject(NotificationService);
   private router = inject(Router);
+  private destroyRef = inject(DestroyRef);
 
   alerts: OperatorAlert[] = [];
   loading = false;
@@ -58,7 +61,9 @@ export class NotificationCenterComponent implements OnInit {
   ngOnInit(): void {
     this.loadAlerts();
     // Refresh when a new alert arrives via WebSocket
-    this.notifSvc.newAlert$.subscribe(() => this.loadAlerts());
+    this.notifSvc.newAlert$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.loadAlerts());
   }
 
   loadAlerts(): void {
@@ -88,20 +93,24 @@ export class NotificationCenterComponent implements OnInit {
   }
 
   onAcknowledgeAll(): void {
-    this.notifSvc.acknowledgeAll().subscribe(() => {
-      this.alerts = [];
+    this.notifSvc.acknowledgeAll().subscribe({
+      next: () => { this.alerts = []; },
+      error: (err) => { console.error('Failed to acknowledge all alerts', err); this.loadAlerts(); },
     });
   }
 
   onAcknowledge(alert: OperatorAlert, event: Event): void {
     event.stopPropagation();
-    this.notifSvc.acknowledge(alert.alert_id).subscribe(() => {
-      this.alerts = this.alerts.filter((a) => a.alert_id !== alert.alert_id);
+    this.notifSvc.acknowledge(alert.alert_id).subscribe({
+      next: () => { this.alerts = this.alerts.filter((a) => a.alert_id !== alert.alert_id); },
+      error: (err) => { console.error('Failed to acknowledge alert', err); this.loadAlerts(); },
     });
   }
 
   onOpenRelated(alert: OperatorAlert): void {
-    this.notifSvc.markRead(alert.alert_id).subscribe();
+    this.notifSvc.markRead(alert.alert_id).subscribe({
+      error: (err) => console.error('Failed to mark alert as read', err),
+    });
     if (alert.related_route) {
       this.router.navigateByUrl(alert.related_route);
     }
