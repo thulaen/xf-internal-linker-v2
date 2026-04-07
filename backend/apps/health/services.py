@@ -1167,7 +1167,7 @@ def check_disk_space() -> ServiceHealthResult:
         warn_pct = get_health_setting("disk_warning_pct", 80)
         error_pct = get_health_setting("disk_error_pct", 90)
 
-        usage = shutil.disk_usage("/")
+        usage = shutil.disk_usage("/app")
         total_gb = round(usage.total / (1024 ** 3), 1)
         used_gb = round(usage.used / (1024 ** 3), 1)
         free_gb = round(usage.free / (1024 ** 3), 1)
