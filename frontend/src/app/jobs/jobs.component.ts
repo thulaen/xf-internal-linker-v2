@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -30,7 +30,6 @@ interface SourceJobState {
 }
 
 @Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-jobs',
   standalone: true,
   imports: [

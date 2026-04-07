@@ -1,9 +1,8 @@
-import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
+import { Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FeatureReadiness } from '../diagnostics.service';
 
 @Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-readiness-matrix',
   standalone: true,
   imports: [CommonModule],

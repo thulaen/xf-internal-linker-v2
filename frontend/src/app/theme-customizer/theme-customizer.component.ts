@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, EventEmitter, Output, inject } from '@angular/core';
+import { Component, EventEmitter, Output, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -14,7 +14,6 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { AppearanceService, AppearanceConfig } from '../core/services/appearance.service';
 
 @Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-theme-customizer',
   standalone: true,
   imports: [

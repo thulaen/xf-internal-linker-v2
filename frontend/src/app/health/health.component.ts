@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -35,7 +35,6 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 };
 
 @Component({
-  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-health',
   standalone: true,
   imports: [
