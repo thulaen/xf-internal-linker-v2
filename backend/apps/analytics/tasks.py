@@ -28,7 +28,7 @@ def _queue_scheduled_sync(*, source: str, lookback_days: int, task_fn) -> dict[s
     }
 
 
-@shared_task(bind=True, name="analytics.sync_matomo_telemetry")
+@shared_task(bind=True, name="analytics.sync_matomo_telemetry", time_limit=600, soft_time_limit=540)
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -64,7 +64,7 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     return {"sync_run_id": sync_run_id, **stats}
 
 
-@shared_task(bind=True, name="analytics.sync_ga4_telemetry")
+@shared_task(bind=True, name="analytics.sync_ga4_telemetry", time_limit=600, soft_time_limit=540)
 def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -100,7 +100,7 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     return {"sync_run_id": sync_run_id, **stats}
 
 
-@shared_task(bind=True, name="analytics.sync_gsc_performance")
+@shared_task(bind=True, name="analytics.sync_gsc_performance", time_limit=600, soft_time_limit=540)
 def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -183,7 +183,7 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
     )
 
 
-@shared_task(name="analytics.recompute_all_search_impact")
+@shared_task(name="analytics.recompute_all_search_impact", time_limit=1800, soft_time_limit=1740)
 def recompute_all_search_impact() -> dict[str, int]:
     """Recompute search impact for all applied suggestions."""
     from apps.suggestions.models import Suggestion
@@ -198,7 +198,7 @@ def recompute_all_search_impact() -> dict[str, int]:
     return {"processed_suggestions": count}
 
 
-@shared_task(name="analytics.detect_traffic_spikes")
+@shared_task(name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540)
 def detect_traffic_spikes() -> dict[str, int]:
     """
     FR-023 Part 3: Momentum-based spike detection.

@@ -11,7 +11,7 @@
   </div>
 
   <div class="conflict-list" *ngIf="conflicts.length > 0">
-    <div class="conflict-item" *ngFor="let c of conflicts" [ngClass]="getSeverityClass(c.severity)">
+    <div class="conflict-item" *ngFor="let c of conflicts; trackBy: trackByIndex" [ngClass]="getSeverityClass(c.severity)">
       <div class="conflict-header">
         <span class="material-icons type-icon">{{ getConflictIcon(c.conflict_type) }}</span>
         <div class="title-meta">

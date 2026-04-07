@@ -15,7 +15,7 @@ from apps.pipeline.services.link_freshness import classify_freshness_bucket
 class SiloGroupSerializer(serializers.ModelSerializer):
     """Serialize silo-group CRUD payloads."""
 
-    scope_count = serializers.SerializerMethodField()
+    scope_count = serializers.IntegerField(read_only=True)
 
     class Meta:
         model = SiloGroup
@@ -24,9 +24,6 @@ class SiloGroupSerializer(serializers.ModelSerializer):
             "scope_count", "created_at", "updated_at",
         ]
         read_only_fields = ["id", "scope_count", "created_at", "updated_at"]
-
-    def get_scope_count(self, obj: SiloGroup) -> int:
-        return obj.scope_items.count()
 
     def validate(self, attrs):
         attrs = super().validate(attrs)

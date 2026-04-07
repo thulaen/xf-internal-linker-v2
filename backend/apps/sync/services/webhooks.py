@@ -1,9 +1,12 @@
+import hmac
 import logging
+
 from django.conf import settings
 from apps.pipeline.tasks import sync_single_xf_item, sync_single_wp_item
 from apps.sync.models import WebhookReceipt
 
 logger = logging.getLogger(__name__)
+
 
 def record_webhook(source, event_type, payload, status='received', error_message='', sync_job=None):
     """Log a webhook receipt to the database for the audit log."""
@@ -16,9 +19,10 @@ def record_webhook(source, event_type, payload, status='received', error_message
             error_message=error_message,
             sync_job=sync_job
         )
-    except Exception as e:
-        logger.error("Failed to record webhook receipt: %s", e)
-        return None
+    except Exception:
+        logger.exception("Failed to record webhook receipt for %s/%s", source, event_type)
+        raise
+
 
 def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
     """Check AppSetting first, fall back to Django env var."""
@@ -31,29 +35,41 @@ def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
         logger.debug("Could not load webhook secret from AppSetting %s", app_setting_key, exc_info=True)
     return getattr(settings, env_var, "")
 
+
 def verify_xf_signature(payload_body, signature):
     """
     Verify that the webhook comes from XenForo.
-    XF sends X-Xf-Webhook-Secret in the header if configured.
+    XF sends the shared secret in the X-Xf-Webhook-Secret header.
+    Rejects the request when no secret is configured (fail-closed).
+    Uses constant-time comparison to prevent timing attacks.
     """
     secret = _get_webhook_secret("webhook.xenforo_secret", "XENFORO_WEBHOOK_SECRET")
     if not secret:
-        logger.warning("XENFORO_WEBHOOK_SECRET is not set.")
-        return True
+        logger.error("XENFORO_WEBHOOK_SECRET is not set — rejecting webhook.")
+        return False
 
-    return payload_body == secret or signature == secret
+    if not signature:
+        return False
+
+    return hmac.compare_digest(signature, secret)
+
 
 def verify_wp_signature(payload_body, signature):
     """
     Verify that the webhook comes from WordPress.
-    We expect the same secret mechanism as XF for simplicity.
+    WP sends the shared secret in the X-Wp-Webhook-Secret header.
+    Rejects the request when no secret is configured (fail-closed).
+    Uses constant-time comparison to prevent timing attacks.
     """
     secret = _get_webhook_secret("webhook.wordpress_secret", "WORDPRESS_WEBHOOK_SECRET")
     if not secret:
-        logger.warning("WORDPRESS_WEBHOOK_SECRET is not set.")
-        return True
+        logger.error("WORDPRESS_WEBHOOK_SECRET is not set — rejecting webhook.")
+        return False
 
-    return payload_body == secret or signature == secret
+    if not signature:
+        return False
+
+    return hmac.compare_digest(signature, secret)
 
 def process_xf_webhook(event_type, payload):
     """

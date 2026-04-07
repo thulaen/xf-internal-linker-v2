@@ -16,7 +16,7 @@
         </tr>
       </thead>
       <tbody>
-        <tr *ngFor="let f of features" [ngClass]="getStatusClass(f.status)">
+        <tr *ngFor="let f of features; trackBy: trackById" [ngClass]="getStatusClass(f.status)">
           <td class="feature-id"><code>{{ f.id }}</code></td>
           <td class="feature-name">{{ f.name }}</td>
           <td class="feature-status">

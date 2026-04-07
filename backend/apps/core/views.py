@@ -19,7 +19,7 @@ from urllib.parse import urlparse
 from django.conf import settings as django_settings
 from django.http import JsonResponse
 from django.views import View
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -1377,7 +1377,7 @@ class AppearanceSettingsView(APIView):
     GET  /api/settings/appearance/ — returns current appearance config (or defaults)
     PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def _get_config(self) -> dict:
         from apps.core.models import AppSetting
@@ -1423,7 +1423,7 @@ class SiloSettingsView(APIView):
     GET  /api/settings/silos/ - returns persisted silo-ranking configuration
     PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_silo_settings())
@@ -1473,7 +1473,7 @@ class WeightedAuthoritySettingsView(APIView):
     GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
     PUT  /api/settings/weighted-authority/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_weighted_authority_settings())
@@ -1543,7 +1543,7 @@ class LinkFreshnessSettingsView(APIView):
     GET  /api/settings/link-freshness/ - returns Link Freshness settings
     PUT  /api/settings/link-freshness/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_link_freshness_settings())
@@ -1629,7 +1629,7 @@ class PhraseMatchingSettingsView(APIView):
     GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
     PUT  /api/settings/phrase-matching/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_phrase_matching_settings())
@@ -1684,7 +1684,7 @@ class LearnedAnchorSettingsView(APIView):
     GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
     PUT  /api/settings/learned-anchor/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_learned_anchor_settings())
@@ -1739,7 +1739,7 @@ class RareTermPropagationSettingsView(APIView):
     GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_rare_term_propagation_settings())
@@ -1794,7 +1794,7 @@ class FieldAwareRelevanceSettingsView(APIView):
     GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
     PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_field_aware_relevance_settings())
@@ -1854,7 +1854,7 @@ class GA4GSCSettingsView(APIView):
     GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_ga4_gsc_settings())
@@ -1950,7 +1950,7 @@ def _build_gsc_service(*, service_account_email: str, private_key: str):
 class GSCConnectionTestView(APIView):
     """POST /api/settings/ga4-gsc/test-connection/ - validate Search Console credentials."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         current = get_ga4_gsc_settings()
@@ -1982,7 +1982,7 @@ class WordPressSettingsView(APIView):
     GET  /api/settings/wordpress/ - returns saved WordPress sync settings
     PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_wordpress_settings())
@@ -2103,7 +2103,7 @@ class XenForoSettingsView(APIView):
     GET  /api/settings/xenforo/ - returns saved XenForo connection settings
     PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from apps.health.services import get_service_health_status
@@ -2149,7 +2149,7 @@ class XenForoSettingsView(APIView):
 class XenForoTestConnectionView(APIView):
     """POST /api/settings/xenforo/test-connection/ — verify XenForo API credentials."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         import requests as http_requests
@@ -2196,7 +2196,7 @@ class XenForoTestConnectionView(APIView):
 class WordPressTestConnectionView(APIView):
     """POST /api/settings/wordpress/test-connection/ — verify WordPress REST API credentials."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         import requests as http_requests
@@ -2247,7 +2247,7 @@ class WordPressTestConnectionView(APIView):
 class WebhookTestView(APIView):
     """POST /api/settings/webhooks/test/ — verify internal webhook receiver endpoints are alive."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from django.test import RequestFactory
@@ -2308,7 +2308,7 @@ class WebhookSettingsView(APIView):
     GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
     PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         xf = (_get_app_setting_value("webhook.xenforo_secret", getattr(django_settings, "XENFORO_WEBHOOK_SECRET", "")) or "").strip()
@@ -2473,7 +2473,7 @@ class DashboardView(APIView):
     - recent pipeline runs (last 5)
     - recent import jobs (last 5)
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from apps.suggestions.models import Suggestion, PipelineRun
@@ -2578,7 +2578,7 @@ class ClickDistanceSettingsView(APIView):
     GET /api/settings/click-distance/
     PUT /api/settings/click-distance/
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_click_distance_settings())
@@ -2621,7 +2621,7 @@ class FeedbackRerankSettingsView(APIView):
     GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
     PUT  /api/settings/explore-exploit/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_feedback_rerank_settings())
@@ -2673,7 +2673,7 @@ class ClusteringSettingsView(APIView):
     GET  /api/settings/clustering/ - returns FR-014 clustering configuration
     PUT  /api/settings/clustering/ - validates and persists clustering configuration
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_clustering_settings())
@@ -2735,7 +2735,7 @@ class SlateDiversitySettingsView(APIView):
     GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
     PUT  /api/settings/slate-diversity/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_slate_diversity_settings())
@@ -2801,7 +2801,7 @@ class RTuneTriggerView(APIView):
 class CSTuneTriggerView(APIView):
     """POST /api/settings/cs-tune/trigger/ — manually trigger a FR-018 C# weight-tune run."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from apps.pipeline.tasks import monthly_cs_weight_tune
@@ -2813,7 +2813,7 @@ class CSTuneTriggerView(APIView):
 class ChallengerEvaluateView(APIView):
     """POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate a pending challenger."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, run_id):
         from apps.pipeline.tasks import evaluate_weight_challenger
@@ -2834,7 +2834,7 @@ class GraphCandidateSettingsView(APIView):
     GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
     PUT  /api/settings/graph-candidate/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_graph_candidate_settings())
@@ -2900,7 +2900,7 @@ class ValueModelSettingsView(APIView):
     GET  /api/settings/value-model/ - returns FR-021 value model settings
     PUT  /api/settings/value-model/ - validates and persists those settings
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_value_model_settings())
@@ -3112,7 +3112,7 @@ class SpamGuardSettingsView(APIView):
     * paragraph_window — block a second suggestion within this many sentence
       positions of an already-selected one on the same host (default 3).
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_spam_guard_settings())
@@ -3173,7 +3173,7 @@ class SpamGuardSettingsView(APIView):
 
 class GraphRebuildView(APIView):
     """POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh."""
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from apps.pipeline.tasks import dispatch_graph_rebuild

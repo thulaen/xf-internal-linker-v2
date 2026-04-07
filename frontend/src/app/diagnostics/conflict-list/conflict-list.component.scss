@@ -1,7 +1,7 @@
 .conflict-container {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 24px;
 }
 
 .section-header {
@@ -62,7 +62,7 @@
 }
 
 .conflict-header {
-  padding: 16px 20px;
+  padding: 16px 24px;
   background: var(--color-bg-faint);
   display: flex;
   align-items: center;
@@ -95,7 +95,7 @@
 .severity-low .severity-badge { background: var(--color-blue-50); color: var(--color-primary); border-color: var(--color-blue-100); }
 
 .conflict-body {
-  padding: 20px;
+  padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -116,7 +116,7 @@
 }
 
 .conflict-footer {
-  padding: 12px 20px;
+  padding: 12px 24px;
   background: var(--color-bg-faint);
   display: flex;
   justify-content: flex-end;

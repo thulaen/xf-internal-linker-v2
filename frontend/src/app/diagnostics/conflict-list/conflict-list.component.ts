@@ -1,8 +1,9 @@
-import { Component, Input, Output, EventEmitter } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, Output, EventEmitter } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { SystemConflict } from '../diagnostics.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-conflict-list',
   standalone: true,
   imports: [CommonModule],
@@ -16,6 +17,8 @@ export class ConflictListComponent {
   getSeverityClass(severity: string): string {
     return `severity-${severity}`;
   }
+
+  trackByIndex(index: number): number { return index; }
 
   getConflictIcon(type: string): string {
     switch (type) {

@@ -17,7 +17,7 @@ import logging
 
 from django.utils import timezone
 from rest_framework import status
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -80,7 +80,7 @@ def _save_prefs(data: dict) -> dict:
 class AlertListView(APIView):
     """List operator alerts with optional filters."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         qs = OperatorAlert.objects.all()
@@ -109,7 +109,7 @@ class AlertListView(APIView):
 class AlertSummaryView(APIView):
     """Return unread counts by severity plus the latest alert timestamp."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_unread_summary())
@@ -118,7 +118,7 @@ class AlertSummaryView(APIView):
 class AlertReadView(APIView):
     """Mark a single alert as read."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, alert_id):
         try:
@@ -135,7 +135,7 @@ class AlertReadView(APIView):
 class AlertAcknowledgeView(APIView):
     """Acknowledge (dismiss) a single alert."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, alert_id):
         try:
@@ -152,7 +152,7 @@ class AlertAcknowledgeView(APIView):
 class AlertResolveView(APIView):
     """Mark a single alert as resolved (condition cleared)."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, alert_id):
         try:
@@ -169,7 +169,7 @@ class AlertResolveView(APIView):
 class AlertAcknowledgeAllView(APIView):
     """Acknowledge all unread and read alerts at once."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         now = timezone.now()
@@ -182,7 +182,7 @@ class AlertAcknowledgeAllView(APIView):
 class NotificationPreferencesView(APIView):
     """Read and update notification delivery preferences."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(_load_prefs())
@@ -195,7 +195,7 @@ class NotificationPreferencesView(APIView):
 class TestNotificationView(APIView):
     """Fire a synthetic alert so the operator can test bell, toast, and sound."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         severity = request.data.get("severity", OperatorAlert.SEVERITY_WARNING)

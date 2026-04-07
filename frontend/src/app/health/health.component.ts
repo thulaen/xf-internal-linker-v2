@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -35,6 +35,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 };
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-health',
   standalone: true,
   imports: [
@@ -260,4 +261,8 @@ export class HealthComponent implements OnInit, OnDestroy {
     };
     return map[serviceKey];
   }
+
+  trackByLabel(_: number, group: ChecklistGroup): string { return group.label; }
+  trackByServiceKey(_: number, s: ServiceHealth): string { return s.service_key; }
+  trackByIndex(index: number): number { return index; }
 }

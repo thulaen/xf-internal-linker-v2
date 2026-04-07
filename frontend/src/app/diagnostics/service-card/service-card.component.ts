@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ServiceStatus } from '../diagnostics.service';
 
@@ -8,6 +8,7 @@ interface MetadataEntry {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-service-card',
   standalone: true,
   imports: [CommonModule],
@@ -17,6 +18,8 @@ interface MetadataEntry {
 export class ServiceCardComponent implements OnChanges {
   @Input() service!: ServiceStatus;
   metadataEntries: MetadataEntry[] = [];
+
+  trackByLabel(_: number, entry: MetadataEntry): string { return entry.label; }
 
   ngOnChanges(changes: SimpleChanges): void {
     if (changes['service']) {

@@ -133,7 +133,7 @@
       .checklist-row {
         display: flex;
         align-items: center;
-        gap: 10px;
+        gap: 8px;
         padding: 8px;
         border-radius: 6px;
         text-decoration: none;
@@ -216,7 +216,7 @@
 
         .job-identity {
           display: flex;
-          gap: 10px;
+          gap: 8px;
           align-items: flex-start;
 
           .job-icon {
@@ -333,7 +333,7 @@
 
       .status-badge {
         font-size: 12px;
-        padding: 4px 10px;
+        padding: 4px 8px;
         border-radius: 12px;
         display: inline-flex;
         align-items: center;

@@ -10,7 +10,7 @@ They do NOT touch the database or hold any runtime orchestration logic.
 
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
 from apps.pipeline.services.distiller import distill_body
@@ -22,7 +22,7 @@ class MLDistillView(APIView):
     Accepts: { "sentences": ["...", "..."], "max_sentences": int (optional) }
     Returns: { "distilled": "..." }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         sentences = request.data.get("sentences", [])
@@ -43,7 +43,7 @@ class MLEmbedView(APIView):
     Accepts: { "texts": ["...", "..."] }
     Returns: { "embeddings": [[0.1, ...], ...] }
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         texts = request.data.get("texts", [])

@@ -20,7 +20,7 @@
     </div>
 
     <div class="metadata-grid" *ngIf="metadataEntries.length > 0">
-      <div class="metadata-item" *ngFor="let entry of metadataEntries">
+      <div class="metadata-item" *ngFor="let entry of metadataEntries; trackBy: trackByLabel">
         <label>{{ entry.label | titlecase }}</label>
         <span>{{ entry.value }}</span>
       </div>

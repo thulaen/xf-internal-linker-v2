@@ -150,7 +150,7 @@ def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
-@shared_task(bind=True, name="pipeline.orchestrate_csharp_import")
+@shared_task(bind=True, name="pipeline.orchestrate_csharp_import", time_limit=7200, soft_time_limit=7140)
 def orchestrate_csharp_import(
     self,
     scope_ids: list[int] | None = None,
@@ -441,7 +441,7 @@ def dispatch_pipeline_run(
     }
 
 
-@shared_task(bind=True, name="pipeline.run_pipeline")
+@shared_task(bind=True, name="pipeline.run_pipeline", time_limit=7200, soft_time_limit=7140)
 def run_pipeline(
     self,
     run_id: str,
@@ -556,7 +556,7 @@ def run_pipeline(
         raise
 
 
-@shared_task(bind=True, name="pipeline.generate_embeddings")
+@shared_task(bind=True, name="pipeline.generate_embeddings", time_limit=7200, soft_time_limit=7140)
 def generate_embeddings(
     self, content_item_ids: list[int] | None = None, job_id: str | None = None, force_reembed: bool = False
 ) -> dict:
@@ -642,7 +642,7 @@ def generate_embeddings(
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_weighted_authority")
+@shared_task(bind=True, name="pipeline.recalculate_weighted_authority", time_limit=1800, soft_time_limit=1740)
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
     """Recompute March 2026 PageRank from the stored graph and current settings."""
     job_id = job_id or str(uuid.uuid4())
@@ -666,7 +666,7 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_link_freshness")
+@shared_task(bind=True, name="pipeline.recalculate_link_freshness", time_limit=1800, soft_time_limit=1740)
 def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
     """Recompute Link Freshness from the stored link-history rows and current settings."""
     job_id = job_id or str(uuid.uuid4())
@@ -721,7 +721,7 @@ def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
-@shared_task(bind=True, name="pipeline.build_knowledge_graph")
+@shared_task(bind=True, name="pipeline.build_knowledge_graph", time_limit=1800, soft_time_limit=1740)
 def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     """Python fallback for building the bipartite knowledge graph."""
     job_id = job_id or str(uuid.uuid4())
@@ -738,7 +738,7 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
         raise
 
 
-@shared_task(bind=True, name="pipeline.import_content")
+@shared_task(bind=True, name="pipeline.import_content", time_limit=7200, soft_time_limit=7140)
 def import_content(
     self,
     scope_ids: list[int] | None = None,
@@ -1262,7 +1262,7 @@ def _check_broken_links_via_http_worker(
     return checked_results
 
 
-@shared_task(bind=True, name="pipeline.scan_broken_links", queue="default")
+@shared_task(bind=True, name="pipeline.scan_broken_links", queue="default", time_limit=7200, soft_time_limit=7140)
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
     from django.conf import settings
@@ -1506,7 +1506,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     }
 
 
-@shared_task(bind=True, name="pipeline.verify_suggestions")
+@shared_task(bind=True, name="pipeline.verify_suggestions", time_limit=3600, soft_time_limit=3540)
 def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     """Check whether applied suggestions are still live via XenForo API."""
     from django.utils import timezone
@@ -1564,7 +1564,7 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_click_distance")
+@shared_task(bind=True, name="pipeline.recalculate_click_distance", time_limit=1800, soft_time_limit=1740)
 def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
     """Recompute Phase 15 Click-Distance scores for all active ContentItems."""
     job_id = job_id or str(uuid.uuid4())
@@ -1627,7 +1627,7 @@ def _get_broken_link_scan_delay_seconds() -> float:
         return _BROKEN_LINK_SCAN_DELAY_SECONDS
 
 
-@shared_task(name="pipeline.run_clustering_pass")
+@shared_task(name="pipeline.run_clustering_pass", time_limit=1800, soft_time_limit=1740)
 def run_clustering_pass(job_id: str | None = None) -> dict:
     """Run a batch clustering pass over all ContentItems with embeddings."""
     from apps.content.models import ContentItem
@@ -1753,7 +1753,7 @@ def monthly_r_auto_tune(self):
 # Part 7 — Nightly data retention task
 # ---------------------------------------------------------------------------
 
-@shared_task(name="pipeline.nightly_data_retention")
+@shared_task(name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740)
 def nightly_data_retention():
     """Purge stale data rows according to the retention policy.
 
@@ -1940,7 +1940,7 @@ def cleanup_stuck_sync_jobs():
     return {"jobs_cleaned": count}
 
 
-@shared_task(name="pipeline.sync_single_xf_item")
+@shared_task(name="pipeline.sync_single_xf_item", time_limit=300, soft_time_limit=270, autoretry_for=(requests.RequestException, ConnectionError), max_retries=3, retry_backoff=60)
 def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: int | None = None) -> dict:
     """Real-time sync for a single XenForo item (thread or resource) via webhook."""
     from apps.content.models import ScopeItem
@@ -1987,7 +1987,7 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
         return {"error": str(e)}
 
 
-@shared_task(name="pipeline.sync_single_wp_item")
+@shared_task(name="pipeline.sync_single_wp_item", time_limit=300, soft_time_limit=270, autoretry_for=(requests.RequestException, ConnectionError), max_retries=3, retry_backoff=60)
 def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     """Real-time sync for a single WordPress post/page via webhook."""
     from apps.core.views import get_wordpress_runtime_config
@@ -2027,7 +2027,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 # Part 8 — FR-018 C# auto-tune tasks
 # ---------------------------------------------------------------------------
 
-@shared_task(bind=True, name="pipeline.monthly_cs_weight_tune")
+@shared_task(bind=True, name="pipeline.monthly_cs_weight_tune", time_limit=600, soft_time_limit=540)
 def monthly_cs_weight_tune(self):
     """Trigger a FR-018 weight-tune run via the C# HTTP-worker, then evaluate the result.
 
@@ -2441,7 +2441,7 @@ def check_gsc_spikes(self) -> dict:
 # FR-030 — FAISS-GPU index refresh
 # ---------------------------------------------------------------------------
 
-@shared_task(name="pipeline.refresh_faiss_index")
+@shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
 def refresh_faiss_index():
     """FR-030 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
     from apps.pipeline.services.faiss_index import build_faiss_index

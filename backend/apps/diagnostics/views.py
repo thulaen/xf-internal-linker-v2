@@ -5,7 +5,7 @@ from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
 from rest_framework import status, viewsets, response, views
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from .models import ServiceStatusSnapshot, SystemConflict
 from .serializers import ServiceStatusSerializer, SystemConflictSerializer, ErrorLogSerializer
@@ -16,7 +16,7 @@ from .signal_registry import SIGNALS
 
 
 class DiagnosticsOverviewView(views.APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         snapshots = ServiceStatusSnapshot.objects.all()
@@ -65,7 +65,7 @@ class ConflictViewSet(viewsets.ModelViewSet):
 
 
 class FeatureReadinessView(views.APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         matrix = get_feature_readinessMatrix()
@@ -73,7 +73,7 @@ class FeatureReadinessView(views.APIView):
 
 
 class ResourceUsageView(views.APIView):
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         metrics = get_resource_usage()
@@ -207,7 +207,7 @@ class WeightDiagnosticsView(views.APIView):
     Provides a read-only view of all 23 ranking and value model signals,
     their current weights, storage usage, and C++ acceleration status.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         # 1. Fetch current settings/weights

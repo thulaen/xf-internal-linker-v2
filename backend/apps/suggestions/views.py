@@ -13,7 +13,7 @@ from django.db import transaction
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, status, viewsets
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -48,7 +48,7 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     GET  /api/pipeline-runs/{id}/    — full detail with progress
     POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     queryset = PipelineRun.objects.order_by("-created_at")
     serializer_class = PipelineRunSerializer
@@ -108,7 +108,7 @@ class SuggestionViewSet(viewsets.ModelViewSet):
     """
     List, retrieve, and review link suggestions.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     queryset = (
         Suggestion.objects
@@ -266,7 +266,7 @@ class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
     """
     List pipeline skip diagnostics for the 'why no suggestion?' explorer.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     queryset = PipelineDiagnostic.objects.select_related("destination", "pipeline_run")
     serializer_class = PipelineDiagnosticSerializer
@@ -278,7 +278,7 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
     """
     CRUD for weight presets + apply action.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     queryset = WeightPreset.objects.all()
     serializer_class = WeightPresetSerializer
@@ -331,7 +331,7 @@ class WeightAdjustmentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Read-only list of all weight adjustment events.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     queryset = WeightAdjustmentHistory.objects.select_related("preset").order_by("-created_at")
     serializer_class = WeightAdjustmentHistorySerializer
@@ -363,7 +363,7 @@ class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
     Read-only list of all RankingChallenger records.
     Also provides a POST /reject/ action for human override.
     """
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     queryset = RankingChallenger.objects.order_by("-created_at")
     serializer_class = RankingChallengerSerializer
 
@@ -416,7 +416,7 @@ class WeightChallengerInternalView(APIView):
         }
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from apps.suggestions.weight_preset_service import PRESET_DEFAULTS

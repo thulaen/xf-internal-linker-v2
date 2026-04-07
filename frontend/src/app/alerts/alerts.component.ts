@@ -5,7 +5,7 @@
  * Supports mark-read, acknowledge, resolve, and bulk-acknowledge-all.
  */
 
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -29,6 +29,7 @@ export interface GroupedAlert extends OperatorAlert {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-alerts',
   standalone: true,
   imports: [

@@ -4,7 +4,7 @@ from apps.content.services.clustering import ClusteringService
 
 logger = logging.getLogger(__name__)
 
-@shared_task(name="content.cluster_items")
+@shared_task(name="content.cluster_items", time_limit=300, soft_time_limit=270)
 def cluster_items(item_ids: list[int]) -> dict:
     """Trigger clustering logic for a batch of recently imported/updated items."""
     service = ClusteringService()

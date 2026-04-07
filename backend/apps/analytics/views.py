@@ -9,7 +9,7 @@ import requests
 from django.conf import settings
 from django.db.models import Sum
 from django.utils import timezone
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -681,7 +681,7 @@ def _safe_rate(numerator: int | float, denominator: int | float) -> float:
 class AnalyticsTelemetryOverviewView(APIView):
     """Small overview payload for the analytics page."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         last_30_days = timezone.now().date() - timedelta(days=30)
@@ -770,7 +770,7 @@ def _summarize_coverage_queryset(queryset) -> dict:
 class AnalyticsTelemetryHealthView(APIView):
     """Return simple telemetry-health rollups for the selected time window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         days = _telemetry_window_days(request)
@@ -802,7 +802,7 @@ def _label_or_unknown(value: str | None) -> str:
 class AnalyticsTelemetryBreakdownView(APIView):
     """Return simple device and channel breakdowns for the selected telemetry window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -874,7 +874,7 @@ class AnalyticsTelemetryBreakdownView(APIView):
 class AnalyticsTelemetryFunnelView(APIView):
     """Return the simple FR-016 funnel for the selected source and time window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -925,7 +925,7 @@ class AnalyticsTelemetryFunnelView(APIView):
 class AnalyticsTelemetryTrendView(APIView):
     """Return a day-by-day telemetry trend for the selected source and time window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -971,7 +971,7 @@ class AnalyticsTelemetryTrendView(APIView):
 class AnalyticsTelemetryTopSuggestionsView(APIView):
     """Return the strongest suggestion rows in the selected telemetry window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -1027,7 +1027,7 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
 class AnalyticsTelemetryIntegrationView(APIView):
     """Return copy-ready browser bridge instructions for FR-016 Slice 2."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(
@@ -1049,7 +1049,7 @@ def _queue_sync_run(*, source: str, lookback_days: int) -> AnalyticsSyncRun:
 class AnalyticsGA4SettingsView(APIView):
     """Get and save GA4 telemetry settings."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_ga4_telemetry_settings())
@@ -1084,7 +1084,7 @@ class AnalyticsGA4SettingsView(APIView):
 class AnalyticsGoogleOAuthSettingsView(APIView):
     """Get and save the shared Google OAuth app credentials."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_google_oauth_settings())
@@ -1115,7 +1115,7 @@ class AnalyticsGoogleOAuthSettingsView(APIView):
 class AnalyticsGA4TestConnectionView(APIView):
     """Run a lightweight GA4 Measurement Protocol test."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         measurement_id = str(request.data.get("measurement_id") or _read_setting("analytics.ga4_measurement_id", "") or "").strip().upper()
@@ -1158,7 +1158,7 @@ class AnalyticsGA4TestConnectionView(APIView):
 class AnalyticsGA4ReadConnectionView(APIView):
     """Run a lightweight GA4 Data API read test."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         current = get_ga4_telemetry_settings()
@@ -1197,7 +1197,7 @@ class AnalyticsGA4ReadConnectionView(APIView):
 class AnalyticsMatomoSettingsView(APIView):
     """Get and save Matomo telemetry settings."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_matomo_settings())
@@ -1223,7 +1223,7 @@ class AnalyticsMatomoSettingsView(APIView):
 class AnalyticsMatomoTestConnectionView(APIView):
     """Run a lightweight Matomo API test."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         base_url = str(request.data.get("url") or _read_setting("analytics.matomo_url", "") or "").strip().rstrip("/")
@@ -1253,7 +1253,7 @@ class AnalyticsMatomoTestConnectionView(APIView):
 class AnalyticsGA4SyncView(APIView):
     """Queue a GA4 telemetry sync run."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         settings = get_ga4_telemetry_settings()
@@ -1277,7 +1277,7 @@ class AnalyticsGA4SyncView(APIView):
 class AnalyticsMatomoSyncView(APIView):
     """Queue a Matomo telemetry sync run."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         settings = get_matomo_settings()
@@ -1301,7 +1301,7 @@ class AnalyticsMatomoSyncView(APIView):
 class AnalyticsGSCSyncView(APIView):
     """Queue a GSC performance sync run."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from .tasks import sync_gsc_performance
@@ -1340,7 +1340,7 @@ class AnalyticsGSCSyncView(APIView):
 class AnalyticsTelemetryByVersionView(APIView):
     """Compare performance metrics group by algorithm version."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -1387,7 +1387,7 @@ class AnalyticsTelemetryByVersionView(APIView):
 class AnalyticsTelemetryGeoDetailView(APIView):
     """Return a detailed country+region breakdown for the selected telemetry window."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         queryset, days, source = _telemetry_queryset(request)
@@ -1427,7 +1427,7 @@ class AnalyticsTelemetryGeoDetailView(APIView):
 class AnalyticsGSCSettingsView(APIView):
     """Get and save GSC settings."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(get_gsc_settings())
@@ -1452,7 +1452,7 @@ class AnalyticsGSCSettingsView(APIView):
 class AnalyticsGSCTestConnectionView(APIView):
     """Test GSC service account access."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         property_url = str(request.data.get("property_url") or _read_setting("analytics.gsc_property_url", "") or "").strip()
@@ -1484,7 +1484,7 @@ class AnalyticsGSCTestConnectionView(APIView):
 class AnalyticsSearchImpactListView(APIView):
     """List applied suggestions with GSC impact results."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from .models import GSCImpactSnapshot
@@ -1505,7 +1505,7 @@ class AnalyticsSearchImpactListView(APIView):
 class AnalyticsSearchImpactDetailView(APIView):
     """Detailed keyword lift for one suggestion."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, suggestion_id):
         from django.shortcuts import get_object_or_404
@@ -1538,7 +1538,7 @@ class AnalyticsGoogleOAuthStartView(APIView):
     Requires analytics.google_oauth_client_id and analytics.google_oauth_client_secret to be set.
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         import google_auth_oauthlib.flow
@@ -1601,7 +1601,7 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
     Exchange the code for a refresh token and save it.
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         import google_auth_oauthlib.flow
@@ -1674,7 +1674,7 @@ class AnalyticsGoogleOAuthCallbackView(APIView):
 class AnalyticsGoogleOAuthUnlinkView(APIView):
     """Remove the saved Google OAuth refresh token."""
     
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     
     def post(self, request):
         from .models import AppSetting

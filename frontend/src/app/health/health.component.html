@@ -69,11 +69,11 @@
     <p class="section-subtitle">Every system requirement, at a glance. Green means working. Anything else needs your attention.</p>
 
     <div class="checklist-grid">
-      <mat-card class="checklist-card" *ngFor="let group of checklistGroups">
+      <mat-card class="checklist-card" *ngFor="let group of checklistGroups; trackBy: trackByLabel">
         <h3 class="group-label">{{ group.label }}</h3>
         <div class="checklist-rows">
           <a class="checklist-row"
-             *ngFor="let s of group.services"
+             *ngFor="let s of group.services; trackBy: trackByServiceKey"
              [appScrollHighlight]="'service-' + s.service_key"
              [ngClass]="getStatusClass(s.status)"
              style="cursor:pointer">
@@ -152,7 +152,7 @@
 
     <div class="health-grid" *ngIf="!loading || services.length > 0">
       <mat-card class="service-card"
-                *ngFor="let s of services"
+                *ngFor="let s of services; trackBy: trackByServiceKey"
                 [ngClass]="getStatusClass(s.status)"
                 [id]="'service-' + s.service_key">
 
@@ -286,7 +286,7 @@
     </div>
 
     <div class="loading-shimmer" *ngIf="loading && services.length === 0">
-      <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]"></mat-card>
+      <mat-card class="service-card shimmer" *ngFor="let i of [1,2,3,4,5,6]; trackBy: trackByIndex"></mat-card>
     </div>
   </section>
 

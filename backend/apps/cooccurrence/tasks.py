@@ -10,7 +10,7 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="cooccurrence.compute_session_cooccurrence")
+@shared_task(name="cooccurrence.compute_session_cooccurrence", time_limit=3600, soft_time_limit=3540)
 def compute_session_cooccurrence() -> dict:
     """Fetch GA4 session data and build the co-occurrence matrix.
 
@@ -113,7 +113,7 @@ def compute_session_cooccurrence() -> dict:
     }
 
 
-@shared_task(name="cooccurrence.detect_behavioral_hubs")
+@shared_task(name="cooccurrence.detect_behavioral_hubs", time_limit=1800, soft_time_limit=1740)
 def detect_behavioral_hubs() -> dict:
     """Run hub detection from existing co-occurrence data."""
     from apps.core.models import AppSetting
@@ -147,7 +147,7 @@ def detect_behavioral_hubs() -> dict:
     return {"hubs_created": hubs_created, "members_assigned": members_assigned}
 
 
-@shared_task(name="cooccurrence.apply_value_model_scores")
+@shared_task(name="cooccurrence.apply_value_model_scores", time_limit=1800, soft_time_limit=1740)
 def apply_value_model_scores(run_id: str) -> dict:
     """Compute score_value_model and value_model_diagnostics for all suggestions in a run.
 

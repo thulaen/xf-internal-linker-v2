@@ -72,7 +72,7 @@
           <div class="lane-badges">
             <div
               class="lane-badge"
-              *ngFor="let badge of lane.badges"
+              *ngFor="let badge of lane.badges; trackBy: trackByIndex"
               [class.tone-good]="badge.tone === 'good'"
               [class.tone-warn]="badge.tone === 'warn'"
               [class.tone-bad]="badge.tone === 'bad'">
@@ -129,7 +129,7 @@
           </div>
 
           <div class="runtime-detail-grid" *ngIf="card.details.length > 0">
-            <div class="runtime-detail-item" *ngFor="let detail of card.details">
+            <div class="runtime-detail-item" *ngFor="let detail of card.details; trackBy: trackByLabel">
               <label>{{ detail.label }}</label>
               <span>{{ detail.value }}</span>
             </div>
@@ -137,7 +137,7 @@
 
           <div class="native-module-list" *ngIf="card.moduleStatuses.length > 0">
             <label class="module-list-label">Tracked Modules</label>
-            <div class="native-module-item" *ngFor="let module of card.moduleStatuses">
+            <div class="native-module-item" *ngFor="let module of card.moduleStatuses; trackBy: trackByLabel">
               <div class="native-module-copy">
                 <span class="native-module-name">{{ module.label }}</span>
                 <span class="native-module-benchmark">

@@ -1,5 +1,6 @@
 import {
   AfterViewInit,
+  ChangeDetectionStrategy,
   Component,
   ElementRef,
   EventEmitter,
@@ -37,6 +38,7 @@ const MAX_RADIUS = 20;
 const MIN_RADIUS = 4;
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-link-graph-viz',
   standalone: true,
   imports: [CommonModule, MatProgressSpinnerModule],

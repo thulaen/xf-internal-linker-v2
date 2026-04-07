@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -76,7 +76,7 @@ def _read_cooccurrence_settings() -> dict:
 class CoOccurrencePairListView(APIView):
     """GET /api/cooccurrence/pairs/ — list pairs with optional filters."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from .models import SessionCoOccurrencePair
@@ -116,7 +116,7 @@ class CoOccurrencePairListView(APIView):
 class CoOccurrencePairBySourceView(APIView):
     """GET /api/cooccurrence/pairs/<source_id>/ — all pairs for a source content item."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request, source_id: int):
         from .models import SessionCoOccurrencePair
@@ -137,7 +137,7 @@ class CoOccurrencePairBySourceView(APIView):
 class CoOccurrenceRunListView(APIView):
     """GET /api/cooccurrence/runs/ — list computation run records."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from .models import SessionCoOccurrenceRun
@@ -150,7 +150,7 @@ class CoOccurrenceRunListView(APIView):
 class TriggerCoOccurrenceView(APIView):
     """POST /api/cooccurrence/compute/ — trigger on-demand run."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from .tasks import compute_session_cooccurrence
@@ -166,7 +166,7 @@ class TriggerCoOccurrenceView(APIView):
 class BehavioralHubListView(APIView):
     """GET /api/behavioral-hubs/ — list all hubs."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from .models import BehavioralHub
@@ -189,7 +189,7 @@ class BehavioralHubListView(APIView):
 class BehavioralHubDetailView(APIView):
     """GET/PATCH /api/behavioral-hubs/<hub_id>/"""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def _get_hub(self, hub_id):
         from .models import BehavioralHub
@@ -234,7 +234,7 @@ class BehavioralHubDetailView(APIView):
 class BehavioralHubMemberView(APIView):
     """POST /api/behavioral-hubs/<hub_id>/members/ — manually add a member."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request, hub_id):
         from .models import BehavioralHub, BehavioralHubMembership
@@ -266,7 +266,7 @@ class BehavioralHubMemberView(APIView):
 class BehavioralHubMemberDetailView(APIView):
     """DELETE /api/behavioral-hubs/<hub_id>/members/<content_item_id>/ — remove a member."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def delete(self, request, hub_id, content_item_id: int):
         from .models import BehavioralHub, BehavioralHubMembership
@@ -294,7 +294,7 @@ class BehavioralHubMemberDetailView(APIView):
 class TriggerHubDetectionView(APIView):
     """POST /api/behavioral-hubs/detect/ — trigger hub detection on-demand."""
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         from .tasks import detect_behavioral_hubs
@@ -313,7 +313,7 @@ class CoOccurrenceSettingsView(APIView):
     PUT  /api/settings/cooccurrence/ — persist settings
     """
 
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         return Response(_read_cooccurrence_settings())

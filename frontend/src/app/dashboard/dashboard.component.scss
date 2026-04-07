@@ -19,7 +19,7 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    margin: 0 0 10px;
+    margin: 0 0 8px;
     font-size: 24px;
     line-height: 1.2;
     color: var(--color-text-primary);
@@ -32,7 +32,7 @@
   .dashboard-kicker {
     display: inline-flex;
     align-items: center;
-    margin-bottom: 13px;
+    margin-bottom: 12px;
     padding: 6px 12px;
     border-radius: var(--radius-pill);
     background: var(--color-blue-50);
@@ -54,15 +54,15 @@
   .dashboard-hero-highlights {
     display: flex;
     flex-wrap: wrap;
-    gap: 10px;
-    margin-top: 18px;
+    gap: 8px;
+    margin-top: 16px;
   }
 
   .hero-pill {
     display: inline-flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 13px;
+    padding: 8px 12px;
     border: 1px solid var(--color-border);
     border-radius: var(--radius-pill);
     background: var(--color-bg-white);
@@ -120,7 +120,7 @@
   display: flex !important;
   align-items: flex-start !important;
   gap: 16px !important;
-  padding: 20px !important;
+  padding: 24px !important;
   border-radius: var(--radius-md) !important;
   box-shadow: none !important;
   border: var(--card-border) !important;
@@ -392,7 +392,7 @@
   .import-primary {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
   }
 
   .import-source {

@@ -1,8 +1,9 @@
-import { Component, Input } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FeatureReadiness } from '../diagnostics.service';
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-readiness-matrix',
   standalone: true,
   imports: [CommonModule],
@@ -11,6 +12,8 @@ import { FeatureReadiness } from '../diagnostics.service';
 })
 export class ReadinessMatrixComponent {
   @Input() features: FeatureReadiness[] = [];
+
+  trackById(_: number, f: FeatureReadiness): string { return f.id; }
 
   getStatusClass(status: string): string {
     return `status-${status}`;

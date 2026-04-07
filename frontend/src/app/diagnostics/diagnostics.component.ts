@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, OnInit, OnDestroy, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { DiagnosticsService, ServiceStatus, SystemConflict, FeatureReadiness, ResourceUsage, NativeModuleStatus } from './diagnostics.service';
 import { ServiceCardComponent } from './service-card/service-card.component';
@@ -37,6 +37,7 @@ interface RuntimeExecutionCard {
 }
 
 @Component({
+  changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-diagnostics',
   standalone: true,
   imports: [
@@ -450,4 +451,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   private displayMilliseconds(value: unknown): string {
     return typeof value === 'number' ? `${value.toFixed(2)} ms` : 'Not captured yet';
   }
+
+  trackByIndex(index: number): number { return index; }
+  trackByLabel(_: number, item: { label: string }): string { return item.label; }
 }
