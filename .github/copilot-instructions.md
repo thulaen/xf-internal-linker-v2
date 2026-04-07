@@ -7,3 +7,5 @@ For all user-facing explanations in this repository:
 - Lead with the simplest explanation of what happened, why it matters, and what comes next.
 - Use short sentences and common words.
 - Avoid unnecessary jargon. If a technical term is needed, explain it immediately.
+
+Before any frontend work, read `frontend/FRONTEND-RULES.md` first.

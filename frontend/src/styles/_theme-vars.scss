@@ -92,6 +92,13 @@
   --spacing-sm:    12px;      // inline gap: buttons, chips, icons
   --spacing-field: 16px;      // bottom margin for form fields
 
+  // ── Fine-grained spacing scale (4px grid) ─────────────────────
+  --space-xs:  4px;
+  --space-sm:  8px;
+  --space-md:  16px;
+  --space-lg:  24px;
+  --space-xl:  32px;
+
   // ── Shadows ────────────────────────────────────────────────────
   --shadow-sm:    0 1px 2px rgba(60, 64, 67, 0.1);
   --shadow-hover: 0 1px 3px rgba(60, 64, 67, 0.15);

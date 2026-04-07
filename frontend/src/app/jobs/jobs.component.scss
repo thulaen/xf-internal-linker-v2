@@ -24,7 +24,7 @@
   gap: 16px;
 
   .mode-field {
-    width: 280px;
+    width: 360px;
   }
 
   .option-label {
@@ -315,6 +315,7 @@
     color: var(--color-text-primary);
     padding: 12px 16px;
     border-bottom: 1px solid var(--color-border-faint);
+    white-space: nowrap;
   }
 
   .source-tag {

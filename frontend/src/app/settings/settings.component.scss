@@ -303,6 +303,7 @@
 .group-create-form {
   display: flex;
   gap: 12px;
+  button { white-space: nowrap; }
   @media (max-width: 768px) {
     flex-direction: column;
     button { width: 100%; }

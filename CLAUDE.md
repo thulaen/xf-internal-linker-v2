@@ -1,5 +1,7 @@
 # Claude Instructions
 
+**Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
+
 When responding to the user in this repository:
 
 - Talk in plain English.

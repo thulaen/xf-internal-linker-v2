@@ -1,5 +1,7 @@
 # Gemini Instructions
 
+**Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
+
 Repository communication rule:
 
 - Talk to the user in plain English.
