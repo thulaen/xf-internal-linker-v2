@@ -198,7 +198,17 @@ export class NotificationService implements OnDestroy {
 
   ngOnDestroy(): void {
     this.destroyed = true;
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.ws?.close();
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      // Null out onclose before calling close() so the async close event
+      // cannot schedule a reconnect after the service has been destroyed.
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.close();
+      this.ws = null;
+    }
   }
 }

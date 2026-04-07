@@ -1,6 +1,26 @@
-"""FR-030 — Persistent FAISS-GPU index for Stage 1 vector search."""
+"""FR-030 — Persistent FAISS-GPU index for Stage 1 vector search.
+
+⚠  ARCHITECTURE WARNING — SINGLE-WORKER REQUIREMENT
+The FAISS index is stored in process-local globals protected by a
+threading.Lock.  That lock is only meaningful within a single OS process.
+If the Celery worker is started with --concurrency > 1 (multiple forked
+processes), each process maintains its own private copy of the index and
+only rebuilds it on its own 15-minute Beat tick.  This means:
+
+  - New embeddings may be invisible to all-but-one worker for up to 15 min.
+  - Under heavy load, multiple processes independently rebuild the index,
+    wasting DB reads and memory.
+
+The safe deployment is: --concurrency=1 for the pipeline/embeddings queue,
+or move the FAISS search to a dedicated single-process microservice.
+
+`_assert_single_worker()` is called at app-ready time and raises if the
+process count exceeds 1, so misconfiguration is caught at startup rather
+than silently degrading quality.
+"""
 
 import logging
+import os
 import threading
 
 import numpy as np
@@ -17,6 +37,30 @@ _index_lock = threading.Lock()
 _faiss_index = None                       # faiss.Index | None
 _faiss_id_map: list[int] = []            # position i -> ContentItem.pk
 _faiss_content_type_map: list[str] = []  # position i -> content_type
+
+
+def _assert_single_worker() -> None:
+    """Warn loudly if FAISS is being loaded inside a multi-process Celery worker.
+
+    Call this from AppConfig.ready() when FAISS is enabled.  It detects the
+    CELERY_WORKER_CONCURRENCY environment variable (set in docker-compose) and
+    emits a structured warning so the issue appears in startup logs before
+    queries start returning stale results.
+    """
+    concurrency_env = os.environ.get("CELERY_WORKER_CONCURRENCY", "")
+    try:
+        concurrency = int(concurrency_env)
+    except (ValueError, TypeError):
+        concurrency = 0  # unknown — don't block startup
+
+    if concurrency > 1:
+        logger.warning(
+            "FAISS index is process-local but CELERY_WORKER_CONCURRENCY=%d. "
+            "Only one worker process will have an up-to-date index at a time. "
+            "Set --concurrency=1 for the pipeline/embeddings queues or move "
+            "FAISS to a dedicated single-process service.",
+            concurrency,
+        )
 
 
 def build_faiss_index() -> None:

@@ -6,6 +6,7 @@ describe('HighlightPipe', () => {
 
   beforeEach(() => {
     sanitizer = {
+      sanitize: (_ctx: any, val: string) => val,
       bypassSecurityTrustHtml: (val: string) => val
     };
     pipe = new HighlightPipe(sanitizer);

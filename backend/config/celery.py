@@ -10,7 +10,7 @@ import os
 from celery import Celery
 
 # Django settings module for Celery workers
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.development")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "config.settings.production")
 
 app = Celery("xf_linker")
 
@@ -28,6 +28,10 @@ app.conf.task_queues = {
 }
 
 app.conf.task_default_queue = "default"
+
+# Expire task results after 1 hour so Redis does not grow without bound.
+# Tasks that need longer retention should store results in the DB instead.
+app.conf.result_expires = 3600
 
 
 @app.task(bind=True, ignore_result=True)

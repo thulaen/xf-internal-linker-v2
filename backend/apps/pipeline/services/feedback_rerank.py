@@ -90,9 +90,9 @@ class FeedbackRerankService:
 
         # 1. Exploit: Bayesian-Smoothed Acceptance Rate
         # mu = (success + alpha) / (total + alpha + beta)
-        score_exploit = (n_success + self.settings.alpha_prior) / (
-            n_total + self.settings.alpha_prior + self.settings.beta_prior
-        )
+        # Guard against zero denominator if priors are misconfigured.
+        exploit_denom = n_total + self.settings.alpha_prior + self.settings.beta_prior
+        score_exploit = (n_success + self.settings.alpha_prior) / max(exploit_denom, 1e-9)
 
         # 2. Explore: UCB1 Confidence Bound
         # Boost = k * sqrt(ln(N_global) / (n_pair + 1))

@@ -84,11 +84,18 @@ from apps.suggestions.views import (
 )
 from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView, WordPressWebhookView, WebhookReceiptViewSet
 from rest_framework.authtoken.views import ObtainAuthToken
+from rest_framework.throttling import AnonRateThrottle
+
+
+class _LoginRateThrottle(AnonRateThrottle):
+    """Tight per-IP throttle on the login endpoint to prevent brute-force."""
+    rate = "10/min"
 
 
 class _CsrfFreeObtainAuthToken(ObtainAuthToken):
     """Token login endpoint — no session auth so CSRF is never checked."""
     authentication_classes = []
+    throttle_classes = [_LoginRateThrottle]
 
 
 obtain_auth_token = _CsrfFreeObtainAuthToken.as_view()

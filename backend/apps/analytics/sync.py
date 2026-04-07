@@ -353,16 +353,22 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                 continue
             suggestion_totals[suggestion_id][MATOMO_EVENT_FIELDS[event_name]] += count
 
+        # Bulk-load all referenced suggestions in one query instead of one per row.
+        suggestion_ids_for_day = list(suggestion_totals.keys())
+        suggestions_map = {
+            str(s.suggestion_id): s
+            for s in Suggestion.objects.select_related(
+                "destination",
+                "destination__scope",
+                "host",
+                "host__scope",
+                "pipeline_run",
+            ).filter(suggestion_id__in=suggestion_ids_for_day)
+        }
+
         for suggestion_id, field_totals in suggestion_totals.items():
-            try:
-                suggestion = Suggestion.objects.select_related(
-                    "destination",
-                    "destination__scope",
-                    "host",
-                    "host__scope",
-                    "pipeline_run",
-                ).get(suggestion_id=suggestion_id)
-            except Suggestion.DoesNotExist:
+            suggestion = suggestions_map.get(suggestion_id)
+            if suggestion is None:
                 missing_metadata_events += int(sum(field_totals.values()))
                 continue
 

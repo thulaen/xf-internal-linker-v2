@@ -8,6 +8,7 @@ export function escapeHtml(text: string): string {
     .replace(/'/g, '&#039;');
 }
 
+const _HIGHLIGHT_CACHE_MAX = 500;
 const highlightCache = new Map<string, string>();
 
 export function highlightText(sentence: string, anchor: string): string {
@@ -24,8 +25,10 @@ export function highlightText(sentence: string, anchor: string): string {
   const reEsc = safeAnchor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const result = safeSentence.replace(new RegExp(`(${reEsc})`, 'gi'), '<mark>$1</mark>');
 
-  if (highlightCache.size > 500) {
-    highlightCache.clear();
+  // Evict the oldest entry (Map preserves insertion order) rather than
+  // clearing everything at once, which would cause a burst of cache misses.
+  if (highlightCache.size >= _HIGHLIGHT_CACHE_MAX) {
+    highlightCache.delete(highlightCache.keys().next().value!);
   }
   highlightCache.set(key, result);
   return result;

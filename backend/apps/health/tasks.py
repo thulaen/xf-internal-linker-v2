@@ -13,25 +13,32 @@ logger = logging.getLogger(__name__)
 def run_all_health_checks():
     """
     Run all registered health checks from the registry.
-    
+
     This is intended to run every 30 minutes via Celery Beat.
     It updates the ServiceHealthRecord for each service and emits/resolves
     OperatorAlerts accordingly.
+
+    Returns a structured dict so monitoring tools can detect failures
+    without having to parse log strings.
     """
     logger.info("Starting system-wide health checks via Registry.")
     checkers = HealthCheckRegistry.get_checkers()
-    results = []
-    
+    check_results: dict[str, str] = {}
+    had_failure = False
+
     for service_key in checkers.keys():
         try:
             record = perform_health_check(service_key)
-            results.append(f"{service_key}: {record.status}")
+            check_results[service_key] = record.status
         except Exception as e:
             logger.error(f"Health check failed for {service_key}: {str(e)}", exc_info=True)
-            results.append(f"{service_key}: FAILED_EXECUTION")
-    
-    logger.info(f"Registry-scale health checks completed: {', '.join(results)}")
-    return results
+            check_results[service_key] = "FAILED_EXECUTION"
+            had_failure = True
+
+    summary = ", ".join(f"{k}: {v}" for k, v in check_results.items())
+    logger.info(f"Registry-scale health checks completed: {summary}")
+
+    return {"ok": not had_failure, "checks": check_results}
 
 @shared_task(name="health.run_single_health_check", time_limit=60, soft_time_limit=45)
 def run_single_health_check(service_key: str):

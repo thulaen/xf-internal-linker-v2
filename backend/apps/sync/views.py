@@ -164,7 +164,7 @@ class XenForoWebhookView(APIView):
         from .services.webhooks import verify_xf_signature, process_xf_webhook
         
         signature = request.headers.get("XF-Webhook-Secret")
-        if not verify_xf_signature(request.body.decode('utf-8'), signature):
+        if not verify_xf_signature(signature):
             return Response({"error": "Invalid webhook secret"}, status=403)
 
         event_type = request.headers.get("XF-Webhook-Event") or request.data.get("event")
@@ -189,7 +189,7 @@ class WordPressWebhookView(APIView):
         
         # Security: we use X-Wp-Webhook-Secret or simple body field
         signature = request.headers.get("X-Wp-Webhook-Secret") or request.data.get("secret")
-        if not verify_wp_signature(request.body.decode('utf-8'), signature):
+        if not verify_wp_signature(signature):
             return Response({"error": "Invalid webhook secret"}, status=403)
 
         event_type = request.data.get("event", "wp_update")

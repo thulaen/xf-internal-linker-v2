@@ -269,9 +269,13 @@ def orchestrate_csharp_import(
                         ml_items_completed=index + 1
                     )
 
-            # Atomically swap sentences: delete C# regex rows, insert spaCy rows
-            Sentence.objects.filter(content_item_id__in=updated_pks).delete()
-            Sentence.objects.bulk_create(new_sentences, batch_size=500)
+            # Atomically swap sentences: delete C# regex rows, insert spaCy rows.
+            # The atomic block guarantees that if bulk_create fails mid-way, the
+            # delete is rolled back and items are never left sentence-less.
+            from django.db import transaction
+            with transaction.atomic():
+                Sentence.objects.filter(content_item_id__in=updated_pks).delete()
+                Sentence.objects.bulk_create(new_sentences, batch_size=500)
 
             # Persist spaCy-quality distilled text on each ContentItem
             if distilled:
@@ -952,7 +956,6 @@ def import_content(
             post.xf_post_id = first_post_id
             post.save(update_fields=["raw_bbcode", "clean_text", "char_count", "word_count", "xf_post_id"])
 
-            Sentence.objects.filter(content_item=content_item).delete()
             spans = split_sentence_spans(clean_text)
             sentence_objs = [
                 Sentence(
@@ -967,7 +970,10 @@ def import_content(
                 )
                 for span in spans
             ]
-            Sentence.objects.bulk_create(sentence_objs)
+            from django.db import transaction
+            with transaction.atomic():
+                Sentence.objects.filter(content_item=content_item).delete()
+                Sentence.objects.bulk_create(sentence_objs)
 
             content_item.distilled_text = distill_body([item.text for item in sentence_objs], max_sentences=5)
             content_item.save(update_fields=["content_hash", "distilled_text", "updated_at"])

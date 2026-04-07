@@ -37,6 +37,9 @@ export class ScrollHighlightDirective {
       if (this.pendingTimeout !== null) {
         clearTimeout(this.pendingTimeout);
       }
+      // Cancel any active scroll-highlight interval so the service's 200ms
+      // setInterval does not keep polling the DOM after the host element is gone.
+      this.scrollHighlightService.cancelHighlight();
     });
   }
 

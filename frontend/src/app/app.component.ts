@@ -178,11 +178,13 @@ export class AppComponent implements OnInit {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
       });
     
-    this.dashboardSvc.refresh().subscribe({
-      error: () => {
-        this.openBrokenLinks = 0;
-      },
-    });
+    this.dashboardSvc.refresh()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          this.openBrokenLinks = 0;
+        },
+      });
 
     // Fetch health summary for status dot plus 30-minute heart beat
     timer(0, 30 * 60 * 1000)

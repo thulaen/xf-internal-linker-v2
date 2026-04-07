@@ -19,7 +19,7 @@ import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatSliderModule } from '@angular/material/slider';
-import { debounceTime, distinctUntilChanged, Subject, switchMap } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, of, Subject, switchMap } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartData, ChartOptions } from 'chart.js';
 
@@ -408,7 +408,9 @@ export class GraphComponent implements OnInit {
       .pipe(
         debounceTime(300),
         distinctUntilChanged(),
-        switchMap((q) => this.graphService.searchArticles(q))
+        switchMap((q) =>
+          this.graphService.searchArticles(q).pipe(catchError(() => of([])))
+        ),
       )
       .subscribe((res) => (this.fromResults = res));
 
@@ -416,7 +418,9 @@ export class GraphComponent implements OnInit {
       .pipe(
         debounceTime(300),
         distinctUntilChanged(),
-        switchMap((q) => this.graphService.searchArticles(q))
+        switchMap((q) =>
+          this.graphService.searchArticles(q).pipe(catchError(() => of([])))
+        ),
       )
       .subscribe((res) => (this.toResults = res));
   }

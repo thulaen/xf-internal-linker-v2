@@ -101,6 +101,17 @@ export class LinkGraphVizComponent implements AfterViewInit, OnChanges, OnDestro
   ngOnDestroy(): void {
     this.simulation?.stop();
     this.resizeObserver?.disconnect();
+
+    // Remove D3 zoom and drag listeners so their closures (which reference `this`)
+    // do not prevent garbage collection of the component after navigation away.
+    if (this.svgRef?.nativeElement) {
+      d3.select(this.svgRef.nativeElement).on('.zoom', null);
+    }
+    // Null out D3 selection references to release DOM node references.
+    this.linkSel = null;
+    this.churnRingSel = null;
+    this.ghostLinkGroup = null;
+    this.zoomBehavior = null;
   }
 
   // ── Internal ──────────────────────────────────────────────────────────────

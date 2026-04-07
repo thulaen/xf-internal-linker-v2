@@ -14,6 +14,10 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
     """Global notification stream — one channel for all connected operators."""
 
     async def connect(self) -> None:
+        user = self.scope.get("user")
+        if user is None or not user.is_authenticated:
+            await self.close(code=4003)
+            return
         await self.channel_layer.group_add(_NOTIFICATION_GROUP, self.channel_name)
         await self.accept()
         await self.send_json({

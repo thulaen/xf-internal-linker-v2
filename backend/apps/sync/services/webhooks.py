@@ -2,10 +2,15 @@ import hmac
 import logging
 
 from django.conf import settings
+from django.core.cache import cache
 from apps.pipeline.tasks import sync_single_xf_item, sync_single_wp_item
 from apps.sync.models import WebhookReceipt
 
 logger = logging.getLogger(__name__)
+
+# How long to cache webhook secrets (seconds).  Secrets rarely change, so 60s
+# is a safe TTL that avoids a DB hit on every incoming webhook request.
+_SECRET_CACHE_TTL = 60
 
 
 def record_webhook(source, event_type, payload, status='received', error_message='', sync_job=None):
@@ -25,23 +30,41 @@ def record_webhook(source, event_type, payload, status='received', error_message
 
 
 def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
-    """Check AppSetting first, fall back to Django env var."""
+    """Return the webhook secret, checking AppSetting first then the env var.
+
+    The result is cached for _SECRET_CACHE_TTL seconds so that burst webhook
+    traffic does not hammer the database with repeated lookups.
+    """
+    cache_key = f"webhook_secret:{app_setting_key}"
+    cached = cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    secret = ""
     try:
         from apps.core.models import AppSetting
         db = AppSetting.objects.filter(key=app_setting_key).first()
         if db and db.value:
-            return db.value
+            secret = db.value
     except Exception:
         logger.debug("Could not load webhook secret from AppSetting %s", app_setting_key, exc_info=True)
-    return getattr(settings, env_var, "")
+
+    if not secret:
+        secret = getattr(settings, env_var, "")
+
+    # Cache even an empty string to avoid repeated DB misses; the TTL is short.
+    cache.set(cache_key, secret, _SECRET_CACHE_TTL)
+    return secret
 
 
-def verify_xf_signature(payload_body, signature):
+def verify_xf_signature(signature):
     """
     Verify that the webhook comes from XenForo.
-    XF sends the shared secret in the X-Xf-Webhook-Secret header.
+
+    XenForo sends the shared secret verbatim in the X-XF-Webhook-Secret header
+    (not an HMAC digest — this is XenForo's own webhook authentication scheme).
+    Constant-time comparison prevents timing-based secret enumeration attacks.
     Rejects the request when no secret is configured (fail-closed).
-    Uses constant-time comparison to prevent timing attacks.
     """
     secret = _get_webhook_secret("webhook.xenforo_secret", "XENFORO_WEBHOOK_SECRET")
     if not secret:
@@ -54,12 +77,14 @@ def verify_xf_signature(payload_body, signature):
     return hmac.compare_digest(signature, secret)
 
 
-def verify_wp_signature(payload_body, signature):
+def verify_wp_signature(signature):
     """
     Verify that the webhook comes from WordPress.
-    WP sends the shared secret in the X-Wp-Webhook-Secret header.
+
+    The WP webhook plugin sends the shared secret verbatim in the
+    X-Wp-Webhook-Secret header (or as a body field).
+    Constant-time comparison prevents timing-based secret enumeration attacks.
     Rejects the request when no secret is configured (fail-closed).
-    Uses constant-time comparison to prevent timing attacks.
     """
     secret = _get_webhook_secret("webhook.wordpress_secret", "WORDPRESS_WEBHOOK_SECRET")
     if not secret:
@@ -87,7 +112,14 @@ def process_xf_webhook(event_type, payload):
             thread_id = payload.get("content_id")
             node_id = payload.get("node_id")
             if thread_id:
-                res = sync_single_xf_item.delay(thread_id, content_type="thread", node_id=node_id)
+                # Deterministic task ID deduplicates burst webhooks for the same
+                # thread — Celery will ignore the duplicate if it is still queued.
+                task_id = f"xf_sync_thread_{thread_id}"
+                res = sync_single_xf_item.apply_async(
+                    args=[thread_id],
+                    kwargs={"content_type": "thread", "node_id": node_id},
+                    task_id=task_id,
+                )
                 sync_job_id = res.id
             else:
                 status = 'ignored'
@@ -96,7 +128,12 @@ def process_xf_webhook(event_type, payload):
         elif event_type in ["post_insert", "post_update"]:
             thread_id = payload.get("data", {}).get("thread_id") or payload.get("thread_id")
             if thread_id:
-                res = sync_single_xf_item.delay(thread_id, content_type="thread")
+                task_id = f"xf_sync_thread_{thread_id}"
+                res = sync_single_xf_item.apply_async(
+                    args=[thread_id],
+                    kwargs={"content_type": "thread"},
+                    task_id=task_id,
+                )
                 sync_job_id = res.id
             else:
                 status = 'ignored'
@@ -153,7 +190,13 @@ def process_wp_webhook(event_type, payload):
         post_type = payload.get("post_type", "post")
         
         if post_id:
-            sync_single_wp_item.delay(post_id, content_type=post_type)
+            # Deterministic task ID deduplicates burst webhooks for the same post.
+            task_id = f"wp_sync_{post_type}_{post_id}"
+            sync_single_wp_item.apply_async(
+                args=[post_id],
+                kwargs={"content_type": post_type},
+                task_id=task_id,
+            )
         else:
             status = 'ignored'
             error_message = 'Missing post_id'
