@@ -44,6 +44,7 @@ describe('SuggestionDetailDialogComponent', () => {
     score_march_2026_pagerank: 0.18,
     score_velocity: 0.1,
     score_link_freshness: 0.5,
+    score_ga4_gsc: 0.5,
     score_phrase_relevance: 0.82,
     score_learned_anchor_corroboration: 0.91,
     score_rare_term_propagation: 0.88,
