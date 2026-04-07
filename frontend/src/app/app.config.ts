@@ -6,7 +6,7 @@
  */
 
 import { ApplicationConfig, provideZoneChangeDetection } from '@angular/core';
-import { provideRouter, withViewTransitions, withInMemoryScrolling } from '@angular/router';
+import { provideRouter, withInMemoryScrolling } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { routes } from './app.routes';
@@ -18,7 +18,6 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(
       routes,
-      withViewTransitions(),
       // Disable Angular's built-in anchor scrolling — our GlobalLinkInterceptorService
       // replaces it with smooth scroll + highlight. scrollPositionRestoration: 'top'
       // ensures fresh page navigations always start at the top.
