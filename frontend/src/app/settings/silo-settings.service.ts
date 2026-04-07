@@ -310,6 +310,12 @@ export interface ValueModelSettings {
   engagement_words_per_minute: number;
   engagement_cap_ratio: number;
   engagement_fallback_value: number;
+  // FR-023 hot decay signal
+  hot_decay_enabled: boolean;
+  hot_gravity: number;
+  hot_clicks_weight: number;
+  hot_impressions_weight: number;
+  hot_lookback_days: number;
   // FR-025 co-occurrence signal
   co_occurrence_signal_enabled: boolean;
   w_cooccurrence: number;

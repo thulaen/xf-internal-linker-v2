@@ -486,13 +486,13 @@ def compute_value_model_score(
             "co_occurrence_fallback_used": True,
         }
 
-    w_relevance = float(settings.get("w_relevance", 0.4))
-    w_traffic = float(settings.get("w_traffic", 0.2))
+    w_relevance = float(settings.get("w_relevance", 0.35))
+    w_traffic = float(settings.get("w_traffic", 0.25))
     w_freshness = float(settings.get("w_freshness", 0.1))
     w_authority = float(settings.get("w_authority", 0.1))
-    w_engagement = float(settings.get("w_engagement", 0.1))
-    w_cooccurrence = float(settings.get("w_cooccurrence", 0.15))
-    w_penalty = float(settings.get("w_penalty", 0.05))
+    w_engagement = float(settings.get("w_engagement", 0.08))
+    w_cooccurrence = float(settings.get("w_cooccurrence", 0.12))
+    w_penalty = float(settings.get("w_penalty", 0.5))
 
     score = (
         w_relevance * relevance_signal

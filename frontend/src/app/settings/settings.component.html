@@ -644,6 +644,51 @@
                 </div>
               }
 
+              <!-- FR-023 — Reddit Hot Decay (Traffic Momentum) -->
+              @if (valueModel.enabled) {
+                <p class="hint sub-section-hint">Reddit Hot Decay (Traffic Momentum)</p>
+                <div class="number-grid">
+                  <mat-form-field appearance="outline">
+                    <mat-label>Hot decay</mat-label>
+                    <mat-select [(ngModel)]="valueModel.hot_decay_enabled" [compareWith]="compareBooleans">
+                      <mat-option [value]="true">Enabled</mat-option>
+                      <mat-option [value]="false">Disabled</mat-option>
+                    </mat-select>
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.hot_decay_enabled')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.hot_decay_enabled">
+                    <mat-label>Gravity factor</mat-label>
+                    <input matInput type="number" min="0.001" max="0.5" step="0.01" [(ngModel)]="valueModel.hot_gravity" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.hot_gravity')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.hot_decay_enabled">
+                    <mat-label>Clicks weight</mat-label>
+                    <input matInput type="number" min="0" max="5" step="0.1" [(ngModel)]="valueModel.hot_clicks_weight" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.hot_clicks_weight')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.hot_decay_enabled">
+                    <mat-label>Impressions weight</mat-label>
+                    <input matInput type="number" min="0" max="5" step="0.01" [(ngModel)]="valueModel.hot_impressions_weight" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.hot_impressions_weight')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                  <mat-form-field appearance="outline" *ngIf="valueModel.hot_decay_enabled">
+                    <mat-label>Lookback days</mat-label>
+                    <input matInput type="number" min="7" max="365" step="7" [(ngModel)]="valueModel.hot_lookback_days" />
+                    <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('valueModel.hot_lookback_days')" matTooltipClass="setting-tooltip">
+                      <mat-icon class="icon-md">info_outline</mat-icon>
+                    </button>
+                  </mat-form-field>
+                </div>
+              }
+
               <!-- FR-025 — Session Co-Occurrence Signal -->
               @if (valueModel.enabled) {
                 <p class="hint sub-section-hint">Session Co-Occurrence Signal</p>

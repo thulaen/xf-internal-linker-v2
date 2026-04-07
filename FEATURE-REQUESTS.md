@@ -357,8 +357,10 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### FR-017 - GSC Search Outcome Attribution & Delayed Reward Signals
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
+**Completed phase:** Phase 20
 **Status:** Complete (All 5 Slices: OAuth, shared Google login UX, Python performance ingestion, C# sync endpoint, Angular Search Impact tab with scatter plot and cohort analysis)
 **Priority:** High
+**Completed:** 2026-04-04
 
 - **Slice 2 Completed (2026-04-03):**
   - Implemented exactly against Interactive OAuth requirements.
@@ -795,8 +797,15 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 ### [Complete] FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
 **Requested:** 2026-03-28
 **Target phase:** Phase 26
+**Completed phase:** Phase 26
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr023-reddit-hot-decay-wilson-score-spike-alerts.md`
+**Completed:** 2026-04-07
+
+- C# TrafficDecayService implements Reddit Hot formula with configurable gravity, clicks weight, and impressions weight.
+- Django settings endpoint, recommended_weights.py keys, and Angular settings card added (2026-04-07 audit fix).
+- Wilson Score display (Part 2) and hot-score spike alerts (Part 3) implemented in C# HttpWorker.
+- Preset migration 0026 upserts hot_decay keys into existing installs.
 
 ### What's wanted
 Three independent, non-conflicting improvements built around Reddit's Hot algorithm and Wilson Score math:
@@ -872,8 +881,16 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 ### FR-025 - Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering
 **Requested:** 2026-03-28
 **Target phase:** Phase 28
+**Completed phase:** Phase 28
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr025-session-cooccurrence-collaborative-filtering-behavioral-hubs.md`
+**Completed:** 2026-04-06
+
+- Full cooccurrence app with SessionCoOccurrencePair, BehavioralHub, and BehavioralHubMembership models.
+- 7th signal slot (co_occurrence_signal) integrated into Python post-pipeline value model scorer.
+- Behavioral Hubs management page with hub detection, membership editing, and auto-link toggle.
+- Settings card with co-occurrence sub-section in the Value Model card.
+- Preset migration 0026 upserts co-occurrence keys into existing installs (2026-04-07 audit fix).
 
 ### What's wanted
 - Merges Amazon Item-to-Item Collaborative Filtering and Spotify Discover Weekly co-occurrence into one FR (both need the same underlying data pipeline).
@@ -989,8 +1006,14 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### FR-029 - GPU Embedding Pipeline: fp16 Inference + HIGH_PERFORMANCE Mode
 **Requested:** 2026-03-28
 **Target phase:** Phase 32
+**Completed phase:** Phase 32
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr029-gpu-embedding-pipeline-fp16.md`
+**Completed:** 2026-04-05
+
+- `model.half()` called in `_load_model()` when `device='cuda'`.
+- `ML_PERFORMANCE_MODE: HIGH_PERFORMANCE` set in `docker-compose.yml` backend and celery services.
+- `get_model_status()` reports `fp16: true` when active, feeding FR-028 diagnostics tab.
 
 ### What's wanted
 - Enable fp16 (half-precision) inference on the bge-m3 embedding model when running on CUDA.
@@ -1014,9 +1037,16 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### FR-030 - FAISS-GPU Vector Similarity Search
 **Requested:** 2026-03-28
 **Target phase:** Phase 33
+**Completed phase:** Phase 33
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr030-faiss-gpu-vector-search.md`
 **Depends on:** FR-029
+**Completed:** 2026-04-05
+
+- FAISS IndexFlatIP singleton with GPU/CPU fallback in `faiss_index.py`.
+- Celery Beat task `refresh_faiss_index` refreshes every 15 minutes.
+- Stage 1 pipeline uses `faiss_search()` replacing NumPy matmul.
+- `get_faiss_status()` reports index size and device for FR-028 diagnostics.
 
 ### What's wanted
 - Replace the Stage 1 CPU NumPy matmul (`dest_block @ host_matrix.T`) in the pipeline with a GPU-accelerated FAISS IndexFlatIP search.
@@ -1044,8 +1074,14 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### FR-031 - Interactive D3.js Force-Directed Link Graph
 **Requested:** 2026-04-03
 **Target phase:** Phase 34
+**Completed phase:** Phase 34
 **Priority:** High
 **Spec draft:** `docs/specs/fr031-interactive-d3-link-graph.md`
+**Completed:** 2026-04-03
+
+- D3.js `LinkGraphVizComponent` with force simulation, silo-based coloring, and PageRank-scaled node radius.
+- Drag, zoom, pan, and mouseover neighbor highlighting.
+- `GET /api/graph/topology/` endpoint provides D3-compatible nodes and links JSON.
 
 ### What's wanted
 - The primary visualization for the Link Graph page: an interactive, zoomable, and pannable network graph of the site's internal links.

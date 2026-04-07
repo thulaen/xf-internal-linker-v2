@@ -137,6 +137,29 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "internal_search.baseline_days": "28",
     "internal_search.max_active_queries": "200",
     "internal_search.min_recent_count": "3",
+    # FR-045 — Anchor Diversity & Exact-Match Reuse Guard
+    # Forward-declared: inert until FR-045 is implemented and reads these keys.
+    # Research basis: Google over-optimization penalty (Penguin) and anchor text
+    # diversity best practices. Starting weight is 0.0 (guard-only mode) because
+    # this signal is subtractive — it penalises repetitive anchors rather than
+    # boosting diverse ones. Raise to 0.03 after confirming exact_match_share
+    # thresholds are well-calibrated on the target site.
+    "anchor_diversity.enabled": "true",
+    "anchor_diversity.ranking_weight": "0.0",
+    "anchor_diversity.min_history_count": "2",
+    "anchor_diversity.max_exact_match_share": "0.40",
+    "anchor_diversity.max_exact_match_count": "3",
+    "anchor_diversity.hard_cap_enabled": "false",
+    # FR-046 — Multi-Query Fan-Out for Stage 1 Candidate Retrieval
+    # Forward-declared: inert until FR-046 is implemented and reads these keys.
+    # Research basis: Cormack et al. 2009 reciprocal rank fusion and multi-query
+    # decomposition for long-form documents. This FR modifies Stage 1 retrieval
+    # (not scoring), so there is no ranking_weight — it affects which candidates
+    # enter the pipeline, not how they are scored.
+    "fan_out.enabled": "true",
+    "fan_out.max_sub_queries": "3",
+    "fan_out.min_segment_words": "50",
+    "fan_out.rrf_k": "60",
     # FR-047 — Navigation Path Prediction
     # Forward-declared: inert until FR-047 is implemented and reads these keys.
     # Research basis: US7584181B2 (implicit links from user access patterns) plus
@@ -205,8 +228,10 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "graph_candidate.top_k_candidates": "100",
     "graph_candidate.top_n_entities_per_article": "20",
     "value_model.enabled": "true",
-    "value_model.w_relevance": "0.4",
-    "value_model.w_traffic": "0.3",
+    # Additive signal weights must sum to 1.0.
+    # Rebalanced after FR-024 (engagement) and FR-025 (co-occurrence) were added.
+    "value_model.w_relevance": "0.35",
+    "value_model.w_traffic": "0.25",
     "value_model.w_freshness": "0.1",
     "value_model.w_authority": "0.1",
     "value_model.w_penalty": "0.5",
@@ -214,14 +239,25 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "value_model.traffic_fallback_value": "0.5",
     # FR-024 - TikTok Read-Through Rate Engagement Signal
     "value_model.engagement_signal_enabled": "true",
-    "value_model.w_engagement": "0.1",
+    "value_model.w_engagement": "0.08",
     "value_model.engagement_lookback_days": "30",
     "value_model.engagement_words_per_minute": "200",
     "value_model.engagement_cap_ratio": "1.5",
     "value_model.engagement_fallback_value": "0.5",
+    # FR-023 - Reddit Hot Decay
+    # Forward-declared in C# HttpWorker (TrafficDecayService.cs) but was missing
+    # from Django settings. Adapted from Reddit's Hot algorithm: recent traffic
+    # momentum matters more than stale volume. gravity=0.05 is conservative;
+    # raise to 0.08 after verifying that hot_score rankings are stable across
+    # 7-day windows on a site with >100 daily active pages.
+    "value_model.hot_decay_enabled": "true",
+    "value_model.hot_gravity": "0.05",
+    "value_model.hot_clicks_weight": "1.0",
+    "value_model.hot_impressions_weight": "0.05",
+    "value_model.hot_lookback_days": "90",
     # FR-025 - Session Co-Occurrence Signal
     "value_model.co_occurrence_signal_enabled": "true",
-    "value_model.w_cooccurrence": "0.15",
+    "value_model.w_cooccurrence": "0.12",
     "value_model.co_occurrence_fallback_value": "0.5",
     "value_model.co_occurrence_min_co_sessions": "5",
 }

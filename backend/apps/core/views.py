@@ -175,6 +175,12 @@ DEFAULT_VALUE_MODEL_SETTINGS = {
     "engagement_words_per_minute": recommended_int("value_model.engagement_words_per_minute"),
     "engagement_cap_ratio": recommended_float("value_model.engagement_cap_ratio"),
     "engagement_fallback_value": recommended_float("value_model.engagement_fallback_value"),
+    # FR-023 hot decay signal
+    "hot_decay_enabled": recommended_bool("value_model.hot_decay_enabled"),
+    "hot_gravity": recommended_float("value_model.hot_gravity"),
+    "hot_clicks_weight": recommended_float("value_model.hot_clicks_weight"),
+    "hot_impressions_weight": recommended_float("value_model.hot_impressions_weight"),
+    "hot_lookback_days": recommended_int("value_model.hot_lookback_days"),
     # FR-025 co-occurrence signal
     "co_occurrence_signal_enabled": recommended_bool("value_model.co_occurrence_signal_enabled"),
     "w_cooccurrence": recommended_float("value_model.w_cooccurrence"),
@@ -2979,6 +2985,32 @@ class ValueModelSettingsView(APIView):
                 "value_type": "float",
                 "description": "Fallback signal value when no SearchMetric rows exist for a destination.",
             },
+            # FR-023 hot decay signal
+            "value_model.hot_decay_enabled": {
+                "value": "true" if validated["hot_decay_enabled"] else "false",
+                "value_type": "bool",
+                "description": "Whether FR-023 Reddit Hot decay replaces flat traffic averaging.",
+            },
+            "value_model.hot_gravity": {
+                "value": str(validated["hot_gravity"]),
+                "value_type": "float",
+                "description": "Time-decay gravity factor for the Reddit Hot formula.",
+            },
+            "value_model.hot_clicks_weight": {
+                "value": str(validated["hot_clicks_weight"]),
+                "value_type": "float",
+                "description": "Weight applied to click volume in hot score calculation.",
+            },
+            "value_model.hot_impressions_weight": {
+                "value": str(validated["hot_impressions_weight"]),
+                "value_type": "float",
+                "description": "Weight applied to impression volume in hot score calculation.",
+            },
+            "value_model.hot_lookback_days": {
+                "value": str(validated["hot_lookback_days"]),
+                "value_type": "int",
+                "description": "Number of days of daily traffic data to feed into hot scoring.",
+            },
             # FR-025 co-occurrence signal
             "value_model.co_occurrence_signal_enabled": {
                 "value": "true" if validated["co_occurrence_signal_enabled"] else "false",
@@ -3249,6 +3281,12 @@ def _read_value_model_settings() -> dict[str, float | int | bool]:
         "engagement_words_per_minute": _read_int("value_model.engagement_words_per_minute", DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"]),
         "engagement_cap_ratio": _read_float("value_model.engagement_cap_ratio", DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"]),
         "engagement_fallback_value": _read_float("value_model.engagement_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"]),
+        # FR-023 hot decay signal
+        "hot_decay_enabled": _read_bool("value_model.hot_decay_enabled", DEFAULT_VALUE_MODEL_SETTINGS["hot_decay_enabled"]),
+        "hot_gravity": _read_float("value_model.hot_gravity", DEFAULT_VALUE_MODEL_SETTINGS["hot_gravity"]),
+        "hot_clicks_weight": _read_float("value_model.hot_clicks_weight", DEFAULT_VALUE_MODEL_SETTINGS["hot_clicks_weight"]),
+        "hot_impressions_weight": _read_float("value_model.hot_impressions_weight", DEFAULT_VALUE_MODEL_SETTINGS["hot_impressions_weight"]),
+        "hot_lookback_days": _read_int("value_model.hot_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["hot_lookback_days"]),
         # FR-025 co-occurrence signal
         "co_occurrence_signal_enabled": _read_bool("value_model.co_occurrence_signal_enabled", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_signal_enabled"]),
         "w_cooccurrence": _read_float("value_model.w_cooccurrence", DEFAULT_VALUE_MODEL_SETTINGS["w_cooccurrence"]),
@@ -3293,6 +3331,12 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
         "engagement_words_per_minute": max(50, min(600, _get_int("engagement_words_per_minute"))),
         "engagement_cap_ratio": max(1.0, min(5.0, _get_float("engagement_cap_ratio"))),
         "engagement_fallback_value": max(0.0, min(1.0, _get_float("engagement_fallback_value"))),
+        # FR-023 hot decay signal
+        "hot_decay_enabled": _get_bool("hot_decay_enabled"),
+        "hot_gravity": max(0.001, min(0.5, _get_float("hot_gravity"))),
+        "hot_clicks_weight": max(0.0, min(5.0, _get_float("hot_clicks_weight"))),
+        "hot_impressions_weight": max(0.0, min(5.0, _get_float("hot_impressions_weight"))),
+        "hot_lookback_days": max(7, min(365, _get_int("hot_lookback_days"))),
         # FR-025 co-occurrence signal
         "co_occurrence_signal_enabled": _get_bool("co_occurrence_signal_enabled"),
         "w_cooccurrence": max(0.0, min(1.0, _get_float("w_cooccurrence"))),
