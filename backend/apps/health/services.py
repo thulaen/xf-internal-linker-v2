@@ -713,12 +713,13 @@ def check_knowledge_graph_health() -> ServiceHealthResult:
 def check_weights_plugins_health() -> ServiceHealthResult:
     try:
         from apps.plugins.models import Plugin
-        # Check for non-standard weights
-        weight_keys = ["suggestions.weight_graph", "suggestions.weight_nlp", "suggestions.weight_analytics"]
-        missing_weights = []
-        for key in weight_keys:
-            if not AppSetting.objects.filter(key=key).exists():
-                missing_weights.append(key)
+        from apps.suggestions.weight_preset_service import PRESET_DEFAULTS
+        # Derive required keys from the single source of truth so this check
+        # never drifts when weights are added or removed.
+        missing_weights = [
+            key for key in PRESET_DEFAULTS
+            if not AppSetting.objects.filter(key=key).exists()
+        ]
         
         # Check plugins
         total_plugins = Plugin.objects.count()
@@ -796,24 +797,6 @@ def check_webhooks_health() -> ServiceHealthResult:
             last_error_at=timezone.now(),
             last_error_message=str(e)
         )
-
-# ── Mock Future Service (Proof of Concept) ─────────────────────────
-
-@HealthCheckRegistry.register(
-    "future_ai_agent", 
-    name="Autonomous Agents", 
-    description="Reserved slot for future AI-driven optimization agents."
-)
-def check_mock_future_health() -> ServiceHealthResult:
-    """Example of how easy it is to add future components."""
-    return ServiceHealthResult(
-        service_key="future_ai_agent",
-        status=ServiceHealthRecord.STATUS_HEALTHY,
-        status_label="Future AI Agent is ready.",
-        issue_description="The future component is successfully registered and monitored.",
-        suggested_fix="No action needed.",
-        last_success_at=timezone.now()
-    )
 
 # ── Core Integration Logic ────────────────────────────────────────
 
