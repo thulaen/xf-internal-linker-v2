@@ -12,6 +12,7 @@ class HealthStatusViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ServiceHealthRecord.objects.all().order_by('status', 'service_key')
     serializer_class = ServiceHealthRecordSerializer
+    pagination_class = None
     lookup_field = 'service_key'
 
     @action(detail=False, methods=['post'], url_path='check-all')

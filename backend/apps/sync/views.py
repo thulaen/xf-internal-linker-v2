@@ -84,6 +84,7 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = SyncJob.objects.all()
     serializer_class = SyncJobSerializer
+    pagination_class = None
     lookup_field = "job_id"
 
     @action(detail=False, methods=["get"])
@@ -148,6 +149,7 @@ class WebhookReceiptViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = WebhookReceipt.objects.all()
     serializer_class = WebhookReceiptSerializer
+    pagination_class = None
     lookup_field = "receipt_id"
 
 

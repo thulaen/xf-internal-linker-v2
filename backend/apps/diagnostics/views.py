@@ -45,6 +45,7 @@ class DiagnosticsOverviewView(views.APIView):
 class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ServiceStatusSnapshot.objects.all()
     serializer_class = ServiceStatusSerializer
+    pagination_class = None
 
     @action(detail=False, methods=['post'])
     def refresh(self, request):
@@ -55,6 +56,7 @@ class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
 class ConflictViewSet(viewsets.ModelViewSet):
     queryset = SystemConflict.objects.all()
     serializer_class = SystemConflictSerializer
+    pagination_class = None
 
     @action(detail=False, methods=['post'])
     def detect(self, request):
@@ -81,6 +83,7 @@ class ResourceUsageView(views.APIView):
 class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ErrorLog.objects.all().order_by('-created_at')
     serializer_class = ErrorLogSerializer
+    pagination_class = None
 
     @action(detail=True, methods=['post'])
     def acknowledge(self, request, pk=None):

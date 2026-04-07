@@ -47,6 +47,7 @@ export interface SuggestionDetail extends Suggestion {
   score_march_2026_pagerank: number;
   score_velocity: number;
   score_link_freshness: number;
+  score_ga4_gsc: number;
   score_phrase_relevance: number;
   score_learned_anchor_corroboration: number;
   score_rare_term_propagation: number;
