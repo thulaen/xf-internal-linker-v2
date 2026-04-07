@@ -103,10 +103,13 @@ app-settings .mat-mdc-form-field {
 }
 
 // ── Link Health: Chip Alignment ────────────────────────────────────
-// Previously in link-health.component.scss (::ng-deep .mat-mdc-chip-listbox)
+// Chips must never touch the left edge of the filter bar.
+// Rule: every chip listbox inside a filter-bar gets safe inner padding.
 app-link-health .filter-bar .mat-mdc-chip-listbox {
   margin-left: 0;
   padding-top: 8px;
+  padding-left: 4px; // prevents chips from pressing against the container edge
+  padding-bottom: 4px;
 }
 
 // ── Link Health: Hide Subscript ────────────────────────────────────

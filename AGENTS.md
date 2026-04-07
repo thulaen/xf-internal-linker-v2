@@ -1,4 +1,4 @@
-# Agent Instructions (Codex / OpenAI Codex / CI Agents)
+# Agent Instructions (Codex / OpenAI Codex / CI Agents / Gemini / Claude)
 
 This file applies to every AI agent that works on this repository.
 Read all sections before making any changes to frontend styles.
@@ -76,6 +76,65 @@ When writing styles, prefer in this order:
 - Any new font import
 - Any `linear-gradient` or `radial-gradient`
 - Changing the nav item `border-radius`
+
+---
+
+## Material Design 3 (M3) — Mandatory
+
+This app uses **Angular Material v20 with Material Design 3 (M3)**.
+
+- **Use M3 APIs only**: Use `mat.define-theme` (M3). Do NOT use `mat.m2-define-palette`, `mat.m2-define-light-theme`, or any `m2-` prefixed API.
+- **Do NOT override M3 visual defaults** in order to match a different design system. Accept M3's expressive defaults for spacing, shape, and density.
+- The GA4 branding (primary blue `#1a73e8`, flat cards, border system) still applies — but only via CSS custom property tokens, not by reversing M3 structural defaults.
+- If a new component needs theming, derive it from M3 system tokens (`--mat-sys-primary`, `--mat-sys-surface`, etc.), not legacy M2 tokens.
+
+---
+
+## Spacing, Breathing Room & Edge Clearance — Mandatory for All Agents
+
+The UI must feel **spacious but not cluttered**. Every agent must follow these rules on every new or modified view.
+
+### Never-Touch Rules
+- **Nothing touches an edge.** No button, chip, text, icon, or card may be flush against a page edge, card border, or container wall. Minimum clearance: `16px` from any container edge.
+- **No element collisions.** Text, icons, and buttons must never overlap or be too close to read comfortably. Use `gap` on flex/grid layouts instead of `margin-right` on children.
+- **No collapsed spacing.** If a component has zero `padding` or `margin`, add a comment explaining exactly why — otherwise it is a bug.
+- **Filter bars and chip lists.** The first chip in any `mat-chip-listbox` must never be flush against the left container border. Minimum `padding-left: 4px` must exist on the listbox.
+
+### Spacing Tokens (use these — never hardcode pixel values inside components)
+| Context | Token | Value |
+|---|---|---|
+| Page outer padding | `--spacing-page` | `48px 64px` |
+| Card inner padding | `--spacing-card` | `24px` |
+| Section gap (grid of cards) | `--spacing-md` | `24px` |
+| Inline gap (buttons, chips, icons) | `--spacing-sm` | `12px` |
+| Form field bottom margin | `--spacing-field` | `16px` |
+
+Add tokens to `_theme-vars.scss` if they do not already exist.
+
+### Layout Rules
+- Use `gap` on flex/grid, not `margin-right` on individual children.
+- All page-level content lives inside `.page-content` which provides `48px 64px` outer padding. **Do NOT add extra outer padding inside a routed component** — you will double-pad.
+- Paginator, chip rows, and action rows must never be clipped by an overflow container.
+
+---
+
+## Design Uniformity — Mandatory for All Agents
+
+Every screen must look like it belongs to the **same application**. No custom one-off styles are allowed.
+
+### Component Standardisation
+- **Inputs**: Always use `mat-form-field` with `appearance="outline"`. Never use a raw `<input>` styled locally.
+- **Buttons**: Use only `mat-button`, `mat-stroked-button`, or `mat-flat-button color="primary"`. Do NOT introduce custom button classes with hardcoded sizes.
+- **Error messages**: Always use `<mat-error>` inside a `mat-form-field`, or the global `.error-banner` utility class. Never use a raw `<div>` with inline colour styling.
+- **Cards**: Always use `mat-card` with the global GA4 card system (flat, border-only). Never use a `<div>` with a `box-shadow` to simulate a card.
+- **Chips/Status Badges**: Always use the `ga4-chip` mixin or `.status-chip.status-{state}` classes. Never invent a new badge pattern.
+
+### Anti-Patterns — Never Do These
+- ❌ Inline `style="..."` on any element.
+- ❌ Component-level hardcoded pixel values for padding/margin — always use spacing tokens.
+- ❌ Duplicating the same component pattern in more than one place — abstract to a global utility class.
+- ❌ Any font-size below `11px` — it becomes unreadable.
+- ❌ Content areas that scroll horizontally on a 1280px viewport.
 
 ---
 

@@ -84,7 +84,13 @@
   --radius-md:   8px;
   --radius-lg:   12px;
   --radius-pill: 999px;
-  --spacing-md:  24px;
+
+  // ── Spacing tokens — use these everywhere; never hardcode px in a component ──
+  --spacing-page:  48px 64px; // outer page padding (.page-content)
+  --spacing-card:  24px;      // inner card padding
+  --spacing-md:    24px;      // section gap between cards
+  --spacing-sm:    12px;      // inline gap: buttons, chips, icons
+  --spacing-field: 16px;      // bottom margin for form fields
 
   // ── Shadows ────────────────────────────────────────────────────
   --shadow-sm:    0 1px 2px rgba(60, 64, 67, 0.1);
