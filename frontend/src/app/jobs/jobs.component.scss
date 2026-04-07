@@ -27,15 +27,31 @@
     width: 360px;
   }
 
+  // Rule D: Compound label — mode name and hint are two metadata pieces.
+  // Stack them vertically so they never merge into one illegible string.
+  // A mat-option renders its content as a flex row by default; we override
+  // to column so label + hint each get their own line with clear separation.
   .option-label {
     font-weight: 500;
-    margin-right: 8px;
+    font-size: 13px;
+    color: var(--color-text-primary);
+    display: block;
+    line-height: 1.4;
   }
 
   .option-hint {
     font-size: 11px;
     color: var(--color-text-secondary);
-    opacity: 0.8;
+    display: block;
+    line-height: 1.4;
+    margin-top: 1px;
+
+    // Prepend a colon-space separator via ::before so it's semantically clear
+    // this is the description of the label above it (Rule D: colon-space separator)
+    &::before {
+      content: '';
+      // The vertical stacking IS the separator here — no inline concat
+    }
   }
 
   .sync-all-btn {

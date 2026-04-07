@@ -52,7 +52,7 @@ All values must be multiples of 4px: `4 | 8 | 12 | 16 | 24 | 32 | 48 | 64`. No e
 
 ---
 
-## Before You Finish -- Checklist
+## Before You Finish — Checklist
 
 Run this before completing any frontend task:
 
@@ -61,3 +61,51 @@ Run this before completing any frontend task:
 3. Are all colors using `var(--color-*)` CSS variables? Fix it.
 4. Is any text truncated without a tooltip fallback? Fix it.
 5. Does the page scroll horizontally at 1280px? Fix it.
+
+---
+
+## Layout Precision Rules — Mandatory
+
+These rules come from real layout bugs found in screenshots. Check all four on every task.
+
+### Rule A — Filter Chips: 16px Left Clearance
+The first chip in any filter bar or `mat-chip-listbox` MUST have at least `16px` clearance from the left container wall.
+```scss
+// Correct
+mat-chip-listbox { padding-left: var(--space-md); } // 16px
+```
+Never render a chip list flush-left against a card or page edge.
+
+### Rule B — Form Fields: Centred and Padded Inside Cards
+Every card section containing form fields MUST have `padding: var(--spacing-card)` (24px) on all four sides.
+Sparse forms (1–2 fields in a wide section) MUST be centred both horizontally and vertically:
+```scss
+// Correct for sparse forms
+.form-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--spacing-card);
+}
+```
+
+### Rule C — Buttons: 16px Edge Clearance + Baseline Alignment
+No button may be flush against any container wall. Always use `var(--space-md)` (16px) minimum clearance.
+Buttons in a row with inputs MUST use `align-items: center` so they share the same baseline:
+```scss
+// Correct
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+```
+
+### Rule D — Compound Labels: Visible Separators
+When two pieces of metadata appear on the same line, use a visible separator:
+- ` • ` — for secondary meta (e.g., `Forum Node • 0 posts`)
+- ` — ` — for ranges or classifications
+- `: ` — for label–value pairs (e.g., `Full import: Body text, sentences`)
+
+Never concatenate strings with only whitespace — they visually merge when font weights vary.
+

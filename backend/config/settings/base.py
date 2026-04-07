@@ -260,7 +260,25 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute="*/15"),
         "options": {"queue": "pipeline"},
     },
+    # Part 9 — 12-week self-pruning: Sunday 03:00 UTC, every 12 weeks.
+    # The task itself checks its own last-run timestamp and skips if <84 days ago.
+    "12-week-prune-stale-data": {
+        "task": "pipeline.prune_stale_data",
+        "schedule": crontab(hour=3, minute=0, day_of_week=0),
+        "options": {"queue": "pipeline", "expires": 3600},
+    },
 }
+
+# ── C++ Native Extensions ────────────────────────────────────────
+
+# When True (default), all C++ pybind11 extensions are imported and used.
+# When False, extensions raise RuntimeError — no silent Python fallback.
+# Set False ONLY in unit tests that mock or skip extension calls.
+USE_NATIVE_EXTENSIONS = env.bool("USE_NATIVE_EXTENSIONS", default=True)
+
+# Self-pruning interval: prune stale model snapshots, passage embeddings for
+# deleted pages, particle filter history, and cache entries older than this.
+PRUNE_INTERVAL_DAYS = env.int("PRUNE_INTERVAL_DAYS", default=84)
 
 
 # ── Django Unfold Admin ───────────────────────────────────────────

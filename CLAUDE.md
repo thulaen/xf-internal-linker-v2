@@ -1,6 +1,7 @@
 # Claude Instructions
 
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
+**Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 
 When responding to the user in this repository:
 
@@ -100,19 +101,35 @@ Prefer CSS variables for common gaps:
 
 Use `<mat-icon>` with Google Material Icons ligature names (e.g. `<mat-icon>search</mat-icon>`). Never use Font Awesome, Heroicons, SVG icon files, or emoji as UI icons. Icon size follows the surrounding text size — do not set a custom `font-size` on `<mat-icon>` unless matching a specific GA4 reference.
 
-## Component States — Standard Patterns
+## Component States — M3 Expressive (Mandatory)
 
-Every interactive element must handle all of these states consistently:
+Every interactive element must handle all of these states. **M3 Expressive states are fully embraced — do NOT flatten or suppress them.**
 
 | State | Rule |
 |---|---|
-| **Default** | Flat, no shadow, border via `var(--card-border)` |
-| **Hover** | `var(--shadow-md)` + subtle background shift — never colour change alone |
-| **Focus** | Angular Material's default focus ring — never remove `outline` |
-| **Disabled** | `opacity: 0.38` — the Material standard. Never `display: none` a disabled control |
+| **Default** | Border via `var(--card-border)`. Interactive cards may use `var(--shadow-sm)` at rest. |
+| **Hover** | Full M3 Expressive hover — `var(--shadow-md)` + tonal background shift + spring transition. |
+| **Focus** | M3 Expressive focus ring — larger, more visible than M2. Never remove `outline`. |
+| **Pressed** | M3 Expressive pressed state — tonal ripple at full opacity. Never suppress. |
+| **Disabled** | `opacity: 0.38` — the Material standard. Never `display: none` a disabled control. |
 | **Loading** | `mat-spinner` at `diameter="24"`, centred in its container |
 | **Empty state** | Centred layout: icon (48px) + short heading + one-line description. No raw "No data." text |
 | **Error state** | `var(--color-error)` text below the field via `mat-error`. Never a custom red `<span>` |
+
+Use `transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1)` on all interactive elements as the standard M3 easing.
+
+## Layout Precision Rules — Mandatory
+
+These four rules are derived from real bugs caught in screenshots. **Check all four before finishing any frontend task.**
+
+See the full rules in `AGENTS.md` — "Layout Precision Rules" section. Quick summary:
+
+- **Rule A**: First chip in any filter bar must have `16px` left clearance — never flush-left.
+- **Rule B**: Form fields inside cards must have `24px` padding on all sides. Sparse forms must be centred.
+- **Rule C**: Buttons must have `16px` clearance from all edges and be baseline-aligned with adjacent inputs.
+- **Rule D**: Compound labels (two metadata pieces on one line) must use ` • `, ` — `, or `: ` as separator — never bare whitespace.
+
+
 
 ## Validation Messages
 

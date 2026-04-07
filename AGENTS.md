@@ -26,10 +26,11 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 - **No orange**. The primary color is GA4 blue `#1a73e8`. It lives in `var(--color-primary)`.
 - **No gradients** (`linear-gradient`, `radial-gradient`). GA4 uses flat colour only.
 
-### Cards and Shadows
-- Cards use `border: var(--card-border)` = `0.8px solid #dadce0`. No other border style.
-- `box-shadow: none` at rest. Cards do not have drop shadows.
-- Hover may use `var(--shadow-md)` only - never as a resting state.
+### Cards and Elevation
+- Cards use `border: var(--card-border)` = `0.8px solid #dadce0` as the default style.
+- **M3 Expressive tonal elevation is allowed.** Interactive cards (those the user clicks or drags) MAY use `var(--shadow-sm)` at rest and `var(--shadow-md)` on hover to communicate interactivity.
+- Static informational cards (metrics, stat boxes) use `box-shadow: none` at rest — border only.
+- Never use `box-shadow` values outside the token set (`--shadow-sm`, `--shadow-md`, `--shadow-hover`).
 
 ### Typography
 - Font stack: `var(--font-family)` = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif`
@@ -80,14 +81,15 @@ When writing styles, prefer in this order:
 
 ---
 
-## Material Design 3 (M3) — Mandatory
+## Material Design 3 (M3) Expressive — Mandatory
 
-This app uses **Angular Material v20 with Material Design 3 (M3)**.
+This app uses **Angular Material v20 with Material Design 3 (M3) Expressive**.
 
-- **Use M3 APIs only**: Use `mat.define-theme` (M3). Do NOT use `mat.m2-define-palette`, `mat.m2-define-light-theme`, or any `m2-` prefixed API.
-- **Do NOT override M3 visual defaults** in order to match a different design system. Accept M3's expressive defaults for spacing, shape, and density.
-- The GA4 branding (primary blue `#1a73e8`, flat cards, border system) still applies — but only via CSS custom property tokens, not by reversing M3 structural defaults.
-- If a new component needs theming, derive it from M3 system tokens (`--mat-sys-primary`, `--mat-sys-surface`, etc.), not legacy M2 tokens.
+- **Use M3 APIs only**: Use `mat.define-theme` (M3) + `mat.theme($theme)` applied to `html {}`. Do NOT use `mat.m2-define-palette`, `mat.m2-define-light-theme`, `mat.all-component-themes`, or any `m2-` prefixed API.
+- **Fully embrace M3 Expressive component states**: pronounced hover states, spring-motion transitions, expressive focus rings, and tonal surface elevation are all intentional and desired. Do NOT suppress or flatten them.
+- Smooth transitions and motion are encouraged. Use `transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1)` as the standard easing across interactive elements.
+- The GA4 primary brand colour (`#1a73e8`) is pinned via `--mat-sys-primary: var(--color-primary)` in `default-theme.scss`. Do not remove that override.
+- New components must derive from M3 system tokens (`--mat-sys-primary`, `--mat-sys-surface`, `--mat-sys-on-surface`, etc.), not legacy M2/MDC private tokens.
 
 ---
 
@@ -119,7 +121,41 @@ Add tokens to `_theme-vars.scss` if they do not already exist.
 
 ---
 
+## Layout Precision Rules — Mandatory for All Agents
+
+These rules were derived from real screenshots of layout bugs. Every agent MUST check for all four before submitting any frontend change.
+
+### Rule A — Filter Bars & Chip Lists: Always Padded
+- The first chip in any filter bar or `mat-chip-listbox` MUST have at least `16px` left-padding clearance from the container wall. Never flush-left.
+- Apply `padding-left: var(--space-md)` (16px) on the `mat-chip-listbox` host or its wrapping container.
+
+### Rule B — Form Fields: Centred Within Their Card
+- Form fields inside a card section MUST NEVER be flush against the card edge. The container must have `padding: var(--spacing-card)` (24px) on all sides.
+- Sparse forms (fewer than 3 fields in a wide card section) MUST be horizontally AND vertically centred within the available space. Use `align-items: center; justify-content: center` on the wrapping flex container.
+
+### Rule C — Action Buttons: Edge Clearance + Input Alignment
+- No button may be flush against any container wall. Minimum `16px` clearance (`var(--space-md)`) on all sides.
+- Buttons in the same row as input fields MUST share the same vertical baseline — use `align-items: center` on the flex row.
+- "Create"-style inline buttons next to form groups are a common failure point. Always verify they align with and have clearance from adjacent inputs.
+
+### Rule D — Compound Label Separators
+- When two pieces of metadata appear on the same line (e.g., node name + post count, import mode + description), they MUST be separated by a visible separator.
+- Allowed separators: ` • ` (bullet — preferred for secondary metadata), ` — ` (em-dash — for ranges/classifications), `: ` (colon-space — for label–value pairs).
+- Never concatenate two strings with only whitespace — they will visually merge into one word when font weights differ.
+- ✅ `Forum Node • 0 posts` &nbsp;&nbsp; ✅ `Full import: Body text, sentences, embeddings`
+- ❌ `Forum Node0 posts` &nbsp;&nbsp; ❌ `Full importBody text, sentences`
+
+### Pre-Commit Layout Check
+Before finishing any frontend task, visually confirm:
+1. No chip, text, button, or input is flush against a container edge.
+2. Filter bars have visible left-padding before the first chip.
+3. Inline button rows are baseline-aligned with adjacent form fields.
+4. All compound labels use ` • `, ` — `, or `: ` as separators.
+
+---
+
 ## Design Uniformity — Mandatory for All Agents
+
 
 Every screen must look like it belongs to the **same application**. No custom one-off styles are allowed.
 

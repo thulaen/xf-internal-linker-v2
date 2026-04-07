@@ -103,12 +103,11 @@ app-settings .mat-mdc-form-field {
 }
 
 // ── Link Health: Chip Alignment ────────────────────────────────────
-// Chips must never touch the left edge of the filter bar.
-// Rule: every chip listbox inside a filter-bar gets safe inner padding.
+// Rule A: first chip MUST have 16px clearance from the container wall.
 app-link-health .filter-bar .mat-mdc-chip-listbox {
   margin-left: 0;
   padding-top: 8px;
-  padding-left: 4px; // prevents chips from pressing against the container edge
+  padding-left: var(--space-md); // 16px — Rule A: never flush-left
   padding-bottom: 4px;
 }
 
@@ -137,4 +136,16 @@ app-webhook-log .mat-mdc-card-header {
     font-size: 14px;
     font-weight: 500;
   }
+}
+
+// ── Jobs: Import Mode Dropdown — Compound Label ────────────────────
+// Rule D: option-label and option-hint are two metadata pieces.
+// Stack them vertically so they NEVER run together as a single illegible string.
+// We set the mat-option content area to flex-column.
+app-jobs .mat-mdc-option .mdc-list-item__primary-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+  padding: 4px 0;
+  width: 100%;
 }

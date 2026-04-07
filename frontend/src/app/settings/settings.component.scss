@@ -302,11 +302,26 @@
 
 .group-create-form {
   display: flex;
-  gap: 12px;
-  button { white-space: nowrap; }
+  align-items: center; // Rule C: button must share baseline with adjacent inputs
+  gap: var(--space-md); // 16px gap between fields and button
+
+  // Ensure fields grow and share space, button stays fixed-width
+  mat-form-field {
+    flex: 1;
+    min-width: 0; // prevent overflow in narrow cards
+  }
+
+  button {
+    white-space: nowrap;
+    flex-shrink: 0; // prevent button from collapsing
+    align-self: center; // Rule C: explicit baseline alignment
+    margin-top: 4px; // compensate for mat-form-field label space
+  }
+
   @media (max-width: 768px) {
     flex-direction: column;
-    button { width: 100%; }
+    align-items: stretch;
+    button { width: 100%; margin-top: 0; }
   }
 }
 

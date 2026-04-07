@@ -39,7 +39,32 @@ class SyncJob(models.Model):
     embedding_items_completed = models.IntegerField(default=0)
     
     error_message = models.TextField(blank=True)
-    
+
+    # Pipeline checkpoint for crash-resilient resume (FR-097).
+    # When the pipeline processes content items, it saves the last successfully
+    # processed content_item ID here. If the job crashes or the server shuts
+    # down, the next run can resume from this checkpoint instead of reprocessing
+    # everything from scratch. This avoids duplicate work and saves time.
+    checkpoint_stage = models.CharField(
+        max_length=50,
+        blank=True,
+        default="",
+        help_text="Pipeline stage when checkpoint was saved (e.g. 'ingest', 'spacy', 'embed', 'pipeline').",
+    )
+    checkpoint_last_item_id = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text="ID of the last content item successfully processed before interruption.",
+    )
+    checkpoint_items_processed = models.IntegerField(
+        default=0,
+        help_text="Total items processed before interruption. Used to calculate remaining work on resume.",
+    )
+    is_resumable = models.BooleanField(
+        default=False,
+        help_text="True if this job was interrupted and can be resumed from its checkpoint.",
+    )
+
     started_at = models.DateTimeField(null=True, blank=True)
     completed_at = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)

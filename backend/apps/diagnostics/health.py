@@ -20,6 +20,7 @@ from .models import ServiceStatusSnapshot, SystemConflict
 logger = logging.getLogger(__name__)
 
 _NATIVE_RUNTIME_MODULES = (
+    # ── Existing core extensions (12) ──
     ("scoring", "calculate_composite_scores_full_batch", "Composite scoring kernel", True),
     ("simsearch", "score_and_topk", "Sentence search kernel", True),
     ("pagerank", "pagerank_step", "PageRank kernel", True),
@@ -30,6 +31,158 @@ _NATIVE_RUNTIME_MODULES = (
     ("rareterm", "evaluate_rare_terms", "Rare-term propagation kernel", False),
     ("linkparse", "find_urls", "Link parser kernel", False),
     ("phrasematch", "longest_contiguous_overlap", "Phrase matching kernel", False),
+    ("strpool", "intern", "String pool kernel", False),
+    ("inv_index", "build_index", "Inverted index kernel", False),
+
+    # ── FR-051/058/053: Patent-backed ranking signal extensions ──
+    ("refcontext", "ref_context_score", "FR-051 Reference context scorer", False),
+    ("ngramqual", "ngram_score", "FR-058 N-gram quality scorer", False),
+    ("passagesim", "passage_max_sim", "FR-053 Passage-level similarity", False),
+
+    # ── FR-066/067/068: Core meta-algorithm extensions ──
+    ("smoothrank", "smoothrank_step", "FR-066 SmoothRank NDCG optimiser", False),
+    ("rankagg", "power_iter", "FR-067 Markov rank aggregation", False),
+    ("cascade", "stage_score", "FR-068 Cascade re-ranker", False),
+
+    # ── OPT-01 to OPT-06: Initial resource optimisations ──
+    ("embpool", "alloc", "OPT-01 Embedding memory pool", False),
+    ("vecdeser", "parse_vector", "OPT-02 Fast vector deserialiser", False),
+    ("jaccard_avx", "jaccard_similarity", "OPT-03 AVX2 Jaccard kernel", False),
+    ("clustuf", "union_find", "OPT-04 Cluster union-find", False),
+    ("candfilter", "filter_candidates", "OPT-05 SIMD candidate filter", False),
+    ("quantemb", "quantize_int8", "OPT-06 Embedding int8 quantiser", False),
+
+    # ── OPT-07 to OPT-12: Memory allocators ──
+    ("slab_alloc", "alloc", "OPT-07 Slab allocator", False),
+    ("buddy_alloc", "alloc", "OPT-08 Buddy allocator", False),
+    ("cow_buffer", "wrap", "OPT-09 Copy-on-write buffer", False),
+    ("obj_recycle", "recycle", "OPT-10 Object recycler", False),
+    ("stack_scratch", "alloc", "OPT-11 Stack scratch allocator", False),
+    ("compact_heap", "compact", "OPT-12 Compact heap", False),
+
+    # ── OPT-13 to OPT-20: Data structures ──
+    ("robin_map", "lookup", "OPT-13 Robin Hood hash map", False),
+    ("btree_map", "range_query", "OPT-14 B-tree range map", False),
+    ("skip_rank", "insert", "OPT-15 Skip list top-K", False),
+    ("trie_prefix", "search", "OPT-16 Patricia trie prefix search", False),
+    ("compact_set", "contains", "OPT-17 Compact hash set", False),
+    ("bitset_bloom", "check", "OPT-18 Bloom filter", False),
+    ("sparse_bitvec", "rank", "OPT-19 Sparse bit vector", False),
+    ("ring_queue", "push", "OPT-20 Lock-free ring buffer", False),
+
+    # ── OPT-21 to OPT-27: SIMD / AVX2 vectorised operations ──
+    ("simd_cosine", "cosine_sim", "OPT-21 AVX2 cosine similarity", False),
+    ("simd_topk", "partial_sort", "OPT-22 AVX2 top-K selection", False),
+    ("simd_dotbatch", "dot_batch", "OPT-23 AVX2 batched dot product", False),
+    ("simd_hamming", "hamming_dist", "OPT-24 AVX2 Hamming distance", False),
+    ("simd_strlen", "bulk_strlen", "OPT-25 SIMD string length", False),
+    ("simd_minmax", "reduce", "OPT-26 AVX2 min/max reduction", False),
+    ("simd_gather", "gather", "OPT-27 AVX2 gather", False),
+
+    # ── OPT-28 to OPT-34: Compression & encoding ──
+    ("varint_enc", "encode", "OPT-28 Varint encoder", False),
+    ("delta_enc", "encode", "OPT-29 Delta encoder", False),
+    ("dict_enc", "encode", "OPT-30 Dictionary encoder", False),
+    ("rle_flags", "encode", "OPT-31 Run-length encoder", False),
+    ("fp16_vec", "convert", "OPT-32 Float16 converter", False),
+    ("nibble_score", "pack", "OPT-33 4-bit score packer", False),
+    ("lz4_block", "compress", "OPT-34 LZ4 block compressor", False),
+
+    # ── OPT-35 to OPT-38: Cache-line-friendly layouts ──
+    ("soa_candidate", "to_soa", "OPT-35 Struct-of-arrays layout", False),
+    ("padded_vec", "alloc_aligned", "OPT-36 Cache-aligned vectors", False),
+    ("hot_cold_split", "split", "OPT-37 Hot/cold field splitter", False),
+    ("tile_matrix", "tile_mul", "OPT-38 Cache-tiled matrix ops", False),
+
+    # ── OPT-39 to OPT-43: String optimisation ──
+    ("sso_string", "create", "OPT-39 Small-string optimised container", False),
+    ("str_intern", "intern", "OPT-40 String interning table", False),
+    ("rope_text", "concat", "OPT-41 Rope data structure", False),
+    ("suffix_arr", "search", "OPT-42 Suffix array substring search", False),
+    ("url_canon", "canonicalize", "OPT-43 URL canonicaliser", False),
+
+    # ── OPT-44 to OPT-47: Serialisation & zero-copy ──
+    ("flatvec", "serialize", "OPT-44 FlatBuffers zero-copy", False),
+    ("zerocopy_buf", "as_numpy", "OPT-45 Zero-copy buffer protocol", False),
+    ("msgpack_fast", "pack", "OPT-46 Fast MessagePack", False),
+    ("proto_lite", "encode", "OPT-47 Lightweight protobuf", False),
+
+    # ── OPT-48 to OPT-52: Parallel processing ──
+    ("worksteal_pool", "submit", "OPT-48 Work-stealing thread pool", False),
+    ("lockfree_map", "insert", "OPT-49 Lock-free sharded map", False),
+    ("par_merge", "merge", "OPT-50 Parallel merge sort", False),
+    ("rw_spinlock", "read_lock", "OPT-51 Reader-writer spinlock", False),
+    ("atomic_counter", "increment", "OPT-52 Cache-aligned atomic counter", False),
+
+    # ── OPT-53 to OPT-57: I/O prefetching ──
+    ("async_reader", "read_async", "OPT-53 io_uring async reader", False),
+    ("mmap_embed", "open_mmap", "OPT-54 Memory-mapped embeddings", False),
+    ("prefetch_hint", "prefetch", "OPT-55 Cache prefetch hints", False),
+    ("buffered_write", "flush", "OPT-56 Buffered writer", False),
+    ("page_touch", "touch", "OPT-57 Page pre-fault", False),
+
+    # ── OPT-58 to OPT-61: Numerical optimisation ──
+    ("fixedpt_score", "to_fixed", "OPT-58 Fixed-point scoring", False),
+    ("lut_sigmoid", "sigmoid", "OPT-59 Lookup-table sigmoid", False),
+    ("fast_log", "log2", "OPT-60 Fast IEEE754 log2", False),
+    ("rsqrt_norm", "rsqrt", "OPT-61 Fast inverse sqrt", False),
+
+    # ── OPT-62 to OPT-65: Index structures ──
+    ("radix_tree", "lookup", "OPT-62 Radix tree URL index", False),
+    ("bitmap_idx", "query", "OPT-63 Bitmap index filter", False),
+    ("sparse_matrix", "spmv", "OPT-64 Sparse CSR matrix-vector", False),
+    ("interval_tree", "overlap", "OPT-65 Interval tree query", False),
+
+    # ── OPT-66 to OPT-68: Network / IPC ──
+    ("redis_pipe", "execute", "OPT-66 Redis pipeline batcher", False),
+    ("pg_batch", "copy_in", "OPT-67 PostgreSQL COPY batcher", False),
+    ("ipc_shm", "write", "OPT-68 Shared-memory IPC", False),
+
+    # ── OPT-69 to OPT-70: SQL optimisation ──
+    ("prepared_stmt", "execute", "OPT-69 Prepared statement cache", False),
+    ("result_codec", "decode", "OPT-70 Binary result decoder", False),
+
+    # ── OPT-71 to OPT-72: Pipeline-specific ──
+    ("incr_diff", "has_changed", "OPT-71 Incremental content differ", False),
+    ("result_cache", "get", "OPT-72 Two-tier result cache", False),
+
+    # ── META-04 to META-39: Extended meta-algorithm extensions ──
+    ("coord_ascent", "optimize", "META-04 Coordinate ascent ranker", False),
+    ("cma_es", "optimize", "META-05 CMA-ES weight optimiser", False),
+    ("random_search", "search", "META-06 Random search sampler", False),
+    ("sim_anneal", "anneal", "META-07 Simulated annealing ranker", False),
+    ("diff_evolution", "evolve", "META-08 Differential evolution", False),
+    ("quantile_norm", "normalize", "META-09 Quantile score normaliser", False),
+    ("sigmoid_temp", "scale", "META-10 Sigmoid temperature scaler", False),
+    ("zscore_norm", "normalize", "META-11 Z-score query normaliser", False),
+    ("boxcox_tf", "transform", "META-12 Box-Cox transformer", False),
+    ("rank_pctl", "normalize", "META-13 Rank percentile normaliser", False),
+    ("feat_cross", "cross", "META-14 Pairwise feature crosses", False),
+    ("residual_stack", "stack", "META-15 Residual feature stacker", False),
+    ("ratio_feat", "generate", "META-16 Ratio feature generator", False),
+    ("elastic_reg", "regularize", "META-17 Elastic net regulariser", False),
+    ("weight_drop", "ensemble", "META-18 Weight dropout ensemble", False),
+    ("maxnorm_clip", "clip", "META-19 Max-norm weight clipper", False),
+    ("huber_loss", "loss", "META-20 Huber pairwise loss", False),
+    ("focal_loss", "loss", "META-21 Focal ranking loss", False),
+    ("hinge_loss", "loss", "META-22 Hinge rank loss", False),
+    ("pa_ranker", "update", "META-23 Passive-aggressive ranker", False),
+    ("exp_decay", "decay", "META-24 Exponential decay updater", False),
+    ("slide_window", "retrain", "META-25 Sliding window retrainer", False),
+    ("stack_meta", "blend", "META-26 Stacking meta-learner", False),
+    ("bayes_avg", "average", "META-27 Bayesian model averaging", False),
+    ("bucket_blend", "blend", "META-28 Bucket-wise blender", False),
+    ("bootstrap_ci", "confidence", "META-29 Bootstrap confidence scorer", False),
+    ("conformal_band", "predict", "META-30 Conformal prediction bands", False),
+    ("winsorize", "clip", "META-31 Winsorize score clipper", False),
+    ("iso_forest", "score", "META-32 Isolation forest filter", False),
+    ("eq_freq_bin", "bin", "META-33 Equal frequency binner", False),
+    ("adam_opt", "step", "META-34 Adam weight optimiser", False),
+    ("sgd_mom", "step", "META-35 SGD+momentum optimiser", False),
+    ("rmsprop_opt", "step", "META-36 RMSProp weight optimiser", False),
+    ("kfold_sel", "select", "META-37 K-fold weight selector", False),
+    ("succ_halve", "evaluate", "META-38 Successive halving tuner", False),
+    ("qcluster_route", "route", "META-39 Query cluster router", False),
 )
 
 

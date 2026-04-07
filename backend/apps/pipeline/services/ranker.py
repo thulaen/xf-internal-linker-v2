@@ -18,17 +18,32 @@ from typing import Mapping, TypeAlias
 try:
     from extensions import scoring
     HAS_CPP_EXT = True
-except ImportError:
+except ImportError as _ext_err:
     HAS_CPP_EXT = False
-    warnings.warn(
+    _msg = (
         "C++ scoring extension not found — ranker using slow Python fallback. "
-        "Run 'make build-ext' to compile.",
-        RuntimeWarning,
+        "Run 'make build-ext' to compile."
     )
-    logging.getLogger(__name__).warning(
-        "C++ scoring extension not found — ranker using slow Python fallback. "
-        "Run 'make build-ext' to compile.",
-    )
+    warnings.warn(_msg, RuntimeWarning)
+    logging.getLogger(__name__).warning(_msg)
+    # Write to ErrorLog so the failure is visible in the dashboard.
+    try:
+        import traceback
+        from apps.audit.models import ErrorLog
+        ErrorLog.objects.create(
+            job_type="cpp_extension",
+            step="import_scoring",
+            error_message=_msg,
+            raw_exception=traceback.format_exc(),
+            why=(
+                "The compiled C++ scoring extension (.so on Linux, .pyd on Windows) "
+                "could not be imported. This means the ranker is using the slow Python "
+                "fallback which is 50-100x slower. Rebuild with: "
+                "cd backend/extensions && pip install -e ."
+            ),
+        )
+    except Exception:
+        pass  # ErrorLog itself may not be available during early startup
 
 HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(scoring, "calculate_composite_scores_full_batch")
 

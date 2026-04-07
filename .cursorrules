@@ -7,3 +7,12 @@ AI response rules for this repository:
 - If technical language is unavoidable, explain it right away in simple words.
 
 Before any frontend work, read `frontend/FRONTEND-RULES.md` first.
+
+Frontend hard rules — check these on every task:
+- Nothing may touch a container edge. Minimum 16px clearance everywhere.
+- First chip in any filter bar must have 16px left padding — never flush-left.
+- Form fields in cards must have 24px card padding. Sparse forms centred both ways.
+- Buttons must have 16px clearance and be baseline-aligned with adjacent inputs.
+- Compound labels (two metadata items on one line) MUST use a separator: • or — or :
+- M3 Expressive states (hover, focus, pressed) are intentional — do NOT flatten them.
+

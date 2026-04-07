@@ -472,6 +472,29 @@ def check_ga4_health() -> ServiceHealthResult:
         # Validate read credentials and fetch daily quota if possible.
         _ga4_enrich_credentials_and_quota(property_id.value, metadata)
 
+        # Data-flow validation: check that recent imports actually contain data.
+        recent_rows = SearchMetric.objects.filter(
+            source="ga4", date__gte=(timezone.now() - timezone.timedelta(days=7))
+        ).count()
+        metadata["recent_7d_rows"] = recent_rows
+        if latest_metric and recent_rows == 0:
+            return ServiceHealthResult(
+                service_key="ga4",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="GA4 connected but no recent data.",
+                issue_description=(
+                    "GA4 API responds and credentials are valid, but zero rows were "
+                    "imported in the last 7 days. The integration may be misconfigured "
+                    "(wrong property ID, missing permissions, or no traffic)."
+                ),
+                suggested_fix=(
+                    "Verify the GA4 property ID matches the correct site. Check that the "
+                    "service account has 'Viewer' access. Confirm the site is receiving traffic."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata
+            )
+
         return ServiceHealthResult(
             service_key="ga4",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -561,6 +584,29 @@ def check_gsc_health() -> ServiceHealthResult:
         # Validate read credentials if configured.
         _gsc_validate_credentials(site_url.value)
 
+        # Data-flow validation: check recent imports contain actual rows.
+        recent_rows = SearchMetric.objects.filter(
+            source="gsc", date__gte=(timezone.now() - timezone.timedelta(days=7))
+        ).count()
+        metadata["recent_7d_rows"] = recent_rows
+        if latest_metric and recent_rows == 0:
+            return ServiceHealthResult(
+                service_key="gsc",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="GSC connected but no recent data.",
+                issue_description=(
+                    "GSC API responds and credentials are valid, but zero rows were "
+                    "imported in the last 7 days. The site URL may be wrong, the service "
+                    "account may lack permissions, or the site has no search traffic."
+                ),
+                suggested_fix=(
+                    "Verify the GSC site URL matches the correct property. Check that "
+                    "the service account is listed as a user in Search Console."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata
+            )
+
         return ServiceHealthResult(
             service_key="gsc",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -608,14 +654,36 @@ def check_matomo_health() -> ServiceHealthResult:
         )
 
     try:
+        metadata = {"url": matomo_url.value}
+
+        # Data-flow validation: check for recent Matomo-sourced metrics.
+        matomo_rows = SearchMetric.objects.filter(source="matomo").count()
+        metadata["total_rows"] = matomo_rows
+        if matomo_rows == 0:
+            return ServiceHealthResult(
+                service_key="matomo",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Matomo connected but no data imported.",
+                issue_description=(
+                    "Matomo API is reachable but zero analytics rows have been imported. "
+                    "The site ID or auth token may be wrong, or no tracking data exists."
+                ),
+                suggested_fix=(
+                    "Verify the Matomo site ID and auth token. Check that the Matomo "
+                    "tracking code is installed on the target site."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata
+            )
+
         return ServiceHealthResult(
             service_key="matomo",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="Matomo connected.",
-            issue_description="Matomo API is reachable and responding.",
+            issue_description=f"Matomo API is reachable and {matomo_rows:,} rows imported.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"url": matomo_url.value}
+            metadata=metadata
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -691,11 +759,31 @@ def check_xenforo_health() -> ServiceHealthResult:
                     metadata=metadata
                 )
         
+        # Data-flow validation: check that ContentItems actually exist from this source.
+        xf_items = ContentItem.objects.filter(content_type__in=["thread", "resource"]).count()
+        metadata["content_items"] = xf_items
+        if xf_items == 0:
+            return ServiceHealthResult(
+                service_key="xenforo",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="XenForo connected but no content imported.",
+                issue_description=(
+                    "XenForo API is reachable but zero content items exist in the database. "
+                    "The API key may have insufficient permissions, or the forum is empty."
+                ),
+                suggested_fix=(
+                    "Trigger a full sync from the Jobs page. Check that the API key has "
+                    "read permissions for threads and resources."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata
+            )
+
         return ServiceHealthResult(
             service_key="xenforo",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="XenForo connected.",
-            issue_description="XenForo API is reachable and content is syncing correctly.",
+            issue_description=f"XenForo API is reachable and {xf_items:,} content items are synced.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
             metadata=metadata
@@ -772,11 +860,31 @@ def check_wordpress_health() -> ServiceHealthResult:
                     metadata=metadata
                 )
         
+        # Data-flow validation: check that WordPress content items exist.
+        wp_items = ContentItem.objects.filter(content_type="wp_post").count()
+        metadata["content_items"] = wp_items
+        if wp_items == 0:
+            return ServiceHealthResult(
+                service_key="wordpress",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="WordPress connected but no content imported.",
+                issue_description=(
+                    "WordPress API is reachable but zero posts exist in the database. "
+                    "The Application Password may lack read permissions, or the site has no posts."
+                ),
+                suggested_fix=(
+                    "Trigger a full WordPress sync from the Jobs page. Verify the "
+                    "Application Password has 'read' scope."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata
+            )
+
         return ServiceHealthResult(
             service_key="wordpress",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="WordPress connected.",
-            issue_description="WordPress API is reachable and response was valid.",
+            issue_description=f"WordPress API is reachable and {wp_items:,} posts are synced.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
             metadata=metadata

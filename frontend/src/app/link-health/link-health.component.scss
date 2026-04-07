@@ -121,16 +121,19 @@
 
 .filter-bar {
   display: flex;
-  align-items: flex-start; // Align top start to allow for manual baseline synchronization
+  align-items: center; // baseline-align chips and HTTP status dropdown (Rule C)
   justify-content: flex-start;
   gap: 32px;
   flex-wrap: wrap;
   margin-bottom: 48px;
 
-  // Chip + form field overrides moved to global _material-overrides.scss
+  // Rule A: first chip must have 16px clearance from container wall
+  mat-chip-listbox {
+    padding-left: var(--space-md); // 16px — never flush-left
+  }
 
   .status-code-field {
-    align-self: flex-start;
+    align-self: center; // align with chip row baseline
   }
 }
 

@@ -1600,6 +1600,689 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ---
 
+### FR-051 — Reference Context Scoring
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8577893B1 (*Ranking Based on Reference Contexts*, Google 2013).
+**Spec:** `docs/specs/fr051-reference-context-scoring.md`
+
+### What's wanted
+- Score the ±5-token window around each link insertion point using IDF-weighted rare-word overlap with the destination page.
+
+### Specific controls / behaviour
+- New score computed at ranking time per (source_sentence, destination_page) pair.
+- Formula: `score = (1/|W|) × Σ_{t ∈ W ∩ D} IDF(t)`, normalised per-query to [0,1].
+- Reuses existing BM25 IDF vocabulary — no new model required.
+- Settings: `reference_context.enabled`, `reference_context.ranking_weight` (default `0.03`), `reference_context.window_tokens`, `reference_context.idf_smoothing`.
+- C++ extension: `refcontext.cpp`.
+
+### Implementation notes for the AI
+- Keep separate from `score_keyword` (Jaccard on full token sets) — this is micro-context (10-word window) only.
+- Keep separate from `score_semantic` (embedding cosine) — this is token-level, not embedding-level.
+- C++ hot path mandatory. Full spec: `docs/specs/fr051-reference-context-scoring.md`.
+
+---
+
+### FR-052 — Readability Level Matching
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US20070067294A1 (*Readability and Context Identification and Exploitation*, Google 2005).
+**Spec:** `docs/specs/fr052-readability-level-matching.md`
+
+### What's wanted
+- Compute Flesch-Kincaid grade level for source and destination pages; penalise links where grade levels differ by more than 3.
+
+### Specific controls / behaviour
+- Formula: `FK_grade = 0.39 × (words/sentences) + 11.8 × (syllables/words) - 15.59`. Penalty: `max(0, |FK_src - FK_dst| - 3) / 10`. Score: `max(0, 1 - penalty)`.
+- Stored as one float per page at index time.
+- Settings: `readability_match.enabled`, `readability_match.ranking_weight` (default `0.02`), `readability_match.max_grade_gap`, `readability_match.penalty_per_grade`.
+
+### Implementation notes for the AI
+- Pure Python formula — no C++ needed (three arithmetic ops per page).
+- Keep separate from all existing signals — no existing signal measures readability.
+
+---
+
+### FR-053 — Passage-Level Relevance Scoring
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US9940367B1 (*Scoring Candidate Answer Passages*, Google 2018).
+**Spec:** `docs/specs/fr053-passage-level-relevance.md`
+
+### What's wanted
+- Score each destination at sub-document granularity by finding the best-matching passage (~200 words) rather than scoring the full page.
+
+### Specific controls / behaviour
+- Chunk each destination into k=5 passages. Encode each as 1024-dim BGE-M3 vector.
+- Formula: `score = max_{i=1..k} cos_sim(query_sentence_embedding, passage_i_embedding)`.
+- Passage embeddings stored as separate int8-quantised FAISS index (~256 MB).
+- Settings: `passage_relevance.enabled`, `passage_relevance.ranking_weight` (default `0.05`), `passage_relevance.passages_per_page`, `passage_relevance.passage_words`, `passage_relevance.index_quantised`.
+- C++ extension: `passagesim.cpp`.
+
+### Implementation notes for the AI
+- Keep separate from `score_semantic` (full-document cosine). This is passage-level, not page-level.
+- int8 quantisation via `quantemb.cpp` (OPT-06) to keep RAM under 256 MB.
+
+---
+
+### FR-054 — Boilerplate-to-Content Ratio
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8898296B2 (*Detection of Boilerplate Content*, Google 2014).
+**Spec:** `docs/specs/fr054-boilerplate-content-ratio.md`
+
+### What's wanted
+- Measure the fraction of a destination page that is main content vs. navigation/footer/sidebar chrome. Penalise thin-content destinations.
+
+### Specific controls / behaviour
+- Formula: `score = content_chars / total_chars`. Penalise when `score < boilerplate_threshold`.
+- Computed at crawl time from DOM zone extraction.
+- Settings: `boilerplate_ratio.enabled`, `boilerplate_ratio.ranking_weight` (default `0.02`), `boilerplate_ratio.boilerplate_threshold`, `boilerplate_ratio.min_content_chars`.
+
+### Implementation notes for the AI
+- Pure Python — no C++ needed (string length comparison at index time).
+- Keep separate from all quality signals — no existing signal measures boilerplate ratio.
+
+---
+
+### FR-055 — Reasonable Surfer Click Probability
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8117209B1 (*Ranking Documents Based on User Behavior and/or Feature Data*, Google 2012).
+**Spec:** `docs/specs/fr055-reasonable-surfer-click-probability.md`
+
+### What's wanted
+- Score each candidate link by where it would appear on the page: body zone, paragraph index, anchor length, emphasis.
+
+### Specific controls / behaviour
+- Formula: `raw = zone_weight × position_decay × anchor_length_factor × emphasis_factor`, normalised to [0,1].
+- `position_decay = 1 / (1 + ln(paragraph_index + 1))`.
+- Settings: `reasonable_surfer.enabled`, `reasonable_surfer.ranking_weight` (default `0.03`), zone weights, `reasonable_surfer.emphasis_boost`.
+
+### Implementation notes for the AI
+- Computed at ranking time per candidate insertion point. Not persisted.
+- Keep separate from `score_quality` (PageRank-based). This is position-based, not authority-based.
+
+---
+
+### FR-056 — Long-Click Satisfaction Ratio
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US10229166B1 (*Modifying Search Result Ranking Based on Implicit User Feedback*, Google 2019).
+**Spec:** `docs/specs/fr056-long-click-satisfaction-ratio.md`
+
+### What's wanted
+- Ratio of sessions where users stayed on the destination >30 s to sessions where they bounced within 10 s. Derived from GA4 session data.
+
+### Specific controls / behaviour
+- Formula: `score = (long_clicks + α) / (long_clicks + short_clicks + 2α)`, α=5 (Laplace smoothing).
+- Updated daily from GA4 session import.
+- Settings: `long_click_ratio.enabled`, `long_click_ratio.ranking_weight` (default `0.04`), `long_click_ratio.long_session_seconds`, `long_click_ratio.short_session_seconds`, `long_click_ratio.laplace_alpha`.
+
+### Implementation notes for the AI
+- Uses GA4 data already imported by FR-016. No new import logic.
+- Keep separate from `value_model.w_engagement` (read-through rate). This is binary long/short; engagement is continuous time ratio.
+
+---
+
+### FR-057 — Content-Update Magnitude
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8549014B2 (*Document Scoring Based on Document Content Update*, Google 2013).
+**Spec:** `docs/specs/fr057-content-update-magnitude.md`
+
+### What's wanted
+- Measure how much real content changed between crawls via token symmetric-difference ratio.
+
+### Specific controls / behaviour
+- Formula: `magnitude = |tokens_new △ tokens_old| / max(|tokens_new|, |tokens_old|)`.
+- Stored as one float per page, updated on each re-crawl.
+- Settings: `content_update.enabled`, `content_update.ranking_weight` (default `0.02`), `content_update.max_staleness_days`.
+
+### Implementation notes for the AI
+- Keep separate from `link_freshness` (time-based). This is content-based, not timestamp-based.
+- Pure Python (set operations at index time, not ranking time).
+
+---
+
+### FR-058 — N-gram Writing Quality Prediction
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US9767157B2 (*Predicting Site Quality*, Google/Panda 2017).
+**Spec:** `docs/specs/fr058-ngram-writing-quality.md`
+
+### What's wanted
+- Build a Kneser-Ney smoothed n-gram language model on known-good pages; score destinations by inverse perplexity to catch auto-generated or spun content.
+
+### Specific controls / behaviour
+- Formula: `perplexity(T) = exp(-1/|T| × Σ log P_KN(tᵢ|context))`. Score: `1 / (1 + log(PP / baseline_PP))`.
+- n-gram model (~200 MB on disk, discardable after scoring).
+- Settings: `ngram_quality.enabled`, `ngram_quality.ranking_weight` (default `0.03`), `ngram_quality.max_n`, `ngram_quality.kn_discount`, `ngram_quality.baseline_perplexity`.
+- C++ extension: `ngramqual.cpp`.
+
+### Implementation notes for the AI
+- Keep separate from `score_keyword` (overlap metric). This is a language model quality metric.
+- C++ hot path for perplexity computation over long token sequences.
+
+---
+
+### FR-059 — Topic Purity Score
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US20210004416A1 (*Extracting Key Phrase Candidates and Producing Topical Authority Ranking*, Google 2020).
+**Spec:** `docs/specs/fr059-topic-purity-score.md`
+
+### What's wanted
+- Fraction of sentences in a site section whose embeddings exceed a cosine-similarity threshold with the section centroid.
+
+### Specific controls / behaviour
+- Formula: `purity = on_topic_sentences / total_sentences` where on_topic = `cos_sim(sentence_emb, section_centroid) > θ`.
+- Stored as one float per (section, topic) pair at index time.
+- Settings: `topic_purity.enabled`, `topic_purity.ranking_weight` (default `0.04`), `topic_purity.on_topic_threshold`, `topic_purity.min_sentences`.
+
+### Implementation notes for the AI
+- Keep separate from `FR-048` topical cluster density (cluster-level). This is section-level sentence purity.
+- Uses existing BGE-M3 embeddings — no new model.
+
+---
+
+### FR-060 — ListNet Listwise Ranking
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US7734633B2 (*Listwise Ranking*, Microsoft 2010).
+**Spec:** `docs/specs/fr060-listnet-listwise-ranking.md`
+
+### What's wanted
+- LightGBM model with objective=rank:ndcg trained on editor-approved/rejected lists. Learns from relative ordering of entire batches.
+
+### Specific controls / behaviour
+- Plackett-Luce top-1 probability: `P(i|s) = exp(sᵢ) / Σⱼ exp(sⱼ)`. Loss: cross-entropy between true and predicted distributions.
+- Model output replaces the composite score at inference — not additive.
+- Settings: `listnet.enabled` (default `false`), `listnet.n_estimators`, `listnet.num_leaves`, `listnet.learning_rate`, `listnet.min_training_samples`, `listnet.model_refresh_days`.
+
+### Implementation notes for the AI
+- Keep separate from FR-018 (L-BFGS weight tuner). ListNet replaces the scorer; L-BFGS tunes weights within the existing scorer.
+- Disabled by default until sufficient training data exists.
+
+---
+
+### FR-061 — RankBoost Weight Optimisation (Weights-Only Mode)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US8301638B2 (*Automated Feature Selection Based on RankBoost for Ranking*, Microsoft 2012).
+**Spec:** `docs/specs/fr061-rankboost-weight-optimisation.md`
+
+### What's wanted
+- Adjust signal importance weights up or down via AdaBoost on pairwise preferences from GSC, Matomo, and GA4 data. NEVER drops a signal — floor weight enforced.
+
+### Specific controls / behaviour
+- At each round t: find best weak ranker, compute α_t, update sample distribution.
+- Weight update: `wᵢ ← max(w_min=0.01, wᵢ + η × δᵢ)`. Floor enforced on all signals.
+- Data sources: GSC click/impression deltas, Matomo per-suggestion CTR, GA4 session engagement.
+- Settings: `rankboost.enabled` (default `false`), `rankboost.n_rounds`, `rankboost.learning_rate`, `rankboost.min_weight_floor`, `rankboost.data_sources`, `rankboost.retrain_days`.
+
+### Implementation notes for the AI
+- Keep separate from FR-018 (L-BFGS tuner). RankBoost is boosting-based pairwise; L-BFGS is gradient-based on a proxy loss.
+- CRITICAL: never set any weight to zero. The user explicitly required weights-only mode.
+
+---
+
+### FR-062 — Particle Thompson Sampling + Matrix Factorisation (PTS-MF)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US10332015B2 (*Particle Thompson Sampling for Online Matrix Factorization Recommendation*, Adobe 2019).
+**Spec:** `docs/specs/fr062-particle-thompson-sampling-mf.md`
+
+### What's wanted
+- Rao-Blackwellized particle filter for online Bayesian matrix factorisation. Solves the cold-start problem.
+
+### Specific controls / behaviour
+- Model: `P(r_{ui}=1 | U, V) = σ(uᵢ · vⱼᵀ)`. 30 particles, latent dim=20.
+- Score: `ŝ(u,i) = Σ_p w^p × σ(U^p_{u:} · V^p_{i:})`.
+- Settings: `pts_mf.enabled` (default `false`), `pts_mf.latent_dim`, `pts_mf.n_particles`, `pts_mf.prior_variance`, `pts_mf.resample_ess_threshold`, `pts_mf.model_refresh_days`.
+
+### Implementation notes for the AI
+- Keep separate from FR-013 (UCB1 explore/exploit). PTS-MF is collaborative filtering; UCB1 is bandit.
+- RAM budget: ~240 MB. Reduced via L=20, P=30.
+
+---
+
+### FR-063 — Multi-Hyperplane Ranker Ensemble (MHR)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8122015B2 (*Multi-Ranker For Search*, Microsoft 2012).
+**Spec:** `docs/specs/fr063-multi-hyperplane-ranker.md`
+
+### What's wanted
+- 6 grade-pair SVMs (for grades 0-3) with BordaCount aggregation. Learns that features separating "great from good" differ from "good from bad".
+
+### Specific controls / behaviour
+- For each pair (a,b): train LinearSVC. BordaCount: `score(x) = Σ (n - rank_{ab}(x))`.
+- Settings: `mhr.enabled` (default `false`), `mhr.n_grades`, `mhr.svm_c`, `mhr.svm_max_iter`, `mhr.retrain_days`.
+
+### Implementation notes for the AI
+- Keep separate from FR-060 (ListNet). MHR uses grade-pair SVMs; ListNet uses LightGBM.
+- scikit-learn LinearSVC — no custom C++ needed.
+
+---
+
+### FR-064 — Spectral Relational Clustering (SRC)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US8185481B2 (*Spectral Clustering for Multi-Type Relational Data*, SUNY 2012).
+**Spec:** `docs/specs/fr064-spectral-relational-clustering.md`
+
+### What's wanted
+- Joint Laplacian eigen decomposition on page-anchor and page-query relation matrices. Richer topic clusters than single-type HDBSCAN.
+
+### Specific controls / behaviour
+- `L_joint = λ₁L₁ + λ₂L₂`. Top d=16 eigenvectors → K-Means(K=32).
+- Settings: `spectral_rc.enabled` (default `false`), `spectral_rc.n_clusters`, `spectral_rc.eigen_dim`, `spectral_rc.relation_weight_anchor`, `spectral_rc.relation_weight_query`, `spectral_rc.rebuild_days`.
+
+### Implementation notes for the AI
+- Keep separate from FR-014 (HDBSCAN near-duplicate clustering). SRC is multi-relational spectral; HDBSCAN is density-based single-view.
+- scipy.sparse.linalg.eigsh + sklearn KMeans — no custom C++ needed.
+
+---
+
+### FR-065 — Isotonic Regression Score Calibration
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US9189752B1 (*Interpolating Isotonic Regression for Binary Classification*, Google 2015).
+**Spec:** `docs/specs/fr065-isotonic-regression-calibration.md`
+
+### What's wanted
+- Post-scoring calibration mapping raw composite scores to calibrated probabilities via Pool-Adjacent-Violators + Delaunay interpolation.
+
+### Specific controls / behaviour
+- PAV algorithm: O(n). Delaunay interpolation for continuous output.
+- Applied after all other scoring: `p_calibrated = IR_model.predict([composite_score])`.
+- Settings: `isotonic_calibration.enabled` (default `false`), `isotonic_calibration.min_training_samples`, `isotonic_calibration.retrain_days`.
+
+### Implementation notes for the AI
+- scikit-learn IsotonicRegression — no custom C++ needed.
+- Keep separate from all scoring signals — this is a post-scoring calibration layer.
+
+---
+
+### FR-066 — SmoothRank: Direct Metric Optimisation (META-01)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US7895198B2 (*Gradient Based Optimization of a Ranking Measure*, Yahoo 2011).
+**Spec:** `docs/specs/fr066-smoothrank-ndcg-optimisation.md`
+
+### What's wanted
+- Differentiable NDCG approximation via sigmoid-based position smoothing, then gradient ascent directly on the ranking metric.
+
+### Specific controls / behaviour
+- Smooth rank: `π_σ(i) = 1 + Σⱼ≠ᵢ σ((sⱼ - sᵢ) / σ_temp)`. DCG_smooth via soft discount.
+- σ_temp annealed from 1.0 to 0.05 over training.
+- Settings: `smoothrank.enabled` (default `false`), `smoothrank.sigma_init`, `smoothrank.sigma_min`, `smoothrank.sigma_anneal`, `smoothrank.learning_rate`, `smoothrank.n_epochs`, `smoothrank.retrain_days`.
+- C++ extension: `smoothrank.cpp`.
+
+### Implementation notes for the AI
+- Keep separate from FR-018 (L-BFGS on proxy loss). SmoothRank optimises the actual NDCG metric.
+- C++ hot path mandatory for gradient computation over n² sigmoid calls.
+
+---
+
+### FR-067 — Supervised Rank Aggregation via Markov Chains (META-02)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Patent US7840522B2 (*Supervised Rank Aggregation Based on Rankings*, Microsoft/Tie-Yan Liu 2010).
+**Spec:** `docs/specs/fr067-markov-chain-rank-aggregation.md`
+
+### What's wanted
+- Learn per-source mixing weights for combining heterogeneous ranked lists using Markov chain stationary distributions, optimised via SDP.
+
+### Specific controls / behaviour
+- Transition matrix per source. `π = stationary(Σ_k λ_k T_k)` via power iteration.
+- SDP: `min ‖T* - Σ_k λ_k T_k‖_F²` s.t. `λ ≥ 0, Σλ = 1`.
+- Settings: `rank_aggregation.enabled` (default `false`), `rank_aggregation.sdp_max_iter`, `rank_aggregation.sdp_tol`, `rank_aggregation.power_iter_max`, `rank_aggregation.power_iter_tol`, `rank_aggregation.retrain_days`.
+- C++ extension: `rankagg.cpp`.
+
+### Implementation notes for the AI
+- Keep separate from FR-046 (unsupervised RRF). This is supervised with editorial labels.
+- C++ for matrix construction and power iteration.
+
+---
+
+### FR-068 — Cascade Telescoping Re-Ranking (META-03)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Research basis:** Patent US7689615B2 (*Ranking Results Using Multiple Nested Ranking*, Microsoft 2010).
+**Spec:** `docs/specs/fr068-cascade-telescoping-reranking.md`
+
+### What's wanted
+- 3-stage cascade: all N candidates → top 200 → top 50 → top 10 via progressively richer feature sets. Reduces compute 3-5x.
+
+### Specific controls / behaviour
+- Stage 1: cheap features (Jaccard, scope, boilerplate). Stage 2: +BM25, phrase match. Stage 3: +embeddings, all signals.
+- Each stage: `Linear(d, 32) → ReLU → Linear(32, 1)`. Trained on pruned datasets.
+- Settings: `cascade_rerank.enabled` (default `false`), `cascade_rerank.stage1_top_n`, `cascade_rerank.stage2_top_n`, `cascade_rerank.stage3_top_n`, `cascade_rerank.net_hidden_size`, `cascade_rerank.adam_lr`, `cascade_rerank.retrain_days`.
+- C++ extension: `cascade.cpp`.
+
+### Implementation notes for the AI
+- C++ hot path for stage scoring (small neural net forward pass).
+- Replaces the single-pass scoring with a 3-stage pipeline. Existing signals are not removed — just evaluated at different stages.
+
+---
+
+### FR-069 — Viral Propagation Depth
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US10152544B1 (Meta). Score: `log(depth+1)/log(max_depth+1)`.
+**Spec:** `docs/specs/fr069-viral-propagation-depth.md`
+- Settings: `viral_depth.enabled`, `viral_depth.ranking_weight` (0.02).
+
+---
+
+### FR-070 — Viral Content Recipient Ranking
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US9323850B1 (Google/YouTube). Recipient authority scoring.
+**Spec:** `docs/specs/fr070-viral-recipient-ranking.md`
+- Settings: `viral_recipient.enabled`, `viral_recipient.ranking_weight` (0.02).
+
+---
+
+### FR-071 — Large-Scale Sentiment Score
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US7996210B2 (Google). VADER compound polarity mapped [0,1].
+**Spec:** `docs/specs/fr071-large-scale-sentiment-score.md`
+- Settings: `sentiment_score.enabled`, `sentiment_score.ranking_weight` (0.02).
+
+---
+
+### FR-072 — Trending Content Velocity
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20150169587A1 (Meta/CrowdTangle). 6-hour engagement acceleration.
+**Spec:** `docs/specs/fr072-trending-content-velocity.md`
+- Settings: `trending_velocity.enabled`, `trending_velocity.ranking_weight` (0.02).
+
+---
+
+### FR-073 — Professional Graph Proximity
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20140244561A1 (LinkedIn). Jaccard of GA4 user-ID sets.
+**Spec:** `docs/specs/fr073-professional-graph-proximity.md`
+- Settings: `professional_proximity.enabled`, `professional_proximity.ranking_weight` (0.02).
+
+---
+
+### FR-074 — Influence Score
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20140019539A1 (Google). Social reshare-graph PageRank.
+**Spec:** `docs/specs/fr074-influence-score.md`
+- Settings: `influence_score.enabled`, `influence_score.ranking_weight` (0.02).
+
+---
+
+### FR-075 — Watch-Time Completion Rate
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US9098511B1 (Google/YouTube). Video completion ratio Laplace-smoothed.
+**Spec:** `docs/specs/fr075-watch-time-completion-rate.md`
+- Settings: `watch_completion.enabled`, `watch_completion.ranking_weight` (0.02).
+
+---
+
+### FR-076 — Dwell-Time Interest Profile Match
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20150127662A1 (Google). `score = exp(-|μ_src - μ_dst| / 60)`.
+**Spec:** `docs/specs/fr076-dwell-time-profile-match.md`
+- Settings: `dwell_profile_match.enabled`, `dwell_profile_match.ranking_weight` (0.02).
+
+---
+
+### FR-077 — Geographic Engagement Concentration
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20080086264A1 (Google). Herfindahl index: `H = Σ(s_country)²`, score = 1 - H.
+**Spec:** `docs/specs/fr077-geographic-engagement-concentration.md`
+- Settings: `geo_concentration.enabled`, `geo_concentration.ranking_weight` (0.02).
+
+---
+
+### FR-078 — Community Upvote Velocity
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20140244561A1 (Reddit-derived). First-hour upvote rate vs median.
+**Spec:** `docs/specs/fr078-community-upvote-velocity.md`
+- Settings: `upvote_velocity.enabled`, `upvote_velocity.ranking_weight` (0.02).
+
+---
+
+### FR-079 — Spam Account Interaction Filter
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** WO2013140410A1. `score = 1 - spam_ratio`.
+**Spec:** `docs/specs/fr079-spam-interaction-filter.md`
+- Settings: `spam_filter.enabled`, `spam_filter.ranking_weight` (0.02).
+
+---
+
+### FR-080 — Content Freshness Decay Rate
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US8832088B1 (Google). Exponential decay: `score = 1/(1+λ)`.
+**Spec:** `docs/specs/fr080-content-freshness-decay-rate.md`
+- Settings: `freshness_decay_rate.enabled`, `freshness_decay_rate.ranking_weight` (0.02).
+
+---
+
+### FR-081 — Contextual Sentiment Alignment
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20150286627A1 (Google). `score = 1 - |c_src - c_dst| / 2`.
+**Spec:** `docs/specs/fr081-contextual-sentiment-alignment.md`
+- Settings: `sentiment_alignment.enabled`, `sentiment_alignment.ranking_weight` (0.02).
+
+---
+
+### FR-082 — Structural Duplicate Detection Score
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US7734627B1 (Google). SimHash of HTML tag sequence.
+**Spec:** `docs/specs/fr082-structural-duplicate-detection.md`
+- Settings: `structural_dup.enabled`, `structural_dup.ranking_weight` (0.02).
+
+---
+
+### FR-083 — Anomalous Interaction Pattern Filter
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** EP3497609B1. Engagement burst z-score anomaly detection.
+**Spec:** `docs/specs/fr083-anomalous-interaction-filter.md`
+- Settings: `anomaly_filter.enabled`, `anomaly_filter.ranking_weight` (0.02).
+
+---
+
+### FR-084 — Hashtag Co-occurrence Strength
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US10698945B2 (Snap). PMI between topic tags.
+**Spec:** `docs/specs/fr084-hashtag-cooccurrence-strength.md`
+- Settings: `hashtag_cooccurrence.enabled`, `hashtag_cooccurrence.ranking_weight` (0.02).
+
+---
+
+### FR-085 — Content Format Preference Signal
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20190050433A1 (Snap). Format affinity scoring.
+**Spec:** `docs/specs/fr085-content-format-preference.md`
+- Settings: `format_preference.enabled`, `format_preference.ranking_weight` (0.02).
+
+---
+
+### FR-086 — Retweet Graph Authority
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US8370326B2 (Twitter). Reshare-graph PageRank.
+**Spec:** `docs/specs/fr086-retweet-graph-authority.md`
+- Settings: `retweet_authority.enabled`, `retweet_authority.ranking_weight` (0.02).
+
+---
+
+### FR-087 — Reply Thread Depth Signal
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US8954500B2 (Twitter). `score = min(1, mean_depth / 5)`.
+**Spec:** `docs/specs/fr087-reply-thread-depth.md`
+- Settings: `reply_depth.enabled`, `reply_depth.ranking_weight` (0.02).
+
+---
+
+### FR-088 — Save/Bookmark Rate
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US9256680B2 (Pinterest). `saves / (views + 10)`.
+**Spec:** `docs/specs/fr088-save-bookmark-rate.md`
+- Settings: `bookmark_rate.enabled`, `bookmark_rate.ranking_weight` (0.02).
+
+---
+
+### FR-089 — Visual-Topic Consistency Score
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20140279220A1 (Pinterest). CLIP-lite image-text coherence.
+**Spec:** `docs/specs/fr089-visual-topic-consistency.md`
+- Settings: `visual_consistency.enabled`, `visual_consistency.ranking_weight` (0.02).
+
+---
+
+### FR-090 — Cross-Platform Engagement Correlation
+**Requested:** 2026-04-07 | **Status:** Pending | **Priority:** Low
+**Research basis:** US20140244006A1 (Google). Multi-platform spike detection.
+**Spec:** `docs/specs/fr090-cross-platform-engagement.md`
+- Settings: `cross_platform_engagement.enabled`, `cross_platform_engagement.ranking_weight` (0.02).
+
+---
+
+### FR-091 — C++ Extension Retrofit
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Critical
+**Research basis:** CPP-RULES.md (project-internal safety standard).
+**Spec:** `docs/specs/fr091-cpp-extension-retrofit.md`
+
+### What's wanted
+- Bring all 12 existing C++ extensions to CPP-RULES.md compliance: mandatory compiler flags, NaN/Inf validation, flush-to-zero MXCSR setup, double-precision accumulators.
+
+### Specific controls / behaviour
+- Fix 1: Add `-Wall -Wextra -Werror -Wconversion -Wshadow` etc. to all 12 extensions in setup.py.
+- Fix 2: NaN/Inf input validation (`std::isfinite()`) in scoring.cpp, simsearch.cpp, feedrerank.cpp.
+- Fix 3: `_MM_SET_FLUSH_ZERO_MODE` + `_MM_SET_DENORMALS_ZERO_MODE` in scoring, simsearch, feedrerank, pagerank.
+- Fix 4: Double accumulator in l2norm.cpp for float reductions.
+
+### Implementation notes for the AI
+- Run `test_parity_simple.py` and `bench_extensions.py` after retrofit. Parity within 1e-4. Performance regression <5%.
+
+---
+
+### FR-092 — Twice-Monthly Graph Walk Refresh
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Spec:** `docs/specs/fr092-twice-monthly-graph-walk-refresh.md`
+
+### What's wanted
+- Change graph walk generation from nightly to 1st/15th of each month. Nightly pipeline reuses cached walk results on non-walk days. Saves ~7-14 hours CPU/month.
+
+### Specific controls / behaviour
+- Walk algorithm unchanged: 20 entities × 1000 Pixie walk steps = 20,000 per article.
+- New beat entry: `bimonthly-graph-walk-refresh` at `crontab(hour=2, minute=0, day_of_month="1,15")`.
+- Settings: `graph_walk_refresh.enabled`, `graph_walk_refresh.schedule_days`, `graph_walk_refresh.skip_nightly_walks`.
+
+---
+
+### FR-093 — Extended Nightly Data Retention (Tier 1)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Spec:** `docs/specs/fr093-extended-nightly-retention.md`
+
+### What's wanted
+- Extend the existing nightly retention task with 6 tables: Celery TaskResult (7d), OperatorAlert resolved (30d), SyncJob completed (60d), AnalyticsSyncRun (90d), TelemetryCoverageDaily (90d), ReviewerScorecard (180d). Saves ~6-8 GB/year.
+
+### Specific controls / behaviour
+- Settings: `retention_tier1.enabled`, `retention_tier1.celery_results_days`, `retention_tier1.resolved_alerts_days`, `retention_tier1.sync_jobs_days`, etc.
+
+---
+
+### FR-094 — Weekly Analytics Pruning (Tier 2)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** High
+**Spec:** `docs/specs/fr094-weekly-analytics-pruning.md`
+
+### What's wanted
+- Weekly prune of GSCDailyPerformance (90d), SuggestionTelemetryDaily (180d), GSCKeywordImpact (180d). Saves ~15-40 GB/year.
+
+### Specific controls / behaviour
+- New beat entry: `weekly-analytics-pruning` at `crontab(hour=4, minute=0, day_of_week=0)`.
+- VACUUM ANALYZE after heavy deletes.
+- Settings: `retention_tier2.enabled`, `retention_tier2.gsc_daily_performance_days`, `retention_tier2.suggestion_telemetry_days`, `retention_tier2.gsc_keyword_impact_days`.
+
+---
+
+### FR-095 — Quarterly Database Maintenance (Tier 4)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Spec:** `docs/specs/fr095-quarterly-database-maintenance.md`
+
+### What's wanted
+- VACUUM FULL on Suggestion table, REINDEX CONCURRENTLY on embedding indexes, full entity re-extraction. Runs 4× per year (Jan/Apr/Jul/Oct). Reclaims ~1-3 GB/year.
+
+### Specific controls / behaviour
+- New beat entry: `quarterly-db-maintenance` at `crontab(hour=3, minute=0, day_of_month=1, month_of_year="1,4,7,10")`.
+- Settings: `quarterly_maintenance.enabled`, `quarterly_maintenance.vacuum_full_suggestions`, `quarterly_maintenance.reindex_embeddings`, `quarterly_maintenance.rebuild_knowledge_graph`.
+
+---
+
+### FR-096 — Monthly Safe Prune (Tier 5)
+**Requested:** 2026-04-07
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Spec:** `docs/specs/fr096-monthly-safe-prune.md`
+
+### What's wanted
+- Monthly prune of resolved BrokenLink (60d), ImpactReport (365d), and null out old Suggestion.graph_walk_diagnostics JSON (90d). Does NOT affect GSC, GA4, Matomo, or auto weight tuning. Saves ~0.8-2.8 GB/year.
+
+### Specific controls / behaviour
+- New beat entry: `monthly-safe-prune` at `crontab(hour=4, minute=30, day_of_month=1)`.
+- Settings: `monthly_safe_prune.enabled`, `monthly_safe_prune.broken_links_days`, `monthly_safe_prune.impact_reports_days`, `monthly_safe_prune.diagnostics_json_days`.
+
+---
+
 ## TEMPLATE ONLY
 
 ### FR-0XX - Add your next request here
@@ -1623,4 +2306,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-06 (FR-047 Navigation Path Prediction, FR-048 Topical Authority Cluster Density, FR-049 Query Intent Funnel Alignment, and FR-050 Seasonality & Temporal Demand Matching added as new ranking signal backlog items with full math specs.)*
+*Last updated: 2026-04-07 (FR-051 through FR-096 added: 9 patent-backed ranking signals, 6 statistical models, 3 C++ meta-algorithms, 22 social media patent signals, 6 operational features. All with full math specs, patent citations, and forward-declared settings in recommended_weights.py.)*
