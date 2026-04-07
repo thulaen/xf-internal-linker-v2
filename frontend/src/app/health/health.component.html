@@ -203,7 +203,17 @@
         </div>
 
         <!-- Key metrics -->
-        <div class="metadata-box" *ngIf="s.metadata && (s.metadata.lag_hours !== undefined || s.metadata.node_count || s.metadata.worker_count || s.metadata.plugin_count !== undefined)">
+        <div class="metadata-box" *ngIf="s.metadata && (
+            s.metadata.lag_hours !== undefined ||
+            s.metadata.node_count !== undefined ||
+            s.metadata.worker_count !== undefined ||
+            s.metadata.plugin_count !== undefined ||
+            s.metadata.total_depth !== undefined ||
+            s.metadata.usage_pct !== undefined ||
+            s.metadata.success_rate_7d !== undefined ||
+            s.metadata.last_run_minutes_ago !== undefined ||
+            s.metadata.tokens_per_day_remaining !== undefined
+          )">
           <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
             <span class="m-label">Data lag</span>
             <span class="m-value" [class.warn]="s.metadata.lag_hours > 48">{{ s.metadata.lag_hours }}h behind</span>
@@ -219,6 +229,38 @@
           <div class="metric" *ngIf="s.metadata.plugin_count !== undefined">
             <span class="m-label">Active plugins</span>
             <span class="m-value core">{{ s.metadata.plugin_count }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.total_depth !== undefined">
+            <span class="m-label">Total queued tasks</span>
+            <span class="m-value" [class.warn]="s.metadata.total_depth > 50">{{ s.metadata.total_depth }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.pipeline_depth !== undefined">
+            <span class="m-label">Pipeline queue</span>
+            <span class="m-value" [class.warn]="s.metadata.pipeline_depth > 20">{{ s.metadata.pipeline_depth }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.usage_pct !== undefined">
+            <span class="m-label">Disk used</span>
+            <span class="m-value" [class.warn]="s.metadata.usage_pct > 80">{{ s.metadata.usage_pct }}%</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.free_gb !== undefined">
+            <span class="m-label">Free space</span>
+            <span class="m-value core">{{ s.metadata.free_gb }} GB</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.success_rate_7d !== undefined">
+            <span class="m-label">Success rate (7d)</span>
+            <span class="m-value" [class.warn]="s.metadata.success_rate_7d < 80">{{ s.metadata.success_rate_7d }}%</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.failed_7d !== undefined">
+            <span class="m-label">Failed runs (7d)</span>
+            <span class="m-value" [class.warn]="s.metadata.failed_7d > 0">{{ s.metadata.failed_7d }}</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.last_run_minutes_ago !== undefined">
+            <span class="m-label">Last Beat run</span>
+            <span class="m-value" [class.warn]="s.metadata.last_run_minutes_ago > 35">{{ s.metadata.last_run_minutes_ago }}m ago</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.tokens_per_day_remaining !== undefined">
+            <span class="m-label">GA4 tokens today</span>
+            <span class="m-value" [class.warn]="s.metadata.tokens_per_day_remaining < 40000">{{ s.metadata.tokens_per_day_remaining | number }} remaining</span>
           </div>
         </div>
 

@@ -51,6 +51,23 @@ def build_ga4_data_service(
     return build("analyticsdata", "v1beta", credentials=creds, cache_discovery=False)
 
 
+def get_ga4_quota(*, service, property_id: str) -> dict:
+    """Run a minimal report with returnPropertyQuota=True to read daily token consumption."""
+    return (
+        service.properties()
+        .runReport(
+            property=f"properties/{property_id}",
+            body={
+                "dateRanges": [{"startDate": "today", "endDate": "today"}],
+                "metrics": [{"name": "eventCount"}],
+                "limit": 1,
+                "returnPropertyQuota": True,
+            },
+        )
+        .execute()
+    )
+
+
 def test_ga4_data_api_access(*, service, property_id: str) -> dict:
     return (
         service.properties()

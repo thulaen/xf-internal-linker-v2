@@ -55,6 +55,20 @@ class WordPressAPIClient:
     def has_credentials(self) -> bool:
         return bool(self.username and self.app_password)
 
+    def verify_credentials(self) -> dict[str, Any]:
+        """Call /wp-json/wp/v2/users/me to confirm credentials are accepted.
+
+        Returns {'ok': True, 'display_name': str} on success.
+        Returns {'ok': False, 'display_name': ''} on HTTP 401.
+        Raises for any other network or HTTP error.
+        """
+        resp = self.session.get(f"{self.base_url}/wp-json/wp/v2/users/me", timeout=10)
+        if resp.status_code == 401:
+            return {"ok": False, "display_name": ""}
+        resp.raise_for_status()
+        data = resp.json()
+        return {"ok": True, "display_name": data.get("name", "")}
+
     def get_posts(self, page: int = 1, *, status: str = "publish", after: str | None = None) -> tuple[list[dict[str, Any]], int]:
         """Fetch one page of WordPress posts."""
         return self._list_endpoint("posts", page=page, status=status, after=after)

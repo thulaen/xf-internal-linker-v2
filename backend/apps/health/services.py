@@ -393,6 +393,46 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
 
 # ── Analytics & Data Checkers ─────────────────────────────────────
 
+def _ga4_enrich_credentials_and_quota(property_id_value: str, metadata: dict) -> None:
+    """Try to validate GA4 read credentials and populate quota info into metadata.
+
+    Mutates metadata in-place. Silently skips if credentials are not configured
+    (some installs only use Measurement Protocol and never set up the Data API).
+    Raises on credential errors so the caller can surface them as an error status.
+    """
+    def _get(key: str) -> str:
+        s = AppSetting.objects.filter(key=key).first()
+        return s.value if s else ""
+
+    client_email = _get("analytics.ga4_read_client_email")
+    private_key = _get("analytics.ga4_read_private_key")
+    project_id = _get("analytics.ga4_read_project_id")
+    refresh_token = _get("analytics.google_oauth_refresh_token")
+    client_id = _get("analytics.google_oauth_client_id")
+    client_secret = _get("analytics.google_oauth_client_secret")
+
+    # If no read credentials at all, nothing to validate.
+    if not (client_email or refresh_token):
+        return
+
+    from apps.analytics.ga4_client import build_ga4_data_service, get_ga4_quota
+    service = build_ga4_data_service(
+        property_id=property_id_value,
+        project_id=project_id,
+        client_email=client_email,
+        private_key=private_key,
+        refresh_token=refresh_token,
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+    response = get_ga4_quota(service=service, property_id=property_id_value)
+    quota = response.get("propertyQuota", {})
+    tokens_day = quota.get("tokensPerDay", {})
+    if tokens_day:
+        metadata["tokens_per_day_consumed"] = tokens_day.get("consumed", 0)
+        metadata["tokens_per_day_remaining"] = tokens_day.get("remaining", 0)
+
+
 @HealthCheckRegistry.register(
     "ga4",
     name="Google Analytics 4", 
@@ -412,12 +452,12 @@ def check_ga4_health() -> ServiceHealthResult:
     try:
         stale_hours = get_health_setting("ga4_stale_threshold_hours", 72)
         latest_metric = SearchMetric.objects.filter(source="ga4").order_by("-date").first()
-        
+
         metadata = {"property_id": property_id.value[-4:].rjust(len(property_id.value), "*")}
         if latest_metric:
             lag_hours = (timezone.now() - timezone.make_aware(timezone.datetime.combine(latest_metric.date, timezone.datetime.min.time()))).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
-            
+
             if lag_hours > stale_hours:
                 return ServiceHealthResult(
                     service_key="ga4",
@@ -428,7 +468,10 @@ def check_ga4_health() -> ServiceHealthResult:
                     last_success_at=timezone.now(),
                     metadata=metadata
                 )
-        
+
+        # Validate read credentials and fetch daily quota if possible.
+        _ga4_enrich_credentials_and_quota(property_id.value, metadata)
+
         return ServiceHealthResult(
             service_key="ga4",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -449,9 +492,39 @@ def check_ga4_health() -> ServiceHealthResult:
             last_error_message=str(e)
         )
 
+def _gsc_validate_credentials(property_url: str) -> None:
+    """Try to call the GSC API to confirm credentials are still valid.
+
+    Silently skips if no credentials are configured.
+    Raises on auth failure so the caller can surface it as an error status.
+    """
+    def _get(key: str) -> str:
+        s = AppSetting.objects.filter(key=key).first()
+        return s.value if s else ""
+
+    client_email = _get("analytics.gsc_client_email")
+    private_key = _get("analytics.gsc_private_key")
+    refresh_token = _get("analytics.google_oauth_refresh_token")
+    client_id = _get("analytics.google_oauth_client_id")
+    client_secret = _get("analytics.google_oauth_client_secret")
+
+    if not (client_email or refresh_token):
+        return
+
+    from apps.analytics.gsc_client import build_gsc_service, test_gsc_access
+    service = build_gsc_service(
+        client_email=client_email,
+        private_key=private_key,
+        refresh_token=refresh_token,
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+    test_gsc_access(service=service, property_url=property_url)
+
+
 @HealthCheckRegistry.register(
-    "gsc", 
-    name="Search Console", 
+    "gsc",
+    name="Search Console",
     description="Integration with Google Search Console for organic performance data."
 )
 def check_gsc_health() -> ServiceHealthResult:
@@ -468,12 +541,12 @@ def check_gsc_health() -> ServiceHealthResult:
     try:
         stale_hours = get_health_setting("gsc_stale_threshold_hours", 72)
         latest_metric = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
-        
+
         metadata = {"site_url": site_url.value}
         if latest_metric:
             lag_hours = (timezone.now() - timezone.make_aware(timezone.datetime.combine(latest_metric.date, timezone.datetime.min.time()))).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
-            
+
             if lag_hours > stale_hours:
                 return ServiceHealthResult(
                     service_key="gsc",
@@ -484,7 +557,10 @@ def check_gsc_health() -> ServiceHealthResult:
                     last_success_at=timezone.now(),
                     metadata=metadata
                 )
-        
+
+        # Validate read credentials if configured.
+        _gsc_validate_credentials(site_url.value)
+
         return ServiceHealthResult(
             service_key="gsc",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -572,6 +648,30 @@ def check_xenforo_health() -> ServiceHealthResult:
             suggested_fix="Configure XENFORO_BASE_URL and XENFORO_API_KEY in your environment variables."
         )
 
+    # Validate the API key is still accepted before checking staleness.
+    try:
+        from apps.sync.services.xenforo_api import XenForoAPIClient
+        client = XenForoAPIClient(base_url=base_url, api_key=api_key)
+        if not client.verify_api_key():
+            return ServiceHealthResult(
+                service_key="xenforo",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label="XenForo API key rejected.",
+                issue_description="The XenForo server rejected the API key (it may have been revoked or rotated).",
+                suggested_fix="Re-generate the API key in XenForo Admin > API Keys and update XENFORO_API_KEY.",
+                last_error_at=timezone.now()
+            )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="xenforo",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="XenForo unreachable.",
+            issue_description=f"Could not connect to XenForo to verify the API key: {str(e)}",
+            suggested_fix="Check if the XenForo server is online and XENFORO_BASE_URL is correct.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
     try:
         latest_sync = ContentItem.objects.filter(content_type__in=['thread', 'post']).order_by("-updated_at").first()
         metadata = {"base_url": base_url}
@@ -625,6 +725,32 @@ def check_wordpress_health() -> ServiceHealthResult:
             status_label="WordPress not configured.",
             issue_description="WordPress base URL is missing.",
             suggested_fix="Configure WORDPRESS_BASE_URL in your environment variables."
+        )
+
+    # If credentials are present, verify they are still accepted.
+    try:
+        from apps.sync.services.wordpress_api import WordPressAPIClient
+        wp_client = WordPressAPIClient()
+        if wp_client.has_credentials:
+            result = wp_client.verify_credentials()
+            if not result["ok"]:
+                return ServiceHealthResult(
+                    service_key="wordpress",
+                    status=ServiceHealthRecord.STATUS_ERROR,
+                    status_label="WordPress credentials rejected.",
+                    issue_description="The WordPress Application Password was rejected (HTTP 401). It may have been revoked.",
+                    suggested_fix="Re-generate the Application Password in WordPress Users > Profile and update WORDPRESS_APP_PASSWORD.",
+                    last_error_at=timezone.now()
+                )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="wordpress",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="WordPress unreachable.",
+            issue_description=f"Could not connect to WordPress to verify credentials: {str(e)}",
+            suggested_fix="Check if the WordPress server is online and WORDPRESS_BASE_URL is correct.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
         )
 
     try:
@@ -794,6 +920,302 @@ def check_webhooks_health() -> ServiceHealthResult:
             status_label="Webhook check failed.",
             issue_description=f"Error querying webhook receipt logs: {str(e)}",
             suggested_fix="Check database connectivity and ensure the sync app is properly installed.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
+@HealthCheckRegistry.register(
+    "pipeline_health",
+    name="Suggestion Pipeline",
+    description="Core linking engine — generates internal link suggestions from content."
+)
+def check_pipeline_health() -> ServiceHealthResult:
+    try:
+        total_ever = PipelineRun.objects.count()
+        if total_ever == 0:
+            return ServiceHealthResult(
+                service_key="pipeline_health",
+                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+                status_label="No pipeline runs yet.",
+                issue_description="The suggestion pipeline has never run.",
+                suggested_fix="Trigger a pipeline run from the Jobs page."
+            )
+
+        since_7d = timezone.now() - timedelta(days=7)
+        recent = PipelineRun.objects.filter(created_at__gte=since_7d)
+        completed = recent.filter(run_state="completed").count()
+        failed = recent.filter(run_state="failed").count()
+        terminal = completed + failed
+        success_rate = round((completed / terminal) * 100) if terminal else 100
+
+        last_run = PipelineRun.objects.order_by("-created_at").first()
+        hours_since = (timezone.now() - last_run.created_at).total_seconds() / 3600
+
+        failure_threshold = get_health_setting("pipeline_failure_rate_warning_pct", 20)
+        no_run_threshold = get_health_setting("pipeline_warning_hours_no_run", 24)
+
+        meta = {
+            "completed_7d": completed,
+            "failed_7d": failed,
+            "success_rate_7d": success_rate,
+            "hours_since_last_run": round(hours_since, 1),
+            "last_run_state": last_run.run_state,
+        }
+
+        if failed >= 3 and hours_since < 24:
+            return ServiceHealthResult(
+                service_key="pipeline_health",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label=f"Pipeline failing — {failed} failures in 7 days.",
+                issue_description=f"{failed} pipeline runs have failed in the last 7 days (success rate: {success_rate}%).",
+                suggested_fix="Check the pipeline logs for the error message. Common causes: embedding model not loaded, database constraint, or out of memory.",
+                last_error_at=timezone.now(),
+                metadata=meta
+            )
+        if hours_since > no_run_threshold:
+            return ServiceHealthResult(
+                service_key="pipeline_health",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"No pipeline run in {round(hours_since)}h.",
+                issue_description=f"The last pipeline run was {round(hours_since)} hours ago.",
+                suggested_fix="Check the scheduled pipeline task in Celery Beat, or trigger a manual run from Jobs.",
+                last_success_at=last_run.created_at if last_run.run_state == "completed" else None,
+                metadata=meta
+            )
+        if success_rate < (100 - failure_threshold):
+            return ServiceHealthResult(
+                service_key="pipeline_health",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Pipeline success rate is {success_rate}% (7d).",
+                issue_description=f"{failed} of {terminal} pipeline runs failed in the last 7 days.",
+                suggested_fix="Review failed pipeline run logs for recurring errors.",
+                metadata=meta
+            )
+
+        return ServiceHealthResult(
+            service_key="pipeline_health",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Pipeline healthy ({success_rate}% success, 7d).",
+            issue_description=f"{completed} successful runs in the last 7 days.",
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=meta
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="pipeline_health",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Pipeline check failed.",
+            issue_description=f"Could not read pipeline run history: {str(e)}",
+            suggested_fix="Check database connectivity.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
+@HealthCheckRegistry.register(
+    "celery_queues",
+    name="Celery Queue Depth",
+    description="Number of pending tasks waiting in each Celery queue."
+)
+def check_celery_queue_depth() -> ServiceHealthResult:
+    import redis as redis_lib
+    try:
+        broker_url = getattr(settings, "CELERY_BROKER_URL", "redis://redis:6379/2")
+        r = redis_lib.from_url(broker_url, socket_connect_timeout=5)
+        queue_names = ["default", "pipeline", "embeddings"]
+        depths = {q: r.llen(q) for q in queue_names}
+        total = sum(depths.values())
+
+        warn_threshold = get_health_setting("celery_queue_warning_depth", 50)
+        error_threshold = get_health_setting("celery_queue_error_depth", 200)
+
+        meta = {
+            "default_depth": depths["default"],
+            "pipeline_depth": depths["pipeline"],
+            "embeddings_depth": depths["embeddings"],
+            "total_depth": total,
+        }
+
+        worst_queue = max(depths, key=lambda q: depths[q])
+        worst_depth = depths[worst_queue]
+
+        if worst_depth >= error_threshold:
+            return ServiceHealthResult(
+                service_key="celery_queues",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label=f"Queue overflow — {worst_depth} tasks in '{worst_queue}'.",
+                issue_description=f"The '{worst_queue}' queue has {worst_depth} tasks waiting (threshold: {error_threshold}).",
+                suggested_fix="Scale up Celery workers or investigate why tasks are not being consumed.",
+                last_error_at=timezone.now(),
+                metadata=meta
+            )
+        if worst_depth >= warn_threshold:
+            return ServiceHealthResult(
+                service_key="celery_queues",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Queue building up — {worst_depth} tasks in '{worst_queue}'.",
+                issue_description=f"The '{worst_queue}' queue has {worst_depth} tasks waiting.",
+                suggested_fix="Monitor queue depth — if it keeps growing, add more Celery workers.",
+                metadata=meta
+            )
+
+        return ServiceHealthResult(
+            service_key="celery_queues",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Queues clear ({total} total pending).",
+            issue_description="All Celery queues are processing normally.",
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=meta
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="celery_queues",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Queue depth check failed.",
+            issue_description=f"Could not read queue depths from Redis: {str(e)}",
+            suggested_fix="Ensure Redis is running and CELERY_BROKER_URL is correct.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
+@HealthCheckRegistry.register(
+    "celery_beat",
+    name="Celery Beat Scheduler",
+    description="Scheduled task runner that triggers periodic jobs (syncs, health checks, etc.)."
+)
+def check_celery_beat_health() -> ServiceHealthResult:
+    try:
+        from django_celery_beat.models import PeriodicTask
+        PROBE_TASK = "periodic-system-health-check"
+        stale_minutes = get_health_setting("beat_stale_threshold_minutes", 60)
+
+        try:
+            task = PeriodicTask.objects.get(name=PROBE_TASK)
+        except PeriodicTask.DoesNotExist:
+            return ServiceHealthResult(
+                service_key="celery_beat",
+                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+                status_label="Beat probe task not found.",
+                issue_description=f"The '{PROBE_TASK}' periodic task is missing from the database.",
+                suggested_fix="Run migrations to re-seed the Celery Beat schedule."
+            )
+
+        meta = {"expected_interval_minutes": 30}
+
+        if task.last_run_at is None:
+            return ServiceHealthResult(
+                service_key="celery_beat",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Beat has not run yet.",
+                issue_description="Celery Beat has never executed the health check task. It may not be running.",
+                suggested_fix="Ensure the 'celery-beat' service is running.",
+                metadata=meta
+            )
+
+        minutes_ago = (timezone.now() - task.last_run_at).total_seconds() / 60
+        meta["last_run_minutes_ago"] = round(minutes_ago, 1)
+
+        if minutes_ago > stale_minutes * 1.5:
+            return ServiceHealthResult(
+                service_key="celery_beat",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label=f"Beat stale — last run {round(minutes_ago)}m ago.",
+                issue_description=f"Celery Beat last ran {round(minutes_ago)} minutes ago (expected every 30 min).",
+                suggested_fix="Restart the 'celery-beat' container. Check for lock file conflicts.",
+                last_error_at=timezone.now(),
+                metadata=meta
+            )
+        if minutes_ago > stale_minutes:
+            return ServiceHealthResult(
+                service_key="celery_beat",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Beat delayed — last run {round(minutes_ago)}m ago.",
+                issue_description=f"Celery Beat ran {round(minutes_ago)} minutes ago (expected every 30 min).",
+                suggested_fix="Monitor — if this continues, restart the 'celery-beat' container.",
+                metadata=meta
+            )
+
+        return ServiceHealthResult(
+            service_key="celery_beat",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Beat is running (last run {round(minutes_ago)}m ago).",
+            issue_description="Celery Beat scheduler is firing on schedule.",
+            suggested_fix="No action needed.",
+            last_success_at=task.last_run_at,
+            metadata=meta
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="celery_beat",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Beat check failed.",
+            issue_description=f"Could not read Celery Beat schedule: {str(e)}",
+            suggested_fix="Check database connectivity and django-celery-beat migrations.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e)
+        )
+
+@HealthCheckRegistry.register(
+    "disk_space",
+    name="Disk Space",
+    description="Available storage on the server filesystem (models, logs, media)."
+)
+def check_disk_space() -> ServiceHealthResult:
+    import shutil
+    try:
+        warn_pct = get_health_setting("disk_warning_pct", 80)
+        error_pct = get_health_setting("disk_error_pct", 90)
+
+        usage = shutil.disk_usage("/")
+        total_gb = round(usage.total / (1024 ** 3), 1)
+        used_gb = round(usage.used / (1024 ** 3), 1)
+        free_gb = round(usage.free / (1024 ** 3), 1)
+        usage_pct = round((usage.used / usage.total) * 100, 1)
+
+        meta = {
+            "total_gb": total_gb,
+            "used_gb": used_gb,
+            "free_gb": free_gb,
+            "usage_pct": usage_pct,
+        }
+
+        if usage_pct >= error_pct:
+            return ServiceHealthResult(
+                service_key="disk_space",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label=f"Disk critically full — {usage_pct}% used.",
+                issue_description=f"Only {free_gb} GB free of {total_gb} GB total. Services may fail.",
+                suggested_fix="Delete old logs, clear Docker image cache (`docker image prune -f`), or expand the volume.",
+                last_error_at=timezone.now(),
+                metadata=meta
+            )
+        if usage_pct >= warn_pct:
+            return ServiceHealthResult(
+                service_key="disk_space",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Disk filling up — {usage_pct}% used.",
+                issue_description=f"{free_gb} GB remaining of {total_gb} GB total.",
+                suggested_fix="Clear old Docker images with `docker image prune -f` and review log rotation.",
+                metadata=meta
+            )
+
+        return ServiceHealthResult(
+            service_key="disk_space",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Disk healthy — {free_gb} GB free ({usage_pct}% used).",
+            issue_description=f"{free_gb} GB free of {total_gb} GB total.",
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=meta
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="disk_space",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Disk space check failed.",
+            issue_description=f"Could not read disk usage: {str(e)}",
+            suggested_fix="Check filesystem permissions.",
             last_error_at=timezone.now(),
             last_error_message=str(e)
         )
