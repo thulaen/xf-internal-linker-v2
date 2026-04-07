@@ -11,7 +11,8 @@ export interface AuthUser {
   date_joined: string;
 }
 
-const TOKEN_KEY = 'xfil_auth_token';
+/** Shared constant — also used by auth.interceptor.ts */
+export const TOKEN_KEY = 'xfil_auth_token';
 
 @Injectable({
   providedIn: 'root',
@@ -63,7 +64,11 @@ export class AuthService {
   }
 
   logout(): void {
-    this.http.post('/api/auth/logout/', {}).subscribe({ error: () => {} });
+    this.http.post('/api/auth/logout/', {}).subscribe({
+      error: () => {
+        console.warn('Server-side logout failed — token may still be valid on the server.');
+      }
+    });
     localStorage.removeItem(TOKEN_KEY);
     this.currentUserSub.next(null);
     this.router.navigate(['/login']);

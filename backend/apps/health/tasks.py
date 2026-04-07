@@ -9,7 +9,14 @@ from .services import HealthCheckRegistry, perform_health_check
 
 logger = logging.getLogger(__name__)
 
-@shared_task(name="health.run_all_health_checks", time_limit=120, soft_time_limit=90)
+@shared_task(
+    name="health.run_all_health_checks",
+    time_limit=120,
+    soft_time_limit=90,
+    autoretry_for=(Exception,),
+    max_retries=2,
+    retry_backoff=True,
+)
 def run_all_health_checks():
     """
     Run all registered health checks from the registry.
@@ -40,7 +47,14 @@ def run_all_health_checks():
 
     return {"ok": not had_failure, "checks": check_results}
 
-@shared_task(name="health.run_single_health_check", time_limit=60, soft_time_limit=45)
+@shared_task(
+    name="health.run_single_health_check",
+    time_limit=60,
+    soft_time_limit=45,
+    autoretry_for=(Exception,),
+    max_retries=2,
+    retry_backoff=True,
+)
 def run_single_health_check(service_key: str):
     """Run a single health check (e.g. from the UI)."""
     try:

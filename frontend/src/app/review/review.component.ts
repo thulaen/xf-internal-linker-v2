@@ -227,6 +227,8 @@ export class ReviewComponent implements OnInit {
 
   batchApprove(): void {
     const ids = [...this.selectedIds];
+    if (!ids.length) return;
+    if (!confirm(`Approve ${ids.length} suggestion(s)?`)) return;
     this.svc.batchAction('approve', ids).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ updated }) => {
         this.snack.open(`Approved ${updated} suggestions`, undefined, { duration: 3000 });
@@ -238,6 +240,8 @@ export class ReviewComponent implements OnInit {
 
   batchReject(reason: string): void {
     const ids = [...this.selectedIds];
+    if (!ids.length) return;
+    if (!confirm(`Reject ${ids.length} suggestion(s)?`)) return;
     this.svc.batchAction('reject', ids, reason).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: ({ updated }) => {
         this.snack.open(`Rejected ${updated} suggestions`, undefined, { duration: 3000 });

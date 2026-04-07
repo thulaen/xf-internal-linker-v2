@@ -37,8 +37,7 @@ COPY . .
 RUN cd extensions && python setup.py build_ext --inplace
 
 # Create non-root user for security
-RUN addgroup --system django && adduser --system --ingroup django django
-RUN chown -R django:django /app
-USER django
+RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
+USER appuser
 
 EXPOSE 8000

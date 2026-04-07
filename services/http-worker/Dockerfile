@@ -28,5 +28,10 @@ WORKDIR /app
 COPY --from=publish /app /app
 ENV ASPNETCORE_URLS=http://0.0.0.0:8080
 ENV SERVICE_MODE=api
+
+# Create non-root user for security
+RUN adduser --disabled-password --gecos "" --uid 1000 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8080
 ENTRYPOINT ["sh","-c","if [ \"$SERVICE_MODE\" = \"worker\" ]; then dotnet /app/worker/HttpWorker.Worker.dll; else dotnet /app/api/HttpWorker.Api.dll; fi"]

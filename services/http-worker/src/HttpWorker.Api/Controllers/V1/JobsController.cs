@@ -34,8 +34,8 @@ public sealed class JobsController(
                 Status = "queued",
                 QueuedAt = DateTimeOffset.UtcNow,
             });
-        } catch (Exception ex) {
-            return StatusCode(500, new { error = ex.ToString() });
+        } catch (Exception) {
+            return StatusCode(500, new { error = "Processing failed. Please try again." });
         }
     }
 

@@ -245,7 +245,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     if (!url) {
       return;
     }
-    window.open(url, '_blank', 'noopener');
+    window.open(url, '_blank', 'noopener,noreferrer');
   }
 
   trackById(_: number, link: BrokenLink): string {

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import timedelta
+
 from celery import shared_task
 from django.utils import timezone
 

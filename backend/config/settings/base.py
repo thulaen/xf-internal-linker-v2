@@ -109,7 +109,7 @@ DATABASES = {
         "ENGINE": "django.db.backends.postgresql",
         "NAME": env("POSTGRES_DB", default="xf_linker"),
         "USER": env("POSTGRES_USER", default="xf_linker_user"),
-        "PASSWORD": env("POSTGRES_PASSWORD", default="changeme"),
+        "PASSWORD": env("POSTGRES_PASSWORD"),
         "HOST": env("POSTGRES_HOST", default="postgres"),
         "PORT": env("POSTGRES_PORT", default="5432"),
         "CONN_MAX_AGE": 600,
@@ -436,6 +436,7 @@ WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 
 HTTP_WORKER_ENABLED = env.bool("HTTP_WORKER_ENABLED", default=False)
 HTTP_WORKER_URL = env("HTTP_WORKER_URL", default="http://http-worker-api:8080").rstrip("/")
+HTTP_WORKER_INTERNAL_TOKEN = env("HTTP_WORKER_INTERNAL_TOKEN", default="")
 HTTP_WORKER_SCHEMA_VERSION = env("HTTP_WORKER_SCHEMA_VERSION", default="v1").strip() or "v1"
 HTTP_WORKER_BROKEN_LINK_BATCH_SIZE = min(
     max(env.int("HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", default=250), 1),

@@ -51,6 +51,9 @@ export interface DashboardData {
   };
 }
 
+/** Cache lives for 60 seconds before a fresh fetch is required. */
+const CACHE_TTL_MS = 60_000;
+
 @Injectable({ providedIn: 'root' })
 export class DashboardService {
   private http = inject(HttpClient);
@@ -58,10 +61,12 @@ export class DashboardService {
   private dataSubject = new BehaviorSubject<DashboardData | null>(null);
   readonly data$ = this.dataSubject.asObservable();
   private refreshRequest: Observable<DashboardData> | null = null;
+  private lastFetchedAt = 0;
 
   get(): Observable<DashboardData> {
     const current = this.dataSubject.value;
-    if (current && !this.refreshRequest) {
+    const cacheValid = current && (Date.now() - this.lastFetchedAt < CACHE_TTL_MS);
+    if (cacheValid && !this.refreshRequest) {
       return of(current);
     }
     return this.refresh();
@@ -73,7 +78,10 @@ export class DashboardService {
     }
 
     const request = this.http.get<DashboardData>(this.url).pipe(
-      tap((data) => this.dataSubject.next(data)),
+      tap((data) => {
+        this.dataSubject.next(data);
+        this.lastFetchedAt = Date.now();
+      }),
       shareReplay(1),
       finalize(() => {
         if (this.refreshRequest === request) {
@@ -84,6 +92,11 @@ export class DashboardService {
 
     this.refreshRequest = request;
     return request;
+  }
+
+  /** Clear cache so the next get() forces a fresh fetch. */
+  invalidate(): void {
+    this.lastFetchedAt = 0;
   }
 
   updateOpenBrokenLinks(count: number): void {

@@ -110,33 +110,67 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
     click_control_multiplier = 1.0
     reports = []
 
+    # Batch-fetch target item metrics in 2 queries instead of 2 per metric (8 total)
+    target_baseline_qs = SearchMetric.objects.filter(
+        content_item=suggestion.destination, source="gsc",
+        date__range=[baseline_start, baseline_end],
+    )
+    target_post_qs = SearchMetric.objects.filter(
+        content_item=suggestion.destination, source="gsc",
+        date__range=[post_start, actual_post_end],
+    )
+    target_baseline_agg = target_baseline_qs.aggregate(
+        impressions=Sum("impressions"), clicks=Sum("clicks"),
+        ctr=Avg("ctr"), average_position=Avg("average_position"),
+    )
+    target_post_agg = target_post_qs.aggregate(
+        impressions=Sum("impressions"), clicks=Sum("clicks"),
+        ctr=Avg("ctr"), average_position=Avg("average_position"),
+    )
+
+    # Batch-fetch control group metrics in 2 queries instead of 2 × 10 × 4 (80+)
+    control_item_ids = list(control_items.values_list("pk", flat=True))
+    control_baseline_agg = {}
+    control_post_agg = {}
+    if control_item_ids:
+        control_baseline_agg = SearchMetric.objects.filter(
+            content_item_id__in=control_item_ids, source="gsc",
+            date__range=[baseline_start, baseline_end],
+        ).aggregate(
+            impressions=Sum("impressions"), clicks=Sum("clicks"),
+            ctr=Avg("ctr"), average_position=Avg("average_position"),
+        )
+        control_post_agg = SearchMetric.objects.filter(
+            content_item_id__in=control_item_ids, source="gsc",
+            date__range=[post_start, actual_post_end],
+        ).aggregate(
+            impressions=Sum("impressions"), clicks=Sum("clicks"),
+            ctr=Avg("ctr"), average_position=Avg("average_position"),
+        )
+
     for metric in metrics_to_calc:
-        # A. Target Item Performance
-        target_base = _get_aggregated_metric(suggestion.destination, metric, baseline_start, baseline_end)
-        target_post = _get_aggregated_metric(suggestion.destination, metric, post_start, actual_post_end)
-        
-        # B. Control Group Trend (Market Normalization)
-        # We calculate the aggregate lift of the control group to see if the whole site grew
-        control_base = 0.0
-        control_post = 0.0
-        for c_item in control_items:
-            control_base += _get_aggregated_metric(c_item, metric, baseline_start, baseline_end)
-            control_post += _get_aggregated_metric(c_item, metric, post_start, actual_post_end)
-        
+        # A. Target Item Performance (from pre-fetched aggregations)
+        target_base = float(target_baseline_agg.get(metric) or 0)
+        target_post_val = float(target_post_agg.get(metric) or 0)
+
+        # B. Control Group Trend (from pre-fetched aggregations)
+        control_base = float(control_baseline_agg.get(metric) or 0) if control_baseline_agg else 0.0
+        control_post = float(control_post_agg.get(metric) or 0) if control_post_agg else 0.0
+
         control_lift_multiplier = 1.0
         if control_base > 0:
             control_lift_multiplier = control_post / control_base
         if metric == "clicks":
             click_control_multiplier = control_lift_multiplier
-            
+
         # C. Normalized Lift calculation:
         # If site grew 10% (multiplier 1.1) and target grew 20%, target net lift is ~9%
         normalized_before = target_base * control_lift_multiplier
-        
+
         delta = 0.0
         if normalized_before > 0:
-            delta = ((target_post - normalized_before) / normalized_before) * 100
-        elif target_post > 0:
+            delta = ((target_post_val - normalized_before) / normalized_before) * 100
+        elif target_post_val > 0:
             delta = 100.0
 
         report, _ = ImpactReport.objects.update_or_create(
@@ -144,7 +178,7 @@ def compute_search_impact(suggestion: Suggestion, window_days: int = 28) -> list
             metric_type=metric,
             defaults={
                 "before_value": target_base,
-                "after_value": target_post,
+                "after_value": target_post_val,
                 "delta_percent": delta,
                 "before_date_range": {"start": baseline_start.isoformat(), "end": baseline_end.isoformat()},
                 "after_date_range": {"start": post_start.isoformat(), "end": actual_post_end.isoformat()},

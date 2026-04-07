@@ -256,7 +256,13 @@ export class JobsComponent implements OnInit, OnDestroy {
     job.ws = ws;
 
     ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      let data: any;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        console.warn('Jobs WebSocket: malformed message', event.data);
+        return;
+      }
 
       if (data.type === 'connection.established') {
         job.progressMessage = 'Connected. Waiting for progress…';

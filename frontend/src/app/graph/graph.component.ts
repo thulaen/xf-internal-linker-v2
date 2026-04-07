@@ -1,4 +1,5 @@
-import { Component, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { Component, DestroyRef, inject, OnInit, TemplateRef, ViewChild } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { RouterModule } from '@angular/router';
@@ -205,6 +206,8 @@ export class GraphComponent implements OnInit {
   /** Tracks which tabs have been loaded at least once. */
   private loadedTabs = new Set<number>();
 
+  private destroyRef = inject(DestroyRef);
+
   constructor(
     private graphService: GraphService,
     private snack: MatSnackBar,
@@ -264,7 +267,7 @@ export class GraphComponent implements OnInit {
 
   private _setupEntitySearch(): void {
     this.entitySearchSubject
-      .pipe(debounceTime(300), distinctUntilChanged())
+      .pipe(debounceTime(300), distinctUntilChanged(), takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.entityPage = 1;
         this._fetchEntities();
@@ -410,6 +413,7 @@ export class GraphComponent implements OnInit {
         switchMap((q) =>
           this.graphService.searchArticles(q).pipe(catchError(() => of([])))
         ),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => (this.fromResults = res));
 
@@ -420,6 +424,7 @@ export class GraphComponent implements OnInit {
         switchMap((q) =>
           this.graphService.searchArticles(q).pipe(catchError(() => of([])))
         ),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => (this.toResults = res));
   }

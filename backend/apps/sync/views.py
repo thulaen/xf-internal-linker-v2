@@ -9,6 +9,7 @@ from django.conf import settings
 from rest_framework import viewsets
 from rest_framework.parsers import MultiPartParser
 from rest_framework.response import Response
+from rest_framework.throttling import AnonRateThrottle
 from rest_framework.views import APIView
 from rest_framework.decorators import action
 from .models import SyncJob, WebhookReceipt
@@ -153,12 +154,18 @@ class WebhookReceiptViewSet(viewsets.ReadOnlyModelViewSet):
     lookup_field = "receipt_id"
 
 
+class _WebhookRateThrottle(AnonRateThrottle):
+    """60 requests/minute per IP — protects against webhook flood attacks."""
+    rate = "60/min"
+
+
 class XenForoWebhookView(APIView):
     """
     Real-time webhook receiver for XenForo forum events.
     """
-    permission_classes = [] 
+    permission_classes = []
     authentication_classes = []
+    throttle_classes = [_WebhookRateThrottle]
 
     def post(self, request):
         from .services.webhooks import verify_xf_signature, process_xf_webhook
@@ -178,11 +185,12 @@ class XenForoWebhookView(APIView):
 class WordPressWebhookView(APIView):
     """
     Real-time webhook receiver for WordPress post updates.
-    
+
     POST /api/v1/sync/webhooks/wordpress/
     """
-    permission_classes = [] 
+    permission_classes = []
     authentication_classes = []
+    throttle_classes = [_WebhookRateThrottle]
 
     def post(self, request):
         from .services.webhooks import verify_wp_signature, process_wp_webhook

@@ -6,6 +6,10 @@ from django.core.cache import cache
 from apps.pipeline.tasks import sync_single_xf_item, sync_single_wp_item
 from apps.sync.models import WebhookReceipt
 
+# Lock TTL for webhook idempotency — prevents duplicate task execution
+# when a webhook arrives while a previous task for the same item is running.
+_WEBHOOK_LOCK_TTL = 300  # 5 minutes
+
 logger = logging.getLogger(__name__)
 
 # How long to cache webhook secrets (seconds).  Secrets rarely change, so 60s
@@ -112,15 +116,19 @@ def process_xf_webhook(event_type, payload):
             thread_id = payload.get("content_id")
             node_id = payload.get("node_id")
             if thread_id:
-                # Deterministic task ID deduplicates burst webhooks for the same
-                # thread — Celery will ignore the duplicate if it is still queued.
-                task_id = f"xf_sync_thread_{thread_id}"
-                res = sync_single_xf_item.apply_async(
-                    args=[thread_id],
-                    kwargs={"content_type": "thread", "node_id": node_id},
-                    task_id=task_id,
-                )
-                sync_job_id = res.id
+                lock_key = f"webhook_lock:xf_thread:{thread_id}"
+                if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
+                    task_id = f"xf_sync_thread_{thread_id}"
+                    res = sync_single_xf_item.apply_async(
+                        args=[thread_id],
+                        kwargs={"content_type": "thread", "node_id": node_id},
+                        task_id=task_id,
+                    )
+                    sync_job_id = res.id
+                else:
+                    status = 'ignored'
+                    error_message = 'Duplicate webhook — task already in progress'
+                    logger.info("Skipping duplicate webhook for XF thread %s", thread_id)
             else:
                 status = 'ignored'
                 error_message = 'Missing thread_id'
@@ -128,13 +136,19 @@ def process_xf_webhook(event_type, payload):
         elif event_type in ["post_insert", "post_update"]:
             thread_id = payload.get("data", {}).get("thread_id") or payload.get("thread_id")
             if thread_id:
-                task_id = f"xf_sync_thread_{thread_id}"
-                res = sync_single_xf_item.apply_async(
-                    args=[thread_id],
-                    kwargs={"content_type": "thread"},
-                    task_id=task_id,
-                )
-                sync_job_id = res.id
+                lock_key = f"webhook_lock:xf_thread:{thread_id}"
+                if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
+                    task_id = f"xf_sync_thread_{thread_id}"
+                    res = sync_single_xf_item.apply_async(
+                        args=[thread_id],
+                        kwargs={"content_type": "thread"},
+                        task_id=task_id,
+                    )
+                    sync_job_id = res.id
+                else:
+                    status = 'ignored'
+                    error_message = 'Duplicate webhook — task already in progress'
+                    logger.info("Skipping duplicate webhook for XF thread %s (post event)", thread_id)
             else:
                 status = 'ignored'
                 error_message = 'Missing thread_id'
@@ -190,13 +204,18 @@ def process_wp_webhook(event_type, payload):
         post_type = payload.get("post_type", "post")
         
         if post_id:
-            # Deterministic task ID deduplicates burst webhooks for the same post.
-            task_id = f"wp_sync_{post_type}_{post_id}"
-            sync_single_wp_item.apply_async(
-                args=[post_id],
-                kwargs={"content_type": post_type},
-                task_id=task_id,
-            )
+            lock_key = f"webhook_lock:wp_{post_type}:{post_id}"
+            if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
+                task_id = f"wp_sync_{post_type}_{post_id}"
+                sync_single_wp_item.apply_async(
+                    args=[post_id],
+                    kwargs={"content_type": post_type},
+                    task_id=task_id,
+                )
+            else:
+                status = 'ignored'
+                error_message = 'Duplicate webhook — task already in progress'
+                logger.info("Skipping duplicate webhook for WP %s %s", post_type, post_id)
         else:
             status = 'ignored'
             error_message = 'Missing post_id'

@@ -9,5 +9,6 @@ builder.Services.AddControllers();
 var app = builder.Build();
 
 app.UseMiddleware<ErrorHandlingMiddleware>();
+app.UseMiddleware<ApiKeyMiddleware>();
 app.MapControllers();
 app.Run();

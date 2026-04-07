@@ -38,10 +38,14 @@ def _request_json(
 ) -> dict[str, Any]:
     url = f"{_base_url()}{path}"
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
+    headers = {"Content-Type": "application/json"}
+    internal_token = getattr(settings, "HTTP_WORKER_INTERNAL_TOKEN", "")
+    if internal_token:
+        headers["X-Internal-Token"] = internal_token
     http_request = request.Request(
         url,
         data=body,
-        headers={"Content-Type": "application/json"},
+        headers=headers,
         method=method,
     )
     try:
