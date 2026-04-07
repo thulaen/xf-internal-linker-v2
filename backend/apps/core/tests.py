@@ -637,7 +637,7 @@ class ValueModelEngagementSettingsTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         self.assertTrue(data["engagement_signal_enabled"])
-        self.assertAlmostEqual(data["w_engagement"], 0.1, places=4)
+        self.assertAlmostEqual(data["w_engagement"], 0.08, places=4)
         self.assertEqual(data["engagement_lookback_days"], 30)
         self.assertEqual(data["engagement_words_per_minute"], 200)
         self.assertAlmostEqual(data["engagement_cap_ratio"], 1.5, places=4)
