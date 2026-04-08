@@ -1,6 +1,10 @@
 # Gemini Instructions
 
+**Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
+**Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
+**Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
+**Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 
 Repository communication rule:
 

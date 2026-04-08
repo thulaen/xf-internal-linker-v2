@@ -341,16 +341,6 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 - Appearance settings API, Angular customizer UI, live theme application, logo upload, and favicon upload are shipped.
 
- 
- ---
- 
-<br>
-
----
-
-## PENDING
-
-<br>
 
 ---
 
@@ -440,275 +430,6 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ---
 
-### FR-018 - Auto-Tuned Ranking Weights & Safe Dated Model Promotion
-**Requested:** 2026-03-25
-**Target phase:** Phase 21
-**Priority:** High
-
-### What's wanted
-- Automatically tune ranking weights and later reranking weights using reviewer outcomes, apply outcomes, `GA4` behavior data, and delayed `GSC` impact data.
-- Every promoted model/version must be dated for clean record keeping and instant rollback.
-- The system must improve carefully without causing conflicts, hidden score drift, or silent regressions.
-
-### Specific controls / behaviour
-- Define a training dataset that joins:
-  - review approvals/rejections
-  - manual apply state
-  - `GA4` click and engagement outcomes
-  - `GSC` delayed search outcomes
-  - the exact pipeline snapshot and algorithm version that produced each suggestion
-- Train a challenger model or challenger weight set offline first.
-- Compare challenger vs champion on frozen holdout data before any live use.
-- Promote a challenger only when it clears explicit gates:
-  - minimum sample size
-  - uplift threshold
-  - no hard-constraint violations
-  - no fairness/bias alert from geography/device segmentation
-  - no regression beyond tolerated limits in approval rate, click rate, or search impact
-- Save each promoted version with:
-  - full date
-  - month
-  - year
-  - exact timestamp
-  - dated slug
-  - parent model/version
-  - training window
-  - feature set version
-  - evaluation report snapshot
-- Keep a full adaptive-change history log for every automatic change, even when the change is later rolled back.
-- Every automatic change history row must include:
-  - exact date
-  - exact time
-  - month
-  - year
-  - old champion version
-  - new challenger/promoted version
-  - old weight values
-  - new weight values
-  - absolute delta by weight
-  - percentage delta by weight
-  - trigger source
-  - trigger summary
-  - evaluation window used
-  - key metrics that improved
-  - key metrics that regressed
-  - promotion decision
-  - rollback state
-- Trigger source must be explicit, for example:
-  - reviewer outcome drift
-  - `GA4` engagement uplift
-  - `GSC` delayed search uplift
-  - scheduled retrain window
-  - manual operator-approved promotion
-- Add automatic alerts when:
-  - a challenger is promoted
-  - a live adaptive weight set changes
-  - a regression gate blocks promotion
-  - an active version is rolled back
-  - telemetry quality is too weak for safe adaptation
-- Alert payloads must include:
-  - exact date and time
-  - month and year
-  - affected algorithm/version
-  - short plain-English summary of what changed
-  - detailed trigger summary
-  - before/after top metrics
-  - link to the saved evaluation snapshot or history row
-- Add a readable history screen that shows adaptive changes newest-first with expandable detail.
-- Add a “why this changed” summary block for each history item that explains in plain English:
-  - what triggered the change
-  - which weights changed
-  - which metrics got better
-  - which risks were checked
-  - whether the change was later kept or rolled back
-- Keep a champion/challenger registry and allow instant rollback to any earlier dated version.
-- Support shadow mode:
-  - challenger scores are computed and stored
-  - live ordering still uses champion
-  - reports compare both side by side
-- Support capped rollout mode:
-  - small traffic slice or bounded destination cohort
-  - automatic abort if regression thresholds trip
-- Keep tuning scope bounded:
-  - first auto-tuning pass may adjust additive weights only
-  - hard filters, existing-link blocks, cross-silo strict blocks, and safety constraints must remain non-negotiable
-- Add clear diagnostics showing why a new version was promoted or rejected.
-- Expose per-version reports for:
-  - approval rate
-  - rejection reasons
-  - apply rate
-  - click-through rate
-  - engaged-session rate
-  - destination dwell / engaged time
-  - search uplift
-  - segment stability by device/channel/geography
-- Expose an adaptive-change timeline chart that marks:
-  - when a challenger entered shadow mode
-  - when a version was promoted
-  - when weights changed automatically
-  - when a rollback happened
-  - the main trigger behind each event
-
-### Implementation notes for the AI
-- Do not let training code overwrite current settings in place.
-- New learned weights must live in versioned records, not in the single shared settings table.
-- Current hand-tuned settings remain the champion until an explicit promotion step occurs.
-- Promotion must be a separate action with a persisted evaluation snapshot and dated version stamp.
-- Automatic promotions and automatic weight changes must also write an immutable audit/history record; never rely on ephemeral logs only.
-- Keep the live pipeline able to load either:
-  - manual settings only
-  - a promoted dated weight set
-  - a promoted reranker version
-- Never change old pipeline-run snapshots after the fact.
-- Preserve reproducibility: a historical run must always be traceable to the exact dated algorithm version that created it.
-- History summaries and alerts must use exact timestamps, not vague relative words like "today" or "recently".
-- Start with additive bounded adjustments only. Do not let the first pass invent new unbounded score components.
-- If telemetry quality is low, or sample size is weak, or evaluation is inconclusive, the app must not promote a new version.
-- Keep scope clean: generic operator alerts, bell/desktop notifications, job-complete warnings, model-download reminders, and non-adaptation error alerts belong to `FR-019`, not here.
-- Keep runtime model download, warmup, hot swap, and zero-downtime model migration behavior in `FR-020`, not here.
-
----
-
-### FR-019 - Operator Alerts, Notification Center & Desktop Attention Signals
-**Requested:** 2026-03-25
-**Target phase:** Phase 22
-**Priority:** High
-**Spec draft:** `docs/specs/fr019-operator-alerts-notification-center.md`
-
-### What's wanted
-- Make the GUI less vague when background work is loading, waiting, failing, or done.
-- Add a real operator alert system so important problems and important wins are hard to miss.
-- Support in-app alerts, a bell/notification center, optional sound, and Windows desktop notifications for urgent events.
-
-### Specific controls / behaviour
-- Add a notification center with:
-  - unread count
-  - severity levels such as info, warning, error, urgent
-  - exact timestamp on every alert
-  - plain-English title and plain-English details
-  - link back to the related job, settings page, error row, suggestion, or analytics view
-- Add clearer embedding/model status messages such as:
-  - model not downloaded yet
-  - downloading model for first use
-  - warming model into memory
-  - model ready
-  - model load failed
-- Add job lifecycle alerts for:
-  - queued
-  - started
-  - completed
-  - failed
-  - stalled / unusually slow
-- Add error alerts tied to persisted error rows so the user can see both:
-  - the friendly message
-  - the saved technical details
-- Add Windows desktop notifications for:
-  - job completed
-  - job failed
-  - urgent system warning
-  - urgent trending suggestion / search spike event
-- Add optional bell/sound alerts for:
-  - failures
-  - urgent warnings
-  - completed long-running jobs
-- Add urgent search/trend alerts when:
-  - `GSC` shows a strong spike in impressions, clicks, or query demand
-  - a destination or suggestion becomes urgent enough to review quickly
-- Add anti-spam guardrails:
-  - deduplicate repeated alerts
-  - cooldown windows
-  - per-type mute toggles
-  - quiet-hours support
-- Add settings for:
-  - desktop notifications on/off
-  - sound on/off
-  - quiet hours
-  - minimum severity for sound
-  - minimum severity for desktop popups
-  - urgent trend thresholds
-
-### Implementation notes for the AI
-- This request owns generic operator alerts and attention signals across jobs, sync, model loading, diagnostics, and urgent trend events.
-- Keep `FR-018` alerts narrowly about adaptive model promotion / rollback / auto-tuning decisions so the two requests do not overlap.
-- Every alert must have an exact timestamp and a stable event type.
-- All alert-worthy failures must also be written to persistent storage; never rely on browser-only toasts.
-- Browser and Windows notifications must degrade safely when permission is missing.
-- Sound must be opt-in or user-controllable and must never loop forever.
-- First pass can use WebSockets plus browser notification APIs; native Windows-only polish can be layered on after the core alert model exists.
-
----
-
-### FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry
-**Requested:** 2026-03-25
-**Target phase:** Phase 23
-**Priority:** High
-**Status:** **Postponed / Resource-Contingent** (Requires more than 16GB RAM for heavy local models like Ollama/vLLM)
-
-### What's wanted
-- Make model switching easy and safe as the machine gets stronger over time.
-- Support future bigger local models, including things like `DeepSeek-R1`, without turning model changes into risky manual surgery.
-- Allow warmup, hot swap, and sync/backfill work with no user-visible downtime.
-
-### Specific controls / behaviour
-- Add a versioned model registry for at least:
-  - embedding model
-  - distillation model
-  - optional local LLM helper model
-- Track per model entry:
-  - model name
-  - model family
-  - task type
-  - vector dimension when relevant
-  - device target
-  - batch size
-  - memory profile / operator note
-  - status such as inactive, downloading, warming, ready, draining, failed
-- Add a safe switch flow:
-  - register candidate model
-  - download it
-  - warm it
-  - health-check it
-  - route new jobs to it
-  - let in-flight jobs finish on the old model
-  - drain the old model cleanly
-- Support hot swap without downtime:
-  - current jobs keep their original model binding
-  - new jobs use the promoted ready model
-  - the UI always shows which model each job used
-- Support sync/backfill during model changes:
-  - rolling re-embed jobs
-  - resumable backfills
-  - progress and failure alerts
-  - no frozen UI while backfill runs
-- Handle embedding dimension changes safely:
-  - compatibility checks before switch
-  - dual-column / dual-version strategy when dimensions differ
-  - cutover only after the new vectors are ready
-  - no destructive in-place overwrite of old embeddings during first pass
-- Add health/error handling for:
-  - download failed
-  - warmup failed
-  - model incompatible with current schema
-  - device memory pressure
-  - worker crash during swap
-- Add settings/UI controls for:
-  - current champion model per task
-  - candidate model
-  - warm/download action
-  - promote action
-  - rollback action
-  - backfill status
-  - last health-check result
-
-### Implementation notes for the AI
-- This request owns runtime model lifecycle and switching behavior, not `FR-018`.
-- All model changes must be versioned and auditable.
-- Never mutate the active model for running jobs in place.
-- Preserve reproducibility: job records and pipeline snapshots must store the exact model/version used.
-- Treat embedding-model swaps and LLM/distiller swaps differently when needed; embedding swaps can require backfill, while text-only helper model swaps may not.
-- Design for both small laptop-safe models and future larger local models on a stronger PC.
-- Keep the first implementation focused on reliability and rollback, not on squeezing maximum hardware utilization.
-
 ### FR-021 - Graph-Based Link Candidate Generation (Pixie Random Walk + Instagram Value Scoring)
 **Requested:** 2026-03-28
 **Target phase:** Phase 24
@@ -794,90 +515,6 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ---
 
-### [Complete] FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
-**Requested:** 2026-03-28
-**Target phase:** Phase 26
-**Completed phase:** Phase 26
-**Priority:** Medium
-**Spec draft:** `docs/specs/fr023-reddit-hot-decay-wilson-score-spike-alerts.md`
-**Completed:** 2026-04-07
-
-- C# TrafficDecayService implements Reddit Hot formula with configurable gravity, clicks weight, and impressions weight.
-- Django settings endpoint, recommended_weights.py keys, and Angular settings card added (2026-04-07 audit fix).
-- Wilson Score display (Part 2) and hot-score spike alerts (Part 3) implemented in C# HttpWorker.
-- Preset migration 0026 upserts hot_decay keys into existing installs.
-
-### What's wanted
-Three independent, non-conflicting improvements built around Reddit's Hot algorithm and Wilson Score math:
-
-1. **Reddit Hot decay** — replace the flat 90-day average inside FR-021's `traffic_signal` slot with Reddit Hot's logarithmic time-decay formula. Recent traffic counts for more. Old traffic fades. Pages gaining momentum right now surface as better link candidates than pages that were popular months ago.
-2. **Wilson Score display** — show a confidence-adjusted CTR label in the FR-016 telemetry review UI. Makes it obvious when a "great CTR" is based on 5 impressions vs 5,000.
-3. **Hot-score spike alerts** — a new `analytics.hot_score_spike` alert that fires when a page's traffic *momentum* rises sharply, even if raw volume is modest. Complements (does not replace) the existing `analytics.gsc_spike` alert.
-
-### Specific controls / behaviour
-- Part 1 modifies exactly one function: the `traffic_signal` computation in the FR-021 value model. Nothing else.
-- Reddit Hot formula adapted for traffic: `hot_score = log10(max(traffic_volume, 1)) − gravity × age_in_days`. Summed across daily `SearchMetric` rows. Normalized site-wide with min-max.
-- `hot_decay_enabled` toggle — when off, falls back to original flat average. Instant rollback.
-- Configurable: `hot_gravity` (default 0.05), `hot_clicks_weight` (1.0), `hot_impressions_weight` (0.05), `hot_lookback_days` (90).
-- Part 2 adds `wilson_lower_bound` and `wilson_confidence_label` as computed read-only fields on the FR-016 telemetry API. No DB column. No ranking impact.
-- Confidence labels: low (< 20 impressions), moderate (20–99), good (100–499), high (≥ 500).
-- Part 3 adds `analytics.hot_score_spike` and `analytics.hot_score_spike_resolved` event types to FR-019.
-- Spike detected when: `delta ≥ 1.5` log units AND `relative_lift ≥ 50%` vs 7-day trailing average.
-- Severity: `warning` at 50–99% lift, `urgent` at ≥ 100% lift.
-- Dedupe cooldown: 24 hours per item per day.
-
-### Implementation notes for the AI
-- Part 1 must only modify the `traffic_signal` computation inside the FR-021 knowledge-graph service. Do not touch `score_final`, `score_link_freshness`, or `velocity.py`.
-- Part 2 must be computed on read in the serializer/view. Do not add a DB column. Do not feed Wilson Score into any ranking weight.
-- Part 3 must use `emit_operator_alert()` from FR-019. Do not build a separate alert path.
-- FR-016's rule — "no live ranking from telemetry in first pass" — is fully respected. Parts 2 and 3 are display and alerts only.
-- FR-007 and `velocity.py` are not modified by this FR under any circumstances.
-- Depends on: FR-021 (Part 1), FR-016 (Part 2), FR-019 (Part 3).
-
----
-
-### FR-024 - TikTok Read-Through Rate — Engagement Signal
-**Requested:** 2026-03-28
-**Target phase:** Phase 27
-**Completed phase:** Phase 27
-**Priority:** Medium
-**Spec draft:** `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`
-**Completed:** 2026-04-06
-
-- Implemented exactly against `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`.
-- Added `EngagementSignalData` record to C# contracts.
-- Added 6 new `PipelineOptions` fields (`EngagementSignalEnabled`, `WeightEngagement`, `EngagementLookbackDays`, `EngagementWordsPerMinute`, `EngagementCapRatio`, `EngagementFallbackValue`).
-- Added `GetEngagementMetricsAsync` to `IPostgresRuntimeStore` and `PostgresRuntimeStore` (rolling average of `avg_engagement_time` + `bounce_rate` from `analytics_searchmetric`, word count from `content_contentitem.distilled_text`).
-- Added site-wide `ComputeNormalizedEngagementSignals` in `PipelineServices` (cap + min-max normalize).
-- Updated `GraphCandidateService.CalculateValueScore` with sixth signal slot and full diagnostic fields.
-- Extended Django `DEFAULT_VALUE_MODEL_SETTINGS`, `_read_value_model_settings`, `_validate_value_model_settings`, and `ValueModelSettingsView.put` with 6 new engagement keys.
-- Added `recommended_weights.py` keys and migration `0024_upsert_engagement_signal_preset_keys.py`.
-- Extended Angular `ValueModelSettings` interface, settings tooltips, `valueModel` initializer, and settings card HTML with engagement sub-section.
-- Extended `ValueModelDiagnostics` interface and review detail panel with full engagement breakdown.
-- Verified: Django 5 tests pass, Angular build clean (no warnings), Angular 18 tests 18/18, no migration drift.
-
-### What's wanted
-- Inspired by TikTok's completion rate signal: articles that hold human attention all the way through are better link destinations than keyword-stuffed pages people immediately bounce from.
-- Add a sixth signal slot `engagement_signal` to the FR-021 value model.
-- Compute it from `SearchMetric.avg_engagement_time` (already stored) divided by an estimated read time from `ContentItem.distilled_text` word count.
-- Apply a bounce-rate penalty: `engagement_quality = read_through_rate × (1 − bounce_rate)`.
-- Normalize site-wide with min-max, same pattern as other value model signals.
-- Falls back to neutral `0.5` when no `SearchMetric` rows exist.
-
-### Specific controls / behaviour
-- New settings fields on `GET/PUT /api/settings/value-model/`: `engagement_signal_enabled`, `w_engagement` (default: 0.1), `engagement_lookback_days` (30), `engagement_words_per_minute` (200), `engagement_cap_ratio` (1.5), `engagement_fallback_value` (0.5).
-- `value_model_diagnostics` extended with: `engagement_signal`, `read_through_rate_raw`, `engagement_quality_raw`, `avg_engagement_time_seconds`, `avg_bounce_rate`, `word_count`, `estimated_read_time_seconds`, `engagement_metric_rows_used`, `engagement_fallback_used`.
-- Review UI shows full engagement breakdown per suggestion.
-- Settings card adds engagement sub-section to the FR-021 card.
-
-### Implementation notes for the AI
-- Only `SearchMetric.avg_engagement_time` and `bounce_rate` are used. Do not read FR-016 `SuggestionTelemetryDaily` data — that is deferred from ranking by FR-016's staged rollout design.
-- Only modify the `engagement_signal` computation function inside the FR-021 value model service. Do not touch `score_final`, FR-007, `velocity.py`, or FR-023.
-- `engagement_signal_enabled = false` must return `0.5` fallback cleanly.
-- Depends on: FR-021.
-
----
-
 ### FR-025 - Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering
 **Requested:** 2026-03-28
 **Target phase:** Phase 28
@@ -947,25 +584,6 @@ Three independent, non-conflicting improvements built around Reddit's Hot algori
 - `/api/settings/appearance/` and `/api/dashboard/` are already public (`AllowAny`) — login page loads app theme without auth. Do not change these.
 - No role management, no registration page, no OAuth. Accounts created via Django admin only.
 - No other FR dependencies.
-
----
-
-### FR-027 - CANCELLED: R Analytics Tidyverse Upgrade
-**Requested:** 2026-03-28
-**Target phase:** Phase 30
-**Priority:** Cancelled
-**Spec:** `docs/specs/fr027-r-analytics-tidyverse-upgrade.md` (cancelled)
-
-### Why cancelled
-The R analytics service has been removed from the stack. All goals originally planned for this FR are now covered by:
-
-- **Data manipulation and aggregation** — C# LINQ (built-in, no packages needed). Replaces `dplyr`, `tidyr`, `purrr`.
-- **Log-score computation and date arithmetic** — C# `Math`, `DateOnly`, `TimeSpan`. Replaces `lubridate`.
-- **Statistical functions** (Wilson score, confidence bounds, L-BFGS optimization for FR-018) — `MathNet.Numerics` NuGet package.
-- **Charts and visualizations** — D3.js in the Angular frontend. Replaces `ggplot2` and the Shiny dashboard.
-- **Batch writes** — Npgsql batch `UPDATE` via `UNNEST`. Replaces the `purrr::pwalk()` row-by-row fix.
-
-The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will be implemented in C# inside `services/http-worker/src/HttpWorker.Analytics/` instead.
 
 ---
 
@@ -1112,20 +730,12 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
-### FR-032 - Automated Orphan & Low-Authority Page Identification
-**Requested:** 2026-04-03
-**Target phase:** Phase 35
-**Status:** Complete (Phase 35, commit 2b59761, 2026-04-06)
-**Priority:** High
-**Spec draft:** `docs/specs/fr032-orphan-page-identification.md`
-
----
-
 ### FR-033 - Internal PageRank (Structural Equity) Heatmap
 **Requested:** 2026-04-03
 **Target phase:** Phase 36
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr033-internal-pagerank-heatmap.md`
+**Completed:** 2026-04-08 (verified against code)
 
 ### What's wanted
 - Visualize the distribution of "link juice" across the site to detect equity hoarding or starvation.
@@ -1142,32 +752,12 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 
 ---
 
-### FR-034 - Link Context & Contextual Class Audit
-**Requested:** 2026-04-03
-**Target phase:** Phase 37
-**Priority:** Medium
-**Spec draft:** `docs/specs/fr034-link-context-quality-audit.md`
-
-### What's wanted
-- Audit the "human quality" of links based on their placement context.
-- Distinguish between organic contextual links and isolated "footer-style" or "weak" links.
-
-### Specific controls / behaviour
-- **Quality Distribution**: Chart showing % of site links classified as `contextual`, `weak_context`, or `isolated`.
-- **Context Filters**: Filter the D3 graph to only show `contextual` links to see the "true" content-driven network.
-- **Anchor Diversity Audit**: Per-node breakdown of anchor text variations. Warning for "over-optimized" anchors (many links, same text).
-
-### Implementation notes for the AI
-- `ContextClass` column on `ExistingLink` is already populated.
-- Use the existing `GraphSyncService.ClassifyContext` logic for any new imports.
-
----
-
 ### FR-035 - Link Freshness & Churn Velocity Timeline
 **Requested:** 2026-04-03
 **Target phase:** Phase 38
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr035-link-network-velocity-timeline.md`
+**Completed:** 2026-04-08 (verified against code)
 
 ### What's wanted
 - Monitor the evolution of the link network over time.
@@ -1181,6 +771,191 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 ### Implementation notes for the AI
 - Data source: `LinkFreshnessEdge` table.
 - Grouping by `tracked_at` date or `last_seen_at` to compute daily deltas.
+
+---
+
+### FR-024 - TikTok Read-Through Rate — Engagement Signal
+**Requested:** 2026-03-28
+**Target phase:** Phase 27
+**Completed phase:** Phase 27
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`
+**Completed:** 2026-04-06
+
+- Implemented exactly against `docs/specs/fr024-tiktok-read-through-rate-engagement-signal.md`.
+- Added `EngagementSignalData` record to C# contracts, 6 new `PipelineOptions` fields.
+- Added `GetEngagementMetricsAsync` to `PostgresRuntimeStore`, site-wide `ComputeNormalizedEngagementSignals`.
+- Updated `GraphCandidateService.CalculateValueScore` with sixth signal slot and full diagnostic fields.
+- Extended Django settings API, Angular settings card, and review detail panel with engagement breakdown.
+- Verified: Django tests pass, Angular build clean, Angular tests 18/18, no migration drift.
+
+
+ ---
+
+<br>
+
+---
+
+## PENDING
+
+<br>
+
+---
+
+### FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry
+**Requested:** 2026-03-25
+**Target phase:** Phase 23
+**Priority:** High
+**Status:** **Postponed / Resource-Contingent** (Requires more than 16GB RAM for heavy local models like Ollama/vLLM)
+
+### What's wanted
+- Make model switching easy and safe as the machine gets stronger over time.
+- Support future bigger local models, including things like `DeepSeek-R1`, without turning model changes into risky manual surgery.
+- Allow warmup, hot swap, and sync/backfill work with no user-visible downtime.
+
+### Specific controls / behaviour
+- Add a versioned model registry for at least:
+  - embedding model
+  - distillation model
+  - optional local LLM helper model
+- Track per model entry:
+  - model name
+  - model family
+  - task type
+  - vector dimension when relevant
+  - device target
+  - batch size
+  - memory profile / operator note
+  - status such as inactive, downloading, warming, ready, draining, failed
+- Add a safe switch flow:
+  - register candidate model
+  - download it
+  - warm it
+  - health-check it
+  - route new jobs to it
+  - let in-flight jobs finish on the old model
+  - drain the old model cleanly
+- Support hot swap without downtime:
+  - current jobs keep their original model binding
+  - new jobs use the promoted ready model
+  - the UI always shows which model each job used
+- Support sync/backfill during model changes:
+  - rolling re-embed jobs
+  - resumable backfills
+  - progress and failure alerts
+  - no frozen UI while backfill runs
+- Handle embedding dimension changes safely:
+  - compatibility checks before switch
+  - dual-column / dual-version strategy when dimensions differ
+  - cutover only after the new vectors are ready
+  - no destructive in-place overwrite of old embeddings during first pass
+- Add health/error handling for:
+  - download failed
+  - warmup failed
+  - model incompatible with current schema
+  - device memory pressure
+  - worker crash during swap
+- Add settings/UI controls for:
+  - current champion model per task
+  - candidate model
+  - warm/download action
+  - promote action
+  - rollback action
+  - backfill status
+  - last health-check result
+
+### Implementation notes for the AI
+- This request owns runtime model lifecycle and switching behavior, not `FR-018`.
+- All model changes must be versioned and auditable.
+- Never mutate the active model for running jobs in place.
+- Preserve reproducibility: job records and pipeline snapshots must store the exact model/version used.
+- Treat embedding-model swaps and LLM/distiller swaps differently when needed; embedding swaps can require backfill, while text-only helper model swaps may not.
+- Design for both small laptop-safe models and future larger local models on a stronger PC.
+- Keep the first implementation focused on reliability and rollback, not on squeezing maximum hardware utilization.
+
+---
+
+### [Complete] FR-023 - Reddit Hot Decay, Wilson Score Confidence & Traffic Spike Alerts
+**Requested:** 2026-03-28
+**Target phase:** Phase 26
+**Completed phase:** Phase 26
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr023-reddit-hot-decay-wilson-score-spike-alerts.md`
+**Completed:** 2026-04-07
+
+- C# TrafficDecayService implements Reddit Hot formula with configurable gravity, clicks weight, and impressions weight.
+- Django settings endpoint, recommended_weights.py keys, and Angular settings card added (2026-04-07 audit fix).
+- Wilson Score display (Part 2) and hot-score spike alerts (Part 3) implemented in C# HttpWorker.
+- Preset migration 0026 upserts hot_decay keys into existing installs.
+
+### What's wanted
+Three independent, non-conflicting improvements built around Reddit's Hot algorithm and Wilson Score math:
+
+1. **Reddit Hot decay** — replace the flat 90-day average inside FR-021's `traffic_signal` slot with Reddit Hot's logarithmic time-decay formula. Recent traffic counts for more. Old traffic fades. Pages gaining momentum right now surface as better link candidates than pages that were popular months ago.
+2. **Wilson Score display** — show a confidence-adjusted CTR label in the FR-016 telemetry review UI. Makes it obvious when a "great CTR" is based on 5 impressions vs 5,000.
+3. **Hot-score spike alerts** — a new `analytics.hot_score_spike` alert that fires when a page's traffic *momentum* rises sharply, even if raw volume is modest. Complements (does not replace) the existing `analytics.gsc_spike` alert.
+
+### Specific controls / behaviour
+- Part 1 modifies exactly one function: the `traffic_signal` computation in the FR-021 value model. Nothing else.
+- Reddit Hot formula adapted for traffic: `hot_score = log10(max(traffic_volume, 1)) − gravity × age_in_days`. Summed across daily `SearchMetric` rows. Normalized site-wide with min-max.
+- `hot_decay_enabled` toggle — when off, falls back to original flat average. Instant rollback.
+- Configurable: `hot_gravity` (default 0.05), `hot_clicks_weight` (1.0), `hot_impressions_weight` (0.05), `hot_lookback_days` (90).
+- Part 2 adds `wilson_lower_bound` and `wilson_confidence_label` as computed read-only fields on the FR-016 telemetry API. No DB column. No ranking impact.
+- Confidence labels: low (< 20 impressions), moderate (20–99), good (100–499), high (≥ 500).
+- Part 3 adds `analytics.hot_score_spike` and `analytics.hot_score_spike_resolved` event types to FR-019.
+- Spike detected when: `delta ≥ 1.5` log units AND `relative_lift ≥ 50%` vs 7-day trailing average.
+- Severity: `warning` at 50–99% lift, `urgent` at ≥ 100% lift.
+- Dedupe cooldown: 24 hours per item per day.
+
+### Implementation notes for the AI
+- Part 1 must only modify the `traffic_signal` computation inside the FR-021 knowledge-graph service. Do not touch `score_final`, `score_link_freshness`, or `velocity.py`.
+- Part 2 must be computed on read in the serializer/view. Do not add a DB column. Do not feed Wilson Score into any ranking weight.
+- Part 3 must use `emit_operator_alert()` from FR-019. Do not build a separate alert path.
+- FR-016's rule — "no live ranking from telemetry in first pass" — is fully respected. Parts 2 and 3 are display and alerts only.
+- FR-007 and `velocity.py` are not modified by this FR under any circumstances.
+- Depends on: FR-021 (Part 1), FR-016 (Part 2), FR-019 (Part 3).
+
+---
+
+### FR-027 - CANCELLED: R Analytics Tidyverse Upgrade
+**Requested:** 2026-03-28
+**Target phase:** Phase 30
+**Priority:** Cancelled
+**Spec:** `docs/specs/fr027-r-analytics-tidyverse-upgrade.md` (cancelled)
+
+### Why cancelled
+The R analytics service has been removed from the stack. All goals originally planned for this FR are now covered by:
+
+- **Data manipulation and aggregation** — C# LINQ (built-in, no packages needed). Replaces `dplyr`, `tidyr`, `purrr`.
+- **Log-score computation and date arithmetic** — C# `Math`, `DateOnly`, `TimeSpan`. Replaces `lubridate`.
+- **Statistical functions** (Wilson score, confidence bounds, L-BFGS optimization for FR-018) — `MathNet.Numerics` NuGet package.
+- **Charts and visualizations** — D3.js in the Angular frontend. Replaces `ggplot2` and the Shiny dashboard.
+- **Batch writes** — Npgsql batch `UPDATE` via `UNNEST`. Replaces the `purrr::pwalk()` row-by-row fix.
+
+The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will be implemented in C# inside `services/http-worker/src/HttpWorker.Analytics/` instead.
+
+---
+
+### FR-034 - Link Context & Contextual Class Audit
+**Requested:** 2026-04-03
+**Target phase:** Phase 37
+**Priority:** Medium
+**Spec draft:** `docs/specs/fr034-link-context-quality-audit.md`
+**Status:** Partial
+**Note:** Partial — link parser and context scoring refs exist; audit dashboard/trail UI missing
+
+### What's wanted
+- Audit the "human quality" of links based on their placement context.
+- Distinguish between organic contextual links and isolated "footer-style" or "weak" links.
+
+### Specific controls / behaviour
+- **Quality Distribution**: Chart showing % of site links classified as `contextual`, `weak_context`, or `isolated`.
+- **Context Filters**: Filter the D3 graph to only show `contextual` links to see the "true" content-driven network.
+- **Anchor Diversity Audit**: Per-node breakdown of anchor text variations. Warning for "over-optimized" anchors (many links, same text).
+
+### Implementation notes for the AI
+- `ContextClass` column on `ExistingLink` is already populated.
+- Use the existing `GraphSyncService.ClassifyContext` logic for any new imports.
 
 ---
 
@@ -1210,6 +985,8 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 **Target phase:** Phase 40
 **Priority:** Medium
 **Spec draft:** `docs/specs/fr037-silo-connectivity-leakage-map.md`
+**Status:** Partial
+**Note:** Partial — silo tracking (_same_silo) exists; leakage map visualization missing
 
 ### What's wanted
 - Visualize the integrity of Content Silos.
@@ -1293,6 +1070,8 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 **Priority:** Medium
 **Research basis:** Google Image SEO documentation (alt text as confirmed signal), Google patent `US8189685B1` (*Ranking Video Articles*), Wistia video engagement study (2.6× time on page), Google AI Overviews multimedia lift data (317% higher selection with text + images + video + schema).
 **Spec draft:** `docs/specs/fr040-multimedia-boost.md`
+**Status:** Partial
+**Note:** Partial — config keys in migration exist; ContentItem field and scoring service missing
 
 ### What's wanted
 - Score how visually rich a destination page is. Pages with video, descriptive images, and good alt text coverage are better link destinations than plain text pages.
@@ -1358,6 +1137,8 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 **Priority:** Medium
 **Research basis:** NODALIDA 2013 paper *Using Factual Density to Measure Informativeness of Web Documents*, patent `US9286379B2` (*Document Quality Measurement*).
 **Spec draft:** `docs/specs/fr042-fact-density-scoring.md`
+**Status:** Partial
+**Note:** Partial — config keys in migration exist; score field and scoring logic missing
 
 ### What's wanted
 - Reward destination pages that pack more concrete, fact-like information into fewer words.
@@ -1414,6 +1195,8 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 **Priority:** Medium
 **Research basis:** Matomo Site Search reporting model, Kleinberg burst-detection math, patent `US20050102259A1` (*Systems and Methods for Search Query Processing Using Trend Analysis*).
 **Spec draft:** `docs/specs/fr044-internal-search-intensity.md`
+**Status:** Partial
+**Note:** Partial — config keys in migration exist; score field and analytics aggregation missing
 
 ### What's wanted
 - Give a temporary boost to destinations that match topics users are actively searching for inside the site right now.
@@ -2285,11 +2068,16 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ## TEMPLATE ONLY
 
+---
+
 ### FR-0XX - Add your next request here
 
 Template placeholder only. Not backlog scope.
 
 ```md
+
+---
+
 ### FR-0XX - Short title
 
 **Requested:** YYYY-MM-DD

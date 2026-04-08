@@ -42,15 +42,14 @@ Execution order and FR IDs are decoupled.
 - **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
 
 
-- Status: Phase 35 / FR-032 (Automated Orphan & Low-Authority Page Identification) is complete.
-- Active target for the next session: Phase 36 / FR-033 (Internal PageRank Heatmap)
-- Current continuity state: Graph-based candidates (FR-021), System Health (FR-022), Social Scoring (FR-023), Engagement Signal (FR-024), Co-Occurrence (FR-025), Weight Diagnostics (FR-028), GPU Embeddings (FR-029), FAISS-GPU (FR-030), D3 Link Graph (FR-031), and Orphan Audit (FR-032) are fully implemented and verified.
-- Verification completed:
-  - `python backend/manage.py test` — 185 tests pass (commit 2b59761)
-  - `ng test` — 18 frontend tests pass
+- Status: Phase 36 / FR-035 (Link Freshness & Churn Velocity Timeline) is the latest completed phase.
+- Active target for the next session: Phase 37 / FR-020 (Zero-Downtime Model Switching)
+- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. See Project Status Dashboard below for the full breakdown.
+- Verification completed (2026-04-08):
+  - `python backend/manage.py test` — 192 tests pass
+  - `ng test` — 22 frontend tests pass
   - `ng build --configuration=production` — clean build
-  - `docker-compose build` — backend image builds successfully
-  - Phase 29 / FR-026 (Auth & Login) is also landed and verified.
+  - Pre-push CI: all gates passed
 
 ## AI Handoff And Git Hygiene
 
@@ -157,7 +156,22 @@ Phase 12 shipped:
 - Phase 15 / `FR-012`: separate click-distance structural prior scoring, settings, diagnostics, review exposure, and recalculation task implemented from `docs/specs/fr012-click-distance-structural-prior.md`
 - Phase 16 / `FR-013`: post-ranking Explore/Exploit reranker with Bayesian smoothing and UCB1 exploration.
 - Phase 17 / `FR-014`: near-duplicate destination clustering with soft suppression and manual recalculation.
-- **Analytics Groundwork**: R analytics service removed. Content value scoring and FR-018 auto-weight tuning will be implemented in C# (LINQ + MathNet.Numerics) inside `services/http-worker`. Charts replaced by D3.js in Angular (FR-016). FR-027 (R Tidyverse Upgrade) is cancelled — its goals are fully covered by C# + D3.js.
+- Phase 20 / `FR-017`: GSC Search Outcome Attribution — OAuth, impact engine, sync, Search Impact tab with scatter plot and cohort analysis
+- Phase 21 / `FR-018`: Auto-Tuned Ranking Weights — C# L-BFGS optimization, RankingChallenger champion/challenger model
+- Phase 22 / `FR-019`: Operator Alerts, Notification Center & Desktop Attention Signals
+- Phase 24 / `FR-021`: Graph-Based Link Candidate Generation (Pixie Random Walk) — GraphCandidateService.cs, graph walk diagnostics
+- Phase 25 / `FR-022`: Data Source & System Health Check Dashboard — health component, health services, health models
+- Phase 27 / `FR-024`: TikTok Read-Through Rate — Engagement Signal (sixth value model slot)
+- Phase 28 / `FR-025`: Session Co-Occurrence Collaborative Filtering — full cooccurrence Django app
+- Phase 29 / `FR-026`: Authentication & Login Status UI — login component, auth guard, route protection
+- Phase 30 / `FR-028`: Algorithm Weight Diagnostics Tab — diagnostics component, weight-diagnostics-card
+- Phase 31 / `FR-029`: GPU Embedding Pipeline — fp16 inference, HIGH_PERFORMANCE mode, CUDA detection
+- Phase 32 / `FR-030`: FAISS-GPU Vector Similarity Search — faiss_index.py with GPU support
+- Phase 33 / `FR-031`: Interactive D3.js Force-Directed Link Graph — D3 force simulation, zoom, SimNode/SimLink
+- Phase 34 / `FR-032`: Automated Orphan & Low-Authority Page Identification — orphan audit endpoints, CSV export, D3 red nodes
+- Phase 35 / `FR-033`: Internal PageRank Heatmap — weighted_pagerank.py, heatmapMode toggle, pagerank endpoint
+- Phase 36 / `FR-035`: Link Freshness & Churn Velocity Timeline — link_freshness.py, velocity.py, LinkFreshnessEdge model
+- **Analytics Groundwork**: R analytics service removed. Content value scoring and FR-018 auto-weight tuning implemented in C# (LINQ + MathNet.Numerics) inside `services/http-worker`. Charts replaced by D3.js in Angular (FR-016). FR-027 (R Tidyverse Upgrade) is cancelled — its goals are fully covered by C# + D3.js.
 - **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
 
 ## Execution Ledger
@@ -194,15 +208,66 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 25 | FR-022 | Complete | Data Source & System Health Check Dashboard |
 | 26 | FR-023 | Complete | Reddit Hot Decay, Wilson Score CTR Confidence & Traffic Spike Alerts |
 | 27 | FR-024 | Complete | TikTok Read-Through Rate — Engagement Signal (sixth value model slot) |
+| 28 | FR-025 | Complete | Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering |
 | 29 | FR-026 | Complete | Authentication & Login Status UI |
+| 30 | FR-028 | Complete | Algorithm Weight Diagnostics Tab |
+| 31 | FR-029 | Complete | GPU Embedding Pipeline (fp16, HIGH_PERFORMANCE mode) |
+| 32 | FR-030 | Complete | FAISS-GPU Vector Similarity Search |
+| 33 | FR-031 | Complete | Interactive D3.js Force-Directed Link Graph |
+| 34 | FR-032 | Complete | Automated Orphan & Low-Authority Page Identification |
+| 35 | FR-033 | Complete | Internal PageRank (Structural Equity) Heatmap |
+| 36 | FR-035 | Complete | Link Freshness & Churn Velocity Timeline |
 
-- Next exact target: Phase 28 / `FR-025 - Session Co-Occurrence Collaborative Filtering & Behavioral Hub Clustering`
-- Phase 18 reference: `FR-015` shipped as a separate final-slate diversity layer
-- Current continuity state: Phases 24, 25, 26, and 29 are complete and verified (commits 5b89804, 8020899, 89d3437, 26d3437).
-- Next session type: implement FR-024 TikTok Read-Through Rate.
+- Next exact target: Phase 37 / `FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry`
+- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
-- Future queued backlog phases beyond Phase 28 continue in `FEATURE-REQUESTS.md`.
+- Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`.
+
+## Project Status Dashboard
+
+Last verified against code: 2026-04-08
+
+| Category            | Done | Partial | Pending | Cancelled | Total |
+|---------------------|------|---------|---------|-----------|-------|
+| Feature Requests    |   31 |       5 |      59 |         1 |    96 |
+| (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
+| C++ META extensions |    0 |       0 |      36 |         0 |    36 |
+| C++ OPT extensions  |    0 |       0 |      72 |         0 |    72 |
+| **All work items**  | **31** | **5** | **167** | **1** | **204** |
+
+**Completed FRs (31):**
+FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
+FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-021,
+FR-022, FR-024, FR-025, FR-026, FR-028, FR-029, FR-030, FR-031, FR-032,
+FR-033, FR-035
+(Plus FR-023 which is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry)
+
+**Partial (5 — scaffolding exists, core logic missing):**
+- FR-034: link parser and context scoring refs exist, audit dashboard/trail UI missing
+- FR-037: silo tracking (_same_silo) exists, leakage map visualization component missing
+- FR-040: config keys in migration 0019 exist, ContentItem field and scoring service missing
+- FR-042: config keys in migration 0019 exist, score field and scoring logic missing
+- FR-044: config keys in migration 0019 exist, score field and analytics aggregation missing
+
+**Pending FRs (59):**
+FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-045, FR-046, FR-047, FR-048,
+FR-049, FR-050, FR-051, FR-052, FR-053, FR-054, FR-055, FR-056, FR-057, FR-058,
+FR-059, FR-060, FR-061, FR-062, FR-063, FR-064, FR-065, FR-066, FR-067, FR-068,
+FR-069, FR-070, FR-071, FR-072, FR-073, FR-074, FR-075, FR-076, FR-077, FR-078,
+FR-079, FR-080, FR-081, FR-082, FR-083, FR-084, FR-085, FR-086, FR-087, FR-088,
+FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096
+
+**C++ META extensions (36 — all pending):**
+meta-04 through meta-39. Full specs in `docs/specs/meta-*.md`.
+
+**C++ OPT extensions (72 — all pending):**
+opt-01 through opt-72. Full specs in `docs/specs/opt-*.md`.
+
+**Known gaps in completed work:**
+- FR-032: deep-linked discovery (click depth > 5) deferred to Phase 2
+
+**Cancelled:** FR-027 (R Tidyverse Upgrade — replaced by C# + D3.js)
 
 ## Spec Standards for All Feature Phases
 
@@ -241,6 +306,39 @@ Every implementation session must:
 7. Stage only intended files; never stage `tmp/`, `backend/scripts/`, or unrelated changes.
 8. Prefer ending the session with a clean worktree through a narrow commit and push when safe.
 9. After making any changes to backend or frontend code, automatically restart the entire stack (all Docker services) to ensure changes are live and verified before ending the session.
+
+## Deduplication & Overlap Rules — Mandatory
+
+Before suggesting or implementing ANY new feature, signal, or optimization:
+
+1. **Check the Project Status Dashboard** above for existing work items.
+2. **Search FEATURE-REQUESTS.md** for overlapping signals, algorithms, or data sources.
+3. **Search docs/specs/** for specs that already cover the idea.
+4. **Search the codebase** (backend/apps/, services/) for existing implementations.
+5. **If overlap is found**, stop and warn the user before proceeding.
+
+### What counts as overlap
+- Two signals that use the same input data and measure the same thing (e.g., "content freshness" and "page age decay" both measure time since publish)
+- Two algorithms that optimize the same objective (e.g., two different listwise ranking losses both optimizing NDCG)
+- A new FR that duplicates an existing spec in docs/specs/
+
+### What does NOT count as overlap
+- Two signals that use the same data source but measure different things (e.g., GSC clicks for CTR vs GSC impressions for visibility)
+- A C++ optimization that accelerates an existing Python implementation
+- A META algorithm that combines existing signals in a new way
+
+### When the user suggests something that overlaps
+- Say plainly: "This overlaps with [existing FR/spec]. Here's what already exists: [brief summary]."
+- Suggest: merge into the existing FR, extend it, or explain why the new one is genuinely different.
+- Do NOT silently add a duplicate.
+
+### Marking work as done
+When any AI completes an FR, META, or OPT item:
+1. Move it to `## COMPLETED` in `FEATURE-REQUESTS.md` (for FRs)
+2. Update the Execution Ledger in this file
+3. Update the Project Status Dashboard counts in this file
+4. Add a completion date
+When work is partial (scaffolding exists but core logic is missing), mark it as **Partial** with a note on what's missing.
 
 ## Workflow Guardrails Future AIs Must Follow
 

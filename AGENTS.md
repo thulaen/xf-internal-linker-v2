@@ -1,5 +1,10 @@
 # Agent Instructions (Codex / OpenAI Codex / CI Agents / Gemini / Claude)
 
+**Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
+**Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
+**Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
+**Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
+
 This file applies to every AI agent that works on this repository.
 Read all sections before making any changes to frontend styles.
 **Before any frontend styling work, also read `frontend/FRONTEND-RULES.md`.**

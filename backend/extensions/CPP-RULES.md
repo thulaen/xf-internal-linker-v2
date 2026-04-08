@@ -473,3 +473,213 @@ Every C++ extension PR must pass ALL of these before merge:
 | `memory_order_relaxed` for sync | Missing barrier | `acquire` / `release` |
 | Mixing SSE + AVX | Transition penalty | AVX2 only, or `zeroupper` |
 | `float` accumulator for sums | Precision loss | `double` accumulator |
+| `memcpy` on virtual objects | VTable corruption | Copy constructor |
+| `a[i] = i++` | Unsequenced modification | Separate statements |
+| Bitfields across pybind11 | Implementation-defined layout | Explicit fields |
+| `rand() % n` | Modulo bias | `std::uniform_int_distribution` |
+| `std::stof` for data exchange | Locale-dependent parsing | `std::from_chars` |
+| `fork()` in extensions | Orphaned processes | Never fork from C++ |
+| `time(0)` for seeding | Predictable seed | `std::random_device` |
+| Manual loop unrolling | Readability + I-cache pressure | Let `-O3` decide |
+
+---
+
+## 18. Loop Optimisation Rules
+
+### Loop-Carried Dependencies
+- Loops where iteration N depends on iteration N-1 block auto-vectorization. Restructure to break the dependency chain (e.g., parallel prefix sum).
+
+### Loop Unswitching
+- If a loop contains a branch on a loop-invariant condition, hoist the branch outside the loop. If the compiler fails to do this (check assembly), do it manually.
+
+### Loop Fusion
+- Two adjacent loops over the same range should be fused into one to improve cache locality — unless register pressure makes it worse. Benchmark both.
+
+### Unnecessary Loop Unrolling
+- Do not manually unroll loops unless benchmarks prove a gain. `-O3` and `-funroll-loops` handle this. Manual unrolling hurts readability and can cause instruction cache pressure.
+
+### Tail Call Optimisation
+- Recursive functions that can be tail-recursive should be rewritten as iterative loops. C++ compilers do not guarantee TCO.
+
+---
+
+## 19. OOP & Polymorphism Rules
+
+### Virtual Inheritance Overhead
+- Virtual inheritance adds a vptr indirection per virtual base. Forbidden in hot-path data structures.
+- If diamond inheritance is needed, prefer composition over virtual inheritance.
+
+### Diamond Problem
+- Multiple inheritance from two classes sharing a base is forbidden unless virtual inheritance is used and the performance cost is accepted (not in hot path).
+
+### VTable Pointer Corruption
+- Never memcpy or memset objects with virtual functions. Use copy constructors.
+- Never cast between unrelated class hierarchies with reinterpret_cast.
+
+### Unsequenced Modifications
+- Never modify a variable twice in the same expression: `a[i] = i++;` is UB.
+- `-Wsequence-point` (enabled via `-Wall`) catches some of these.
+
+### Shadowing Inherited Members
+- Never declare a member in a derived class with the same name as a base class member. `-Wshadow -Werror` enforces this.
+
+---
+
+## 20. Memory Layout & Initialisation Rules
+
+### Padding Bytes Leakage
+- Structures sent to Python or serialized must not leak uninitialized padding bytes. Use `= {}` aggregate init or explicit `memset` after construction.
+- For serialization: use packed structs or explicit field-by-field copy.
+
+### Unnecessary Zero Initialisation
+- Hot-path buffers that are immediately overwritten do not need zero init. Use uninitialized allocation and document why: `// not zeroed — filled by compute_scores() below`.
+
+### Trivial Destructor Prevention
+- Adding a user-defined destructor, copy constructor, or move constructor makes the type non-trivially-destructible. This prevents `memcpy` optimisation and placement-new tricks. Keep hot-path structs trivial.
+
+### Local Static Initialisation Overhead
+- Function-local `static` variables use a hidden mutex for thread-safe init (Meyers singleton). Acceptable for one-time init, but never in hot loops.
+
+### Memory Scrubbing Optimised Away
+- Compilers can optimise away `memset(secret, 0, len)` if the buffer is not used afterward. Use `memset_s()` or `SecureZeroMemory()` (Windows) to ensure scrubbing happens. (Also listed in §14 Security.)
+
+---
+
+## 21. Linker, ABI & Debug Rules
+
+### PLT/GOT Indirection
+- Shared library function calls go through PLT/GOT indirection. For hot functions called from Python: ensure they are in the same compilation unit or use `-fvisibility=hidden` + explicit export.
+
+### Relocation Table Size
+- Large extensions with many exported symbols slow down dynamic loading. Export only the pybind11 module init. All other functions: `static` or anonymous namespace.
+
+### Symbol Resolution Bottlenecks
+- Weak symbols and duplicate symbols across extensions cause linker slowdowns. Use anonymous namespaces to prevent symbol leakage.
+
+### Weak Symbol Conflicts
+- If two extensions define the same weak symbol, the linker picks one silently. Prefix all internal symbols with the extension name.
+
+### Inline Namespace ABI Changes
+- Changing the layout of a struct in an inline namespace silently breaks ABI. Version inline namespaces if structs cross the pybind11 boundary.
+
+### Dynamic Library Load Overhead
+- Each `import` of a C++ extension triggers `dlopen` + symbol resolution. Combine related functions into one extension module rather than many small `.so` files.
+
+### Debug Symbols
+- Release builds: strip debug symbols (`-s`) to reduce `.so` size.
+- Debug builds: keep symbols (`-g`) for ASAN/Valgrind. Never ship debug builds to production.
+
+### Frame Pointer
+- Release builds may omit frame pointer (`-fomit-frame-pointer`). For profiling/debugging: build with `-fno-omit-frame-pointer`.
+
+---
+
+## 22. Advanced CPU & Pipeline Rules
+
+### Store Forwarding Stalls
+- A load from an address that was just stored to must match the same width and alignment. Mismatched widths cause a store-forwarding stall (~10 cycle penalty).
+
+### Load-Hit-Store Stalls
+- Writing to memory then immediately reading it back can stall. Keep values in registers when possible.
+
+### Register Renaming Exhaustion
+- Functions using too many local variables exhaust the physical register file, causing stalls. Keep hot functions small with few live variables.
+
+### Reorder Buffer Stalls
+- Long-latency operations (cache misses, divisions) fill the reorder buffer. Interleave independent work to keep the pipeline fed.
+
+### Write-Combining Buffer Overflow
+- Sequential writes to write-combining memory (e.g., GPU buffers) must be in order and contiguous. Random writes defeat write-combining.
+
+### Memory Bandwidth Bottlenecks
+- Streaming through >L3-cache-sized data is memory-bandwidth-limited. Use prefetch (OPT-55), struct-of-arrays (OPT-35), and minimise data width (int8, float16).
+
+### Pipeline Flushes
+- Branch mispredictions flush the pipeline (~15 cycles). Use `[[likely]]` / `[[unlikely]]` hints and branchless patterns in inner loops.
+
+### Polymorphic Devirtualisation Failure
+- Indirect function calls (vtable, function pointers) cannot be predicted well. In hot paths: use CRTP static polymorphism or switch-based dispatch.
+
+---
+
+## 23. Type, Encoding & Locale Rules
+
+### Type Punning
+- The only safe type pun in C++ is `std::memcpy` or `std::bit_cast` (C++20). Union-based type punning is UB. (Reinforces §5.)
+
+### Union Active Member Violations
+- Reading a union member that was not the last one written is UB in C++. Use `std::variant` instead.
+
+### Bitfield Alignment
+- Bitfield layout is implementation-defined. Never use bitfields in structs that cross the pybind11 boundary or are serialized.
+
+### Bitfield Concurrent Access
+- Adjacent bitfields share the same memory location. Concurrent writes to different bitfields in the same struct is a data race. Use separate `std::atomic` fields instead.
+
+### Endianness
+- Never assume little-endian. Use `std::endian` (C++20) to check. Serialized data must document byte order.
+
+### Magic Numbers
+- No raw numeric constants in code. Use `constexpr` named constants. Exception: 0, 1, -1 in obvious contexts.
+
+### Hardcoded Paths
+- No hardcoded file paths. All paths come from Python arguments passed through pybind11.
+
+### Locale & String Formatting
+- Never use locale-dependent functions (`std::stof`, `sprintf` with `%f`) for data exchange. Locale changes `1.5` to `1,5` in some locales. Use `std::from_chars` / `std::to_chars`.
+
+### std::locale Global Lock
+- `std::locale` operations acquire a global lock. Never use locale-aware functions in hot paths.
+
+### Regex Backtracking
+- `std::regex` is vulnerable to catastrophic backtracking. For hot paths: use hand-written parsers or RE2-style linear-time regex.
+
+### Random Number Generators
+- `std::random_device` must be used only for seeding, never in hot paths (it may block).
+- Seed `std::mt19937` with `std::random_device` — never with `time(0)` or constants.
+- For uniform integer ranges: use `std::uniform_int_distribution`, never `rand() % n` (modulo bias).
+- For cryptographic randomness: use OS-provided APIs (`/dev/urandom`, `BCryptGenRandom`), never `std::mt19937`.
+
+---
+
+## 24. System & Process Rules
+
+### System Call Overhead
+- Minimise system calls in hot paths. Batch I/O, use `mmap` for large reads, buffer writes.
+
+### Context Switch Overhead
+- Avoid yielding threads in hot loops (`std::this_thread::yield()`). Use busy-wait with `_mm_pause()` if latency matters.
+
+### Page Faults
+- Pre-fault allocated pages before the hot path by touching each page: `for (size_t i = 0; i < len; i += 4096) data[i] = 0;`. (See OPT-57.)
+
+### TLB Shootdown
+- Avoid frequent `mmap` / `munmap` in hot paths — each triggers a TLB shootdown across cores.
+
+### File I/O Buffering
+- Use `posix_fadvise(fd, 0, 0, POSIX_FADV_SEQUENTIAL)` for sequential reads.
+- For writes: buffer in userspace and flush in batches (OPT-56).
+
+### Network Socket Blocking
+- Extensions must never open network sockets. All network I/O happens in Python or C#.
+
+### Orphaned / Zombie Processes
+- Extensions must never `fork()` or `exec()` child processes. Process management is Python's responsibility.
+
+### Environment Variables
+- Never read environment variables in C++ extensions. Configuration comes from Python function arguments.
+
+### Async-Signal-Unsafe Functions
+- Extensions called from signal handlers (unlikely but possible): use only async-signal-safe functions. In practice, our extensions are never called from signal handlers — document this assumption.
+
+### Compiler Optimisation Barriers
+- `asm volatile("" ::: "memory")` prevents compiler reordering across a point. Use only for benchmarks, never in production code.
+
+### Restrict / Pointer Aliasing
+- Use `__restrict__` qualifier on function parameters when two pointers are guaranteed not to alias. This enables vectorization the compiler cannot otherwise prove safe.
+
+### Constant Propagation
+- Pass compile-time-known values as template parameters, not runtime arguments, to enable constant folding. Example: `template<int N> void process()` instead of `void process(int n)` when N is known.
+
+### LTO Bloat
+- Link-Time Optimisation (`-flto`) can increase compile time 5-10x. Use only for release builds, not during development.
