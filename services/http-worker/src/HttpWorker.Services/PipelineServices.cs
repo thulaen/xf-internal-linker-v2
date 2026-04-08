@@ -17,7 +17,7 @@ public class ImportContentService(
     IWordPressClient wordPressClient,
     ITextDistiller textDistiller,
     IGraphSyncService graphSyncService,
-    CeleryTaskEnqueuer celeryTaskEnqueuer,
+    CeleryTaskEnqueuer _celeryTaskEnqueuer,
     ILogger<ImportContentService> logger) : IImportContentService
 {
     public async Task<ImportContentResult> ExecuteAsync(string jobId, ImportContentRequest request, CancellationToken cancellationToken)

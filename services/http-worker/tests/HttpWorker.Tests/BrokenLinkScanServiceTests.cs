@@ -147,6 +147,18 @@ internal sealed class FakePostgresRuntimeStoreForScan : IPostgresRuntimeStore
 
     public Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
         => Task.CompletedTask;
+
+    public Task<KnowledgeGraphData> LoadKnowledgeGraphDataAsync(CancellationToken cancellationToken)
+        => Task.FromResult(new KnowledgeGraphData());
+
+    public Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+        => Task.FromResult(new Dictionary<int, float>());
+
+    public Task<Dictionary<int, List<GSCDailyMetrics>>> GetDailyTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+        => Task.FromResult(new Dictionary<int, List<GSCDailyMetrics>>());
+
+    public Task<Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>> GetEngagementMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
+        => Task.FromResult(new Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>());
 }
 
 internal sealed class FakeProgressStreamService : IProgressStreamService
