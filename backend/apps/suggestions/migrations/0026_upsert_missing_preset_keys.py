@@ -19,7 +19,6 @@ NEW_VALUES = {
     "value_model.w_relevance": "0.35",
     "value_model.w_traffic": "0.25",
     "value_model.w_engagement": "0.08",
-    "value_model.w_cooccurrence": "0.12",
     # FR-023 - Reddit Hot Decay
     "value_model.hot_decay_enabled": "true",
     "value_model.hot_gravity": "0.05",

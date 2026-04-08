@@ -9,4 +9,4 @@ class ContentConfig(AppConfig):
     verbose_name = "Content"
 
     def ready(self):
-        import apps.content.signals
+        pass

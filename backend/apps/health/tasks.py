@@ -4,7 +4,6 @@ Health tasks — periodic health checks.
 
 import logging
 from celery import shared_task
-from django.utils import timezone
 from .services import HealthCheckRegistry, perform_health_check
 
 logger = logging.getLogger(__name__)

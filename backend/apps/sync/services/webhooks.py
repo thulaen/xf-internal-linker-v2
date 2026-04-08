@@ -107,7 +107,6 @@ def process_xf_webhook(event_type, payload):
     logger.info("Processing XF Webhook: event=%s, type=%s, id=%s", 
                 event_type, payload.get("content_type"), payload.get("content_id"))
 
-    sync_job_id = None
     status = 'processed'
     error_message = ''
 
@@ -119,12 +118,11 @@ def process_xf_webhook(event_type, payload):
                 lock_key = f"webhook_lock:xf_thread:{thread_id}"
                 if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
                     task_id = f"xf_sync_thread_{thread_id}"
-                    res = sync_single_xf_item.apply_async(
+                    sync_single_xf_item.apply_async(
                         args=[thread_id],
                         kwargs={"content_type": "thread", "node_id": node_id},
                         task_id=task_id,
                     )
-                    sync_job_id = res.id
                 else:
                     status = 'ignored'
                     error_message = 'Duplicate webhook — task already in progress'
@@ -139,12 +137,11 @@ def process_xf_webhook(event_type, payload):
                 lock_key = f"webhook_lock:xf_thread:{thread_id}"
                 if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
                     task_id = f"xf_sync_thread_{thread_id}"
-                    res = sync_single_xf_item.apply_async(
+                    sync_single_xf_item.apply_async(
                         args=[thread_id],
                         kwargs={"content_type": "thread"},
                         task_id=task_id,
                     )
-                    sync_job_id = res.id
                 else:
                     status = 'ignored'
                     error_message = 'Duplicate webhook — task already in progress'

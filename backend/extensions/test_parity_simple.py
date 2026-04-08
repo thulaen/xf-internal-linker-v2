@@ -1,7 +1,6 @@
 import numpy as np
 import scoring
 import simsearch
-import l2norm
 
 def test_scoring_parity():
     print("Testing Scoring Parity...")

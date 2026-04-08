@@ -1030,7 +1030,6 @@ class GSCSlice3Tests(APITestCase):
     def test_run_gsc_sync_populates_models(self, fetch_mock, build_mock):
         from apps.analytics.sync import run_gsc_sync
         from apps.analytics.models import GSCDailyPerformance, SearchMetric, AnalyticsSyncRun
-        from django.utils import timezone
         
         # Mock GSC Response (page-level total)
         fetch_mock.side_effect = [

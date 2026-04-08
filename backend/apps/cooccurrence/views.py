@@ -210,7 +210,6 @@ class BehavioralHubDetailView(APIView):
         return Response(BehavioralHubDetailSerializer(hub).data)
 
     def patch(self, request, hub_id):
-        from .models import BehavioralHub
         from .serializers import BehavioralHubSerializer
 
         hub = self._get_hub(hub_id)

@@ -21,7 +21,7 @@ def cluster_items(item_ids: list[int]) -> dict:
         try:
             service.update_item_cluster(item_id)
             count += 1
-        except Exception as exc:
+        except Exception:
             logger.exception("Failed to cluster item %s", item_id)
             failed_ids.append(item_id)
     return {"clustered_count": count, "failed_ids": failed_ids}

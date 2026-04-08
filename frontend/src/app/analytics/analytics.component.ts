@@ -11,7 +11,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import { BaseChartDirective } from 'ng2-charts';
-import { ChartConfiguration, ChartData, ChartType } from 'chart.js';
+import { ChartConfiguration, ChartData } from 'chart.js';
 import {
   AnalyticsBreakdownsResponse,
   AnalyticsFunnelResponse,
@@ -27,7 +27,6 @@ import {
   AnalyticsVersionComparisonResponse,
   AnalyticsVersionComparisonRow,
   GSCImpactSnapshot,
-  GSCKeywordImpact,
   SearchImpactDetailResponse,
 } from './analytics.service';
 

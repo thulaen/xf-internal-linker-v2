@@ -1,0 +1,16 @@
+# Ruff configuration for XF Internal Linker V2 backend
+target-version = "py312"
+
+[lint]
+# E402: Module-level import not at top — common Django pattern
+# E741: Ambiguous variable name — tolerate in scripts
+ignore = ["E402", "E741"]
+
+[lint.per-file-ignores]
+# Test files: unused variables from ORM .create() side effects
+"**/tests.py" = ["F841"]
+"**/tests/**" = ["F841"]
+# Migration scripts: unused vars and other noise
+"**/migrations/**" = ["F841"]
+# One-off scripts
+"scripts/**" = ["F841"]

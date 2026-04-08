@@ -37,7 +37,6 @@ class ClusteringService:
         if item.embedding is None:
             return
 
-        import numpy as np
         # 1. Find neighbors within threshold (excluding self)
         # We use a raw SQL query here to avoid RecursionError in some psycopg versions
         # when dealing with large 1024-dimension float arrays in ORM annotations.

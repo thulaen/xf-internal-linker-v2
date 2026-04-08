@@ -1,5 +1,4 @@
 import requests
-import json
 
 # Local URL (when Docker is running, the host port 8000 maps to backend)
 # Using 127.0.0.1 for local testing

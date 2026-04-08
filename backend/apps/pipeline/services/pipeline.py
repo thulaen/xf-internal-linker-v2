@@ -25,7 +25,7 @@ import pyroaring as pr
 from django.conf import settings
  
 try:
-    from extensions import inv_index, strpool
+    from extensions import inv_index, strpool  # noqa: F401
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -36,7 +36,6 @@ try:
 except ImportError:
     HAS_CPP_SIMSEARCH = False
 
-from .click_distance import ClickDistanceSettings, ClickDistanceService
 from .feedback_rerank import FeedbackRerankSettings, FeedbackRerankService
 from .slate_diversity import SlateDiversitySettings, apply_slate_diversity
 from .field_aware_relevance import FieldAwareRelevanceSettings

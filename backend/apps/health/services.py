@@ -1,20 +1,18 @@
 import logging
 import requests
-import importlib.util
 from datetime import timedelta
-from typing import Dict, Any, List, Optional, Callable
+from typing import Dict, Any, Optional, Callable
 from dataclasses import dataclass, asdict
 from django.utils import timezone
 from django.conf import settings
 from django.db import connections
-from django.db.utils import OperationalError
 
 from apps.core.models import AppSetting
 from apps.analytics.models import SearchMetric
 from apps.notifications.models import OperatorAlert
 from apps.notifications.services import emit_operator_alert, resolve_operator_alert
 from apps.content.models import ContentItem
-from apps.suggestions.models import PipelineRun, Suggestion
+from apps.suggestions.models import PipelineRun
 from .models import ServiceHealthRecord
 
 logger = logging.getLogger(__name__)
@@ -283,7 +281,6 @@ def check_ml_models_health() -> ServiceHealthResult:
         spacy_ok = spacy.util.is_package(model_name)
         
         # Check BGE (using import check as proxy for environment readiness)
-        import sentence_transformers
         
         if not spacy_ok:
             return ServiceHealthResult(
@@ -323,7 +320,7 @@ def check_ml_models_health() -> ServiceHealthResult:
 def check_gpu_faiss_health() -> ServiceHealthResult:
     try:
         import torch
-        from apps.pipeline.services.faiss_index import is_faiss_gpu_active, get_faiss_status
+        from apps.pipeline.services.faiss_index import get_faiss_status
 
         cuda_available = torch.cuda.is_available()
         faiss_status = get_faiss_status()

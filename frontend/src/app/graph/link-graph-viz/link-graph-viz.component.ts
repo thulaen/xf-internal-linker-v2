@@ -14,7 +14,7 @@ import { CommonModule } from '@angular/common';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import * as d3 from 'd3';
 
-import { GhostEdge, GraphLink, GraphNode, GraphTopology } from '../graph.service';
+import { GhostEdge, GraphNode, GraphTopology } from '../graph.service';
 
 // D3 simulation node type — extends GraphNode with x/y/fx/fy fields.
 interface SimNode extends GraphNode {

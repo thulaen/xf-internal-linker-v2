@@ -6,7 +6,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { DiagnosticsService, WeightSignal, WeightDiagnosticsResponse } from '../../diagnostics/diagnostics.service';
+import { DiagnosticsService, WeightDiagnosticsResponse } from '../../diagnostics/diagnostics.service';
 
 @Component({
   selector: 'app-weight-diagnostics-card',

@@ -311,7 +311,7 @@ class WeightDiagnosticsView(views.APIView):
             for table in tables:
                 try:
                     # Get approximate row count and total size including indexes
-                    cursor.execute(f"""
+                    cursor.execute("""
                         SELECT 
                             (reltuples)::bigint AS row_count,
                             pg_total_relation_size(quote_ident(relname)) AS total_bytes

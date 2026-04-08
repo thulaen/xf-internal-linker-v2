@@ -130,7 +130,6 @@ class FeedbackRerankService:
         destination_scope_id_map: dict[int, int],  # dest_content_id -> scope_id
     ) -> list[ScoredCandidate]:
         """Apply the reranking factor to a list of candidates and update their scores."""
-        from apps.pipeline.services.ranker import ScoredCandidate
         
         if not self.settings.enabled:
             return candidates

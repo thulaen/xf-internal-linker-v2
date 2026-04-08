@@ -23,7 +23,6 @@ import {
   SuggestionFilters,
   REJECTION_REASONS,
 } from './suggestion.service';
-import { highlightText } from '../core/utils/highlight.utils';
 import { HighlightPipe } from '../core/pipes/highlight.pipe';
 import { RunPipelineDialogComponent, RunPipelineDialogResult } from '../core/run-pipeline-dialog.component';
 import {

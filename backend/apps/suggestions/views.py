@@ -32,7 +32,6 @@ from .serializers import (
 )
 from .weight_preset_service import (
     apply_weights,
-    compute_delta,
     get_current_weights,
     write_history,
 )

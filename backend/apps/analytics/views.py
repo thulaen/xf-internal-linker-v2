@@ -16,6 +16,7 @@ from rest_framework.views import APIView
 from apps.core.models import AppSetting
 
 from .country_filters import BLOCKED_COUNTRY_NAMES, BLOCKED_TELEMETRY_COUNTRY_VALUES
+from .gsc_client import build_gsc_service, test_gsc_access
 from .integration_snippet import build_integration_payload
 from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
 from .tasks import sync_ga4_telemetry, sync_matomo_telemetry
@@ -1161,7 +1162,6 @@ class AnalyticsGA4ReadConnectionView(APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        current = get_ga4_telemetry_settings()
         property_id = str(request.data.get("property_id") or _read_setting("analytics.ga4_property_id", "") or "").strip()
         refresh_token = _google_oauth_refresh_token()
         client_id = _google_oauth_client_id()

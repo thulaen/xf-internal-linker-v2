@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import logging
 from datetime import timedelta, date
-from typing import Any
 
-from django.db.models import Avg, Sum, Q
-from django.utils import timezone
+from django.db.models import Avg, Sum
 
 from apps.suggestions.models import Suggestion
 from apps.content.models import ContentItem

@@ -2537,7 +2537,6 @@ class DashboardView(APIView):
 
         # System Health Summary
         from apps.health.models import ServiceHealthRecord
-        from apps.health.serializers import ServiceHealthRecordSerializer
         
         health_records = ServiceHealthRecord.objects.all()
         status_counts = health_records.values("status").annotate(count=Count("status"))

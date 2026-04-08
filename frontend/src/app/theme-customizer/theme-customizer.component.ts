@@ -34,6 +34,7 @@ import { AppearanceService, AppearanceConfig } from '../core/services/appearance
   styleUrls: ['./theme-customizer.component.scss'],
 })
 export class ThemeCustomizerComponent {
+  // eslint-disable-next-line @angular-eslint/no-output-native
   @Output() close = new EventEmitter<void>();
 
   appearance = inject(AppearanceService);

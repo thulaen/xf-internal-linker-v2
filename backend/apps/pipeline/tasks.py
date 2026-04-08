@@ -753,7 +753,6 @@ def import_content(
     force_reembed: bool = False,
 ) -> dict:
     """Import/sync content from XenForo, WordPress, or JSONL export."""
-    from django.conf import settings
     from django.db import models, transaction
     from django.utils import timezone
     from django.utils.dateparse import parse_datetime
@@ -945,7 +944,7 @@ def import_content(
                 )
             return content_item.pk if force_reembed else None
 
-        with transaction.atomic():
+        with transaction.atomic():  # noqa: F823 — transaction is in closure from import_content
             content_item.content_hash = new_hash
 
             post, _ = Post.objects.get_or_create(content_item=content_item)
@@ -1998,7 +1997,6 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     """Real-time sync for a single WordPress post/page via webhook."""
     from apps.core.views import get_wordpress_runtime_config
     from apps.sync.services.wordpress_api import WordPressAPIClient
-    from apps.sync.models import SyncJob
     from apps.pipeline.tasks import import_content
     
     logger.info("Real-time sync triggered for WordPress %s %d", content_type, post_id)
@@ -2208,16 +2206,10 @@ def check_weight_rollback():
     import traceback
     from datetime import timedelta
 
-    from django.db import transaction
     from django.utils import timezone
 
     from apps.audit.models import ErrorLog
     from apps.suggestions.models import RankingChallenger
-    from apps.suggestions.weight_preset_service import (
-        apply_weights,
-        get_current_weights,
-        write_history,
-    )
 
     # Only inspect challengers promoted in the last 21 days.
     lookback = timezone.now() - timedelta(days=21)
@@ -2249,7 +2241,6 @@ def _check_single_rollback(challenger):
     """Compare GSC clicks before vs after promotion for one challenger."""
     from apps.analytics.models import GSCDailyPerformance
     from django.db.models import Sum
-    from django.utils import timezone
     from datetime import timedelta
     from apps.suggestions.weight_preset_service import (
         apply_weights,

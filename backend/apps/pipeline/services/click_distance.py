@@ -12,12 +12,11 @@ from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 from urllib.parse import urlparse
 
 from django.db import transaction
-from django.db.models import F
 
 from apps.suggestions.recommended_weights import recommended_float
 
 if TYPE_CHECKING:
-    from apps.content.models import ContentItem, ScopeItem
+    from apps.content.models import ContentItem
 
 
 @dataclass(frozen=True, slots=True)
