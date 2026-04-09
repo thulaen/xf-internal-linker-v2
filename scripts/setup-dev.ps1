@@ -95,7 +95,11 @@ foreach ($requirement in $requirements) {
 
 Write-Host "Backend environment is ready."
 Write-Host "Interpreter: $venvPython"
-Write-Host "Tip: frontend and native builds now use repo-local wrappers:"
+Write-Host "Tip: repo-local wrappers mirror the main local verification flow:"
 Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\build-frontend.ps1"
 Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\build-native-extensions.ps1"
+Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\test-http-worker.ps1"
 Write-Host "  powershell -ExecutionPolicy Bypass -File scripts\\verify.ps1"
+Write-Host "Verification now prunes build artifacts after it runs to help reclaim disk space."
+Write-Host "Note: sandboxed shells can block local Node.js, .NET, or Docker access even when they are installed."
+Write-Host "If a wrapper reports an access or daemon error, rerun it outside the sandbox or with elevated access."
