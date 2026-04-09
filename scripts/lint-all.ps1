@@ -124,8 +124,11 @@ try {
 Write-Step "5/7  Angular: ESLint (TypeScript + templates)"
 Push-Location (Join-Path $repoRoot "frontend")
 try {
+    $ErrorActionPreference = "Continue"
     & npx ng lint
-    if ($LASTEXITCODE -ne 0) {
+    $eslintExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($eslintExitCode -ne 0) {
         throw "Angular ESLint failed. Fix the lint errors above."
     }
 } finally {
@@ -135,6 +138,7 @@ try {
 # ── 6. C++ cppcheck ──────────────────────────────────────────────
 Write-Step "6/7  C++: cppcheck static analysis"
 $extensionsDir = Join-Path $repoRoot "backend" "extensions"
+$ErrorActionPreference = "Continue"
 & $cppcheckExe `
     --enable=warning,performance,portability `
     --std=c++17 `
@@ -142,7 +146,9 @@ $extensionsDir = Join-Path $repoRoot "backend" "extensions"
     --suppress=missingIncludeSystem `
     --quiet `
     "$extensionsDir"
-if ($LASTEXITCODE -ne 0) {
+$cppExitCode = $LASTEXITCODE
+$ErrorActionPreference = "Stop"
+if ($cppExitCode -ne 0) {
     throw "cppcheck found issues. Fix the C++ warnings above."
 }
 
@@ -151,8 +157,11 @@ Write-Step "7/7  C#: dotnet build with TreatWarningsAsErrors"
 $httpWorkerDir = Join-Path $repoRoot "services" "http-worker"
 Push-Location $httpWorkerDir
 try {
+    $ErrorActionPreference = "Continue"
     & dotnet build HttpWorker.sln -p:TreatWarningsAsErrors=true --nologo --verbosity quiet
-    if ($LASTEXITCODE -ne 0) {
+    $csExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($csExitCode -ne 0) {
         throw "C# build with strict warnings failed. Fix the warnings above."
     }
 } finally {
