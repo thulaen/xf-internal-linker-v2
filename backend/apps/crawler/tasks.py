@@ -5,6 +5,8 @@ Crawler tasks — heartbeat pulse, auto-prune, and crawl orchestration.
 import logging
 import time
 
+from datetime import timedelta
+
 from celery import shared_task
 from django.db import connection
 from django.utils import timezone
@@ -79,11 +81,11 @@ def pulse_heartbeat():
 
     # 4. HTTP Worker (C# service)
     try:
-        from apps.graph.services.http_worker_client import _get_base_url
+        from apps.graph.services.http_worker_client import _base_url
         import requests as req_lib
 
         t0 = time.perf_counter()
-        resp = req_lib.get(f"{_get_base_url()}/api/v1/status", timeout=5)
+        resp = req_lib.get(f"{_base_url()}/api/v1/status", timeout=5)
         checks["http_worker"] = {
             "ok": resp.status_code == 200,
             "ms": _elapsed_ms(t0),
@@ -170,7 +172,7 @@ def watchdog_check():
     from apps.notifications.services import emit_operator_alert
 
     now = timezone.now()
-    stale_threshold = now - timezone.timedelta(minutes=30)
+    stale_threshold = now - timedelta(minutes=30)
 
     # Check stuck sync jobs.
     stuck_syncs = SyncJob.objects.filter(
@@ -185,7 +187,7 @@ def watchdog_check():
             title=f"{job.source} sync appears stuck",
             message=(
                 f"Job {job.job_id} has been running for "
-                f"{(now - job.started_at).total_seconds() / 60:.0f} minutes "
+                f"{(now - (job.started_at or now)).total_seconds() / 60:.0f} minutes "
                 f"with no progress since {job.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_sync_{job.job_id}",
@@ -209,7 +211,7 @@ def watchdog_check():
             title=f"Crawl for {session.site_domain} appears stuck",
             message=(
                 f"Session has been running for "
-                f"{(now - session.started_at).total_seconds() / 60:.0f} minutes "
+                f"{(now - (session.started_at or now)).total_seconds() / 60:.0f} minutes "
                 f"with no progress since {session.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_crawl_{session.session_id}",
@@ -238,8 +240,8 @@ def auto_prune():
     from apps.crawler.models import CrawledPageMeta, SystemEvent
 
     now = timezone.now()
-    cutoff_90d = now - timezone.timedelta(days=90)
-    cutoff_30d = now - timezone.timedelta(days=30)
+    cutoff_90d = now - timedelta(days=90)
+    cutoff_30d = now - timedelta(days=30)
 
     # 1. Delete old page-level crawl data (keep session summaries).
     old_pages = CrawledPageMeta.objects.filter(session__completed_at__lt=cutoff_90d)

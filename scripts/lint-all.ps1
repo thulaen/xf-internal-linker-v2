@@ -86,7 +86,7 @@ try {
 Write-Step "3/7  Python: mypy type check"
 Push-Location (Join-Path $repoRoot "backend")
 try {
-    & $python -m mypy apps/crawler/ --config-file mypy.ini
+    & $python -m mypy apps/crawler/ --config-file mypy.ini --follow-imports=silent
     if ($LASTEXITCODE -ne 0) {
         throw "mypy type check failed. Fix the type errors above."
     }

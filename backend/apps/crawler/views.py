@@ -6,6 +6,7 @@ results, and the system activity feed.
 """
 
 import logging
+import uuid as uuid_mod
 
 from django.db.models import Count, Q, Sum
 from django.utils import timezone
@@ -161,7 +162,7 @@ class CrawledPageMetaViewSet(ReadOnlyModelViewSet):
         qs = CrawledPageMeta.objects.all()
         session_id = self.request.query_params.get("session")
         if session_id:
-            qs = qs.filter(session_id=session_id)
+            qs = qs.filter(session_id=uuid_mod.UUID(session_id))
         http_status = self.request.query_params.get("http_status")
         if http_status:
             qs = qs.filter(http_status=int(http_status))
@@ -185,7 +186,7 @@ class CrawledLinkViewSet(ReadOnlyModelViewSet):
         qs = CrawledLink.objects.select_related("page").all()
         session_id = self.request.query_params.get("session")
         if session_id:
-            qs = qs.filter(page__session_id=session_id)
+            qs = qs.filter(page__session_id=uuid_mod.UUID(session_id))
         context = self.request.query_params.get("context")
         if context:
             qs = qs.filter(context_class=context)
