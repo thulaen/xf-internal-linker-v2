@@ -5,7 +5,7 @@
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 echo "========================================="
-echo "Running Pre-push checks (Full CI parity)"
+echo "Running Pre-push checks (Full verify + prune)"
 echo "========================================="
 
 # 1. Auto-generate any missing Django migrations and commit them
@@ -39,28 +39,15 @@ if [ $? -ne 0 ]; then
 fi
 cd "$REPO_ROOT"
 
-# 2. Backend tests
-echo "=> Testing Django Backend..."
-cd "$REPO_ROOT/backend" || exit 1
-export DJANGO_SETTINGS_MODULE=config.settings.test
-export DJANGO_SECRET_KEY=ci-fake-secret-key
-python manage.py test --verbosity=1
+# 2. Full local verification (C++, backend, frontend, HttpWorker, plus artifact prune)
+echo "=> Running full local verification..."
+powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/scripts/verify.ps1"
 if [ $? -ne 0 ]; then
-  echo "[ERROR] Backend tests failed. Push aborted."
+  echo "[ERROR] Full local verification failed. Push aborted."
   exit 1
 fi
-cd "$REPO_ROOT"
 
-# 3. Frontend tests
-echo "=> Testing Angular Frontend..."
-cd "$REPO_ROOT/frontend" || exit 1
-npm run test:ci || { echo "[ERROR] Frontend tests failed. Push aborted."; exit 1; }
-
-echo "=> Building Angular Production Bundle..."
-npm run build:prod || { echo "[ERROR] Frontend production build failed. Push aborted."; exit 1; }
-cd "$REPO_ROOT"
-
-# 4. Docker Compose validation
+# 3. Docker Compose validation
 echo "=> Validating docker-compose.yml..."
 cp "$REPO_ROOT/.env.example" "$REPO_ROOT/.env"
 docker compose -f "$REPO_ROOT/docker-compose.yml" config > /dev/null
