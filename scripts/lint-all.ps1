@@ -154,7 +154,7 @@ if ($cppExitCode -ne 0) {
 
 # ── 7. C# strict build (TreatWarningsAsErrors) ───────────────────
 Write-Step "7/7  C#: dotnet build with TreatWarningsAsErrors"
-$httpWorkerDir = Join-Path $repoRoot "services" "http-worker"
+$httpWorkerDir = Join-Path (Join-Path $repoRoot "services") "http-worker"
 Push-Location $httpWorkerDir
 try {
     $ErrorActionPreference = "Continue"
