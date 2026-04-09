@@ -33,6 +33,7 @@
       color="primary"
       [disabled]="startingPipeline"
       (click)="runPipeline()"
+      matTooltip="The pipeline reads your content, finds relationships, and generates link suggestions"
     >
       @if (startingPipeline) {
         <mat-spinner diameter="16"></mat-spinner>
@@ -69,7 +70,8 @@
         </mat-select>
       </mat-form-field>
 
-      <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()">
+      <mat-checkbox [(ngModel)]="sameSiloOnly" (change)="toggleSameSiloOnly()"
+        matTooltip="A silo is a group of related pages. When checked, only shows suggestions where source and destination are in the same topic group.">
         Same silo only
       </mat-checkbox>
     </div>

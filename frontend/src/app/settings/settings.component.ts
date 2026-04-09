@@ -1,5 +1,5 @@
 import { CommonModule, DatePipe } from '@angular/common';
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Subject, takeUntil } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
@@ -15,6 +15,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { ActivatedRoute } from '@angular/router';
+import { HasUnsavedChanges } from '../core/guards/unsaved-changes.guard';
 import { DesktopNotificationService } from '../core/services/desktop-notification.service';
 import {
   NotificationPreferences,
@@ -1735,7 +1736,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     WeightDiagnosticsCardComponent
   ],
 })
-export class SettingsComponent implements OnInit, OnDestroy {
+export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private siloSvc = inject(SiloSettingsService);
   private notifSvc = inject(NotificationService);
   desktopSvc = inject(DesktopNotificationService);
@@ -1745,6 +1746,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
   private destroy$ = new Subject<void>();
 
   loading = true;
+  isDirty = false;
   savingSettings = false;
   savingWeightedAuthority = false;
   savingLinkFreshness = false;
@@ -2086,6 +2088,25 @@ export class SettingsComponent implements OnInit, OnDestroy {
 
   get recommendedPreset(): WeightPreset | null {
     return this.weightPresets.find((preset) => preset.is_system && preset.name.toLowerCase().includes('recommended')) ?? null;
+  }
+
+  get noSourceConnected(): boolean {
+    return !this.xenforo.health.is_healthy && !this.wordpress.health.is_healthy;
+  }
+
+  hasUnsavedChanges(): boolean {
+    return this.isDirty;
+  }
+
+  markDirty(): void {
+    this.isDirty = true;
+  }
+
+  @HostListener('window:beforeunload', ['$event'])
+  onBeforeUnload(event: BeforeUnloadEvent): void {
+    if (this.isDirty) {
+      event.preventDefault();
+    }
   }
 
   get matchedPreset(): WeightPreset | null {
@@ -3542,6 +3563,7 @@ export class SettingsComponent implements OnInit, OnDestroy {
         this.matomoTelemetryToken = '';
         
         this.savingSettings = false;
+        this.isDirty = false;
         this.snack.open('All settings saved successfully', undefined, { duration: 3000 });
         this.refreshCurrentWeights();
       },

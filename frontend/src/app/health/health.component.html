@@ -188,11 +188,11 @@
               <p>{{ s.issue_description }}</p>
             </div>
           </div>
-          <div class="suggested-fix" *ngIf="s.suggested_fix">
+          <div class="suggested-fix" *ngIf="s.suggested_fix || getInfraFixHint(s.service_key)">
             <mat-icon class="icon-md">auto_fix_high</mat-icon>
             <div class="text-content">
               <span class="label">How to fix it</span>
-              <p>{{ s.suggested_fix }}</p>
+              <p>{{ s.suggested_fix || getInfraFixHint(s.service_key) }}</p>
             </div>
           </div>
         </div>

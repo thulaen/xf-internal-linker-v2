@@ -21,6 +21,7 @@ import { RunPipelineDialogComponent, RunPipelineDialogResult } from '../core/run
 import { SystemSummaryComponent } from './components/system-summary/system-summary.component';
 import { WebhookLogComponent } from './components/webhook-log/webhook-log.component';
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
+import { SetupWizardDialogComponent } from './components/setup-wizard/setup-wizard-dialog.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -57,6 +58,9 @@ export class DashboardComponent implements OnInit {
   syncing = false;
   daysSinceLastRun: number | null = null;
 
+  showSetupChecklist = false;
+  setupSteps = { connected: false, imported: false, pipelineRan: false, reviewed: false };
+
   readonly runColumns = [
     'run_id', 'run_state', 'suggestions_created',
     'destinations_processed', 'duration_display', 'created_at',
@@ -73,6 +77,8 @@ export class DashboardComponent implements OnInit {
         this.data = d;
         this.loading = false;
         this.daysSinceLastRun = this.computeDaysSinceLastRun(d.pipeline_runs);
+        this.updateSetupChecklist(d);
+        this.maybeShowSetupWizard(d);
       },
       error: () => {
         this.loading = false;
@@ -178,5 +184,39 @@ export class DashboardComponent implements OnInit {
 
   trackByRunId(_: number, r: PipelineRunSummary): string {
     return r.run_id;
+  }
+
+  private updateSetupChecklist(d: DashboardData): void {
+    const dismissed = localStorage.getItem('setupChecklistDismissed') === 'true';
+    this.setupSteps = {
+      connected: d.content_count > 0 || d.recent_imports.some(j => j.status === 'completed'),
+      imported: d.content_count > 0,
+      pipelineRan: d.pipeline_runs.length > 0,
+      reviewed: d.suggestion_counts.approved + d.suggestion_counts.applied > 0,
+    };
+    const allDone = this.setupSteps.connected && this.setupSteps.imported
+      && this.setupSteps.pipelineRan && this.setupSteps.reviewed;
+    this.showSetupChecklist = !dismissed && !allDone;
+  }
+
+  private maybeShowSetupWizard(d: DashboardData): void {
+    const shown = localStorage.getItem('setupWizardCompleted') === 'true';
+    if (!shown && d.content_count === 0) {
+      localStorage.setItem('setupWizardCompleted', 'true');
+      this.dialog.open(SetupWizardDialogComponent, { width: '520px', disableClose: false });
+    }
+  }
+
+  dismissSetupChecklist(): void {
+    this.showSetupChecklist = false;
+    localStorage.setItem('setupChecklistDismissed', 'true');
+  }
+
+  getImportSettingsFragment(source: string): string {
+    switch (source) {
+      case 'api': return 'xenforo-settings';
+      case 'wp':  return 'wordpress-settings';
+      default:    return '';
+    }
   }
 }

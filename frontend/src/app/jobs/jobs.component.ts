@@ -12,7 +12,10 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { SyncService, SyncJob } from './sync.service';
+import { JobDetailDialogComponent, JobDetailDialogResult } from './job-detail-dialog.component';
 
 type ImportState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
 
@@ -46,6 +49,8 @@ interface SourceJobState {
     MatDividerModule,
     MatTableModule,
     MatTooltipModule,
+    MatDialogModule,
+    MatSnackBarModule,
   ],
   templateUrl: './jobs.component.html',
   styleUrls: ['./jobs.component.scss'],
@@ -69,11 +74,13 @@ export class JobsComponent implements OnInit, OnDestroy {
   };
 
   private syncService = inject(SyncService);
+  private dialog = inject(MatDialog);
+  private snack = inject(MatSnackBar);
 
   readonly modes = [
-    { value: 'full',   label: 'Full import',  hint: 'Body text, sentences, embeddings' },
-    { value: 'titles', label: 'Titles only',  hint: 'Metadata + PageRank / velocity'  },
-    { value: 'quick',  label: 'Quick check',  hint: 'IDs and titles only'             },
+    { value: 'full',   label: 'Full import',  hint: 'Downloads everything needed for accurate suggestions (recommended first time)' },
+    { value: 'titles', label: 'Titles only',  hint: 'Fast refresh — only updates page titles and metadata'  },
+    { value: 'quick',  label: 'Quick check',  hint: 'Fastest — only checks for new and removed pages'      },
   ];
 
   readonly sources: ('api' | 'wp' | 'jsonl')[] = ['api', 'wp', 'jsonl'];
@@ -145,6 +152,31 @@ export class JobsComponent implements OnInit, OnDestroy {
     if (this.isStuck(job)) return 'Job appears stuck — will be cleaned up automatically overnight';
     if (job.status === 'failed' && job.error_message) return job.error_message;
     return job.status;
+  }
+
+  showJobDetail(job: SyncJob): void {
+    const ref = this.dialog.open<
+      JobDetailDialogComponent,
+      { job: SyncJob },
+      JobDetailDialogResult | undefined
+    >(JobDetailDialogComponent, {
+      width: '480px',
+      data: { job },
+    });
+
+    ref.afterClosed().subscribe((result) => {
+      if (result?.action === 'retry') {
+        this.syncService.triggerApiSync(result.source, result.mode).subscribe({
+          next: () => {
+            this.snack.open('Retry started — check progress above', 'Dismiss', { duration: 5000 });
+            this.loadHistory();
+          },
+          error: () => {
+            this.snack.open('Failed to retry job', 'Dismiss', { duration: 4000 });
+          },
+        });
+      }
+    });
   }
 
   ngOnInit(): void {

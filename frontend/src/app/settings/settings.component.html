@@ -53,8 +53,10 @@
 
   <mat-tab-group
     id="settings-tabs"
-    [selectedIndex]="selectedTabIndex" 
+    [selectedIndex]="selectedTabIndex"
     (selectedIndexChange)="onTabChange($event)"
+    (input)="markDirty()"
+    (change)="markDirty()"
     animationDuration="200ms"
     class="settings-tabs">
     
@@ -873,6 +875,9 @@
       <ng-template mat-tab-label>
         <mat-icon class="tab-icon icon-md">sync</mat-icon>
         Connect & Sync
+        @if (noSourceConnected) {
+          <span class="required-dot" matTooltip="Required — connect at least one content source to get started"></span>
+        }
         <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.wordpress_sync')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
       

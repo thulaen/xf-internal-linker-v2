@@ -256,9 +256,26 @@ export class HealthComponent implements OnInit, OnDestroy {
       'xenforo': 'xenforo-settings',
       'weights_plugins': 'ranking-weights',
       'knowledge_graph': 'silo-architecture',
-      'webhooks': 'dashboard-webhooks'
+      'webhooks': 'dashboard-webhooks',
+      'ml_models': 'pipeline-behaviour',
+      'native_scoring': 'ranking-weights',
+      'pipeline_health': 'pipeline-behaviour',
     };
     return map[serviceKey];
+  }
+
+  getInfraFixHint(serviceKey: string): string | undefined {
+    const hints: Record<string, string> = {
+      'database': 'Check that PostgreSQL is running: docker compose ps db',
+      'redis': 'Check that Redis is running: docker compose ps redis',
+      'celery': 'Restart Celery workers: docker compose restart celery-worker',
+      'celery_queues': 'If queues are backed up, restart workers: docker compose restart celery-worker',
+      'celery_beat': 'Restart the scheduler: docker compose restart celery-beat',
+      'disk_space': 'Free up disk space by pruning Docker images: docker image prune -f',
+      'http_worker': 'Restart the HTTP worker: docker compose restart http-worker-api',
+      'gpu_faiss': 'Ensure FAISS is installed. CPU fallback is used automatically if no GPU is available.',
+    };
+    return hints[serviceKey];
   }
 
   trackByLabel(_: number, group: ChecklistGroup): string { return group.label; }

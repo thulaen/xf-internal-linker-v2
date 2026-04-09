@@ -8,6 +8,7 @@
 import { Routes } from '@angular/router';
 import { provideCharts, withDefaultRegisterables } from 'ng2-charts';
 import { authGuard } from './core/guards/auth.guard';
+import { unsavedChangesGuard } from './core/guards/unsaved-changes.guard';
 
 export const routes: Routes = [
   {
@@ -71,6 +72,7 @@ export const routes: Routes = [
       import('./settings/settings.component').then((m) => m.SettingsComponent),
     title: 'Settings — XF Internal Linker',
     canActivate: [authGuard],
+    canDeactivate: [unsavedChangesGuard],
   },
   {
     path: 'health',

@@ -31,6 +31,9 @@
       </ng-container>
 
       <ng-container *ngIf="!loadingStats && stats">
+        <p class="tab-description">
+          A bird's-eye view of your site's internal link structure — how many pages, links, and topics you have.
+        </p>
         <div class="stats-grid">
 
           <mat-card class="stat-card">
@@ -61,7 +64,7 @@
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">link_off</mat-icon>
               <div class="stat-number">{{ stats.orphan_count | number }}</div>
-              <div class="stat-label">Orphan Articles</div>
+              <div class="stat-label" matTooltip="Pages with zero inbound links — they miss out on link equity and are harder for visitors to find">Orphan Articles</div>
             </mat-card-content>
           </mat-card>
 
@@ -77,7 +80,7 @@
             <mat-card-content>
               <mat-icon class="stat-icon icon-lg">topic</mat-icon>
               <div class="stat-number">{{ stats.topic_count | number }}</div>
-              <div class="stat-label">Topics (Silos)</div>
+              <div class="stat-label" matTooltip="A silo is a group of related pages. Pages within the same silo are more likely to link to each other.">Topics (Silos)</div>
             </mat-card-content>
           </mat-card>
 
@@ -92,7 +95,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">topic</mat-icon>
-      Topics
+      <span matTooltip="Content grouped by topic silo — shows how well each topic area is internally linked">Topics</span>
     </ng-template>
 
     <div class="tab-content">
@@ -110,6 +113,9 @@
         </div>
       </ng-container>
 
+      <p class="tab-description" *ngIf="!loadingTopics && topics.length > 0">
+        Your content grouped by topic silo. Each card represents a content family — pages within the same silo are more likely to link to each other.
+      </p>
       <div class="topics-grid" *ngIf="!loadingTopics && topics.length > 0">
         <mat-card class="topic-card" *ngFor="let topic of topics">
           <mat-card-header>
@@ -131,7 +137,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">label</mat-icon>
-      Entities
+      <span matTooltip="Keywords, named entities, and topic tags extracted from your content by the NLP engine">Entities</span>
     </ng-template>
 
     <div class="tab-content">
@@ -230,7 +236,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">hub</mat-icon>
-      Hub Articles
+      <span matTooltip="Your most authoritative pages ranked by PageRank — a score based on how many other pages link to them">Hub Articles</span>
     </ng-template>
 
     <div class="tab-content">
@@ -294,7 +300,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">link_off</mat-icon>
-      Audits
+      <span matTooltip="Find orphan pages (no inbound links) and low-authority pages that need more links pointing to them">Audits</span>
     </ng-template>
 
     <div class="tab-content">
@@ -407,7 +413,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">account_tree</mat-icon>
-      Network
+      <span matTooltip="Interactive force-directed graph showing how your pages link to each other — drag, zoom, and click nodes to explore">Network</span>
     </ng-template>
 
     <div class="tab-content">
@@ -598,7 +604,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">verified</mat-icon>
-      Qualities
+      <span matTooltip="Audit the quality of your links — checks whether links are surrounded by relevant prose or sitting in isolation">Qualities</span>
     </ng-template>
 
     <div class="tab-content">
@@ -804,7 +810,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">route</mat-icon>
-      Path Explorer
+      <span matTooltip="Find the shortest link path between any two pages on your site — useful for checking how easily visitors can navigate between topics">Path Explorer</span>
     </ng-template>
 
     <div class="tab-content">
@@ -888,7 +894,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">timeline</mat-icon>
-      Freshness
+      <span matTooltip="Track how your link network changes over time — new links added vs. links that disappeared each day">Freshness</span>
     </ng-template>
 
     <div class="tab-content">
@@ -974,7 +980,7 @@
   <mat-tab>
     <ng-template mat-tab-label>
       <mat-icon class="tab-icon icon-md">find_replace</mat-icon>
-      Coverage Gaps
+      <span matTooltip="Pages where the AI found strong link opportunities but no real link exists yet — the biggest missed opportunities">Coverage Gaps</span>
     </ng-template>
 
     <div class="tab-content">

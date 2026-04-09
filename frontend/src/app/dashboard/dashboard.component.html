@@ -31,6 +31,7 @@
       color="primary"
       [disabled]="startingPipeline"
       (click)="runPipeline()"
+      matTooltip="The pipeline reads your content, finds relationships, and generates link suggestions"
     >
       @if (startingPipeline) {
         <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
@@ -50,6 +51,63 @@
   <div class="center-spinner">
     <mat-spinner diameter="48"></mat-spinner>
   </div>
+}
+
+@if (!loading && data && showSetupChecklist) {
+  <section class="setup-checklist" data-ga4-panel>
+    <div class="checklist-header">
+      <div class="checklist-title-row">
+        <mat-icon class="icon-lg">rocket_launch</mat-icon>
+        <h2>Getting Started</h2>
+      </div>
+      <p class="checklist-subtitle">Complete these steps to start generating link suggestions.</p>
+      <button mat-icon-button class="checklist-dismiss" matTooltip="Dismiss" (click)="dismissSetupChecklist()">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+    <div class="checklist-steps">
+      <div class="checklist-step" [class.done]="setupSteps.connected">
+        <mat-icon class="step-icon">{{ setupSteps.connected ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        <div class="step-content">
+          <span class="step-label">Connect your forum</span>
+          <span class="step-hint">Enter your XenForo or WordPress API credentials</span>
+        </div>
+        @if (!setupSteps.connected) {
+          <button mat-stroked-button routerLink="/settings" fragment="xenforo-settings">Configure</button>
+        }
+      </div>
+      <div class="checklist-step" [class.done]="setupSteps.imported">
+        <mat-icon class="step-icon">{{ setupSteps.imported ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        <div class="step-content">
+          <span class="step-label">Import content</span>
+          <span class="step-hint">Pull in your pages so the system can analyze them</span>
+        </div>
+        @if (!setupSteps.imported) {
+          <button mat-stroked-button routerLink="/jobs">Import</button>
+        }
+      </div>
+      <div class="checklist-step" [class.done]="setupSteps.pipelineRan">
+        <mat-icon class="step-icon">{{ setupSteps.pipelineRan ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        <div class="step-content">
+          <span class="step-label">Run the pipeline</span>
+          <span class="step-hint">Generate link suggestions from your content</span>
+        </div>
+        @if (!setupSteps.pipelineRan && setupSteps.imported) {
+          <button mat-stroked-button (click)="runPipeline()">Run Pipeline</button>
+        }
+      </div>
+      <div class="checklist-step" [class.done]="setupSteps.reviewed">
+        <mat-icon class="step-icon">{{ setupSteps.reviewed ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        <div class="step-content">
+          <span class="step-label">Review suggestions</span>
+          <span class="step-hint">Approve or reject the link ideas the system found</span>
+        </div>
+        @if (!setupSteps.reviewed && setupSteps.pipelineRan) {
+          <button mat-stroked-button routerLink="/review">Review</button>
+        }
+      </div>
+    </div>
+  </section>
 }
 
 @if (!loading && data) {
@@ -299,6 +357,11 @@
                 <span class="import-status state-chip state-{{ job.status }}">
                   {{ job.status }}
                 </span>
+                @if (job.status === 'failed' && getImportSettingsFragment(job.source)) {
+                  <a mat-button class="fix-link" [routerLink]="['/settings']" [fragment]="getImportSettingsFragment(job.source)">
+                    <mat-icon>build</mat-icon> Fix
+                  </a>
+                }
                 <span class="import-count">{{ job.items_synced | number }} items</span>
                 <span class="import-date text-muted">{{ job.created_at | date:'short' }}</span>
               </div>

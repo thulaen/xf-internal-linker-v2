@@ -25,7 +25,7 @@
         <span>CPU Usage</span>
         <div class="metric-value">
           <span class="value">{{ resources.cpu_percent === 'unavailable' ? 'N/A' : resources.cpu_percent + '%' }}</span>
-          <div class="mini-progress"><div class="fill" [style.width]="resources.cpu_percent + '%'"></div></div>
+          <div class="mini-progress"><div class="fill" [style.width]="resources.cpu_percent !== 'unavailable' ? resources.cpu_percent + '%' : '0%'"></div></div>
         </div>
       </div>
       <div class="metric-item">
@@ -38,7 +38,7 @@
         <span>Disk Space</span>
         <div class="metric-value">
           <span class="value">{{ resources.disk_usage_percent === 'unavailable' ? 'N/A' : resources.disk_usage_percent + '%' }}</span>
-          <div class="mini-progress"><div class="fill" [style.width]="resources.disk_usage_percent + '%'"></div></div>
+          <div class="mini-progress"><div class="fill" [style.width]="resources.disk_usage_percent !== 'unavailable' ? resources.disk_usage_percent + '%' : '0%'"></div></div>
         </div>
       </div>
     </section>
