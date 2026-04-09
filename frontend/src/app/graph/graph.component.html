@@ -1,8 +1,11 @@
-<div class="page-header">
-  <h1 class="page-title">
-    <mat-icon class="icon-lg">account_tree</mat-icon>
-    Knowledge Graph
-  </h1>
+<div class="page-header" id="graph-header">
+  <div class="header-main">
+    <h1 class="page-title">
+      <mat-icon class="icon-lg">account_tree</mat-icon>
+      Knowledge Graph
+    </h1>
+  </div>
+  <p class="page-description">Explore the internal link topology and topical silos of your site</p>
 </div>
 
 <mat-tab-group
@@ -842,7 +845,7 @@
           </mat-autocomplete>
         </mat-form-field>
 
-        <button mat-raised-button color="primary"
+        <button mat-flat-button color="primary"
           (click)="findPath()"
           [disabled]="!canFindPath()">
           <mat-spinner diameter="18" *ngIf="loadingPath"></mat-spinner>
@@ -1082,7 +1085,7 @@
   </mat-dialog-content>
   <mat-dialog-actions align="end">
     <button mat-button mat-dialog-close>Cancel</button>
-    <button mat-raised-button color="primary" (click)="approveGhostEdge()">
+    <button mat-flat-button color="primary" (click)="approveGhostEdge()">
       Approve
     </button>
   </mat-dialog-actions>

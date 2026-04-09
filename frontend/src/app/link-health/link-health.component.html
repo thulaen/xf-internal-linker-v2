@@ -27,6 +27,7 @@
       <mat-icon>link_off</mat-icon>
       Link Health
     </h1>
+    <p class="page-description">Scan live forum URLs and persist any issues for review</p>
     <div class="header-actions">
       <button
         mat-stroked-button
@@ -50,21 +51,30 @@
   </div>
 
   <div class="summary-row" id="link-health-summary">
-    <mat-card class="summary-card summary-open">
+    <mat-card class="summary-card">
       <mat-card-content>
-        <span class="summary-label">Open</span>
+        <div class="summary-header">
+          <span class="summary-label">Open</span>
+          <span class="indicator status-open"></span>
+        </div>
         <strong>{{ summary.open | number }}</strong>
       </mat-card-content>
     </mat-card>
-    <mat-card class="summary-card summary-ignored">
+    <mat-card class="summary-card">
       <mat-card-content>
-        <span class="summary-label">Ignored</span>
+        <div class="summary-header">
+          <span class="summary-label">Ignored</span>
+          <span class="indicator status-ignored"></span>
+        </div>
         <strong>{{ summary.ignored | number }}</strong>
       </mat-card-content>
     </mat-card>
-    <mat-card class="summary-card summary-fixed">
+    <mat-card class="summary-card">
       <mat-card-content>
-        <span class="summary-label">Fixed</span>
+        <div class="summary-header">
+          <span class="summary-label">Fixed</span>
+          <span class="indicator status-fixed"></span>
+        </div>
         <strong>{{ summary.fixed | number }}</strong>
       </mat-card-content>
     </mat-card>
@@ -151,7 +161,7 @@
             </a>
             @if (link.redirect_url) {
               <span class="redirect-hint" matTooltip="{{ link.redirect_url }}">
-                Redirects to {{ link.redirect_url }}
+                Redirects to: {{ link.redirect_url }}
               </span>
             }
           </div>

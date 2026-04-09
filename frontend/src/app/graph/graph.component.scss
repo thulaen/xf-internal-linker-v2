@@ -16,6 +16,13 @@
       color: var(--color-primary);
     }
   }
+
+  .page-description {
+    margin: 4px 0 0 34px; // Align under text (icon is 24px + 8px gap)
+    font-size: 13px;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+  }
 }
 
 // ── Tab Shell ─────────────────────────────────────────────────────────────────

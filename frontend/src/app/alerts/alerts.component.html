@@ -2,7 +2,10 @@
 
   <!-- Page header -->
   <div class="alerts-header" id="alerts-header">
-    <h1 class="alerts-title">Notifications</h1>
+    <div class="title-group">
+      <h1 class="alerts-title">Notifications</h1>
+      <p class="page-description">Stay informed about background jobs, health warnings, and search triggers.</p>
+    </div>
     @if (unreadCount > 0) {
       <span class="alerts-unread-badge">{{ unreadCount }} unread</span>
     }

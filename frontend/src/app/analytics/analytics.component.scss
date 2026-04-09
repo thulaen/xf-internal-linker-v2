@@ -17,7 +17,7 @@
     }
   }
 
-  .page-subtitle {
+  .page-description {
     margin: 0;
     font-size: 13px;
     color: var(--color-text-muted);
@@ -571,7 +571,7 @@
   gap: 2px;
   cursor: help;
 
-  strong { font-size: 1.1rem; color: var(--color-primary); }
+  strong { font-size: 1.1rem; color: var(--color-text-primary); }
   .text-subtle { font-size: 0.7rem; color: var(--color-text-muted); text-transform: uppercase; font-weight: 600; }
 }
 

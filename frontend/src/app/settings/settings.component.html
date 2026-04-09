@@ -5,7 +5,7 @@
         <mat-icon>settings</mat-icon>
         Settings
       </h1>
-      <p class="page-subtitle">
+      <p class="page-description">
         Tune how links are picked. Hover any info icon to see a plain-English explanation.
       </p>
     </div>
@@ -1677,7 +1677,7 @@
                   </div>
 
                   <div class="challenger-actions">
-                    <button mat-raised-button color="primary" [disabled]="evaluatingChallenger" (click)="promoteChallenger(pendingChallenger)">
+                    <button mat-flat-button color="primary" [disabled]="evaluatingChallenger" (click)="promoteChallenger(pendingChallenger)">
                       @if (evaluatingChallenger) {
                         <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
                       }

@@ -65,6 +65,13 @@
   text-align: center;
 }
 
+.page-description {
+  margin: 4px 0 12px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
 .review-summary {
   max-width: 60ch;
   margin: 8px 0 0;
@@ -109,7 +116,7 @@
   margin-bottom: 24px;
   flex-wrap: wrap;
   align-items: center;
-  padding: 16px;
+  padding: 16px 16px 16px 32px; // Padded left for Rule A
   border-radius: var(--radius-md);
   background: var(--color-bg-white);
   border: var(--card-border);

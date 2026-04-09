@@ -17,11 +17,24 @@
   flex-wrap: wrap;
 }
 
+.title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .alerts-title {
   font-size: 22px;
-  font-weight: 400;
+  font-weight: 500;
   color: var(--color-text-primary);
   margin: 0;
+}
+
+.page-description {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .alerts-unread-badge {

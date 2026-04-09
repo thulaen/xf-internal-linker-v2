@@ -51,6 +51,13 @@
   font-weight: 500;
 }
 
+.page-description {
+  margin: -4px 0 20px 34px; // Align under text (icon is 24px + 10px gap)
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
 .job-chip {
   background: var(--color-bg-faint);
   border: 1px solid var(--color-border);
@@ -107,6 +114,13 @@
   }
 }
 
+.summary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
 .summary-label {
   font-size: 11px;
   font-weight: 700;
@@ -115,9 +129,16 @@
   letter-spacing: 0.08em;
 }
 
-.summary-open { border-top: 3px solid var(--color-error) !important; }
-.summary-ignored { border-top: 3px solid var(--color-warning) !important; }
-.summary-fixed { border-top: 3px solid var(--color-success) !important; }
+.indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  
+  &.status-open { background: var(--color-error); }
+  &.status-ignored { background: var(--color-warning); }
+  &.status-fixed { background: var(--color-success); }
+}
+
 
 .filter-bar {
   display: flex;

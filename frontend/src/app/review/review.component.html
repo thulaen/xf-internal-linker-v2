@@ -11,6 +11,7 @@
           <span class="count-badge">{{ totalCount }}</span>
         }
       </div>
+      <p class="page-description">Review and approve link suggestions</p>
       <p class="review-summary">
         Sort the strongest ideas first, inspect the host sentence, and decide what should go live.
       </p>
@@ -170,6 +171,7 @@
 
         <div class="card-destination">
           <mat-icon class="icon-sm">arrow_forward</mat-icon>
+          <span class="label-prefix">Target: </span>
           <span class="destination-title">{{ s.destination_title }}</span>
           <span class="silo-pill">{{ s.destination_source_label }}</span>
           @if (s.destination_url) {
@@ -188,6 +190,7 @@
 
         <div class="card-host">
           <mat-icon class="icon-2xs">article</mat-icon>
+          <span class="label-prefix">Source: </span>
           <span>{{ s.host_title }}</span>
           <span class="silo-pill">{{ s.host_source_label }}</span>
         </div>

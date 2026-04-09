@@ -4,7 +4,7 @@
   <div class="header">
     <div class="header-content">
       <h1>System Health Dashboard</h1>
-      <p class="subtitle">Every service, every requirement, every active job — explained in plain English</p>
+      <p class="page-description">Every service, every requirement, every active job — explained in plain English</p>
     </div>
     <div class="header-actions">
       <button mat-flat-button color="primary" (click)="refreshAll()" [disabled]="refreshing || loading">
@@ -80,6 +80,7 @@
             <mat-icon class="row-icon icon-md">{{ getStatusIcon(s.status) }}</mat-icon>
             <div class="row-text">
               <span class="row-name">{{ getServiceName(s) }}</span>
+              <span class="meta-sep"> • </span>
               <span class="row-verdict">{{ s.status_label }}</span>
             </div>
           </a>

@@ -18,10 +18,11 @@
         margin: 0;
         color: var(--color-text-primary);
       }
-      .subtitle {
+      .page-description {
         font-size: 13px;
-        color: var(--color-text-secondary);
+        color: var(--color-text-muted);
         margin: 4px 0 0;
+        line-height: 1.5;
       }
     }
   }

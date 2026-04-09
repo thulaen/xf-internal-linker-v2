@@ -10,11 +10,24 @@
   margin-bottom: var(--space-lg);
 }
 
+.title-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
 .page-title {
   font-size: 22px;
-  font-weight: 400;
+  font-weight: 500;
   margin: 0;
   color: var(--color-text-primary);
+}
+
+.page-description {
+  font-size: 13px;
+  color: var(--color-text-muted);
+  margin: 0;
+  line-height: 1.5;
 }
 
 .unreviewed-badge {

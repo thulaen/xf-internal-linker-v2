@@ -18,6 +18,13 @@
   }
 }
 
+.page-description {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
 .sync-toolbar {
   display: flex;
   align-items: center;
@@ -35,23 +42,11 @@
     font-weight: 500;
     font-size: 13px;
     color: var(--color-text-primary);
-    display: block;
-    line-height: 1.4;
   }
 
   .option-hint {
     font-size: 11px;
     color: var(--color-text-secondary);
-    display: block;
-    line-height: 1.4;
-    margin-top: 1px;
-
-    // Prepend a colon-space separator via ::before so it's semantically clear
-    // this is the description of the label above it (Rule D: colon-space separator)
-    &::before {
-      content: '';
-      // The vertical stacking IS the separator here — no inline concat
-    }
   }
 
   .sync-all-btn {
@@ -310,6 +305,12 @@
 .history-card {
   mat-card-header { padding: 24px 24px 16px; }
   mat-card-content { padding: 0 !important; }
+}
+
+.table-container {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .ga4-table {

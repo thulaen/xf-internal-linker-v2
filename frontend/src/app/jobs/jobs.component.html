@@ -10,7 +10,7 @@
         <mat-select [(ngModel)]="importMode" [disabled]="anyRunning">
           @for (m of modes; track m.value) {
             <mat-option [value]="m.value">
-              <span class="option-label">{{ m.label }}</span>
+              <span class="option-label">{{ m.label }}: </span>
               <span class="option-hint">{{ m.hint }}</span>
             </mat-option>
           }
@@ -23,6 +23,7 @@
       </button>
     </div>
   </div>
+  <p class="page-description">Background job queue and history</p>
 </div>
 
 <div class="jobs-layout">
@@ -274,7 +275,8 @@
 
       <mat-card-content>
         @if (syncJobs.length > 0) {
-          <table mat-table [dataSource]="syncJobs" class="ga4-table">
+          <div class="table-container">
+            <table mat-table [dataSource]="syncJobs" class="ga4-table">
 
             <ng-container matColumnDef="created_at">
               <th mat-header-cell *matHeaderCellDef>Date</th>
@@ -331,7 +333,8 @@
 
             <tr mat-header-row *matHeaderRowDef="displayedColumns"></tr>
             <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
-          </table>
+            </table>
+          </div>
         } @else {
           <div class="empty-state">
             <mat-icon class="icon-3xl">history</mat-icon>
