@@ -56,6 +56,7 @@ public:
 
     /* Return a summary dict for the frontend. O(N) over ring = O(1000). */
     py::dict summary() const {
+        using namespace pybind11::literals;
         std::lock_guard<std::mutex> lock(mu_);
 
         if (count_ == 0) {
