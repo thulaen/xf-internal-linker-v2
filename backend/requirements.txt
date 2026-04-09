@@ -6,7 +6,7 @@
 # ═══════════════════════════════════════════════════════════════════
 
 # ── Django Core ──────────────────────────────────────────────────
-Django==5.2                          # LTS until April 2028
+Django==5.2.13                       # LTS until April 2028
 djangorestframework==3.15.2          # REST API
 django-cors-headers==4.6.0           # Angular ↔ Django CORS
 django-environ==0.11.2               # .env file management
@@ -32,11 +32,11 @@ pgvector==0.3.6                      # pgvector Python client
 # ── ML / AI Layer ────────────────────────────────────────────────
 # NOTE: numpy must be 1.x — sentence-transformers not compatible with 2.x
 numpy==1.26.4
-torch==2.3.1                         # PyTorch CPU build (GPU optional)
-sentence-transformers==3.3.1         # Semantic embeddings
+torch==2.8.0                         # PyTorch CPU build (GPU optional)
+sentence-transformers==5.4.0         # Semantic embeddings
 spacy==3.8.3                         # NLP / sentence splitting
 scikit-learn==1.5.2                  # PageRank, scoring utilities
-transformers==4.47.1                 # HuggingFace (sentence-transformers dep)
+transformers==5.0.0                  # HuggingFace (sentence-transformers dep)
 networkx==3.4.2                      # Graph algorithms (FR-012)
 
 # ── Analytics & Google APIs ──────────────────────────────────────
@@ -47,11 +47,11 @@ pandas==2.2.3                        # Data aggregation (FR-016, FR-018)
 statsmodels==0.14.4                  # Statistical modeling (FR-018)
 
 # ── Utilities ────────────────────────────────────────────────────
-Pillow==11.1.0                       # Image handling
+Pillow==12.1.1                       # Image handling
 paramiko==3.5.0                      # SSH sync
 django-redis==5.4.0                  # Django cache backend for Redis
 whitenoise==6.8.2                    # Static file serving in production
-requests==2.32.3                     # HTTP client (XenForo/WP API calls)
+requests==2.33.0                     # HTTP client (XenForo/WP API calls)
  
 # ── Performance Layer ─────────────────────────────────────────────
 pyarrow==17.0.0

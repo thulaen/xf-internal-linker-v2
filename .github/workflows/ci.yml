@@ -139,6 +139,8 @@ jobs:
   # ── 7. Python type checking (mypy) ──────────────────────────────
   backend-typecheck:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_PASSWORD: ci-fake-password
     steps:
       - uses: actions/checkout@v4
 
