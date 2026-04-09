@@ -25,8 +25,6 @@ def compute_weekly_reviewer_scorecard():
     from apps.suggestions.models import Suggestion
 
     today = timezone.now().date()
-    # Previous Monday (if today is Monday, go back 7 days)
-    days_back = (today.weekday() - 0) % 7 or 7
     period_end = today - timedelta(days=1)  # Sunday
     period_start = period_end - timedelta(days=6)  # Monday
 

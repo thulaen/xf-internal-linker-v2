@@ -27,7 +27,6 @@ from apps.api.throttles import (
     GraphRebuildThrottle as _GraphRebuildThrottle,
     WeightRecalcThrottle as _WeightRecalcThrottle,
     ChallengerEvalThrottle as _ChallengerEvalThrottle,
-    SettingsWriteThrottle as _SettingsWriteThrottle,
 )
 
 from apps.suggestions.recommended_weights import (
