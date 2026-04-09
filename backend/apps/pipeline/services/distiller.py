@@ -30,9 +30,9 @@ _INTENT_WORDS = re.compile(
 )
 
 
-
-
-def distill_body(sentences: list[str], max_sentences: int = MAX_DISTILLED_SENTENCES) -> str:
+def distill_body(
+    sentences: list[str], max_sentences: int = MAX_DISTILLED_SENTENCES
+) -> str:
     """Score and select the top sentences to represent a destination's body.
 
     Returns the distilled text as a single joined string.

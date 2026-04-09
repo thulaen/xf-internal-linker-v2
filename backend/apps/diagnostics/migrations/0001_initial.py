@@ -4,53 +4,190 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='ServiceStatusSnapshot',
+            name="ServiceStatusSnapshot",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('service_name', models.CharField(choices=[('django', 'Django API'), ('postgresql', 'PostgreSQL'), ('redis', 'Redis'), ('celery_worker', 'Celery Worker'), ('celery_beat', 'Celery Beat'), ('channels', 'Channels / WebSockets'), ('http_worker', 'C# HttpWorker'), ('xenforo_sync', 'XenForo Sync'), ('wordpress_sync', 'WordPress Sync'), ('ga4', 'GA4'), ('gsc', 'GSC'), ('analytics_app', 'Analytics App'), ('r_analytics', 'R Analytics Service'), ('r_weight_tuning', 'R Auto-Weight Tuning'), ('local_model', 'Local Embedding/Model Runtime')], db_index=True, max_length=50)),
-                ('state', models.CharField(choices=[('healthy', 'Healthy'), ('degraded', 'Degraded'), ('failed', 'Failed'), ('disabled', 'Disabled'), ('not_configured', 'Not Configured'), ('not_installed', 'Not Installed'), ('planned_only', 'Planned Only'), ('spec_missing', 'Spec Missing'), ('spec_exists_not_implemented', 'Spec Exists but Not Implemented'), ('partial_or_conflicting', 'Partial or Conflicting')], default='planned_only', max_length=30)),
-                ('explanation', models.TextField(blank=True, help_text='Plain-English explanation of the state.')),
-                ('last_check', models.DateTimeField(auto_now=True)),
-                ('last_success', models.DateTimeField(blank=True, null=True)),
-                ('last_failure', models.DateTimeField(blank=True, null=True)),
-                ('next_action_step', models.TextField(blank=True, help_text='User-friendly next step.')),
-                ('metadata', models.JSONField(blank=True, default=dict, help_text='Extra data like version, latency, etc.')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "service_name",
+                    models.CharField(
+                        choices=[
+                            ("django", "Django API"),
+                            ("postgresql", "PostgreSQL"),
+                            ("redis", "Redis"),
+                            ("celery_worker", "Celery Worker"),
+                            ("celery_beat", "Celery Beat"),
+                            ("channels", "Channels / WebSockets"),
+                            ("http_worker", "C# HttpWorker"),
+                            ("xenforo_sync", "XenForo Sync"),
+                            ("wordpress_sync", "WordPress Sync"),
+                            ("ga4", "GA4"),
+                            ("gsc", "GSC"),
+                            ("analytics_app", "Analytics App"),
+                            ("r_analytics", "R Analytics Service"),
+                            ("r_weight_tuning", "R Auto-Weight Tuning"),
+                            ("local_model", "Local Embedding/Model Runtime"),
+                        ],
+                        db_index=True,
+                        max_length=50,
+                    ),
+                ),
+                (
+                    "state",
+                    models.CharField(
+                        choices=[
+                            ("healthy", "Healthy"),
+                            ("degraded", "Degraded"),
+                            ("failed", "Failed"),
+                            ("disabled", "Disabled"),
+                            ("not_configured", "Not Configured"),
+                            ("not_installed", "Not Installed"),
+                            ("planned_only", "Planned Only"),
+                            ("spec_missing", "Spec Missing"),
+                            (
+                                "spec_exists_not_implemented",
+                                "Spec Exists but Not Implemented",
+                            ),
+                            ("partial_or_conflicting", "Partial or Conflicting"),
+                        ],
+                        default="planned_only",
+                        max_length=30,
+                    ),
+                ),
+                (
+                    "explanation",
+                    models.TextField(
+                        blank=True, help_text="Plain-English explanation of the state."
+                    ),
+                ),
+                ("last_check", models.DateTimeField(auto_now=True)),
+                ("last_success", models.DateTimeField(blank=True, null=True)),
+                ("last_failure", models.DateTimeField(blank=True, null=True)),
+                (
+                    "next_action_step",
+                    models.TextField(blank=True, help_text="User-friendly next step."),
+                ),
+                (
+                    "metadata",
+                    models.JSONField(
+                        blank=True,
+                        default=dict,
+                        help_text="Extra data like version, latency, etc.",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Service Status Snapshot',
-                'verbose_name_plural': 'Service Status Snapshots',
-                'ordering': ['-last_check'],
+                "verbose_name": "Service Status Snapshot",
+                "verbose_name_plural": "Service Status Snapshots",
+                "ordering": ["-last_check"],
             },
         ),
         migrations.CreateModel(
-            name='SystemConflict',
+            name="SystemConflict",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('conflict_type', models.CharField(choices=[('duplication', 'Duplication / Stub Paths'), ('mismatch', 'Spec / Code Mismatch'), ('placeholder', 'Placeholder UI / API'), ('drift', 'Repo Drift')], max_length=30)),
-                ('title', models.CharField(max_length=200)),
-                ('description', models.TextField()),
-                ('severity', models.CharField(choices=[('low', 'Low'), ('medium', 'Medium'), ('high', 'High'), ('critical', 'Critical')], default='medium', max_length=20)),
-                ('location', models.CharField(help_text='File path or URL where conflict occurs.', max_length=500)),
-                ('why', models.TextField(blank=True, help_text='Plain-English explanation of the conflict.')),
-                ('next_step', models.TextField(blank=True, help_text='What to do to resolve this.')),
-                ('resolved', models.BooleanField(default=False)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "conflict_type",
+                    models.CharField(
+                        choices=[
+                            ("duplication", "Duplication / Stub Paths"),
+                            ("mismatch", "Spec / Code Mismatch"),
+                            ("placeholder", "Placeholder UI / API"),
+                            ("drift", "Repo Drift"),
+                        ],
+                        max_length=30,
+                    ),
+                ),
+                ("title", models.CharField(max_length=200)),
+                ("description", models.TextField()),
+                (
+                    "severity",
+                    models.CharField(
+                        choices=[
+                            ("low", "Low"),
+                            ("medium", "Medium"),
+                            ("high", "High"),
+                            ("critical", "Critical"),
+                        ],
+                        default="medium",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "location",
+                    models.CharField(
+                        help_text="File path or URL where conflict occurs.",
+                        max_length=500,
+                    ),
+                ),
+                (
+                    "why",
+                    models.TextField(
+                        blank=True,
+                        help_text="Plain-English explanation of the conflict.",
+                    ),
+                ),
+                (
+                    "next_step",
+                    models.TextField(
+                        blank=True, help_text="What to do to resolve this."
+                    ),
+                ),
+                ("resolved", models.BooleanField(default=False)),
             ],
             options={
-                'verbose_name': 'System Conflict',
-                'verbose_name_plural': 'System Conflicts',
-                'ordering': ['-created_at'],
+                "verbose_name": "System Conflict",
+                "verbose_name_plural": "System Conflicts",
+                "ordering": ["-created_at"],
             },
         ),
     ]

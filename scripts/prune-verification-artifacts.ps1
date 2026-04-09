@@ -22,10 +22,23 @@ function Remove-DirectoryIfExists {
     Remove-Item -LiteralPath $Path -Recurse -Force
 }
 
+# ── Frontend artifacts ────────────────────────────────────────────
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "frontend\dist") -Label "frontend dist output"
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "frontend\.angular\cache") -Label "Angular build cache"
+Remove-DirectoryIfExists -Path (Join-Path $repoRoot "frontend\coverage") -Label "Karma coverage output"
+$eslintCache = Join-Path $repoRoot "frontend\.eslintcache"
+if (Test-Path -LiteralPath $eslintCache) {
+    Write-Host "Pruning ESLint cache..."
+    Remove-Item -LiteralPath $eslintCache -Force
+}
+
+# ── Backend artifacts ─────────────────────────────────────────────
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\extensions\build") -Label "native extension build cache"
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\extensions\__pycache__") -Label "native extension Python cache"
+Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.mypy_cache") -Label "mypy cache"
+Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.ruff_cache") -Label "ruff cache"
+Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.pytest_cache") -Label "pytest cache"
+Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\htmlcov") -Label "pytest-cov HTML output"
 
 $httpWorkerRoot = Join-Path $repoRoot "services\http-worker"
 $dotnetArtifactDirs = Get-ChildItem -Path $httpWorkerRoot -Directory -Recurse |

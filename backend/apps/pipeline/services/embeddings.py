@@ -20,9 +20,10 @@ from typing import Any
 
 import numpy as np
 from django.conf import settings
- 
+
 try:
     from extensions import l2norm
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -39,12 +40,14 @@ _model_cache: dict[str, Any] = {}
 # Model loading
 # ---------------------------------------------------------------------------
 
+
 def _resolve_device() -> str:
     """Return 'cuda' or 'cpu' based on ML_PERFORMANCE_MODE."""
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
     if mode == "HIGH_PERFORMANCE":
         try:
             import torch
+
             if torch.cuda.is_available():
                 return "cuda"
         except ImportError:
@@ -52,7 +55,9 @@ def _resolve_device() -> str:
     return "cpu"
 
 
-def _emit_model_alert(event_type: str, severity: str, title: str, message: str, model_name: str) -> None:
+def _emit_model_alert(
+    event_type: str, severity: str, title: str, message: str, model_name: str
+) -> None:
     """Emit a model state alert. Never raises."""
     try:
         from apps.notifications.models import OperatorAlert
@@ -69,7 +74,11 @@ def _emit_model_alert(event_type: str, severity: str, title: str, message: str, 
             payload={"model_name": model_name},
         )
     except Exception:
-        logger.warning("_emit_model_alert: failed to emit alert for model %s", model_name, exc_info=True)
+        logger.warning(
+            "_emit_model_alert: failed to emit alert for model %s",
+            model_name,
+            exc_info=True,
+        )
 
 
 def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
@@ -130,6 +139,7 @@ def _get_model_name() -> str:
     """Read the configured embedding model name from AppSetting."""
     try:
         from apps.core.models import AppSetting
+
         setting = AppSetting.objects.filter(key="embedding_model").first()
         if setting:
             return str(setting.value)
@@ -147,11 +157,12 @@ def _get_batch_size() -> int:
 # L2 normalization
 # ---------------------------------------------------------------------------
 
+
 def _l2_normalize(arr: np.ndarray) -> np.ndarray:
     """Row-wise L2 normalization. Zero-row arrays pass through unchanged."""
     if arr.shape[0] == 0:
         return arr
- 
+
     if HAS_CPP_EXT:
         # In-place C++ normalization (fast)
         l2norm.normalize_l2_batch(arr)
@@ -166,6 +177,7 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
+
 
 def generate_content_item_embeddings(
     content_item_ids: list[int] | None = None,
@@ -193,10 +205,10 @@ def generate_content_item_embeddings(
     qs = ContentItem.objects.filter(is_deleted=False)
     if content_item_ids is not None:
         qs = qs.filter(pk__in=content_item_ids)
-    
+
     if not force_reembed:
         qs = qs.filter(embedding__isnull=True)
-        
+
     qs = qs.values_list("pk", "title", "distilled_text")
 
     items = list(qs)
@@ -222,7 +234,7 @@ def generate_content_item_embeddings(
 
     logger.info("Embedding %d content items...", len(texts))
     start = time.monotonic()
-    
+
     # Process in batches to report progress
     raw_vectors_list = []
     total_items = len(texts)
@@ -230,6 +242,7 @@ def generate_content_item_embeddings(
     if job_id:
         from apps.sync.models import SyncJob
         from apps.pipeline.tasks import _publish_progress
+
         job = SyncJob.objects.filter(job_id=job_id).first()
     else:
         job = None
@@ -263,8 +276,9 @@ def generate_content_item_embeddings(
                 "running",
                 0.8 + (pct * 0.1),
                 f"Content embeddings: {processed}/{total_items}...",
-                embedding_progress=pct * 0.5,  # Content items are first half of embedding phase
-                ml_progress=0.7 + (pct * 0.15)
+                embedding_progress=pct
+                * 0.5,  # Content items are first half of embedding phase
+                ml_progress=0.7 + (pct * 0.15),
             )
 
     # Persist final count regardless of whether the last batch fell on a multiple-of-5 boundary.
@@ -319,7 +333,9 @@ def generate_sentence_embeddings(
         qs = qs.filter(embedding__isnull=True)
 
     # Only embed sentences within the HOST_SCAN_WORD_LIMIT window
-    qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list("pk", "text")
+    qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list(
+        "pk", "text"
+    )
 
     sentences = list(qs)
     if not sentences:
@@ -337,11 +353,11 @@ def generate_sentence_embeddings(
 
     logger.info("Embedding %d sentences...", len(texts))
     start = time.monotonic()
-    
+
     # Process in batches to report progress
     raw_vectors_list = []
     total_sentences = len(texts)
-    
+
     for i in range(0, total_sentences, batch_size):
         batch_texts = texts[i : i + batch_size]
         batch_vectors = model.encode(
@@ -351,21 +367,21 @@ def generate_sentence_embeddings(
             convert_to_numpy=True,
         )
         raw_vectors_list.append(batch_vectors)
-        
+
         # Report progress
         if job_id:
             from apps.pipeline.tasks import _publish_progress
-            
+
             processed = min(i + batch_size, total_sentences)
             pct = processed / total_sentences
-            
+
             _publish_progress(
                 job_id,
                 "running",
                 0.9 + (pct * 0.09),
                 f"Sentence embeddings: {processed}/{total_sentences}...",
-                embedding_progress=0.5 + (pct * 0.5), # Sentences are second half
-                ml_progress=0.85 + (pct * 0.14)
+                embedding_progress=0.5 + (pct * 0.5),  # Sentences are second half
+                ml_progress=0.85 + (pct * 0.14),
             )
 
     raw_vectors = np.vstack(raw_vectors_list)
@@ -374,6 +390,7 @@ def generate_sentence_embeddings(
     logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
 
     from apps.content.models import Sentence as SentenceModel
+
     to_update = [
         SentenceModel(pk=pk, embedding=vectors[idx].tolist())
         for idx, pk in enumerate(pks)
@@ -392,8 +409,12 @@ def generate_all_embeddings(
 
     Returns combined stats dict.
     """
-    ci_stats = generate_content_item_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
-    sent_stats = generate_sentence_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
+    ci_stats = generate_content_item_embeddings(
+        content_item_ids, job_id=job_id, force_reembed=force_reembed
+    )
+    sent_stats = generate_sentence_embeddings(
+        content_item_ids, job_id=job_id, force_reembed=force_reembed
+    )
     return {
         "content_items_embedded": ci_stats["embedded"],
         "content_items_skipped": ci_stats["skipped"],

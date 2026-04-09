@@ -4,9 +4,11 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ("content", "0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more"),
+        (
+            "content",
+            "0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more",
+        ),
     ]
 
     operations = [

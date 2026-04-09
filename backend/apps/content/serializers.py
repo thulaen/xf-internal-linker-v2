@@ -20,8 +20,14 @@ class SiloGroupSerializer(serializers.ModelSerializer):
     class Meta:
         model = SiloGroup
         fields = [
-            "id", "name", "slug", "description", "display_order",
-            "scope_count", "created_at", "updated_at",
+            "id",
+            "name",
+            "slug",
+            "description",
+            "display_order",
+            "scope_count",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = ["id", "scope_count", "created_at", "updated_at"]
 
@@ -38,18 +44,33 @@ class SiloGroupSerializer(serializers.ModelSerializer):
 class ScopeItemSerializer(serializers.ModelSerializer):
     """Serializes forum nodes, resource categories, and WordPress scopes."""
 
-    silo_group_name = serializers.CharField(source="silo_group.name", read_only=True, default="")
-    parent_title = serializers.CharField(source="parent.title", read_only=True, default="")
+    silo_group_name = serializers.CharField(
+        source="silo_group.name", read_only=True, default=""
+    )
+    parent_title = serializers.CharField(
+        source="parent.title", read_only=True, default=""
+    )
     source_label = serializers.SerializerMethodField()
-    scope_type_label = serializers.CharField(source="get_scope_type_display", read_only=True)
+    scope_type_label = serializers.CharField(
+        source="get_scope_type_display", read_only=True
+    )
 
     class Meta:
         model = ScopeItem
         fields = [
-            "id", "scope_id", "scope_type", "scope_type_label", "source_label",
-            "title", "parent", "parent_title",
-            "silo_group", "silo_group_name",
-            "is_enabled", "content_count", "display_order",
+            "id",
+            "scope_id",
+            "scope_type",
+            "scope_type_label",
+            "source_label",
+            "title",
+            "parent",
+            "parent_title",
+            "silo_group",
+            "silo_group_name",
+            "is_enabled",
+            "content_count",
+            "display_order",
         ]
         read_only_fields = ["id", "content_count"]
 
@@ -60,20 +81,38 @@ class ScopeItemSerializer(serializers.ModelSerializer):
 class ContentItemListSerializer(serializers.ModelSerializer):
     """Lightweight serializer for list views; omits heavy fields like distilled_text."""
 
-    scope_title = serializers.CharField(source="scope.title", read_only=True, default="")
+    scope_title = serializers.CharField(
+        source="scope.title", read_only=True, default=""
+    )
     source_label = serializers.SerializerMethodField()
-    content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
+    content_type_label = serializers.CharField(
+        source="get_content_type_display", read_only=True
+    )
     freshness_bucket = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentItem
         fields = [
-            "id", "content_id", "content_type", "content_type_label", "source_label",
-            "title", "url", "scope", "scope_title",
-            "march_2026_pagerank_score", "velocity_score", "link_freshness_score", "content_value_score", "freshness_bucket",
-            "view_count", "reply_count",
-            "post_date", "is_deleted",
-            "created_at", "updated_at",
+            "id",
+            "content_id",
+            "content_type",
+            "content_type_label",
+            "source_label",
+            "title",
+            "url",
+            "scope",
+            "scope_title",
+            "march_2026_pagerank_score",
+            "velocity_score",
+            "link_freshness_score",
+            "content_value_score",
+            "freshness_bucket",
+            "view_count",
+            "reply_count",
+            "post_date",
+            "is_deleted",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 
@@ -87,27 +126,52 @@ class ContentItemListSerializer(serializers.ModelSerializer):
 class ContentItemDetailSerializer(serializers.ModelSerializer):
     """Full serializer for detail views; includes distilled_text and embedding status."""
 
-    scope_title = serializers.CharField(source="scope.title", read_only=True, default="")
+    scope_title = serializers.CharField(
+        source="scope.title", read_only=True, default=""
+    )
     has_embedding = serializers.SerializerMethodField()
     has_post = serializers.SerializerMethodField()
     sentence_count = serializers.SerializerMethodField()
     source_label = serializers.SerializerMethodField()
-    content_type_label = serializers.CharField(source="get_content_type_display", read_only=True)
+    content_type_label = serializers.CharField(
+        source="get_content_type_display", read_only=True
+    )
     freshness_bucket = serializers.SerializerMethodField()
 
     class Meta:
         model = ContentItem
         fields = [
-            "id", "content_id", "content_type", "content_type_label", "source_label",
-            "title", "url", "scope", "scope_title",
-            "distilled_text", "distill_method", "content_hash",
-            "march_2026_pagerank_score", "velocity_score", "link_freshness_score", "content_value_score", "freshness_bucket",
-            "view_count", "reply_count", "download_count",
-            "post_date", "last_post_date",
-            "xf_post_id", "xf_update_id",
-            "is_deleted", "fetched_at",
-            "has_embedding", "has_post", "sentence_count",
-            "created_at", "updated_at",
+            "id",
+            "content_id",
+            "content_type",
+            "content_type_label",
+            "source_label",
+            "title",
+            "url",
+            "scope",
+            "scope_title",
+            "distilled_text",
+            "distill_method",
+            "content_hash",
+            "march_2026_pagerank_score",
+            "velocity_score",
+            "link_freshness_score",
+            "content_value_score",
+            "freshness_bucket",
+            "view_count",
+            "reply_count",
+            "download_count",
+            "post_date",
+            "last_post_date",
+            "xf_post_id",
+            "xf_update_id",
+            "is_deleted",
+            "fetched_at",
+            "has_embedding",
+            "has_post",
+            "sentence_count",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 
@@ -133,8 +197,15 @@ class PostSerializer(serializers.ModelSerializer):
     class Meta:
         model = Post
         fields = [
-            "id", "content_item", "clean_text", "char_count", "word_count",
-            "xf_post_id", "last_edit_date", "created_at", "updated_at",
+            "id",
+            "content_item",
+            "clean_text",
+            "char_count",
+            "word_count",
+            "xf_post_id",
+            "last_edit_date",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 
@@ -145,8 +216,14 @@ class SentenceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Sentence
         fields = [
-            "id", "content_item", "position", "word_position",
-            "text", "char_count", "start_char", "end_char",
+            "id",
+            "content_item",
+            "position",
+            "word_position",
+            "text",
+            "char_count",
+            "start_char",
+            "end_char",
         ]
         read_only_fields = fields
 

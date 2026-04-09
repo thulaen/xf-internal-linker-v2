@@ -4,20 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('sync', '0001_initial'),
+        ("sync", "0001_initial"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='syncjob',
-            name='ml_items_completed',
+            model_name="syncjob",
+            name="ml_items_completed",
             field=models.IntegerField(default=0),
         ),
         migrations.AddField(
-            model_name='syncjob',
-            name='ml_items_queued',
+            model_name="syncjob",
+            name="ml_items_queued",
             field=models.IntegerField(default=0),
         ),
     ]

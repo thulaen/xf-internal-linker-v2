@@ -17,6 +17,7 @@ from typing import Mapping, TypeAlias
 
 try:
     from extensions import scoring
+
     HAS_CPP_EXT = True
 except ImportError as _ext_err:
     HAS_CPP_EXT = False
@@ -30,6 +31,7 @@ except ImportError as _ext_err:
     try:
         import traceback
         from apps.audit.models import ErrorLog
+
         ErrorLog.objects.create(
             job_type="cpp_extension",
             step="import_scoring",
@@ -45,7 +47,9 @@ except ImportError as _ext_err:
     except Exception:
         pass  # ErrorLog itself may not be available during early startup
 
-HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(scoring, "calculate_composite_scores_full_batch")
+HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(
+    scoring, "calculate_composite_scores_full_batch"
+)
 
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
@@ -68,6 +72,7 @@ from apps.suggestions.recommended_weights import recommended_float, recommended_
 
 ContentKey: TypeAlias = tuple[int, str]
 ExistingLinkKey: TypeAlias = tuple[ContentKey, ContentKey]
+
 
 @dataclass(frozen=True, slots=True)
 class ContentRecord:
@@ -357,7 +362,8 @@ def score_destination_matches(
     existing_outgoing_counts: Mapping[ContentKey, int] | None = None,
     max_existing_links_per_host: int = 2,
     max_anchor_words: int = 4,
-    learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]] | None = None,
+    learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]]
+    | None = None,
     rare_term_profiles: Mapping[ContentKey, RareTermProfile] | None = None,
     weights: Mapping[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
@@ -388,7 +394,9 @@ def score_destination_matches(
     component_scores = np.empty((len(sentence_matches), 12), dtype=np.float32)
     silo_array = np.empty(len(sentence_matches), dtype=np.float32)
     row_idx = 0
-    destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(destination.key, [])
+    destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(
+        destination.key, []
+    )
     batch_weights = np.asarray(
         [
             float(weights.get("w_semantic", 0.0)),
@@ -466,7 +474,10 @@ def score_destination_matches(
         # US8380722B2 states anchors are "usually short and descriptive";
         # Google's phraseAnchorSpamFraq field (2024 leak) specifically targets
         # recurring long-phrase anchors. A 4-word cap sits inside the safe zone.
-        if phrase_match.anchor_phrase and len(phrase_match.anchor_phrase.split()) > max_anchor_words:
+        if (
+            phrase_match.anchor_phrase
+            and len(phrase_match.anchor_phrase.split()) > max_anchor_words
+        ):
             if blocked_reasons is not None:
                 blocked_reasons.add("anchor_too_long")
             continue
@@ -584,7 +595,9 @@ def score_destination_matches(
         rare_term_match = pending_candidate["rare_term_match"]
         field_aware_match = pending_candidate["field_aware_match"]
         score_click_distance = float(pending_candidate["score_click_distance"])
-        score_click_distance_component = float(pending_candidate["score_click_distance_component"])
+        score_click_distance_component = float(
+            pending_candidate["score_click_distance_component"]
+        )
         score_final = float(raw_score_final)
 
         # FR-014 Clustering Suppression
@@ -598,13 +611,13 @@ def score_destination_matches(
                 cluster_diagnostics = {
                     "cluster_id": destination.cluster_id,
                     "is_canonical": False,
-                    "penalty": clustering_settings.suppression_penalty
+                    "penalty": clustering_settings.suppression_penalty,
                 }
             else:
                 cluster_diagnostics = {
                     "cluster_id": destination.cluster_id,
                     "is_canonical": True,
-                    "penalty": 0.0
+                    "penalty": 0.0,
                 }
 
         # Thin content penalty (Panda-based, US Patent 8,682,892).
@@ -639,12 +652,18 @@ def score_destination_matches(
                 score_quality=float(pending_candidate["score_quality"]),
                 score_silo_affinity=float(pending_candidate["score_silo"]),
                 score_phrase_relevance=float(phrase_match.score_phrase_relevance),
-                score_learned_anchor_corroboration=float(learned_anchor_match.score_learned_anchor_corroboration),
-                score_rare_term_propagation=float(rare_term_match.score_rare_term_propagation),
-                score_field_aware_relevance=float(field_aware_match.score_field_aware_relevance),
+                score_learned_anchor_corroboration=float(
+                    learned_anchor_match.score_learned_anchor_corroboration
+                ),
+                score_rare_term_propagation=float(
+                    rare_term_match.score_rare_term_propagation
+                ),
+                score_field_aware_relevance=float(
+                    field_aware_match.score_field_aware_relevance
+                ),
                 score_ga4_gsc=float(pending_candidate["score_ga4_gsc"]),
                 score_click_distance=score_click_distance,
-                score_explore_exploit=0.0, # Will be updated by feedback reranker later
+                score_explore_exploit=0.0,  # Will be updated by feedback reranker later
                 score_cluster_suppression=float(score_cluster_suppression),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
@@ -745,7 +764,9 @@ def select_final_candidates(
     last_block_reason: dict[ContentKey, str] = {}
 
     while heap:
-        _neg_final, _neg_semantic, destination_id, destination_type, candidate_idx = heapq.heappop(heap)
+        _neg_final, _neg_semantic, destination_id, destination_type, candidate_idx = (
+            heapq.heappop(heap)
+        )
         destination_key = (destination_id, destination_type)
         if destination_key in selected_by_destination:
             continue
@@ -756,10 +777,12 @@ def select_final_candidates(
 
         candidate = candidates[candidate_idx]
         is_host_reuse = host_reuse_counts[candidate.host_key] >= max_host_reuse
-        is_circular = (candidate.host_key, candidate.destination_key) in selected_directions
-        is_para_collision = (
-            sentence_records is not None
-            and _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window)
+        is_circular = (
+            candidate.host_key,
+            candidate.destination_key,
+        ) in selected_directions
+        is_para_collision = sentence_records is not None and _is_paragraph_collision(
+            candidate, host_para_positions, sentence_records, paragraph_window
         )
         blocked = is_host_reuse or is_circular or is_para_collision
         if blocked:
@@ -792,7 +815,9 @@ def select_final_candidates(
         if sentence_records is not None:
             sent = sentence_records.get(candidate.host_sentence_id)
             if sent is not None:
-                host_para_positions.setdefault(candidate.host_key, []).append(sent.position)
+                host_para_positions.setdefault(candidate.host_key, []).append(
+                    sent.position
+                )
         last_block_reason.pop(destination_key, None)
 
     if blocked_diagnostics is not None:

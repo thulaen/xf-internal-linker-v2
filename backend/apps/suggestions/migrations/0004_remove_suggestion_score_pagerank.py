@@ -4,9 +4,11 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ("suggestions", "0003_rename_score_weighted_pagerank_to_score_march_2026_pagerank"),
+        (
+            "suggestions",
+            "0003_rename_score_weighted_pagerank_to_score_march_2026_pagerank",
+        ),
     ]
 
     operations = [

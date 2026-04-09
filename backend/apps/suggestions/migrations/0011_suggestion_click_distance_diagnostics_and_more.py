@@ -4,20 +4,26 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0010_add_score_ga4_gsc'),
+        ("suggestions", "0010_add_score_ga4_gsc"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='click_distance_diagnostics',
-            field=models.JSONField(blank=True, default=dict, help_text='Explainable FR-012 click-distance context for review and debugging.'),
+            model_name="suggestion",
+            name="click_distance_diagnostics",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Explainable FR-012 click-distance context for review and debugging.",
+            ),
         ),
         migrations.AddField(
-            model_name='suggestion',
-            name='score_click_distance',
-            field=models.FloatField(default=0.5, help_text='FR-012 click-distance structural prior score. 1.0 = shallowest. 0.5 = neutral.'),
+            model_name="suggestion",
+            name="score_click_distance",
+            field=models.FloatField(
+                default=0.5,
+                help_text="FR-012 click-distance structural prior score. 1.0 = shallowest. 0.5 = neutral.",
+            ),
         ),
     ]

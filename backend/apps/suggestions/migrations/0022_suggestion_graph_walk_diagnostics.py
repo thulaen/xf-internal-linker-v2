@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0021_suggestion_candidate_origin_and_more'),
+        ("suggestions", "0021_suggestion_candidate_origin_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='graph_walk_diagnostics',
-            field=models.JSONField(blank=True, default=dict, help_text='Explainable random walk details (steps, seeds, visit counts) for graph candidates.'),
+            model_name="suggestion",
+            name="graph_walk_diagnostics",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Explainable random walk details (steps, seeds, visit counts) for graph candidates.",
+            ),
         ),
     ]

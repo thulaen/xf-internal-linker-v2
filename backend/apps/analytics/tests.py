@@ -5,7 +5,11 @@ from django.contrib.auth import get_user_model
 from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
-from apps.analytics.models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverageDaily
+from apps.analytics.models import (
+    AnalyticsSyncRun,
+    SuggestionTelemetryDaily,
+    TelemetryCoverageDaily,
+)
 from apps.analytics.gsc_client import fetch_gsc_performance_data
 from apps.analytics.sync import MATOMO_EXCLUDED_SEGMENT, run_ga4_sync, run_matomo_sync
 from apps.core.models import AppSetting
@@ -15,10 +19,18 @@ from apps.suggestions.models import PipelineRun, Suggestion
 
 class AnalyticsTelemetrySettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="analytics-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="analytics-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
-    def _build_suggestion(self, *, host_id: int = 101, destination_id: int = 202, title: str = "Destination Thread"):
+    def _build_suggestion(
+        self,
+        *,
+        host_id: int = 101,
+        destination_id: int = 202,
+        title: str = "Destination Thread",
+    ):
         host = ContentItem.objects.create(
             content_id=host_id,
             content_type="thread",
@@ -31,7 +43,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             title=title,
             url=f"https://forum.example.com/destination-{destination_id}",
         )
-        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        post = Post.objects.create(
+            content_item=host, raw_bbcode="Body", clean_text="Host sentence"
+        )
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -85,15 +99,35 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(payload["measurement_id"], "G-TEST1234")
         self.assertTrue(payload["api_secret_configured"])
         self.assertEqual(payload["read_project_id"], "ga4-read-project")
-        self.assertEqual(payload["read_client_email"], "reader@example.iam.gserviceaccount.com")
+        self.assertEqual(
+            payload["read_client_email"], "reader@example.iam.gserviceaccount.com"
+        )
         self.assertTrue(payload["read_private_key_configured"])
         self.assertEqual(payload["sync_lookback_days"], 9)
-        self.assertEqual(AppSetting.objects.get(key="analytics.ga4_measurement_id").value, "G-TEST1234")
-        self.assertTrue(AppSetting.objects.get(key="analytics.ga4_api_secret").is_secret)
-        self.assertTrue(AppSetting.objects.get(key="analytics.ga4_read_private_key").is_secret)
-        self.assertEqual(AppSetting.objects.get(key="analytics.telemetry_retention_days").value, "365")
-        self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-hourly-restatement").enabled)
-        self.assertTrue(PeriodicTask.objects.get(name="analytics-ga4-telemetry-daily-catchup").enabled)
+        self.assertEqual(
+            AppSetting.objects.get(key="analytics.ga4_measurement_id").value,
+            "G-TEST1234",
+        )
+        self.assertTrue(
+            AppSetting.objects.get(key="analytics.ga4_api_secret").is_secret
+        )
+        self.assertTrue(
+            AppSetting.objects.get(key="analytics.ga4_read_private_key").is_secret
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="analytics.telemetry_retention_days").value,
+            "365",
+        )
+        self.assertTrue(
+            PeriodicTask.objects.get(
+                name="analytics-ga4-telemetry-hourly-restatement"
+            ).enabled
+        )
+        self.assertTrue(
+            PeriodicTask.objects.get(
+                name="analytics-ga4-telemetry-daily-catchup"
+            ).enabled
+        )
 
     def test_google_oauth_settings_round_trip_masks_secret(self):
         response = self.client.put(
@@ -107,10 +141,17 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
-        self.assertEqual(payload["client_id"], "123456789-test.apps.googleusercontent.com")
+        self.assertEqual(
+            payload["client_id"], "123456789-test.apps.googleusercontent.com"
+        )
         self.assertTrue(payload["client_secret_configured"])
-        self.assertEqual(AppSetting.objects.get(key="analytics.google_oauth_client_id").value, "123456789-test.apps.googleusercontent.com")
-        self.assertTrue(AppSetting.objects.get(key="analytics.google_oauth_client_secret").is_secret)
+        self.assertEqual(
+            AppSetting.objects.get(key="analytics.google_oauth_client_id").value,
+            "123456789-test.apps.googleusercontent.com",
+        )
+        self.assertTrue(
+            AppSetting.objects.get(key="analytics.google_oauth_client_secret").is_secret
+        )
 
     @patch("apps.analytics.views.requests.post")
     def test_ga4_test_connection_uses_saved_secret(self, post_mock):
@@ -132,7 +173,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         post_mock.return_value.json.return_value = {"validationMessages": []}
         post_mock.return_value.raise_for_status.return_value = None
 
-        response = self.client.post("/api/analytics/settings/ga4/test-connection/", {}, format="json")
+        response = self.client.post(
+            "/api/analytics/settings/ga4/test-connection/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
@@ -140,7 +183,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
 
     @patch("apps.analytics.views.test_ga4_data_api_access")
     @patch("apps.analytics.views.build_ga4_data_service")
-    def test_ga4_read_test_connection_uses_saved_read_credentials(self, build_mock, access_mock):
+    def test_ga4_read_test_connection_uses_saved_read_credentials(
+        self, build_mock, access_mock
+    ):
         AppSetting.objects.bulk_create(
             [
                 AppSetting(
@@ -177,7 +222,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         build_mock.return_value = Mock()
         access_mock.return_value = {"rows": []}
 
-        response = self.client.post("/api/analytics/settings/ga4/test-read-connection/", {}, format="json")
+        response = self.client.post(
+            "/api/analytics/settings/ga4/test-read-connection/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
@@ -204,7 +251,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(payload["url"], "https://matomo.example.com")
         self.assertEqual(payload["site_id_xenforo"], "7")
         self.assertTrue(payload["token_auth_configured"])
-        self.assertTrue(AppSetting.objects.get(key="analytics.matomo_token_auth").is_secret)
+        self.assertTrue(
+            AppSetting.objects.get(key="analytics.matomo_token_auth").is_secret
+        )
 
     @patch("apps.analytics.views.requests.get")
     def test_matomo_test_connection_returns_connected(self, get_mock):
@@ -233,13 +282,21 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         get_mock.return_value.json.return_value = {"idsite": 7, "name": "Forum"}
         get_mock.return_value.raise_for_status.return_value = None
 
-        response = self.client.post("/api/analytics/settings/matomo/test-connection/", {}, format="json")
+        response = self.client.post(
+            "/api/analytics/settings/matomo/test-connection/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
 
     def test_overview_returns_last_sync_and_counts(self):
-        AnalyticsSyncRun.objects.create(source="ga4", status="completed", rows_written=12, rows_updated=2, rows_read=20)
+        AnalyticsSyncRun.objects.create(
+            source="ga4",
+            status="completed",
+            rows_written=12,
+            rows_updated=2,
+            rows_read=20,
+        )
         response = self.client.get("/api/analytics/telemetry/overview/")
 
         self.assertEqual(response.status_code, 200)
@@ -305,7 +362,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(trend.json()["items"][0]["ctr"], 0.4)
 
         self.assertEqual(top.status_code, 200)
-        self.assertEqual(top.json()["items"][0]["destination_title"], "Destination Thread")
+        self.assertEqual(
+            top.json()["items"][0]["destination_title"], "Destination Thread"
+        )
         self.assertEqual(top.json()["items"][0]["clicks"], 4)
 
     def test_health_endpoint_summarizes_coverage_by_source(self):
@@ -394,7 +453,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             engaged_sessions=1,
         )
 
-        response = self.client.get("/api/analytics/telemetry/breakdowns/?source=ga4&days=30")
+        response = self.client.get(
+            "/api/analytics/telemetry/breakdowns/?source=ga4&days=30"
+        )
 
         self.assertEqual(response.status_code, 200)
         payload = response.json()
@@ -406,7 +467,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(payload["countries"][0]["label"], "United Kingdom")
         self.assertEqual(payload["countries"][0]["clicks"], 5)
 
-    def test_integration_view_returns_copy_ready_snippet_when_browser_events_enabled(self):
+    def test_integration_view_returns_copy_ready_snippet_when_browser_events_enabled(
+        self,
+    ):
         AppSetting.objects.create(
             key="analytics.ga4_behavior_enabled",
             value="true",
@@ -452,7 +515,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             description="lookback",
         )
 
-        response = self.client.post("/api/analytics/telemetry/matomo-sync/", {}, format="json")
+        response = self.client.post(
+            "/api/analytics/telemetry/matomo-sync/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 202)
         payload = response.json()
@@ -473,7 +538,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             description="lookback",
         )
 
-        response = self.client.post("/api/analytics/telemetry/ga4-sync/", {}, format="json")
+        response = self.client.post(
+            "/api/analytics/telemetry/ga4-sync/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 202)
         payload = response.json()
@@ -534,8 +601,12 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         )
 
         silo = SiloGroup.objects.create(name="Music", slug="music")
-        host_scope = ScopeItem.objects.create(scope_id=11, scope_type="node", title="Host", silo_group=silo)
-        destination_scope = ScopeItem.objects.create(scope_id=12, scope_type="node", title="Destination", silo_group=silo)
+        host_scope = ScopeItem.objects.create(
+            scope_id=11, scope_type="node", title="Host", silo_group=silo
+        )
+        destination_scope = ScopeItem.objects.create(
+            scope_id=12, scope_type="node", title="Destination", silo_group=silo
+        )
         host = ContentItem.objects.create(
             content_id=101,
             content_type="thread",
@@ -550,7 +621,11 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             url="https://forum.example.com/destination-thread",
             scope=destination_scope,
         )
-        post = Post.objects.create(content_item=host, raw_bbcode="Test body", clean_text="Helpful host sentence.")
+        post = Post.objects.create(
+            content_item=host,
+            raw_bbcode="Test body",
+            clean_text="Helpful host sentence.",
+        )
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -574,7 +649,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             anchor_end=7,
             anchor_confidence="strong",
         )
-        sync_run = AnalyticsSyncRun.objects.create(source="matomo", status="pending", lookback_days=1)
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="matomo", status="pending", lookback_days=1
+        )
 
         get_mock.return_value.json.return_value = [
             {
@@ -672,7 +749,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             title="Destination Thread",
             url="https://forum.example.com/destination-thread",
         )
-        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        post = Post.objects.create(
+            content_item=host, raw_bbcode="Body", clean_text="Host sentence"
+        )
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -696,7 +775,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             anchor_end=4,
             anchor_confidence="strong",
         )
-        sync_run = AnalyticsSyncRun.objects.create(source="ga4", status="pending", lookback_days=1)
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="ga4", status="pending", lookback_days=1
+        )
         service = Mock()
         build_service_mock.return_value = service
         service.properties.return_value.runReport.return_value.execute.side_effect = [
@@ -815,7 +896,9 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             ]
         )
         suggestion = self._build_suggestion(host_id=401, destination_id=402)
-        sync_run = AnalyticsSyncRun.objects.create(source="ga4", status="pending", lookback_days=1)
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="ga4", status="pending", lookback_days=1
+        )
         service = Mock()
         build_service_mock.return_value = service
         service.properties.return_value.runReport.return_value.execute.side_effect = [
@@ -930,9 +1013,13 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertEqual(telemetry_row.clicks, 2)
         self.assertEqual(telemetry_row.destination_views, 5)
         self.assertEqual(telemetry_row.sessions, 5)
+
+
 class GSCSlice1Tests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="gsc-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="gsc-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_gsc_settings_round_trip(self):
@@ -952,18 +1039,25 @@ class GSCSlice1Tests(APITestCase):
         payload = response.json()
         self.assertEqual(payload["property_url"], "sc-domain:example.com")
         self.assertTrue(payload["private_key_configured"])
-        self.assertEqual(payload["excluded_countries"], ["China", "Singapore", "Vietnam"])
+        self.assertEqual(
+            payload["excluded_countries"], ["China", "Singapore", "Vietnam"]
+        )
         self.assertEqual(payload["manual_backfill_suggested_days"], 180)
-        
+
         # Verify DB persistence
-        self.assertEqual(AppSetting.objects.get(key="analytics.gsc_property_url").value, "sc-domain:example.com")
-        self.assertTrue(AppSetting.objects.get(key="analytics.gsc_private_key").is_secret)
+        self.assertEqual(
+            AppSetting.objects.get(key="analytics.gsc_property_url").value,
+            "sc-domain:example.com",
+        )
+        self.assertTrue(
+            AppSetting.objects.get(key="analytics.gsc_private_key").is_secret
+        )
 
     def test_gsc_models_persistence(self):
         """Verify that the new GSCDailyPerformance and GSCImpactSnapshot models function."""
         from apps.analytics.models import GSCDailyPerformance, GSCImpactSnapshot
         from django.utils import timezone
-        
+
         # Create raw performance data
         perf = GSCDailyPerformance.objects.create(
             page_url="https://example.com/page-1",
@@ -972,23 +1066,32 @@ class GSCSlice1Tests(APITestCase):
             clicks=50,
             avg_position=12.5,
             ctr=0.05,
-            property_url="sc-domain:example.com"
+            property_url="sc-domain:example.com",
         )
         self.assertEqual(GSCDailyPerformance.objects.count(), 1)
-        
+
         # Create impact snapshot (requires a suggestion)
         host = ContentItem.objects.create(content_id=501, title="Host")
         dest = ContentItem.objects.create(content_id=502, title="Dest")
         post = Post.objects.create(content_item=host, clean_text="Host sentence")
         sentence = Sentence.objects.create(
-            content_item=host, post=post, text="Host sentence",
-            position=0, char_count=13, start_char=0, end_char=13, word_position=0
+            content_item=host,
+            post=post,
+            text="Host sentence",
+            position=0,
+            char_count=13,
+            start_char=0,
+            end_char=13,
+            word_position=0,
         )
         suggestion = Suggestion.objects.create(
-            destination=dest, host=host, host_sentence=sentence,
-            status="applied", applied_at=timezone.now()
+            destination=dest,
+            host=host,
+            host_sentence=sentence,
+            status="applied",
+            applied_at=timezone.now(),
         )
-        
+
         impact = GSCImpactSnapshot.objects.create(
             suggestion=suggestion,
             apply_date=timezone.now(),
@@ -998,26 +1101,50 @@ class GSCSlice1Tests(APITestCase):
             lift_clicks_pct=1.0,
             lift_clicks_absolute=10,
             probability_of_uplift=0.99,
-            reward_label="positive"
+            reward_label="positive",
         )
         self.assertEqual(GSCImpactSnapshot.objects.count(), 1)
         self.assertEqual(suggestion.gsc_impacts.first().reward_label, "positive")
 
 
-
 class GSCSlice3Tests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="gsc-ingest", password="pass")
+        user = get_user_model().objects.create_user(
+            username="gsc-ingest", password="pass"
+        )
         self.client.force_authenticate(user=user)
-        
+
         # Setup settings
-        AppSetting.objects.bulk_create([
-            AppSetting(key="analytics.gsc_sync_enabled", value="true", value_type="bool", category="analytics"),
-            AppSetting(key="analytics.gsc_property_url", value="https://example.com/", value_type="str", category="analytics"),
-            AppSetting(key="analytics.gsc_client_email", value="bot@example.com", value_type="str", category="analytics"),
-            AppSetting(key="analytics.gsc_private_key", value="-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----", value_type="str", category="analytics", is_secret=True),
-        ])
-        
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    key="analytics.gsc_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                    category="analytics",
+                ),
+                AppSetting(
+                    key="analytics.gsc_property_url",
+                    value="https://example.com/",
+                    value_type="str",
+                    category="analytics",
+                ),
+                AppSetting(
+                    key="analytics.gsc_client_email",
+                    value="bot@example.com",
+                    value_type="str",
+                    category="analytics",
+                ),
+                AppSetting(
+                    key="analytics.gsc_private_key",
+                    value="-----BEGIN PRIVATE KEY-----\nKEY\n-----END PRIVATE KEY-----",
+                    value_type="str",
+                    category="analytics",
+                    is_secret=True,
+                ),
+            ]
+        )
+
         # Setup ContentItem for legacy mapping test
         self.item = ContentItem.objects.create(
             content_id=601,
@@ -1029,8 +1156,12 @@ class GSCSlice3Tests(APITestCase):
     @patch("apps.analytics.sync.fetch_gsc_performance_data")
     def test_run_gsc_sync_populates_models(self, fetch_mock, build_mock):
         from apps.analytics.sync import run_gsc_sync
-        from apps.analytics.models import GSCDailyPerformance, SearchMetric, AnalyticsSyncRun
-        
+        from apps.analytics.models import (
+            GSCDailyPerformance,
+            SearchMetric,
+            AnalyticsSyncRun,
+        )
+
         # Mock GSC Response (page-level total)
         fetch_mock.side_effect = [
             [
@@ -1039,38 +1170,44 @@ class GSCSlice3Tests(APITestCase):
                     "clicks": 10,
                     "impressions": 100,
                     "ctr": 0.1,
-                    "position": 5.5
+                    "position": 5.5,
                 },
                 {
                     "keys": ["2026-04-01", "https://example.com/untracked-page"],
                     "clicks": 5,
                     "impressions": 50,
                     "ctr": 0.1,
-                    "position": 10.0
-                }
+                    "position": 10.0,
+                },
             ],
             [
                 {
-                    "keys": ["2026-04-01", "https://example.com/ingested-page", "ingested page"],
+                    "keys": [
+                        "2026-04-01",
+                        "https://example.com/ingested-page",
+                        "ingested page",
+                    ],
                     "clicks": 10,
                     "impressions": 100,
                     "ctr": 0.1,
-                    "position": 5.5
+                    "position": 5.5,
                 }
             ],
         ]
-        
+
         sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=7)
         stats = run_gsc_sync(sync_run)
-        
+
         self.assertEqual(stats["rows_read"], 3)
         self.assertEqual(stats["rows_written"], 2)
-        
+
         # Verify GSCDailyPerformance (both pages)
         self.assertEqual(GSCDailyPerformance.objects.count(), 2)
-        perf_tracked = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")
+        perf_tracked = GSCDailyPerformance.objects.get(
+            page_url="https://example.com/ingested-page"
+        )
         self.assertEqual(perf_tracked.clicks, 10)
-        
+
         # Verify SearchMetric (only the tracked page)
         self.assertEqual(SearchMetric.objects.count(), 1)
         metric = SearchMetric.objects.get(content_item=self.item)
@@ -1085,16 +1222,16 @@ class GSCSlice3Tests(APITestCase):
     def test_run_gsc_sync_updates_existing_rows(self, fetch_mock, build_mock):
         from apps.analytics.sync import run_gsc_sync
         from apps.analytics.models import GSCDailyPerformance, AnalyticsSyncRun
-        
+
         # Pre-create a row
         GSCDailyPerformance.objects.create(
             page_url="https://example.com/ingested-page",
             date="2026-04-01",
             property_url="https://example.com/",
             clicks=1,
-            impressions=10
+            impressions=10,
         )
-        
+
         fetch_mock.side_effect = [
             [
                 {
@@ -1102,32 +1239,40 @@ class GSCSlice3Tests(APITestCase):
                     "clicks": 10,
                     "impressions": 100,
                     "ctr": 0.1,
-                    "position": 5.5
+                    "position": 5.5,
                 }
             ],
             [
                 {
-                    "keys": ["2026-04-01", "https://example.com/ingested-page", "ingested page"],
+                    "keys": [
+                        "2026-04-01",
+                        "https://example.com/ingested-page",
+                        "ingested page",
+                    ],
                     "clicks": 10,
                     "impressions": 100,
                     "ctr": 0.1,
-                    "position": 5.5
+                    "position": 5.5,
                 }
             ],
         ]
-        
+
         sync_run = AnalyticsSyncRun.objects.create(source="gsc", lookback_days=1)
         stats = run_gsc_sync(sync_run)
-        
+
         self.assertEqual(stats["rows_read"], 2)
         self.assertEqual(stats["rows_updated"], 1)
-        
-        perf = GSCDailyPerformance.objects.get(page_url="https://example.com/ingested-page")
-        self.assertEqual(perf.clicks, 10) # Updated from 1 to 10
+
+        perf = GSCDailyPerformance.objects.get(
+            page_url="https://example.com/ingested-page"
+        )
+        self.assertEqual(perf.clicks, 10)  # Updated from 1 to 10
 
     def test_fetch_gsc_performance_data_adds_blocked_country_filters(self):
         service = Mock()
-        service.searchanalytics.return_value.query.return_value.execute.return_value = {"rows": []}
+        service.searchanalytics.return_value.query.return_value.execute.return_value = {
+            "rows": []
+        }
 
         fetch_gsc_performance_data(
             service=service,
@@ -1145,9 +1290,21 @@ class GSCSlice3Tests(APITestCase):
                 {
                     "groupType": "and",
                     "filters": [
-                        {"dimension": "country", "operator": "notEquals", "expression": "CHN"},
-                        {"dimension": "country", "operator": "notEquals", "expression": "SGP"},
-                        {"dimension": "country", "operator": "notEquals", "expression": "VNM"},
+                        {
+                            "dimension": "country",
+                            "operator": "notEquals",
+                            "expression": "CHN",
+                        },
+                        {
+                            "dimension": "country",
+                            "operator": "notEquals",
+                            "expression": "SGP",
+                        },
+                        {
+                            "dimension": "country",
+                            "operator": "notEquals",
+                            "expression": "VNM",
+                        },
                     ],
                 }
             ],
@@ -1214,7 +1371,9 @@ class GSCSlice3Tests(APITestCase):
             title="Destination 502",
             url="https://forum.example.com/destination-502",
         )
-        post = Post.objects.create(content_item=host, raw_bbcode="Body", clean_text="Host sentence")
+        post = Post.objects.create(
+            content_item=host, raw_bbcode="Body", clean_text="Host sentence"
+        )
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -1238,7 +1397,9 @@ class GSCSlice3Tests(APITestCase):
             anchor_end=4,
             anchor_confidence="strong",
         )
-        sync_run = AnalyticsSyncRun.objects.create(source="matomo", status="pending", lookback_days=1)
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="matomo", status="pending", lookback_days=1
+        )
 
         get_mock.return_value.json.return_value = [
             {
@@ -1252,16 +1413,22 @@ class GSCSlice3Tests(APITestCase):
 
         run_matomo_sync(sync_run)
 
-        self.assertEqual(get_mock.call_args.kwargs["params"]["segment"], MATOMO_EXCLUDED_SEGMENT)
+        self.assertEqual(
+            get_mock.call_args.kwargs["params"]["segment"], MATOMO_EXCLUDED_SEGMENT
+        )
 
     @patch("apps.analytics.tasks.sync_gsc_performance.delay")
     def test_gsc_sync_endpoint_accepts_manual_backfill_override(self, delay_mock):
         delay_mock.return_value = Mock(id="gsc-task-1")
 
-        response = self.client.post("/api/analytics/telemetry/gsc-sync/", {"lookback_days": 180}, format="json")
+        response = self.client.post(
+            "/api/analytics/telemetry/gsc-sync/", {"lookback_days": 180}, format="json"
+        )
 
         self.assertEqual(response.status_code, 202)
         payload = response.json()
-        self.assertEqual(payload["message"], "GSC performance sync queued for 180 days.")
+        self.assertEqual(
+            payload["message"], "GSC performance sync queued for 180 days."
+        )
         sync_run = AnalyticsSyncRun.objects.get(pk=payload["sync_run_id"])
         self.assertEqual(sync_run.lookback_days, 180)

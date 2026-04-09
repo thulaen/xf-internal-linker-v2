@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0017_refresh_recommended_feature_flags'),
+        ("suggestions", "0017_refresh_recommended_feature_flags"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='weightadjustmenthistory',
-            name='reason',
-            field=models.CharField(help_text="Plain-English summary, e.g. 'Preset: Recommended applied by admin'.", max_length=500),
+            model_name="weightadjustmenthistory",
+            name="reason",
+            field=models.CharField(
+                help_text="Plain-English summary, e.g. 'Preset: Recommended applied by admin'.",
+                max_length=500,
+            ),
         ),
     ]

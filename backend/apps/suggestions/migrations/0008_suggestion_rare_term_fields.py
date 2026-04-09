@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0007_suggestion_learned_anchor_fields"),
     ]

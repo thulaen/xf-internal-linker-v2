@@ -6,6 +6,13 @@ $repoRoot = Get-RepoRoot
 $python = Get-VenvPython
 
 try {
+    # Lint ALL languages first — fail fast before wasting time on tests.
+    Write-Host "Running all linters (ruff, mypy, bandit, ESLint, cppcheck, C# strict)..."
+    & (Join-Path $PSScriptRoot "lint-all.ps1")
+    if ($LASTEXITCODE -ne 0) {
+        throw "Linting failed. Fix the errors above before pushing."
+    }
+
     & (Join-Path $PSScriptRoot "build-native-extensions.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Native extension build failed."
@@ -19,7 +26,7 @@ try {
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
     Push-Location (Join-Path $repoRoot "backend")
     try {
-        & $python manage.py test apps.content apps.core apps.diagnostics apps.graph apps.pipeline apps.suggestions apps.sync --verbosity 2
+        & $python manage.py test apps.content apps.core apps.crawler apps.diagnostics apps.graph apps.pipeline apps.suggestions apps.sync --verbosity 2
         if ($LASTEXITCODE -ne 0) {
             throw "Backend test suite failed."
         }

@@ -27,5 +27,7 @@ class PluginHooks:
     def on_suggestion_approve(self, *, suggestion_id: str, **kwargs: Any) -> None:
         """Called when a reviewer approves a suggestion."""
 
-    def on_content_import(self, *, content_item_ids: list[int], source: str, **kwargs: Any) -> None:
+    def on_content_import(
+        self, *, content_item_ids: list[int], source: str, **kwargs: Any
+    ) -> None:
         """Called after content is imported (post-ingest stage)."""

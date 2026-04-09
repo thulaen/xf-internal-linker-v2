@@ -4,9 +4,11 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ("suggestions", "0002_rename_diag_run_reason_idx_suggestions_pipelin_a2cf09_idx_and_more"),
+        (
+            "suggestions",
+            "0002_rename_diag_run_reason_idx_suggestions_pipelin_a2cf09_idx_and_more",
+        ),
     ]
 
     operations = [

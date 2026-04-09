@@ -63,7 +63,7 @@ class ChallengerSPRTEvaluator:
         diff = challenger_score - champion_score
 
         # Log-likelihood ratio (normal approximation)
-        lr = (diff - self.delta / 2) * self.delta / (self.sigma ** 2)
+        lr = (diff - self.delta / 2) * self.delta / (self.sigma**2)
 
         if lr >= self.upper:
             decision = "promote"

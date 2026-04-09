@@ -76,7 +76,9 @@ class SessionCoOccurrenceRun(models.Model):
     ]
 
     run_id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=STATUS_RUNNING)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default=STATUS_RUNNING
+    )
     data_window_start = models.DateField()
     data_window_end = models.DateField()
     sessions_processed = models.IntegerField(default=0)

@@ -21,7 +21,12 @@ logger = logging.getLogger(__name__)
 
 _NATIVE_RUNTIME_MODULES = (
     # ── Existing core extensions (12) ──
-    ("scoring", "calculate_composite_scores_full_batch", "Composite scoring kernel", True),
+    (
+        "scoring",
+        "calculate_composite_scores_full_batch",
+        "Composite scoring kernel",
+        True,
+    ),
     ("simsearch", "score_and_topk", "Sentence search kernel", True),
     ("pagerank", "pagerank_step", "PageRank kernel", True),
     ("texttok", "tokenize_text_batch", "Tokenizer kernel", True),
@@ -33,20 +38,16 @@ _NATIVE_RUNTIME_MODULES = (
     ("phrasematch", "longest_contiguous_overlap", "Phrase matching kernel", False),
     ("strpool", "intern", "String pool kernel", False),
     ("inv_index", "build_index", "Inverted index kernel", False),
-
     # ── FR-051/058/053: Patent-backed ranking signal extensions ──
     ("refcontext", "ref_context_score", "FR-051 Reference context scorer", False),
     ("ngramqual", "ngram_score", "FR-058 N-gram quality scorer", False),
     ("passagesim", "passage_max_sim", "FR-053 Passage-level similarity", False),
-
     # ── FR-066/067/068: Core meta-algorithm extensions ──
     ("smoothrank", "smoothrank_step", "FR-066 SmoothRank NDCG optimiser", False),
     ("rankagg", "power_iter", "FR-067 Markov rank aggregation", False),
     ("cascade", "stage_score", "FR-068 Cascade re-ranker", False),
-
     # ── System pulse metrics (ring buffer) ──
     ("pulse_metrics", "get_summary", "Pulse metrics ring buffer", False),
-
     # ── OPT-01 to OPT-06: Initial resource optimisations ──
     ("embpool", "alloc", "OPT-01 Embedding memory pool", False),
     ("vecdeser", "parse_vector", "OPT-02 Fast vector deserialiser", False),
@@ -54,7 +55,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("clustuf", "union_find", "OPT-04 Cluster union-find", False),
     ("candfilter", "filter_candidates", "OPT-05 SIMD candidate filter", False),
     ("quantemb", "quantize_int8", "OPT-06 Embedding int8 quantiser", False),
-
     # ── OPT-07 to OPT-12: Memory allocators ──
     ("slab_alloc", "alloc", "OPT-07 Slab allocator", False),
     ("buddy_alloc", "alloc", "OPT-08 Buddy allocator", False),
@@ -62,7 +62,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("obj_recycle", "recycle", "OPT-10 Object recycler", False),
     ("stack_scratch", "alloc", "OPT-11 Stack scratch allocator", False),
     ("compact_heap", "compact", "OPT-12 Compact heap", False),
-
     # ── OPT-13 to OPT-20: Data structures ──
     ("robin_map", "lookup", "OPT-13 Robin Hood hash map", False),
     ("btree_map", "range_query", "OPT-14 B-tree range map", False),
@@ -72,7 +71,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("bitset_bloom", "check", "OPT-18 Bloom filter", False),
     ("sparse_bitvec", "rank", "OPT-19 Sparse bit vector", False),
     ("ring_queue", "push", "OPT-20 Lock-free ring buffer", False),
-
     # ── OPT-21 to OPT-27: SIMD / AVX2 vectorised operations ──
     ("simd_cosine", "cosine_sim", "OPT-21 AVX2 cosine similarity", False),
     ("simd_topk", "partial_sort", "OPT-22 AVX2 top-K selection", False),
@@ -81,7 +79,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("simd_strlen", "bulk_strlen", "OPT-25 SIMD string length", False),
     ("simd_minmax", "reduce", "OPT-26 AVX2 min/max reduction", False),
     ("simd_gather", "gather", "OPT-27 AVX2 gather", False),
-
     # ── OPT-28 to OPT-34: Compression & encoding ──
     ("varint_enc", "encode", "OPT-28 Varint encoder", False),
     ("delta_enc", "encode", "OPT-29 Delta encoder", False),
@@ -90,65 +87,54 @@ _NATIVE_RUNTIME_MODULES = (
     ("fp16_vec", "convert", "OPT-32 Float16 converter", False),
     ("nibble_score", "pack", "OPT-33 4-bit score packer", False),
     ("lz4_block", "compress", "OPT-34 LZ4 block compressor", False),
-
     # ── OPT-35 to OPT-38: Cache-line-friendly layouts ──
     ("soa_candidate", "to_soa", "OPT-35 Struct-of-arrays layout", False),
     ("padded_vec", "alloc_aligned", "OPT-36 Cache-aligned vectors", False),
     ("hot_cold_split", "split", "OPT-37 Hot/cold field splitter", False),
     ("tile_matrix", "tile_mul", "OPT-38 Cache-tiled matrix ops", False),
-
     # ── OPT-39 to OPT-43: String optimisation ──
     ("sso_string", "create", "OPT-39 Small-string optimised container", False),
     ("str_intern", "intern", "OPT-40 String interning table", False),
     ("rope_text", "concat", "OPT-41 Rope data structure", False),
     ("suffix_arr", "search", "OPT-42 Suffix array substring search", False),
     ("url_canon", "canonicalize", "OPT-43 URL canonicaliser", False),
-
     # ── OPT-44 to OPT-47: Serialisation & zero-copy ──
     ("flatvec", "serialize", "OPT-44 FlatBuffers zero-copy", False),
     ("zerocopy_buf", "as_numpy", "OPT-45 Zero-copy buffer protocol", False),
     ("msgpack_fast", "pack", "OPT-46 Fast MessagePack", False),
     ("proto_lite", "encode", "OPT-47 Lightweight protobuf", False),
-
     # ── OPT-48 to OPT-52: Parallel processing ──
     ("worksteal_pool", "submit", "OPT-48 Work-stealing thread pool", False),
     ("lockfree_map", "insert", "OPT-49 Lock-free sharded map", False),
     ("par_merge", "merge", "OPT-50 Parallel merge sort", False),
     ("rw_spinlock", "read_lock", "OPT-51 Reader-writer spinlock", False),
     ("atomic_counter", "increment", "OPT-52 Cache-aligned atomic counter", False),
-
     # ── OPT-53 to OPT-57: I/O prefetching ──
     ("async_reader", "read_async", "OPT-53 io_uring async reader", False),
     ("mmap_embed", "open_mmap", "OPT-54 Memory-mapped embeddings", False),
     ("prefetch_hint", "prefetch", "OPT-55 Cache prefetch hints", False),
     ("buffered_write", "flush", "OPT-56 Buffered writer", False),
     ("page_touch", "touch", "OPT-57 Page pre-fault", False),
-
     # ── OPT-58 to OPT-61: Numerical optimisation ──
     ("fixedpt_score", "to_fixed", "OPT-58 Fixed-point scoring", False),
     ("lut_sigmoid", "sigmoid", "OPT-59 Lookup-table sigmoid", False),
     ("fast_log", "log2", "OPT-60 Fast IEEE754 log2", False),
     ("rsqrt_norm", "rsqrt", "OPT-61 Fast inverse sqrt", False),
-
     # ── OPT-62 to OPT-65: Index structures ──
     ("radix_tree", "lookup", "OPT-62 Radix tree URL index", False),
     ("bitmap_idx", "query", "OPT-63 Bitmap index filter", False),
     ("sparse_matrix", "spmv", "OPT-64 Sparse CSR matrix-vector", False),
     ("interval_tree", "overlap", "OPT-65 Interval tree query", False),
-
     # ── OPT-66 to OPT-68: Network / IPC ──
     ("redis_pipe", "execute", "OPT-66 Redis pipeline batcher", False),
     ("pg_batch", "copy_in", "OPT-67 PostgreSQL COPY batcher", False),
     ("ipc_shm", "write", "OPT-68 Shared-memory IPC", False),
-
     # ── OPT-69 to OPT-70: SQL optimisation ──
     ("prepared_stmt", "execute", "OPT-69 Prepared statement cache", False),
     ("result_codec", "decode", "OPT-70 Binary result decoder", False),
-
     # ── OPT-71 to OPT-72: Pipeline-specific ──
     ("incr_diff", "has_changed", "OPT-71 Incremental content differ", False),
     ("result_cache", "get", "OPT-72 Two-tier result cache", False),
-
     # ── META-04 to META-39: Extended meta-algorithm extensions ──
     ("coord_ascent", "optimize", "META-04 Coordinate ascent ranker", False),
     ("cma_es", "optimize", "META-05 CMA-ES weight optimiser", False),
@@ -199,7 +185,9 @@ def _result(
 
 
 def _http_worker_status_url() -> str:
-    base_url = str(getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080")).rstrip("/")
+    base_url = str(
+        getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080")
+    ).rstrip("/")
     if base_url.endswith("/api/v1/status"):
         return base_url
     return f"{base_url}/api/v1/status"
@@ -263,7 +251,9 @@ def _native_module_runtime_status() -> list[dict[str, object]]:
 def _runtime_owner_settings() -> dict[str, str]:
     return {
         "heavy_runtime_owner": getattr(settings, "HEAVY_RUNTIME_OWNER", "celery"),
-        "broken_link_scan_owner": getattr(settings, "RUNTIME_OWNER_BROKEN_LINK_SCAN", "celery"),
+        "broken_link_scan_owner": getattr(
+            settings, "RUNTIME_OWNER_BROKEN_LINK_SCAN", "celery"
+        ),
         "graph_sync_owner": getattr(settings, "RUNTIME_OWNER_GRAPH_SYNC", "celery"),
         "import_owner": getattr(settings, "RUNTIME_OWNER_IMPORT", "celery"),
         "pipeline_owner": getattr(settings, "RUNTIME_OWNER_PIPELINE", "celery"),
@@ -290,12 +280,22 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
         from apps.pipeline.services import ranker as ranker_service
 
         np.random.seed(7)
-        component_scores = np.random.uniform(-1.0, 1.0, size=(512, 12)).astype(np.float32)
+        component_scores = np.random.uniform(-1.0, 1.0, size=(512, 12)).astype(
+            np.float32
+        )
         weights = np.random.uniform(-0.75, 0.75, size=(12,)).astype(np.float32)
         silo = np.random.uniform(-0.5, 0.5, size=(512,)).astype(np.float32)
 
-        py_ms = _measure_ms(lambda: ranker_service._calculate_composite_scores_full_batch_py(component_scores, weights, silo))
-        cpp_ms = _measure_ms(lambda: scoring_ext.calculate_composite_scores_full_batch(component_scores, weights, silo))
+        py_ms = _measure_ms(
+            lambda: ranker_service._calculate_composite_scores_full_batch_py(
+                component_scores, weights, silo
+            )
+        )
+        cpp_ms = _measure_ms(
+            lambda: scoring_ext.calculate_composite_scores_full_batch(
+                component_scores, weights, silo
+            )
+        )
         benchmark_results["scoring"] = _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
         benchmark_results["scoring"] = _benchmark_error_result(exc)
@@ -304,10 +304,15 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
         from extensions import texttok as texttok_ext
         from apps.pipeline.services import text_tokens as text_tokens_service
 
-        texts = [f"Internal linking benchmark sentence number {index} with repeated anchor text and topic overlap." for index in range(300)]
+        texts = [
+            f"Internal linking benchmark sentence number {index} with repeated anchor text and topic overlap."
+            for index in range(300)
+        ]
         stopwords = text_tokens_service.STANDARD_ENGLISH_STOPWORDS
 
-        py_ms = _measure_ms(lambda: text_tokens_service.tokenize_text_batch(texts, stopwords))
+        py_ms = _measure_ms(
+            lambda: text_tokens_service.tokenize_text_batch(texts, stopwords)
+        )
         cpp_ms = _measure_ms(lambda: texttok_ext.tokenize_text_batch(texts, stopwords))
         benchmark_results["texttok"] = _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
@@ -317,10 +322,18 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
         from extensions import simsearch as simsearch_ext
 
         np.random.seed(11)
-        destination_embedding = np.random.uniform(-1.0, 1.0, size=(128,)).astype(np.float32)
-        destination_embedding /= np.maximum(np.linalg.norm(destination_embedding), 1e-12)
-        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(1024, 128)).astype(np.float32)
-        sentence_embeddings /= np.maximum(np.linalg.norm(sentence_embeddings, axis=1, keepdims=True), 1e-12)
+        destination_embedding = np.random.uniform(-1.0, 1.0, size=(128,)).astype(
+            np.float32
+        )
+        destination_embedding /= np.maximum(
+            np.linalg.norm(destination_embedding), 1e-12
+        )
+        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(1024, 128)).astype(
+            np.float32
+        )
+        sentence_embeddings /= np.maximum(
+            np.linalg.norm(sentence_embeddings, axis=1, keepdims=True), 1e-12
+        )
         candidate_rows = list(range(700))
         top_k = 25
 
@@ -333,7 +346,11 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
             return top_idx, scores[top_idx]
 
         py_ms = _measure_ms(_py_simsearch)
-        cpp_ms = _measure_ms(lambda: simsearch_ext.score_and_topk(destination_embedding, sentence_embeddings, candidate_rows, top_k))
+        cpp_ms = _measure_ms(
+            lambda: simsearch_ext.score_and_topk(
+                destination_embedding, sentence_embeddings, candidate_rows, top_k
+            )
+        )
         benchmark_results["simsearch"] = _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
         benchmark_results["simsearch"] = _benchmark_error_result(exc)
@@ -350,24 +367,28 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
         ranks = np.full(node_count, 1.0 / node_count, dtype=np.float64)
         dangling_mask = np.zeros(node_count, dtype=bool)
 
-        py_ms = _measure_ms(lambda: pagerank_service._pagerank_step_py(
-            indptr=indptr,
-            indices=indices,
-            data=data,
-            ranks=ranks,
-            dangling_mask=dangling_mask,
-            damping=0.15,
-            node_count=node_count,
-        ))
-        cpp_ms = _measure_ms(lambda: pagerank_ext.pagerank_step(
-            indptr,
-            indices,
-            data,
-            ranks,
-            dangling_mask,
-            0.15,
-            node_count,
-        ))
+        py_ms = _measure_ms(
+            lambda: pagerank_service._pagerank_step_py(
+                indptr=indptr,
+                indices=indices,
+                data=data,
+                ranks=ranks,
+                dangling_mask=dangling_mask,
+                damping=0.15,
+                node_count=node_count,
+            )
+        )
+        cpp_ms = _measure_ms(
+            lambda: pagerank_ext.pagerank_step(
+                indptr,
+                indices,
+                data,
+                ranks,
+                dangling_mask,
+                0.15,
+                node_count,
+            )
+        )
         benchmark_results["pagerank"] = _benchmark_result(py_ms, cpp_ms)
     except Exception as exc:
         benchmark_results["pagerank"] = _benchmark_error_result(exc)
@@ -377,13 +398,20 @@ def _benchmark_native_modules() -> dict[str, dict[str, object]]:
 
         np.random.seed(17)
         relevance = np.random.uniform(0.2, 1.0, size=(256,)).astype(np.float64)
-        candidate_embeddings = np.random.uniform(-1.0, 1.0, size=(256, 64)).astype(np.float64)
-        selected_embeddings = np.random.uniform(-1.0, 1.0, size=(12, 64)).astype(np.float64)
+        candidate_embeddings = np.random.uniform(-1.0, 1.0, size=(256, 64)).astype(
+            np.float64
+        )
+        selected_embeddings = np.random.uniform(-1.0, 1.0, size=(12, 64)).astype(
+            np.float64
+        )
 
         def _py_feedrerank() -> tuple[object, object]:
             max_sims = np.array(
                 [
-                    max(float(np.dot(candidate, selected)) for selected in selected_embeddings)
+                    max(
+                        float(np.dot(candidate, selected))
+                        for selected in selected_embeddings
+                    )
                     for candidate in candidate_embeddings
                 ],
                 dtype=np.float64,
@@ -482,10 +510,16 @@ def _http_worker_metadata(status_url: str, data: dict) -> dict:
         "last_completed_job_type": last_completed.get("job_type"),
         "last_failed_job_type": last_failed.get("job_type"),
         "last_failed_error": last_failed.get("error"),
-        "python_fallback_active": not (redis_connected and database_connected and worker_online),
-        "fallback_active": not (redis_connected and database_connected and worker_online),
+        "python_fallback_active": not (
+            redis_connected and database_connected and worker_online
+        ),
+        "fallback_active": not (
+            redis_connected and database_connected and worker_online
+        ),
         "safe_to_use": bool(redis_connected and database_connected and worker_online),
-        "fallback_reason": "" if (redis_connected and database_connected and worker_online) else "C# worker lane is not fully healthy.",
+        "fallback_reason": ""
+        if (redis_connected and database_connected and worker_online)
+        else "C# worker lane is not fully healthy.",
         "owner_selected": "csharp",
     }
 
@@ -745,15 +779,27 @@ def check_http_worker():
 
 def check_runtime_lanes():
     owners = _runtime_owner_settings()
-    csharp_owned = [lane for lane, owner in owners.items() if owner == "csharp" and lane != "heavy_runtime_owner"]
-    celery_owned = [lane for lane, owner in owners.items() if owner == "celery" and lane != "heavy_runtime_owner"]
+    csharp_owned = [
+        lane
+        for lane, owner in owners.items()
+        if owner == "csharp" and lane != "heavy_runtime_owner"
+    ]
+    celery_owned = [
+        lane
+        for lane, owner in owners.items()
+        if owner == "celery" and lane != "heavy_runtime_owner"
+    ]
     metadata = {
         **owners,
         "csharp_owned_lane_count": len(csharp_owned),
         "celery_owned_lane_count": len(celery_owned),
-        "runtime_path": "mixed" if csharp_owned and celery_owned else ("csharp" if csharp_owned else "python"),
+        "runtime_path": "mixed"
+        if csharp_owned and celery_owned
+        else ("csharp" if csharp_owned else "python"),
         "fallback_active": bool(celery_owned),
-        "fallback_reason": "" if not celery_owned else "Some heavy lanes still fall back to Celery/Python ownership.",
+        "fallback_reason": ""
+        if not celery_owned
+        else "Some heavy lanes still fall back to Celery/Python ownership.",
     }
 
     if not celery_owned:
@@ -873,32 +919,60 @@ def check_native_scoring():
     benchmark_results = _benchmark_native_modules()
     for status in module_statuses:
         benchmark = benchmark_results.get(str(status["module"]), {})
-        status["benchmark_status"] = benchmark.get("benchmark_status", "not_benchmarked")
+        status["benchmark_status"] = benchmark.get(
+            "benchmark_status", "not_benchmarked"
+        )
         status["python_ms"] = benchmark.get("python_ms")
         status["cpp_ms"] = benchmark.get("cpp_ms")
         status["speedup_vs_python"] = benchmark.get("speedup_vs_python")
         status["proof_available"] = benchmark.get("proof_available", False)
         status["benchmark_error"] = benchmark.get("error", "")
 
-    critical_failures = [status for status in module_statuses if status["critical"] and status["state"] != "healthy"]
-    degraded_modules = [status for status in module_statuses if status["state"] == "degraded"]
-    healthy_modules = [status for status in module_statuses if status["state"] == "healthy"]
+    critical_failures = [
+        status
+        for status in module_statuses
+        if status["critical"] and status["state"] != "healthy"
+    ]
+    degraded_modules = [
+        status for status in module_statuses if status["state"] == "degraded"
+    ]
+    healthy_modules = [
+        status for status in module_statuses if status["state"] == "healthy"
+    ]
     compiled_count = sum(1 for status in module_statuses if status["compiled"])
     importable_count = sum(1 for status in module_statuses if status["importable"])
     fallback_active = bool(critical_failures or degraded_modules)
     proof_ready_benchmarks = [
         benchmark
         for benchmark in benchmark_results.values()
-        if benchmark.get("proof_available") and isinstance(benchmark.get("cpp_ms"), (int, float))
+        if benchmark.get("proof_available")
+        and isinstance(benchmark.get("cpp_ms"), (int, float))
     ]
     benchmark_failures = [
         module_name
         for module_name, benchmark in benchmark_results.items()
         if benchmark.get("benchmark_status") == "benchmark_failed"
     ]
-    overall_cpp_ms = round(sum(float(benchmark["cpp_ms"]) for benchmark in proof_ready_benchmarks), 3) if proof_ready_benchmarks else None
-    overall_python_ms = round(sum(float(benchmark["python_ms"]) for benchmark in proof_ready_benchmarks), 3) if proof_ready_benchmarks else None
-    overall_speedup = round((overall_python_ms / overall_cpp_ms), 3) if overall_cpp_ms and overall_python_ms else None
+    overall_cpp_ms = (
+        round(
+            sum(float(benchmark["cpp_ms"]) for benchmark in proof_ready_benchmarks), 3
+        )
+        if proof_ready_benchmarks
+        else None
+    )
+    overall_python_ms = (
+        round(
+            sum(float(benchmark["python_ms"]) for benchmark in proof_ready_benchmarks),
+            3,
+        )
+        if proof_ready_benchmarks
+        else None
+    )
+    overall_speedup = (
+        round((overall_python_ms / overall_cpp_ms), 3)
+        if overall_cpp_ms and overall_python_ms
+        else None
+    )
 
     if overall_speedup is None:
         benchmark_status = "benchmark_failed"
@@ -910,7 +984,9 @@ def check_native_scoring():
         benchmark_status = "slower_than_python"
 
     metadata = {
-        "runtime_path": "cpp" if not fallback_active else ("mixed" if healthy_modules else "python"),
+        "runtime_path": "cpp"
+        if not fallback_active
+        else ("mixed" if healthy_modules else "python"),
         "native_scoring_active": not bool(critical_failures),
         "compiled": compiled_count == len(module_statuses),
         "importable": importable_count == len(module_statuses),
@@ -938,7 +1014,9 @@ def check_native_scoring():
     }
 
     if critical_failures:
-        metadata["fallback_reason"] = "One or more critical C++ kernels are unavailable, so Python fallback is protecting ranking."
+        metadata["fallback_reason"] = (
+            "One or more critical C++ kernels are unavailable, so Python fallback is protecting ranking."
+        )
         return _result(
             "failed",
             f"The native C++ fast path is not fully safe right now. Critical kernels missing: {', '.join(status['module'] for status in critical_failures)}.",
@@ -947,7 +1025,9 @@ def check_native_scoring():
         )
 
     if degraded_modules:
-        metadata["fallback_reason"] = "Some optional C++ kernels are unavailable, so mixed C++/Python execution is active."
+        metadata["fallback_reason"] = (
+            "Some optional C++ kernels are unavailable, so mixed C++/Python execution is active."
+        )
         return _result(
             "degraded",
             f"Core C++ scoring is active, but some optional kernels are falling back to Python: {', '.join(status['module'] for status in degraded_modules)}.",
@@ -956,7 +1036,9 @@ def check_native_scoring():
         )
 
     if benchmark_status == "benchmark_failed":
-        metadata["fallback_reason"] = "Benchmarks could not prove the fast path, even though the critical kernels imported."
+        metadata["fallback_reason"] = (
+            "Benchmarks could not prove the fast path, even though the critical kernels imported."
+        )
         return _result(
             "degraded",
             "The native C++ fast path imported successfully, but benchmark proof could not be captured yet.",
@@ -965,7 +1047,9 @@ def check_native_scoring():
         )
 
     if benchmark_status in {"no_material_speedup", "slower_than_python"}:
-        metadata["fallback_reason"] = "The native path is available, but the benchmark did not show a meaningful speed win over Python."
+        metadata["fallback_reason"] = (
+            "The native path is available, but the benchmark did not show a meaningful speed win over Python."
+        )
         return _result(
             "degraded",
             "The native C++ fast path is available, but diagnostics did not measure a strong speed advantage over Python.",
@@ -982,7 +1066,9 @@ def check_native_scoring():
 
 
 def check_slate_diversity_runtime():
-    from apps.pipeline.services.slate_diversity import get_slate_diversity_runtime_status
+    from apps.pipeline.services.slate_diversity import (
+        get_slate_diversity_runtime_status,
+    )
 
     runtime = get_slate_diversity_runtime_status()
     metadata = {
@@ -1044,8 +1130,12 @@ def check_ga4():
     is_fresh = latest_row.date >= timezone.now().date() - timedelta(days=7)
     return _result(
         "healthy" if is_fresh else "degraded",
-        "GA4 telemetry rows exist." if is_fresh else "GA4 telemetry rows exist, but they look stale.",
-        "No action needed." if is_fresh else "Run the GA4 sync again before trusting this signal.",
+        "GA4 telemetry rows exist."
+        if is_fresh
+        else "GA4 telemetry rows exist, but they look stale.",
+        "No action needed."
+        if is_fresh
+        else "Run the GA4 sync again before trusting this signal.",
         {
             "ga4_connected": True,
             "latest_ga4_date": latest_row.date.isoformat(),
@@ -1070,8 +1160,12 @@ def check_gsc():
     is_fresh = latest_row.date >= timezone.now().date() - timedelta(days=7)
     return _result(
         "healthy" if is_fresh else "degraded",
-        "GSC telemetry rows exist." if is_fresh else "GSC telemetry rows exist, but they look stale.",
-        "No action needed." if is_fresh else "Run the GSC sync again before trusting this signal.",
+        "GSC telemetry rows exist."
+        if is_fresh
+        else "GSC telemetry rows exist, but they look stale.",
+        "No action needed."
+        if is_fresh
+        else "Run the GSC sync again before trusting this signal.",
         {
             "gsc_connected": True,
             "latest_gsc_date": latest_row.date.isoformat(),
@@ -1091,7 +1185,9 @@ def check_matomo():
     configured_keys = set(
         AppSetting.objects.filter(
             key__in=setting_keys,
-        ).exclude(value="").values_list("key", flat=True)
+        )
+        .exclude(value="")
+        .values_list("key", flat=True)
     )
     if configured_keys != setting_keys:
         return _result(
@@ -1205,7 +1301,10 @@ def detect_conflicts():
             }
         )
 
-    if getattr(settings, "HTTP_WORKER_ENABLED", False) and "http-worker:5000" in _http_worker_status_url():
+    if (
+        getattr(settings, "HTTP_WORKER_ENABLED", False)
+        and "http-worker:5000" in _http_worker_status_url()
+    ):
         conflicts.append(
             {
                 "type": "mismatch",
@@ -1219,7 +1318,11 @@ def detect_conflicts():
         )
 
     owners = _runtime_owner_settings()
-    csharp_lanes = [lane for lane, owner in owners.items() if lane != "heavy_runtime_owner" and owner == "csharp"]
+    csharp_lanes = [
+        lane
+        for lane, owner in owners.items()
+        if lane != "heavy_runtime_owner" and owner == "csharp"
+    ]
     http_worker_state, _, _, http_worker_metadata = check_http_worker()
     native_scoring_state, _, _, native_scoring_metadata = check_native_scoring()
 
@@ -1245,7 +1348,8 @@ def detect_conflicts():
                 "severity": "high",
                 "location": "apps.diagnostics.health.check_runtime_lanes",
                 "why": "The configured owner and the live C# runtime health do not agree, so jobs may route into an unhealthy lane.",
-                "next_step": http_worker_metadata.get("fallback_reason") or "Repair HttpWorker health or move the affected lanes back to Celery.",
+                "next_step": http_worker_metadata.get("fallback_reason")
+                or "Repair HttpWorker health or move the affected lanes back to Celery.",
             }
         )
 
@@ -1284,7 +1388,8 @@ def detect_conflicts():
                 "severity": "high" if native_scoring_state == "failed" else "medium",
                 "location": "backend/apps/diagnostics/health.py",
                 "why": "Hot-loop work is falling back to Python in at least part of the runtime, which can reduce speed and hide native regressions.",
-                "next_step": native_scoring_metadata.get("fallback_reason") or "Rebuild native extensions and re-run parity checks.",
+                "next_step": native_scoring_metadata.get("fallback_reason")
+                or "Rebuild native extensions and re-run parity checks.",
             }
         )
 

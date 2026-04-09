@@ -5,29 +5,96 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0007_contentitem_link_freshness_score_and_more'),
-        ('graph', '0003_rename_graph_broke_status_11a3c0_idx_graph_broke_status_b62621_idx_and_more'),
+        ("content", "0007_contentitem_link_freshness_score_and_more"),
+        (
+            "graph",
+            "0003_rename_graph_broke_status_11a3c0_idx_graph_broke_status_b62621_idx_and_more",
+        ),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='LinkFreshnessEdge',
+            name="LinkFreshnessEdge",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('first_seen_at', models.DateTimeField(help_text='When this source-to-destination link was first seen during a safe body parse.')),
-                ('last_seen_at', models.DateTimeField(help_text='When this source-to-destination link was last confirmed during a safe body parse.')),
-                ('last_disappeared_at', models.DateTimeField(blank=True, help_text='When this link was last confirmed missing during a safe body parse.', null=True)),
-                ('is_active', models.BooleanField(default=True, help_text='True when this source-to-destination link is currently active.')),
-                ('from_content_item', models.ForeignKey(help_text='The source content item that linked to the destination.', on_delete=django.db.models.deletion.CASCADE, related_name='freshness_outgoing_links', to='content.contentitem')),
-                ('to_content_item', models.ForeignKey(help_text='The destination content item that received the inbound link.', on_delete=django.db.models.deletion.CASCADE, related_name='freshness_incoming_links', to='content.contentitem')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "first_seen_at",
+                    models.DateTimeField(
+                        help_text="When this source-to-destination link was first seen during a safe body parse."
+                    ),
+                ),
+                (
+                    "last_seen_at",
+                    models.DateTimeField(
+                        help_text="When this source-to-destination link was last confirmed during a safe body parse."
+                    ),
+                ),
+                (
+                    "last_disappeared_at",
+                    models.DateTimeField(
+                        blank=True,
+                        help_text="When this link was last confirmed missing during a safe body parse.",
+                        null=True,
+                    ),
+                ),
+                (
+                    "is_active",
+                    models.BooleanField(
+                        default=True,
+                        help_text="True when this source-to-destination link is currently active.",
+                    ),
+                ),
+                (
+                    "from_content_item",
+                    models.ForeignKey(
+                        help_text="The source content item that linked to the destination.",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="freshness_outgoing_links",
+                        to="content.contentitem",
+                    ),
+                ),
+                (
+                    "to_content_item",
+                    models.ForeignKey(
+                        help_text="The destination content item that received the inbound link.",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="freshness_incoming_links",
+                        to="content.contentitem",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Link Freshness Edge',
-                'verbose_name_plural': 'Link Freshness Edges',
-                'indexes': [models.Index(fields=['to_content_item', 'is_active'], name='graph_linkf_to_cont_3fb8bc_idx'), models.Index(fields=['to_content_item', 'first_seen_at'], name='graph_linkf_to_cont_c93d14_idx'), models.Index(fields=['to_content_item', 'last_disappeared_at'], name='graph_linkf_to_cont_d40822_idx')],
-                'constraints': [models.UniqueConstraint(fields=('from_content_item', 'to_content_item'), name='graph_unique_link_freshness_edge')],
+                "verbose_name": "Link Freshness Edge",
+                "verbose_name_plural": "Link Freshness Edges",
+                "indexes": [
+                    models.Index(
+                        fields=["to_content_item", "is_active"],
+                        name="graph_linkf_to_cont_3fb8bc_idx",
+                    ),
+                    models.Index(
+                        fields=["to_content_item", "first_seen_at"],
+                        name="graph_linkf_to_cont_c93d14_idx",
+                    ),
+                    models.Index(
+                        fields=["to_content_item", "last_disappeared_at"],
+                        name="graph_linkf_to_cont_d40822_idx",
+                    ),
+                ],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("from_content_item", "to_content_item"),
+                        name="graph_unique_link_freshness_edge",
+                    )
+                ],
             },
         ),
     ]

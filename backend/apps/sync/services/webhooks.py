@@ -17,7 +17,9 @@ logger = logging.getLogger(__name__)
 _SECRET_CACHE_TTL = 60
 
 
-def record_webhook(source, event_type, payload, status='received', error_message='', sync_job=None):
+def record_webhook(
+    source, event_type, payload, status="received", error_message="", sync_job=None
+):
     """Log a webhook receipt to the database for the audit log."""
     try:
         return WebhookReceipt.objects.create(
@@ -26,10 +28,12 @@ def record_webhook(source, event_type, payload, status='received', error_message
             payload=payload,
             status=status,
             error_message=error_message,
-            sync_job=sync_job
+            sync_job=sync_job,
         )
     except Exception:
-        logger.exception("Failed to record webhook receipt for %s/%s", source, event_type)
+        logger.exception(
+            "Failed to record webhook receipt for %s/%s", source, event_type
+        )
         raise
 
 
@@ -47,11 +51,16 @@ def _get_webhook_secret(app_setting_key: str, env_var: str) -> str:
     secret = ""
     try:
         from apps.core.models import AppSetting
+
         db = AppSetting.objects.filter(key=app_setting_key).first()
         if db and db.value:
             secret = db.value
     except Exception:
-        logger.debug("Could not load webhook secret from AppSetting %s", app_setting_key, exc_info=True)
+        logger.debug(
+            "Could not load webhook secret from AppSetting %s",
+            app_setting_key,
+            exc_info=True,
+        )
 
     if not secret:
         secret = getattr(settings, env_var, "")
@@ -100,15 +109,20 @@ def verify_wp_signature(signature):
 
     return hmac.compare_digest(signature, secret)
 
+
 def process_xf_webhook(event_type, payload):
     """
     Parse the XenForo webhook payload and trigger internal sync tasks.
     """
-    logger.info("Processing XF Webhook: event=%s, type=%s, id=%s", 
-                event_type, payload.get("content_type"), payload.get("content_id"))
+    logger.info(
+        "Processing XF Webhook: event=%s, type=%s, id=%s",
+        event_type,
+        payload.get("content_type"),
+        payload.get("content_id"),
+    )
 
-    status = 'processed'
-    error_message = ''
+    status = "processed"
+    error_message = ""
 
     try:
         if event_type in ["thread_insert", "thread_update"]:
@@ -124,15 +138,19 @@ def process_xf_webhook(event_type, payload):
                         task_id=task_id,
                     )
                 else:
-                    status = 'ignored'
-                    error_message = 'Duplicate webhook — task already in progress'
-                    logger.info("Skipping duplicate webhook for XF thread %s", thread_id)
+                    status = "ignored"
+                    error_message = "Duplicate webhook — task already in progress"
+                    logger.info(
+                        "Skipping duplicate webhook for XF thread %s", thread_id
+                    )
             else:
-                status = 'ignored'
-                error_message = 'Missing thread_id'
+                status = "ignored"
+                error_message = "Missing thread_id"
 
         elif event_type in ["post_insert", "post_update"]:
-            thread_id = payload.get("data", {}).get("thread_id") or payload.get("thread_id")
+            thread_id = payload.get("data", {}).get("thread_id") or payload.get(
+                "thread_id"
+            )
             if thread_id:
                 lock_key = f"webhook_lock:xf_thread:{thread_id}"
                 if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
@@ -143,47 +161,54 @@ def process_xf_webhook(event_type, payload):
                         task_id=task_id,
                     )
                 else:
-                    status = 'ignored'
-                    error_message = 'Duplicate webhook — task already in progress'
-                    logger.info("Skipping duplicate webhook for XF thread %s (post event)", thread_id)
+                    status = "ignored"
+                    error_message = "Duplicate webhook — task already in progress"
+                    logger.info(
+                        "Skipping duplicate webhook for XF thread %s (post event)",
+                        thread_id,
+                    )
             else:
-                status = 'ignored'
-                error_message = 'Missing thread_id'
+                status = "ignored"
+                error_message = "Missing thread_id"
 
         elif event_type == "thread_delete":
             from apps.content.models import ContentItem
+
             thread_id = payload.get("content_id")
             if thread_id:
-                ContentItem.objects.filter(content_id=thread_id, content_type="thread").update(is_deleted=True)
+                ContentItem.objects.filter(
+                    content_id=thread_id, content_type="thread"
+                ).update(is_deleted=True)
                 logger.info("Marked thread %s as deleted via webhook.", thread_id)
             else:
-                status = 'ignored'
-                error_message = 'Missing thread_id'
+                status = "ignored"
+                error_message = "Missing thread_id"
         else:
-            status = 'ignored'
-            error_message = f'Event type {event_type} not handled'
-            
+            status = "ignored"
+            error_message = f"Event type {event_type} not handled"
+
     except Exception as e:
-        status = 'error'
+        status = "error"
         error_message = str(e)
         logger.exception("Error processing XF webhook")
 
     # Record the receipt
     record_webhook(
-        source='api', 
-        event_type=event_type, 
-        payload=payload, 
-        status=status, 
-        error_message=error_message
-        # Note: sync_job link might need the actual SyncJob model instance, 
+        source="api",
+        event_type=event_type,
+        payload=payload,
+        status=status,
+        error_message=error_message,
+        # Note: sync_job link might need the actual SyncJob model instance,
         # but tasks are async, so we might skip linking for now or link by ID if we add it.
     )
-    return status == 'processed'
+    return status == "processed"
+
 
 def process_wp_webhook(event_type, payload):
     """
     Parse the WordPress webhook payload and trigger internal sync tasks.
-    
+
     Expected payload:
     {
         "event": "post_updated",
@@ -191,15 +216,17 @@ def process_wp_webhook(event_type, payload):
         "post_type": "post" | "page"
     }
     """
-    logger.info("Processing WP Webhook: event=%s, id=%s", event_type, payload.get("post_id"))
-    
-    status = 'processed'
-    error_message = ''
-    
+    logger.info(
+        "Processing WP Webhook: event=%s, id=%s", event_type, payload.get("post_id")
+    )
+
+    status = "processed"
+    error_message = ""
+
     try:
         post_id = payload.get("post_id")
         post_type = payload.get("post_type", "post")
-        
+
         if post_id:
             lock_key = f"webhook_lock:wp_{post_type}:{post_id}"
             if cache.add(lock_key, "1", _WEBHOOK_LOCK_TTL):
@@ -210,23 +237,25 @@ def process_wp_webhook(event_type, payload):
                     task_id=task_id,
                 )
             else:
-                status = 'ignored'
-                error_message = 'Duplicate webhook — task already in progress'
-                logger.info("Skipping duplicate webhook for WP %s %s", post_type, post_id)
+                status = "ignored"
+                error_message = "Duplicate webhook — task already in progress"
+                logger.info(
+                    "Skipping duplicate webhook for WP %s %s", post_type, post_id
+                )
         else:
-            status = 'ignored'
-            error_message = 'Missing post_id'
-            
+            status = "ignored"
+            error_message = "Missing post_id"
+
     except Exception as e:
-        status = 'error'
+        status = "error"
         error_message = str(e)
         logger.exception("Error processing WP webhook")
-        
+
     record_webhook(
-        source='wp',
-        event_type=event_type or 'wp_update',
+        source="wp",
+        event_type=event_type or "wp_update",
         payload=payload,
         status=status,
-        error_message=error_message
+        error_message=error_message,
     )
-    return status == 'processed'
+    return status == "processed"

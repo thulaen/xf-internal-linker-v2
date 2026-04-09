@@ -6,73 +6,279 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = [
-        ('audit', '0002_remove_auditentry_audit_action_date_idx_and_more'),
+        ("audit", "0002_remove_auditentry_audit_action_date_idx_and_more"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='OperatorAlert',
+            name="OperatorAlert",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('alert_id', models.UUIDField(db_index=True, default=uuid.uuid4, help_text='Public-safe UUID for this alert.', unique=True)),
-                ('event_type', models.CharField(db_index=True, help_text='Stable event type string, e.g. job.failed, model.ready, analytics.gsc_spike.', max_length=80)),
-                ('source_area', models.CharField(choices=[('jobs', 'Jobs'), ('pipeline', 'Pipeline'), ('models', 'Models'), ('analytics', 'Analytics'), ('system', 'System')], db_index=True, default='system', help_text='High-level area that produced this alert.', max_length=30)),
-                ('severity', models.CharField(choices=[('info', 'Info'), ('success', 'Success'), ('warning', 'Warning'), ('error', 'Error'), ('urgent', 'Urgent')], db_index=True, default='info', max_length=20)),
-                ('status', models.CharField(choices=[('unread', 'Unread'), ('read', 'Read'), ('acknowledged', 'Acknowledged'), ('resolved', 'Resolved')], db_index=True, default='unread', max_length=20)),
-                ('title', models.CharField(help_text='Short plain-English alert title shown in the bell center.', max_length=200)),
-                ('message', models.TextField(help_text='Plain-English body text with more detail.')),
-                ('dedupe_key', models.CharField(db_index=True, help_text='Deduplication key. Same key inside cooldown window increments occurrence_count instead of creating a new row.', max_length=200)),
-                ('fingerprint', models.CharField(blank=True, help_text='Optional secondary fingerprint for fine-grained deduping.', max_length=200)),
-                ('occurrence_count', models.PositiveIntegerField(default=1, help_text='How many times this same event has fired in the current window.')),
-                ('related_object_type', models.CharField(blank=True, help_text="Model type of the related object, e.g. 'PipelineRun'.", max_length=80)),
-                ('related_object_id', models.CharField(blank=True, help_text='PK of the related object.', max_length=100)),
-                ('related_route', models.CharField(blank=True, help_text='Frontend route the operator should open, e.g. /jobs or /analytics.', max_length=200)),
-                ('payload', models.JSONField(default=dict, help_text='Extra event-specific data.')),
-                ('first_seen_at', models.DateTimeField(help_text='When this event was first observed.')),
-                ('last_seen_at', models.DateTimeField(help_text='When this event was most recently observed (updated on dedupe).')),
-                ('read_at', models.DateTimeField(blank=True, null=True)),
-                ('acknowledged_at', models.DateTimeField(blank=True, null=True)),
-                ('resolved_at', models.DateTimeField(blank=True, null=True)),
-                ('error_log', models.ForeignKey(blank=True, help_text='Linked ErrorLog row when this alert was raised by a job failure.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='operator_alerts', to='audit.errorlog')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "alert_id",
+                    models.UUIDField(
+                        db_index=True,
+                        default=uuid.uuid4,
+                        help_text="Public-safe UUID for this alert.",
+                        unique=True,
+                    ),
+                ),
+                (
+                    "event_type",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Stable event type string, e.g. job.failed, model.ready, analytics.gsc_spike.",
+                        max_length=80,
+                    ),
+                ),
+                (
+                    "source_area",
+                    models.CharField(
+                        choices=[
+                            ("jobs", "Jobs"),
+                            ("pipeline", "Pipeline"),
+                            ("models", "Models"),
+                            ("analytics", "Analytics"),
+                            ("system", "System"),
+                        ],
+                        db_index=True,
+                        default="system",
+                        help_text="High-level area that produced this alert.",
+                        max_length=30,
+                    ),
+                ),
+                (
+                    "severity",
+                    models.CharField(
+                        choices=[
+                            ("info", "Info"),
+                            ("success", "Success"),
+                            ("warning", "Warning"),
+                            ("error", "Error"),
+                            ("urgent", "Urgent"),
+                        ],
+                        db_index=True,
+                        default="info",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("unread", "Unread"),
+                            ("read", "Read"),
+                            ("acknowledged", "Acknowledged"),
+                            ("resolved", "Resolved"),
+                        ],
+                        db_index=True,
+                        default="unread",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "title",
+                    models.CharField(
+                        help_text="Short plain-English alert title shown in the bell center.",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "message",
+                    models.TextField(
+                        help_text="Plain-English body text with more detail."
+                    ),
+                ),
+                (
+                    "dedupe_key",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Deduplication key. Same key inside cooldown window increments occurrence_count instead of creating a new row.",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "fingerprint",
+                    models.CharField(
+                        blank=True,
+                        help_text="Optional secondary fingerprint for fine-grained deduping.",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "occurrence_count",
+                    models.PositiveIntegerField(
+                        default=1,
+                        help_text="How many times this same event has fired in the current window.",
+                    ),
+                ),
+                (
+                    "related_object_type",
+                    models.CharField(
+                        blank=True,
+                        help_text="Model type of the related object, e.g. 'PipelineRun'.",
+                        max_length=80,
+                    ),
+                ),
+                (
+                    "related_object_id",
+                    models.CharField(
+                        blank=True,
+                        help_text="PK of the related object.",
+                        max_length=100,
+                    ),
+                ),
+                (
+                    "related_route",
+                    models.CharField(
+                        blank=True,
+                        help_text="Frontend route the operator should open, e.g. /jobs or /analytics.",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "payload",
+                    models.JSONField(
+                        default=dict, help_text="Extra event-specific data."
+                    ),
+                ),
+                (
+                    "first_seen_at",
+                    models.DateTimeField(
+                        help_text="When this event was first observed."
+                    ),
+                ),
+                (
+                    "last_seen_at",
+                    models.DateTimeField(
+                        help_text="When this event was most recently observed (updated on dedupe)."
+                    ),
+                ),
+                ("read_at", models.DateTimeField(blank=True, null=True)),
+                ("acknowledged_at", models.DateTimeField(blank=True, null=True)),
+                ("resolved_at", models.DateTimeField(blank=True, null=True)),
+                (
+                    "error_log",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="Linked ErrorLog row when this alert was raised by a job failure.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="operator_alerts",
+                        to="audit.errorlog",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Operator Alert',
-                'verbose_name_plural': 'Operator Alerts',
-                'ordering': ['-first_seen_at'],
+                "verbose_name": "Operator Alert",
+                "verbose_name_plural": "Operator Alerts",
+                "ordering": ["-first_seen_at"],
             },
         ),
         migrations.CreateModel(
-            name='AlertDeliveryAttempt',
+            name="AlertDeliveryAttempt",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('channel', models.CharField(choices=[('in_app', 'In-app bell'), ('toast', 'Toast / snackbar'), ('desktop', 'Desktop popup'), ('sound', 'Sound cue')], db_index=True, max_length=20)),
-                ('result', models.CharField(choices=[('sent', 'Sent'), ('skipped', 'Skipped'), ('blocked', 'Blocked'), ('failed', 'Failed')], db_index=True, max_length=20)),
-                ('reason', models.TextField(blank=True, help_text='Why the delivery was skipped, blocked, or failed.')),
-                ('attempted_at', models.DateTimeField(auto_now_add=True)),
-                ('alert', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='delivery_attempts', to='notifications.operatoralert')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "channel",
+                    models.CharField(
+                        choices=[
+                            ("in_app", "In-app bell"),
+                            ("toast", "Toast / snackbar"),
+                            ("desktop", "Desktop popup"),
+                            ("sound", "Sound cue"),
+                        ],
+                        db_index=True,
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "result",
+                    models.CharField(
+                        choices=[
+                            ("sent", "Sent"),
+                            ("skipped", "Skipped"),
+                            ("blocked", "Blocked"),
+                            ("failed", "Failed"),
+                        ],
+                        db_index=True,
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "reason",
+                    models.TextField(
+                        blank=True,
+                        help_text="Why the delivery was skipped, blocked, or failed.",
+                    ),
+                ),
+                ("attempted_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "alert",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="delivery_attempts",
+                        to="notifications.operatoralert",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Alert Delivery Attempt',
-                'verbose_name_plural': 'Alert Delivery Attempts',
-                'ordering': ['-attempted_at'],
+                "verbose_name": "Alert Delivery Attempt",
+                "verbose_name_plural": "Alert Delivery Attempts",
+                "ordering": ["-attempted_at"],
             },
         ),
         migrations.AddIndex(
-            model_name='operatoralert',
-            index=models.Index(fields=['status', '-first_seen_at'], name='notificatio_status_192d76_idx'),
+            model_name="operatoralert",
+            index=models.Index(
+                fields=["status", "-first_seen_at"],
+                name="notificatio_status_192d76_idx",
+            ),
         ),
         migrations.AddIndex(
-            model_name='operatoralert',
-            index=models.Index(fields=['severity', 'status'], name='notificatio_severit_b46ada_idx'),
+            model_name="operatoralert",
+            index=models.Index(
+                fields=["severity", "status"], name="notificatio_severit_b46ada_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='operatoralert',
-            index=models.Index(fields=['dedupe_key', '-last_seen_at'], name='notificatio_dedupe__cd9f94_idx'),
+            model_name="operatoralert",
+            index=models.Index(
+                fields=["dedupe_key", "-last_seen_at"],
+                name="notificatio_dedupe__cd9f94_idx",
+            ),
         ),
     ]

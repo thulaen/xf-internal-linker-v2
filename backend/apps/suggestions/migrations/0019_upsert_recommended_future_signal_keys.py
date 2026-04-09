@@ -55,11 +55,13 @@ def upsert_recommended_future_signal_keys(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0018_alter_weightadjustmenthistory_reason"),
     ]
 
     operations = [
-        migrations.RunPython(upsert_recommended_future_signal_keys, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            upsert_recommended_future_signal_keys,
+            reverse_code=migrations.RunPython.noop,
+        ),
     ]

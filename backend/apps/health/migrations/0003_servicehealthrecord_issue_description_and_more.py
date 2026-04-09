@@ -4,20 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('health', '0002_upsert_health_settings'),
+        ("health", "0002_upsert_health_settings"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='servicehealthrecord',
-            name='issue_description',
-            field=models.TextField(blank=True, help_text='Plain English explanation of what is wrong and why.'),
+            model_name="servicehealthrecord",
+            name="issue_description",
+            field=models.TextField(
+                blank=True,
+                help_text="Plain English explanation of what is wrong and why.",
+            ),
         ),
         migrations.AddField(
-            model_name='servicehealthrecord',
-            name='suggested_fix',
-            field=models.TextField(blank=True, help_text='Plain English instructions on how to resolve the issue.'),
+            model_name="servicehealthrecord",
+            name="suggested_fix",
+            field=models.TextField(
+                blank=True,
+                help_text="Plain English instructions on how to resolve the issue.",
+            ),
         ),
     ]

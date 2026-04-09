@@ -18,18 +18,15 @@ from urllib.parse import urlparse
 
 try:
     from extensions import linkparse
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
 
 logger = logging.getLogger(__name__)
 
-_XF_THREAD_RE = re.compile(
-    r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE
-)
-_XF_RESOURCE_RE = re.compile(
-    r"/resources/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE
-)
+_XF_THREAD_RE = re.compile(r"/threads/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE)
+_XF_RESOURCE_RE = re.compile(r"/resources/(?:[^/]*\.)?(\d+)(?:/|$)", re.IGNORECASE)
 _BBCODE_URL_RE = re.compile(
     r"\[URL=([^\]]+)\](.*?)\[/URL\]",
     re.IGNORECASE | re.DOTALL,
@@ -132,28 +129,34 @@ def extract_internal_links(
             continue
         seen.add(key)
 
-        resolved_links.append(_ResolvedLink(
-            to_content_id=to_id,
-            to_content_type=to_type,
-            anchor_text=found_link.anchor_text.strip(),
-            extraction_method=found_link.extraction_method,
-            context_class=_classify_context(raw_bbcode, found_link.start, found_link.end),
-        ))
+        resolved_links.append(
+            _ResolvedLink(
+                to_content_id=to_id,
+                to_content_type=to_type,
+                anchor_text=found_link.anchor_text.strip(),
+                extraction_method=found_link.extraction_method,
+                context_class=_classify_context(
+                    raw_bbcode, found_link.start, found_link.end
+                ),
+            )
+        )
 
     total_links = len(resolved_links)
     edges: list[LinkEdge] = []
     for ordinal, resolved in enumerate(resolved_links):
-        edges.append(LinkEdge(
-            from_content_id=from_content_id,
-            from_content_type=from_content_type,
-            to_content_id=resolved.to_content_id,
-            to_content_type=resolved.to_content_type,
-            anchor_text=resolved.anchor_text,
-            extraction_method=resolved.extraction_method,
-            link_ordinal=ordinal,
-            source_internal_link_count=total_links,
-            context_class=resolved.context_class,
-        ))
+        edges.append(
+            LinkEdge(
+                from_content_id=from_content_id,
+                from_content_type=from_content_type,
+                to_content_id=resolved.to_content_id,
+                to_content_type=resolved.to_content_type,
+                anchor_text=resolved.anchor_text,
+                extraction_method=resolved.extraction_method,
+                link_ordinal=ordinal,
+                source_internal_link_count=total_links,
+                context_class=resolved.context_class,
+            )
+        )
 
     return edges
 
@@ -224,8 +227,7 @@ def _resolve_target(
         from apps.content.models import ContentItem
 
         target = (
-            ContentItem.objects
-            .filter(url=url)
+            ContentItem.objects.filter(url=url)
             .values_list("content_id", "content_type")
             .first()
         )
@@ -264,36 +266,42 @@ def _find_urls_py(raw_bbcode: str) -> list[_MatchedLink]:
 
     for match in _BBCODE_URL_RE.finditer(raw_bbcode):
         occupied_spans.append(match.span())
-        found_links.append(_MatchedLink(
-            url=match.group(1),
-            anchor_text=_strip_markup(match.group(2)),
-            extraction_method=EXTRACTION_METHOD_BBCODE,
-            start=match.start(),
-            end=match.end(),
-        ))
+        found_links.append(
+            _MatchedLink(
+                url=match.group(1),
+                anchor_text=_strip_markup(match.group(2)),
+                extraction_method=EXTRACTION_METHOD_BBCODE,
+                start=match.start(),
+                end=match.end(),
+            )
+        )
 
     for match in _HTML_LINK_RE.finditer(raw_bbcode):
         if _span_overlaps(match.span(), occupied_spans):
             continue
         occupied_spans.append(match.span())
-        found_links.append(_MatchedLink(
-            url=match.group(1),
-            anchor_text=_strip_markup(match.group(2)),
-            extraction_method=EXTRACTION_METHOD_HTML,
-            start=match.start(),
-            end=match.end(),
-        ))
+        found_links.append(
+            _MatchedLink(
+                url=match.group(1),
+                anchor_text=_strip_markup(match.group(2)),
+                extraction_method=EXTRACTION_METHOD_HTML,
+                start=match.start(),
+                end=match.end(),
+            )
+        )
 
     for match in _BARE_URL_RE.finditer(raw_bbcode):
         if _span_overlaps(match.span(), occupied_spans):
             continue
-        found_links.append(_MatchedLink(
-            url=match.group(0),
-            anchor_text="",
-            extraction_method=EXTRACTION_METHOD_BARE,
-            start=match.start(),
-            end=match.end(),
-        ))
+        found_links.append(
+            _MatchedLink(
+                url=match.group(0),
+                anchor_text="",
+                extraction_method=EXTRACTION_METHOD_BARE,
+                start=match.start(),
+                end=match.end(),
+            )
+        )
 
     found_links.sort(key=lambda link: (link.start, link.end, link.extraction_method))
     return found_links
@@ -319,7 +327,9 @@ def normalize_internal_url(url: str) -> str:
     if path != "/" and path.endswith("/"):
         path = path.rstrip("/")
 
-    normalized = parsed._replace(scheme=scheme, netloc=netloc, path=path, params="", query="", fragment="")
+    normalized = parsed._replace(
+        scheme=scheme, netloc=netloc, path=path, params="", query="", fragment=""
+    )
     return normalized.geturl()
 
 
@@ -330,7 +340,9 @@ def _strip_markup(value: str) -> str:
     return cleaned.strip()
 
 
-def _span_overlaps(span: tuple[int, int], occupied_spans: list[tuple[int, int]]) -> bool:
+def _span_overlaps(
+    span: tuple[int, int], occupied_spans: list[tuple[int, int]]
+) -> bool:
     start, end = span
     for other_start, other_end in occupied_spans:
         if start < other_end and end > other_start:
@@ -339,8 +351,12 @@ def _span_overlaps(span: tuple[int, int], occupied_spans: list[tuple[int, int]])
 
 
 def _classify_context(raw_bbcode: str, start: int, end: int) -> str:
-    left = _clean_context_window(raw_bbcode[max(0, start - _CONTEXT_WINDOW_CHARS):start])
-    right = _clean_context_window(raw_bbcode[end:min(len(raw_bbcode), end + _CONTEXT_WINDOW_CHARS)])
+    left = _clean_context_window(
+        raw_bbcode[max(0, start - _CONTEXT_WINDOW_CHARS) : start]
+    )
+    right = _clean_context_window(
+        raw_bbcode[end : min(len(raw_bbcode), end + _CONTEXT_WINDOW_CHARS)]
+    )
     has_left = _has_context_tokens(left)
     has_right = _has_context_tokens(right)
 

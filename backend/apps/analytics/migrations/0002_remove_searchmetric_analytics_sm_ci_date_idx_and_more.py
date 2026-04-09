@@ -4,104 +4,148 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0001_initial'),
-        ('content', '0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more'),
+        ("analytics", "0001_initial"),
+        (
+            "content",
+            "0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more",
+        ),
     ]
 
     operations = [
         migrations.RemoveIndex(
-            model_name='searchmetric',
-            name='analytics_sm_ci_date_idx',
+            model_name="searchmetric",
+            name="analytics_sm_ci_date_idx",
         ),
         migrations.RenameIndex(
-            model_name='searchmetric',
-            new_name='analytics_s_date_3c4adf_idx',
-            old_name='analytics_sm_date_source_idx',
+            model_name="searchmetric",
+            new_name="analytics_s_date_3c4adf_idx",
+            old_name="analytics_sm_date_source_idx",
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='after_date_range',
-            field=models.JSONField(help_text="Date range for the 'after' window: {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}."),
+            model_name="impactreport",
+            name="after_date_range",
+            field=models.JSONField(
+                help_text="Date range for the 'after' window: {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}."
+            ),
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='after_value',
-            field=models.FloatField(help_text="Average metric value in the 'after' date window."),
+            model_name="impactreport",
+            name="after_value",
+            field=models.FloatField(
+                help_text="Average metric value in the 'after' date window."
+            ),
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='before_date_range',
-            field=models.JSONField(help_text="Date range for the 'before' window: {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}."),
+            model_name="impactreport",
+            name="before_date_range",
+            field=models.JSONField(
+                help_text="Date range for the 'before' window: {'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}."
+            ),
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='before_value',
-            field=models.FloatField(help_text="Average metric value in the 'before' date window."),
+            model_name="impactreport",
+            name="before_value",
+            field=models.FloatField(
+                help_text="Average metric value in the 'before' date window."
+            ),
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='When this impact report was generated.'),
+            model_name="impactreport",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, help_text="When this impact report was generated."
+            ),
         ),
         migrations.AlterField(
-            model_name='impactreport',
-            name='delta_percent',
-            field=models.FloatField(help_text='Percentage change: ((after - before) / before) * 100. Positive = improvement.'),
+            model_name="impactreport",
+            name="delta_percent",
+            field=models.FloatField(
+                help_text="Percentage change: ((after - before) / before) * 100. Positive = improvement."
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='average_position',
-            field=models.FloatField(blank=True, help_text='Average ranking position in Google search (lower = better).', null=True),
+            model_name="searchmetric",
+            name="average_position",
+            field=models.FloatField(
+                blank=True,
+                help_text="Average ranking position in Google search (lower = better).",
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='avg_engagement_time',
-            field=models.FloatField(default=0.0, help_text='Average engagement time in seconds (GA4).'),
+            model_name="searchmetric",
+            name="avg_engagement_time",
+            field=models.FloatField(
+                default=0.0, help_text="Average engagement time in seconds (GA4)."
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='bounce_rate',
-            field=models.FloatField(blank=True, help_text='Bounce rate percentage (GA4).', null=True),
+            model_name="searchmetric",
+            name="bounce_rate",
+            field=models.FloatField(
+                blank=True, help_text="Bounce rate percentage (GA4).", null=True
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='clicks',
-            field=models.IntegerField(default=0, help_text='Number of clicks from Google search results.'),
+            model_name="searchmetric",
+            name="clicks",
+            field=models.IntegerField(
+                default=0, help_text="Number of clicks from Google search results."
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='ctr',
-            field=models.FloatField(default=0.0, help_text='Click-through rate (clicks / impressions).'),
+            model_name="searchmetric",
+            name="ctr",
+            field=models.FloatField(
+                default=0.0, help_text="Click-through rate (clicks / impressions)."
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='impressions',
-            field=models.IntegerField(default=0, help_text='Number of times this URL appeared in Google search results.'),
+            model_name="searchmetric",
+            name="impressions",
+            field=models.IntegerField(
+                default=0,
+                help_text="Number of times this URL appeared in Google search results.",
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='page_views',
-            field=models.IntegerField(default=0, help_text='Total page views from GA4.'),
+            model_name="searchmetric",
+            name="page_views",
+            field=models.IntegerField(
+                default=0, help_text="Total page views from GA4."
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='query',
-            field=models.CharField(blank=True, help_text='Top search query driving traffic to this URL (optional).', max_length=500),
+            model_name="searchmetric",
+            name="query",
+            field=models.CharField(
+                blank=True,
+                help_text="Top search query driving traffic to this URL (optional).",
+                max_length=500,
+            ),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='sessions',
-            field=models.IntegerField(default=0, help_text='Total sessions from GA4.'),
+            model_name="searchmetric",
+            name="sessions",
+            field=models.IntegerField(default=0, help_text="Total sessions from GA4."),
         ),
         migrations.AlterField(
-            model_name='searchmetric',
-            name='source',
-            field=models.CharField(choices=[('gsc', 'Google Search Console'), ('ga4', 'Google Analytics 4')], help_text='Whether this data came from GSC or GA4.', max_length=10),
+            model_name="searchmetric",
+            name="source",
+            field=models.CharField(
+                choices=[
+                    ("gsc", "Google Search Console"),
+                    ("ga4", "Google Analytics 4"),
+                ],
+                help_text="Whether this data came from GSC or GA4.",
+                max_length=10,
+            ),
         ),
         migrations.AddIndex(
-            model_name='searchmetric',
-            index=models.Index(fields=['content_item', '-date'], name='analytics_s_content_5b6417_idx'),
+            model_name="searchmetric",
+            index=models.Index(
+                fields=["content_item", "-date"], name="analytics_s_content_5b6417_idx"
+            ),
         ),
     ]

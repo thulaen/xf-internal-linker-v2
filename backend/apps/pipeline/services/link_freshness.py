@@ -178,7 +178,11 @@ def calculate_link_freshness(
                 total_peer_count=total_peer_count,
                 active_peer_count=active_peer_count,
             )
-        if first_seen_at > reference_time or last_seen_at > reference_time or last_seen_at < first_seen_at:
+        if (
+            first_seen_at > reference_time
+            or last_seen_at > reference_time
+            or last_seen_at < first_seen_at
+        ):
             return neutral_link_freshness_result(
                 data_state="neutral_invalid_history",
                 settings=settings,
@@ -186,7 +190,10 @@ def calculate_link_freshness(
                 active_peer_count=active_peer_count,
             )
         if row.last_disappeared_at is not None:
-            if timezone.is_naive(row.last_disappeared_at) or row.last_disappeared_at > reference_time:
+            if (
+                timezone.is_naive(row.last_disappeared_at)
+                or row.last_disappeared_at > reference_time
+            ):
                 return neutral_link_freshness_result(
                     data_state="neutral_invalid_history",
                     settings=settings,
@@ -206,7 +213,9 @@ def calculate_link_freshness(
     recent_window = timedelta(days=settings.recent_window_days)
     recent_cutoff = reference_time - recent_window
     previous_cutoff = reference_time - (recent_window * 2)
-    oldest_first_seen = min(row.first_seen_at for row in valid_rows if row.first_seen_at is not None)
+    oldest_first_seen = min(
+        row.first_seen_at for row in valid_rows if row.first_seen_at is not None
+    )
     if oldest_first_seen > previous_cutoff:
         return neutral_link_freshness_result(
             data_state="neutral_thin_history",
@@ -216,15 +225,19 @@ def calculate_link_freshness(
         )
 
     recent_new_peer_count = sum(
-        1 for row in valid_rows
+        1
+        for row in valid_rows
         if row.first_seen_at is not None and row.first_seen_at >= recent_cutoff
     )
     previous_new_peer_count = sum(
-        1 for row in valid_rows
-        if row.first_seen_at is not None and previous_cutoff <= row.first_seen_at < recent_cutoff
+        1
+        for row in valid_rows
+        if row.first_seen_at is not None
+        and previous_cutoff <= row.first_seen_at < recent_cutoff
     )
     recent_lost_peer_count = sum(
-        1 for row in valid_rows
+        1
+        for row in valid_rows
         if not row.is_active
         and row.last_disappeared_at is not None
         and row.last_disappeared_at >= recent_cutoff
@@ -235,12 +248,18 @@ def calculate_link_freshness(
         key=lambda row: row.first_seen_at or reference_time,
         reverse=True,
     )
-    newest_peer_count = max(1, math.ceil(total_peer_count * settings.newest_peer_percent))
+    newest_peer_count = max(
+        1, math.ceil(total_peer_count * settings.newest_peer_percent)
+    )
     newest_cohort = sorted_rows[:newest_peer_count]
-    cohort_oldest_first_seen = min(row.first_seen_at for row in newest_cohort if row.first_seen_at is not None)
+    cohort_oldest_first_seen = min(
+        row.first_seen_at for row in newest_cohort if row.first_seen_at is not None
+    )
 
     oldest_peer_age_days = max(_age_days(reference_time, oldest_first_seen), 0.0)
-    oldest_recent_cohort_age_days = max(_age_days(reference_time, cohort_oldest_first_seen), 0.0)
+    oldest_recent_cohort_age_days = max(
+        _age_days(reference_time, cohort_oldest_first_seen), 0.0
+    )
 
     recent_share = recent_new_peer_count / total_peer_count
     growth_delta = _clamp(
@@ -302,14 +321,18 @@ def get_destination_link_freshness_diagnostics(
             last_disappeared_at=row.last_disappeared_at,
             is_active=row.is_active,
         )
-        for row in LinkFreshnessEdge.objects.filter(to_content_item_id=destination_id).only(
+        for row in LinkFreshnessEdge.objects.filter(
+            to_content_item_id=destination_id
+        ).only(
             "first_seen_at",
             "last_seen_at",
             "last_disappeared_at",
             "is_active",
         )
     ]
-    return calculate_link_freshness(rows, reference_time=reference_time, settings=settings)
+    return calculate_link_freshness(
+        rows, reference_time=reference_time, settings=settings
+    )
 
 
 def load_all_link_freshness_scores(
@@ -341,7 +364,9 @@ def load_all_link_freshness_scores(
         )
 
     results: dict[NodeKey, LinkFreshnessResult] = {}
-    for pk, content_type in ContentItem.objects.values_list("pk", "content_type").order_by("pk"):
+    for pk, content_type in ContentItem.objects.values_list(
+        "pk", "content_type"
+    ).order_by("pk"):
         results[(pk, content_type)] = calculate_link_freshness(
             history_by_destination.get(pk, []),
             reference_time=reference_time,
@@ -350,7 +375,9 @@ def load_all_link_freshness_scores(
     return results
 
 
-def persist_link_freshness_scores(results: Mapping[NodeKey, LinkFreshnessResult]) -> int:
+def persist_link_freshness_scores(
+    results: Mapping[NodeKey, LinkFreshnessResult],
+) -> int:
     """Persist link-freshness scores back to content items."""
     from apps.content.models import ContentItem
 
@@ -382,14 +409,20 @@ def run_link_freshness(
 
     data_state_counts: dict[str, int] = {}
     for result in results.values():
-        data_state_counts[result.freshness_data_state] = data_state_counts.get(result.freshness_data_state, 0) + 1
+        data_state_counts[result.freshness_data_state] = (
+            data_state_counts.get(result.freshness_data_state, 0) + 1
+        )
 
     return {
         "content_item_count": len(results),
         "computed_count": data_state_counts.get("computed", 0),
-        "neutral_missing_history_count": data_state_counts.get("neutral_missing_history", 0),
+        "neutral_missing_history_count": data_state_counts.get(
+            "neutral_missing_history", 0
+        ),
         "neutral_thin_history_count": data_state_counts.get("neutral_thin_history", 0),
-        "neutral_invalid_history_count": data_state_counts.get("neutral_invalid_history", 0),
+        "neutral_invalid_history_count": data_state_counts.get(
+            "neutral_invalid_history", 0
+        ),
     }
 
 

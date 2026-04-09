@@ -73,7 +73,9 @@ class CircuitBreaker:
         with self._lock:
             self._maybe_transition_to_half_open()
             if self._state == CircuitState.OPEN:
-                remaining = self.recovery_timeout - (time.monotonic() - self._last_failure_time)
+                remaining = self.recovery_timeout - (
+                    time.monotonic() - self._last_failure_time
+                )
                 raise CircuitBreakerOpen(self.name, max(0, remaining))
 
         try:

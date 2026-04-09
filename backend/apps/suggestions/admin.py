@@ -35,42 +35,75 @@ class PipelineRunAdmin(ModelAdmin):
     """Admin for pipeline run history and progress monitoring."""
 
     list_display = [
-        "run_id_short", "run_state", "suggestions_created",
-        "destinations_processed", "destinations_skipped",
-        "duration_display", "created_at",
+        "run_id_short",
+        "run_state",
+        "suggestions_created",
+        "destinations_processed",
+        "destinations_skipped",
+        "duration_display",
+        "created_at",
     ]
     list_filter = ["run_state", "rerun_mode"]
     readonly_fields = [
-        "run_id", "run_state", "suggestions_created", "destinations_processed",
-        "destinations_skipped", "duration_seconds", "celery_task_id", "created_at", "updated_at",
+        "run_id",
+        "run_state",
+        "suggestions_created",
+        "destinations_processed",
+        "destinations_skipped",
+        "duration_seconds",
+        "celery_task_id",
+        "created_at",
+        "updated_at",
     ]
     ordering = ["-created_at"]
     inlines = [DiagnosticInline]
 
     fieldsets = (
-        ("Run Identity", {
-            "fields": ("run_id", "run_state", "rerun_mode", "celery_task_id"),
-        }),
-        ("Results", {
-            "fields": ("suggestions_created", "destinations_processed",
-                       "destinations_skipped", "duration_seconds"),
-        }),
-        ("Scope Configuration", {
-            "fields": ("host_scope", "destination_scope"),
-            "classes": ("collapse",),
-        }),
-        ("Config Snapshot", {
-            "fields": ("config_snapshot",),
-            "classes": ("collapse",),
-        }),
-        ("Error", {
-            "fields": ("error_message",),
-            "classes": ("collapse",),
-        }),
-        ("Timestamps", {
-            "fields": ("created_at", "updated_at"),
-            "classes": ("collapse",),
-        }),
+        (
+            "Run Identity",
+            {
+                "fields": ("run_id", "run_state", "rerun_mode", "celery_task_id"),
+            },
+        ),
+        (
+            "Results",
+            {
+                "fields": (
+                    "suggestions_created",
+                    "destinations_processed",
+                    "destinations_skipped",
+                    "duration_seconds",
+                ),
+            },
+        ),
+        (
+            "Scope Configuration",
+            {
+                "fields": ("host_scope", "destination_scope"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Config Snapshot",
+            {
+                "fields": ("config_snapshot",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Error",
+            {
+                "fields": ("error_message",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
     )
 
     @admin.display(description="Run ID")
@@ -96,74 +129,155 @@ class SuggestionAdmin(ModelAdmin):
     """
 
     list_display = [
-        "suggestion_id_short", "status_badge", "destination_title_short",
-        "anchor_phrase", "score_final", "anchor_confidence", "created_at",
+        "suggestion_id_short",
+        "status_badge",
+        "destination_title_short",
+        "anchor_phrase",
+        "score_final",
+        "anchor_confidence",
+        "created_at",
     ]
     list_filter = ["status", "anchor_confidence", "repeated_anchor", "rejection_reason"]
     search_fields = ["destination_title", "host_sentence_text", "anchor_phrase"]
     readonly_fields = [
-        "suggestion_id", "pipeline_run", "destination", "host", "host_sentence",
-        "score_semantic", "score_keyword", "score_node_affinity", "score_quality",
-        "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc", "score_phrase_relevance",
-        "score_learned_anchor_corroboration", "score_rare_term_propagation", "score_field_aware_relevance", "score_final",
-        "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics", "field_aware_diagnostics",
-        "repeated_anchor", "superseded_by", "superseded_at",
-        "created_at", "updated_at",
+        "suggestion_id",
+        "pipeline_run",
+        "destination",
+        "host",
+        "host_sentence",
+        "score_semantic",
+        "score_keyword",
+        "score_node_affinity",
+        "score_quality",
+        "score_march_2026_pagerank",
+        "score_velocity",
+        "score_link_freshness",
+        "score_ga4_gsc",
+        "score_phrase_relevance",
+        "score_learned_anchor_corroboration",
+        "score_rare_term_propagation",
+        "score_field_aware_relevance",
+        "score_final",
+        "phrase_match_diagnostics",
+        "learned_anchor_diagnostics",
+        "rare_term_diagnostics",
+        "field_aware_diagnostics",
+        "repeated_anchor",
+        "superseded_by",
+        "superseded_at",
+        "created_at",
+        "updated_at",
     ]
     ordering = ["-created_at"]
     list_per_page = 50
 
     fieldsets = (
-        ("Suggestion", {
-            "fields": ("suggestion_id", "status", "pipeline_run"),
-        }),
-        ("Destination (linked TO)", {
-            "fields": ("destination", "destination_title"),
-        }),
-        ("Host (link placed IN)", {
-            "fields": ("host", "host_sentence", "host_sentence_text"),
-        }),
-        ("Anchor Text", {
-            "fields": ("anchor_phrase", "anchor_start", "anchor_end",
-                       "anchor_confidence", "anchor_edited", "repeated_anchor"),
-        }),
-        ("Score Breakdown", {
-                "fields": ("score_semantic", "score_keyword", "score_node_affinity",
-                       "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
-                       "score_phrase_relevance", "score_learned_anchor_corroboration",
-                       "score_rare_term_propagation", "score_field_aware_relevance", "score_final"),
-            "classes": ("collapse",),
-        }),
-        ("Phrase Matching", {
-            "fields": ("phrase_match_diagnostics",),
-            "classes": ("collapse",),
-        }),
-        ("Learned Anchor", {
-            "fields": ("learned_anchor_diagnostics",),
-            "classes": ("collapse",),
-        }),
-        ("Rare-Term Propagation", {
-            "fields": ("rare_term_diagnostics",),
-            "classes": ("collapse",),
-        }),
-        ("Field-Aware Relevance", {
-            "fields": ("field_aware_diagnostics",),
-            "classes": ("collapse",),
-        }),
-        ("Review", {
-            "fields": ("rejection_reason", "reviewer_notes", "reviewed_at"),
-        }),
-        ("Applied / Verified", {
-            "fields": ("is_applied", "applied_at", "verified_at", "stale_reason"),
-        }),
-        ("Supersede Chain", {
-            "fields": ("superseded_by", "superseded_at"),
-            "classes": ("collapse",),
-        }),
-        ("Timestamps", {
-            "fields": ("created_at", "updated_at"),
-            "classes": ("collapse",),
-        }),
+        (
+            "Suggestion",
+            {
+                "fields": ("suggestion_id", "status", "pipeline_run"),
+            },
+        ),
+        (
+            "Destination (linked TO)",
+            {
+                "fields": ("destination", "destination_title"),
+            },
+        ),
+        (
+            "Host (link placed IN)",
+            {
+                "fields": ("host", "host_sentence", "host_sentence_text"),
+            },
+        ),
+        (
+            "Anchor Text",
+            {
+                "fields": (
+                    "anchor_phrase",
+                    "anchor_start",
+                    "anchor_end",
+                    "anchor_confidence",
+                    "anchor_edited",
+                    "repeated_anchor",
+                ),
+            },
+        ),
+        (
+            "Score Breakdown",
+            {
+                "fields": (
+                    "score_semantic",
+                    "score_keyword",
+                    "score_node_affinity",
+                    "score_quality",
+                    "score_march_2026_pagerank",
+                    "score_velocity",
+                    "score_link_freshness",
+                    "score_ga4_gsc",
+                    "score_phrase_relevance",
+                    "score_learned_anchor_corroboration",
+                    "score_rare_term_propagation",
+                    "score_field_aware_relevance",
+                    "score_final",
+                ),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Phrase Matching",
+            {
+                "fields": ("phrase_match_diagnostics",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Learned Anchor",
+            {
+                "fields": ("learned_anchor_diagnostics",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Rare-Term Propagation",
+            {
+                "fields": ("rare_term_diagnostics",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Field-Aware Relevance",
+            {
+                "fields": ("field_aware_diagnostics",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Review",
+            {
+                "fields": ("rejection_reason", "reviewer_notes", "reviewed_at"),
+            },
+        ),
+        (
+            "Applied / Verified",
+            {
+                "fields": ("is_applied", "applied_at", "verified_at", "stale_reason"),
+            },
+        ),
+        (
+            "Supersede Chain",
+            {
+                "fields": ("superseded_by", "superseded_at"),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
     )
 
     @admin.display(description="ID")
@@ -185,7 +299,8 @@ class SuggestionAdmin(ModelAdmin):
         return format_html(
             '<span style="background:{};color:#fff;padding:2px 8px;border-radius:4px;'
             'font-size:11px;font-weight:600">{}</span>',
-            color, obj.get_status_display(),
+            color,
+            obj.get_status_display(),
         )
 
     @admin.display(description="Destination")
@@ -200,5 +315,11 @@ class PipelineDiagnosticAdmin(ModelAdmin):
     list_display = ["pipeline_run", "destination", "skip_reason", "created_at"]
     list_filter = ["skip_reason"]
     search_fields = ["destination__title", "pipeline_run__run_id"]
-    readonly_fields = ["pipeline_run", "destination", "skip_reason", "detail", "created_at"]
+    readonly_fields = [
+        "pipeline_run",
+        "destination",
+        "skip_reason",
+        "detail",
+        "created_at",
+    ]
     ordering = ["-created_at"]

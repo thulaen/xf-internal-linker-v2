@@ -1,11 +1,23 @@
 from django.contrib import admin
 
-from .models import CrawlSession, CrawledLink, CrawledPageMeta, SitemapConfig, SystemEvent
+from .models import (
+    CrawlSession,
+    CrawledLink,
+    CrawledPageMeta,
+    SitemapConfig,
+    SystemEvent,
+)
 
 
 @admin.register(CrawlSession)
 class CrawlSessionAdmin(admin.ModelAdmin):
-    list_display = ["session_id", "site_domain", "status", "pages_crawled", "created_at"]
+    list_display = [
+        "session_id",
+        "site_domain",
+        "status",
+        "pages_crawled",
+        "created_at",
+    ]
     list_filter = ["status", "site_domain"]
     readonly_fields = ["session_id", "created_at", "updated_at"]
 

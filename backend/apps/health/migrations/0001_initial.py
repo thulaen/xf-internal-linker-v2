@@ -4,32 +4,111 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
-    dependencies = [
-    ]
+    dependencies = []
 
     operations = [
         migrations.CreateModel(
-            name='ServiceHealthRecord',
+            name="ServiceHealthRecord",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('service_key', models.CharField(db_index=True, help_text='Unique stable key for the monitored service.', max_length=80, unique=True)),
-                ('status', models.CharField(choices=[('healthy', 'Healthy'), ('warning', 'Warning'), ('error', 'Error'), ('down', 'Down'), ('stale', 'Stale'), ('not_configured', 'Not Configured'), ('not_enabled', 'Not Enabled')], db_index=True, default='healthy', max_length=20)),
-                ('status_label', models.CharField(help_text='Short plain-English summary of current status.', max_length=200)),
-                ('last_check_at', models.DateTimeField(help_text='When the last attempt was made to check this service.')),
-                ('last_success_at', models.DateTimeField(blank=True, help_text='When the service was last confirmed as healthy.', null=True)),
-                ('last_error_at', models.DateTimeField(blank=True, help_text='When the last failure occurred.', null=True)),
-                ('last_error_message', models.TextField(blank=True, help_text='Technical error details from the last failed attempt.')),
-                ('metadata', models.JSONField(default=dict, help_text='Service-specific metrics (e.g. lag hours, row counts, ping latency).')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "service_key",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Unique stable key for the monitored service.",
+                        max_length=80,
+                        unique=True,
+                    ),
+                ),
+                (
+                    "status",
+                    models.CharField(
+                        choices=[
+                            ("healthy", "Healthy"),
+                            ("warning", "Warning"),
+                            ("error", "Error"),
+                            ("down", "Down"),
+                            ("stale", "Stale"),
+                            ("not_configured", "Not Configured"),
+                            ("not_enabled", "Not Enabled"),
+                        ],
+                        db_index=True,
+                        default="healthy",
+                        max_length=20,
+                    ),
+                ),
+                (
+                    "status_label",
+                    models.CharField(
+                        help_text="Short plain-English summary of current status.",
+                        max_length=200,
+                    ),
+                ),
+                (
+                    "last_check_at",
+                    models.DateTimeField(
+                        help_text="When the last attempt was made to check this service."
+                    ),
+                ),
+                (
+                    "last_success_at",
+                    models.DateTimeField(
+                        blank=True,
+                        help_text="When the service was last confirmed as healthy.",
+                        null=True,
+                    ),
+                ),
+                (
+                    "last_error_at",
+                    models.DateTimeField(
+                        blank=True,
+                        help_text="When the last failure occurred.",
+                        null=True,
+                    ),
+                ),
+                (
+                    "last_error_message",
+                    models.TextField(
+                        blank=True,
+                        help_text="Technical error details from the last failed attempt.",
+                    ),
+                ),
+                (
+                    "metadata",
+                    models.JSONField(
+                        default=dict,
+                        help_text="Service-specific metrics (e.g. lag hours, row counts, ping latency).",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Service Health Record',
-                'verbose_name_plural': 'Service Health Records',
-                'ordering': ['service_key'],
+                "verbose_name": "Service Health Record",
+                "verbose_name_plural": "Service Health Records",
+                "ordering": ["service_key"],
             },
         ),
     ]

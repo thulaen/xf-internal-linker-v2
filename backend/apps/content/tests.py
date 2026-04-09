@@ -46,8 +46,12 @@ class SiloApiTests(APITestCase):
         self.assertEqual(scope.silo_group_id, silo.pk)
 
     def test_silo_group_list_exposes_crud_contract_fields(self):
-        silo = SiloGroup.objects.create(name="Keys", slug="keys", description="Keyboard content")
-        ScopeItem.objects.create(scope_id=301, scope_type="node", title="Keys Forum", silo_group=silo)
+        silo = SiloGroup.objects.create(
+            name="Keys", slug="keys", description="Keyboard content"
+        )
+        ScopeItem.objects.create(
+            scope_id=301, scope_type="node", title="Keys Forum", silo_group=silo
+        )
 
         response = self.client.get("/api/silo-groups/")
 
@@ -104,7 +108,9 @@ class SiloApiTests(APITestCase):
 
 class ContentAuthorityApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="content-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="content-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_content_endpoints_expose_authority_and_link_freshness_fields(self):
@@ -123,18 +129,42 @@ class ContentAuthorityApiTests(APITestCase):
 
         self.assertEqual(list_response.status_code, 200)
         self.assertEqual(detail_response.status_code, 200)
-        self.assertEqual(list_response.json()["results"][0]["march_2026_pagerank_score"], 0.25)
-        self.assertEqual(list_response.json()["results"][0]["link_freshness_score"], 0.61)
-        self.assertEqual(list_response.json()["results"][0]["freshness_bucket"], "fresh")
+        self.assertEqual(
+            list_response.json()["results"][0]["march_2026_pagerank_score"], 0.25
+        )
+        self.assertEqual(
+            list_response.json()["results"][0]["link_freshness_score"], 0.61
+        )
+        self.assertEqual(
+            list_response.json()["results"][0]["freshness_bucket"], "fresh"
+        )
         self.assertEqual(detail_response.json()["march_2026_pagerank_score"], 0.25)
         self.assertEqual(detail_response.json()["link_freshness_score"], 0.61)
         self.assertEqual(detail_response.json()["freshness_bucket"], "fresh")
 
     def test_content_ordering_and_bucket_filter_support_link_freshness(self):
         scope = ScopeItem.objects.create(scope_id=2, scope_type="node", title="Forum 2")
-        stale = ContentItem.objects.create(content_id=200, content_type="thread", title="Stale", scope=scope, link_freshness_score=0.2)
-        fresh = ContentItem.objects.create(content_id=201, content_type="thread", title="Fresh", scope=scope, link_freshness_score=0.8)
-        ContentItem.objects.create(content_id=202, content_type="thread", title="Neutral", scope=scope, link_freshness_score=0.5)
+        stale = ContentItem.objects.create(
+            content_id=200,
+            content_type="thread",
+            title="Stale",
+            scope=scope,
+            link_freshness_score=0.2,
+        )
+        fresh = ContentItem.objects.create(
+            content_id=201,
+            content_type="thread",
+            title="Fresh",
+            scope=scope,
+            link_freshness_score=0.8,
+        )
+        ContentItem.objects.create(
+            content_id=202,
+            content_type="thread",
+            title="Neutral",
+            scope=scope,
+            link_freshness_score=0.5,
+        )
 
         ordered = self.client.get("/api/content/?ordering=-link_freshness_score")
         fresh_only = self.client.get("/api/content/?freshness_bucket=fresh")
@@ -143,6 +173,10 @@ class ContentAuthorityApiTests(APITestCase):
         self.assertEqual(ordered.status_code, 200)
         self.assertEqual(ordered.json()["results"][0]["id"], fresh.pk)
         self.assertEqual(fresh_only.status_code, 200)
-        self.assertEqual([row["id"] for row in fresh_only.json()["results"]], [fresh.pk])
+        self.assertEqual(
+            [row["id"] for row in fresh_only.json()["results"]], [fresh.pk]
+        )
         self.assertEqual(stale_only.status_code, 200)
-        self.assertEqual([row["id"] for row in stale_only.json()["results"]], [stale.pk])
+        self.assertEqual(
+            [row["id"] for row in stale_only.json()["results"]], [stale.pk]
+        )

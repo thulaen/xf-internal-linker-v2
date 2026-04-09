@@ -34,13 +34,15 @@ _RUNTIME_OWNER_OVERRIDE_BY_LANE = {
 }
 
 
-def _publish_progress(job_id: str, state: str, progress: float, message: str, **extra: Any) -> None:
+def _publish_progress(
+    job_id: str, state: str, progress: float, message: str, **extra: Any
+) -> None:
     """Publish a job progress event to the WebSocket channel group."""
     channel_layer = get_channel_layer()
     if channel_layer is None:
         logger.warning("Channel layer not available; progress event not sent.")
         return
-    
+
     # Ensure progress fields are initialized if not provided
     event = {
         "type": "job.progress",
@@ -88,13 +90,17 @@ def _emit_job_alert(
             error_log_id=error_log_id,
         )
     except (ImportError, AttributeError, DatabaseError):
-        logger.warning("_emit_job_alert: failed to emit alert for job %s", job_id, exc_info=True)
+        logger.warning(
+            "_emit_job_alert: failed to emit alert for job %s", job_id, exc_info=True
+        )
 
 
 def _runtime_owner_for_lane(lane: str) -> str:
     from django.conf import settings
 
-    owner = getattr(settings, _RUNTIME_OWNER_OVERRIDE_BY_LANE.get(lane, ""), "") or getattr(
+    owner = getattr(
+        settings, _RUNTIME_OWNER_OVERRIDE_BY_LANE.get(lane, ""), ""
+    ) or getattr(
         settings,
         "HEAVY_RUNTIME_OWNER",
         "celery",
@@ -117,7 +123,9 @@ def _broken_link_allowed_domains() -> list[str]:
     return allowed_domains
 
 
-def _save_checkpoint(job_id: str, stage: str, last_item_id: int, items_processed: int) -> None:
+def _save_checkpoint(
+    job_id: str, stage: str, last_item_id: int, items_processed: int
+) -> None:
     """Persist checkpoint to SyncJob for crash-resilient resume (FR-097).
 
     Uses a single UPDATE query -- no SELECT, no .save().
@@ -132,7 +140,12 @@ def _save_checkpoint(job_id: str, stage: str, last_item_id: int, items_processed
             checkpoint_items_processed=items_processed,
         )
     except Exception:
-        logger.debug("Checkpoint write failed for job %s (stage=%s)", job_id, stage, exc_info=True)
+        logger.debug(
+            "Checkpoint write failed for job %s (stage=%s)",
+            job_id,
+            stage,
+            exc_info=True,
+        )
 
 
 def _broken_link_scan_queue_payload() -> dict[str, Any]:
@@ -143,7 +156,9 @@ def _broken_link_scan_queue_payload() -> dict[str, Any]:
         "scan_cap": _MAX_BROKEN_LINK_SCAN_URLS,
         "batch_size": int(getattr(settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", 250)),
         "timeout_seconds": _BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
-        "max_concurrency": int(getattr(settings, "HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", 50)),
+        "max_concurrency": int(
+            getattr(settings, "HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", 50)
+        ),
         "user_agent": "XF Internal Linker V2 Broken Link Scanner",
     }
 
@@ -173,7 +188,12 @@ def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
-@shared_task(bind=True, name="pipeline.orchestrate_csharp_import", time_limit=7200, soft_time_limit=7140)
+@shared_task(
+    bind=True,
+    name="pipeline.orchestrate_csharp_import",
+    time_limit=7200,
+    soft_time_limit=7140,
+)
 def orchestrate_csharp_import(
     self,
     scope_ids: list[int] | None = None,
@@ -196,7 +216,9 @@ def orchestrate_csharp_import(
     from apps.sync.models import SyncJob
 
     job_id = job_id or str(uuid.uuid4())
-    _publish_progress(job_id, "running", 0.0, f"Starting orchestrated C# {mode} import...")
+    _publish_progress(
+        job_id, "running", 0.0, f"Starting orchestrated C# {mode} import..."
+    )
 
     payload = {
         "scope_ids": scope_ids or [],
@@ -274,7 +296,7 @@ def orchestrate_csharp_import(
                     )
                     word_offset += len(span.text.split())
                 distilled[post.content_item_id] = distill_body([s.text for s in spans])
-                
+
                 # Granular progress update
                 if index % 20 == 0 or index == total_spacy - 1:
                     sp_pct = (index + 1) / total_spacy
@@ -282,7 +304,9 @@ def orchestrate_csharp_import(
                         job.spacy_items_completed = index + 1
                         job.save(update_fields=["spacy_items_completed", "updated_at"])
                     # FR-097: checkpoint during spaCy stage (every 20 items)
-                    _save_checkpoint(str(job_id), "spacy", post.content_item_id, index + 1)
+                    _save_checkpoint(
+                        str(job_id), "spacy", post.content_item_id, index + 1
+                    )
                     _publish_progress(
                         job_id,
                         "running",
@@ -291,13 +315,14 @@ def orchestrate_csharp_import(
                         spacy_progress=sp_pct,
                         ml_progress=sp_pct * 0.5,
                         ml_items_queued=total_spacy,
-                        ml_items_completed=index + 1
+                        ml_items_completed=index + 1,
                     )
 
             # Atomically swap sentences: delete C# regex rows, insert spaCy rows.
             # The atomic block guarantees that if bulk_create fails mid-way, the
             # delete is rolled back and items are never left sentence-less.
             from django.db import transaction
+
             with transaction.atomic():
                 Sentence.objects.filter(content_item_id__in=updated_pks).delete()
                 Sentence.objects.bulk_create(new_sentences, batch_size=500)
@@ -307,7 +332,9 @@ def orchestrate_csharp_import(
                 ci_objs = ContentItem.objects.filter(id__in=list(distilled.keys()))
                 for ci in ci_objs:
                     ci.distilled_text = distilled[ci.id]
-                ContentItem.objects.bulk_update(ci_objs, ["distilled_text"], batch_size=200)
+                ContentItem.objects.bulk_update(
+                    ci_objs, ["distilled_text"], batch_size=200
+                )
 
         # 3. Trigger Python ML Enrichment (BGE-M3 embeddings)
         if updated_pks:
@@ -321,7 +348,9 @@ def orchestrate_csharp_import(
                 ml_items_queued=len(updated_pks),
                 ml_items_completed=0,
             )
-            generate_embeddings.delay(content_item_ids=updated_pks, job_id=job_id, force_reembed=force_reembed)
+            generate_embeddings.delay(
+                content_item_ids=updated_pks, job_id=job_id, force_reembed=force_reembed
+            )
 
         _publish_progress(
             job_id,
@@ -340,7 +369,9 @@ def orchestrate_csharp_import(
         }
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Orchestrated C# import %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Orchestration failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id, "failed", 0.0, f"Orchestration failed: {exc}", error=str(exc)
+        )
         raise
 
 
@@ -416,7 +447,11 @@ def dispatch_pipeline_run(
 
         registry_weights = {}
         for k, v in RECOMMENDED_PRESET_WEIGHTS.items():
-            if k.startswith("silo.") or v.lower() in ("true", "false") or "enable" in k.lower():
+            if (
+                k.startswith("silo.")
+                or v.lower() in ("true", "false")
+                or "enable" in k.lower()
+            ):
                 continue
             try:
                 registry_weights[k] = float(v)
@@ -470,7 +505,9 @@ def dispatch_pipeline_run(
     }
 
 
-@shared_task(bind=True, name="pipeline.run_pipeline", time_limit=7200, soft_time_limit=7140)
+@shared_task(
+    bind=True, name="pipeline.run_pipeline", time_limit=7200, soft_time_limit=7140
+)
 def run_pipeline(
     self,
     run_id: str,
@@ -549,9 +586,12 @@ def run_pipeline(
         # FR-025: compute value model scores (including co-occurrence signal) post-pipeline
         try:
             from apps.cooccurrence.tasks import apply_value_model_scores
+
             apply_value_model_scores.delay(run_id)
         except (ImportError, AttributeError):
-            logger.warning("apply_value_model_scores could not be queued for run %s", run_id)
+            logger.warning(
+                "apply_value_model_scores could not be queued for run %s", run_id
+            )
         _emit_job_alert(
             "job.completed",
             "success",
@@ -572,8 +612,17 @@ def run_pipeline(
         run.run_state = "failed"
         run.error_message = str(exc)
         run.duration_seconds = time.monotonic() - started_at
-        run.save(update_fields=["run_state", "error_message", "duration_seconds", "updated_at"])
-        _publish_progress(job_id, "failed", 0.0, f"Pipeline failed: {exc}", error=str(exc))
+        run.save(
+            update_fields=[
+                "run_state",
+                "error_message",
+                "duration_seconds",
+                "updated_at",
+            ]
+        )
+        _publish_progress(
+            job_id, "failed", 0.0, f"Pipeline failed: {exc}", error=str(exc)
+        )
         _emit_job_alert(
             "job.failed",
             "error",
@@ -585,9 +634,17 @@ def run_pipeline(
         raise
 
 
-@shared_task(bind=True, name="pipeline.generate_embeddings", time_limit=7200, soft_time_limit=7140)
+@shared_task(
+    bind=True,
+    name="pipeline.generate_embeddings",
+    time_limit=7200,
+    soft_time_limit=7140,
+)
 def generate_embeddings(
-    self, content_item_ids: list[int] | None = None, job_id: str | None = None, force_reembed: bool = False
+    self,
+    content_item_ids: list[int] | None = None,
+    job_id: str | None = None,
+    force_reembed: bool = False,
 ) -> dict:
     """Generate and store embeddings for ContentItems and Sentences."""
     from django.utils import timezone
@@ -597,7 +654,7 @@ def generate_embeddings(
     job_id = job_id or str(uuid.uuid4())
     count_label = len(content_item_ids) if content_item_ids is not None else "all"
     job = SyncJob.objects.filter(job_id=job_id).first()
-    
+
     _publish_progress(
         job_id,
         "running",
@@ -605,16 +662,19 @@ def generate_embeddings(
         f"Generating embeddings for {count_label} items...",
         ingest_progress=1.0,
         ml_progress=0.7,
-        embedding_progress=0.0
+        embedding_progress=0.0,
     )
     try:
         # The service now handles granular progress reporting if job_id is provided
-        stats = generate_all_embeddings(content_item_ids, job_id=job_id, force_reembed=force_reembed)
+        stats = generate_all_embeddings(
+            content_item_ids, job_id=job_id, force_reembed=force_reembed
+        )
 
         # Rebuild FAISS index so new embeddings are available immediately
         # without waiting for the 15-minute periodic refresh.
         try:
             from apps.pipeline.services.faiss_index import build_faiss_index
+
             build_faiss_index()
         except (ImportError, MemoryError, FileNotFoundError):
             logger.warning("FAISS index rebuild after embeddings failed", exc_info=True)
@@ -633,7 +693,7 @@ def generate_embeddings(
             ingest_progress=1.0,
             ml_progress=1.0,
             embedding_progress=1.0,
-            **stats
+            **stats,
         )
         _emit_job_alert(
             "job.completed",
@@ -671,11 +731,18 @@ def generate_embeddings(
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_weighted_authority", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    bind=True,
+    name="pipeline.recalculate_weighted_authority",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
     """Recompute March 2026 PageRank from the stored graph and current settings."""
     job_id = job_id or str(uuid.uuid4())
-    _publish_progress(job_id, "running", 0.0, "Starting March 2026 PageRank recalculation...")
+    _publish_progress(
+        job_id, "running", 0.0, "Starting March 2026 PageRank recalculation..."
+    )
 
     try:
         from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
@@ -691,15 +758,28 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
         return {"job_id": job_id, **diagnostics}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("March 2026 PageRank recalculation %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"March 2026 PageRank recalculation failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id,
+            "failed",
+            0.0,
+            f"March 2026 PageRank recalculation failed: {exc}",
+            error=str(exc),
+        )
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_link_freshness", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    bind=True,
+    name="pipeline.recalculate_link_freshness",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
 def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
     """Recompute Link Freshness from the stored link-history rows and current settings."""
     job_id = job_id or str(uuid.uuid4())
-    _publish_progress(job_id, "running", 0.0, "Starting Link Freshness recalculation...")
+    _publish_progress(
+        job_id, "running", 0.0, "Starting Link Freshness recalculation..."
+    )
 
     try:
         from apps.pipeline.services.link_freshness import run_link_freshness
@@ -715,7 +795,13 @@ def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
         return {"job_id": job_id, **diagnostics}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Link Freshness recalculation %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Link Freshness recalculation failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id,
+            "failed",
+            0.0,
+            f"Link Freshness recalculation failed: {exc}",
+            error=str(exc),
+        )
         raise
 
 
@@ -750,7 +836,12 @@ def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
     }
 
 
-@shared_task(bind=True, name="pipeline.build_knowledge_graph", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    bind=True,
+    name="pipeline.build_knowledge_graph",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
 def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     """Python fallback for building the bipartite knowledge graph."""
     job_id = job_id or str(uuid.uuid4())
@@ -759,15 +850,28 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
         from apps.graph.services.graph_sync import refresh_existing_links
 
         count = refresh_existing_links()
-        _publish_progress(job_id, "completed", 1.0, f"Knowledge graph build complete; {count} items refreshed.")
+        _publish_progress(
+            job_id,
+            "completed",
+            1.0,
+            f"Knowledge graph build complete; {count} items refreshed.",
+        )
         return {"job_id": job_id, "items_refreshed": count}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Knowledge graph build %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Knowledge graph build failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id,
+            "failed",
+            0.0,
+            f"Knowledge graph build failed: {exc}",
+            error=str(exc),
+        )
         raise
 
 
-@shared_task(bind=True, name="pipeline.import_content", time_limit=7200, soft_time_limit=7140)
+@shared_task(
+    bind=True, name="pipeline.import_content", time_limit=7200, soft_time_limit=7140
+)
 def import_content(
     self,
     scope_ids: list[int] | None = None,
@@ -792,7 +896,11 @@ def import_content(
     from apps.pipeline.services.embeddings import generate_all_embeddings
     from apps.pipeline.services.link_parser import normalize_internal_url
     from apps.pipeline.services.sentence_splitter import split_sentence_spans
-    from apps.pipeline.services.text_cleaner import clean_bbcode, clean_import_text, generate_content_hash
+    from apps.pipeline.services.text_cleaner import (
+        clean_bbcode,
+        clean_import_text,
+        generate_content_hash,
+    )
     from apps.sync.models import SyncJob
     from apps.sync.services.jsonl_importer import import_from_jsonl
     from apps.sync.services.wordpress_api import WordPressAPIClient
@@ -823,17 +931,24 @@ def import_content(
         _resume_stage = job.checkpoint_stage
         logger.info(
             "Resuming import job %s from checkpoint: stage=%s, last_item_id=%d, items_processed=%d",
-            job_id, _resume_stage, _resume_checkpoint_last_item_id, job.checkpoint_items_processed,
+            job_id,
+            _resume_stage,
+            _resume_checkpoint_last_item_id,
+            job.checkpoint_items_processed,
         )
         _publish_progress(
-            job_id, "running", 0.0,
+            job_id,
+            "running",
+            0.0,
             f"Resuming {mode} import from checkpoint (stage={_resume_stage}, "
             f"after item {_resume_checkpoint_last_item_id})...",
         )
         # Clear the resumable flag now that we are actively resuming.
         SyncJob.objects.filter(job_id=job_id).update(is_resumable=False)
     else:
-        _publish_progress(job_id, "running", 0.0, f"Starting {mode} content import from {source}...")
+        _publish_progress(
+            job_id, "running", 0.0, f"Starting {mode} content import from {source}..."
+        )
 
     items_synced = 0
     items_updated = 0
@@ -865,8 +980,7 @@ def import_content(
         count_map = {
             row["scope_id"]: row["total"]
             for row in (
-                ContentItem.objects
-                .filter(scope_id__in=touched_scope_ids)
+                ContentItem.objects.filter(scope_id__in=touched_scope_ids)
                 .values("scope_id")
                 .annotate(total=models.Count("pk"))
             )
@@ -877,7 +991,9 @@ def import_content(
         if scopes:
             ScopeItem.objects.bulk_update(scopes, ["content_count"])
 
-    def _process_item(item_data: dict[str, Any], current_scope: ScopeItem) -> int | None:
+    def _process_item(
+        item_data: dict[str, Any], current_scope: ScopeItem
+    ) -> int | None:
         nonlocal items_synced, xf_client
 
         items_synced += 1
@@ -900,14 +1016,21 @@ def import_content(
                 return None
             title = _plain_title(item_data.get("title"))
             view_url = item_data.get("link", "")
-            raw_body = (
-                item_data.get("content", {}).get("rendered", "")
-                or item_data.get("excerpt", {}).get("rendered", "")
+            raw_body = item_data.get("content", {}).get(
+                "rendered", ""
+            ) or item_data.get("excerpt", {}).get("rendered", "")
+            post_date = _parse_wp_timestamp(
+                item_data.get("date_gmt") or item_data.get("date")
             )
-            post_date = _parse_wp_timestamp(item_data.get("date_gmt") or item_data.get("date"))
-            last_post_date = _parse_wp_timestamp(item_data.get("modified_gmt") or item_data.get("modified"))
+            last_post_date = _parse_wp_timestamp(
+                item_data.get("modified_gmt") or item_data.get("modified")
+            )
         else:
-            c_id = item_data.get("thread_id") if c_type == "thread" else item_data.get("resource_id")
+            c_id = (
+                item_data.get("thread_id")
+                if c_type == "thread"
+                else item_data.get("resource_id")
+            )
             if not c_id:
                 c_id = item_data.get("content_id")
             if not c_id:
@@ -926,10 +1049,18 @@ def import_content(
                 or item_data.get("raw_body")
                 or ""
             )
-            if not raw_body and mode == "full" and source == "api" and c_type == "thread" and first_post_id:
+            if (
+                not raw_body
+                and mode == "full"
+                and source == "api"
+                and c_type == "thread"
+                and first_post_id
+            ):
                 if xf_client is None:
                     xf_client = XenForoAPIClient()
-                raw_body = xf_client.get_post(first_post_id).get("post", {}).get("message", "")
+                raw_body = (
+                    xf_client.get_post(first_post_id).get("post", {}).get("message", "")
+                )
 
         canonical_url = normalize_internal_url(view_url) or view_url
         content_item, _ = ContentItem.objects.get_or_create(
@@ -1004,7 +1135,15 @@ def import_content(
             post.char_count = len(clean_text)
             post.word_count = len(clean_text.split())
             post.xf_post_id = first_post_id
-            post.save(update_fields=["raw_bbcode", "clean_text", "char_count", "word_count", "xf_post_id"])
+            post.save(
+                update_fields=[
+                    "raw_bbcode",
+                    "clean_text",
+                    "char_count",
+                    "word_count",
+                    "xf_post_id",
+                ]
+            )
 
             spans = split_sentence_spans(clean_text)
             sentence_objs = [
@@ -1016,17 +1155,22 @@ def import_content(
                     char_count=len(span.text),
                     start_char=span.start_char,
                     end_char=span.end_char,
-                    word_position=len(clean_text[:span.start_char].split()),
+                    word_position=len(clean_text[: span.start_char].split()),
                 )
                 for span in spans
             ]
             from django.db import transaction
+
             with transaction.atomic():
                 Sentence.objects.filter(content_item=content_item).delete()
                 Sentence.objects.bulk_create(sentence_objs)
 
-            content_item.distilled_text = distill_body([item.text for item in sentence_objs], max_sentences=5)
-            content_item.save(update_fields=["content_hash", "distilled_text", "updated_at"])
+            content_item.distilled_text = distill_body(
+                [item.text for item in sentence_objs], max_sentences=5
+            )
+            content_item.save(
+                update_fields=["content_hash", "distilled_text", "updated_at"]
+            )
 
         sync_existing_links_for_content_item(
             content_item,
@@ -1039,7 +1183,9 @@ def import_content(
     try:
         if source == "api":
             xf_client = XenForoAPIClient()
-            scopes = ScopeItem.objects.filter(is_enabled=True, scope_type__in=["node", "resource_category"])
+            scopes = ScopeItem.objects.filter(
+                is_enabled=True, scope_type__in=["node", "resource_category"]
+            )
             if scope_ids:
                 scopes = scopes.filter(pk__in=scope_ids)
 
@@ -1067,7 +1213,9 @@ def import_content(
                         if items_synced % 25 == 0 and items_synced > 0:
                             _flush_job_progress()
                             if updated_pks:
-                                _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
+                                _save_checkpoint(
+                                    str(job_id), "ingest", updated_pks[-1], items_synced
+                                )
                         if page >= resp.get("pagination", {}).get("last_page", 1):
                             break
                         page += 1
@@ -1086,13 +1234,23 @@ def import_content(
                                 items_updated += 1
                                 if mode == "full":
                                     try:
-                                        updates_resp = xf_client.get_resource_updates(resource.get("resource_id"))
-                                        update_list = updates_resp.get("resource_updates", []) or updates_resp.get("updates", [])
+                                        updates_resp = xf_client.get_resource_updates(
+                                            resource.get("resource_id")
+                                        )
+                                        update_list = updates_resp.get(
+                                            "resource_updates", []
+                                        ) or updates_resp.get("updates", [])
                                         if update_list:
-                                            content_item = ContentItem.objects.get(pk=pk)
+                                            content_item = ContentItem.objects.get(
+                                                pk=pk
+                                            )
                                             post = content_item.post
                                             max_pos = (
-                                                Sentence.objects.filter(post=post).aggregate(models.Max("position"))["position__max"]
+                                                Sentence.objects.filter(
+                                                    post=post
+                                                ).aggregate(models.Max("position"))[
+                                                    "position__max"
+                                                ]
                                                 or 0
                                             )
                                             for update in update_list:
@@ -1112,16 +1270,29 @@ def import_content(
                                                             char_count=len(span.text),
                                                             start_char=span.start_char,
                                                             end_char=span.end_char,
-                                                            word_position=post.word_count + 1,
+                                                            word_position=post.word_count
+                                                            + 1,
                                                         )
                                                     )
-                                                Sentence.objects.bulk_create(sentence_objs)
-                                    except (TimeoutError, RequestException, URLError) as exc:
-                                        logger.warning("Failed to fetch updates for resource %s: %s", resource.get("resource_id"), exc)
+                                                Sentence.objects.bulk_create(
+                                                    sentence_objs
+                                                )
+                                    except (
+                                        TimeoutError,
+                                        RequestException,
+                                        URLError,
+                                    ) as exc:
+                                        logger.warning(
+                                            "Failed to fetch updates for resource %s: %s",
+                                            resource.get("resource_id"),
+                                            exc,
+                                        )
                         if items_synced % 25 == 0 and items_synced > 0:
                             _flush_job_progress()
                             if updated_pks:
-                                _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
+                                _save_checkpoint(
+                                    str(job_id), "ingest", updated_pks[-1], items_synced
+                                )
                         if page >= resp.get("pagination", {}).get("last_page", 1):
                             break
                         page += 1
@@ -1148,20 +1319,37 @@ def import_content(
             # Incremental Sync Logic: Find last successful sync for this source
             last_sync_date = ""
             if mode != "full":
-                last_job = SyncJob.objects.filter(source="wp", status="completed").first()
+                last_job = SyncJob.objects.filter(
+                    source="wp", status="completed"
+                ).first()
                 if last_job and last_job.completed_at:
                     # WP API expects ISO 8601 string, e.g. "2026-04-01T12:00:00"
                     last_sync_date = last_job.completed_at.isoformat()
-                    logger.info("Using incremental sync for WordPress: after=%s", last_sync_date)
+                    logger.info(
+                        "Using incremental sync for WordPress: after=%s", last_sync_date
+                    )
 
             for index, (content_type, label, iterator) in enumerate(
                 [
-                    ("wp_post", "WordPress posts", client.iter_posts(after=last_sync_date)),
-                    ("wp_page", "WordPress pages", client.iter_pages(after=last_sync_date)),
+                    (
+                        "wp_post",
+                        "WordPress posts",
+                        client.iter_posts(after=last_sync_date),
+                    ),
+                    (
+                        "wp_page",
+                        "WordPress pages",
+                        client.iter_pages(after=last_sync_date),
+                    ),
                 ],
                 start=1,
             ):
-                _publish_progress(job_id, "running", 0.1 + ((index - 1) / 2) * 0.5, f"Syncing {label}...")
+                _publish_progress(
+                    job_id,
+                    "running",
+                    0.1 + ((index - 1) / 2) * 0.5,
+                    f"Syncing {label}...",
+                )
                 for item in iterator:
                     item["content_type"] = content_type
                     pk = _process_item(item, wp_scopes[content_type])
@@ -1171,7 +1359,9 @@ def import_content(
                     if items_synced % 25 == 0 and items_synced > 0:
                         _flush_job_progress()
                         if updated_pks:
-                            _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
+                            _save_checkpoint(
+                                str(job_id), "ingest", updated_pks[-1], items_synced
+                            )
 
         elif source == "jsonl":
             if not file_path:
@@ -1193,7 +1383,9 @@ def import_content(
                 if items_synced % 50 == 0 and items_synced > 0:
                     _flush_job_progress()
                     if updated_pks:
-                        _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
+                        _save_checkpoint(
+                            str(job_id), "ingest", updated_pks[-1], items_synced
+                        )
         else:
             raise ValueError(f"Unsupported import source '{source}'.")
 
@@ -1202,19 +1394,36 @@ def import_content(
         if mode == "full" and source in {"api", "wp"}:
             # FR-097: checkpoint before graph_sync stage
             if updated_pks:
-                _save_checkpoint(str(job_id), "graph_sync", updated_pks[-1], items_synced)
-            _publish_progress(job_id, "running", 0.82, "Refreshing internal-link graph across indexed content...")
+                _save_checkpoint(
+                    str(job_id), "graph_sync", updated_pks[-1], items_synced
+                )
+            _publish_progress(
+                job_id,
+                "running",
+                0.82,
+                "Refreshing internal-link graph across indexed content...",
+            )
             refresh_existing_links()
 
         if updated_pks:
             unique_updated_pks = sorted(set(updated_pks))
             # FR-097: checkpoint before embed stage
             _save_checkpoint(str(job_id), "embed", unique_updated_pks[-1], items_synced)
-            _publish_progress(job_id, "running", 0.87, f"Generating embeddings for {len(unique_updated_pks)} items...")
+            _publish_progress(
+                job_id,
+                "running",
+                0.87,
+                f"Generating embeddings for {len(unique_updated_pks)} items...",
+            )
             generate_all_embeddings(unique_updated_pks)
 
         if mode in {"titles", "full"}:
-            _publish_progress(job_id, "running", 0.93, "Recalculating March 2026 PageRank and velocity...")
+            _publish_progress(
+                job_id,
+                "running",
+                0.93,
+                "Recalculating March 2026 PageRank and velocity...",
+            )
             from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
             from apps.pipeline.services.velocity import run_velocity
 
@@ -1234,8 +1443,19 @@ def import_content(
         job.completed_at = timezone.now()
         job.items_synced = items_synced
         job.items_updated = items_updated
-        job.message = f"Import complete. {items_synced} synced, {items_updated} updated."
-        job.save(update_fields=["status", "progress", "completed_at", "items_synced", "items_updated", "message"])
+        job.message = (
+            f"Import complete. {items_synced} synced, {items_updated} updated."
+        )
+        job.save(
+            update_fields=[
+                "status",
+                "progress",
+                "completed_at",
+                "items_synced",
+                "items_updated",
+                "message",
+            ]
+        )
         _publish_progress(
             job_id,
             "completed",
@@ -1250,10 +1470,17 @@ def import_content(
             job_id=job_id,
             job_type="import",
         )
-        return {"mode": mode, "job_id": job_id, "items_synced": items_synced, "items_updated": items_updated}
+        return {
+            "mode": mode,
+            "job_id": job_id,
+            "items_synced": items_synced,
+            "items_updated": items_updated,
+        }
     except SoftTimeLimitExceeded:
         # FR-097: Mark as resumable so the next run picks up from the checkpoint.
-        logger.warning("Import job %s hit soft time limit; marking as resumable.", job_id)
+        logger.warning(
+            "Import job %s hit soft time limit; marking as resumable.", job_id
+        )
         try:
             SyncJob.objects.filter(job_id=job_id).update(
                 is_resumable=True,
@@ -1263,7 +1490,9 @@ def import_content(
         except Exception:
             logger.debug("Failed to mark job %s as resumable", job_id, exc_info=True)
         _publish_progress(
-            job_id, "failed", 0.0,
+            job_id,
+            "failed",
+            0.0,
             "Import interrupted (time limit). Job is resumable.",
             error="SoftTimeLimitExceeded",
         )
@@ -1277,8 +1506,12 @@ def import_content(
         job.completed_at = timezone.now()
         if _has_checkpoint:
             job.is_resumable = True
-        job.save(update_fields=["status", "error_message", "completed_at", "is_resumable"])
-        _publish_progress(job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc))
+        job.save(
+            update_fields=["status", "error_message", "completed_at", "is_resumable"]
+        )
+        _publish_progress(
+            job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc)
+        )
         _emit_job_alert(
             "job.failed",
             "error",
@@ -1310,13 +1543,16 @@ def _iter_broken_link_scan_batches(
     batch_size: int,
 ):
     for start in range(0, len(scan_items), batch_size):
-        yield scan_items[start:start + batch_size]
+        yield scan_items[start : start + batch_size]
 
 
 def _check_broken_links_via_http_worker(
     scan_items: list[dict[str, Any]],
 ) -> dict[tuple[int, str], tuple[int, str]]:
-    from apps.graph.services.http_worker_client import HttpWorkerError, check_broken_links
+    from apps.graph.services.http_worker_client import (
+        HttpWorkerError,
+        check_broken_links,
+    )
 
     batch_size = _get_broken_link_scan_http_worker_batch_size()
     checked_results: dict[tuple[int, str], tuple[int, str]] = {}
@@ -1330,8 +1566,7 @@ def _check_broken_links_via_http_worker(
             for item in batch
         ]
         expected_keys = {
-            (item["source_content_id"], item["url"])
-            for item in request_items
+            (item["source_content_id"], item["url"]) for item in request_items
         }
         batch_results = check_broken_links(request_items)
         batch_map: dict[tuple[int, str], tuple[int, str]] = {}
@@ -1340,11 +1575,15 @@ def _check_broken_links_via_http_worker(
             source_content_id = int(row.get("source_content_id") or 0)
             url = str(row.get("url") or "").strip()
             if source_content_id <= 0 or not url:
-                raise HttpWorkerError("HttpWorker returned an invalid broken-link result row.")
+                raise HttpWorkerError(
+                    "HttpWorker returned an invalid broken-link result row."
+                )
 
             key = (source_content_id, url)
             if key not in expected_keys:
-                raise HttpWorkerError("HttpWorker returned an unexpected broken-link result row.")
+                raise HttpWorkerError(
+                    "HttpWorker returned an unexpected broken-link result row."
+                )
 
             batch_map[key] = (
                 int(row.get("http_status") or 0),
@@ -1353,14 +1592,22 @@ def _check_broken_links_via_http_worker(
 
         missing_keys = expected_keys.difference(batch_map)
         if missing_keys:
-            raise HttpWorkerError("HttpWorker returned an incomplete broken-link result batch.")
+            raise HttpWorkerError(
+                "HttpWorker returned an incomplete broken-link result batch."
+            )
 
         checked_results.update(batch_map)
 
     return checked_results
 
 
-@shared_task(bind=True, name="pipeline.scan_broken_links", queue="default", time_limit=7200, soft_time_limit=7140)
+@shared_task(
+    bind=True,
+    name="pipeline.scan_broken_links",
+    queue="default",
+    time_limit=7200,
+    soft_time_limit=7140,
+)
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
     from django.conf import settings
@@ -1375,7 +1622,10 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     _publish_progress(job_id, "running", 0.0, "Collecting URLs for broken-link scan...")
 
     allowed_domains: list[str] | None = None
-    for raw_url in [getattr(settings, "XENFORO_BASE_URL", ""), getattr(settings, "WORDPRESS_BASE_URL", "")]:
+    for raw_url in [
+        getattr(settings, "XENFORO_BASE_URL", ""),
+        getattr(settings, "WORDPRESS_BASE_URL", ""),
+    ]:
         host = urlparse(raw_url).netloc.strip().lower()
         if host:
             if allowed_domains is None:
@@ -1387,8 +1637,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     hit_scan_cap = False
 
     existing_links = (
-        ExistingLink.objects
-        .select_related("from_content_item", "to_content_item")
+        ExistingLink.objects.select_related("from_content_item", "to_content_item")
         .filter(from_content_item__is_deleted=False)
         .exclude(to_content_item__url="")
         .order_by("from_content_item_id", "to_content_item_id")
@@ -1399,13 +1648,15 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
             break
         urls_to_scan.setdefault(
             (link.from_content_item_id, link.to_content_item.url),
-            {"source_content_id": link.from_content_item_id, "url": link.to_content_item.url},
+            {
+                "source_content_id": link.from_content_item_id,
+                "url": link.to_content_item.url,
+            },
         )
 
     if not hit_scan_cap:
         posts = (
-            Post.objects
-            .select_related("content_item")
+            Post.objects.select_related("content_item")
             .filter(content_item__is_deleted=False)
             .exclude(raw_bbcode="")
             .order_by("content_item_id")
@@ -1445,7 +1696,9 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     existing_records = {
         (record.source_content_id, record.url): record
         for record in BrokenLink.objects.filter(
-            source_content_id__in={source_content_id for source_content_id, _ in urls_to_scan.keys()},
+            source_content_id__in={
+                source_content_id for source_content_id, _ in urls_to_scan.keys()
+            },
             url__in={url for _, url in urls_to_scan.keys()},
         )
     }
@@ -1471,7 +1724,8 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
             flagged_urls += 1
             record_status = (
                 BrokenLink.STATUS_IGNORED
-                if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
+                if existing_record
+                and existing_record.status == BrokenLink.STATUS_IGNORED
                 else BrokenLink.STATUS_OPEN
             )
             if existing_record is None:
@@ -1505,7 +1759,13 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         try:
             http_worker_results = _check_broken_links_via_http_worker(scan_items)
             probe_backend = "csharp_http_worker"
-        except (TimeoutError, RequestException, URLError, RuntimeError, HttpWorkerError) as exc:
+        except (
+            TimeoutError,
+            RequestException,
+            URLError,
+            RuntimeError,
+            HttpWorkerError,
+        ) as exc:
             http_worker_error = str(exc)
             probe_backend = "python_requests_fallback"
             logger.warning(
@@ -1539,7 +1799,9 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
             )
     else:
         with requests.Session() as session:
-            session.headers.update({"User-Agent": "XF Internal Linker V2 Broken Link Scanner"})
+            session.headers.update(
+                {"User-Agent": "XF Internal Linker V2 Broken Link Scanner"}
+            )
             for index, scan_item in enumerate(scan_items, start=1):
                 source_content_id = int(scan_item["source_content_id"])
                 url = str(scan_item["url"])
@@ -1573,14 +1835,21 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     if to_update:
         BrokenLink.objects.bulk_update(
             to_update,
-            ["http_status", "redirect_url", "status", "notes", "last_checked_at", "updated_at"],
+            [
+                "http_status",
+                "redirect_url",
+                "status",
+                "notes",
+                "last_checked_at",
+                "updated_at",
+            ],
         )
 
-    completion_message = (
-        f"Broken link scan complete. {flagged_urls} issue(s) flagged, {fixed_urls} previously flagged link(s) resolved."
-    )
+    completion_message = f"Broken link scan complete. {flagged_urls} issue(s) flagged, {fixed_urls} previously flagged link(s) resolved."
     if hit_scan_cap:
-        completion_message += f" Scan stopped at the {_MAX_BROKEN_LINK_SCAN_URLS:,} URL safety cap."
+        completion_message += (
+            f" Scan stopped at the {_MAX_BROKEN_LINK_SCAN_URLS:,} URL safety cap."
+        )
     _publish_progress(
         job_id,
         "completed",
@@ -1605,7 +1874,9 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     }
 
 
-@shared_task(bind=True, name="pipeline.verify_suggestions", time_limit=3600, soft_time_limit=3540)
+@shared_task(
+    bind=True, name="pipeline.verify_suggestions", time_limit=3600, soft_time_limit=3540
+)
 def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     """Check whether applied suggestions are still live via XenForo API."""
     from django.utils import timezone
@@ -1630,51 +1901,89 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
     stale = 0
     try:
         for index, suggestion in enumerate(suggestions):
-            _publish_progress(job_id, "running", index / total, f"Checking suggestion {str(suggestion.suggestion_id)[:8]}...")
+            _publish_progress(
+                job_id,
+                "running",
+                index / total,
+                f"Checking suggestion {str(suggestion.suggestion_id)[:8]}...",
+            )
             host_content = suggestion.host
             if not host_content or not host_content.xf_post_id:
-                logger.warning("Suggestion %s host has no xf_post_id", suggestion.suggestion_id)
+                logger.warning(
+                    "Suggestion %s host has no xf_post_id", suggestion.suggestion_id
+                )
                 continue
             try:
-                raw_bbcode = client.get_post(host_content.xf_post_id).get("post", {}).get("message", "")
+                raw_bbcode = (
+                    client.get_post(host_content.xf_post_id)
+                    .get("post", {})
+                    .get("message", "")
+                )
                 destination_url = suggestion.destination.url
                 if not destination_url:
-                    logger.warning("Suggestion %s destination has no URL", suggestion.suggestion_id)
+                    logger.warning(
+                        "Suggestion %s destination has no URL", suggestion.suggestion_id
+                    )
                     continue
                 if destination_url in raw_bbcode:
                     suggestion.status = "verified"
                     suggestion.verified_at = timezone.now()
-                    suggestion.save(update_fields=["status", "verified_at", "updated_at"])
+                    suggestion.save(
+                        update_fields=["status", "verified_at", "updated_at"]
+                    )
                     verified += 1
                 else:
                     suggestion.status = "stale"
                     suggestion.stale_reason = "Link not found in host post body"
-                    suggestion.save(update_fields=["status", "stale_reason", "updated_at"])
+                    suggestion.save(
+                        update_fields=["status", "stale_reason", "updated_at"]
+                    )
                     stale += 1
             except (TimeoutError, RequestException, URLError) as exc:
-                logger.error("Failed to fetch host post for suggestion %s: %s", suggestion.suggestion_id, exc)
+                logger.error(
+                    "Failed to fetch host post for suggestion %s: %s",
+                    suggestion.suggestion_id,
+                    exc,
+                )
                 continue
 
-        _publish_progress(job_id, "completed", 1.0, f"Verification complete. {verified} verified, {stale} stale.")
+        _publish_progress(
+            job_id,
+            "completed",
+            1.0,
+            f"Verification complete. {verified} verified, {stale} stale.",
+        )
         return {"verified": verified, "stale": stale, "job_id": job_id}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Verification %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc)
+        )
         raise
 
 
-@shared_task(bind=True, name="pipeline.recalculate_click_distance", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    bind=True,
+    name="pipeline.recalculate_click_distance",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
 def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
     """Recompute Phase 15 Click-Distance scores for all active ContentItems."""
     job_id = job_id or str(uuid.uuid4())
-    _publish_progress(job_id, "running", 0.0, "Starting Click-Distance structural prior recalculation...")
+    _publish_progress(
+        job_id,
+        "running",
+        0.0,
+        "Starting Click-Distance structural prior recalculation...",
+    )
 
     try:
         from apps.pipeline.services.click_distance import ClickDistanceService
-        
+
         service = ClickDistanceService()
         diagnostics = service.recalculate_all()
-        
+
         _publish_progress(
             job_id,
             "completed",
@@ -1685,16 +1994,26 @@ def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
         return {"job_id": job_id, **diagnostics}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Click-Distance recalculation %s failed", job_id)
-        _publish_progress(job_id, "failed", 0.0, f"Click-Distance recalculation failed: {exc}", error=str(exc))
+        _publish_progress(
+            job_id,
+            "failed",
+            0.0,
+            f"Click-Distance recalculation failed: {exc}",
+            error=str(exc),
+        )
         raise
 
 
 def _probe_link_health(session: requests.Session, url: str) -> tuple[int, str]:
     """Check a URL with HEAD first, then GET when HEAD is not supported."""
     try:
-        response = session.head(url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS)
+        response = session.head(
+            url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS
+        )
         if response.status_code in {405, 501}:
-            response = session.get(url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS)
+            response = session.get(
+                url, allow_redirects=False, timeout=_BROKEN_LINK_SCAN_TIMEOUT_SECONDS
+            )
     except requests.RequestException:
         logger.warning("Broken link scan request failed for %s", url, exc_info=True)
         return 0, ""
@@ -1714,7 +2033,9 @@ def _status_label(http_status: int) -> str:
 def _get_broken_link_scan_delay_seconds() -> float:
     from django.conf import settings
 
-    raw_value = getattr(settings, "BROKEN_LINK_SCAN_DELAY_SECONDS", _BROKEN_LINK_SCAN_DELAY_SECONDS)
+    raw_value = getattr(
+        settings, "BROKEN_LINK_SCAN_DELAY_SECONDS", _BROKEN_LINK_SCAN_DELAY_SECONDS
+    )
     try:
         return max(0.0, float(raw_value))
     except (TypeError, ValueError):
@@ -1739,7 +2060,9 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
     _publish_progress(job_id, "running", 0.0, "Starting batch clustering pass...")
 
     # Filter items that have embeddings
-    items = ContentItem.objects.filter(embedding__isnull=False).only("id", "embedding", "cluster_id")
+    items = ContentItem.objects.filter(embedding__isnull=False).only(
+        "id", "embedding", "cluster_id"
+    )
     total = items.count()
 
     if total == 0:
@@ -1754,10 +2077,16 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
         processed += 1
         if processed % 50 == 0:
             pct = processed / total
-            _publish_progress(job_id, "running", pct, f"Clustered {processed}/{total} items...")
+            _publish_progress(
+                job_id, "running", pct, f"Clustered {processed}/{total} items..."
+            )
 
-    logger.info("Batch clustering pass [%s] complete. Processed %d items.", job_id, processed)
-    _publish_progress(job_id, "completed", 1.0, f"Clustering complete. Processed {processed} items.")
+    logger.info(
+        "Batch clustering pass [%s] complete. Processed %d items.", job_id, processed
+    )
+    _publish_progress(
+        job_id, "completed", 1.0, f"Clustering complete. Processed {processed} items."
+    )
 
     return {"status": "completed", "processed": processed}
 
@@ -1765,6 +2094,7 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
 # ---------------------------------------------------------------------------
 # Part 6 — Monthly R auto-tune task
 # ---------------------------------------------------------------------------
+
 
 @shared_task(bind=True, name="pipeline.monthly_r_auto_tune")
 def monthly_r_auto_tune(self):
@@ -1798,16 +2128,22 @@ def monthly_r_auto_tune(self):
 
         if candidate_weights is None:
             logger.info("[monthly_r_auto_tune] R analytics not available yet — no-op.")
-            return {"status": "skipped", "reason": "R analytics stub — no candidate weights returned."}
+            return {
+                "status": "skipped",
+                "reason": "R analytics stub — no candidate weights returned.",
+            }
 
         # ── Step 2: compare candidate to current weights ───────────────────
         current_weights = get_current_weights()
         changed_keys = {
-            k for k, v in candidate_weights.items()
+            k
+            for k, v in candidate_weights.items()
             if abs(float(v) - float(current_weights.get(k, v))) > CHANGE_THRESHOLD
         }
         if not changed_keys:
-            logger.info("[monthly_r_auto_tune] Candidate weights within threshold — no change applied.")
+            logger.info(
+                "[monthly_r_auto_tune] Candidate weights within threshold — no change applied."
+            )
             return {"status": "no_change"}
 
         # ── Step 3: apply new weights atomically ───────────────────────────
@@ -1852,7 +2188,10 @@ def monthly_r_auto_tune(self):
 # Part 7 — Nightly data retention task
 # ---------------------------------------------------------------------------
 
-@shared_task(name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740)
+
+@shared_task(
+    name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740
+)
 def nightly_data_retention():
     """Purge stale data rows according to the retention policy.
 
@@ -1886,7 +2225,10 @@ def nightly_data_retention():
         cutoff_12m = now - timedelta(days=365)
         deleted, _ = SearchMetric.objects.filter(date__lt=cutoff_12m.date()).delete()
         results["search_metrics_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d SearchMetric rows older than 12 months.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d SearchMetric rows older than 12 months.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] SearchMetric purge failed.")
@@ -1904,7 +2246,10 @@ def nightly_data_retention():
         cutoff_90d = now - timedelta(days=90)
         deleted, _ = PipelineRun.objects.filter(created_at__lt=cutoff_90d).delete()
         results["pipeline_runs_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d PipelineRun rows older than 90 days.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d PipelineRun rows older than 90 days.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] PipelineRun purge failed.")
@@ -1921,7 +2266,10 @@ def nightly_data_retention():
 
         deleted = prune_old_snapshots(keep=2)
         results["metric_snapshots_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d ContentMetricSnapshot rows (keeping last 2 per item).", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d ContentMetricSnapshot rows (keeping last 2 per item).",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] ContentMetricSnapshot purge failed.")
@@ -1942,7 +2290,10 @@ def nightly_data_retention():
             status="superseded", updated_at__lt=cutoff_30d
         ).delete()
         results["superseded_suggestions_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d superseded Suggestion rows older than 30 days.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d superseded Suggestion rows older than 30 days.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] Superseded Suggestion purge failed.")
@@ -1961,7 +2312,10 @@ def nightly_data_retention():
         cutoff_180d = now - timedelta(days=180)
         deleted, _ = AuditEntry.objects.filter(created_at__lt=cutoff_180d).delete()
         results["audit_entries_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d AuditEntry rows older than 6 months.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d AuditEntry rows older than 6 months.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] AuditEntry purge failed.")
@@ -1978,7 +2332,10 @@ def nightly_data_retention():
         cutoff_30d_err = now - timedelta(days=30)
         deleted, _ = ErrorLog.objects.filter(created_at__lt=cutoff_30d_err).delete()
         results["error_logs_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d ErrorLog rows older than 30 days.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d ErrorLog rows older than 30 days.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] ErrorLog purge failed.")
@@ -1989,9 +2346,14 @@ def nightly_data_retention():
         from apps.sync.models import WebhookReceipt
 
         cutoff_30d_wh = now - timedelta(days=30)
-        deleted, _ = WebhookReceipt.objects.filter(created_at__lt=cutoff_30d_wh).delete()
+        deleted, _ = WebhookReceipt.objects.filter(
+            created_at__lt=cutoff_30d_wh
+        ).delete()
         results["webhook_receipts_deleted"] = deleted
-        logger.info("[nightly_data_retention] Deleted %d WebhookReceipt rows older than 30 days.", deleted)
+        logger.info(
+            "[nightly_data_retention] Deleted %d WebhookReceipt rows older than 30 days.",
+            deleted,
+        )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] WebhookReceipt purge failed.")
@@ -2032,25 +2394,41 @@ def cleanup_stuck_sync_jobs():
             error_message="Job timed out — server was likely restarted mid-sync.",
             completed_at=timezone.now(),
         )
-        logger.info("[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed.", count)
+        logger.info(
+            "[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed.", count
+        )
     else:
         logger.info("[cleanup_stuck_sync_jobs] No stuck jobs found.")
 
     return {"jobs_cleaned": count}
 
 
-@shared_task(name="pipeline.sync_single_xf_item", time_limit=300, soft_time_limit=270, autoretry_for=(requests.RequestException, ConnectionError), max_retries=3, retry_backoff=60)
-def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: int | None = None) -> dict:
+@shared_task(
+    name="pipeline.sync_single_xf_item",
+    time_limit=300,
+    soft_time_limit=270,
+    autoretry_for=(requests.RequestException, ConnectionError),
+    max_retries=3,
+    retry_backoff=60,
+)
+def sync_single_xf_item(
+    content_id: int, content_type: str = "thread", node_id: int | None = None
+) -> dict:
     """Real-time sync for a single XenForo item (thread or resource) via webhook."""
     from apps.content.models import ScopeItem
     from apps.sync.services.xenforo_api import XenForoAPIClient
     from apps.pipeline.tasks import import_content
-    
-    logger.info("Real-time sync triggered for %s %d (node/cat: %s)", content_type, content_id, node_id)
-    
+
+    logger.info(
+        "Real-time sync triggered for %s %d (node/cat: %s)",
+        content_type,
+        content_id,
+        node_id,
+    )
+
     try:
         client = XenForoAPIClient()
-        
+
         # 1. Fetch item data to get node_id if not provided
         xf_node_id = node_id
         if not xf_node_id:
@@ -2058,23 +2436,33 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
                 resp = client.get_thread(content_id)
                 xf_node_id = resp.get("thread", {}).get("node_id")
             elif content_type == "resource":
-                resp = client.get_resource_updates(content_id) # hypothetical
+                resp = client.get_resource_updates(content_id)  # hypothetical
                 xf_node_id = resp.get("resource", {}).get("resource_category_id")
 
         if not xf_node_id:
-            logger.error("Could not determine node_id for %s %d", content_type, content_id)
+            logger.error(
+                "Could not determine node_id for %s %d", content_type, content_id
+            )
             return {"error": "Missing node_id"}
-            
+
         # 2. Find or create ScopeItem
         scope_type = "node" if content_type == "thread" else "resource_category"
         scope, created = ScopeItem.objects.get_or_create(
             scope_id=xf_node_id,
             scope_type=scope_type,
-            defaults={"title": f"Auto-discovered {scope_type} {xf_node_id}", "is_enabled": True}
+            defaults={
+                "title": f"Auto-discovered {scope_type} {xf_node_id}",
+                "is_enabled": True,
+            },
         )
-        
+
         if not scope.is_enabled:
-            logger.info("Scope %s is disabled; skipping sync for %s %d", scope.title, content_type, content_id)
+            logger.info(
+                "Scope %s is disabled; skipping sync for %s %d",
+                scope.title,
+                content_type,
+                content_id,
+            )
             return {"status": "skipped", "reason": "scope disabled"}
 
         # 3. Trigger the import logic for this specific scope
@@ -2086,15 +2474,22 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
         return {"error": str(e)}
 
 
-@shared_task(name="pipeline.sync_single_wp_item", time_limit=300, soft_time_limit=270, autoretry_for=(requests.RequestException, ConnectionError), max_retries=3, retry_backoff=60)
+@shared_task(
+    name="pipeline.sync_single_wp_item",
+    time_limit=300,
+    soft_time_limit=270,
+    autoretry_for=(requests.RequestException, ConnectionError),
+    max_retries=3,
+    retry_backoff=60,
+)
 def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     """Real-time sync for a single WordPress post/page via webhook."""
     from apps.core.views import get_wordpress_runtime_config
     from apps.sync.services.wordpress_api import WordPressAPIClient
     from apps.pipeline.tasks import import_content
-    
+
     logger.info("Real-time sync triggered for WordPress %s %d", content_type, post_id)
-    
+
     try:
         wp_config = get_wordpress_runtime_config()
         client = WordPressAPIClient(
@@ -2102,19 +2497,21 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
             username=wp_config["username"],
             app_password=wp_config["app_password"],
         )
-        
+
         # 1. Fetch item data to verify it exists
         if content_type == "page":
             item = client.get_page(post_id)
         else:
             item = client.get_post(post_id)
-            
+
         if not item:
             return {"error": "Item not found"}
 
         # 2. Trigger import logic
         # For single items we always use "full" to ensure we get the body and embeddings
-        return import_content(mode="full", source="wp", job_id=f"wp_single_{post_id}_{int(time.time())}")
+        return import_content(
+            mode="full", source="wp", job_id=f"wp_single_{post_id}_{int(time.time())}"
+        )
 
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as e:
         logger.exception("Failed to sync single WP item %d", post_id)
@@ -2125,7 +2522,13 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 # Part 8 — FR-018 C# auto-tune tasks
 # ---------------------------------------------------------------------------
 
-@shared_task(bind=True, name="pipeline.monthly_cs_weight_tune", time_limit=600, soft_time_limit=540)
+
+@shared_task(
+    bind=True,
+    name="pipeline.monthly_cs_weight_tune",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def monthly_cs_weight_tune(self):
     """Trigger a FR-018 weight-tune run via the C# HTTP-worker, then evaluate the result.
 
@@ -2154,7 +2557,11 @@ def monthly_cs_weight_tune(self):
         )
 
         status = result.get("status", "unknown")
-        logger.info("[monthly_cs_weight_tune] C# run finished: status=%s run_id=%s", status, run_id)
+        logger.info(
+            "[monthly_cs_weight_tune] C# run finished: status=%s run_id=%s",
+            status,
+            run_id,
+        )
 
         if status == "submitted":
             # C# already POSTed the challenger; evaluate it now.
@@ -2208,10 +2615,13 @@ def evaluate_weight_challenger(self, *, run_id: str):
     from apps.pipeline.services.sprt_evaluator import ChallengerSPRTEvaluator
 
     try:
-        challenger = RankingChallenger.objects.filter(run_id=run_id, status="pending").first()
+        challenger = RankingChallenger.objects.filter(
+            run_id=run_id, status="pending"
+        ).first()
         if challenger is None:
             logger.info(
-                "[evaluate_weight_challenger] No pending challenger found for run_id=%s", run_id
+                "[evaluate_weight_challenger] No pending challenger found for run_id=%s",
+                run_id,
             )
             return {"status": "not_found", "run_id": run_id}
 
@@ -2229,15 +2639,21 @@ def evaluate_weight_challenger(self, *, run_id: str):
             sprt_decision = "auto"
         else:
             evaluator = ChallengerSPRTEvaluator(
-                alpha=0.05, beta=0.10, min_improvement_ratio=1.05, assumed_std_dev=0.08,
+                alpha=0.05,
+                beta=0.10,
+                min_improvement_ratio=1.05,
+                assumed_std_dev=0.08,
             )
             sprt_result = evaluator.evaluate(cand_score, champ_score)
             should_promote = sprt_result.decision == "promote"
             sprt_decision = sprt_result.decision
             logger.info(
                 "[evaluate_weight_challenger] SPRT for %s: %s (LR=%.4f, bounds=[%.4f, %.4f])",
-                run_id, sprt_result.decision, sprt_result.log_likelihood_ratio,
-                sprt_result.lower_boundary, sprt_result.upper_boundary,
+                run_id,
+                sprt_result.decision,
+                sprt_result.log_likelihood_ratio,
+                sprt_result.lower_boundary,
+                sprt_result.upper_boundary,
             )
 
         if not should_promote:
@@ -2246,7 +2662,10 @@ def evaluate_weight_challenger(self, *, run_id: str):
             logger.info(
                 "[evaluate_weight_challenger] Challenger %s rejected via SPRT (%s): "
                 "score %.4f vs champion %.4f.",
-                run_id, sprt_decision, cand_score, champ_score,
+                run_id,
+                sprt_decision,
+                cand_score,
+                champ_score,
             )
             return {"status": "rejected", "run_id": run_id, "decision": sprt_decision}
 
@@ -2330,7 +2749,10 @@ def check_weight_rollback():
             _check_single_rollback(challenger)
         except (DatabaseError, TimeoutError, MemoryError, ValueError):
             raw = traceback.format_exc()
-            logger.exception("[check_weight_rollback] Error checking challenger %s.", challenger.run_id)
+            logger.exception(
+                "[check_weight_rollback] Error checking challenger %s.",
+                challenger.run_id,
+            )
             ErrorLog.objects.create(
                 job_type="auto_tune_weights",
                 step="check_weight_rollback",
@@ -2361,25 +2783,32 @@ def _check_single_rollback(challenger):
     post_end = promoted_at + timedelta(days=13)
 
     pre_clicks = (
-        GSCDailyPerformance.objects.filter(date__range=(pre_start, pre_end))
-        .aggregate(total=Sum("clicks"))["total"] or 0
+        GSCDailyPerformance.objects.filter(date__range=(pre_start, pre_end)).aggregate(
+            total=Sum("clicks")
+        )["total"]
+        or 0
     )
     post_clicks = (
-        GSCDailyPerformance.objects.filter(date__range=(post_start, post_end))
-        .aggregate(total=Sum("clicks"))["total"] or 0
+        GSCDailyPerformance.objects.filter(
+            date__range=(post_start, post_end)
+        ).aggregate(total=Sum("clicks"))["total"]
+        or 0
     )
 
     if pre_clicks < 50:
         logger.info(
             "[check_weight_rollback] Skipping challenger %s — insufficient pre-promotion GSC data (%d clicks).",
-            challenger.run_id, pre_clicks,
+            challenger.run_id,
+            pre_clicks,
         )
         return
 
     ratio = post_clicks / pre_clicks
     logger.info(
         "[check_weight_rollback] Challenger %s: post/pre click ratio = %.3f (threshold %.2f).",
-        challenger.run_id, ratio, REGRESSION_THRESHOLD,
+        challenger.run_id,
+        ratio,
+        REGRESSION_THRESHOLD,
     )
 
     if ratio < REGRESSION_THRESHOLD:
@@ -2416,7 +2845,8 @@ def _check_single_rollback(challenger):
 
         logger.info(
             "[check_weight_rollback] Rolled back challenger %s (ratio=%.3f).",
-            challenger.run_id, ratio,
+            challenger.run_id,
+            ratio,
         )
 
 
@@ -2449,6 +2879,7 @@ def check_gsc_spikes(self) -> dict:
     # Load thresholds from prefs (defaults if not set)
     try:
         from apps.core.models import AppSetting
+
         raw = AppSetting.objects.filter(key="notifications.settings").first()
         prefs = json.loads(raw.value) if raw else {}
     except (JSONDecodeError, KeyError, TypeError):
@@ -2459,8 +2890,8 @@ def check_gsc_spikes(self) -> dict:
     min_relative_lift = float(prefs.get("gsc_spike_min_relative_lift", 0.5))
 
     today = date.today()
-    recent_end = today - timedelta(days=1)          # yesterday
-    recent_start = recent_end - timedelta(days=2)   # 3-day window
+    recent_end = today - timedelta(days=1)  # yesterday
+    recent_start = recent_end - timedelta(days=2)  # 3-day window
     baseline_end = recent_start - timedelta(days=1)
     baseline_start = baseline_end - timedelta(days=6)  # 7-day baseline
 
@@ -2495,13 +2926,19 @@ def check_gsc_spikes(self) -> dict:
         imp_lift = (imp_delta / b_imp) if b_imp > 0 else 0.0
         clk_lift = (clk_delta / b_clk) if b_clk > 0 else 0.0
 
-        impressions_spike = imp_delta >= min_impressions_delta and imp_lift >= min_relative_lift
+        impressions_spike = (
+            imp_delta >= min_impressions_delta and imp_lift >= min_relative_lift
+        )
         clicks_spike = clk_delta >= min_clicks_delta and clk_lift >= min_relative_lift
 
         if not (impressions_spike or clicks_spike):
             continue
 
-        severity = OperatorAlert.SEVERITY_URGENT if (imp_lift >= 2.0 or clk_lift >= 2.0) else OperatorAlert.SEVERITY_WARNING
+        severity = (
+            OperatorAlert.SEVERITY_URGENT
+            if (imp_lift >= 2.0 or clk_lift >= 2.0)
+            else OperatorAlert.SEVERITY_WARNING
+        )
         title = "Google search demand spiked"
         message = (
             f"'{item.title[:60]}' — impressions: +{imp_delta:.0f} ({imp_lift*100:.0f}%), "
@@ -2531,7 +2968,11 @@ def check_gsc_spikes(self) -> dict:
             )
             alerts_emitted += 1
         except (ImportError, AttributeError, DatabaseError):
-            logger.warning("check_gsc_spikes: failed to emit alert for item %s", item.pk, exc_info=True)
+            logger.warning(
+                "check_gsc_spikes: failed to emit alert for item %s",
+                item.pk,
+                exc_info=True,
+            )
 
     logger.info("check_gsc_spikes: %d spike alerts emitted.", alerts_emitted)
     return {"alerts_emitted": alerts_emitted}
@@ -2541,8 +2982,10 @@ def check_gsc_spikes(self) -> dict:
 # FR-030 — FAISS-GPU index refresh
 # ---------------------------------------------------------------------------
 
+
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
 def refresh_faiss_index():
     """FR-030 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
     from apps.pipeline.services.faiss_index import build_faiss_index
+
     build_faiss_index()

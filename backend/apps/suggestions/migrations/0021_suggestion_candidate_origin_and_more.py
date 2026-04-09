@@ -4,25 +4,42 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0020_fr018_ranking_challenger'),
+        ("suggestions", "0020_fr018_ranking_challenger"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='candidate_origin',
-            field=models.CharField(choices=[('embedding', 'Embedding Similarity'), ('graph_walk', 'Pixie Graph Walk'), ('both', 'Both Channel Match')], db_index=True, default='embedding', help_text='Which candidate generation channel produced this suggestion.', max_length=20),
+            model_name="suggestion",
+            name="candidate_origin",
+            field=models.CharField(
+                choices=[
+                    ("embedding", "Embedding Similarity"),
+                    ("graph_walk", "Pixie Graph Walk"),
+                    ("both", "Both Channel Match"),
+                ],
+                db_index=True,
+                default="embedding",
+                help_text="Which candidate generation channel produced this suggestion.",
+                max_length=20,
+            ),
         ),
         migrations.AddField(
-            model_name='suggestion',
-            name='score_value_model',
-            field=models.FloatField(blank=True, help_text='Pre-ranking score from the Instagram-style value model (relevance + traffic).', null=True),
+            model_name="suggestion",
+            name="score_value_model",
+            field=models.FloatField(
+                blank=True,
+                help_text="Pre-ranking score from the Instagram-style value model (relevance + traffic).",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='suggestion',
-            name='value_model_diagnostics',
-            field=models.JSONField(blank=True, default=dict, help_text='Explainable signals and weights used in the Value Model pass.'),
+            model_name="suggestion",
+            name="value_model_diagnostics",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Explainable signals and weights used in the Value Model pass.",
+            ),
         ),
     ]

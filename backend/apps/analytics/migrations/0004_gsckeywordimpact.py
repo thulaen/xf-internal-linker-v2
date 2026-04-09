@@ -5,34 +5,74 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0003_analyticssyncrun_telemetrycoveragedaily_and_more'),
-        ('suggestions', '0018_alter_weightadjustmenthistory_reason'),
+        ("analytics", "0003_analyticssyncrun_telemetrycoveragedaily_and_more"),
+        ("suggestions", "0018_alter_weightadjustmenthistory_reason"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='GSCKeywordImpact',
+            name="GSCKeywordImpact",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('query', models.CharField(help_text='The specific search query from GSC.', max_length=500)),
-                ('clicks_baseline', models.IntegerField(default=0)),
-                ('clicks_post', models.IntegerField(default=0)),
-                ('impressions_baseline', models.IntegerField(default=0)),
-                ('impressions_post', models.IntegerField(default=0)),
-                ('position_baseline', models.FloatField(blank=True, null=True)),
-                ('position_post', models.FloatField(blank=True, null=True)),
-                ('lift_percent', models.FloatField(default=0.0, help_text='Percentage click lift (normalized).')),
-                ('is_anchor_match', models.BooleanField(default=False, help_text="True if the query contains the suggestion's anchor text.")),
-                ('suggestion', models.ForeignKey(help_text='The suggestion this keyword lift is attributed to.', on_delete=django.db.models.deletion.CASCADE, related_name='keyword_impacts', to='suggestions.suggestion')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "query",
+                    models.CharField(
+                        help_text="The specific search query from GSC.", max_length=500
+                    ),
+                ),
+                ("clicks_baseline", models.IntegerField(default=0)),
+                ("clicks_post", models.IntegerField(default=0)),
+                ("impressions_baseline", models.IntegerField(default=0)),
+                ("impressions_post", models.IntegerField(default=0)),
+                ("position_baseline", models.FloatField(blank=True, null=True)),
+                ("position_post", models.FloatField(blank=True, null=True)),
+                (
+                    "lift_percent",
+                    models.FloatField(
+                        default=0.0, help_text="Percentage click lift (normalized)."
+                    ),
+                ),
+                (
+                    "is_anchor_match",
+                    models.BooleanField(
+                        default=False,
+                        help_text="True if the query contains the suggestion's anchor text.",
+                    ),
+                ),
+                (
+                    "suggestion",
+                    models.ForeignKey(
+                        help_text="The suggestion this keyword lift is attributed to.",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="keyword_impacts",
+                        to="suggestions.suggestion",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'GSC Keyword Impact',
-                'verbose_name_plural': 'GSC Keyword Impacts',
-                'ordering': ['-lift_percent', '-clicks_post'],
-                'indexes': [models.Index(fields=['suggestion', 'lift_percent'], name='analytics_g_suggest_e73f98_idx'), models.Index(fields=['is_anchor_match'], name='analytics_g_is_anch_7ef204_idx')],
-                'unique_together': {('suggestion', 'query')},
+                "verbose_name": "GSC Keyword Impact",
+                "verbose_name_plural": "GSC Keyword Impacts",
+                "ordering": ["-lift_percent", "-clicks_post"],
+                "indexes": [
+                    models.Index(
+                        fields=["suggestion", "lift_percent"],
+                        name="analytics_g_suggest_e73f98_idx",
+                    ),
+                    models.Index(
+                        fields=["is_anchor_match"],
+                        name="analytics_g_is_anch_7ef204_idx",
+                    ),
+                ],
+                "unique_together": {("suggestion", "query")},
             },
         ),
     ]

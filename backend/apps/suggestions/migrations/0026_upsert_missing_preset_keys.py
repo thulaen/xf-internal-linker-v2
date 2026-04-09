@@ -105,11 +105,12 @@ def upsert_missing_preset_keys(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0025_add_behavioral_hub_candidate_origin"),
     ]
 
     operations = [
-        migrations.RunPython(upsert_missing_preset_keys, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            upsert_missing_preset_keys, reverse_code=migrations.RunPython.noop
+        ),
     ]

@@ -4,24 +4,33 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0012_autovacuum_vector_tables'),
+        ("content", "0012_autovacuum_vector_tables"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='click_distance_score',
-            field=models.FloatField(db_index=True, default=0.5, help_text='Soft structural prior based on click distance and URL depth. 1.0 = shallow/prominent, 0.5 = neutral.'),
+            model_name="contentitem",
+            name="click_distance_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.5,
+                help_text="Soft structural prior based on click distance and URL depth. 1.0 = shallow/prominent, 0.5 = neutral.",
+            ),
         ),
         migrations.AlterField(
-            model_name='post',
-            name='word_count',
-            field=models.IntegerField(default=0, help_text='Word count of clean_text. Pipeline scans first HOST_SCAN_WORD_LIMIT words only.'),
+            model_name="post",
+            name="word_count",
+            field=models.IntegerField(
+                default=0,
+                help_text="Word count of clean_text. Pipeline scans first HOST_SCAN_WORD_LIMIT words only.",
+            ),
         ),
         migrations.AddIndex(
-            model_name='contentitem',
-            index=models.Index(fields=['content_type', 'click_distance_score'], name='content_con_content_bc56d0_idx'),
+            model_name="contentitem",
+            index=models.Index(
+                fields=["content_type", "click_distance_score"],
+                name="content_con_content_bc56d0_idx",
+            ),
         ),
     ]

@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Mapping, TypeAlias
 
 try:
     from extensions import rareterm
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -65,8 +66,7 @@ class PropagatedRareTerm:
             "document_frequency": self.document_frequency,
             "supporting_related_pages": self.supporting_related_pages,
             "supporting_relationship_weights": [
-                round(weight, 6)
-                for weight in self.supporting_relationship_weights
+                round(weight, 6) for weight in self.supporting_relationship_weights
             ],
             "average_relationship_weight": round(self.average_relationship_weight, 6),
             "term_evidence": round(self.term_evidence, 6),
@@ -119,7 +119,9 @@ def build_rare_term_profiles(
             )
             for donor, relationship_tier, _relationship_weight, shared_token_count in donors
         )
-        original_destination_terms = tuple(sorted(destination.tokens)[:ORIGINAL_DESTINATION_TERMS_PREVIEW])
+        original_destination_terms = tuple(
+            sorted(destination.tokens)[:ORIGINAL_DESTINATION_TERMS_PREVIEW]
+        )
 
         if not donors:
             profiles[destination.key] = RareTermProfile(
@@ -141,7 +143,12 @@ def build_rare_term_profiles(
         )
         saw_candidate_term = False
 
-        for donor, _relationship_tier, relationship_weight, _shared_token_count in donors:
+        for (
+            donor,
+            _relationship_tier,
+            relationship_weight,
+            _shared_token_count,
+        ) in donors:
             donor_terms = _select_donor_terms(
                 donor=donor,
                 destination=destination,
@@ -290,9 +297,7 @@ def _evaluate_rare_term_propagation(
         )
 
     matched_terms = [
-        term
-        for term in profile.propagated_terms
-        if term.term in host_sentence_tokens
+        term for term in profile.propagated_terms if term.term in host_sentence_tokens
     ]
     if not matched_terms:
         return _neutral_result(
@@ -359,17 +364,20 @@ def _build_diagnostics(
     score: float,
 ) -> dict[str, object]:
     propagated_candidates = [
-        term.as_dict()
-        for term in (profile.propagated_terms if profile else ())
+        term.as_dict() for term in (profile.propagated_terms if profile else ())
     ]
     return {
         "score_rare_term_propagation": round(score, 6),
         "rare_term_state": rare_term_state,
-        "original_destination_terms": list(profile.original_destination_terms if profile else ()),
+        "original_destination_terms": list(
+            profile.original_destination_terms if profile else ()
+        ),
         "propagated_term_candidates": propagated_candidates,
         "matched_propagated_terms": [term.as_dict() for term in matched_terms],
         "top_propagated_terms": propagated_candidates,
-        "eligible_related_page_count": profile.eligible_related_page_count if profile else 0,
+        "eligible_related_page_count": profile.eligible_related_page_count
+        if profile
+        else 0,
         "related_page_summary": [
             {
                 "content_id": row.content_id,
@@ -522,10 +530,11 @@ def _build_propagated_terms(
         if supporting_page_count < settings.minimum_supporting_related_pages:
             continue
         relationship_weights = tuple(
-            float(weight)
-            for weight in support["supporting_relationship_weights"]
+            float(weight) for weight in support["supporting_relationship_weights"]
         )
-        average_relationship_weight = sum(relationship_weights) / len(relationship_weights)
+        average_relationship_weight = sum(relationship_weights) / len(
+            relationship_weights
+        )
         rarity_strength = 1.0 - (
             (int(support["document_frequency"]) - 1)
             / max(settings.max_document_frequency, 1)

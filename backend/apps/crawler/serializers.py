@@ -4,7 +4,13 @@ Crawler DRF serializers.
 
 from rest_framework import serializers
 
-from .models import CrawlSession, CrawledLink, CrawledPageMeta, SitemapConfig, SystemEvent
+from .models import (
+    CrawlSession,
+    CrawledLink,
+    CrawledPageMeta,
+    SitemapConfig,
+    SystemEvent,
+)
 
 
 # ---------------------------------------------------------------------------

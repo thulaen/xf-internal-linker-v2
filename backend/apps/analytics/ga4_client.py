@@ -13,14 +13,14 @@ def _normalize_private_key(private_key: str) -> str:
 
 
 def build_ga4_data_service(
-    *, 
-    property_id: str, 
-    project_id: str = "", 
-    client_email: str = "", 
+    *,
+    property_id: str,
+    project_id: str = "",
+    client_email: str = "",
     private_key: str = "",
     refresh_token: str = "",
     client_id: str = "",
-    client_secret: str = ""
+    client_secret: str = "",
 ):
     from google.oauth2 import service_account, credentials
     from googleapiclient.discovery import build

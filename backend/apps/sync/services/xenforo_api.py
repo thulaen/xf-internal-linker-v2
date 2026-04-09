@@ -6,6 +6,7 @@ from typing import Dict, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+
 class XenForoAPIClient:
     """
     Read-only client for the XenForo REST API.
@@ -15,11 +16,15 @@ class XenForoAPIClient:
     def __init__(self, base_url: Optional[str] = None, api_key: Optional[str] = None):
         self.base_url = (base_url or self._get_base_url()).rstrip("/")
         self.api_key = api_key or self._get_api_key()
-        
+
         if not self.base_url:
-            raise ValueError("XenForo API base URL is missing (check XENFORO_BASE_URL setting).")
+            raise ValueError(
+                "XenForo API base URL is missing (check XENFORO_BASE_URL setting)."
+            )
         if not self.api_key:
-            raise ValueError("XenForo API key is missing (check XENFORO_API_KEY setting).")
+            raise ValueError(
+                "XenForo API key is missing (check XENFORO_API_KEY setting)."
+            )
 
     def _get_base_url(self) -> str:
         return getattr(settings, "XENFORO_BASE_URL", "")
@@ -27,7 +32,12 @@ class XenForoAPIClient:
     def _get_api_key(self) -> str:
         return getattr(settings, "XENFORO_API_KEY", "")
 
-    def _get(self, endpoint: str, params: Optional[Dict[str, Any]] = None, max_retries: int = 3) -> Dict[str, Any]:
+    def _get(
+        self,
+        endpoint: str,
+        params: Optional[Dict[str, Any]] = None,
+        max_retries: int = 3,
+    ) -> Dict[str, Any]:
         """Internal helper for GET requests with exponential backoff retry."""
         url = f"{self.base_url}/api/{endpoint.lstrip('/')}"
         headers = {
@@ -44,11 +54,22 @@ class XenForoAPIClient:
             except requests.exceptions.RequestException as e:
                 last_exc = e
                 if attempt < max_retries - 1:
-                    wait = 2 ** attempt
-                    logger.warning("XenForo API request failed (attempt %d/%d): %s — retrying in %ds", attempt + 1, max_retries, e, wait)
+                    wait = 2**attempt
+                    logger.warning(
+                        "XenForo API request failed (attempt %d/%d): %s — retrying in %ds",
+                        attempt + 1,
+                        max_retries,
+                        e,
+                        wait,
+                    )
                     time.sleep(wait)
 
-        logger.error("XenForo API request failed after %d attempts: %s (URL: %s)", max_retries, last_exc, url)
+        logger.error(
+            "XenForo API request failed after %d attempts: %s (URL: %s)",
+            max_retries,
+            last_exc,
+            url,
+        )
         raise last_exc
 
     def verify_api_key(self) -> bool:
@@ -77,7 +98,9 @@ class XenForoAPIClient:
 
     def get_resources(self, category_id: int, page: int = 1) -> Dict[str, Any]:
         """Fetch a page of resources from a specific category."""
-        return self._get("resources/", params={"resource_category_id": category_id, "page": page})
+        return self._get(
+            "resources/", params={"resource_category_id": category_id, "page": page}
+        )
 
     def get_resource_updates(self, resource_id: int) -> Dict[str, Any]:
         """Fetch updates for a specific resource."""

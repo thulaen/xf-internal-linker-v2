@@ -6,36 +6,67 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('sync', '0002_syncjob_ml_items_completed_syncjob_ml_items_queued'),
+        ("sync", "0002_syncjob_ml_items_completed_syncjob_ml_items_queued"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='syncjob',
-            name='embedding_items_completed',
+            model_name="syncjob",
+            name="embedding_items_completed",
             field=models.IntegerField(default=0),
         ),
         migrations.AddField(
-            model_name='syncjob',
-            name='spacy_items_completed',
+            model_name="syncjob",
+            name="spacy_items_completed",
             field=models.IntegerField(default=0),
         ),
         migrations.CreateModel(
-            name='WebhookReceipt',
+            name="WebhookReceipt",
             fields=[
-                ('receipt_id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('source', models.CharField(choices=[('api', 'XenForo API'), ('jsonl', 'JSONL File'), ('wp', 'WordPress API')], max_length=20)),
-                ('event_type', models.CharField(max_length=100)),
-                ('payload', models.JSONField(help_text='Raw payload received from the webhook.')),
-                ('status', models.CharField(default='received', max_length=20)),
-                ('error_message', models.TextField(blank=True)),
-                ('created_at', models.DateTimeField(auto_now_add=True)),
-                ('sync_job', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='webhooks', to='sync.syncjob')),
+                (
+                    "receipt_id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                (
+                    "source",
+                    models.CharField(
+                        choices=[
+                            ("api", "XenForo API"),
+                            ("jsonl", "JSONL File"),
+                            ("wp", "WordPress API"),
+                        ],
+                        max_length=20,
+                    ),
+                ),
+                ("event_type", models.CharField(max_length=100)),
+                (
+                    "payload",
+                    models.JSONField(
+                        help_text="Raw payload received from the webhook."
+                    ),
+                ),
+                ("status", models.CharField(default="received", max_length=20)),
+                ("error_message", models.TextField(blank=True)),
+                ("created_at", models.DateTimeField(auto_now_add=True)),
+                (
+                    "sync_job",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="webhooks",
+                        to="sync.syncjob",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['-created_at'],
+                "ordering": ["-created_at"],
             },
         ),
     ]

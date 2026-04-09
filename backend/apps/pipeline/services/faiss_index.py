@@ -27,6 +27,7 @@ import numpy as np
 
 try:
     import faiss
+
     HAS_FAISS = True
 except ImportError:
     HAS_FAISS = False
@@ -34,8 +35,8 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 _index_lock = threading.Lock()
-_faiss_index = None                       # faiss.Index | None
-_faiss_id_map: list[int] = []            # position i -> ContentItem.pk
+_faiss_index = None  # faiss.Index | None
+_faiss_id_map: list[int] = []  # position i -> ContentItem.pk
 _faiss_content_type_map: list[str] = []  # position i -> content_type
 
 
@@ -121,7 +122,9 @@ def build_faiss_index() -> None:
 
     logger.info(
         "FAISS index built: %d vectors, dim=%d, device=%s",
-        len(pks), dim, device,
+        len(pks),
+        dim,
+        device,
     )
 
 
@@ -193,7 +196,7 @@ def get_faiss_status() -> dict:
         device = "unknown"
         on_gpu = False
 
-    vram_mb = round(n * 1024 * 4 / (1024 ** 2)) if on_gpu else 0
+    vram_mb = round(n * 1024 * 4 / (1024**2)) if on_gpu else 0
 
     return {
         "active": True,

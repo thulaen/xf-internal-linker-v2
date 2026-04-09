@@ -211,4 +211,6 @@ class TestNotificationView(APIView):
             dedupe_key=f"system.test:{timezone.now().strftime('%Y%m%d%H%M')}",
             related_route="/settings",
         )
-        return Response(OperatorAlertSerializer(alert).data, status=status.HTTP_201_CREATED)
+        return Response(
+            OperatorAlertSerializer(alert).data, status=status.HTTP_201_CREATED
+        )

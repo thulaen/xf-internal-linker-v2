@@ -8,6 +8,7 @@ from .services import HealthCheckRegistry, perform_health_check
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task(
     name="health.run_all_health_checks",
     time_limit=120,
@@ -37,7 +38,9 @@ def run_all_health_checks():
             record = perform_health_check(service_key)
             check_results[service_key] = record.status
         except Exception as e:
-            logger.error(f"Health check failed for {service_key}: {str(e)}", exc_info=True)
+            logger.error(
+                f"Health check failed for {service_key}: {str(e)}", exc_info=True
+            )
             check_results[service_key] = "FAILED_EXECUTION"
             had_failure = True
 
@@ -45,6 +48,7 @@ def run_all_health_checks():
     logger.info(f"Registry-scale health checks completed: {summary}")
 
     return {"ok": not had_failure, "checks": check_results}
+
 
 @shared_task(
     name="health.run_single_health_check",
@@ -61,8 +65,10 @@ def run_single_health_check(service_key: str):
         return {
             "status": record.status,
             "status_label": record.status_label,
-            "last_check_at": record.last_check_at.isoformat()
+            "last_check_at": record.last_check_at.isoformat(),
         }
     except Exception as e:
-        logger.error(f"Single health check failed for {service_key}: {str(e)}", exc_info=True)
+        logger.error(
+            f"Single health check failed for {service_key}: {str(e)}", exc_info=True
+        )
         return {"status": "error", "message": str(e)}

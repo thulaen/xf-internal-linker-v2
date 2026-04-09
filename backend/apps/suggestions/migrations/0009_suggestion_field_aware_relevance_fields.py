@@ -2,7 +2,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0008_suggestion_rare_term_fields"),
     ]

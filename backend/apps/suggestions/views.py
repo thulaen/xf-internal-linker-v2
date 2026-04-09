@@ -19,7 +19,14 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.audit.models import AuditEntry
-from .models import PipelineDiagnostic, PipelineRun, RankingChallenger, Suggestion, WeightAdjustmentHistory, WeightPreset
+from .models import (
+    PipelineDiagnostic,
+    PipelineRun,
+    RankingChallenger,
+    Suggestion,
+    WeightAdjustmentHistory,
+    WeightPreset,
+)
 from .serializers import (
     PipelineDiagnosticSerializer,
     PipelineRunSerializer,
@@ -47,6 +54,7 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
     GET  /api/pipeline-runs/{id}/    — full detail with progress
     POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
     """
+
     permission_classes = [IsAuthenticated]
 
     queryset = PipelineRun.objects.order_by("-created_at")
@@ -107,23 +115,24 @@ class SuggestionViewSet(viewsets.ModelViewSet):
     """
     List, retrieve, and review link suggestions.
     """
+
     permission_classes = [IsAuthenticated]
 
-    queryset = (
-        Suggestion.objects
-        .select_related(
-            "destination",
-            "destination__scope",
-            "destination__scope__silo_group",
-            "host",
-            "host__scope",
-            "host__scope__silo_group",
-            "host_sentence",
-            "pipeline_run",
-        )
-        .order_by("-created_at")
-    )
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    queryset = Suggestion.objects.select_related(
+        "destination",
+        "destination__scope",
+        "destination__scope__silo_group",
+        "host",
+        "host__scope",
+        "host__scope__silo_group",
+        "host_sentence",
+        "pipeline_run",
+    ).order_by("-created_at")
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
     filterset_fields = ["status", "anchor_confidence", "repeated_anchor", "is_applied"]
     search_fields = ["destination_title", "host_sentence_text", "anchor_phrase"]
     ordering_fields = ["score_final", "created_at", "reviewed_at"]
@@ -155,7 +164,9 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         suggestion = self.get_object()
         if suggestion.status not in ("pending", "rejected"):
             return Response(
-                {"detail": f"Cannot approve a suggestion with status '{suggestion.status}'."},
+                {
+                    "detail": f"Cannot approve a suggestion with status '{suggestion.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         suggestion.status = "approved"
@@ -164,7 +175,15 @@ class SuggestionViewSet(viewsets.ModelViewSet):
             suggestion.anchor_edited = request.data["anchor_edited"]
         if "reviewer_notes" in request.data:
             suggestion.reviewer_notes = request.data["reviewer_notes"]
-        suggestion.save(update_fields=["status", "reviewed_at", "anchor_edited", "reviewer_notes", "updated_at"])
+        suggestion.save(
+            update_fields=[
+                "status",
+                "reviewed_at",
+                "anchor_edited",
+                "reviewer_notes",
+                "updated_at",
+            ]
+        )
         self._log_audit("approve", suggestion, request)
         return Response(SuggestionDetailSerializer(suggestion).data)
 
@@ -174,14 +193,24 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         suggestion = self.get_object()
         if suggestion.status not in ("pending", "approved"):
             return Response(
-                {"detail": f"Cannot reject a suggestion with status '{suggestion.status}'."},
+                {
+                    "detail": f"Cannot reject a suggestion with status '{suggestion.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         suggestion.status = "rejected"
         suggestion.reviewed_at = datetime.now(tz=timezone.utc)
         suggestion.rejection_reason = request.data.get("rejection_reason", "")
         suggestion.reviewer_notes = request.data.get("reviewer_notes", "")
-        suggestion.save(update_fields=["status", "reviewed_at", "rejection_reason", "reviewer_notes", "updated_at"])
+        suggestion.save(
+            update_fields=[
+                "status",
+                "reviewed_at",
+                "rejection_reason",
+                "reviewer_notes",
+                "updated_at",
+            ]
+        )
         self._log_audit("reject", suggestion, request)
         return Response(SuggestionDetailSerializer(suggestion).data)
 
@@ -197,7 +226,9 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         suggestion.status = "applied"
         suggestion.is_applied = True
         suggestion.applied_at = datetime.now(tz=timezone.utc)
-        suggestion.save(update_fields=["status", "is_applied", "applied_at", "updated_at"])
+        suggestion.save(
+            update_fields=["status", "is_applied", "applied_at", "updated_at"]
+        )
         self._log_audit("apply", suggestion, request)
         return Response(SuggestionDetailSerializer(suggestion).data)
 
@@ -212,7 +243,9 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         ids = request.data.get("ids", [])
 
         if action_name not in ("approve", "reject", "skip"):
-            return Response({"detail": "action must be 'approve', 'reject', or 'skip'."}, status=400)
+            return Response(
+                {"detail": "action must be 'approve', 'reject', or 'skip'."}, status=400
+            )
         if not isinstance(ids, list):
             return Response({"detail": "ids must be a list."}, status=400)
         if len(ids) > 500:
@@ -258,13 +291,17 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 ip_address=request.META.get("REMOTE_ADDR"),
             )
         except Exception:
-            logger.exception("Failed to write audit entry for suggestion %s", suggestion.suggestion_id)
+            logger.exception(
+                "Failed to write audit entry for suggestion %s",
+                suggestion.suggestion_id,
+            )
 
 
 class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
     """
     List pipeline skip diagnostics for the 'why no suggestion?' explorer.
     """
+
     permission_classes = [IsAuthenticated]
 
     queryset = PipelineDiagnostic.objects.select_related("destination", "pipeline_run")
@@ -277,6 +314,7 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
     """
     CRUD for weight presets + apply action.
     """
+
     permission_classes = [IsAuthenticated]
 
     queryset = WeightPreset.objects.all()
@@ -286,7 +324,10 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
     def update(self, request, *args, **kwargs):
         preset = self.get_object()
         if preset.is_system:
-            return Response({"detail": "System presets cannot be modified."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "System presets cannot be modified."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return super().update(request, *args, **kwargs)
 
     def partial_update(self, request, *args, **kwargs):
@@ -296,7 +337,10 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         preset = self.get_object()
         if preset.is_system:
-            return Response({"detail": "System presets cannot be deleted."}, status=status.HTTP_403_FORBIDDEN)
+            return Response(
+                {"detail": "System presets cannot be deleted."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=["post"])
@@ -310,7 +354,9 @@ class WeightPresetViewSet(viewsets.ModelViewSet):
             apply_weights(preset.weights)
 
         new_weights = get_current_weights()
-        username = getattr(request.user, "username", "unknown") if request.user else "system"
+        username = (
+            getattr(request.user, "username", "unknown") if request.user else "system"
+        )
         write_history(
             source="preset_applied",
             previous_weights=previous_weights,
@@ -330,9 +376,12 @@ class WeightAdjustmentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     Read-only list of all weight adjustment events.
     """
+
     permission_classes = [IsAuthenticated]
 
-    queryset = WeightAdjustmentHistory.objects.select_related("preset").order_by("-created_at")
+    queryset = WeightAdjustmentHistory.objects.select_related("preset").order_by(
+        "-created_at"
+    )
     serializer_class = WeightAdjustmentHistorySerializer
 
     @action(detail=True, methods=["post"])
@@ -362,6 +411,7 @@ class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
     Read-only list of all RankingChallenger records.
     Also provides a POST /reject/ action for human override.
     """
+
     permission_classes = [IsAuthenticated]
     queryset = RankingChallenger.objects.order_by("-created_at")
     serializer_class = RankingChallengerSerializer
@@ -371,7 +421,9 @@ class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
         challenger = self.get_object()
         if challenger.status != "pending":
             return Response(
-                {"detail": f"Cannot reject a challenger with status '{challenger.status}'."},
+                {
+                    "detail": f"Cannot reject a challenger with status '{challenger.status}'."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         challenger.status = "rejected"
@@ -424,7 +476,9 @@ class WeightChallengerInternalView(APIView):
 
         run_id = data.get("run_id", "").strip()
         if not run_id:
-            return Response({"detail": "run_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "run_id is required."}, status=status.HTTP_400_BAD_REQUEST
+            )
 
         candidate = data.get("candidate_weights")
         baseline = data.get("baseline_weights")
@@ -438,13 +492,17 @@ class WeightChallengerInternalView(APIView):
         unexpected = set(candidate) - _TUNABLE_KEYS
         if unexpected:
             return Response(
-                {"detail": f"Unexpected keys in candidate_weights: {sorted(unexpected)}. "
-                           f"Only {sorted(_TUNABLE_KEYS)} are tunable."},
+                {
+                    "detail": f"Unexpected keys in candidate_weights: {sorted(unexpected)}. "
+                    f"Only {sorted(_TUNABLE_KEYS)} are tunable."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         if set(candidate) != _TUNABLE_KEYS:
             return Response(
-                {"detail": f"candidate_weights must contain exactly: {sorted(_TUNABLE_KEYS)}."},
+                {
+                    "detail": f"candidate_weights must contain exactly: {sorted(_TUNABLE_KEYS)}."
+                },
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -452,7 +510,10 @@ class WeightChallengerInternalView(APIView):
         try:
             recommended = {k: float(PRESET_DEFAULTS[k]) for k in _TUNABLE_KEYS}
         except (KeyError, ValueError) as exc:
-            return Response({"detail": f"Baseline lookup failed: {exc}"}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {"detail": f"Baseline lookup failed: {exc}"},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
         errors = {}
         for key in _TUNABLE_KEYS:
@@ -475,14 +536,22 @@ class WeightChallengerInternalView(APIView):
                 )
 
         if errors:
-            return Response({"detail": "Bound violation.", "errors": errors}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {"detail": "Bound violation.", "errors": errors},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if RankingChallenger.objects.filter(run_id=run_id).exists():
-            return Response({"detail": f"Challenger with run_id '{run_id}' already exists."}, status=status.HTTP_409_CONFLICT)
+            return Response(
+                {"detail": f"Challenger with run_id '{run_id}' already exists."},
+                status=status.HTTP_409_CONFLICT,
+            )
 
         # Normalise to float strings for consistency with AppSetting storage.
         clean_candidate = {k: float(v) for k, v in candidate.items()}
-        clean_baseline = {k: float(baseline.get(k, recommended[k])) for k in _TUNABLE_KEYS}
+        clean_baseline = {
+            k: float(baseline.get(k, recommended[k])) for k in _TUNABLE_KEYS
+        }
 
         challenger = RankingChallenger.objects.create(
             run_id=run_id,
@@ -500,6 +569,10 @@ class WeightChallengerInternalView(APIView):
         )
 
         return Response(
-            {"detail": "Challenger created.", "id": challenger.pk, "status": challenger.status},
+            {
+                "detail": "Challenger created.",
+                "id": challenger.pk,
+                "status": challenger.status,
+            },
             status=status.HTTP_201_CREATED,
         )

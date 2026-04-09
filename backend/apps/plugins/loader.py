@@ -41,7 +41,9 @@ def load_enabled_plugins() -> None:
                 hooks_instance = module.register()
                 if hooks_instance is not None:
                     _registry.append(hooks_instance)
-                    logger.info("Loaded plugin '%s' from %s", plugin.name, plugin.module_path)
+                    logger.info(
+                        "Loaded plugin '%s' from %s", plugin.name, plugin.module_path
+                    )
             else:
                 logger.warning(
                     "Plugin '%s' (%s) has no register() function — skipped.",

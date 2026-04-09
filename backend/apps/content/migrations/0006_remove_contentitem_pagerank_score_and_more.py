@@ -4,7 +4,6 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("content", "0005_rename_weighted_pagerank_score_to_march_2026_pagerank_score"),
     ]

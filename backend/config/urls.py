@@ -24,7 +24,9 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += [
-        path("", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"),
+        path(
+            "", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"
+        ),
     ]
 
 # Serve media files in development

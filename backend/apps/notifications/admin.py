@@ -19,17 +19,38 @@ class AlertDeliveryAttemptInline(admin.TabularInline):
 @admin.register(OperatorAlert)
 class OperatorAlertAdmin(ModelAdmin):
     list_display = [
-        "title", "severity", "status", "source_area", "event_type",
-        "occurrence_count", "first_seen_at",
+        "title",
+        "severity",
+        "status",
+        "source_area",
+        "event_type",
+        "occurrence_count",
+        "first_seen_at",
     ]
     list_filter = ["severity", "status", "source_area", "event_type"]
     search_fields = ["title", "message", "dedupe_key", "event_type"]
     readonly_fields = [
-        "alert_id", "event_type", "source_area", "severity", "title",
-        "message", "dedupe_key", "fingerprint", "occurrence_count",
-        "related_object_type", "related_object_id", "related_route",
-        "payload", "error_log", "first_seen_at", "last_seen_at",
-        "read_at", "acknowledged_at", "resolved_at", "created_at", "updated_at",
+        "alert_id",
+        "event_type",
+        "source_area",
+        "severity",
+        "title",
+        "message",
+        "dedupe_key",
+        "fingerprint",
+        "occurrence_count",
+        "related_object_type",
+        "related_object_id",
+        "related_route",
+        "payload",
+        "error_log",
+        "first_seen_at",
+        "last_seen_at",
+        "read_at",
+        "acknowledged_at",
+        "resolved_at",
+        "created_at",
+        "updated_at",
     ]
     ordering = ["-first_seen_at"]
     inlines = [AlertDeliveryAttemptInline]

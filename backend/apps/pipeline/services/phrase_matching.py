@@ -7,6 +7,7 @@ import re
 
 try:
     from extensions import phrasematch
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -111,7 +112,9 @@ class _MatchCandidate:
     def score_phrase_component(self) -> float:
         return score_phrase_relevance_component(self.score_phrase_relevance)
 
-    def diagnostics(self, *, destination_phrase_count: int, context_window_tokens: int) -> dict[str, object]:
+    def diagnostics(
+        self, *, destination_phrase_count: int, context_window_tokens: int
+    ) -> dict[str, object]:
         return {
             "score_phrase_relevance": round(self.score_phrase_relevance, 6),
             "phrase_match_state": self.phrase_match_state,
@@ -213,9 +216,7 @@ def _evaluate_phrase_match(
 
     host_spans = _build_host_spans(host_sentence_text, host_tokens)
     destination_token_set = {
-        token
-        for phrase in destination_phrases
-        for token in phrase.tokens
+        token for phrase in destination_phrases for token in phrase.tokens
     }
 
     best_exact: _MatchCandidate | None = None
@@ -238,7 +239,9 @@ def _evaluate_phrase_match(
                         context_window_tokens=settings.context_window_tokens,
                     ),
                 )
-                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(best_exact):
+                if best_exact is None or _match_sort_key(candidate) < _match_sort_key(
+                    best_exact
+                ):
                     best_exact = candidate
                 continue
 
@@ -267,7 +270,9 @@ def _evaluate_phrase_match(
                 match_type="partial",
                 context_hits=context_hits,
             )
-            if best_partial is None or _match_sort_key(candidate) < _match_sort_key(best_partial):
+            if best_partial is None or _match_sort_key(candidate) < _match_sort_key(
+                best_partial
+            ):
                 best_partial = candidate
 
     winner = best_exact or best_partial
@@ -285,7 +290,11 @@ def _evaluate_phrase_match(
             ),
         )
 
-    neutral_state = "neutral_partial_below_threshold" if partial_below_threshold else "neutral_no_host_match"
+    neutral_state = (
+        "neutral_partial_below_threshold"
+        if partial_below_threshold
+        else "neutral_no_host_match"
+    )
     return _neutral_with_fallback(
         host_sentence_text=host_sentence_text,
         destination_title=destination_title,
@@ -412,16 +421,12 @@ def _build_destination_phrase_inventory(
         ]
         has_longer_same_start = any(
             len(other.tokens) > len(occurrence.tokens)
-            and other.tokens[:len(occurrence.tokens)] == occurrence.tokens
+            and other.tokens[: len(occurrence.tokens)] == occurrence.tokens
             for other in same_start_group
         )
         appears_elsewhere = len(location_map.get(occurrence.tokens, set())) > 1
-        should_skip_prefix = (
-            occurrence.source_field == "title"
-            or (
-                occurrence.source_field == "distilled"
-                and len(occurrence.tokens) < 3
-            )
+        should_skip_prefix = occurrence.source_field == "title" or (
+            occurrence.source_field == "distilled" and len(occurrence.tokens) < 3
         )
         if should_skip_prefix and has_longer_same_start and not appears_elsewhere:
             continue
@@ -469,7 +474,7 @@ def _collect_phrase_occurrences(
             out.append(
                 _PhraseOccurrence(
                     tokens=phrase_tokens,
-                    surface=segment_text[first_token.start:last_token.end],
+                    surface=segment_text[first_token.start : last_token.end],
                     source_field=source_field,
                     source_rank=source_rank,
                     segment_index=segment_index,
@@ -495,7 +500,9 @@ def _tokenize_with_offsets(text: str) -> list[_TokenSpan]:
         normalized = match.group(0).lower()
         if normalized in STANDARD_ENGLISH_STOPWORDS:
             continue
-        spans.append(_TokenSpan(normalized=normalized, start=match.start(), end=match.end()))
+        spans.append(
+            _TokenSpan(normalized=normalized, start=match.start(), end=match.end())
+        )
     return spans
 
 
@@ -505,7 +512,9 @@ def _is_allowed_phrase(tokens: tuple[str, ...], *, source_field: str) -> bool:
     return 2 <= len(tokens) <= MAX_PHRASE_TOKENS
 
 
-def _build_host_spans(host_sentence_text: str, host_tokens: list[_TokenSpan]) -> list[_HostSpan]:
+def _build_host_spans(
+    host_sentence_text: str, host_tokens: list[_TokenSpan]
+) -> list[_HostSpan]:
     spans: list[_HostSpan] = []
     for start_idx in range(len(host_tokens)):
         max_window = min(MAX_PHRASE_TOKENS, len(host_tokens) - start_idx)
@@ -522,7 +531,9 @@ def _build_host_spans(host_sentence_text: str, host_tokens: list[_TokenSpan]) ->
                     ),
                     anchor_start=first_token.start,
                     anchor_end=last_token.end,
-                    anchor_phrase=host_sentence_text[first_token.start:last_token.end],
+                    anchor_phrase=host_sentence_text[
+                        first_token.start : last_token.end
+                    ],
                 )
             )
     return spans

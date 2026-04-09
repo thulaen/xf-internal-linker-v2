@@ -15,7 +15,9 @@ def _load_sync_run(sync_run_id: int) -> AnalyticsSyncRun:
     return AnalyticsSyncRun.objects.get(pk=sync_run_id)
 
 
-def _queue_scheduled_sync(*, source: str, lookback_days: int, task_fn) -> dict[str, int | str]:
+def _queue_scheduled_sync(
+    *, source: str, lookback_days: int, task_fn
+) -> dict[str, int | str]:
     sync_run = AnalyticsSyncRun.objects.create(
         source=source,
         status="pending",
@@ -30,7 +32,12 @@ def _queue_scheduled_sync(*, source: str, lookback_days: int, task_fn) -> dict[s
     }
 
 
-@shared_task(bind=True, name="analytics.sync_matomo_telemetry", time_limit=600, soft_time_limit=540)
+@shared_task(
+    bind=True,
+    name="analytics.sync_matomo_telemetry",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -66,7 +73,9 @@ def sync_matomo_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     return {"sync_run_id": sync_run_id, **stats}
 
 
-@shared_task(bind=True, name="analytics.sync_ga4_telemetry", time_limit=600, soft_time_limit=540)
+@shared_task(
+    bind=True, name="analytics.sync_ga4_telemetry", time_limit=600, soft_time_limit=540
+)
 def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -102,7 +111,12 @@ def sync_ga4_telemetry(self, sync_run_id: int) -> dict[str, int | str]:
     return {"sync_run_id": sync_run_id, **stats}
 
 
-@shared_task(bind=True, name="analytics.sync_gsc_performance", time_limit=600, soft_time_limit=540)
+@shared_task(
+    bind=True,
+    name="analytics.sync_gsc_performance",
+    time_limit=600,
+    soft_time_limit=540,
+)
 def sync_gsc_performance(self, sync_run_id: int) -> dict[str, int | str]:
     sync_run = _load_sync_run(sync_run_id)
     sync_run.status = "running"
@@ -177,6 +191,7 @@ def schedule_matomo_telemetry_daily() -> dict[str, int | str]:
 @shared_task(name="analytics.schedule_gsc_performance_daily")
 def schedule_gsc_performance_daily() -> dict[str, int | str]:
     from .views import get_gsc_settings
+
     settings = get_gsc_settings()
     return _queue_scheduled_sync(
         source="gsc",
@@ -185,7 +200,9 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
     )
 
 
-@shared_task(name="analytics.recompute_all_search_impact", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    name="analytics.recompute_all_search_impact", time_limit=1800, soft_time_limit=1740
+)
 def recompute_all_search_impact() -> dict[str, int]:
     """Recompute search impact for all applied suggestions."""
     from apps.suggestions.models import Suggestion
@@ -200,7 +217,9 @@ def recompute_all_search_impact() -> dict[str, int]:
     return {"processed_suggestions": count}
 
 
-@shared_task(name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540)
+@shared_task(
+    name="analytics.detect_traffic_spikes", time_limit=600, soft_time_limit=540
+)
 def detect_traffic_spikes() -> dict[str, int]:
     """
     FR-023 Part 3: Momentum-based spike detection.
@@ -224,9 +243,7 @@ def detect_traffic_spikes() -> dict[str, int]:
     # 2. Identify candidates (pages with at least some traffic on the target date)
     # We only care about pages with > 10 clicks to avoid noise from 1 click vs 0.
     candidates = SearchMetric.objects.filter(
-        date=target_date, 
-        source="gsc", 
-        clicks__gt=10
+        date=target_date, source="gsc", clicks__gt=10
     ).values_list("content_item_id", flat=True)
 
     alerts_count = 0
@@ -234,15 +251,16 @@ def detect_traffic_spikes() -> dict[str, int]:
         stats = SearchMetric.objects.filter(
             content_item_id=item_id,
             source="gsc",
-            date__range=[seven_days_ago, one_day_ago]
+            date__range=[seven_days_ago, one_day_ago],
         ).aggregate(avg_clicks=Avg("clicks"))
-        
+
         avg_clicks = stats["avg_clicks"] or 0
-        latest_clicks = SearchMetric.objects.filter(
-            content_item_id=item_id,
-            source="gsc",
-            date=target_date
-        ).aggregate(total=Sum("clicks"))["total"] or 0
+        latest_clicks = (
+            SearchMetric.objects.filter(
+                content_item_id=item_id, source="gsc", date=target_date
+            ).aggregate(total=Sum("clicks"))["total"]
+            or 0
+        )
 
         # Threshold: 300% above average (i.e., 4x the average)
         if avg_clicks > 0 and latest_clicks > (avg_clicks * 4):
@@ -264,7 +282,7 @@ def detect_traffic_spikes() -> dict[str, int]:
                     "date": str(target_date),
                     "latest_clicks": latest_clicks,
                     "avg_clicks": float(avg_clicks),
-                }
+                },
             )
             alerts_count += 1
 

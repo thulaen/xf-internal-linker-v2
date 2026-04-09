@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 try:
     from extensions import fieldrel
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -140,7 +141,9 @@ def _evaluate_field_aware_relevance(
             field_profiles=field_profiles,
         )
 
-    active_weight_sum = sum(profile.field_weight for profile, _score, _terms in matched_fields)
+    active_weight_sum = sum(
+        profile.field_weight for profile, _score, _terms in matched_fields
+    )
     combined_field_score = 0.0
     if active_weight_sum > 0:
         combined_field_score = sum(
@@ -270,7 +273,9 @@ def _score_field(
         field_tf = profile.token_counts.get(token, 0)
         if field_tf <= 0:
             continue
-        idf = math.log1p((1.0 + FIELD_COUNT) / (1.0 + float(field_presence_count.get(token, 0))))
+        idf = math.log1p(
+            (1.0 + FIELD_COUNT) / (1.0 + float(field_presence_count.get(token, 0)))
+        )
         tf_norm = _bm25_tf_norm(
             term_frequency=field_tf,
             field_length=profile.field_length,
@@ -305,18 +310,20 @@ def _score_field(
     )
     top_terms = scored_terms[:MAX_MATCHED_TOKENS_PER_FIELD]
     if HAS_CPP_EXT:
-        field_score = float(fieldrel.score_field_tokens(
-            matched_tokens,
-            matched_host_tfs,
-            matched_field_tfs,
-            matched_field_presence_counts,
-            int(profile.field_length),
-            float(REFERENCE_FIELD_LENGTHS[profile.name]),
-            float(profile.b_value),
-            int(FIELD_COUNT),
-            float(BM25_K1),
-            int(MAX_MATCHED_TOKENS_PER_FIELD),
-        ))
+        field_score = float(
+            fieldrel.score_field_tokens(
+                matched_tokens,
+                matched_host_tfs,
+                matched_field_tfs,
+                matched_field_presence_counts,
+                int(profile.field_length),
+                float(REFERENCE_FIELD_LENGTHS[profile.name]),
+                float(profile.b_value),
+                int(FIELD_COUNT),
+                float(BM25_K1),
+                int(MAX_MATCHED_TOKENS_PER_FIELD),
+            )
+        )
     else:
         field_raw = sum(float(row["token_score"]) for row in top_terms) / len(top_terms)
         field_score = field_raw / (1.0 + field_raw)
@@ -360,13 +367,14 @@ def _build_diagnostics(
             "learned_anchor": round(float(settings.learned_anchor_field_weight), 6),
         },
         "field_lengths": {
-            profile.name: profile.field_length
-            for profile in field_profiles
+            profile.name: profile.field_length for profile in field_profiles
         },
         "matched_field_count": len(matched_fields),
         "field_scores": {
             profile.name: {
-                "score": round(float(matched_by_name.get(profile.name, (0.0, []))[0]), 6),
+                "score": round(
+                    float(matched_by_name.get(profile.name, (0.0, []))[0]), 6
+                ),
                 "matched_terms": matched_by_name.get(profile.name, (0.0, []))[1],
             }
             for profile in field_profiles

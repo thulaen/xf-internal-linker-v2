@@ -18,11 +18,11 @@ logger = logging.getLogger(__name__)
 
 # Default cooldown windows by severity (seconds)
 _COOLDOWN_BY_SEVERITY: dict[str, int] = {
-    OperatorAlert.SEVERITY_INFO: 900,       # 15 min
+    OperatorAlert.SEVERITY_INFO: 900,  # 15 min
     OperatorAlert.SEVERITY_SUCCESS: 900,
     OperatorAlert.SEVERITY_WARNING: 900,
     OperatorAlert.SEVERITY_ERROR: 900,
-    OperatorAlert.SEVERITY_URGENT: 300,     # 5 min — urgent events repeat faster
+    OperatorAlert.SEVERITY_URGENT: 300,  # 5 min — urgent events repeat faster
 }
 
 _NOTIFICATION_GROUP = "notifications_global"
@@ -55,7 +55,11 @@ def emit_operator_alert(
     raises — the try/except in callers should never swallow the original error.
     """
     now = timezone.now()
-    cooldown = cooldown_seconds if cooldown_seconds is not None else _COOLDOWN_BY_SEVERITY.get(severity, 900)
+    cooldown = (
+        cooldown_seconds
+        if cooldown_seconds is not None
+        else _COOLDOWN_BY_SEVERITY.get(severity, 900)
+    )
     cutoff = now - timedelta(seconds=cooldown)
 
     # Try to find an existing alert within the cooldown window
@@ -73,17 +77,29 @@ def emit_operator_alert(
         existing.occurrence_count += 1
         existing.last_seen_at = now
         # Re-open a read/acknowledged alert if the same event fires again
-        if existing.status in (OperatorAlert.STATUS_READ, OperatorAlert.STATUS_ACKNOWLEDGED):
+        if existing.status in (
+            OperatorAlert.STATUS_READ,
+            OperatorAlert.STATUS_ACKNOWLEDGED,
+        ):
             existing.status = OperatorAlert.STATUS_UNREAD
             existing.read_at = None
             existing.acknowledged_at = None
-        existing.save(update_fields=["occurrence_count", "last_seen_at", "status", "read_at", "acknowledged_at"])
+        existing.save(
+            update_fields=[
+                "occurrence_count",
+                "last_seen_at",
+                "status",
+                "read_at",
+                "acknowledged_at",
+            ]
+        )
         alert = existing
     else:
         error_log = None
         if error_log_id is not None:
             try:
                 from apps.audit.models import ErrorLog
+
                 error_log = ErrorLog.objects.get(pk=error_log_id)
             except ErrorLog.DoesNotExist:
                 pass
@@ -124,14 +140,10 @@ def resolve_operator_alert(dedupe_key: str) -> None:
     Find any open (unresolved) alert with the matching dedupe_key and mark it as resolved.
     """
     now = timezone.now()
-    updated = OperatorAlert.objects.filter(
-        dedupe_key=dedupe_key
-    ).exclude(
-        status=OperatorAlert.STATUS_RESOLVED
-    ).update(
-        status=OperatorAlert.STATUS_RESOLVED,
-        resolved_at=now,
-        updated_at=now
+    updated = (
+        OperatorAlert.objects.filter(dedupe_key=dedupe_key)
+        .exclude(status=OperatorAlert.STATUS_RESOLVED)
+        .update(status=OperatorAlert.STATUS_RESOLVED, resolved_at=now, updated_at=now)
     )
 
     if updated > 0:
@@ -146,7 +158,9 @@ def resolve_operator_alert(dedupe_key: str) -> None:
                 }
                 async_to_sync(channel_layer.group_send)(_NOTIFICATION_GROUP, event)
         except Exception:
-            logger.warning("resolve_operator_alert: failed to push WebSocket event", exc_info=True)
+            logger.warning(
+                "resolve_operator_alert: failed to push WebSocket event", exc_info=True
+            )
 
 
 def _push_to_websocket(alert: OperatorAlert) -> None:
@@ -171,7 +185,9 @@ def _push_to_websocket(alert: OperatorAlert) -> None:
         }
         async_to_sync(channel_layer.group_send)(_NOTIFICATION_GROUP, event)
     except Exception:
-        logger.warning("emit_operator_alert: failed to push WebSocket event", exc_info=True)
+        logger.warning(
+            "emit_operator_alert: failed to push WebSocket event", exc_info=True
+        )
 
 
 def get_unread_summary() -> dict:

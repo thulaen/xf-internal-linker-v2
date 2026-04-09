@@ -4,19 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0006_remove_contentitem_pagerank_score_and_more'),
+        ("content", "0006_remove_contentitem_pagerank_score_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='link_freshness_score',
-            field=models.FloatField(db_index=True, default=0.5, help_text='Link Freshness score based only on inbound link-history timing. 0.5 = neutral.'),
+            model_name="contentitem",
+            name="link_freshness_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.5,
+                help_text="Link Freshness score based only on inbound link-history timing. 0.5 = neutral.",
+            ),
         ),
         migrations.AddIndex(
-            model_name='contentitem',
-            index=models.Index(fields=['content_type', 'link_freshness_score'], name='content_con_content_efedc0_idx'),
+            model_name="contentitem",
+            index=models.Index(
+                fields=["content_type", "link_freshness_score"],
+                name="content_con_content_efedc0_idx",
+            ),
         ),
     ]

@@ -260,11 +260,9 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "value_model.w_cooccurrence": "0.12",
     "value_model.co_occurrence_fallback_value": "0.5",
     "value_model.co_occurrence_min_co_sessions": "5",
-
     # =========================================================================
     # PATENT-BACKED RANKING SIGNALS (FR-051 to FR-059)
     # =========================================================================
-
     # FR-051 — Reference Context Scoring
     # Forward-declared: inert until FR-051 is implemented and reads these keys.
     # Research basis: US8577893B1 — "Ranking based on reference contexts" (Google,
@@ -278,7 +276,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "reference_context.ranking_weight": "0.03",
     "reference_context.window_tokens": "5",
     "reference_context.idf_smoothing": "1",
-
     # FR-052 — Readability Level Matching
     # Forward-declared: inert until FR-052 is implemented and reads these keys.
     # Research basis: US20070067294A1 — "Readability and context identification
@@ -290,7 +287,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "readability_match.ranking_weight": "0.02",
     "readability_match.max_grade_gap": "3",
     "readability_match.penalty_per_grade": "0.10",
-
     # FR-053 — Passage-Level Relevance Scoring
     # Forward-declared: inert until FR-053 is implemented and reads these keys.
     # Research basis: US9940367B1 — "Scoring candidate answer passages" (Google,
@@ -304,7 +300,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "passage_relevance.passages_per_page": "5",
     "passage_relevance.passage_words": "200",
     "passage_relevance.index_quantised": "true",
-
     # FR-054 — Boilerplate-to-Content Ratio
     # Forward-declared: inert until FR-054 is implemented and reads these keys.
     # Research basis: US8898296B2 — "Detection of boilerplate content" (Google,
@@ -315,7 +310,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "boilerplate_ratio.ranking_weight": "0.02",
     "boilerplate_ratio.boilerplate_threshold": "0.80",
     "boilerplate_ratio.min_content_chars": "200",
-
     # FR-055 — Reasonable Surfer Click Probability
     # Forward-declared: inert until FR-055 is implemented and reads these keys.
     # Research basis: US8117209B1 — "Ranking documents based on user behavior
@@ -330,7 +324,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "reasonable_surfer.zone_weight_header": "0.3",
     "reasonable_surfer.zone_weight_footer": "0.2",
     "reasonable_surfer.emphasis_boost": "1.2",
-
     # FR-056 — Long-Click Satisfaction Ratio
     # Forward-declared: inert until FR-056 is implemented and reads these keys.
     # Research basis: US10229166B1 — "Modifying search result ranking based on
@@ -343,7 +336,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "long_click_ratio.long_session_seconds": "30",
     "long_click_ratio.short_session_seconds": "10",
     "long_click_ratio.laplace_alpha": "5",
-
     # FR-057 — Content-Update Magnitude
     # Forward-declared: inert until FR-057 is implemented and reads these keys.
     # Research basis: US8549014B2 — "Document scoring based on document content
@@ -354,7 +346,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "content_update.enabled": "true",
     "content_update.ranking_weight": "0.02",
     "content_update.max_staleness_days": "180",
-
     # FR-058 — N-gram Writing Quality Prediction
     # Forward-declared: inert until FR-058 is implemented and reads these keys.
     # Research basis: US9767157B2 — "Predicting site quality" (Google/Panda,
@@ -367,7 +358,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "ngram_quality.max_n": "5",
     "ngram_quality.kn_discount": "0.75",
     "ngram_quality.baseline_perplexity": "200.0",
-
     # FR-059 — Topic Purity Score
     # Forward-declared: inert until FR-059 is implemented and reads these keys.
     # Research basis: US20210004416A1 — "Extracting key phrase candidates and
@@ -379,11 +369,9 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "topic_purity.ranking_weight": "0.04",
     "topic_purity.on_topic_threshold": "0.50",
     "topic_purity.min_sentences": "5",
-
     # =========================================================================
     # STATISTICAL MODELS & LEARNING-TO-RANK (FR-060 to FR-065)
     # =========================================================================
-
     # FR-060 — ListNet Listwise Ranking
     # Forward-declared: inert until FR-060 is implemented and reads these keys.
     # Research basis: US7734633B2 — "Listwise Ranking" (Microsoft, 2010).
@@ -395,7 +383,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "listnet.learning_rate": "0.05",
     "listnet.min_training_samples": "500",
     "listnet.model_refresh_days": "30",
-
     # FR-061 — RankBoost Weight Optimisation (Weights-Only Mode)
     # Forward-declared: inert until FR-061 is implemented and reads these keys.
     # Research basis: US8301638B2 — "Automated Feature Selection Based on
@@ -408,7 +395,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "rankboost.min_weight_floor": "0.01",
     "rankboost.data_sources": "gsc,matomo,ga4",
     "rankboost.retrain_days": "14",
-
     # FR-062 — Particle Thompson Sampling + Matrix Factorisation (PTS-MF)
     # Forward-declared: inert until FR-062 is implemented and reads these keys.
     # Research basis: US10332015B2 — "Particle Thompson Sampling for Online Matrix
@@ -420,7 +406,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "pts_mf.prior_variance": "0.1",
     "pts_mf.resample_ess_threshold": "0.5",
     "pts_mf.model_refresh_days": "7",
-
     # FR-063 — Multi-Hyperplane Ranker Ensemble (MHR)
     # Forward-declared: inert until FR-063 is implemented and reads these keys.
     # Research basis: US8122015B2 — "Multi-Ranker For Search" (Microsoft, 2012).
@@ -431,7 +416,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "mhr.svm_c": "1.0",
     "mhr.svm_max_iter": "2000",
     "mhr.retrain_days": "30",
-
     # FR-064 — Spectral Relational Clustering (SRC)
     # Forward-declared: inert until FR-064 is implemented and reads these keys.
     # Research basis: US8185481B2 — "Spectral Clustering for Multi-Type
@@ -443,7 +427,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "spectral_rc.relation_weight_anchor": "0.5",
     "spectral_rc.relation_weight_query": "0.5",
     "spectral_rc.rebuild_days": "14",
-
     # FR-065 — Isotonic Regression Score Calibration
     # Forward-declared: inert until FR-065 is implemented and reads these keys.
     # Research basis: US9189752B1 — "Interpolating Isotonic Regression for Binary
@@ -452,11 +435,9 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "isotonic_calibration.enabled": "false",
     "isotonic_calibration.min_training_samples": "200",
     "isotonic_calibration.retrain_days": "7",
-
     # =========================================================================
     # C++ META-ALGORITHMS (FR-066 to FR-068)
     # =========================================================================
-
     # FR-066 — SmoothRank: Direct Metric Optimisation (META-01)
     # Forward-declared: inert until FR-066 is implemented and reads these keys.
     # Research basis: US7895198B2 — "Gradient based optimization of a ranking
@@ -469,7 +450,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "smoothrank.learning_rate": "0.01",
     "smoothrank.n_epochs": "100",
     "smoothrank.retrain_days": "14",
-
     # FR-067 — Supervised Rank Aggregation via Markov Chains (META-02)
     # Forward-declared: inert until FR-067 is implemented and reads these keys.
     # Research basis: US7840522B2 — "Supervised rank aggregation based on
@@ -481,7 +461,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "rank_aggregation.power_iter_max": "500",
     "rank_aggregation.power_iter_tol": "1e-6",
     "rank_aggregation.retrain_days": "14",
-
     # FR-068 — Cascade Telescoping Re-Ranking (META-03)
     # Forward-declared: inert until FR-068 is implemented and reads these keys.
     # Research basis: US7689615B2 — "Ranking results using multiple nested
@@ -494,11 +473,9 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "cascade_rerank.net_hidden_size": "32",
     "cascade_rerank.adam_lr": "0.001",
     "cascade_rerank.retrain_days": "14",
-
     # =========================================================================
     # SOCIAL MEDIA & TECH COMPANY PATENT SIGNALS (FR-069 to FR-090)
     # =========================================================================
-
     # FR-069 — Viral Propagation Depth
     # Research basis: US10152544B1 (Meta). Max sharing-hop depth before engagement
     # falls below 10% of peak. Computed at index time from GA4 referral chains.
@@ -506,20 +483,17 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "viral_depth.ranking_weight": "0.02",
     "viral_depth.engagement_floor": "0.10",
     "viral_depth.lookback_days": "90",
-
     # FR-070 — Viral Content Recipient Ranking
     # Research basis: US9323850B1 (Google/YouTube). Scores content by how often
     # shared with high-influence recipients.
     "viral_recipient.enabled": "true",
     "viral_recipient.ranking_weight": "0.02",
     "viral_recipient.lookback_days": "90",
-
     # FR-071 — Large-Scale Sentiment Score
     # Research basis: US7996210B2 (Google). VADER compound polarity mapped [0,1].
     "sentiment_score.enabled": "true",
     "sentiment_score.ranking_weight": "0.02",
     "sentiment_score.controversy_threshold": "0.60",
-
     # FR-072 — Trending Content Velocity
     # Research basis: US20150169587A1 (Meta/CrowdTangle). 6-hour engagement
     # acceleration window. Updated every 6 hours.
@@ -527,14 +501,12 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "trending_velocity.ranking_weight": "0.02",
     "trending_velocity.window_hours": "6",
     "trending_velocity.refresh_hours": "6",
-
     # FR-073 — Professional Graph Proximity
     # Research basis: US20140244561A1 (LinkedIn). Jaccard of GA4 user-ID sets
     # between source and destination pages.
     "professional_proximity.enabled": "true",
     "professional_proximity.ranking_weight": "0.02",
     "professional_proximity.min_shared_users": "5",
-
     # FR-074 — Influence Score
     # Research basis: US20140019539A1 (Google). Personalised PageRank on social
     # reshare graph (distinct from link-graph PageRank).
@@ -542,7 +514,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "influence_score.ranking_weight": "0.02",
     "influence_score.damping": "0.15",
     "influence_score.lookback_days": "90",
-
     # FR-075 — Watch-Time Completion Rate
     # Research basis: US9098511B1 (Google/YouTube). Ratio of video completions
     # (>85% watched) to total plays, Laplace-smoothed.
@@ -551,21 +522,18 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "watch_completion.completion_threshold": "0.85",
     "watch_completion.laplace_alpha": "1",
     "watch_completion.no_video_default": "0.5",
-
     # FR-076 — Dwell-Time Interest Profile Match
     # Research basis: US20150127662A1 (Google). Audience attention-span matching
     # via mean session dwell time comparison.
     "dwell_profile_match.enabled": "true",
     "dwell_profile_match.ranking_weight": "0.02",
     "dwell_profile_match.decay_seconds": "60",
-
     # FR-077 — Geographic Engagement Concentration
     # Research basis: US20080086264A1 (Google). Herfindahl index across country
     # engagement shares. Low HHI = broad global appeal.
     "geo_concentration.enabled": "true",
     "geo_concentration.ranking_weight": "0.02",
     "geo_concentration.lookback_days": "90",
-
     # FR-078 — Community Upvote Velocity
     # Research basis: US20140244561A1 (Reddit-derived). First-hour upvote rate
     # vs. page's historical median first-hour velocity.
@@ -573,27 +541,23 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "upvote_velocity.ranking_weight": "0.02",
     "upvote_velocity.first_hour_window": "1",
     "upvote_velocity.velocity_cap": "5.0",
-
     # FR-079 — Spam Account Interaction Filter
     # Research basis: WO2013140410A1. Penalises pages where engagement is
     # dominated by flagged/bot accounts.
     "spam_filter.enabled": "true",
     "spam_filter.ranking_weight": "0.02",
     "spam_filter.min_interactions": "10",
-
     # FR-080 — Content Freshness Decay Rate
     # Research basis: US8832088B1 (Google). Exponential decay fit on weekly
     # engagement. Slow-decay = evergreen, scores higher.
     "freshness_decay_rate.enabled": "true",
     "freshness_decay_rate.ranking_weight": "0.02",
     "freshness_decay_rate.history_weeks": "26",
-
     # FR-081 — Contextual Sentiment Alignment
     # Research basis: US20150286627A1 (Google). VADER compound comparison between
     # source insertion sentence and destination first paragraph.
     "sentiment_alignment.enabled": "true",
     "sentiment_alignment.ranking_weight": "0.02",
-
     # FR-082 — Structural Duplicate Detection Score
     # Research basis: US7734627B1 (Google). SimHash of HTML tag sequence; penalise
     # pages structurally similar to many others (template farms).
@@ -601,28 +565,24 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "structural_dup.ranking_weight": "0.02",
     "structural_dup.simhash_bits": "64",
     "structural_dup.similarity_threshold": "0.90",
-
     # FR-083 — Anomalous Interaction Pattern Filter
     # Research basis: EP3497609B1. Z-score of engagement bursts; penalises one-
     # burst-then-silence artificial inflation patterns.
     "anomaly_filter.enabled": "true",
     "anomaly_filter.ranking_weight": "0.02",
     "anomaly_filter.burst_z_threshold": "3.0",
-
     # FR-084 — Hashtag Co-occurrence Strength
     # Research basis: US10698945B2 (Snap). PMI between topic tags on source and
     # destination pages.
     "hashtag_cooccurrence.enabled": "true",
     "hashtag_cooccurrence.ranking_weight": "0.02",
     "hashtag_cooccurrence.pmi_smoothing": "0.5",
-
     # FR-085 — Content Format Preference Signal
     # Research basis: US20190050433A1 (Snap). Format affinity scoring based on
     # GA4 event types (text vs. image vs. video preference).
     "format_preference.enabled": "true",
     "format_preference.ranking_weight": "0.02",
     "format_preference.mismatch_penalty": "0.50",
-
     # FR-086 — Retweet Graph Authority
     # Research basis: US8370326B2 (Twitter). Personalised PageRank on reshare
     # graph (distinct from link-graph and social influence score FR-074).
@@ -630,28 +590,24 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "retweet_authority.ranking_weight": "0.02",
     "retweet_authority.damping": "0.15",
     "retweet_authority.lookback_days": "90",
-
     # FR-087 — Reply Thread Depth Signal
     # Research basis: US8954500B2 (Twitter). Average comment thread depth;
     # deeper threads = genuine discussion.
     "reply_depth.enabled": "true",
     "reply_depth.ranking_weight": "0.02",
     "reply_depth.depth_cap": "5",
-
     # FR-088 — Save/Bookmark Rate
     # Research basis: US9256680B2 (Pinterest). saves / (views + 10) from GA4
     # bookmark_event / page_view.
     "bookmark_rate.enabled": "true",
     "bookmark_rate.ranking_weight": "0.02",
     "bookmark_rate.laplace_denominator": "10",
-
     # FR-089 — Visual-Topic Consistency Score
     # Research basis: US20140279220A1 (Pinterest). Cosine similarity between mean
     # image embedding (CLIP-lite, 4-bit CPU) and page text embedding.
     "visual_consistency.enabled": "true",
     "visual_consistency.ranking_weight": "0.02",
     "visual_consistency.no_image_default": "0.5",
-
     # FR-090 — Cross-Platform Engagement Correlation
     # Research basis: US20140244006A1 (Google). Counts platforms with simultaneous
     # engagement spikes (z > 2.0). Cross-platform resonance = genuine value.
@@ -659,11 +615,9 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "cross_platform_engagement.ranking_weight": "0.02",
     "cross_platform_engagement.spike_z_threshold": "2.0",
     "cross_platform_engagement.lookback_days": "30",
-
     # =========================================================================
     # OPERATIONAL FEATURES (FR-091 to FR-096)
     # =========================================================================
-
     # FR-091 — C++ Extension Retrofit
     # Brings all 12 existing C++ extensions to CPP-RULES.md compliance.
     # Source of truth: backend/extensions/CPP-RULES.md
@@ -672,7 +626,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "cpp_retrofit.nan_check_enabled": "true",
     "cpp_retrofit.flush_to_zero_enabled": "true",
     "cpp_retrofit.double_accumulator_enabled": "true",
-
     # FR-092 — Twice-Monthly Graph Walk Refresh
     # Changes graph walk generation from nightly to 1st and 15th of each month.
     # Nightly pipeline reuses cached walk results on non-walk days.
@@ -680,7 +633,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "graph_walk_refresh.enabled": "true",
     "graph_walk_refresh.schedule_days": "1,15",
     "graph_walk_refresh.skip_nightly_walks": "true",
-
     # FR-093 — Extended Nightly Data Retention (Tier 1)
     # Adds 6 tables to the existing nightly retention task.
     "retention_tier1.enabled": "true",
@@ -690,21 +642,18 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "retention_tier1.analytics_sync_runs_days": "90",
     "retention_tier1.telemetry_coverage_days": "90",
     "retention_tier1.reviewer_scorecards_days": "180",
-
     # FR-094 — Weekly Analytics Pruning (Tier 2)
     # Prunes GSCDailyPerformance, SuggestionTelemetryDaily, GSCKeywordImpact.
     "retention_tier2.enabled": "true",
     "retention_tier2.gsc_daily_performance_days": "90",
     "retention_tier2.suggestion_telemetry_days": "180",
     "retention_tier2.gsc_keyword_impact_days": "180",
-
     # FR-095 — Quarterly Database Maintenance (Tier 4)
     # VACUUM FULL, REINDEX CONCURRENTLY, full entity re-extraction.
     "quarterly_maintenance.enabled": "true",
     "quarterly_maintenance.vacuum_full_suggestions": "true",
     "quarterly_maintenance.reindex_embeddings": "true",
     "quarterly_maintenance.rebuild_knowledge_graph": "true",
-
     # FR-096 — Monthly Safe Prune (Tier 5)
     # Prunes BrokenLink (resolved), ImpactReport, and old diagnostics JSON.
     # Does NOT affect GSC, GA4, Matomo, or auto weight tuning.

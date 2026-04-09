@@ -44,7 +44,9 @@ class BrokenLinkViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         from apps.graph.models import BrokenLink
 
-        return BrokenLink.objects.select_related("source_content").order_by("status", "-last_checked_at")
+        return BrokenLink.objects.select_related("source_content").order_by(
+            "status", "-last_checked_at"
+        )
 
     def partial_update(self, request, *args, **kwargs) -> Response:
         disallowed_keys = set(request.data.keys()) - {"status", "notes"}
@@ -154,8 +156,7 @@ class GraphStatsView(APIView):
         topic_count = SiloGroup.objects.count()
 
         linked_ids = (
-            ExistingLink.objects
-            .filter(
+            ExistingLink.objects.filter(
                 to_content_item__is_deleted=False,
                 from_content_item__is_deleted=False,
             )
@@ -163,8 +164,7 @@ class GraphStatsView(APIView):
             .distinct()
         )
         orphan_count = (
-            ContentItem.objects
-            .filter(is_deleted=False)
+            ContentItem.objects.filter(is_deleted=False)
             .exclude(pk__in=linked_ids)
             .count()
         )
@@ -212,26 +212,22 @@ def _get_audit_queryset(mode: str = "orphan"):
         if total == 0:
             return base.none()
         offset = max(0, int(total * 0.05) - 1)
-        threshold_qs = (
-            base
-            .order_by("march_2026_pagerank_score")
-            .values_list("march_2026_pagerank_score", flat=True)[offset:offset + 1]
-        )
+        threshold_qs = base.order_by("march_2026_pagerank_score").values_list(
+            "march_2026_pagerank_score", flat=True
+        )[offset : offset + 1]
         threshold_list = list(threshold_qs)
         if not threshold_list:
             return base.none()
         threshold = threshold_list[0]
         return (
-            base
-            .filter(march_2026_pagerank_score__lte=threshold)
+            base.filter(march_2026_pagerank_score__lte=threshold)
             .annotate(inbound_link_count=Count("incoming_links"))
             .order_by("march_2026_pagerank_score", "id")
         )
 
     # Default: orphan mode — pages with no inbound links.
     linked_ids = (
-        ExistingLink.objects
-        .filter(
+        ExistingLink.objects.filter(
             to_content_item__is_deleted=False,
             from_content_item__is_deleted=False,
         )
@@ -239,8 +235,7 @@ def _get_audit_queryset(mode: str = "orphan"):
         .distinct()
     )
     return (
-        base
-        .exclude(pk__in=linked_ids)
+        base.exclude(pk__in=linked_ids)
         .annotate(inbound_link_count=Value(0, output_field=IntegerField()))
         .order_by("march_2026_pagerank_score", "id")
     )
@@ -284,19 +279,27 @@ class OrphanExportCSVView(APIView):
         writer = csv.writer(Echo())
 
         def _rows():
-            yield writer.writerow([
-                "id", "title", "url", "scope_title",
-                "inbound_link_count", "pagerank_score",
-            ])
+            yield writer.writerow(
+                [
+                    "id",
+                    "title",
+                    "url",
+                    "scope_title",
+                    "inbound_link_count",
+                    "pagerank_score",
+                ]
+            )
             for item in queryset.iterator(chunk_size=250):
-                yield writer.writerow([
-                    item.id,
-                    item.title,
-                    item.url,
-                    item.scope.title if item.scope else "",
-                    item.inbound_link_count,
-                    item.march_2026_pagerank_score,
-                ])
+                yield writer.writerow(
+                    [
+                        item.id,
+                        item.title,
+                        item.url,
+                        item.scope.title if item.scope else "",
+                        item.inbound_link_count,
+                        item.march_2026_pagerank_score,
+                    ]
+                )
 
         label = "low-authority" if mode == "low_authority" else "orphan"
         response = StreamingHttpResponse(_rows(), content_type="text/csv")
@@ -410,17 +413,19 @@ class GraphTopologyView(APIView):
 
         # One query: top-N nodes annotated with in/out degree counts.
         qs = (
-            ContentItem.objects
-            .filter(is_deleted=False)
+            ContentItem.objects.filter(is_deleted=False)
             .annotate(
                 in_degree=Count("incoming_links", distinct=True),
                 out_degree=Count("outgoing_links", distinct=True),
             )
             .values(
-                "id", "title", "content_type",
+                "id",
+                "title",
+                "content_type",
                 "scope_id",
                 "march_2026_pagerank_score",
-                "in_degree", "out_degree",
+                "in_degree",
+                "out_degree",
             )
             .order_by("-march_2026_pagerank_score")[:limit]
         )
@@ -429,28 +434,27 @@ class GraphTopologyView(APIView):
         nodes: list[dict] = []
         for row in qs:
             node_ids.add(row["id"])
-            nodes.append({
-                "id": row["id"],
-                "title": row["title"],
-                "type": row["content_type"],
-                "silo_id": row["scope_id"] or 0,
-                "pagerank": float(row["march_2026_pagerank_score"] or 0),
-                "in_degree": row["in_degree"],
-                "out_degree": row["out_degree"],
-            })
+            nodes.append(
+                {
+                    "id": row["id"],
+                    "title": row["title"],
+                    "type": row["content_type"],
+                    "silo_id": row["scope_id"] or 0,
+                    "pagerank": float(row["march_2026_pagerank_score"] or 0),
+                    "in_degree": row["in_degree"],
+                    "out_degree": row["out_degree"],
+                }
+            )
 
         if at_date:
             # Historical edge set: edges active on `at_date` from LinkFreshnessEdge.
             freshness_qs = (
-                LinkFreshnessEdge.objects
-                .filter(
+                LinkFreshnessEdge.objects.filter(
                     from_content_item_id__in=node_ids,
                     to_content_item_id__in=node_ids,
                     first_seen_at__date__lte=at_date,
                 )
-                .filter(
-                    Q(is_active=True) | Q(last_disappeared_at__date__gte=at_date)
-                )
+                .filter(Q(is_active=True) | Q(last_disappeared_at__date__gte=at_date))
                 .values("from_content_item_id", "to_content_item_id")
             )
             links: list[dict] = [
@@ -465,13 +469,14 @@ class GraphTopologyView(APIView):
             ]
         else:
             # Current live edges from ExistingLink.
-            links_qs = (
-                ExistingLink.objects
-                .filter(
-                    from_content_item_id__in=node_ids,
-                    to_content_item_id__in=node_ids,
-                )
-                .values("from_content_item_id", "to_content_item_id", "context_class", "anchor_text")
+            links_qs = ExistingLink.objects.filter(
+                from_content_item_id__in=node_ids,
+                to_content_item_id__in=node_ids,
+            ).values(
+                "from_content_item_id",
+                "to_content_item_id",
+                "context_class",
+                "anchor_text",
             )
             links = [
                 {
@@ -488,16 +493,14 @@ class GraphTopologyView(APIView):
         thirty_days_ago = timezone.now() - timedelta(days=30)
 
         created_qs = (
-            LinkFreshnessEdge.objects
-            .filter(first_seen_at__gte=thirty_days_ago)
+            LinkFreshnessEdge.objects.filter(first_seen_at__gte=thirty_days_ago)
             .annotate(day=TruncDate("first_seen_at"))
             .values("day")
             .annotate(count=Count("id"))
             .order_by("day")
         )
         deleted_qs = (
-            LinkFreshnessEdge.objects
-            .filter(
+            LinkFreshnessEdge.objects.filter(
                 last_disappeared_at__isnull=False,
                 last_disappeared_at__gte=thirty_days_ago,
             )
@@ -511,14 +514,17 @@ class GraphTopologyView(APIView):
         deleted_map = {r["day"].isoformat(): r["count"] for r in deleted_qs}
         all_days = sorted(set(list(created_map) + list(deleted_map)))
         history = [
-            {"date": d, "created": created_map.get(d, 0), "deleted": deleted_map.get(d, 0)}
+            {
+                "date": d,
+                "created": created_map.get(d, 0),
+                "deleted": deleted_map.get(d, 0),
+            }
             for d in all_days
         ]
 
         # ── Churny nodes: pages with repeated link disappearances ─────────────
         churny_qs = list(
-            LinkFreshnessEdge.objects
-            .filter(
+            LinkFreshnessEdge.objects.filter(
                 last_disappeared_at__isnull=False,
                 last_disappeared_at__gte=thirty_days_ago,
             )
@@ -529,11 +535,23 @@ class GraphTopologyView(APIView):
         )
         churny_ids = [r["from_content_item_id"] for r in churny_qs]
         churny_nodes = [
-            {"id": r["from_content_item_id"], "title": r["from_content_item__title"], "churn_count": r["churn_count"]}
+            {
+                "id": r["from_content_item_id"],
+                "title": r["from_content_item__title"],
+                "churn_count": r["churn_count"],
+            }
             for r in churny_qs
         ]
 
-        return Response({"nodes": nodes, "links": links, "history": history, "churny_ids": churny_ids, "churny_nodes": churny_nodes})
+        return Response(
+            {
+                "nodes": nodes,
+                "links": links,
+                "history": history,
+                "churny_ids": churny_ids,
+                "churny_nodes": churny_nodes,
+            }
+        )
 
 
 class PageRankEquityView(APIView):
@@ -552,10 +570,8 @@ class PageRankEquityView(APIView):
 
         from apps.content.models import ContentItem
 
-        qs = (
-            ContentItem.objects
-            .filter(is_deleted=False)
-            .select_related("scope__silo_group")
+        qs = ContentItem.objects.filter(is_deleted=False).select_related(
+            "scope__silo_group"
         )
 
         agg = qs.aggregate(
@@ -568,44 +584,45 @@ class PageRankEquityView(APIView):
         pr_total = agg["pr_total"] or 1.0  # guard division by zero
         top_5_pct = max(1, int((agg["total_nodes"] or 0) * 0.05))
         top_sum = (
-            qs
-            .order_by("-march_2026_pagerank_score")[:top_5_pct]
-            .aggregate(s=Sum("march_2026_pagerank_score"))["s"]
-        ) or 0.0
+            (
+                qs.order_by("-march_2026_pagerank_score")[:top_5_pct].aggregate(
+                    s=Sum("march_2026_pagerank_score")
+                )["s"]
+            )
+            or 0.0
+        )
         ratio = top_sum / pr_total
 
-        top_pages = (
-            qs
-            .annotate(
-                in_degree=Count("incoming_links", distinct=True),
-                out_degree=Count("outgoing_links", distinct=True),
-            )
-            .order_by("-march_2026_pagerank_score")[:20]
-        )
+        top_pages = qs.annotate(
+            in_degree=Count("incoming_links", distinct=True),
+            out_degree=Count("outgoing_links", distinct=True),
+        ).order_by("-march_2026_pagerank_score")[:20]
 
-        return Response({
-            "pr_min": float(agg["pr_min"] or 0.0),
-            "pr_max": float(agg["pr_max"] or 0.0),
-            "total_nodes": agg["total_nodes"] or 0,
-            "concentration_warning": ratio > 0.5,
-            "concentration_ratio": round(ratio, 4),
-            "top_authorities": [
-                {
-                    "id": p.id,
-                    "title": p.title,
-                    "url": p.url,
-                    "silo_name": (
-                        p.scope.silo_group.name
-                        if p.scope and p.scope.silo_group
-                        else ""
-                    ),
-                    "pagerank": float(p.march_2026_pagerank_score or 0.0),
-                    "in_degree": p.in_degree,
-                    "out_degree": p.out_degree,
-                }
-                for p in top_pages
-            ],
-        })
+        return Response(
+            {
+                "pr_min": float(agg["pr_min"] or 0.0),
+                "pr_max": float(agg["pr_max"] or 0.0),
+                "total_nodes": agg["total_nodes"] or 0,
+                "concentration_warning": ratio > 0.5,
+                "concentration_ratio": round(ratio, 4),
+                "top_authorities": [
+                    {
+                        "id": p.id,
+                        "title": p.title,
+                        "url": p.url,
+                        "silo_name": (
+                            p.scope.silo_group.name
+                            if p.scope and p.scope.silo_group
+                            else ""
+                        ),
+                        "pagerank": float(p.march_2026_pagerank_score or 0.0),
+                        "in_degree": p.in_degree,
+                        "out_degree": p.out_degree,
+                    }
+                    for p in top_pages
+                ],
+            }
+        )
 
 
 class GapAnalysisView(APIView):
@@ -648,9 +665,9 @@ class GapAnalysisView(APIView):
 
         # Step 1: All pending high-confidence suggestions.
         suggestions = list(
-            Suggestion.objects
-            .filter(status="pending", score_final__gte=threshold)
-            .values(
+            Suggestion.objects.filter(
+                status="pending", score_final__gte=threshold
+            ).values(
                 "suggestion_id",
                 "host_id",
                 "destination_id",
@@ -662,24 +679,24 @@ class GapAnalysisView(APIView):
         )
 
         if not suggestions:
-            return Response({
-                "nodes": [],
-                "ghost_edges": [],
-                "threshold": threshold,
-                "total_ghost_edges": 0,
-            })
+            return Response(
+                {
+                    "nodes": [],
+                    "ghost_edges": [],
+                    "threshold": threshold,
+                    "total_ghost_edges": 0,
+                }
+            )
 
         # Step 2: Build set of existing (host → dest) link pairs.
         host_ids = {s["host_id"] for s in suggestions}
         dest_ids = {s["destination_id"] for s in suggestions}
 
         existing_pairs: set[tuple[int, int]] = set(
-            ExistingLink.objects
-            .filter(
+            ExistingLink.objects.filter(
                 from_content_item_id__in=host_ids,
                 to_content_item_id__in=dest_ids,
-            )
-            .values_list("from_content_item_id", "to_content_item_id")
+            ).values_list("from_content_item_id", "to_content_item_id")
         )
 
         # Step 3: Ghost edges = suggestions where no real link exists yet.
@@ -706,17 +723,18 @@ class GapAnalysisView(APIView):
             ghost_node_ids.add(ge["target"])
 
         if not ghost_node_ids:
-            return Response({
-                "nodes": [],
-                "ghost_edges": [],
-                "threshold": threshold,
-                "total_ghost_edges": 0,
-            })
+            return Response(
+                {
+                    "nodes": [],
+                    "ghost_edges": [],
+                    "threshold": threshold,
+                    "total_ghost_edges": 0,
+                }
+            )
 
         # Step 5: Annotate nodes with their real inbound link count.
         node_rows = list(
-            ContentItem.objects
-            .filter(pk__in=ghost_node_ids, is_deleted=False)
+            ContentItem.objects.filter(pk__in=ghost_node_ids, is_deleted=False)
             .annotate(inbound_count=Count("incoming_links"))
             .values("id", "title", "url", "inbound_count")
         )
@@ -735,24 +753,28 @@ class GapAnalysisView(APIView):
             nid = row["id"]
             inbound = row["inbound_count"]
             neglect = round(dest_score_sum.get(nid, 0.0) / (inbound + 1), 4)
-            nodes.append({
-                "id": nid,
-                "title": row["title"],
-                "url": row["url"],
-                "neglect_score": neglect,
-                "inbound_count": inbound,
-                "pending_suggestion_count": dest_ghost_count.get(nid, 0),
-            })
+            nodes.append(
+                {
+                    "id": nid,
+                    "title": row["title"],
+                    "url": row["url"],
+                    "neglect_score": neglect,
+                    "inbound_count": inbound,
+                    "pending_suggestion_count": dest_ghost_count.get(nid, 0),
+                }
+            )
 
         nodes.sort(key=lambda n: n["neglect_score"], reverse=True)
         nodes = nodes[:limit]
 
-        return Response({
-            "nodes": nodes,
-            "ghost_edges": ghost_edges,
-            "threshold": threshold,
-            "total_ghost_edges": total_ghost_edges,
-        })
+        return Response(
+            {
+                "nodes": nodes,
+                "ghost_edges": ghost_edges,
+                "threshold": threshold,
+                "total_ghost_edges": total_ghost_edges,
+            }
+        )
 
 
 def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
@@ -762,8 +784,7 @@ def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
 
     # Resolve the start node
     start = (
-        ContentItem.objects
-        .filter(pk=from_id, is_deleted=False)
+        ContentItem.objects.filter(pk=from_id, is_deleted=False)
         .values("id", "title", "url")
         .first()
     )
@@ -782,18 +803,14 @@ def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
         if not frontier:
             break
 
-        edges = (
-            ExistingLink.objects
-            .filter(
-                from_content_item_id__in=frontier,
-                to_content_item__is_deleted=False,
-            )
-            .values(
-                "from_content_item_id",
-                "to_content_item_id",
-                "to_content_item__title",
-                "to_content_item__url",
-            )
+        edges = ExistingLink.objects.filter(
+            from_content_item_id__in=frontier,
+            to_content_item__is_deleted=False,
+        ).values(
+            "from_content_item_id",
+            "to_content_item_id",
+            "to_content_item__title",
+            "to_content_item__url",
         )
 
         next_frontier: list[int] = []
@@ -822,7 +839,9 @@ def _bfs_path(from_id: int, to_id: int, max_depth: int = 4) -> list | None:
                 p_id, title, url = parent[node_id]
                 path.append({"id": node_id, "title": title, "url": url})
                 node_id = p_id
-            path.append({"id": start["id"], "title": start["title"], "url": start["url"]})
+            path.append(
+                {"id": start["id"], "title": start["title"], "url": start["url"]}
+            )
             path.reverse()
             return path
 

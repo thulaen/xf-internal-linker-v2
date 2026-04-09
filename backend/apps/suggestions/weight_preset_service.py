@@ -30,16 +30,37 @@ _KEY_META: dict[str, dict[str, str]] = {
     "weighted_authority.empty_anchor_factor": {"value_type": "float", "category": "ml"},
     "weighted_authority.bare_url_factor": {"value_type": "float", "category": "ml"},
     "weighted_authority.weak_context_factor": {"value_type": "float", "category": "ml"},
-    "weighted_authority.isolated_context_factor": {"value_type": "float", "category": "ml"},
+    "weighted_authority.isolated_context_factor": {
+        "value_type": "float",
+        "category": "ml",
+    },
     "rare_term_propagation.enabled": {"value_type": "bool", "category": "ml"},
     "rare_term_propagation.ranking_weight": {"value_type": "float", "category": "ml"},
-    "rare_term_propagation.max_document_frequency": {"value_type": "int", "category": "ml"},
-    "rare_term_propagation.minimum_supporting_related_pages": {"value_type": "int", "category": "ml"},
+    "rare_term_propagation.max_document_frequency": {
+        "value_type": "int",
+        "category": "ml",
+    },
+    "rare_term_propagation.minimum_supporting_related_pages": {
+        "value_type": "int",
+        "category": "ml",
+    },
     "field_aware_relevance.ranking_weight": {"value_type": "float", "category": "ml"},
-    "field_aware_relevance.title_field_weight": {"value_type": "float", "category": "ml"},
-    "field_aware_relevance.body_field_weight": {"value_type": "float", "category": "ml"},
-    "field_aware_relevance.scope_field_weight": {"value_type": "float", "category": "ml"},
-    "field_aware_relevance.learned_anchor_field_weight": {"value_type": "float", "category": "ml"},
+    "field_aware_relevance.title_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
+    "field_aware_relevance.body_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
+    "field_aware_relevance.scope_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
+    "field_aware_relevance.learned_anchor_field_weight": {
+        "value_type": "float",
+        "category": "ml",
+    },
     "ga4_gsc.ranking_weight": {"value_type": "float", "category": "ml"},
     "click_distance.ranking_weight": {"value_type": "float", "category": "ml"},
     "click_distance.k_cd": {"value_type": "float", "category": "ml"},
@@ -55,21 +76,48 @@ _KEY_META: dict[str, dict[str, str]] = {
     "slate_diversity.diversity_lambda": {"value_type": "float", "category": "ml"},
     "slate_diversity.score_window": {"value_type": "float", "category": "ml"},
     "slate_diversity.similarity_cap": {"value_type": "float", "category": "ml"},
-    "link_freshness.ranking_weight": {"value_type": "float", "category": "link_freshness"},
-    "link_freshness.recent_window_days": {"value_type": "int", "category": "link_freshness"},
-    "link_freshness.newest_peer_percent": {"value_type": "float", "category": "link_freshness"},
-    "link_freshness.min_peer_count": {"value_type": "int", "category": "link_freshness"},
+    "link_freshness.ranking_weight": {
+        "value_type": "float",
+        "category": "link_freshness",
+    },
+    "link_freshness.recent_window_days": {
+        "value_type": "int",
+        "category": "link_freshness",
+    },
+    "link_freshness.newest_peer_percent": {
+        "value_type": "float",
+        "category": "link_freshness",
+    },
+    "link_freshness.min_peer_count": {
+        "value_type": "int",
+        "category": "link_freshness",
+    },
     "link_freshness.w_recent": {"value_type": "float", "category": "link_freshness"},
     "link_freshness.w_growth": {"value_type": "float", "category": "link_freshness"},
     "link_freshness.w_cohort": {"value_type": "float", "category": "link_freshness"},
     "link_freshness.w_loss": {"value_type": "float", "category": "link_freshness"},
     "phrase_matching.ranking_weight": {"value_type": "float", "category": "anchor"},
-    "phrase_matching.enable_anchor_expansion": {"value_type": "bool", "category": "anchor"},
-    "phrase_matching.enable_partial_matching": {"value_type": "bool", "category": "anchor"},
-    "phrase_matching.context_window_tokens": {"value_type": "int", "category": "anchor"},
+    "phrase_matching.enable_anchor_expansion": {
+        "value_type": "bool",
+        "category": "anchor",
+    },
+    "phrase_matching.enable_partial_matching": {
+        "value_type": "bool",
+        "category": "anchor",
+    },
+    "phrase_matching.context_window_tokens": {
+        "value_type": "int",
+        "category": "anchor",
+    },
     "learned_anchor.ranking_weight": {"value_type": "float", "category": "anchor"},
-    "learned_anchor.minimum_anchor_sources": {"value_type": "int", "category": "anchor"},
-    "learned_anchor.minimum_family_support_share": {"value_type": "float", "category": "anchor"},
+    "learned_anchor.minimum_anchor_sources": {
+        "value_type": "int",
+        "category": "anchor",
+    },
+    "learned_anchor.minimum_family_support_share": {
+        "value_type": "float",
+        "category": "anchor",
+    },
     "learned_anchor.enable_noise_filter": {"value_type": "bool", "category": "anchor"},
 }
 
@@ -78,7 +126,9 @@ def get_current_weights() -> dict[str, str]:
     """Return the current value of every in-scope AppSetting key as strings."""
     from apps.core.models import AppSetting
 
-    qs = AppSetting.objects.filter(key__in=list(PRESET_DEFAULTS)).values_list("key", "value")
+    qs = AppSetting.objects.filter(key__in=list(PRESET_DEFAULTS)).values_list(
+        "key", "value"
+    )
     stored = dict(qs)
     return {key: stored.get(key, default) for key, default in PRESET_DEFAULTS.items()}
 

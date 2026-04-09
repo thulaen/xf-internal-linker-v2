@@ -30,18 +30,30 @@ class PluginAdmin(ModelAdmin):
     inlines = [PluginSettingInline]
 
     fieldsets = (
-        ("Plugin Identity", {
-            "fields": ("name", "slug", "version", "description"),
-        }),
-        ("State", {
-            "fields": ("is_installed", "is_enabled", "module_path"),
-        }),
-        ("Metadata", {
-            "fields": ("metadata",),
-            "classes": ("collapse",),
-        }),
-        ("Timestamps", {
-            "fields": ("created_at", "updated_at"),
-            "classes": ("collapse",),
-        }),
+        (
+            "Plugin Identity",
+            {
+                "fields": ("name", "slug", "version", "description"),
+            },
+        ),
+        (
+            "State",
+            {
+                "fields": ("is_installed", "is_enabled", "module_path"),
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": ("metadata",),
+                "classes": ("collapse",),
+            },
+        ),
+        (
+            "Timestamps",
+            {
+                "fields": ("created_at", "updated_at"),
+                "classes": ("collapse",),
+            },
+        ),
     )

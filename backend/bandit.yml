@@ -1,0 +1,22 @@
+# Bandit security scanning configuration for XF Internal Linker V2.
+#
+# Runs on every push (via lint-all.ps1) and in CI.
+# Skips rules that produce false positives in this project's context.
+
+skips:
+  # B101: Use of assert — used legitimately in tests and validation.
+  - B101
+  # B104: Possible binding to all interfaces — Docker containers bind 0.0.0.0 by design.
+  - B104
+  # B105: Hardcoded password string — false positive on empty-string defaults and webhook secrets.
+  - B105
+  # B106: Hardcoded password funcarg — false positive on test fixtures (password="pass")
+  #        and Google OAuth token_uri parameters.
+  - B106
+  # B110: Try/except/pass — used in graceful fallback patterns (e.g., ext_loader).
+  - B110
+  # B310: urllib.urlopen — only called on controlled internal HTTP Worker URLs, not user input.
+  - B310
+  # B608: Possible SQL injection via string formatting — Django ORM handles parameterisation.
+  #        All raw SQL in this project uses cursor.execute() with parameters.
+  - B608

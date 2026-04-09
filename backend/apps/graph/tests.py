@@ -64,7 +64,9 @@ class HttpWorkerClientTests(SimpleTestCase):
 
 class GraphSyncDispatchTests(TestCase):
     def setUp(self):
-        self.scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Scope")
+        self.scope = ScopeItem.objects.create(
+            scope_id=1, scope_type="node", title="Scope"
+        )
         self.content = ContentItem.objects.create(
             content_id=10,
             content_type="thread",
@@ -74,7 +76,10 @@ class GraphSyncDispatchTests(TestCase):
         )
 
     @override_settings(HEAVY_RUNTIME_OWNER="celery", RUNTIME_OWNER_GRAPH_SYNC="csharp")
-    @patch("apps.graph.services.graph_sync._sync_existing_links_via_http_worker", return_value=4)
+    @patch(
+        "apps.graph.services.graph_sync._sync_existing_links_via_http_worker",
+        return_value=4,
+    )
     @patch("apps.graph.services.graph_sync._sync_existing_links_py")
     def test_sync_existing_links_for_content_item_routes_to_csharp_owner(
         self,
@@ -108,7 +113,10 @@ class GraphSyncDispatchTests(TestCase):
         csharp_mock.assert_not_called()
 
     @override_settings(HEAVY_RUNTIME_OWNER="celery", RUNTIME_OWNER_GRAPH_SYNC="csharp")
-    @patch("apps.graph.services.graph_sync._refresh_existing_links_via_http_worker", return_value=9)
+    @patch(
+        "apps.graph.services.graph_sync._refresh_existing_links_via_http_worker",
+        return_value=9,
+    )
     @patch("apps.graph.services.graph_sync._refresh_existing_links_py")
     def test_refresh_existing_links_routes_to_csharp_owner(self, py_mock, csharp_mock):
         result = graph_sync.refresh_existing_links()
@@ -150,7 +158,9 @@ class GraphSyncPythonBenchmarkTests(TestCase):
                 links.append(
                     f"[URL=https://forum.example.com/threads/target.{destination_id}/]Target {destination_id}[/URL]"
                 )
-            Post.objects.create(content_item=content, raw_bbcode=" ".join(links), clean_text="bench")
+            Post.objects.create(
+                content_item=content, raw_bbcode=" ".join(links), clean_text="bench"
+            )
 
         run_times_ms: list[float] = []
         peak_working_set_bytes = 0
@@ -161,7 +171,9 @@ class GraphSyncPythonBenchmarkTests(TestCase):
             refreshed = graph_sync._refresh_existing_links_py()
             elapsed_ms = round((perf_counter() - started) * 1000, 2)
             run_times_ms.append(elapsed_ms)
-            peak_working_set_bytes = max(peak_working_set_bytes, _peak_working_set_bytes())
+            peak_working_set_bytes = max(
+                peak_working_set_bytes, _peak_working_set_bytes()
+            )
             self.assertEqual(refreshed, source_count)
 
         payload = {
@@ -173,7 +185,8 @@ class GraphSyncPythonBenchmarkTests(TestCase):
             "median_wall_time_ms": median(run_times_ms),
             "peak_working_set_bytes": peak_working_set_bytes,
             "throughput_links_per_second": round(
-                (source_count * links_per_source) / max(median(run_times_ms) / 1000.0, 0.001),
+                (source_count * links_per_source)
+                / max(median(run_times_ms) / 1000.0, 0.001),
                 2,
             ),
         }
@@ -182,6 +195,7 @@ class GraphSyncPythonBenchmarkTests(TestCase):
 
 def _peak_working_set_bytes() -> int:
     if os.name == "nt":
+
         class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
             _fields_ = [
                 ("cb", ctypes.c_uint32),
@@ -223,19 +237,30 @@ class GraphTopologyViewTests(APITestCase):
     """FR-034: topology edges must include the 'anchor' field."""
 
     def setUp(self):
-        user = get_user_model().objects.create_user(username="topo_tester", password="pass")
+        user = get_user_model().objects.create_user(
+            username="topo_tester", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
-        self.scope = ScopeItem.objects.create(scope_id=99, scope_type="node", title="Scope")
+        self.scope = ScopeItem.objects.create(
+            scope_id=99, scope_type="node", title="Scope"
+        )
         self.src = ContentItem.objects.create(
-            content_id=101, content_type="thread", title="Source",
-            scope=self.scope, url="https://forum.example.com/threads/source.101",
+            content_id=101,
+            content_type="thread",
+            title="Source",
+            scope=self.scope,
+            url="https://forum.example.com/threads/source.101",
         )
         self.tgt = ContentItem.objects.create(
-            content_id=102, content_type="thread", title="Target",
-            scope=self.scope, url="https://forum.example.com/threads/target.102",
+            content_id=102,
+            content_type="thread",
+            title="Target",
+            scope=self.scope,
+            url="https://forum.example.com/threads/target.102",
         )
         from apps.graph.models import ExistingLink
+
         ExistingLink.objects.create(
             from_content_item=self.src,
             to_content_item=self.tgt,
@@ -268,7 +293,9 @@ class GapAnalysisViewTests(APITestCase):
         self.user = User.objects.create_user(username="gaptest", password="x")
         self.client.force_authenticate(user=self.user)
 
-        self.scope = ScopeItem.objects.create(scope_id=99, scope_type="node", title="Scope")
+        self.scope = ScopeItem.objects.create(
+            scope_id=99, scope_type="node", title="Scope"
+        )
         self.host = ContentItem.objects.create(
             content_id=301,
             content_type="thread",

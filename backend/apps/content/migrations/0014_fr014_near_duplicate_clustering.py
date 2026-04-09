@@ -5,34 +5,80 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0013_contentitem_click_distance_score_and_more'),
+        ("content", "0013_contentitem_click_distance_score_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='is_canonical',
-            field=models.BooleanField(db_index=True, default=False, help_text='Whether this is the preferred version for linking within its cluster.'),
+            model_name="contentitem",
+            name="is_canonical",
+            field=models.BooleanField(
+                db_index=True,
+                default=False,
+                help_text="Whether this is the preferred version for linking within its cluster.",
+            ),
         ),
         migrations.CreateModel(
-            name='ContentCluster',
+            name="ContentCluster",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('is_manually_fixed', models.BooleanField(default=False, help_text="If True, auto-clustering will not override this cluster's members or canonical item.")),
-                ('canonical_item', models.ForeignKey(blank=True, help_text='The preferred version of content in this cluster.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='canonical_for_cluster', to='content.contentitem')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "is_manually_fixed",
+                    models.BooleanField(
+                        default=False,
+                        help_text="If True, auto-clustering will not override this cluster's members or canonical item.",
+                    ),
+                ),
+                (
+                    "canonical_item",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="The preferred version of content in this cluster.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="canonical_for_cluster",
+                        to="content.contentitem",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Content Cluster',
-                'verbose_name_plural': 'Content Clusters',
+                "verbose_name": "Content Cluster",
+                "verbose_name_plural": "Content Clusters",
             },
         ),
         migrations.AddField(
-            model_name='contentitem',
-            name='cluster',
-            field=models.ForeignKey(blank=True, help_text='The cluster this item belongs to. Used to suppress near-duplicates.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='members', to='content.contentcluster'),
+            model_name="contentitem",
+            name="cluster",
+            field=models.ForeignKey(
+                blank=True,
+                help_text="The cluster this item belongs to. Used to suppress near-duplicates.",
+                null=True,
+                on_delete=django.db.models.deletion.SET_NULL,
+                related_name="members",
+                to="content.contentcluster",
+            ),
         ),
     ]

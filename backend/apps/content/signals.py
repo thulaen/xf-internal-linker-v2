@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from apps.content.models import ContentItem
 from apps.content.services.clustering import ClusteringService
 
+
 @receiver(post_save, sender=ContentItem)
 def content_item_clustering_trigger(sender, instance, created, **kwargs):
     """
@@ -11,7 +12,7 @@ def content_item_clustering_trigger(sender, instance, created, **kwargs):
     """
     # Only run if we have an embedding
     if instance.embedding is not None:
-        # We use a service instance to handle logic. 
+        # We use a service instance to handle logic.
         # In a real high-traffic environment, this would be a Celery task.
         service = ClusteringService()
         # We use transaction.on_commit for safety, but here we can just call it

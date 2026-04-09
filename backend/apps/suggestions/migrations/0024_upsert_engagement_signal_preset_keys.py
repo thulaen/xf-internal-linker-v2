@@ -33,11 +33,12 @@ def upsert_engagement_signal_preset_keys(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0023_add_anchor_too_long_paragraph_cluster_skip_reasons"),
     ]
 
     operations = [
-        migrations.RunPython(upsert_engagement_signal_preset_keys, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            upsert_engagement_signal_preset_keys, reverse_code=migrations.RunPython.noop
+        ),
     ]

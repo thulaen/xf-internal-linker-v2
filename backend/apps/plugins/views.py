@@ -33,7 +33,9 @@ class PluginViewSet(viewsets.ModelViewSet):
         if request.method == "PATCH":
             updates = request.data
             if not isinstance(updates, dict):
-                return Response({"error": "Expected a JSON object of key-value pairs."}, status=400)
+                return Response(
+                    {"error": "Expected a JSON object of key-value pairs."}, status=400
+                )
 
             updated = []
             for key, value in updates.items():

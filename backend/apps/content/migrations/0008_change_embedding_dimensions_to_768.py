@@ -5,20 +5,29 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0007_contentitem_link_freshness_score_and_more'),
+        ("content", "0007_contentitem_link_freshness_score_and_more"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='contentitem',
-            name='embedding',
-            field=pgvector.django.vector.VectorField(blank=True, dimensions=768, help_text='768-dimension sentence embedding for semantic similarity search via pgvector.', null=True),
+            model_name="contentitem",
+            name="embedding",
+            field=pgvector.django.vector.VectorField(
+                blank=True,
+                dimensions=768,
+                help_text="768-dimension sentence embedding for semantic similarity search via pgvector.",
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='sentence',
-            name='embedding',
-            field=pgvector.django.vector.VectorField(blank=True, dimensions=768, help_text='768-dimension sentence embedding. Used in stage-2 similarity ranking.', null=True),
+            model_name="sentence",
+            name="embedding",
+            field=pgvector.django.vector.VectorField(
+                blank=True,
+                dimensions=768,
+                help_text="768-dimension sentence embedding. Used in stage-2 similarity ranking.",
+                null=True,
+            ),
         ),
     ]

@@ -82,7 +82,10 @@ from apps.pipeline.services.ranker import (
     select_final_candidates,
 )
 from apps.pipeline.services.slate_diversity import SlateDiversitySettings
-from apps.pipeline.services.slate_diversity import apply_slate_diversity, get_slate_diversity_runtime_status
+from apps.pipeline.services.slate_diversity import (
+    apply_slate_diversity,
+    get_slate_diversity_runtime_status,
+)
 from apps.pipeline.services.weighted_pagerank import (
     _WeightedEdge,
     _normalize_source_edges,
@@ -138,6 +141,7 @@ except ImportError:
 
 def _peak_working_set_bytes() -> int:
     if os.name == "nt":
+
         class PROCESS_MEMORY_COUNTERS_EX(ctypes.Structure):
             _fields_ = [
                 ("cb", ctypes.c_uint32),
@@ -245,24 +249,36 @@ def _scored_candidate(
         anchor_start=3,
         anchor_end=16,
         anchor_confidence="strong",
-        phrase_match_diagnostics=phrase_match_diagnostics or {"phrase_match_state": "computed_exact_title"},
-        learned_anchor_diagnostics=learned_anchor_diagnostics or {"learned_anchor_state": "exact_variant_match"},
-        rare_term_diagnostics=rare_term_diagnostics or {"rare_term_state": "computed_match"},
-        field_aware_diagnostics=field_aware_diagnostics or {"field_aware_state": "computed_match"},
+        phrase_match_diagnostics=phrase_match_diagnostics
+        or {"phrase_match_state": "computed_exact_title"},
+        learned_anchor_diagnostics=learned_anchor_diagnostics
+        or {"learned_anchor_state": "exact_variant_match"},
+        rare_term_diagnostics=rare_term_diagnostics
+        or {"rare_term_state": "computed_match"},
+        field_aware_diagnostics=field_aware_diagnostics
+        or {"field_aware_state": "computed_match"},
         cluster_diagnostics=cluster_diagnostics or {},
-        explore_exploit_diagnostics=explore_exploit_diagnostics or {"final_factor": 1.25},
-        click_distance_diagnostics=click_distance_diagnostics or {"score_component": 0.4},
+        explore_exploit_diagnostics=explore_exploit_diagnostics
+        or {"final_factor": 1.25},
+        click_distance_diagnostics=click_distance_diagnostics
+        or {"score_component": 0.4},
     )
 
 
 class ScoringExtensionTests(TestCase):
     def _assert_full_batch_matches_reference(self, component_count: int) -> None:
-        if scoring_ext is None or not hasattr(scoring_ext, "calculate_composite_scores_full_batch"):
+        if scoring_ext is None or not hasattr(
+            scoring_ext, "calculate_composite_scores_full_batch"
+        ):
             self.skipTest("C++ extension not compiled")
 
         np.random.seed(42)
-        component_scores = np.random.uniform(-1.0, 1.0, size=(50, component_count)).astype(np.float32)
-        weights = np.random.uniform(-0.75, 0.75, size=(component_count,)).astype(np.float32)
+        component_scores = np.random.uniform(
+            -1.0, 1.0, size=(50, component_count)
+        ).astype(np.float32)
+        weights = np.random.uniform(-0.75, 0.75, size=(component_count,)).astype(
+            np.float32
+        )
         silo = np.random.uniform(-0.5, 0.5, size=(50,)).astype(np.float32)
 
         py_result = ranker_service._calculate_composite_scores_full_batch_py(
@@ -285,7 +301,9 @@ class ScoringExtensionTests(TestCase):
         self._assert_full_batch_matches_reference(component_count=5)
 
     def test_feedrerank_mmr_batch_matches_python_reference(self):
-        if feedrerank_ext is None or not hasattr(feedrerank_ext, "calculate_mmr_scores_batch"):
+        if feedrerank_ext is None or not hasattr(
+            feedrerank_ext, "calculate_mmr_scores_batch"
+        ):
             self.skipTest("C++ feed rerank extension not compiled")
 
         relevance = np.array([0.95, 0.8, 0.6], dtype=np.float64)
@@ -315,12 +333,17 @@ class ScoringExtensionTests(TestCase):
 
         py_max_sims = np.array(
             [
-                max(float(np.dot(candidate, selected)) for selected in selected_embeddings)
+                max(
+                    float(np.dot(candidate, selected))
+                    for selected in selected_embeddings
+                )
                 for candidate in candidate_embeddings
             ],
             dtype=np.float64,
         )
-        py_scores = (diversity_lambda * relevance) - ((1.0 - diversity_lambda) * py_max_sims)
+        py_scores = (diversity_lambda * relevance) - (
+            (1.0 - diversity_lambda) * py_max_sims
+        )
 
         np.testing.assert_allclose(cpp_max_sims, py_max_sims, atol=1e-9, rtol=0.0)
         np.testing.assert_allclose(cpp_scores, py_scores, atol=1e-9, rtol=0.0)
@@ -370,7 +393,9 @@ class TextTokenizerExtensionTests(TestCase):
 
 class TextTokenizerServiceTests(TestCase):
     def test_tokenize_text_filters_stopwords_and_keeps_ascii_apostrophe_tokens(self):
-        result = text_tokens_service.tokenize_text("Don't stop the internal linking guide")
+        result = text_tokens_service.tokenize_text(
+            "Don't stop the internal linking guide"
+        )
         self.assertEqual(
             result,
             frozenset({"stop", "internal", "linking", "guide"}),
@@ -437,12 +462,43 @@ class SimsearchExtensionTests(TestCase):
             self.skipTest("C++ extension not compiled")
 
         np.random.seed(42)
-        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(200, 64)).astype(np.float32)
-        destination_embedding = np.random.uniform(-1.0, 1.0, size=(64,)).astype(np.float32)
+        sentence_embeddings = np.random.uniform(-1.0, 1.0, size=(200, 64)).astype(
+            np.float32
+        )
+        destination_embedding = np.random.uniform(-1.0, 1.0, size=(64,)).astype(
+            np.float32
+        )
         candidate_rows = [
-            3, 7, 11, 19, 24, 28, 33, 41, 47, 52,
-            58, 63, 71, 76, 84, 89, 97, 103, 111, 118,
-            126, 133, 141, 148, 152, 167, 173, 181, 188, 196,
+            3,
+            7,
+            11,
+            19,
+            24,
+            28,
+            33,
+            41,
+            47,
+            52,
+            58,
+            63,
+            71,
+            76,
+            84,
+            89,
+            97,
+            103,
+            111,
+            118,
+            126,
+            133,
+            141,
+            148,
+            152,
+            167,
+            173,
+            181,
+            188,
+            196,
         ]
 
         candidate_matrix = sentence_embeddings[candidate_rows]
@@ -469,9 +525,15 @@ class PagerankExtensionTests(TestCase):
 
         rows = np.array([1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 9, 0, 9, 4], dtype=np.int32)
         cols = np.array([0, 0, 1, 2, 2, 3, 4, 5, 5, 6, 7, 8, 8, 9], dtype=np.int32)
-        data = np.array([1.0, 0.4, 0.6, 1.0, 1.0, 0.7, 0.3, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0], dtype=np.float64)
+        data = np.array(
+            [1.0, 0.4, 0.6, 1.0, 1.0, 0.7, 0.3, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 1.0],
+            dtype=np.float64,
+        )
         adjacency = csr_matrix((data, (rows, cols)), shape=(10, 10), dtype=np.float64)
-        dangling_mask = np.array([False, False, False, False, False, False, False, False, False, False], dtype=bool)
+        dangling_mask = np.array(
+            [False, False, False, False, False, False, False, False, False, False],
+            dtype=bool,
+        )
         damping = 0.15
 
         py_ranks = np.full(10, 0.1, dtype=np.float64)
@@ -502,7 +564,9 @@ class PagerankExtensionTests(TestCase):
 
 class PhraseMatchExtensionTests(TestCase):
     def test_longest_contiguous_overlap_matches_python_reference(self):
-        if phrasematch_ext is None or not hasattr(phrasematch_ext, "longest_contiguous_overlap"):
+        if phrasematch_ext is None or not hasattr(
+            phrasematch_ext, "longest_contiguous_overlap"
+        ):
             self.skipTest("C++ extension not compiled")
 
         cases = [
@@ -526,7 +590,8 @@ class PhraseMatchExtensionTests(TestCase):
                     while (
                         left_start + match_len < len(left)
                         and right_start + match_len < len(right)
-                        and left[left_start + match_len] == right[right_start + match_len]
+                        and left[left_start + match_len]
+                        == right[right_start + match_len]
                     ):
                         match_len += 1
                     if match_len > best:
@@ -563,7 +628,9 @@ class FieldRelExtensionTests(TestCase):
                     b_value=field_aware_service.BODY_B,
                 ),
                 "host_token_counts": Counter({"longform": 2, "guide": 1, "editor": 1}),
-                "field_presence_count": Counter({"longform": 1, "guide": 2, "editor": 4}),
+                "field_presence_count": Counter(
+                    {"longform": 1, "guide": 2, "editor": 4}
+                ),
             },
             {
                 "profile": field_aware_service._FieldProfile(
@@ -686,7 +753,9 @@ class RareTermExtensionTests(TestCase):
             ),
         ]
 
-        for index, (terms, evidences, supporting_pages, host_tokens) in enumerate(cases, start=1):
+        for index, (terms, evidences, supporting_pages, host_tokens) in enumerate(
+            cases, start=1
+        ):
             destination = _content_record(content_id=900 + index, silo_group_id=None)
             profile = rare_term_service.RareTermProfile(
                 destination_key=destination.key,
@@ -703,7 +772,9 @@ class RareTermExtensionTests(TestCase):
                         average_relationship_weight=1.0,
                         term_evidence=evidence,
                     )
-                    for term, evidence, pages in zip(terms, evidences, supporting_pages, strict=True)
+                    for term, evidence, pages in zip(
+                        terms, evidences, supporting_pages, strict=True
+                    )
                 ),
             )
 
@@ -720,12 +791,16 @@ class RareTermExtensionTests(TestCase):
                     destination=destination,
                     host_sentence_tokens=host_tokens,
                     profiles={destination.key: profile},
-                    settings=rare_term_service.RareTermPropagationSettings(enabled=True),
+                    settings=rare_term_service.RareTermPropagationSettings(
+                        enabled=True
+                    ),
                 )
 
             self.assertEqual(cpp_matched, py_result.rare_term_state == "computed_match")
             if cpp_matched:
-                self.assertAlmostEqual(cpp_score, py_result.score_rare_term_propagation, places=6)
+                self.assertAlmostEqual(
+                    cpp_score, py_result.score_rare_term_propagation, places=6
+                )
             else:
                 self.assertAlmostEqual(cpp_score, 0.0, places=6)
 
@@ -739,23 +814,29 @@ class LinkParseExtensionTests(TestCase):
             "",
             "[URL=https://example.com/threads/topic.1]Anchor[/URL]",
             "[url=https://example.com/threads/topic.2]Lower[/url]",
-            "<a href=\"https://example.com/resources/tool.3\">Tool</a>",
+            '<a href="https://example.com/resources/tool.3">Tool</a>',
             "Visit https://example.com/threads/topic.4 now",
             "[URL=https://example.com/threads/topic.5]<b>Bold</b> anchor[/URL]",
             "<a class=\"x\" href='https://example.com/resources/tool.6'>Inner <b>tag</b></a>",
-            "[URL=https://example.com/threads/topic.7]<a href=\"https://bad\">Nested</a>[/URL>",
+            '[URL=https://example.com/threads/topic.7]<a href="https://bad">Nested</a>[/URL>',
             "[URL=https://example.com/threads/topic.8][/URL]",
-            "Before <a href=\"https://example.com/threads/topic.9?x=1#frag\">Query</a> after",
+            'Before <a href="https://example.com/threads/topic.9?x=1#frag">Query</a> after',
             "Mix [url=https://example.com/threads/topic.10]One[/url] and https://example.com/resources/tool.10",
             "No urls here at all",
-            "Overlap <a href=\"https://example.com/threads/topic.11\">https://example.com/resources/tool.11</a>",
-            "[URL=https://example.com/threads/topic.12]Upper[/URL] <A HREF=\"https://example.com/resources/tool.12\">Html</A>",
+            'Overlap <a href="https://example.com/threads/topic.11">https://example.com/resources/tool.11</a>',
+            '[URL=https://example.com/threads/topic.12]Upper[/URL] <A HREF="https://example.com/resources/tool.12">Html</A>',
             "Two bare URLs https://example.com/threads/topic.13 and https://example.com/resources/tool.13",
         ]
 
         for text in cases:
             py_result = [
-                (link.url, link.anchor_text, link.extraction_method, link.start, link.end)
+                (
+                    link.url,
+                    link.anchor_text,
+                    link.extraction_method,
+                    link.start,
+                    link.end,
+                )
                 for link in link_parser_service._find_urls_py(text)
             ]
             cpp_result = linkparse_ext.find_urls(text)
@@ -764,7 +845,9 @@ class LinkParseExtensionTests(TestCase):
 
 class FeedRerankExtensionTests(TestCase):
     def test_calculate_rerank_factors_batch_matches_python_reference(self):
-        if feedrerank_ext is None or not hasattr(feedrerank_ext, "calculate_rerank_factors_batch"):
+        if feedrerank_ext is None or not hasattr(
+            feedrerank_ext, "calculate_rerank_factors_batch"
+        ):
             self.skipTest("C++ extension not compiled")
 
         np.random.seed(42)
@@ -789,7 +872,9 @@ class FeedRerankExtensionTests(TestCase):
             )
         )
         expected = []
-        for successes, total in zip(n_successes.tolist(), n_totals.tolist(), strict=True):
+        for successes, total in zip(
+            n_successes.tolist(), n_totals.tolist(), strict=True
+        ):
             service._pair_stats[(1, 1)] = {"total": total, "successes": successes}
             service._global_total_samples = n_global
             factor, _ = service.calculate_rerank_factor(1, 1)
@@ -805,7 +890,9 @@ class FeedRerankExtensionTests(TestCase):
             exploration_rate,
         )
 
-        np.testing.assert_allclose(cpp_result, np.asarray(expected, dtype=np.float64), atol=1e-6, rtol=0.0)
+        np.testing.assert_allclose(
+            cpp_result, np.asarray(expected, dtype=np.float64), atol=1e-6, rtol=0.0
+        )
 
 
 class SiloRankerTests(TestCase):
@@ -815,9 +902,15 @@ class SiloRankerTests(TestCase):
         self.cross_host = _content_record(content_id=3, silo_group_id=99)
         self.unassigned_host = _content_record(content_id=4, silo_group_id=None)
         self.sentence_records = {
-            20: SentenceRecord(20, 2, "thread", "Useful same silo sentence", 80, frozenset({"topic"})),
-            30: SentenceRecord(30, 3, "thread", "Useful cross silo sentence", 80, frozenset({"topic"})),
-            40: SentenceRecord(40, 4, "thread", "Useful unassigned sentence", 80, frozenset({"topic"})),
+            20: SentenceRecord(
+                20, 2, "thread", "Useful same silo sentence", 80, frozenset({"topic"})
+            ),
+            30: SentenceRecord(
+                30, 3, "thread", "Useful cross silo sentence", 80, frozenset({"topic"})
+            ),
+            40: SentenceRecord(
+                40, 4, "thread", "Useful unassigned sentence", 80, frozenset({"topic"})
+            ),
         }
         self.weights = {
             "w_semantic": 0.55,
@@ -864,7 +957,9 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
-            silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
+            silo_settings=SiloSettings(
+                mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1
+            ),
         )[0]
         preferred_cross = score_destination_matches(
             self.destination,
@@ -874,7 +969,9 @@ class SiloRankerTests(TestCase):
             existing_links=set(),
             weights=self.weights,
             march_2026_pagerank_bounds=self.march_2026_pagerank_bounds,
-            silo_settings=SiloSettings(mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1),
+            silo_settings=SiloSettings(
+                mode="prefer_same_silo", same_silo_boost=0.2, cross_silo_penalty=0.1
+            ),
         )[0]
 
         self.assertAlmostEqual(disabled_same.score_silo_affinity, 0.0)
@@ -956,7 +1053,9 @@ class SiloRankerTests(TestCase):
         self.assertEqual(diagnostic.destination_id, destination.pk)
 
     def test_weighted_authority_disabled_preserves_existing_ranker_output(self):
-        destination = _content_record(content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0)
+        destination = _content_record(
+            content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0
+        )
         host = _content_record(content_id=20, silo_group_id=None)
         records = {
             destination.key: destination,
@@ -967,8 +1066,16 @@ class SiloRankerTests(TestCase):
             destination,
             [SentenceSemanticMatch(20, "thread", 20, 0.8)],
             content_records=records,
-            sentence_records=self.sentence_records | {
-                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            sentence_records=self.sentence_records
+            | {
+                20: SentenceRecord(
+                    20,
+                    20,
+                    "thread",
+                    "Useful sentence about topic",
+                    80,
+                    frozenset({"topic"}),
+                )
             },
             existing_links=set(),
             weights=self.weights,
@@ -979,8 +1086,16 @@ class SiloRankerTests(TestCase):
             destination,
             [SentenceSemanticMatch(20, "thread", 20, 0.8)],
             content_records=records,
-            sentence_records=self.sentence_records | {
-                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            sentence_records=self.sentence_records
+            | {
+                20: SentenceRecord(
+                    20,
+                    20,
+                    "thread",
+                    "Useful sentence about topic",
+                    80,
+                    frozenset({"topic"}),
+                )
             },
             existing_links=set(),
             weights=self.weights,
@@ -988,10 +1103,14 @@ class SiloRankerTests(TestCase):
             weighted_authority_ranking_weight=0.25,
         )[0]
 
-        self.assertAlmostEqual(baseline.score_final + 0.25, enabled.score_final, places=6)
+        self.assertAlmostEqual(
+            baseline.score_final + 0.25, enabled.score_final, places=6
+        )
 
     def test_weighted_authority_does_not_override_existing_link_block(self):
-        destination = _content_record(content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0)
+        destination = _content_record(
+            content_id=10, silo_group_id=None, march_2026_pagerank_score=2.0
+        )
         host = _content_record(content_id=20, silo_group_id=None)
         records = {
             destination.key: destination,
@@ -1003,7 +1122,14 @@ class SiloRankerTests(TestCase):
             [SentenceSemanticMatch(20, "thread", 20, 0.8)],
             content_records=records,
             sentence_records={
-                20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+                20: SentenceRecord(
+                    20,
+                    20,
+                    "thread",
+                    "Useful sentence about topic",
+                    80,
+                    frozenset({"topic"}),
+                )
             },
             existing_links={((20, "thread"), (10, "thread"))},
             weights=self.weights,
@@ -1014,15 +1140,26 @@ class SiloRankerTests(TestCase):
         self.assertEqual(result, [])
 
     def test_link_freshness_weight_zero_and_neutral_score_have_no_effect(self):
-        destination = _content_record(content_id=10, silo_group_id=None, link_freshness_score=0.5)
-        fresh_destination = _content_record(content_id=10, silo_group_id=None, link_freshness_score=0.8)
+        destination = _content_record(
+            content_id=10, silo_group_id=None, link_freshness_score=0.5
+        )
+        fresh_destination = _content_record(
+            content_id=10, silo_group_id=None, link_freshness_score=0.8
+        )
         host = _content_record(content_id=20, silo_group_id=None)
         records = {
             destination.key: destination,
             host.key: host,
         }
         sentence_records = {
-            20: SentenceRecord(20, 20, "thread", "Useful sentence about topic", 80, frozenset({"topic"}))
+            20: SentenceRecord(
+                20,
+                20,
+                "thread",
+                "Useful sentence about topic",
+                80,
+                frozenset({"topic"}),
+            )
         }
 
         baseline = score_destination_matches(
@@ -1059,7 +1196,9 @@ class SiloRankerTests(TestCase):
             link_freshness_ranking_weight=0.15,
         )[0]
 
-        self.assertAlmostEqual(baseline.score_final, neutral_enabled.score_final, places=6)
+        self.assertAlmostEqual(
+            baseline.score_final, neutral_enabled.score_final, places=6
+        )
         self.assertGreater(fresh_enabled.score_final, baseline.score_final)
 
 
@@ -1095,22 +1234,42 @@ class LinkFreshnessServiceTests(TestCase):
 
         growing = calculate_link_freshness(
             [
-                LinkFreshnessPeerRow(now - timedelta(days=75), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=65), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=15), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=10), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=5), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=75), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=65), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=15), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=10), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=5), now - timedelta(days=1), None, True
+                ),
             ],
             reference_time=now,
             settings=settings,
         )
         cooling = calculate_link_freshness(
             [
-                LinkFreshnessPeerRow(now - timedelta(days=90), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=55), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=50), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=45), now - timedelta(days=1), None, True),
-                LinkFreshnessPeerRow(now - timedelta(days=5), now - timedelta(days=1), None, True),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=90), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=55), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=50), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=45), now - timedelta(days=1), None, True
+                ),
+                LinkFreshnessPeerRow(
+                    now - timedelta(days=5), now - timedelta(days=1), None, True
+                ),
             ],
             reference_time=now,
             settings=settings,
@@ -1119,7 +1278,9 @@ class LinkFreshnessServiceTests(TestCase):
         self.assertGreater(growing.link_freshness_score, 0.5)
         self.assertLess(cooling.link_freshness_score, 0.5)
 
-    def test_recent_disappearances_reduce_score_and_recalc_does_not_touch_pagerank(self):
+    def test_recent_disappearances_reduce_score_and_recalc_does_not_touch_pagerank(
+        self,
+    ):
         scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
         destination = ContentItem.objects.create(
             content_id=1,
@@ -1129,7 +1290,12 @@ class LinkFreshnessServiceTests(TestCase):
             march_2026_pagerank_score=0.77,
         )
         sources = [
-            ContentItem.objects.create(content_id=index + 2, content_type="thread", title=f"Source {index}", scope=scope)
+            ContentItem.objects.create(
+                content_id=index + 2,
+                content_type="thread",
+                title=f"Source {index}",
+                scope=scope,
+            )
             for index in range(4)
         ]
         now = timezone.now()
@@ -1167,18 +1333,44 @@ class LinkFreshnessServiceTests(TestCase):
 
     def test_link_freshness_ignores_weighted_authority_and_velocity_settings(self):
         scope = ScopeItem.objects.create(scope_id=9, scope_type="node", title="Forum")
-        destination = ContentItem.objects.create(content_id=90, content_type="thread", title="Destination", scope=scope)
-        source_a = ContentItem.objects.create(content_id=91, content_type="thread", title="Source A", scope=scope)
-        source_b = ContentItem.objects.create(content_id=92, content_type="thread", title="Source B", scope=scope)
-        source_c = ContentItem.objects.create(content_id=93, content_type="thread", title="Source C", scope=scope)
+        destination = ContentItem.objects.create(
+            content_id=90, content_type="thread", title="Destination", scope=scope
+        )
+        source_a = ContentItem.objects.create(
+            content_id=91, content_type="thread", title="Source A", scope=scope
+        )
+        source_b = ContentItem.objects.create(
+            content_id=92, content_type="thread", title="Source B", scope=scope
+        )
+        source_c = ContentItem.objects.create(
+            content_id=93, content_type="thread", title="Source C", scope=scope
+        )
         now = timezone.now()
         from apps.graph.models import LinkFreshnessEdge
 
         LinkFreshnessEdge.objects.bulk_create(
             [
-                LinkFreshnessEdge(from_content_item=source_a, to_content_item=destination, first_seen_at=now - timedelta(days=80), last_seen_at=now - timedelta(days=1), is_active=True),
-                LinkFreshnessEdge(from_content_item=source_b, to_content_item=destination, first_seen_at=now - timedelta(days=50), last_seen_at=now - timedelta(days=1), is_active=True),
-                LinkFreshnessEdge(from_content_item=source_c, to_content_item=destination, first_seen_at=now - timedelta(days=10), last_seen_at=now - timedelta(days=1), is_active=True),
+                LinkFreshnessEdge(
+                    from_content_item=source_a,
+                    to_content_item=destination,
+                    first_seen_at=now - timedelta(days=80),
+                    last_seen_at=now - timedelta(days=1),
+                    is_active=True,
+                ),
+                LinkFreshnessEdge(
+                    from_content_item=source_b,
+                    to_content_item=destination,
+                    first_seen_at=now - timedelta(days=50),
+                    last_seen_at=now - timedelta(days=1),
+                    is_active=True,
+                ),
+                LinkFreshnessEdge(
+                    from_content_item=source_c,
+                    to_content_item=destination,
+                    first_seen_at=now - timedelta(days=10),
+                    last_seen_at=now - timedelta(days=1),
+                    is_active=True,
+                ),
             ]
         )
 
@@ -1320,9 +1512,15 @@ class PhraseMatchingServiceTests(TestCase):
 class LearnedAnchorServiceTests(TestCase):
     def test_exact_family_and_host_canonical_states_are_explainable(self):
         rows = [
-            LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
-            LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
-            LearnedAnchorInputRow(source_content_id=3, anchor_text="Internal Linking Guides"),
+            LearnedAnchorInputRow(
+                source_content_id=1, anchor_text="Internal Linking Guide"
+            ),
+            LearnedAnchorInputRow(
+                source_content_id=2, anchor_text="Internal Linking Guide"
+            ),
+            LearnedAnchorInputRow(
+                source_content_id=3, anchor_text="Internal Linking Guides"
+            ),
             LearnedAnchorInputRow(source_content_id=4, anchor_text="click here"),
         ]
 
@@ -1346,26 +1544,44 @@ class LearnedAnchorServiceTests(TestCase):
         )
 
         self.assertGreater(exact.score_learned_anchor_corroboration, 0.5)
-        self.assertEqual(exact.learned_anchor_diagnostics["learned_anchor_state"], "exact_variant_match")
-        self.assertEqual(exact.learned_anchor_diagnostics["usable_inbound_anchor_sources"], 3)
+        self.assertEqual(
+            exact.learned_anchor_diagnostics["learned_anchor_state"],
+            "exact_variant_match",
+        )
+        self.assertEqual(
+            exact.learned_anchor_diagnostics["usable_inbound_anchor_sources"], 3
+        )
         self.assertGreater(family.score_learned_anchor_corroboration, 0.5)
-        self.assertEqual(family.learned_anchor_diagnostics["learned_anchor_state"], "family_match")
+        self.assertEqual(
+            family.learned_anchor_diagnostics["learned_anchor_state"], "family_match"
+        )
         self.assertEqual(host_contains.score_learned_anchor_corroboration, 0.5)
-        self.assertEqual(host_contains.learned_anchor_diagnostics["learned_anchor_state"], "host_contains_canonical_variant")
-        self.assertEqual(host_contains.learned_anchor_diagnostics["recommended_canonical_anchor"], "Internal Linking Guide")
+        self.assertEqual(
+            host_contains.learned_anchor_diagnostics["learned_anchor_state"],
+            "host_contains_canonical_variant",
+        )
+        self.assertEqual(
+            host_contains.learned_anchor_diagnostics["recommended_canonical_anchor"],
+            "Internal Linking Guide",
+        )
 
     def test_thin_history_stays_neutral(self):
         result = evaluate_learned_anchor_corroboration(
             candidate_anchor_text="Internal Linking Guide",
             host_sentence_text="This internal linking guide helps editors.",
             inbound_anchor_rows=[
-                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(
+                    source_content_id=1, anchor_text="Internal Linking Guide"
+                ),
             ],
             settings=LearnedAnchorSettings(minimum_anchor_sources=2),
         )
 
         self.assertEqual(result.score_learned_anchor_corroboration, 0.5)
-        self.assertEqual(result.learned_anchor_diagnostics["learned_anchor_state"], "neutral_below_min_sources")
+        self.assertEqual(
+            result.learned_anchor_diagnostics["learned_anchor_state"],
+            "neutral_below_min_sources",
+        )
 
 
 class PhraseRankerIntegrationTests(TestCase):
@@ -1380,7 +1596,9 @@ class PhraseRankerIntegrationTests(TestCase):
         }
         self.bounds = (0.1, 2.0)
 
-    def test_phrase_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(self):
+    def test_phrase_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(
+        self,
+    ):
         destination = ContentRecord(
             content_id=self.destination.content_id,
             content_type=self.destination.content_type,
@@ -1441,7 +1659,9 @@ class PhraseRankerIntegrationTests(TestCase):
             places=6,
         )
 
-    def test_phrase_signal_ignores_weighted_authority_freshness_and_velocity_inputs(self):
+    def test_phrase_signal_ignores_weighted_authority_freshness_and_velocity_inputs(
+        self,
+    ):
         destination_a = ContentRecord(
             content_id=self.destination.content_id,
             content_type=self.destination.content_type,
@@ -1535,7 +1755,9 @@ class PhraseRankerIntegrationTests(TestCase):
             phrase_matching_settings=PhraseMatchingSettings(ranking_weight=0.0),
         )[0]
 
-        self.assertAlmostEqual(result_a.score_phrase_relevance, result_b.score_phrase_relevance, places=6)
+        self.assertAlmostEqual(
+            result_a.score_phrase_relevance, result_b.score_phrase_relevance, places=6
+        )
         self.assertEqual(result_a.anchor_phrase, result_b.anchor_phrase)
 
 
@@ -1552,13 +1774,21 @@ class LearnedAnchorRankerIntegrationTests(TestCase):
         self.bounds = (0.1, 2.0)
         self.learned_rows = {
             self.destination.key: [
-                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
-                LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
-                LearnedAnchorInputRow(source_content_id=3, anchor_text="Internal Linking Guides"),
+                LearnedAnchorInputRow(
+                    source_content_id=1, anchor_text="Internal Linking Guide"
+                ),
+                LearnedAnchorInputRow(
+                    source_content_id=2, anchor_text="Internal Linking Guide"
+                ),
+                LearnedAnchorInputRow(
+                    source_content_id=3, anchor_text="Internal Linking Guides"
+                ),
             ]
         }
 
-    def test_learned_anchor_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(self):
+    def test_learned_anchor_weight_zero_keeps_ranking_unchanged_and_positive_weight_adds_signal(
+        self,
+    ):
         destination = ContentRecord(
             content_id=self.destination.content_id,
             content_type=self.destination.content_type,
@@ -1592,7 +1822,11 @@ class LearnedAnchorRankerIntegrationTests(TestCase):
 
         baseline = score_destination_matches(
             destination,
-            [SentenceSemanticMatch(self.host.content_id, self.host.content_type, 40, 0.8)],
+            [
+                SentenceSemanticMatch(
+                    self.host.content_id, self.host.content_type, 40, 0.8
+                )
+            ],
             content_records=records,
             sentence_records=sentence_records,
             existing_links=set(),
@@ -1603,7 +1837,11 @@ class LearnedAnchorRankerIntegrationTests(TestCase):
         )[0]
         enabled = score_destination_matches(
             destination,
-            [SentenceSemanticMatch(self.host.content_id, self.host.content_type, 40, 0.8)],
+            [
+                SentenceSemanticMatch(
+                    self.host.content_id, self.host.content_type, 40, 0.8
+                )
+            ],
             content_records=records,
             sentence_records=sentence_records,
             existing_links=set(),
@@ -1616,11 +1854,14 @@ class LearnedAnchorRankerIntegrationTests(TestCase):
         self.assertGreater(baseline.score_learned_anchor_corroboration, 0.5)
         self.assertAlmostEqual(
             enabled.score_final,
-            baseline.score_final + 0.1 * (2 * (baseline.score_learned_anchor_corroboration - 0.5)),
+            baseline.score_final
+            + 0.1 * (2 * (baseline.score_learned_anchor_corroboration - 0.5)),
             places=6,
         )
 
-    def test_learned_anchor_signal_ignores_authority_freshness_and_velocity_inputs(self):
+    def test_learned_anchor_signal_ignores_authority_freshness_and_velocity_inputs(
+        self,
+    ):
         destination_a = ContentRecord(
             content_id=self.destination.content_id,
             content_type=self.destination.content_type,
@@ -1954,7 +2195,11 @@ class RareTermPropagationServiceTests(TestCase):
         supported_profiles = build_rare_term_profiles(
             {
                 record.key: record
-                for record in [supported_destination, supported_donor_a, supported_donor_b]
+                for record in [
+                    supported_destination,
+                    supported_donor_a,
+                    supported_donor_b,
+                ]
             },
             settings=RareTermPropagationSettings(
                 max_document_frequency=3,
@@ -1971,9 +2216,13 @@ class RareTermPropagationServiceTests(TestCase):
             ),
         )
         self.assertGreater(supported_result.score_rare_term_propagation, 0.5)
-        self.assertEqual(len(supported_result.rare_term_diagnostics["matched_propagated_terms"]), 1)
         self.assertEqual(
-            supported_result.rare_term_diagnostics["matched_propagated_terms"][0]["supporting_related_pages"],
+            len(supported_result.rare_term_diagnostics["matched_propagated_terms"]), 1
+        )
+        self.assertEqual(
+            supported_result.rare_term_diagnostics["matched_propagated_terms"][0][
+                "supporting_related_pages"
+            ],
             2,
         )
 
@@ -2099,10 +2348,7 @@ class RareTermRankerIntegrationTests(TestCase):
             )
         }
         rare_term_profiles = build_rare_term_profiles(
-            {
-                record.key: record
-                for record in [destination, donor_a, donor_b]
-            },
+            {record.key: record for record in [destination, donor_a, donor_b]},
             settings=RareTermPropagationSettings(
                 max_document_frequency=3,
                 minimum_supporting_related_pages=2,
@@ -2147,7 +2393,8 @@ class RareTermRankerIntegrationTests(TestCase):
         )
         self.assertAlmostEqual(
             enabled.score_final,
-            baseline.score_final + 0.05 * (2 * (baseline.score_rare_term_propagation - 0.5)),
+            baseline.score_final
+            + 0.05 * (2 * (baseline.score_rare_term_propagation - 0.5)),
             places=6,
         )
 
@@ -2181,17 +2428,27 @@ class FieldAwareRelevanceServiceTests(TestCase):
             destination=destination,
             host_sentence_text="This internal linking guide helps editor workflow inside the SEO guides area.",
             inbound_anchor_rows=[
-                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
-                LearnedAnchorInputRow(source_content_id=2, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(
+                    source_content_id=1, anchor_text="Internal Linking Guide"
+                ),
+                LearnedAnchorInputRow(
+                    source_content_id=2, anchor_text="Internal Linking Guide"
+                ),
             ],
             settings=FieldAwareRelevanceSettings(),
         )
 
         self.assertGreater(result.score_field_aware_relevance, 0.5)
         self.assertEqual(result.field_aware_state, "computed_match")
-        self.assertGreater(result.field_aware_diagnostics["field_scores"]["title"]["score"], 0.0)
-        self.assertGreater(result.field_aware_diagnostics["field_scores"]["body"]["score"], 0.0)
-        self.assertGreater(result.field_aware_diagnostics["field_scores"]["scope"]["score"], 0.0)
+        self.assertGreater(
+            result.field_aware_diagnostics["field_scores"]["title"]["score"], 0.0
+        )
+        self.assertGreater(
+            result.field_aware_diagnostics["field_scores"]["body"]["score"], 0.0
+        )
+        self.assertGreater(
+            result.field_aware_diagnostics["field_scores"]["scope"]["score"], 0.0
+        )
 
     def test_field_aware_relevance_stays_neutral_without_matches(self):
         destination = _content_record(content_id=502, silo_group_id=None)
@@ -2220,7 +2477,9 @@ class FieldAwareRankerIntegrationTests(TestCase):
         self.bounds = (0.1, 2.0)
         self.learned_rows = {
             self.destination.key: [
-                LearnedAnchorInputRow(source_content_id=1, anchor_text="Internal Linking Guide"),
+                LearnedAnchorInputRow(
+                    source_content_id=1, anchor_text="Internal Linking Guide"
+                ),
                 LearnedAnchorInputRow(source_content_id=2, anchor_text="Guide"),
             ]
         }
@@ -2304,14 +2563,17 @@ class FieldAwareRankerIntegrationTests(TestCase):
         self.assertGreater(baseline.score_field_aware_relevance, 0.5)
         self.assertAlmostEqual(
             enabled.score_final,
-            baseline.score_final + 0.05 * (2 * (baseline.score_field_aware_relevance - 0.5)),
+            baseline.score_final
+            + 0.05 * (2 * (baseline.score_field_aware_relevance - 0.5)),
             places=6,
         )
 
 
 class WeightedAuthorityGraphTests(TestCase):
     def setUp(self):
-        self.scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        self.scope = ScopeItem.objects.create(
+            scope_id=1, scope_type="node", title="Forum"
+        )
 
     def _content(self, content_id: int, title: str) -> ContentItem:
         return ContentItem.objects.create(
@@ -2382,7 +2644,9 @@ class WeightedAuthorityGraphTests(TestCase):
         self.assertTrue(all(score >= 0.0 for score in march_2026_scores.values()))
         self.assertAlmostEqual(sum(march_2026_scores.values()), 1.0, places=6)
 
-    def test_outbound_normalization_boilerplate_downweight_and_contextual_upweight(self):
+    def test_outbound_normalization_boilerplate_downweight_and_contextual_upweight(
+        self,
+    ):
         probabilities, used_fallback = _normalize_source_edges(
             [
                 _WeightedEdge(
@@ -2493,14 +2757,22 @@ class ClickDistanceServiceTests(TestCase):
         service = ClickDistanceService()
         self.assertEqual(service.calculate_url_depth("https://example.com/"), 0)
         self.assertEqual(service.calculate_url_depth("https://example.com/item/"), 1)
-        self.assertEqual(service.calculate_url_depth("https://example.com/path/to/item"), 3)
+        self.assertEqual(
+            service.calculate_url_depth("https://example.com/path/to/item"), 3
+        )
         self.assertEqual(service.calculate_url_depth(""), 0)
 
     def test_scope_depth_map_building(self):
         root = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Root")
-        child = ScopeItem.objects.create(scope_id=2, scope_type="node", title="Child", parent=root)
-        grandchild = ScopeItem.objects.create(scope_id=3, scope_type="node", title="Grandchild", parent=child)
-        standalone = ScopeItem.objects.create(scope_id=4, scope_type="node", title="Standalone")
+        child = ScopeItem.objects.create(
+            scope_id=2, scope_type="node", title="Child", parent=root
+        )
+        grandchild = ScopeItem.objects.create(
+            scope_id=3, scope_type="node", title="Grandchild", parent=child
+        )
+        standalone = ScopeItem.objects.create(
+            scope_id=4, scope_type="node", title="Standalone"
+        )
 
         service = ClickDistanceService()
         depth_map = service.build_scope_depth_map()
@@ -2512,7 +2784,9 @@ class ClickDistanceServiceTests(TestCase):
 
     def test_score_calculation_logic(self):
         # Default settings: k_cd=4.0, b_cd=0.75, b_ud=0.25
-        settings = ClickDistanceSettings(ranking_weight=0.1, k_cd=4.0, b_cd=0.75, b_ud=0.25)
+        settings = ClickDistanceSettings(
+            ranking_weight=0.1, k_cd=4.0, b_cd=0.75, b_ud=0.25
+        )
         service = ClickDistanceService(settings=settings)
 
         # root: depth 0, url 0 -> blended 0.75 / 1.0 = 0.75
@@ -2529,8 +2803,20 @@ class ClickDistanceServiceTests(TestCase):
 
     def test_recalculate_all_updates_content_items(self):
         scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
-        ContentItem.objects.create(content_id=1, content_type="thread", title="P1", scope=scope, url="https://x.com/1")
-        ContentItem.objects.create(content_id=2, content_type="thread", title="P2", scope=scope, url="https://x.com/a/b")
+        ContentItem.objects.create(
+            content_id=1,
+            content_type="thread",
+            title="P1",
+            scope=scope,
+            url="https://x.com/1",
+        )
+        ContentItem.objects.create(
+            content_id=2,
+            content_type="thread",
+            title="P2",
+            scope=scope,
+            url="https://x.com/a/b",
+        )
 
         service = ClickDistanceService()
         service.recalculate_all()
@@ -2547,16 +2833,26 @@ class ClickDistanceRankerIntegrationTests(TestCase):
         # destination has click_distance_score (the field on ContentItem)
         # In ranker, it's passed via ContentRecord
         self.host = _content_record(content_id=20, silo_group_id=None)
-        self.records = {self.destination.key: self.destination, self.host.key: self.host}
-        self.weights = {"w_semantic": 0.5, "w_keyword": 0.5, "w_node": 0, "w_quality": 0}
+        self.records = {
+            self.destination.key: self.destination,
+            self.host.key: self.host,
+        }
+        self.weights = {
+            "w_semantic": 0.5,
+            "w_keyword": 0.5,
+            "w_node": 0,
+            "w_quality": 0,
+        }
         self.bounds = (0.1, 2.0)
 
     def test_click_distance_weight_zero_has_no_effect(self):
         dest_neutral = _content_record(content_id=10, silo_group_id=None)
         # click_distance_score defaults to 0.0 in _content_record but 0.5 means neutral in ranker
-        
+
         matches = [SentenceSemanticMatch(20, "thread", 20, 0.8)]
-        sentence_records = {20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())}
+        sentence_records = {
+            20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())
+        }
 
         baseline = score_destination_matches(
             dest_neutral,
@@ -2568,7 +2864,7 @@ class ClickDistanceRankerIntegrationTests(TestCase):
             march_2026_pagerank_bounds=self.bounds,
             click_distance_ranking_weight=0.0,
         )[0]
-        
+
         enabled = score_destination_matches(
             dest_neutral,
             matches,
@@ -2586,10 +2882,12 @@ class ClickDistanceRankerIntegrationTests(TestCase):
         # Use dataclasses.replace instead of __dict__ for slotted dataclasses
         dest_shallow = replace(self.destination, click_distance_score=0.9)
         dest_deep = replace(self.destination, click_distance_score=0.3)
-        
+
         matches = [SentenceSemanticMatch(20, "thread", 20, 0.8)]
-        sentence_records = {20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())}
-        
+        sentence_records = {
+            20: SentenceRecord(20, 20, "thread", "test", 80, frozenset())
+        }
+
         shallow_result = score_destination_matches(
             dest_shallow,
             matches,
@@ -2600,7 +2898,7 @@ class ClickDistanceRankerIntegrationTests(TestCase):
             march_2026_pagerank_bounds=self.bounds,
             click_distance_ranking_weight=0.2,
         )[0]
-        
+
         deep_result = score_destination_matches(
             dest_deep,
             matches,
@@ -2628,7 +2926,7 @@ class FeedbackRerankServiceTests(TestCase):
             ranking_weight=0.2,
             exploration_rate=1.0,
             alpha_prior=1.0,
-            beta_prior=1.0
+            beta_prior=1.0,
         )
         self.service = FeedbackRerankService(self.settings)
 
@@ -2636,7 +2934,7 @@ class FeedbackRerankServiceTests(TestCase):
         # 0/0 -> (0+1)/(0+1+1) = 0.5
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertEqual(diags["score_exploit"], 0.5)
-        
+
         # 10/10 -> (10+1)/(10+2) = 11/12 = 0.9167
         self.service._pair_stats[(1, 1)] = {"total": 10, "successes": 10}
         self.service._global_total_samples = 10
@@ -2661,40 +2959,51 @@ class FeedbackRerankServiceTests(TestCase):
 
     def test_rerank_candidates_integration(self):
         from apps.pipeline.services.ranker import ScoredCandidate
-        
+
         # Mock global stats: a lot of data for (1,1) with 100% success
         self.service._pair_stats[(1, 1)] = {"total": 100, "successes": 100}
         self.service._global_total_samples = 100
-        
+
         candidates = [
             ScoredCandidate(
-                destination_content_id=1, destination_content_type="thread",
-                host_content_id=2, host_content_type="thread",
+                destination_content_id=1,
+                destination_content_type="thread",
+                host_content_id=2,
+                host_content_type="thread",
                 host_sentence_id=1,
-                score_semantic=0.8, score_keyword=0.2, score_node_affinity=0.1,
-                score_quality=0.5, score_silo_affinity=0.0,
-                score_phrase_relevance=0.5, score_learned_anchor_corroboration=0.5,
-                score_rare_term_propagation=0.5, score_field_aware_relevance=0.5,
-                score_ga4_gsc=0.5, score_click_distance=0.5,
+                score_semantic=0.8,
+                score_keyword=0.2,
+                score_node_affinity=0.1,
+                score_quality=0.5,
+                score_silo_affinity=0.0,
+                score_phrase_relevance=0.5,
+                score_learned_anchor_corroboration=0.5,
+                score_rare_term_propagation=0.5,
+                score_field_aware_relevance=0.5,
+                score_ga4_gsc=0.5,
+                score_click_distance=0.5,
                 score_explore_exploit=0.0,
-                score_cluster_suppression=0.0, # Added missing field
+                score_cluster_suppression=0.0,  # Added missing field
                 score_final=1.0,
-                anchor_phrase="test", anchor_start=0, anchor_end=4, anchor_confidence="strong",
-                phrase_match_diagnostics={}, learned_anchor_diagnostics={},
-                rare_term_diagnostics={}, field_aware_diagnostics={},
-                cluster_diagnostics={}, # Added missing field
+                anchor_phrase="test",
+                anchor_start=0,
+                anchor_end=4,
+                anchor_confidence="strong",
+                phrase_match_diagnostics={},
+                learned_anchor_diagnostics={},
+                rare_term_diagnostics={},
+                field_aware_diagnostics={},
+                cluster_diagnostics={},  # Added missing field
                 explore_exploit_diagnostics={},
-                click_distance_diagnostics={}
+                click_distance_diagnostics={},
             )
         ]
-        
+
         # host_id=2 maps to scope=1, dest_id=1 maps to scope=1
         reranked = self.service.rerank_candidates(
-            candidates,
-            host_scope_id_map={2: 1},
-            destination_scope_id_map={1: 1}
+            candidates, host_scope_id_map={2: 1}, destination_scope_id_map={1: 1}
         )
-        
+
         # Factor should be > 1.0 because of high success rate
         self.assertGreater(reranked[0].score_final, 1.0)
         self.assertGreater(reranked[0].score_explore_exploit, 1.0)
@@ -2703,7 +3012,9 @@ class FeedbackRerankServiceTests(TestCase):
 
 class PipelinePersistenceRegressionTests(TestCase):
     def setUp(self):
-        self.scope = ScopeItem.objects.create(scope_id=1, scope_type="node", title="Forum")
+        self.scope = ScopeItem.objects.create(
+            scope_id=1, scope_type="node", title="Forum"
+        )
         self.run = PipelineRun.objects.create()
 
         self.destination_a = ContentItem.objects.create(
@@ -2742,8 +3053,12 @@ class PipelinePersistenceRegressionTests(TestCase):
             scope=self.scope,
             march_2026_pagerank_score=0.2,
         )
-        self.post_a = Post.objects.create(content_item=self.host_a, raw_bbcode="host a", clean_text="host a")
-        self.post_b = Post.objects.create(content_item=self.host_b, raw_bbcode="host b", clean_text="host b")
+        self.post_a = Post.objects.create(
+            content_item=self.host_a, raw_bbcode="host a", clean_text="host a"
+        )
+        self.post_b = Post.objects.create(
+            content_item=self.host_b, raw_bbcode="host b", clean_text="host b"
+        )
         self.sentence_a = Sentence.objects.create(
             content_item=self.host_a,
             post=self.post_a,
@@ -2765,10 +3080,18 @@ class PipelinePersistenceRegressionTests(TestCase):
             word_position=1,
         )
         self.content_records = {
-            (self.destination_a.pk, self.destination_a.content_type): self._record(self.destination_a),
-            (self.destination_b.pk, self.destination_b.content_type): self._record(self.destination_b),
-            (self.host_a.pk, self.host_a.content_type): self._record(self.host_a, reply_count=9),
-            (self.host_b.pk, self.host_b.content_type): self._record(self.host_b, reply_count=7),
+            (self.destination_a.pk, self.destination_a.content_type): self._record(
+                self.destination_a
+            ),
+            (self.destination_b.pk, self.destination_b.content_type): self._record(
+                self.destination_b
+            ),
+            (self.host_a.pk, self.host_a.content_type): self._record(
+                self.host_a, reply_count=9
+            ),
+            (self.host_b.pk, self.host_b.content_type): self._record(
+                self.host_b, reply_count=7
+            ),
         }
         self.sentence_records = {
             self.sentence_a.pk: SentenceRecord(
@@ -2822,7 +3145,10 @@ class PipelinePersistenceRegressionTests(TestCase):
                 score_final=1.41,
                 score_click_distance=0.82,
                 score_explore_exploit=1.25,
-                click_distance_diagnostics={"score_component": 0.64, "state": "computed"},
+                click_distance_diagnostics={
+                    "score_component": 0.64,
+                    "state": "computed",
+                },
                 explore_exploit_diagnostics={"final_factor": 1.25, "n_pair": 5},
             ),
             _scored_candidate(
@@ -2832,7 +3158,10 @@ class PipelinePersistenceRegressionTests(TestCase):
                 score_final=1.19,
                 score_click_distance=0.74,
                 score_explore_exploit=0.91,
-                click_distance_diagnostics={"score_component": 0.48, "state": "computed"},
+                click_distance_diagnostics={
+                    "score_component": 0.48,
+                    "state": "computed",
+                },
                 explore_exploit_diagnostics={"final_factor": 0.91, "n_pair": 2},
             ),
         ]
@@ -2861,7 +3190,9 @@ class PipelinePersistenceRegressionTests(TestCase):
 
         self.assertEqual(suggestion_b.score_click_distance, 0.74)
         self.assertEqual(suggestion_b.score_explore_exploit, 0.91)
-        self.assertEqual(suggestion_b.click_distance_diagnostics["score_component"], 0.48)
+        self.assertEqual(
+            suggestion_b.click_distance_diagnostics["score_component"], 0.48
+        )
         self.assertEqual(suggestion_b.explore_exploit_diagnostics["n_pair"], 2)
 
     def test_persist_diagnostics_saves_details_with_batched_content_lookup(self):
@@ -2869,8 +3200,18 @@ class PipelinePersistenceRegressionTests(TestCase):
             _persist_diagnostics(
                 run_id=str(self.run.run_id),
                 diagnostics=[
-                    (self.destination_a.pk, "thread", "no_semantic_matches", {"stage": 2}),
-                    (self.destination_b.pk, "thread", "cross_silo_blocked", {"mode": "strict_same_silo"}),
+                    (
+                        self.destination_a.pk,
+                        "thread",
+                        "no_semantic_matches",
+                        {"stage": 2},
+                    ),
+                    (
+                        self.destination_b.pk,
+                        "thread",
+                        "cross_silo_blocked",
+                        {"mode": "strict_same_silo"},
+                    ),
                 ],
             )
 
@@ -2880,7 +3221,9 @@ class PipelinePersistenceRegressionTests(TestCase):
             for diagnostic in PipelineDiagnostic.objects.order_by("destination_id")
         }
         self.assertEqual(diagnostics[self.destination_a.pk].detail["stage"], 2)
-        self.assertEqual(diagnostics[self.destination_b.pk].detail["mode"], "strict_same_silo")
+        self.assertEqual(
+            diagnostics[self.destination_b.pk].detail["mode"], "strict_same_silo"
+        )
 
 
 class PipelineServiceRegressionTests(TestCase):
@@ -2889,8 +3232,12 @@ class PipelineServiceRegressionTests(TestCase):
         destination_b = _content_record(content_id=102, silo_group_id=20)
         host = _content_record(content_id=201, silo_group_id=10)
         sentence_records = {
-            501: SentenceRecord(501, 201, "thread", "Helpful host sentence", 80, frozenset({"helpful"})),
-            502: SentenceRecord(502, 201, "thread", "Second host sentence", 80, frozenset({"second"})),
+            501: SentenceRecord(
+                501, 201, "thread", "Helpful host sentence", 80, frozenset({"helpful"})
+            ),
+            502: SentenceRecord(
+                502, 201, "thread", "Second host sentence", 80, frozenset({"second"})
+            ),
         }
         candidate = _scored_candidate(
             destination_content_id=101,
@@ -2907,31 +3254,99 @@ class PipelineServiceRegressionTests(TestCase):
         }
         return content_records, sentence_records, candidate
 
-    def test_feedback_rerank_path_uses_destination_content_id_and_no_longer_crashes(self):
+    def test_feedback_rerank_path_uses_destination_content_id_and_no_longer_crashes(
+        self,
+    ):
         content_records, sentence_records, candidate = self._build_run_fixtures()
         feedback_service = MagicMock()
         feedback_service.load_historical_stats.return_value = None
         feedback_service.rerank_candidates.return_value = [candidate]
 
         with ExitStack() as stack:
-            stack.enter_context(patch.object(pipeline_service, "_load_weights", return_value=dict(DEFAULT_WEIGHTS)))
-            stack.enter_context(patch.object(pipeline_service, "_load_silo_settings", return_value=SiloSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_weighted_authority_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_link_freshness_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_phrase_matching_settings", return_value=PhraseMatchingSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_settings", return_value=LearnedAnchorSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_rare_term_propagation_settings", return_value=RareTermPropagationSettings(enabled=False)))
-            stack.enter_context(patch.object(pipeline_service, "_load_field_aware_relevance_settings", return_value=FieldAwareRelevanceSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_ga4_gsc_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_click_distance_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_weights",
+                    return_value=dict(DEFAULT_WEIGHTS),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service, "_load_silo_settings", return_value=SiloSettings()
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_weighted_authority_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_link_freshness_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_phrase_matching_settings",
+                    return_value=PhraseMatchingSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_learned_anchor_settings",
+                    return_value=LearnedAnchorSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_rare_term_propagation_settings",
+                    return_value=RareTermPropagationSettings(enabled=False),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_field_aware_relevance_settings",
+                    return_value=FieldAwareRelevanceSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_ga4_gsc_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_click_distance_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
                     "_load_feedback_rerank_settings",
-                    return_value=FeedbackRerankSettings(enabled=True, ranking_weight=0.2, exploration_rate=1.0),
+                    return_value=FeedbackRerankSettings(
+                        enabled=True, ranking_weight=0.2, exploration_rate=1.0
+                    ),
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "_load_clustering_settings", return_value=ClusteringSettings()))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_clustering_settings",
+                    return_value=ClusteringSettings(),
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
@@ -2939,17 +3354,50 @@ class PipelineServiceRegressionTests(TestCase):
                     return_value=SlateDiversitySettings(enabled=False),
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "_get_max_host_reuse", return_value=3))
-            stack.enter_context(patch.object(pipeline_service, "FeedbackRerankService", return_value=feedback_service))
-            stack.enter_context(patch.object(pipeline_service, "_load_content_records", return_value=content_records))
-            stack.enter_context(patch.object(pipeline_service, "_load_sentence_records", return_value=(sentence_records, {})))
-            stack.enter_context(patch.object(pipeline_service, "_load_existing_links", return_value=set()))
-            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_rows_by_destination", return_value={}))
+            stack.enter_context(
+                patch.object(pipeline_service, "_get_max_host_reuse", return_value=3)
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "FeedbackRerankService",
+                    return_value=feedback_service,
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_content_records",
+                    return_value=content_records,
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_sentence_records",
+                    return_value=(sentence_records, {}),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service, "_load_existing_links", return_value=set()
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_learned_anchor_rows_by_destination",
+                    return_value={},
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
                     "_load_destination_embeddings",
-                    return_value=(((101, "thread"),), np.array([[1.0, 0.0]], dtype=np.float32)),
+                    return_value=(
+                        ((101, "thread"),),
+                        np.array([[1.0, 0.0]], dtype=np.float32),
+                    ),
                 )
             )
             stack.enter_context(
@@ -2959,7 +3407,13 @@ class PipelineServiceRegressionTests(TestCase):
                     return_value=([501], np.array([[1.0, 0.0]], dtype=np.float32)),
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "_stage1_candidates", return_value={(101, "thread"): [501]}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_stage1_candidates",
+                    return_value={(101, "thread"): [501]},
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
@@ -2967,9 +3421,23 @@ class PipelineServiceRegressionTests(TestCase):
                     return_value=[SentenceSemanticMatch(201, "thread", 501, 0.9)],
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "score_destination_matches", return_value=[candidate]))
-            stack.enter_context(patch.object(pipeline_service, "select_final_candidates", return_value=[candidate]))
-            stack.enter_context(patch.object(pipeline_service, "_persist_suggestions", return_value=1))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "score_destination_matches",
+                    return_value=[candidate],
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "select_final_candidates",
+                    return_value=[candidate],
+                )
+            )
+            stack.enter_context(
+                patch.object(pipeline_service, "_persist_suggestions", return_value=1)
+            )
             stack.enter_context(patch.object(pipeline_service, "_persist_diagnostics"))
 
             result = pipeline_service.run_pipeline(run_id="feedback-run")
@@ -2977,22 +3445,83 @@ class PipelineServiceRegressionTests(TestCase):
         self.assertEqual(result.suggestions_created, 1)
         feedback_service.rerank_candidates.assert_called_once()
         _, kwargs = feedback_service.rerank_candidates.call_args
-        self.assertEqual(kwargs["destination_scope_id_map"], {101: content_records[(101, "thread")].scope_id})
+        self.assertEqual(
+            kwargs["destination_scope_id_map"],
+            {101: content_records[(101, "thread")].scope_id},
+        )
 
     def test_run_pipeline_returns_correct_processed_and_skipped_counts(self):
         content_records, sentence_records, candidate = self._build_run_fixtures()
 
         with ExitStack() as stack:
-            stack.enter_context(patch.object(pipeline_service, "_load_weights", return_value=dict(DEFAULT_WEIGHTS)))
-            stack.enter_context(patch.object(pipeline_service, "_load_silo_settings", return_value=SiloSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_weighted_authority_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_link_freshness_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_phrase_matching_settings", return_value=PhraseMatchingSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_settings", return_value=LearnedAnchorSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_rare_term_propagation_settings", return_value=RareTermPropagationSettings(enabled=False)))
-            stack.enter_context(patch.object(pipeline_service, "_load_field_aware_relevance_settings", return_value=FieldAwareRelevanceSettings()))
-            stack.enter_context(patch.object(pipeline_service, "_load_ga4_gsc_settings", return_value={"ranking_weight": 0.0}))
-            stack.enter_context(patch.object(pipeline_service, "_load_click_distance_settings", return_value={"ranking_weight": 0.0}))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_weights",
+                    return_value=dict(DEFAULT_WEIGHTS),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service, "_load_silo_settings", return_value=SiloSettings()
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_weighted_authority_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_link_freshness_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_phrase_matching_settings",
+                    return_value=PhraseMatchingSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_learned_anchor_settings",
+                    return_value=LearnedAnchorSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_rare_term_propagation_settings",
+                    return_value=RareTermPropagationSettings(enabled=False),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_field_aware_relevance_settings",
+                    return_value=FieldAwareRelevanceSettings(),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_ga4_gsc_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_click_distance_settings",
+                    return_value={"ranking_weight": 0.0},
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
@@ -3000,7 +3529,13 @@ class PipelineServiceRegressionTests(TestCase):
                     return_value=FeedbackRerankSettings(enabled=False),
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "_load_clustering_settings", return_value=ClusteringSettings()))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_clustering_settings",
+                    return_value=ClusteringSettings(),
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
@@ -3008,11 +3543,35 @@ class PipelineServiceRegressionTests(TestCase):
                     return_value=SlateDiversitySettings(enabled=False),
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "_get_max_host_reuse", return_value=3))
-            stack.enter_context(patch.object(pipeline_service, "_load_content_records", return_value=content_records))
-            stack.enter_context(patch.object(pipeline_service, "_load_sentence_records", return_value=(sentence_records, {})))
-            stack.enter_context(patch.object(pipeline_service, "_load_existing_links", return_value=set()))
-            stack.enter_context(patch.object(pipeline_service, "_load_learned_anchor_rows_by_destination", return_value={}))
+            stack.enter_context(
+                patch.object(pipeline_service, "_get_max_host_reuse", return_value=3)
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_content_records",
+                    return_value=content_records,
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_sentence_records",
+                    return_value=(sentence_records, {}),
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service, "_load_existing_links", return_value=set()
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "_load_learned_anchor_rows_by_destination",
+                    return_value={},
+                )
+            )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
@@ -3050,10 +3609,26 @@ class PipelineServiceRegressionTests(TestCase):
                     ],
                 )
             )
-            stack.enter_context(patch.object(pipeline_service, "score_destination_matches", return_value=[candidate]))
-            stack.enter_context(patch.object(pipeline_service, "select_final_candidates", return_value=[candidate]))
-            stack.enter_context(patch.object(pipeline_service, "_persist_suggestions", return_value=1))
-            persist_diagnostics = stack.enter_context(patch.object(pipeline_service, "_persist_diagnostics"))
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "score_destination_matches",
+                    return_value=[candidate],
+                )
+            )
+            stack.enter_context(
+                patch.object(
+                    pipeline_service,
+                    "select_final_candidates",
+                    return_value=[candidate],
+                )
+            )
+            stack.enter_context(
+                patch.object(pipeline_service, "_persist_suggestions", return_value=1)
+            )
+            persist_diagnostics = stack.enter_context(
+                patch.object(pipeline_service, "_persist_diagnostics")
+            )
 
             result = pipeline_service.run_pipeline(run_id="stats-run")
 
@@ -3061,16 +3636,26 @@ class PipelineServiceRegressionTests(TestCase):
         self.assertEqual(result.suggestions_created, 1)
         self.assertEqual(result.destinations_skipped, 1)
         _, kwargs = persist_diagnostics.call_args
-        self.assertIn((102, "thread", "no_semantic_matches", None), kwargs["diagnostics"])
+        self.assertIn(
+            (102, "thread", "no_semantic_matches", None), kwargs["diagnostics"]
+        )
 
 
 class Stage2RegressionTests(TestCase):
     def test_precomputed_lookup_keeps_stage2_results_unchanged(self):
         sentence_records = {
-            10: SentenceRecord(10, 110, "thread", "Sentence 10", 20, frozenset({"ten"})),
-            20: SentenceRecord(20, 120, "thread", "Sentence 20", 20, frozenset({"twenty"})),
-            30: SentenceRecord(30, 130, "thread", "Sentence 30", 20, frozenset({"thirty"})),
-            40: SentenceRecord(40, 140, "thread", "Sentence 40", 20, frozenset({"forty"})),
+            10: SentenceRecord(
+                10, 110, "thread", "Sentence 10", 20, frozenset({"ten"})
+            ),
+            20: SentenceRecord(
+                20, 120, "thread", "Sentence 20", 20, frozenset({"twenty"})
+            ),
+            30: SentenceRecord(
+                30, 130, "thread", "Sentence 30", 20, frozenset({"thirty"})
+            ),
+            40: SentenceRecord(
+                40, 140, "thread", "Sentence 40", 20, frozenset({"forty"})
+            ),
         }
         sentence_ids_ordered = [30, 10, 20, 40]
         sentence_embeddings = np.array(
@@ -3082,7 +3667,9 @@ class Stage2RegressionTests(TestCase):
             ],
             dtype=np.float32,
         )
-        lookup = {sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)}
+        lookup = {
+            sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
+        }
         kwargs = {
             "destination_embedding": np.array([1.0, 0.0], dtype=np.float32),
             "sentence_ids": [20, 40, 10, 999],
@@ -3106,9 +3693,30 @@ class SlateDiversityServiceTests(TestCase):
     def test_apply_slate_diversity_swaps_in_more_varied_candidate_for_same_host(self):
         host_key = (900, "thread")
         candidates_by_destination = {
-            (101, "thread"): [_scored_candidate(destination_content_id=101, host_content_id=900, host_sentence_id=1, score_final=0.95)],
-            (102, "thread"): [_scored_candidate(destination_content_id=102, host_content_id=900, host_sentence_id=2, score_final=0.93)],
-            (103, "thread"): [_scored_candidate(destination_content_id=103, host_content_id=900, host_sentence_id=3, score_final=0.91)],
+            (101, "thread"): [
+                _scored_candidate(
+                    destination_content_id=101,
+                    host_content_id=900,
+                    host_sentence_id=1,
+                    score_final=0.95,
+                )
+            ],
+            (102, "thread"): [
+                _scored_candidate(
+                    destination_content_id=102,
+                    host_content_id=900,
+                    host_sentence_id=2,
+                    score_final=0.93,
+                )
+            ],
+            (103, "thread"): [
+                _scored_candidate(
+                    destination_content_id=103,
+                    host_content_id=900,
+                    host_sentence_id=3,
+                    score_final=0.91,
+                )
+            ],
         }
         embedding_lookup = {
             (101, "thread"): np.array([1.0, 0.0], dtype=np.float32),
@@ -3134,13 +3742,29 @@ class SlateDiversityServiceTests(TestCase):
         )
         self.assertEqual(selected[0].slate_diversity_diagnostics["slot"], 0)
         self.assertEqual(selected[1].slate_diversity_diagnostics["slot"], 1)
-        self.assertEqual(selected[1].slate_diversity_diagnostics["swapped_from_rank"], 1)
+        self.assertEqual(
+            selected[1].slate_diversity_diagnostics["swapped_from_rank"], 1
+        )
         self.assertFalse(selected[1].slate_diversity_diagnostics["flagged_redundant"])
 
     def test_apply_slate_diversity_uses_content_key_embedding_lookup(self):
         candidates_by_destination = {
-            (101, "thread"): [_scored_candidate(destination_content_id=101, host_content_id=800, host_sentence_id=1, score_final=0.95)],
-            (102, "thread"): [_scored_candidate(destination_content_id=102, host_content_id=800, host_sentence_id=2, score_final=0.92)],
+            (101, "thread"): [
+                _scored_candidate(
+                    destination_content_id=101,
+                    host_content_id=800,
+                    host_sentence_id=1,
+                    score_final=0.95,
+                )
+            ],
+            (102, "thread"): [
+                _scored_candidate(
+                    destination_content_id=102,
+                    host_content_id=800,
+                    host_sentence_id=2,
+                    score_final=0.92,
+                )
+            ],
         }
         embedding_lookup = {
             (101, "thread"): np.array([1.0, 0.0], dtype=np.float32),
@@ -3170,16 +3794,19 @@ class PipelineTaskRunStatsTests(TestCase):
     def test_task_saves_pipeline_counts_from_service_result(self):
         run = PipelineRun.objects.create()
 
-        with patch.object(
-            pipeline_tasks,
-            "_publish_progress",
-        ), patch(
-            "apps.pipeline.services.pipeline.run_pipeline",
-            return_value=PipelineResult(
-                run_id=str(run.run_id),
-                items_in_scope=3,
-                suggestions_created=1,
-                destinations_skipped=2,
+        with (
+            patch.object(
+                pipeline_tasks,
+                "_publish_progress",
+            ),
+            patch(
+                "apps.pipeline.services.pipeline.run_pipeline",
+                return_value=PipelineResult(
+                    run_id=str(run.run_id),
+                    items_in_scope=3,
+                    suggestions_created=1,
+                    destinations_skipped=2,
+                ),
             ),
         ):
             result = pipeline_tasks.run_pipeline.run(
@@ -3205,7 +3832,9 @@ class BrokenLinkScanBenchmarkTests(TestCase):
         if os.environ.get("PIPELINE_RUN_BENCHMARKS") != "1":
             self.skipTest("Set PIPELINE_RUN_BENCHMARKS=1 to run benchmark harness.")
 
-        scope = ScopeItem.objects.create(scope_id=77, scope_type="node", title="Benchmark Scope")
+        scope = ScopeItem.objects.create(
+            scope_id=77, scope_type="node", title="Benchmark Scope"
+        )
         source = ContentItem.objects.create(
             content_id=7700,
             content_type="thread",
@@ -3271,12 +3900,18 @@ class BrokenLinkScanBenchmarkTests(TestCase):
             return 200, ""
 
         started_at = perf_counter()
-        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-            side_effect=_benchmark_probe,
-        ), patch("apps.pipeline.tasks.time.sleep"):
-            result = pipeline_tasks.scan_broken_links.run(job_id="benchmark-python-broken-links")
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+                side_effect=_benchmark_probe,
+            ),
+            patch("apps.pipeline.tasks.time.sleep"),
+        ):
+            result = pipeline_tasks.scan_broken_links.run(
+                job_id="benchmark-python-broken-links"
+            )
         wall_time_ms = round((perf_counter() - started_at) * 1000, 2)
         peak_working_set_bytes = _peak_working_set_bytes()
 
@@ -3291,7 +3926,9 @@ class BrokenLinkScanBenchmarkTests(TestCase):
                 if peak_working_set_bytes <= 0
                 else ""
             ),
-            "throughput_urls_per_second": round(1000 / max(wall_time_ms / 1000, 0.001), 2),
+            "throughput_urls_per_second": round(
+                1000 / max(wall_time_ms / 1000, 0.001), 2
+            ),
             "scanned_urls": result["scanned_urls"],
             "flagged_urls": result["flagged_urls"],
             "fixed_urls": result["fixed_urls"],
@@ -3306,8 +3943,12 @@ class BrokenLinkScanBenchmarkTests(TestCase):
 @override_settings(HTTP_WORKER_ENABLED=False)
 class BrokenLinkScanTaskRegressionTests(TestCase):
     def setUp(self):
-        self.scope = ScopeItem.objects.create(scope_id=5, scope_type="node", title="Forum")
-        self.source = ContentItem.objects.create(content_id=50, content_type="thread", title="Source", scope=self.scope)
+        self.scope = ScopeItem.objects.create(
+            scope_id=5, scope_type="node", title="Forum"
+        )
+        self.source = ContentItem.objects.create(
+            content_id=50, content_type="thread", title="Source", scope=self.scope
+        )
 
     def _existing_link(self, *, url: str) -> ContentItem:
         destination = ContentItem.objects.create(
@@ -3331,11 +3972,15 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
     def test_scan_marks_new_issue_as_open(self):
         destination = self._existing_link(url="https://example.com/broken")
 
-        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-            return_value=(404, ""),
-        ), patch("apps.pipeline.tasks.time.sleep"):
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+                return_value=(404, ""),
+            ),
+            patch("apps.pipeline.tasks.time.sleep"),
+        ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-open")
 
         record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
@@ -3354,11 +3999,15 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
             notes="keep me",
         )
 
-        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-            return_value=(200, ""),
-        ), patch("apps.pipeline.tasks.time.sleep"):
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+                return_value=(200, ""),
+            ),
+            patch("apps.pipeline.tasks.time.sleep"),
+        ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-fixed")
 
         record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
@@ -3377,11 +4026,15 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
             notes="reviewer kept this ignored",
         )
 
-        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-            return_value=(301, "https://example.com/new-home"),
-        ), patch("apps.pipeline.tasks.time.sleep"):
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+                return_value=(301, "https://example.com/new-home"),
+            ),
+            patch("apps.pipeline.tasks.time.sleep"),
+        ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-ignored")
 
         record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
@@ -3391,10 +4044,13 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         self.assertEqual(record.notes, "reviewer kept this ignored")
 
     def test_scan_returns_cleanly_when_no_urls_exist(self):
-        with patch.object(pipeline_tasks, "_publish_progress"), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-        ) as probe_health:
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+            ) as probe_health,
+        ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-empty")
 
         self.assertEqual(result["scanned_urls"], 0)
@@ -3410,17 +4066,21 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
     def test_scan_uses_http_worker_when_enabled(self):
         destination = self._existing_link(url="https://example.com/http-worker")
 
-        with patch.object(pipeline_tasks, "_publish_progress"), patch(
-            "apps.graph.services.http_worker_client.check_broken_links",
-            return_value=[
-                {
-                    "source_content_id": self.source.pk,
-                    "url": destination.url,
-                    "http_status": 404,
-                    "redirect_url": "",
-                }
-            ],
-        ) as check_broken_links, patch.object(pipeline_tasks, "_probe_link_health") as probe_health:
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch(
+                "apps.graph.services.http_worker_client.check_broken_links",
+                return_value=[
+                    {
+                        "source_content_id": self.source.pk,
+                        "url": destination.url,
+                        "http_status": 404,
+                        "redirect_url": "",
+                    }
+                ],
+            ) as check_broken_links,
+            patch.object(pipeline_tasks, "_probe_link_health") as probe_health,
+        ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker")
 
         record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
@@ -3436,17 +4096,26 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         HTTP_WORKER_URL="http://http-worker-api:8080",
     )
     def test_scan_falls_back_to_python_when_http_worker_fails(self):
-        destination = self._existing_link(url="https://example.com/http-worker-fallback")
+        destination = self._existing_link(
+            url="https://example.com/http-worker-fallback"
+        )
 
-        with patch.object(pipeline_tasks, "_publish_progress"), patch(
-            "apps.graph.services.http_worker_client.check_broken_links",
-            side_effect=RuntimeError("worker offline"),
-        ), patch.object(
-            pipeline_tasks,
-            "_probe_link_health",
-            return_value=(404, ""),
-        ) as probe_health, patch("apps.pipeline.tasks.time.sleep"):
-            result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker-fallback")
+        with (
+            patch.object(pipeline_tasks, "_publish_progress"),
+            patch(
+                "apps.graph.services.http_worker_client.check_broken_links",
+                side_effect=RuntimeError("worker offline"),
+            ),
+            patch.object(
+                pipeline_tasks,
+                "_probe_link_health",
+                return_value=(404, ""),
+            ) as probe_health,
+            patch("apps.pipeline.tasks.time.sleep"),
+        ):
+            result = pipeline_tasks.scan_broken_links.run(
+                job_id="scan-http-worker-fallback"
+            )
 
         record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
         self.assertEqual(result["probe_backend"], "python_requests_fallback")
@@ -3467,10 +4136,13 @@ class BrokenLinkScanDispatchTests(TestCase):
         HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY=40,
     )
     def test_dispatch_broken_link_scan_queues_csharp_job_when_owner_is_csharp(self):
-        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, patch.object(
-            pipeline_tasks.scan_broken_links,
-            "delay",
-        ) as delay_task:
+        with (
+            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
+            patch.object(
+                pipeline_tasks.scan_broken_links,
+                "delay",
+            ) as delay_task,
+        ):
             result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-123")
 
         self.assertEqual(result["runtime_owner"], "csharp")
@@ -3493,10 +4165,13 @@ class BrokenLinkScanDispatchTests(TestCase):
         RUNTIME_OWNER_BROKEN_LINK_SCAN="celery",
     )
     def test_dispatch_broken_link_scan_queues_celery_task_when_owner_is_celery(self):
-        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, patch.object(
-            pipeline_tasks.scan_broken_links,
-            "delay",
-        ) as delay_task:
+        with (
+            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
+            patch.object(
+                pipeline_tasks.scan_broken_links,
+                "delay",
+            ) as delay_task,
+        ):
             result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-456")
 
         self.assertEqual(result["runtime_owner"], "celery")
@@ -3513,8 +4188,10 @@ class HeavyRuntimeDispatchTests(TestCase):
     )
     def test_dispatch_import_content_orchestrates_csharp_import(self):
         with patch("apps.pipeline.tasks.orchestrate_csharp_import.delay") as delay_mock:
-            result = pipeline_tasks.dispatch_import_content(mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111")
-        
+            result = pipeline_tasks.dispatch_import_content(
+                mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111"
+            )
+
         self.assertEqual(result["runtime_owner"], "csharp")
         delay_mock.assert_called_once_with(
             scope_ids=None,
@@ -3527,31 +4204,39 @@ class HeavyRuntimeDispatchTests(TestCase):
 
     def test_orchestrate_csharp_import_chains_ml_on_success(self):
         # Verify the orchestrator itself triggers ML
-        with patch("apps.graph.services.http_worker_client.run_job") as run_job, \
-             patch("apps.pipeline.tasks.generate_embeddings.delay") as generate_delay, \
-             patch("apps.pipeline.tasks._publish_progress"):
-            
+        with (
+            patch("apps.graph.services.http_worker_client.run_job") as run_job,
+            patch("apps.pipeline.tasks.generate_embeddings.delay") as generate_delay,
+            patch("apps.pipeline.tasks._publish_progress"),
+        ):
             run_job.return_value = {"updated_pks": [1, 2, 3], "items_synced": 3}
-            
+
             pipeline_tasks.orchestrate_csharp_import(mode="full", source="api")
-            
+
             run_job.assert_called_once()
-            generate_delay.assert_called_once_with(content_item_ids=[1, 2, 3], job_id=ANY, force_reembed=False)
+            generate_delay.assert_called_once_with(
+                content_item_ids=[1, 2, 3], job_id=ANY, force_reembed=False
+            )
 
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",
         RUNTIME_OWNER_PIPELINE="csharp",
     )
     def test_dispatch_pipeline_run_queues_csharp_job(self):
-        with patch("apps.graph.services.http_worker_client.queue_job") as queue_job, \
-             patch("apps.suggestions.recommended_weights.RECOMMENDED_PRESET_WEIGHTS", {"w_semantic": "0.4"}):
+        with (
+            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
+            patch(
+                "apps.suggestions.recommended_weights.RECOMMENDED_PRESET_WEIGHTS",
+                {"w_semantic": "0.4"},
+            ),
+        ):
             result = pipeline_tasks.dispatch_pipeline_run(
                 run_id="11111111-1111-1111-1111-111111111111",
                 host_scope={},
                 destination_scope={},
                 rerun_mode="skip_pending",
             )
-        
+
         self.assertEqual(result["runtime_owner"], "csharp")
         queue_job.assert_called_once_with(
             job_id="11111111-1111-1111-1111-111111111111",
@@ -3573,10 +4258,16 @@ class HeavyRuntimeDispatchTests(TestCase):
 
 class PipelineSettingsFallbackLoggingTests(TestCase):
     def test_load_weights_logs_and_keeps_default_fallback(self):
-        with patch("apps.core.models.AppSetting.objects.filter", side_effect=RuntimeError("boom")), patch.object(
-            pipeline_service.logger,
-            "exception",
-        ) as log_exception:
+        with (
+            patch(
+                "apps.core.models.AppSetting.objects.filter",
+                side_effect=RuntimeError("boom"),
+            ),
+            patch.object(
+                pipeline_service.logger,
+                "exception",
+            ) as log_exception,
+        ):
             weights = _load_weights()
 
         self.assertEqual(weights, DEFAULT_WEIGHTS)
@@ -3587,6 +4278,7 @@ class PipelineSettingsFallbackLoggingTests(TestCase):
 # Spam-guard tests  (FR-016 guards: max existing links, anchor word cap,
 # one-link-per-paragraph)
 # ---------------------------------------------------------------------------
+
 
 def _sentence_record(
     sentence_id: int,
@@ -3632,7 +4324,10 @@ class GuardMaxExistingLinksTests(TestCase):
         self.sentence_records = {1: self.sentence}
         self.match = _make_sentence_match(host_content_id=10, sentence_id=1)
         self.weights = {
-            "w_semantic": 1.0, "w_keyword": 0.0, "w_node": 0.0, "w_quality": 0.0,
+            "w_semantic": 1.0,
+            "w_keyword": 0.0,
+            "w_node": 0.0,
+            "w_quality": 0.0,
         }
         self.bounds = (0.0, 1.0)
 
@@ -3694,20 +4389,26 @@ class GuardAnchorWordCapTests(TestCase):
             self.host.key: self.host,
         }
         self.weights = {
-            "w_semantic": 1.0, "w_keyword": 0.0, "w_node": 0.0, "w_quality": 0.0,
+            "w_semantic": 1.0,
+            "w_keyword": 0.0,
+            "w_node": 0.0,
+            "w_quality": 0.0,
         }
         self.bounds = (0.0, 1.0)
 
     def _score_with_anchor(self, anchor_text: str, max_anchor_words: int = 4):
         """Build a sentence whose text contains the anchor and score it."""
         sentence = _sentence_record(
-            sentence_id=1, content_id=10, position=0,
+            sentence_id=1,
+            content_id=10,
+            position=0,
             text=f"This topic is about {anchor_text} and more details.",
         )
         sentence_records = {1: sentence}
         match = _make_sentence_match(host_content_id=10, sentence_id=1)
         # We mock evaluate_phrase_match to return a controlled anchor phrase.
         from apps.pipeline.services.phrase_matching import PhraseMatchResult
+
         mock_result = PhraseMatchResult(
             anchor_phrase=anchor_text,
             anchor_start=20,
@@ -3736,7 +4437,9 @@ class GuardAnchorWordCapTests(TestCase):
         return result, blocked
 
     def test_four_word_anchor_is_accepted(self):
-        result, _ = self._score_with_anchor("carbon fibre bicycle frame", max_anchor_words=4)
+        result, _ = self._score_with_anchor(
+            "carbon fibre bicycle frame", max_anchor_words=4
+        )
         self.assertEqual(len(result), 1)
 
     def test_five_word_anchor_is_rejected(self):
@@ -3840,7 +4543,9 @@ class GuardParagraphClusterTests(TestCase):
         candidate = self._make_candidate(10, 50, sentence_id=1)
         # Position 2 is within window=3 of position 0 → collision
         self.assertTrue(
-            _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window=3)
+            _is_paragraph_collision(
+                candidate, host_para_positions, sentence_records, paragraph_window=3
+            )
         )
 
     def test_paragraph_collision_helper_clears_distant_sentences(self):
@@ -3851,7 +4556,9 @@ class GuardParagraphClusterTests(TestCase):
         candidate = self._make_candidate(10, 50, sentence_id=1)
         # Position 7 is more than window=3 away from position 0 → no collision
         self.assertFalse(
-            _is_paragraph_collision(candidate, host_para_positions, sentence_records, paragraph_window=3)
+            _is_paragraph_collision(
+                candidate, host_para_positions, sentence_records, paragraph_window=3
+            )
         )
 
     def test_paragraph_collision_fallback_candidate_used_if_available(self):

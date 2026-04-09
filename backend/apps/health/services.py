@@ -17,6 +17,7 @@ from .models import ServiceHealthRecord
 
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class ServiceHealthResult:
     service_key: str
@@ -34,8 +35,10 @@ class ServiceHealthResult:
     def to_dict(self):
         return asdict(self)
 
+
 class HealthCheckRegistry:
     """Registry for system-wide health checks."""
+
     _checkers: Dict[str, Callable[[], ServiceHealthResult]] = {}
     _metadata: Dict[str, Dict[str, str]] = {}
 
@@ -45,9 +48,10 @@ class HealthCheckRegistry:
             cls._checkers[service_key] = func
             cls._metadata[service_key] = {
                 "name": name or service_key.replace("_", " ").title(),
-                "description": description
+                "description": description,
             }
             return func
+
         return decorator
 
     @classmethod
@@ -57,6 +61,7 @@ class HealthCheckRegistry:
     @classmethod
     def get_metadata(cls, service_key: str):
         return cls._metadata.get(service_key, {"name": service_key, "description": ""})
+
 
 def get_health_setting(key: str, default: Any) -> Any:
     try:
@@ -71,23 +76,25 @@ def get_health_setting(key: str, default: Any) -> Any:
     except AppSetting.DoesNotExist:
         return default
 
+
 # ── Infrastructure Checkers ───────────────────────────────────────
 
+
 @HealthCheckRegistry.register(
-    "database", 
-    name="PostgreSQL Database", 
-    description="Core data storage for application state and settings."
+    "database",
+    name="PostgreSQL Database",
+    description="Core data storage for application state and settings.",
 )
 def check_database_health() -> ServiceHealthResult:
     try:
-        connections['default'].cursor()
+        connections["default"].cursor()
         return ServiceHealthResult(
             service_key="database",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="Database connection is healthy.",
             issue_description="PostgreSQL is reachable and accepting queries.",
             suggested_fix="No action needed.",
-            last_success_at=timezone.now()
+            last_success_at=timezone.now(),
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -97,17 +104,19 @@ def check_database_health() -> ServiceHealthResult:
             issue_description=f"The application cannot connect to PostgreSQL: {str(e)}",
             suggested_fix="Check if the 'postgres' container is running and the database credentials are correct.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "redis", 
-    name="Redis Cache & Broker", 
-    description="In-memory data store for caching and Celery message brokering."
+    "redis",
+    name="Redis Cache & Broker",
+    description="In-memory data store for caching and Celery message brokering.",
 )
 def check_redis_health() -> ServiceHealthResult:
     try:
         import redis
+
         r = redis.from_url(settings.REDIS_URL)
         r.ping()
         return ServiceHealthResult(
@@ -116,7 +125,7 @@ def check_redis_health() -> ServiceHealthResult:
             status_label="Redis is reachable.",
             issue_description="Redis cache and message broker are operating normally.",
             suggested_fix="No action needed.",
-            last_success_at=timezone.now()
+            last_success_at=timezone.now(),
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -126,16 +135,18 @@ def check_redis_health() -> ServiceHealthResult:
             issue_description=f"Redis is unreachable or not responding to pings: {str(e)}",
             suggested_fix="Check if the 'redis' container is running and REDIS_URL is correct.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "celery", 
-    name="Celery Worker Cluster", 
-    description="Distributed task queue for background processing."
+    "celery",
+    name="Celery Worker Cluster",
+    description="Distributed task queue for background processing.",
 )
 def check_celery_health() -> ServiceHealthResult:
     from config.celery import app as celery_app
+
     try:
         insp = celery_app.control.inspect()
         active = insp.active()
@@ -146,9 +157,9 @@ def check_celery_health() -> ServiceHealthResult:
                 status_label="No active Celery workers found.",
                 issue_description="Background tasks cannot run because no workers are listening to the queue.",
                 suggested_fix="Restart the 'celery-worker' container/service.",
-                last_error_at=timezone.now()
+                last_error_at=timezone.now(),
             )
-            
+
         worker_count = len(active)
         return ServiceHealthResult(
             service_key="celery",
@@ -157,7 +168,7 @@ def check_celery_health() -> ServiceHealthResult:
             issue_description=f"Background processing queue is active with {worker_count} workers.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"worker_count": worker_count}
+            metadata={"worker_count": worker_count},
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -167,15 +178,17 @@ def check_celery_health() -> ServiceHealthResult:
             issue_description=f"Error inspecting Celery workers: {str(e)}",
             suggested_fix="Check Redis connectivity and ensure Celery is properly configured.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 # ── Runtime & AI Checkers ─────────────────────────────────────────
 
+
 @HealthCheckRegistry.register(
-    "http_worker", 
-    name="C# High-Performance Runtime", 
-    description="External helper service for heavy I/O and orchestration."
+    "http_worker",
+    name="C# High-Performance Runtime",
+    description="External helper service for heavy I/O and orchestration.",
 )
 def check_http_worker_health() -> ServiceHealthResult:
     url = settings.HTTP_WORKER_URL
@@ -186,9 +199,9 @@ def check_http_worker_health() -> ServiceHealthResult:
                 status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
                 status_label="HttpWorker URL missing.",
                 issue_description="The C# helper service URL is not defined in settings.",
-                suggested_fix="Configure HTTP_WORKER_URL in your environment files."
+                suggested_fix="Configure HTTP_WORKER_URL in your environment files.",
             )
-            
+
         status_url = f"{url}/api/v1/status"
         response = requests.get(status_url, timeout=5)
         response.raise_for_status()
@@ -201,7 +214,7 @@ def check_http_worker_health() -> ServiceHealthResult:
             issue_description="The high-performance C# runtime is healthy and responsive.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"version": data.get("build_version", "unknown"), "url": url}
+            metadata={"version": data.get("build_version", "unknown"), "url": url},
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -211,21 +224,23 @@ def check_http_worker_health() -> ServiceHealthResult:
             issue_description=f"High-performance worker service at {url} is not responding: {str(e)}",
             suggested_fix="Check if the 'http-worker-api' container is running and healthy.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "native_scoring", 
-    name="C++ Performance Kernels", 
-    description="Compiled native extensions for hot-path ranking and NLU."
+    "native_scoring",
+    name="C++ Performance Kernels",
+    description="Compiled native extensions for hot-path ranking and NLU.",
 )
 def check_native_scoring_health() -> ServiceHealthResult:
     from apps.diagnostics.health import _native_module_runtime_status
+
     try:
         statuses = _native_module_runtime_status()
         failed = [s for s in statuses if s["state"] != "healthy"]
         critical_failed = [s for s in failed if s["critical"]]
-        
+
         if critical_failed:
             return ServiceHealthResult(
                 service_key="native_scoring",
@@ -234,9 +249,9 @@ def check_native_scoring_health() -> ServiceHealthResult:
                 issue_description=f"Critical performance kernels ({', '.join(s['module'] for s in critical_failed)}) failed to load.",
                 suggested_fix="Rebuild the C++ extensions or check for missing shared libraries (.so/.pyd).",
                 last_error_at=timezone.now(),
-                metadata={"module_statuses": statuses}
+                metadata={"module_statuses": statuses},
             )
-        
+
         if failed:
             return ServiceHealthResult(
                 service_key="native_scoring",
@@ -245,7 +260,7 @@ def check_native_scoring_health() -> ServiceHealthResult:
                 issue_description=f"Some optional performance kernels ({', '.join(s['module'] for s in failed)}) are using Python fallback.",
                 suggested_fix="Rebuild native extensions to restore full performance.",
                 last_success_at=timezone.now(),
-                metadata={"module_statuses": statuses}
+                metadata={"module_statuses": statuses},
             )
 
         return ServiceHealthResult(
@@ -255,7 +270,7 @@ def check_native_scoring_health() -> ServiceHealthResult:
             issue_description="All native C++ scoring and NLU extensions are loaded and active.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"module_statuses": statuses}
+            metadata={"module_statuses": statuses},
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -265,23 +280,25 @@ def check_native_scoring_health() -> ServiceHealthResult:
             issue_description=f"Error checking native extension status: {str(e)}",
             suggested_fix="Check the 'extensions' directory and Python import functionality.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "ml_models", 
-    name="AI & NLP Models", 
-    description="Language models (SpaCy) and Embedding engines (BGE) for suggestion logic."
+    "ml_models",
+    name="AI & NLP Models",
+    description="Language models (SpaCy) and Embedding engines (BGE) for suggestion logic.",
 )
 def check_ml_models_health() -> ServiceHealthResult:
     try:
         # Check SpaCy
         import spacy
+
         model_name = settings.SPACY_MODEL
         spacy_ok = spacy.util.is_package(model_name)
-        
+
         # Check BGE (using import check as proxy for environment readiness)
-        
+
         if not spacy_ok:
             return ServiceHealthResult(
                 service_key="ml_models",
@@ -289,9 +306,9 @@ def check_ml_models_health() -> ServiceHealthResult:
                 status_label="SpaCy model missing.",
                 issue_description=f"The required NLU model '{model_name}' is not installed in the environment.",
                 suggested_fix=f"Run 'python -m spacy download {model_name}' inside the backend container.",
-                last_error_at=timezone.now()
+                last_error_at=timezone.now(),
             )
-            
+
         return ServiceHealthResult(
             service_key="ml_models",
             status=ServiceHealthRecord.STATUS_HEALTHY,
@@ -299,7 +316,10 @@ def check_ml_models_health() -> ServiceHealthResult:
             issue_description=f"NLU ({model_name}) and Embedding ({settings.EMBEDDING_MODEL}) models are available.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"spacy_model": model_name, "embedding_model": settings.EMBEDDING_MODEL}
+            metadata={
+                "spacy_model": model_name,
+                "embedding_model": settings.EMBEDDING_MODEL,
+            },
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -309,13 +329,14 @@ def check_ml_models_health() -> ServiceHealthResult:
             issue_description=f"Error verifying ML dependencies: {str(e)}",
             suggested_fix="Ensure 'sentence-transformers' and 'spacy' are installed in the Python environment.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 @HealthCheckRegistry.register(
     "gpu_faiss",
     name="GPU & FAISS Index",
-    description="CUDA GPU availability and persistent FAISS vector index for Stage 1 pipeline search."
+    description="CUDA GPU availability and persistent FAISS vector index for Stage 1 pipeline search.",
 )
 def check_gpu_faiss_health() -> ServiceHealthResult:
     try:
@@ -339,7 +360,9 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
         if cuda_available:
             props = torch.cuda.get_device_properties(0)
             total_vram_mb = props.total_memory // (1024 * 1024)
-            used_vram_mb = (props.total_memory - torch.cuda.mem_get_info(0)[0]) // (1024 * 1024)
+            used_vram_mb = (props.total_memory - torch.cuda.mem_get_info(0)[0]) // (
+                1024 * 1024
+            )
             meta["gpu_name"] = props.name
             meta["vram_total_mb"] = total_vram_mb
             meta["vram_used_mb"] = used_vram_mb
@@ -353,7 +376,7 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
                 issue_description="The FAISS vector index has not been built yet. Stage 1 pipeline is running on the slower NumPy CPU path.",
                 suggested_fix="Trigger a pipeline run or wait for the next Celery Beat refresh (every 15 minutes). Check that content items have embeddings.",
                 last_error_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
 
         on_gpu = "GPU" in faiss_device
@@ -365,7 +388,7 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
                 issue_description="FAISS index is loaded but running on CPU, not GPU. Stage 1 search is faster than NumPy but not at full GPU speed.",
                 suggested_fix="Ensure ML_PERFORMANCE_MODE=HIGH_PERFORMANCE in your .env and that CUDA drivers are available inside the container.",
                 last_success_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
 
         return ServiceHealthResult(
@@ -375,7 +398,7 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
             issue_description=f"Persistent FAISS index is live on {faiss_device} with {faiss_vectors:,} content embeddings.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=meta
+            metadata=meta,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -385,10 +408,12 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
             issue_description=f"Could not query GPU or FAISS index status: {str(e)}",
             suggested_fix="Ensure PyTorch and faiss-gpu-cu12 are installed in the backend container.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 # ── Analytics & Data Checkers ─────────────────────────────────────
+
 
 def _ga4_enrich_credentials_and_quota(property_id_value: str, metadata: dict) -> None:
     """Try to validate GA4 read credentials and populate quota info into metadata.
@@ -397,6 +422,7 @@ def _ga4_enrich_credentials_and_quota(property_id_value: str, metadata: dict) ->
     (some installs only use Measurement Protocol and never set up the Data API).
     Raises on credential errors so the caller can surface them as an error status.
     """
+
     def _get(key: str) -> str:
         s = AppSetting.objects.filter(key=key).first()
         return s.value if s else ""
@@ -413,6 +439,7 @@ def _ga4_enrich_credentials_and_quota(property_id_value: str, metadata: dict) ->
         return
 
     from apps.analytics.ga4_client import build_ga4_data_service, get_ga4_quota
+
     service = build_ga4_data_service(
         property_id=property_id_value,
         project_id=project_id,
@@ -432,8 +459,8 @@ def _ga4_enrich_credentials_and_quota(property_id_value: str, metadata: dict) ->
 
 @HealthCheckRegistry.register(
     "ga4",
-    name="Google Analytics 4", 
-    description="Integration with Google Analytics Data API for telemetry metrics."
+    name="Google Analytics 4",
+    description="Integration with Google Analytics Data API for telemetry metrics.",
 )
 def check_ga4_health() -> ServiceHealthResult:
     property_id = AppSetting.objects.filter(key="analytics.ga4_property_id").first()
@@ -443,16 +470,27 @@ def check_ga4_health() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
             status_label="GA4 not configured.",
             issue_description="Google Analytics 4 property ID is missing from settings.",
-            suggested_fix="Go to Settings > Analytics and provide your GA4 Property ID."
+            suggested_fix="Go to Settings > Analytics and provide your GA4 Property ID.",
         )
 
     try:
         stale_hours = get_health_setting("ga4_stale_threshold_hours", 72)
-        latest_metric = SearchMetric.objects.filter(source="ga4").order_by("-date").first()
+        latest_metric = (
+            SearchMetric.objects.filter(source="ga4").order_by("-date").first()
+        )
 
-        metadata = {"property_id": property_id.value[-4:].rjust(len(property_id.value), "*")}
+        metadata = {
+            "property_id": property_id.value[-4:].rjust(len(property_id.value), "*")
+        }
         if latest_metric:
-            lag_hours = (timezone.now() - timezone.make_aware(timezone.datetime.combine(latest_metric.date, timezone.datetime.min.time()))).total_seconds() / 3600
+            lag_hours = (
+                timezone.now()
+                - timezone.make_aware(
+                    timezone.datetime.combine(
+                        latest_metric.date, timezone.datetime.min.time()
+                    )
+                )
+            ).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
 
             if lag_hours > stale_hours:
@@ -463,7 +501,7 @@ def check_ga4_health() -> ServiceHealthResult:
                     issue_description=f"Last GA4 data is from {latest_metric.date} ({round(lag_hours)}h lag).",
                     suggested_fix="Check if the GA4 sync task is running or if the Google service account has been disabled.",
                     last_success_at=timezone.now(),
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
         # Validate read credentials and fetch daily quota if possible.
@@ -489,7 +527,7 @@ def check_ga4_health() -> ServiceHealthResult:
                     "service account has 'Viewer' access. Confirm the site is receiving traffic."
                 ),
                 last_success_at=timezone.now(),
-                metadata=metadata
+                metadata=metadata,
             )
 
         return ServiceHealthResult(
@@ -499,7 +537,7 @@ def check_ga4_health() -> ServiceHealthResult:
             issue_description="GA4 connectivity established and telemetry data is fresh.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=metadata
+            metadata=metadata,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -509,8 +547,9 @@ def check_ga4_health() -> ServiceHealthResult:
             issue_description=f"Error connecting to Google Analytics API: {str(e)}",
             suggested_fix="Verify your Google Service Account credentials and API permissions.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 def _gsc_validate_credentials(property_url: str) -> None:
     """Try to call the GSC API to confirm credentials are still valid.
@@ -518,6 +557,7 @@ def _gsc_validate_credentials(property_url: str) -> None:
     Silently skips if no credentials are configured.
     Raises on auth failure so the caller can surface it as an error status.
     """
+
     def _get(key: str) -> str:
         s = AppSetting.objects.filter(key=key).first()
         return s.value if s else ""
@@ -532,6 +572,7 @@ def _gsc_validate_credentials(property_url: str) -> None:
         return
 
     from apps.analytics.gsc_client import build_gsc_service, test_gsc_access
+
     service = build_gsc_service(
         client_email=client_email,
         private_key=private_key,
@@ -545,7 +586,7 @@ def _gsc_validate_credentials(property_url: str) -> None:
 @HealthCheckRegistry.register(
     "gsc",
     name="Search Console",
-    description="Integration with Google Search Console for organic performance data."
+    description="Integration with Google Search Console for organic performance data.",
 )
 def check_gsc_health() -> ServiceHealthResult:
     site_url = AppSetting.objects.filter(key="analytics.gsc_site_url").first()
@@ -555,16 +596,25 @@ def check_gsc_health() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
             status_label="GSC site URL missing.",
             issue_description="Google Search Console site URL has not been defined.",
-            suggested_fix="Go to Settings > Analytics and provide your GSC Site URL."
+            suggested_fix="Go to Settings > Analytics and provide your GSC Site URL.",
         )
 
     try:
         stale_hours = get_health_setting("gsc_stale_threshold_hours", 72)
-        latest_metric = SearchMetric.objects.filter(source="gsc").order_by("-date").first()
+        latest_metric = (
+            SearchMetric.objects.filter(source="gsc").order_by("-date").first()
+        )
 
         metadata = {"site_url": site_url.value}
         if latest_metric:
-            lag_hours = (timezone.now() - timezone.make_aware(timezone.datetime.combine(latest_metric.date, timezone.datetime.min.time()))).total_seconds() / 3600
+            lag_hours = (
+                timezone.now()
+                - timezone.make_aware(
+                    timezone.datetime.combine(
+                        latest_metric.date, timezone.datetime.min.time()
+                    )
+                )
+            ).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
 
             if lag_hours > stale_hours:
@@ -575,7 +625,7 @@ def check_gsc_health() -> ServiceHealthResult:
                     issue_description=f"Last GSC data is from {latest_metric.date} ({round(lag_hours)}h lag).",
                     suggested_fix="Check the Search Console sync task logs and Google Cloud Project status.",
                     last_success_at=timezone.now(),
-                    metadata=metadata
+                    metadata=metadata,
                 )
 
         # Validate read credentials if configured.
@@ -601,7 +651,7 @@ def check_gsc_health() -> ServiceHealthResult:
                     "the service account is listed as a user in Search Console."
                 ),
                 last_success_at=timezone.now(),
-                metadata=metadata
+                metadata=metadata,
             )
 
         return ServiceHealthResult(
@@ -611,7 +661,7 @@ def check_gsc_health() -> ServiceHealthResult:
             issue_description="Search Console data is being imported correctly.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=metadata
+            metadata=metadata,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -621,13 +671,14 @@ def check_gsc_health() -> ServiceHealthResult:
             issue_description=f"Error connecting to Search Console API: {str(e)}",
             suggested_fix="Verify service account access to the property in GSC dashboard.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "matomo", 
-    name="Matomo Analytics", 
-    description="Self-hosted analytics alternative for privacy-focused tracking."
+    "matomo",
+    name="Matomo Analytics",
+    description="Self-hosted analytics alternative for privacy-focused tracking.",
 )
 def check_matomo_health() -> ServiceHealthResult:
     matomo_enabled = AppSetting.objects.filter(key="analytics.matomo_enabled").first()
@@ -637,7 +688,7 @@ def check_matomo_health() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_NOT_ENABLED,
             status_label="Matomo disabled.",
             issue_description="Matomo tracking is currently turned off in settings.",
-            suggested_fix="No action needed unless you wish to use Matomo analytics."
+            suggested_fix="No action needed unless you wish to use Matomo analytics.",
         )
 
     matomo_url = AppSetting.objects.filter(key="analytics.matomo_url").first()
@@ -647,7 +698,7 @@ def check_matomo_health() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
             status_label="Matomo URL missing.",
             issue_description="Matomo analytics enabled but no server URL provided.",
-            suggested_fix="Provide your Matomo instance URL in Settings."
+            suggested_fix="Provide your Matomo instance URL in Settings.",
         )
 
     try:
@@ -670,7 +721,7 @@ def check_matomo_health() -> ServiceHealthResult:
                     "tracking code is installed on the target site."
                 ),
                 last_success_at=timezone.now(),
-                metadata=metadata
+                metadata=metadata,
             )
 
         return ServiceHealthResult(
@@ -680,7 +731,7 @@ def check_matomo_health() -> ServiceHealthResult:
             issue_description=f"Matomo API is reachable and {matomo_rows:,} rows imported.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=metadata
+            metadata=metadata,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -690,32 +741,35 @@ def check_matomo_health() -> ServiceHealthResult:
             issue_description=f"Error communicating with Matomo: {str(e)}",
             suggested_fix="Check if your Matomo instance is online and the API token is valid.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 # ── CMS & Feature Checkers ────────────────────────────────────────
 
+
 @HealthCheckRegistry.register(
-    "xenforo", 
-    name="XenForo Forum", 
-    description="Primary content source for internal linking and discussion graph."
+    "xenforo",
+    name="XenForo Forum",
+    description="Primary content source for internal linking and discussion graph.",
 )
 def check_xenforo_health() -> ServiceHealthResult:
     base_url = getattr(settings, "XENFORO_BASE_URL", "")
     api_key = getattr(settings, "XENFORO_API_KEY", "")
-    
+
     if not base_url or not api_key:
         return ServiceHealthResult(
             service_key="xenforo",
             status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
             status_label="XenForo not configured.",
             issue_description="XenForo API URL or Key is missing.",
-            suggested_fix="Configure XENFORO_BASE_URL and XENFORO_API_KEY in your environment variables."
+            suggested_fix="Configure XENFORO_BASE_URL and XENFORO_API_KEY in your environment variables.",
         )
 
     # Validate the API key is still accepted before checking staleness.
     try:
         from apps.sync.services.xenforo_api import XenForoAPIClient
+
         client = XenForoAPIClient(base_url=base_url, api_key=api_key)
         if not client.verify_api_key():
             return ServiceHealthResult(
@@ -724,7 +778,7 @@ def check_xenforo_health() -> ServiceHealthResult:
                 status_label="XenForo API key rejected.",
                 issue_description="The XenForo server rejected the API key (it may have been revoked or rotated).",
                 suggested_fix="Re-generate the API key in XenForo Admin > API Keys and update XENFORO_API_KEY.",
-                last_error_at=timezone.now()
+                last_error_at=timezone.now(),
             )
     except Exception as e:
         return ServiceHealthResult(
@@ -734,17 +788,21 @@ def check_xenforo_health() -> ServiceHealthResult:
             issue_description=f"Could not connect to XenForo to verify the API key: {str(e)}",
             suggested_fix="Check if the XenForo server is online and XENFORO_BASE_URL is correct.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
     try:
-        latest_sync = ContentItem.objects.filter(content_type__in=['thread', 'post']).order_by("-updated_at").first()
+        latest_sync = (
+            ContentItem.objects.filter(content_type__in=["thread", "post"])
+            .order_by("-updated_at")
+            .first()
+        )
         metadata = {"base_url": base_url}
-        
+
         if latest_sync:
             lag_hours = (timezone.now() - latest_sync.updated_at).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
-            
+
             if lag_hours > 48:
                 return ServiceHealthResult(
                     service_key="xenforo",
@@ -753,11 +811,13 @@ def check_xenforo_health() -> ServiceHealthResult:
                     issue_description=f"No new content synced from XenForo in {round(lag_hours)} hours.",
                     suggested_fix="Manually trigger a sync from the Jobs page or check the XenForo API logs.",
                     last_success_at=timezone.now(),
-                    metadata=metadata
+                    metadata=metadata,
                 )
-        
+
         # Data-flow validation: check that ContentItems actually exist from this source.
-        xf_items = ContentItem.objects.filter(content_type__in=["thread", "resource"]).count()
+        xf_items = ContentItem.objects.filter(
+            content_type__in=["thread", "resource"]
+        ).count()
         metadata["content_items"] = xf_items
         if xf_items == 0:
             return ServiceHealthResult(
@@ -773,7 +833,7 @@ def check_xenforo_health() -> ServiceHealthResult:
                     "read permissions for threads and resources."
                 ),
                 last_success_at=timezone.now(),
-                metadata=metadata
+                metadata=metadata,
             )
 
         return ServiceHealthResult(
@@ -783,7 +843,7 @@ def check_xenforo_health() -> ServiceHealthResult:
             issue_description=f"XenForo API is reachable and {xf_items:,} content items are synced.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=metadata
+            metadata=metadata,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -793,13 +853,14 @@ def check_xenforo_health() -> ServiceHealthResult:
             issue_description=f"Error connecting to XenForo: {str(e)}",
             suggested_fix="Check if your XenForo instance is up and the API key has 'read' permissions.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "wordpress", 
-    name="WordPress Site", 
-    description="Secondary content source for blog posts and page linking."
+    "wordpress",
+    name="WordPress Site",
+    description="Secondary content source for blog posts and page linking.",
 )
 def check_wordpress_health() -> ServiceHealthResult:
     base_url = getattr(settings, "WORDPRESS_BASE_URL", "")
@@ -809,12 +870,13 @@ def check_wordpress_health() -> ServiceHealthResult:
             status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
             status_label="WordPress not configured.",
             issue_description="WordPress base URL is missing.",
-            suggested_fix="Configure WORDPRESS_BASE_URL in your environment variables."
+            suggested_fix="Configure WORDPRESS_BASE_URL in your environment variables.",
         )
 
     # If credentials are present, verify they are still accepted.
     try:
         from apps.sync.services.wordpress_api import WordPressAPIClient
+
         wp_client = WordPressAPIClient()
         if wp_client.has_credentials:
             result = wp_client.verify_credentials()
@@ -825,7 +887,7 @@ def check_wordpress_health() -> ServiceHealthResult:
                     status_label="WordPress credentials rejected.",
                     issue_description="The WordPress Application Password was rejected (HTTP 401). It may have been revoked.",
                     suggested_fix="Re-generate the Application Password in WordPress Users > Profile and update WORDPRESS_APP_PASSWORD.",
-                    last_error_at=timezone.now()
+                    last_error_at=timezone.now(),
                 )
     except Exception as e:
         return ServiceHealthResult(
@@ -835,17 +897,21 @@ def check_wordpress_health() -> ServiceHealthResult:
             issue_description=f"Could not connect to WordPress to verify credentials: {str(e)}",
             suggested_fix="Check if the WordPress server is online and WORDPRESS_BASE_URL is correct.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
     try:
-        latest_sync = ContentItem.objects.filter(content_type__in=['wp_post', 'wp_page']).order_by("-updated_at").first()
+        latest_sync = (
+            ContentItem.objects.filter(content_type__in=["wp_post", "wp_page"])
+            .order_by("-updated_at")
+            .first()
+        )
         metadata = {"base_url": base_url}
-        
+
         if latest_sync:
             lag_hours = (timezone.now() - latest_sync.updated_at).total_seconds() / 3600
             metadata["lag_hours"] = round(lag_hours, 1)
-            
+
             if lag_hours > 48:
                 return ServiceHealthResult(
                     service_key="wordpress",
@@ -854,9 +920,9 @@ def check_wordpress_health() -> ServiceHealthResult:
                     issue_description=f"No new content synced from WordPress in {round(lag_hours)} hours.",
                     suggested_fix="Check the WordPress Application Password or manually trigger a sync.",
                     last_success_at=timezone.now(),
-                    metadata=metadata
+                    metadata=metadata,
                 )
-        
+
         # Data-flow validation: check that WordPress content items exist.
         wp_items = ContentItem.objects.filter(content_type="wp_post").count()
         metadata["content_items"] = wp_items
@@ -874,7 +940,7 @@ def check_wordpress_health() -> ServiceHealthResult:
                     "Application Password has 'read' scope."
                 ),
                 last_success_at=timezone.now(),
-                metadata=metadata
+                metadata=metadata,
             )
 
         return ServiceHealthResult(
@@ -884,7 +950,7 @@ def check_wordpress_health() -> ServiceHealthResult:
             issue_description=f"WordPress API is reachable and {wp_items:,} posts are synced.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=metadata
+            metadata=metadata,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -894,26 +960,28 @@ def check_wordpress_health() -> ServiceHealthResult:
             issue_description=f"Error connecting to WordPress: {str(e)}",
             suggested_fix="Ensure the WordPress instance is online and the REST API is not blocked.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "knowledge_graph", 
-    name="Entity Knowledge Graph", 
-    description="Graph database storing relationships between people, places, and topics."
+    "knowledge_graph",
+    name="Entity Knowledge Graph",
+    description="Graph database storing relationships between people, places, and topics.",
 )
 def check_knowledge_graph_health() -> ServiceHealthResult:
     try:
         from apps.knowledge_graph.models import EntityNode
+
         node_count = EntityNode.objects.count()
         if node_count == 0:
-             return ServiceHealthResult(
+            return ServiceHealthResult(
                 service_key="knowledge_graph",
                 status=ServiceHealthRecord.STATUS_WARNING,
                 status_label="Knowledge Graph is empty.",
                 issue_description="The entity graph exists but no entities have been extracted yet.",
                 suggested_fix="Run the 'Full Sync' job for XenForo or WordPress to extract entities.",
-                last_success_at=timezone.now()
+                last_success_at=timezone.now(),
             )
 
         return ServiceHealthResult(
@@ -923,7 +991,7 @@ def check_knowledge_graph_health() -> ServiceHealthResult:
             issue_description=f"Knowledge graph is active with {node_count} extracted entities.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"node_count": node_count}
+            metadata={"node_count": node_count},
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -933,29 +1001,32 @@ def check_knowledge_graph_health() -> ServiceHealthResult:
             issue_description=f"Error querying knowledge graph database: {str(e)}",
             suggested_fix="Check database accessibility for specialized entity tables.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "weights_plugins", 
-    name="Ranking Core & Plugins", 
-    description="System-wide ranking weights and modular functional overrides."
+    "weights_plugins",
+    name="Ranking Core & Plugins",
+    description="System-wide ranking weights and modular functional overrides.",
 )
 def check_weights_plugins_health() -> ServiceHealthResult:
     try:
         from apps.plugins.models import Plugin
         from apps.suggestions.weight_preset_service import PRESET_DEFAULTS
+
         # Derive required keys from the single source of truth so this check
         # never drifts when weights are added or removed.
         missing_weights = [
-            key for key in PRESET_DEFAULTS
+            key
+            for key in PRESET_DEFAULTS
             if not AppSetting.objects.filter(key=key).exists()
         ]
-        
+
         # Check plugins
         total_plugins = Plugin.objects.count()
         enabled_plugins = Plugin.objects.filter(is_enabled=True).count()
-        
+
         if missing_weights:
             return ServiceHealthResult(
                 service_key="weights_plugins",
@@ -964,7 +1035,10 @@ def check_weights_plugins_health() -> ServiceHealthResult:
                 issue_description=f"Missing core ranking weights: {', '.join(missing_weights)}.",
                 suggested_fix="Set the ranking weight presets in Settings > Optimization.",
                 last_error_at=timezone.now(),
-                metadata={"enabled_plugins": enabled_plugins, "total_plugins": total_plugins}
+                metadata={
+                    "enabled_plugins": enabled_plugins,
+                    "total_plugins": total_plugins,
+                },
             )
 
         return ServiceHealthResult(
@@ -974,7 +1048,10 @@ def check_weights_plugins_health() -> ServiceHealthResult:
             issue_description=f"Ranking weights are correctly defined, and {enabled_plugins} plugins are active.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"enabled_plugins": enabled_plugins, "total_plugins": total_plugins}
+            metadata={
+                "enabled_plugins": enabled_plugins,
+                "total_plugins": total_plugins,
+            },
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -984,29 +1061,33 @@ def check_weights_plugins_health() -> ServiceHealthResult:
             issue_description=f"Error verifying weights or plugins: {str(e)}",
             suggested_fix="Check database integrity for core settings and plugin tables.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "webhooks", 
-    name="Real-time Webhooks", 
-    description="Ingress point for instant content updates from XF and WP."
+    "webhooks",
+    name="Real-time Webhooks",
+    description="Ingress point for instant content updates from XF and WP.",
 )
 def check_webhooks_health() -> ServiceHealthResult:
     try:
         from apps.sync.models import WebhookReceipt
+
         recent_cutoff = timezone.now() - timedelta(days=7)
-        recent_receipts = WebhookReceipt.objects.filter(created_at__gte=recent_cutoff).count()
-        
+        recent_receipts = WebhookReceipt.objects.filter(
+            created_at__gte=recent_cutoff
+        ).count()
+
         # This is just a warning if no activity. It might be healthy but just quiet.
         if recent_receipts == 0:
-             return ServiceHealthResult(
+            return ServiceHealthResult(
                 service_key="webhooks",
                 status=ServiceHealthRecord.STATUS_WARNING,
                 status_label="No recent webhook activity.",
                 issue_description="No webhooks from WordPress or XenForo have been received in the last 7 days.",
                 suggested_fix="Verify the 'Webhook Secret' matches between your forum/site and this app.",
-                last_success_at=timezone.now()
+                last_success_at=timezone.now(),
             )
 
         return ServiceHealthResult(
@@ -1016,7 +1097,7 @@ def check_webhooks_health() -> ServiceHealthResult:
             issue_description=f"Receiving real-time updates ({recent_receipts} in last 7 days).",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata={"recent_count": recent_receipts}
+            metadata={"recent_count": recent_receipts},
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -1026,13 +1107,14 @@ def check_webhooks_health() -> ServiceHealthResult:
             issue_description=f"Error querying webhook receipt logs: {str(e)}",
             suggested_fix="Check database connectivity and ensure the sync app is properly installed.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 @HealthCheckRegistry.register(
     "pipeline_health",
     name="Suggestion Pipeline",
-    description="Core linking engine — generates internal link suggestions from content."
+    description="Core linking engine — generates internal link suggestions from content.",
 )
 def check_pipeline_health() -> ServiceHealthResult:
     try:
@@ -1043,7 +1125,7 @@ def check_pipeline_health() -> ServiceHealthResult:
                 status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
                 status_label="No pipeline runs yet.",
                 issue_description="The suggestion pipeline has never run.",
-                suggested_fix="Trigger a pipeline run from the Jobs page."
+                suggested_fix="Trigger a pipeline run from the Jobs page.",
             )
 
         since_7d = timezone.now() - timedelta(days=7)
@@ -1075,7 +1157,7 @@ def check_pipeline_health() -> ServiceHealthResult:
                 issue_description=f"{failed} pipeline runs have failed in the last 7 days (success rate: {success_rate}%).",
                 suggested_fix="Check the pipeline logs for the error message. Common causes: embedding model not loaded, database constraint, or out of memory.",
                 last_error_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
         if hours_since > no_run_threshold:
             return ServiceHealthResult(
@@ -1084,8 +1166,10 @@ def check_pipeline_health() -> ServiceHealthResult:
                 status_label=f"No pipeline run in {round(hours_since)}h.",
                 issue_description=f"The last pipeline run was {round(hours_since)} hours ago.",
                 suggested_fix="Check the scheduled pipeline task in Celery Beat, or trigger a manual run from Jobs.",
-                last_success_at=last_run.created_at if last_run.run_state == "completed" else None,
-                metadata=meta
+                last_success_at=last_run.created_at
+                if last_run.run_state == "completed"
+                else None,
+                metadata=meta,
             )
         if success_rate < (100 - failure_threshold):
             return ServiceHealthResult(
@@ -1094,7 +1178,7 @@ def check_pipeline_health() -> ServiceHealthResult:
                 status_label=f"Pipeline success rate is {success_rate}% (7d).",
                 issue_description=f"{failed} of {terminal} pipeline runs failed in the last 7 days.",
                 suggested_fix="Review failed pipeline run logs for recurring errors.",
-                metadata=meta
+                metadata=meta,
             )
 
         return ServiceHealthResult(
@@ -1104,7 +1188,7 @@ def check_pipeline_health() -> ServiceHealthResult:
             issue_description=f"{completed} successful runs in the last 7 days.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=meta
+            metadata=meta,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -1114,16 +1198,18 @@ def check_pipeline_health() -> ServiceHealthResult:
             issue_description=f"Could not read pipeline run history: {str(e)}",
             suggested_fix="Check database connectivity.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 @HealthCheckRegistry.register(
     "celery_queues",
     name="Celery Queue Depth",
-    description="Number of pending tasks waiting in each Celery queue."
+    description="Number of pending tasks waiting in each Celery queue.",
 )
 def check_celery_queue_depth() -> ServiceHealthResult:
     import redis as redis_lib
+
     try:
         broker_url = getattr(settings, "CELERY_BROKER_URL", "redis://redis:6379/2")
         r = redis_lib.from_url(broker_url, socket_connect_timeout=5)
@@ -1152,7 +1238,7 @@ def check_celery_queue_depth() -> ServiceHealthResult:
                 issue_description=f"The '{worst_queue}' queue has {worst_depth} tasks waiting (threshold: {error_threshold}).",
                 suggested_fix="Scale up Celery workers or investigate why tasks are not being consumed.",
                 last_error_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
         if worst_depth >= warn_threshold:
             return ServiceHealthResult(
@@ -1161,7 +1247,7 @@ def check_celery_queue_depth() -> ServiceHealthResult:
                 status_label=f"Queue building up — {worst_depth} tasks in '{worst_queue}'.",
                 issue_description=f"The '{worst_queue}' queue has {worst_depth} tasks waiting.",
                 suggested_fix="Monitor queue depth — if it keeps growing, add more Celery workers.",
-                metadata=meta
+                metadata=meta,
             )
 
         return ServiceHealthResult(
@@ -1171,7 +1257,7 @@ def check_celery_queue_depth() -> ServiceHealthResult:
             issue_description="All Celery queues are processing normally.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=meta
+            metadata=meta,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -1181,17 +1267,19 @@ def check_celery_queue_depth() -> ServiceHealthResult:
             issue_description=f"Could not read queue depths from Redis: {str(e)}",
             suggested_fix="Ensure Redis is running and CELERY_BROKER_URL is correct.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
+
 
 @HealthCheckRegistry.register(
     "celery_beat",
     name="Celery Beat Scheduler",
-    description="Scheduled task runner that triggers periodic jobs (syncs, health checks, etc.)."
+    description="Scheduled task runner that triggers periodic jobs (syncs, health checks, etc.).",
 )
 def check_celery_beat_health() -> ServiceHealthResult:
     try:
         from django_celery_beat.models import PeriodicTask
+
         PROBE_TASK = "periodic-system-health-check"
         stale_minutes = get_health_setting("beat_stale_threshold_minutes", 60)
 
@@ -1203,7 +1291,7 @@ def check_celery_beat_health() -> ServiceHealthResult:
                 status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
                 status_label="Beat probe task not found.",
                 issue_description=f"The '{PROBE_TASK}' periodic task is missing from the database.",
-                suggested_fix="Run migrations to re-seed the Celery Beat schedule."
+                suggested_fix="Run migrations to re-seed the Celery Beat schedule.",
             )
 
         meta = {"expected_interval_minutes": 30}
@@ -1215,7 +1303,7 @@ def check_celery_beat_health() -> ServiceHealthResult:
                 status_label="Beat has not run yet.",
                 issue_description="Celery Beat has never executed the health check task. It may not be running.",
                 suggested_fix="Ensure the 'celery-beat' service is running.",
-                metadata=meta
+                metadata=meta,
             )
 
         minutes_ago = (timezone.now() - task.last_run_at).total_seconds() / 60
@@ -1229,7 +1317,7 @@ def check_celery_beat_health() -> ServiceHealthResult:
                 issue_description=f"Celery Beat last ran {round(minutes_ago)} minutes ago (expected every 30 min).",
                 suggested_fix="Restart the 'celery-beat' container. Check for lock file conflicts.",
                 last_error_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
         if minutes_ago > stale_minutes:
             return ServiceHealthResult(
@@ -1238,7 +1326,7 @@ def check_celery_beat_health() -> ServiceHealthResult:
                 status_label=f"Beat delayed — last run {round(minutes_ago)}m ago.",
                 issue_description=f"Celery Beat ran {round(minutes_ago)} minutes ago (expected every 30 min).",
                 suggested_fix="Monitor — if this continues, restart the 'celery-beat' container.",
-                metadata=meta
+                metadata=meta,
             )
 
         return ServiceHealthResult(
@@ -1248,7 +1336,7 @@ def check_celery_beat_health() -> ServiceHealthResult:
             issue_description="Celery Beat scheduler is firing on schedule.",
             suggested_fix="No action needed.",
             last_success_at=task.last_run_at,
-            metadata=meta
+            metadata=meta,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -1258,17 +1346,17 @@ def check_celery_beat_health() -> ServiceHealthResult:
             issue_description=f"Could not read Celery Beat schedule: {str(e)}",
             suggested_fix="Check database connectivity and django-celery-beat migrations.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 @HealthCheckRegistry.register(
-    "sitemaps",
-    name="Sitemaps",
-    description="Configured sitemaps for the web crawler."
+    "sitemaps", name="Sitemaps", description="Configured sitemaps for the web crawler."
 )
 def check_sitemaps() -> ServiceHealthResult:
     try:
         from apps.crawler.models import SitemapConfig
+
         total = SitemapConfig.objects.count()
         enabled = SitemapConfig.objects.filter(is_enabled=True).count()
 
@@ -1302,11 +1390,12 @@ def check_sitemaps() -> ServiceHealthResult:
 @HealthCheckRegistry.register(
     "crawler_status",
     name="Web Crawler",
-    description="Status of the most recent web crawl session."
+    description="Status of the most recent web crawl session.",
 )
 def check_crawler_status() -> ServiceHealthResult:
     try:
         from apps.crawler.models import CrawlSession
+
         latest = CrawlSession.objects.order_by("-created_at").first()
 
         if latest is None:
@@ -1329,7 +1418,9 @@ def check_crawler_status() -> ServiceHealthResult:
                 service_key="crawler_status",
                 status=ServiceHealthRecord.STATUS_WARNING,
                 status_label=f"Last crawl failed ({latest.site_domain}).",
-                issue_description=latest.error_message[:200] if latest.error_message else "Unknown error.",
+                issue_description=latest.error_message[:200]
+                if latest.error_message
+                else "Unknown error.",
                 suggested_fix="Check the error message and try running the crawl again.",
                 last_error_at=latest.updated_at,
                 metadata=meta,
@@ -1364,12 +1455,13 @@ def check_crawler_status() -> ServiceHealthResult:
 @HealthCheckRegistry.register(
     "crawler_storage",
     name="Crawler Storage",
-    description="Disk space consumed by crawler data."
+    description="Disk space consumed by crawler data.",
 )
 def check_crawler_storage() -> ServiceHealthResult:
     try:
         from apps.crawler.models import CrawledPageMeta
         from django.db.models import Sum
+
         agg = CrawledPageMeta.objects.aggregate(total=Sum("content_length"))
         total_bytes = agg["total"] or 0
         total_mb = round(total_bytes / (1024 * 1024), 1)
@@ -1406,18 +1498,19 @@ def check_crawler_storage() -> ServiceHealthResult:
 @HealthCheckRegistry.register(
     "disk_space",
     name="Disk Space",
-    description="Available storage on the server filesystem (models, logs, media)."
+    description="Available storage on the server filesystem (models, logs, media).",
 )
 def check_disk_space() -> ServiceHealthResult:
     import shutil
+
     try:
         warn_pct = get_health_setting("disk_warning_pct", 80)
         error_pct = get_health_setting("disk_error_pct", 90)
 
         usage = shutil.disk_usage("/app")
-        total_gb = round(usage.total / (1024 ** 3), 1)
-        used_gb = round(usage.used / (1024 ** 3), 1)
-        free_gb = round(usage.free / (1024 ** 3), 1)
+        total_gb = round(usage.total / (1024**3), 1)
+        used_gb = round(usage.used / (1024**3), 1)
+        free_gb = round(usage.free / (1024**3), 1)
         usage_pct = round((usage.used / usage.total) * 100, 1)
 
         meta = {
@@ -1435,7 +1528,7 @@ def check_disk_space() -> ServiceHealthResult:
                 issue_description=f"Only {free_gb} GB free of {total_gb} GB total. Services may fail.",
                 suggested_fix="Delete old logs, clear Docker image cache (`docker image prune -f`), or expand the volume.",
                 last_error_at=timezone.now(),
-                metadata=meta
+                metadata=meta,
             )
         if usage_pct >= warn_pct:
             return ServiceHealthResult(
@@ -1444,7 +1537,7 @@ def check_disk_space() -> ServiceHealthResult:
                 status_label=f"Disk filling up — {usage_pct}% used.",
                 issue_description=f"{free_gb} GB remaining of {total_gb} GB total.",
                 suggested_fix="Clear old Docker images with `docker image prune -f` and review log rotation.",
-                metadata=meta
+                metadata=meta,
             )
 
         return ServiceHealthResult(
@@ -1454,7 +1547,7 @@ def check_disk_space() -> ServiceHealthResult:
             issue_description=f"{free_gb} GB free of {total_gb} GB total.",
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
-            metadata=meta
+            metadata=meta,
         )
     except Exception as e:
         return ServiceHealthResult(
@@ -1464,10 +1557,12 @@ def check_disk_space() -> ServiceHealthResult:
             issue_description=f"Could not read disk usage: {str(e)}",
             suggested_fix="Check filesystem permissions.",
             last_error_at=timezone.now(),
-            last_error_message=str(e)
+            last_error_message=str(e),
         )
 
+
 # ── Core Integration Logic ────────────────────────────────────────
+
 
 def run_all_health_checks():
     """Runs every registered health check in the system."""
@@ -1480,19 +1575,20 @@ def run_all_health_checks():
             logger.error(f"Failed to run health check for {service_key}: {str(e)}")
     return results
 
+
 def perform_health_check(service_key: str) -> ServiceHealthRecord:
     """Run a single health check using the registry and update its record."""
     checkers = HealthCheckRegistry.get_checkers()
     checker = checkers.get(service_key)
     if not checker:
         raise ValueError(f"No health checker found for service: {service_key}")
-        
+
     result = checker()
     record, _ = ServiceHealthRecord.objects.get_or_create(
         service_key=service_key,
-        defaults={'last_check_at': timezone.now(), 'status_label': 'Initializing...'}
+        defaults={"last_check_at": timezone.now(), "status_label": "Initializing..."},
     )
-    
+
     # Update fields
     meta = HealthCheckRegistry.get_metadata(service_key)
     record.service_name = meta.get("name", service_key)
@@ -1502,7 +1598,7 @@ def perform_health_check(service_key: str) -> ServiceHealthRecord:
     record.issue_description = result.issue_description
     record.suggested_fix = result.suggested_fix
     record.last_check_at = timezone.now()
-    
+
     if result.last_success_at:
         record.last_success_at = result.last_success_at
     if result.last_error_at:
@@ -1511,13 +1607,21 @@ def perform_health_check(service_key: str) -> ServiceHealthRecord:
         record.last_error_message = result.last_error_message
     if result.metadata:
         record.metadata = result.metadata
-        
+
     record.save()
-    
+
     # Alert management
     dedupe_key = f"health.{service_key}"
-    if result.status in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_DOWN, ServiceHealthRecord.STATUS_STALE):
-        severity = OperatorAlert.SEVERITY_ERROR if result.status == ServiceHealthRecord.STATUS_DOWN else OperatorAlert.SEVERITY_WARNING
+    if result.status in (
+        ServiceHealthRecord.STATUS_ERROR,
+        ServiceHealthRecord.STATUS_DOWN,
+        ServiceHealthRecord.STATUS_STALE,
+    ):
+        severity = (
+            OperatorAlert.SEVERITY_ERROR
+            if result.status == ServiceHealthRecord.STATUS_DOWN
+            else OperatorAlert.SEVERITY_WARNING
+        )
         emit_operator_alert(
             event_type=f"health.{service_key}.degraded",
             severity=severity,
@@ -1525,13 +1629,14 @@ def perform_health_check(service_key: str) -> ServiceHealthRecord:
             message=result.status_label,
             dedupe_key=dedupe_key,
             source_area="system",
-            related_route="/health"
+            related_route="/health",
         )
     elif result.status == ServiceHealthRecord.STATUS_HEALTHY:
         resolve_operator_alert(dedupe_key)
-        
+
     return record
-        
+
+
 def get_service_health_status(service_key: str) -> Dict[str, Any]:
     """
     Standardized utility for other apps/views to query a service's health.
@@ -1547,7 +1652,7 @@ def get_service_health_status(service_key: str) -> Dict[str, Any]:
             "issue": record.issue_description,
             "fix": record.suggested_fix,
             "last_success": record.last_success_at,
-            "is_healthy": record.status == ServiceHealthRecord.STATUS_HEALTHY
+            "is_healthy": record.status == ServiceHealthRecord.STATUS_HEALTHY,
         }
     except ServiceHealthRecord.DoesNotExist:
         # Fallback to a pending/unknown state if first check hasn't run
@@ -1560,5 +1665,5 @@ def get_service_health_status(service_key: str) -> Dict[str, Any]:
             "issue": "",
             "fix": "Wait for the next scheduled health check (30m) or run manually.",
             "last_success": None,
-            "is_healthy": False
+            "is_healthy": False,
         }

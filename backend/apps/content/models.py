@@ -443,7 +443,7 @@ class Sentence(models.Model):
     word_position = models.IntegerField(
         default=0,
         help_text="Word offset of the sentence start in the post. "
-                  "Sentences with word_position > HOST_SCAN_WORD_LIMIT are excluded from host scanning.",
+        "Sentences with word_position > HOST_SCAN_WORD_LIMIT are excluded from host scanning.",
     )
 
     # pgvector per-sentence embedding (1024 dims = BAAI/bge-m3)

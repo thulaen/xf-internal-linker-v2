@@ -34,9 +34,9 @@ class EntityListView(ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        qs = EntityNode.objects.annotate(
-            article_count=Count("article_edges")
-        ).order_by("-article_count", "canonical_form")
+        qs = EntityNode.objects.annotate(article_count=Count("article_edges")).order_by(
+            "-article_count", "canonical_form"
+        )
 
         entity_type = self.request.query_params.get("entity_type")
         if entity_type and entity_type in {"keyword", "named_entity", "topic_tag"}:

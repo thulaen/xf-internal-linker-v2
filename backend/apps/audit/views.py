@@ -34,8 +34,7 @@ class AuditEntryViewSet(viewsets.ReadOnlyModelViewSet):
     def summary(self, request):
         """Action counts grouped by day (last 30 days by default)."""
         rows = (
-            AuditEntry.objects
-            .annotate(date=TruncDate("created_at"))
+            AuditEntry.objects.annotate(date=TruncDate("created_at"))
             .values("date", "action")
             .annotate(count=Count("id"))
             .order_by("-date")[:210]  # 30 days * 7 action types max
@@ -84,8 +83,16 @@ class SiloLeakageView(APIView):
             "host__scope__silo_group__name",
             "destination__scope__silo_group__name",
         ).iterator():
-            src = getattr(getattr(getattr(s.host, "scope", None), "silo_group", None), "name", None)
-            dst = getattr(getattr(getattr(s.destination, "scope", None), "silo_group", None), "name", None)
+            src = getattr(
+                getattr(getattr(s.host, "scope", None), "silo_group", None),
+                "name",
+                None,
+            )
+            dst = getattr(
+                getattr(getattr(s.destination, "scope", None), "silo_group", None),
+                "name",
+                None,
+            )
             if src and dst and src != dst:
                 cross_count += 1
                 pair_counts[(src, dst)] += 1
@@ -93,9 +100,13 @@ class SiloLeakageView(APIView):
         for (src, dst), count in sorted(pair_counts.items(), key=lambda x: -x[1]):
             cross_silo.append({"source_silo": src, "target_silo": dst, "count": count})
 
-        return Response({
-            "total_suggestions": total,
-            "cross_silo_count": cross_count,
-            "cross_silo_pct": round(cross_count / total * 100, 2) if total > 0 else 0.0,
-            "by_silo_pair": cross_silo[:50],
-        })
+        return Response(
+            {
+                "total_suggestions": total,
+                "cross_silo_count": cross_count,
+                "cross_silo_pct": round(cross_count / total * 100, 2)
+                if total > 0
+                else 0.0,
+                "by_silo_pair": cross_silo[:50],
+            }
+        )

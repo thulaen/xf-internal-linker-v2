@@ -54,11 +54,13 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
         logger.info("WebSocket client connected for job %s", self.job_id)
 
         # Send initial connection acknowledgement
-        await self.send_json({
-            "type": "connection.established",
-            "job_id": self.job_id,
-            "message": "Connected. Waiting for job progress events.",
-        })
+        await self.send_json(
+            {
+                "type": "connection.established",
+                "job_id": self.job_id,
+                "message": "Connected. Waiting for job progress events.",
+            }
+        )
         self._stream_task = asyncio.create_task(self._bridge_runtime_progress())
 
     async def disconnect(self, close_code: int) -> None:
@@ -68,7 +70,11 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
             self._stream_task.cancel()
             with suppress(asyncio.CancelledError):
                 await self._stream_task
-        logger.debug("WebSocket client disconnected from job %s (code=%s)", self.job_id, close_code)
+        logger.debug(
+            "WebSocket client disconnected from job %s (code=%s)",
+            self.job_id,
+            close_code,
+        )
 
     async def receive_json(self, content: dict, **kwargs) -> None:
         """
@@ -108,7 +114,9 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
                 entries = await redis_client.xread(
                     {stream_key: last_id},
                     count=25,
-                    block=int(getattr(settings, "RUNTIME_PROGRESS_STREAM_BLOCK_MS", 5000)),
+                    block=int(
+                        getattr(settings, "RUNTIME_PROGRESS_STREAM_BLOCK_MS", 5000)
+                    ),
                 )
                 if not entries:
                     continue

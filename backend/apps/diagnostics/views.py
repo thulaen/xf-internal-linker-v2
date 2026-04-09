@@ -8,10 +8,20 @@ from rest_framework import status, viewsets, response, views
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from .models import ServiceStatusSnapshot, SystemConflict
-from .serializers import ServiceStatusSerializer, SystemConflictSerializer, ErrorLogSerializer
+from .serializers import (
+    ServiceStatusSerializer,
+    SystemConflictSerializer,
+    ErrorLogSerializer,
+)
 from apps.audit.models import ErrorLog
 from apps.core.models import AppSetting
-from .health import run_health_checks, detect_conflicts, get_resource_usage, get_feature_readinessMatrix, check_native_scoring
+from .health import (
+    run_health_checks,
+    detect_conflicts,
+    get_resource_usage,
+    get_feature_readinessMatrix,
+    check_native_scoring,
+)
 from .signal_registry import SIGNALS
 
 
@@ -20,26 +30,30 @@ class DiagnosticsOverviewView(views.APIView):
 
     def get(self, request):
         snapshots = ServiceStatusSnapshot.objects.all()
-        
-        healthy_count = snapshots.filter(state='healthy').count()
-        degraded_count = snapshots.filter(state='degraded').count()
-        failed_count = snapshots.filter(state='failed').count()
-        not_configured_count = snapshots.filter(state='not_configured').count()
-        planned_only_count = snapshots.filter(state='planned_only').count()
-        
-        urgent_issues = SystemConflict.objects.filter(severity__in=['high', 'critical'], resolved=False)[:5]
+
+        healthy_count = snapshots.filter(state="healthy").count()
+        degraded_count = snapshots.filter(state="degraded").count()
+        failed_count = snapshots.filter(state="failed").count()
+        not_configured_count = snapshots.filter(state="not_configured").count()
+        planned_only_count = snapshots.filter(state="planned_only").count()
+
+        urgent_issues = SystemConflict.objects.filter(
+            severity__in=["high", "critical"], resolved=False
+        )[:5]
         urgent_serializer = SystemConflictSerializer(urgent_issues, many=True)
-        
-        return response.Response({
-            "summary": {
-                "healthy": healthy_count,
-                "degraded": degraded_count,
-                "failed": failed_count,
-                "not_configured": not_configured_count,
-                "planned_only": planned_only_count,
-            },
-            "top_urgent_issues": urgent_serializer.data,
-        })
+
+        return response.Response(
+            {
+                "summary": {
+                    "healthy": healthy_count,
+                    "degraded": degraded_count,
+                    "failed": failed_count,
+                    "not_configured": not_configured_count,
+                    "planned_only": planned_only_count,
+                },
+                "top_urgent_issues": urgent_serializer.data,
+            }
+        )
 
 
 class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
@@ -47,7 +61,7 @@ class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = ServiceStatusSerializer
     pagination_class = None
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def refresh(self, request):
         results = run_health_checks()
         return response.Response(results)
@@ -58,7 +72,7 @@ class ConflictViewSet(viewsets.ModelViewSet):
     serializer_class = SystemConflictSerializer
     pagination_class = None
 
-    @action(detail=False, methods=['post'])
+    @action(detail=False, methods=["post"])
     def detect(self, request):
         conflicts = detect_conflicts()
         return response.Response(conflicts)
@@ -81,11 +95,11 @@ class ResourceUsageView(views.APIView):
 
 
 class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ErrorLog.objects.all().order_by('-created_at')
+    queryset = ErrorLog.objects.all().order_by("-created_at")
     serializer_class = ErrorLogSerializer
     pagination_class = None
 
-    @action(detail=True, methods=['post'])
+    @action(detail=True, methods=["post"])
     def acknowledge(self, request, pk=None):
         error = self.get_object()
         error.acknowledged = True
@@ -207,18 +221,19 @@ class WeightDiagnosticsView(views.APIView):
     Provides a read-only view of all 23 ranking and value model signals,
     their current weights, storage usage, and C++ acceleration status.
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         # 1. Fetch current settings/weights
         settings = {s.key: s.value for s in AppSetting.objects.all()}
-        
+
         # 2. Get C++ status
         native_status = check_native_scoring()
         cpp_module_map = {
             m["module"]: m for m in native_status.get("module_statuses", [])
         }
-        
+
         # 3. Get recent error counts per area (last 24h)
         yesterday = timezone.now() - timedelta(hours=24)
         error_counts = {}
@@ -235,7 +250,9 @@ class WeightDiagnosticsView(views.APIView):
         signal_data = []
         for sig in SIGNALS:
             # Resolve weight
-            weight_val = settings.get(sig.weight_key, "0.0") if sig.weight_key else "N/A"
+            weight_val = (
+                settings.get(sig.weight_key, "0.0") if sig.weight_key else "N/A"
+            )
             try:
                 weight_display = float(weight_val) if weight_val != "N/A" else 0.0
             except ValueError:
@@ -249,7 +266,9 @@ class WeightDiagnosticsView(views.APIView):
                 mod_info = cpp_module_map.get(mod_name)
                 if mod_info:
                     cpp_active = mod_info.get("state") == "healthy"
-                    cpp_status = "Active (C++)" if cpp_active else "Degraded (Python Fallback)"
+                    cpp_status = (
+                        "Active (C++)" if cpp_active else "Degraded (Python Fallback)"
+                    )
                 else:
                     cpp_status = "Available (Not Loaded)"
 
@@ -262,62 +281,79 @@ class WeightDiagnosticsView(views.APIView):
             # Look for signal ID or job_type matches in error_counts
             err_count = 0
             for err_key, count in error_counts.items():
-                if sig.id.lower() in err_key or (sig.cpp_kernel and sig.cpp_kernel.split(".")[0].lower() in err_key):
+                if sig.id.lower() in err_key or (
+                    sig.cpp_kernel and sig.cpp_kernel.split(".")[0].lower() in err_key
+                ):
                     err_count += count
 
-            signal_data.append({
-                "id": sig.id,
-                "name": sig.name,
-                "type": sig.type,
-                "description": sig.description,
-                "weight": weight_display,
-                "cpp_acceleration": {
-                    "active": cpp_active,
-                    "status_label": cpp_status,
-                    "kernel": sig.cpp_kernel
-                },
-                "storage": {
-                    "table": raw_table,
-                    "row_count": stats["rows"],
-                    "size_bytes": stats["size_bytes"],
-                    "size_human": self._human_size(stats["size_bytes"])
-                },
-                "health": {
-                    "status": "healthy" if err_count == 0 else "degraded",
-                    "recent_errors": err_count
+            signal_data.append(
+                {
+                    "id": sig.id,
+                    "name": sig.name,
+                    "type": sig.type,
+                    "description": sig.description,
+                    "weight": weight_display,
+                    "cpp_acceleration": {
+                        "active": cpp_active,
+                        "status_label": cpp_status,
+                        "kernel": sig.cpp_kernel,
+                    },
+                    "storage": {
+                        "table": raw_table,
+                        "row_count": stats["rows"],
+                        "size_bytes": stats["size_bytes"],
+                        "size_human": self._human_size(stats["size_bytes"]),
+                    },
+                    "health": {
+                        "status": "healthy" if err_count == 0 else "degraded",
+                        "recent_errors": err_count,
+                    },
                 }
-            })
+            )
 
-        return response.Response({
-            "signals": signal_data,
-            "summary": {
-                "total_signals": len(SIGNALS),
-                "cpp_accelerated_count": sum(1 for s in signal_data if s["cpp_acceleration"]["active"]),
-                "healthy_count": sum(1 for s in signal_data if s["health"]["status"] == "healthy"),
-                "last_refreshed": timezone.now()
+        return response.Response(
+            {
+                "signals": signal_data,
+                "summary": {
+                    "total_signals": len(SIGNALS),
+                    "cpp_accelerated_count": sum(
+                        1 for s in signal_data if s["cpp_acceleration"]["active"]
+                    ),
+                    "healthy_count": sum(
+                        1 for s in signal_data if s["health"]["status"] == "healthy"
+                    ),
+                    "last_refreshed": timezone.now(),
+                },
             }
-        })
+        )
 
     def _get_table_stats(self):
         """Fetch row counts and disk usage for core algorithm tables."""
         tables = [
-            "content_contentitem", "content_sentence", "graph_existinglink",
-            "analytics_searchmetric", "analytics_suggestiontelemetrydaily",
-            "cooccurrence_sessioncooccurrencepair", "graph_clickdistance",
-            "audit_errorlog"
+            "content_contentitem",
+            "content_sentence",
+            "graph_existinglink",
+            "analytics_searchmetric",
+            "analytics_suggestiontelemetrydaily",
+            "cooccurrence_sessioncooccurrencepair",
+            "graph_clickdistance",
+            "audit_errorlog",
         ]
         stats = {}
         with connection.cursor() as cursor:
             for table in tables:
                 try:
                     # Get approximate row count and total size including indexes
-                    cursor.execute("""
+                    cursor.execute(
+                        """
                         SELECT 
                             (reltuples)::bigint AS row_count,
                             pg_total_relation_size(quote_ident(relname)) AS total_bytes
                         FROM pg_class
                         WHERE relname = %s;
-                    """, [table])
+                    """,
+                        [table],
+                    )
                     row = cursor.fetchone()
                     if row:
                         stats[table] = {"rows": row[0], "size_bytes": row[1]}
@@ -328,7 +364,7 @@ class WeightDiagnosticsView(views.APIView):
         return stats
 
     def _human_size(self, bytes_val):
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+        for unit in ["B", "KB", "MB", "GB", "TB"]:
             if bytes_val < 1024.0:
                 return f"{bytes_val:.1f} {unit}"
             bytes_val /= 1024.0

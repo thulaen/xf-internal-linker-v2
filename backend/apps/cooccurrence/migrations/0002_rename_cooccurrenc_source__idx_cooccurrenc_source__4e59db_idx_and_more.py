@@ -4,20 +4,19 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('cooccurrence', '0001_initial'),
+        ("cooccurrence", "0001_initial"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='sessioncooccurrencepair',
-            new_name='cooccurrenc_source__4e59db_idx',
-            old_name='cooccurrenc_source__idx',
+            model_name="sessioncooccurrencepair",
+            new_name="cooccurrenc_source__4e59db_idx",
+            old_name="cooccurrenc_source__idx",
         ),
         migrations.RenameIndex(
-            model_name='sessioncooccurrencepair',
-            new_name='cooccurrenc_dest_co_cc31eb_idx',
-            old_name='cooccurrenc_dest_co_idx',
+            model_name="sessioncooccurrencepair",
+            new_name="cooccurrenc_dest_co_cc31eb_idx",
+            old_name="cooccurrenc_dest_co_idx",
         ),
     ]

@@ -4,20 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('health', '0003_servicehealthrecord_issue_description_and_more'),
+        ("health", "0003_servicehealthrecord_issue_description_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='servicehealthrecord',
-            name='service_description',
-            field=models.TextField(blank=True, help_text='Short description of what this service does.'),
+            model_name="servicehealthrecord",
+            name="service_description",
+            field=models.TextField(
+                blank=True, help_text="Short description of what this service does."
+            ),
         ),
         migrations.AddField(
-            model_name='servicehealthrecord',
-            name='service_name',
-            field=models.CharField(blank=True, help_text="Human-readable name for the service (e.g. 'Google Analytics 4').", max_length=100),
+            model_name="servicehealthrecord",
+            name="service_name",
+            field=models.CharField(
+                blank=True,
+                help_text="Human-readable name for the service (e.g. 'Google Analytics 4').",
+                max_length=100,
+            ),
         ),
     ]

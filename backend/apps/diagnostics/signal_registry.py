@@ -10,6 +10,7 @@ from typing import Literal
 
 SignalType = Literal["ranking", "value"]
 
+
 @dataclass(frozen=True)
 class SignalDefinition:
     id: str
@@ -19,6 +20,7 @@ class SignalDefinition:
     table_name: str
     cpp_kernel: str | None = None
     weight_key: str | None = None
+
 
 SIGNALS: list[SignalDefinition] = [
     # --- RANKING SIGNALS (16) ---
@@ -158,7 +160,6 @@ SIGNALS: list[SignalDefinition] = [
         table_name="suggestions_suggestion (status)",
         weight_key="feedback_rerank.enabled",
     ),
-
     # --- VALUE MODEL SIGNALS (7) ---
     SignalDefinition(
         id="value_relevance",
@@ -216,11 +217,9 @@ SIGNALS: list[SignalDefinition] = [
         table_name="None (Dynamic)",
         weight_key="value_model.w_penalty",
     ),
-
     # --- FUTURE SIGNALS (BACKLOG) ---
     # These placeholders are documented in FEATURE-REQUESTS.md.
     # Uncomment and adjust metadata as each signal's backend is implemented.
-
     # SignalDefinition(
     #     id="information_gain",
     #     name="Information Gain (Novelty)",
@@ -285,7 +284,6 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="suggestions_suggestion (score_anchor_diversity)",
     #     weight_key="anchor_diversity.ranking_weight",
     # ),
-
     # --- PATENT-BACKED RANKING SIGNALS (FR-051 to FR-059) ---
     # SignalDefinition(
     #     id="reference_context",
@@ -362,7 +360,6 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="content_contentitem (topic_purity_score)",
     #     weight_key="topic_purity.ranking_weight",
     # ),
-
     # --- STATISTICAL MODELS (FR-060 to FR-065) ---
     # SignalDefinition(
     #     id="listnet",
@@ -412,7 +409,6 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="None (Model File)",
     #     weight_key="isotonic_calibration.enabled",
     # ),
-
     # --- C++ META-ALGORITHMS (FR-066 to FR-068) ---
     # SignalDefinition(
     #     id="smoothrank",
@@ -441,7 +437,6 @@ SIGNALS: list[SignalDefinition] = [
     #     cpp_kernel="cascade.stage_score",
     #     weight_key="cascade_rerank.enabled",
     # ),
-
     # --- SOCIAL MEDIA & TECH PATENT SIGNALS (FR-069 to FR-090) ---
     # SignalDefinition(
     #     id="viral_depth",
@@ -619,7 +614,6 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="content_contentitem (cross_platform_score)",
     #     weight_key="cross_platform_engagement.ranking_weight",
     # ),
-
     # --- OPERATIONAL FEATURES (FR-091 to FR-096) ---
     # SignalDefinition(
     #     id="cpp_retrofit",

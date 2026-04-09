@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0004_remove_suggestion_score_pagerank'),
+        ("suggestions", "0004_remove_suggestion_score_pagerank"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='score_link_freshness',
-            field=models.FloatField(default=0.5, help_text='Link Freshness score of the destination. 0.5 means neutral or not enough history.'),
+            model_name="suggestion",
+            name="score_link_freshness",
+            field=models.FloatField(
+                default=0.5,
+                help_text="Link Freshness score of the destination. 0.5 means neutral or not enough history.",
+            ),
         ),
     ]

@@ -15,7 +15,13 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.viewsets import ModelViewSet, ReadOnlyModelViewSet
 
-from .models import CrawlSession, CrawledLink, CrawledPageMeta, SitemapConfig, SystemEvent
+from .models import (
+    CrawlSession,
+    CrawledLink,
+    CrawledPageMeta,
+    SitemapConfig,
+    SystemEvent,
+)
 from .serializers import (
     CrawledLinkSerializer,
     CrawledPageMetaSerializer,
@@ -88,9 +94,7 @@ class CrawlSessionViewSet(ModelViewSet):
 
     def _resume_session(self, session_id):
         try:
-            session = CrawlSession.objects.get(
-                session_id=session_id, is_resumable=True
-            )
+            session = CrawlSession.objects.get(session_id=session_id, is_resumable=True)
         except CrawlSession.DoesNotExist:
             return Response(
                 {"error": "Session not found or not resumable."},
@@ -350,18 +354,14 @@ class CrawlerContextView(APIView):
         )
 
         # Estimate storage: sum of extracted_text lengths across all sessions.
-        storage = CrawledPageMeta.objects.aggregate(
-            total=Sum("content_length")
-        )
+        storage = CrawledPageMeta.objects.aggregate(total=Sum("content_length"))
 
         data = {
             "last_crawl_at": last_session.completed_at if last_session else None,
             "total_pages_crawled": CrawledPageMeta.objects.count(),
             "storage_bytes": storage["total"] or 0,
             "active_session": (
-                CrawlSessionSerializer(active_session).data
-                if active_session
-                else None
+                CrawlSessionSerializer(active_session).data if active_session else None
             ),
         }
         return Response(CrawlerContextSerializer(data).data)
@@ -375,14 +375,16 @@ def _normalize_sitemap_url(url: str) -> str:
     from urllib.parse import urlparse, urlunparse
 
     parsed = urlparse(url)
-    normalized = urlunparse((
-        parsed.scheme.lower(),
-        parsed.netloc.lower(),
-        parsed.path.rstrip("/"),
-        "",
-        "",
-        "",
-    ))
+    normalized = urlunparse(
+        (
+            parsed.scheme.lower(),
+            parsed.netloc.lower(),
+            parsed.path.rstrip("/"),
+            "",
+            "",
+            "",
+        )
+    )
     return normalized
 
 

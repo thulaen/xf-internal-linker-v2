@@ -1,15 +1,28 @@
 from rest_framework import serializers
 from .models import SyncJob, WebhookReceipt
 
+
 class SyncJobSerializer(serializers.ModelSerializer):
     class Meta:
         model = SyncJob
         fields = [
-            'job_id', 'status', 'source', 'mode', 'file_name',
-            'progress', 'message', 'items_synced', 'items_updated',
-            'ml_items_queued', 'ml_items_completed',
-            'spacy_items_completed', 'embedding_items_completed',
-            'error_message', 'started_at', 'completed_at', 'created_at'
+            "job_id",
+            "status",
+            "source",
+            "mode",
+            "file_name",
+            "progress",
+            "message",
+            "items_synced",
+            "items_updated",
+            "ml_items_queued",
+            "ml_items_completed",
+            "spacy_items_completed",
+            "embedding_items_completed",
+            "error_message",
+            "started_at",
+            "completed_at",
+            "created_at",
         ]
         read_only_fields = fields
 
@@ -18,8 +31,13 @@ class WebhookReceiptSerializer(serializers.ModelSerializer):
     class Meta:
         model = WebhookReceipt
         fields = [
-            'receipt_id', 'source', 'event_type', 
-            'payload', 'status', 'error_message', 
-            'sync_job', 'created_at'
+            "receipt_id",
+            "source",
+            "event_type",
+            "payload",
+            "status",
+            "error_message",
+            "sync_job",
+            "created_at",
         ]
         read_only_fields = fields

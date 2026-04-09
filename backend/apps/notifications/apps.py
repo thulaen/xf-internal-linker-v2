@@ -10,4 +10,5 @@ class NotificationsConfig(AppConfig):
 
     def ready(self) -> None:
         from .signals import connect_signals
+
         connect_signals()

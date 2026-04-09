@@ -8,7 +8,9 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.api.throttles import CoOccurrenceComputeThrottle as _CoOccurrenceComputeThrottle
+from apps.api.throttles import (
+    CoOccurrenceComputeThrottle as _CoOccurrenceComputeThrottle,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,9 +53,13 @@ def _read_cooccurrence_settings() -> dict:
 
     from .models import SessionCoOccurrenceRun, BehavioralHub
 
-    last_run = SessionCoOccurrenceRun.objects.filter(
-        status=SessionCoOccurrenceRun.STATUS_COMPLETED
-    ).order_by("-completed_at").first()
+    last_run = (
+        SessionCoOccurrenceRun.objects.filter(
+            status=SessionCoOccurrenceRun.STATUS_COMPLETED
+        )
+        .order_by("-completed_at")
+        .first()
+    )
 
     return {
         "cooccurrence_enabled": _bool("cooccurrence.enabled", True),
@@ -74,6 +80,7 @@ def _read_cooccurrence_settings() -> dict:
 # ---------------------------------------------------------------------------
 # Co-occurrence pair views
 # ---------------------------------------------------------------------------
+
 
 class CoOccurrencePairListView(APIView):
     """GET /api/cooccurrence/pairs/ — list pairs with optional filters."""
@@ -136,6 +143,7 @@ class CoOccurrencePairBySourceView(APIView):
 # Run views
 # ---------------------------------------------------------------------------
 
+
 class CoOccurrenceRunListView(APIView):
     """GET /api/cooccurrence/runs/ — list computation run records."""
 
@@ -165,6 +173,7 @@ class TriggerCoOccurrenceView(APIView):
 # ---------------------------------------------------------------------------
 # Behavioral hub views
 # ---------------------------------------------------------------------------
+
 
 class BehavioralHubListView(APIView):
     """GET /api/behavioral-hubs/ — list all hubs."""
@@ -262,7 +271,10 @@ class BehavioralHubMemberView(APIView):
             membership_source=BehavioralHubMembership.SOURCE_MANUAL_REMOVE
         ).count()
         hub.save(update_fields=["member_count", "updated_at"])
-        return Response({"created": created, "membership_id": membership.pk}, status=201 if created else 200)
+        return Response(
+            {"created": created, "membership_id": membership.pk},
+            status=201 if created else 200,
+        )
 
 
 class BehavioralHubMemberDetailView(APIView):
@@ -308,6 +320,7 @@ class TriggerHubDetectionView(APIView):
 # ---------------------------------------------------------------------------
 # Co-occurrence settings
 # ---------------------------------------------------------------------------
+
 
 class CoOccurrenceSettingsView(APIView):
     """
@@ -362,11 +375,15 @@ class CoOccurrenceSettingsView(APIView):
 
         _persist_bool("cooccurrence.enabled", "cooccurrence_enabled", True)
         _persist_int("cooccurrence.data_window_days", "data_window_days", 7, 365)
-        _persist_int("cooccurrence.min_co_session_count", "min_co_session_count", 1, 1000)
+        _persist_int(
+            "cooccurrence.min_co_session_count", "min_co_session_count", 1, 1000
+        )
         _persist_float("cooccurrence.min_jaccard", "min_jaccard", 0.0, 1.0)
         _persist_float("cooccurrence.hub_min_jaccard", "hub_min_jaccard", 0.0, 1.0)
         _persist_int("cooccurrence.hub_min_members", "hub_min_members", 2, 100)
-        _persist_bool("cooccurrence.hub_detection_enabled", "hub_detection_enabled", True)
+        _persist_bool(
+            "cooccurrence.hub_detection_enabled", "hub_detection_enabled", True
+        )
         _persist_bool("cooccurrence.schedule_weekly", "schedule_weekly", True)
 
         return Response(_read_cooccurrence_settings())

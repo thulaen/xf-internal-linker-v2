@@ -72,7 +72,9 @@ class AuditEntry(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"[{self.action}] {self.target_type}:{self.target_id} at {self.created_at}"
+        return (
+            f"[{self.action}] {self.target_type}:{self.target_id} at {self.created_at}"
+        )
 
 
 class ReviewerScorecard(models.Model):

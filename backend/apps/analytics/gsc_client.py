@@ -10,12 +10,12 @@ logger = logging.getLogger(__name__)
 
 
 def build_gsc_service(
-    *, 
-    client_email: str = "", 
+    *,
+    client_email: str = "",
     private_key: str = "",
     refresh_token: str = "",
     client_id: str = "",
-    client_secret: str = ""
+    client_secret: str = "",
 ) -> Any:
     """Build a GSC service object using service account or OAuth credentials."""
     from google.oauth2 import credentials, service_account
@@ -65,8 +65,10 @@ def fetch_gsc_performance_data(
     Fetch search performance data from GSC for a specific date range.
     Returns a list of rows. Typical keys: 'keys' (list of dimensions), 'clicks', 'impressions', 'ctr', 'position'.
     """
-    logger.info(f"Fetching GSC performance for {property_url} from {start_date} to {end_date} (dimensions: {dimensions})")
-    
+    logger.info(
+        f"Fetching GSC performance for {property_url} from {start_date} to {end_date} (dimensions: {dimensions})"
+    )
+
     request = {
         "startDate": start_date.isoformat(),
         "endDate": end_date.isoformat(),
@@ -87,9 +89,13 @@ def fetch_gsc_performance_data(
                 ],
             }
         ]
-    
+
     try:
-        response = service.searchanalytics().query(siteUrl=property_url, body=request).execute()
+        response = (
+            service.searchanalytics()
+            .query(siteUrl=property_url, body=request)
+            .execute()
+        )
         rows = response.get("rows", [])
         logger.info(f"Retrieved {len(rows)} rows from GSC API.")
         return rows

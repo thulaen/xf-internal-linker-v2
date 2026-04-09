@@ -82,7 +82,12 @@ class BehavioralHubMembershipSerializer(serializers.ModelSerializer):
             "co_occurrence_strength",
             "created_at",
         ]
-        read_only_fields = ["id", "content_item_title", "content_item_url", "created_at"]
+        read_only_fields = [
+            "id",
+            "content_item_title",
+            "content_item_url",
+            "created_at",
+        ]
 
     def get_content_item_title(self, obj: BehavioralHubMembership) -> str:
         if hasattr(obj, "content_item") and obj.content_item:

@@ -27,7 +27,9 @@ class SiloGroupViewSet(viewsets.ModelViewSet):
 
     permission_classes = [IsAuthenticated]
 
-    queryset = SiloGroup.objects.annotate(scope_count=Count("scope_items")).order_by("display_order", "name")
+    queryset = SiloGroup.objects.annotate(scope_count=Count("scope_items")).order_by(
+        "display_order", "name"
+    )
     serializer_class = SiloGroupSerializer
     pagination_class = None
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
@@ -47,7 +49,9 @@ class ScopeItemViewSet(viewsets.ModelViewSet):
     GET /api/scopes/enabled/  — list only enabled scopes
     """
 
-    queryset = ScopeItem.objects.select_related("parent", "silo_group").order_by("display_order", "title")
+    queryset = ScopeItem.objects.select_related("parent", "silo_group").order_by(
+        "display_order", "title"
+    )
     serializer_class = ScopeItemSerializer
     pagination_class = None
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
@@ -81,8 +85,14 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
     GET /api/content/{id}/sentences/ — list sentences for this content item
     """
 
-    queryset = ContentItem.objects.select_related("scope").order_by("-march_2026_pagerank_score")
-    filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    queryset = ContentItem.objects.select_related("scope").order_by(
+        "-march_2026_pagerank_score"
+    )
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.SearchFilter,
+        filters.OrderingFilter,
+    ]
     filterset_fields = ["content_type", "scope", "is_deleted"]
     search_fields = ["title", "content_id"]
     ordering_fields = [
@@ -98,11 +108,15 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = super().get_queryset()
         if self.action == "retrieve":
             queryset = queryset.select_related("scope__silo_group")
-        freshness_bucket = self.request.query_params.get("freshness_bucket", "").strip().lower()
+        freshness_bucket = (
+            self.request.query_params.get("freshness_bucket", "").strip().lower()
+        )
         if freshness_bucket == "fresh":
             queryset = queryset.filter(link_freshness_score__gte=0.60)
         elif freshness_bucket == "neutral":
-            queryset = queryset.filter(link_freshness_score__gt=0.40, link_freshness_score__lt=0.60)
+            queryset = queryset.filter(
+                link_freshness_score__gt=0.40, link_freshness_score__lt=0.60
+            )
         elif freshness_bucket == "stale":
             queryset = queryset.filter(link_freshness_score__lte=0.40)
         return queryset
@@ -116,10 +130,8 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
     def sentences(self, request, pk=None) -> Response:
         """Return all sentences extracted from this content item's post."""
         content_item = self.get_object()
-        sentences = (
-            Sentence.objects
-            .filter(content_item=content_item)
-            .order_by("position")
+        sentences = Sentence.objects.filter(content_item=content_item).order_by(
+            "position"
         )
         serializer = SentenceSerializer(sentences, many=True)
         return Response(serializer.data)

@@ -6,9 +6,7 @@ import logging
 import time
 
 from celery import shared_task
-from django.conf import settings
 from django.db import connection
-from django.db.models import Q
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
@@ -49,6 +47,7 @@ def pulse_heartbeat():
     # 2. Redis
     try:
         from django_redis import get_redis_connection
+
         t0 = time.perf_counter()
         r = get_redis_connection("default")
         r.ping()
@@ -60,6 +59,7 @@ def pulse_heartbeat():
     # 3. Celery workers
     try:
         from celery import current_app
+
         t0 = time.perf_counter()
         insp = current_app.control.inspect(timeout=2.0)
         active = insp.active() or {}
@@ -81,6 +81,7 @@ def pulse_heartbeat():
     try:
         from apps.graph.services.http_worker_client import _get_base_url
         import requests as req_lib
+
         t0 = time.perf_counter()
         resp = req_lib.get(f"{_get_base_url()}/api/v1/status", timeout=5)
         checks["http_worker"] = {
@@ -96,6 +97,7 @@ def pulse_heartbeat():
     # 5. C++ extensions
     try:
         from apps.pipeline.services.ext_loader import load_extension
+
         t0 = time.perf_counter()
         scoring = load_extension("scoring", "calculate_composite_scores_full_batch")
         checks["cpp_extensions"] = {
@@ -131,6 +133,7 @@ def pulse_heartbeat():
     try:
         from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
+
         channel_layer = get_channel_layer()
         if channel_layer:
             async_to_sync(channel_layer.group_send)(
@@ -232,16 +235,14 @@ def auto_prune():
       - SystemEvent rows >90 days: delete.
       - Fixed broken links >30 days: auto-archive.
     """
-    from apps.crawler.models import CrawlSession, CrawledPageMeta, SystemEvent
+    from apps.crawler.models import CrawledPageMeta, SystemEvent
 
     now = timezone.now()
     cutoff_90d = now - timezone.timedelta(days=90)
     cutoff_30d = now - timezone.timedelta(days=30)
 
     # 1. Delete old page-level crawl data (keep session summaries).
-    old_pages = CrawledPageMeta.objects.filter(
-        session__completed_at__lt=cutoff_90d
-    )
+    old_pages = CrawledPageMeta.objects.filter(session__completed_at__lt=cutoff_90d)
     page_count = old_pages.count()
     if page_count > 0:
         old_pages.delete()
@@ -262,6 +263,7 @@ def auto_prune():
     # 4. Auto-archive fixed broken links older than 30 days.
     try:
         from apps.graph.models import BrokenLink
+
         archived = BrokenLink.objects.filter(
             status="fixed",
             updated_at__lt=cutoff_30d,
@@ -310,7 +312,6 @@ def orchestrate_full_run():
     Progress streamed via WebSocket for real-time frontend updates.
     """
     from apps.crawler.models import SystemEvent, SitemapConfig, CrawlSession
-    from apps.sync.models import SyncJob
     from apps.graph.services.http_worker_client import queue_job
     import uuid
 
@@ -323,6 +324,7 @@ def orchestrate_full_run():
     # ── Stage 1: API Syncs (parallel) ────────────────────────────────
     # These are dispatched as separate Celery tasks that run concurrently.
     from apps.pipeline.tasks import import_content
+
     xf_job = import_content.apply_async(
         kwargs={"source": "api", "mode": "full"},
         queue="pipeline",
@@ -363,8 +365,13 @@ def orchestrate_full_run():
                 "rate_limit": 4,
                 "max_depth": 5,
                 "excluded_paths": [
-                    "/members/", "/login/", "/register/",
-                    "/account/", "/search/", "/admin.php", "/help/",
+                    "/members/",
+                    "/login/",
+                    "/register/",
+                    "/account/",
+                    "/search/",
+                    "/admin.php",
+                    "/help/",
                 ],
                 "timeout_hours": 2,
             },
@@ -372,16 +379,20 @@ def orchestrate_full_run():
 
         job_id = str(uuid.uuid4())
         try:
-            queue_job(job_id, "crawl_session", {
-                "session_id": str(session.session_id),
-                "site_domain": domain,
-                "sitemap_urls": domain_sitemaps,
-                "base_url": f"https://{domain}/",
-                "rate_limit": 4,
-                "max_depth": 5,
-                "timeout_hours": 2,
-                "excluded_paths": session.config.get("excluded_paths", []),
-            })
+            queue_job(
+                job_id,
+                "crawl_session",
+                {
+                    "session_id": str(session.session_id),
+                    "site_domain": domain,
+                    "sitemap_urls": domain_sitemaps,
+                    "base_url": f"https://{domain}/",
+                    "rate_limit": 4,
+                    "max_depth": 5,
+                    "timeout_hours": 2,
+                    "excluded_paths": session.config.get("excluded_paths", []),
+                },
+            )
         except Exception as exc:
             logger.warning("Crawl job for %s failed to queue: %s", domain, exc)
             session.status = "failed"
@@ -396,6 +407,7 @@ def orchestrate_full_run():
 
     # ── Stage 3: ML Pipeline ─────────────────────────────────────────
     from apps.pipeline.tasks import run_pipeline
+
     try:
         pipeline_job = run_pipeline.apply_async(queue="pipeline")
         pipeline_job.get(timeout=7200, propagate=False)

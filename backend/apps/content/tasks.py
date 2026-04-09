@@ -4,6 +4,7 @@ from apps.content.services.clustering import ClusteringService
 
 logger = logging.getLogger(__name__)
 
+
 @shared_task(
     name="content.cluster_items",
     time_limit=300,

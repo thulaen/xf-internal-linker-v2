@@ -24,7 +24,9 @@ class ExistingLinkAdmin(ModelAdmin):
     ]
     list_filter = ["extraction_method", "context_class", "discovered_at"]
     search_fields = [
-        "from_content_item__title", "to_content_item__title", "anchor_text",
+        "from_content_item__title",
+        "to_content_item__title",
+        "anchor_text",
     ]
     readonly_fields = [
         "from_content_item",
@@ -98,4 +100,10 @@ class BrokenLinkAdmin(ModelAdmin):
     search_fields = ["source_content__title", "url", "notes"]
     ordering = ["status", "-last_checked_at"]
     list_per_page = 100
-    readonly_fields = ["broken_link_id", "first_detected_at", "last_checked_at", "created_at", "updated_at"]
+    readonly_fields = [
+        "broken_link_id",
+        "first_detected_at",
+        "last_checked_at",
+        "created_at",
+        "updated_at",
+    ]

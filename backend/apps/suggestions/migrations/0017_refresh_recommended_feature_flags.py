@@ -85,12 +85,13 @@ def refresh_recommended_preset(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("suggestions", "0016_seed_recommended_preset"),
         ("core", "0003_alter_appsetting_category"),
     ]
 
     operations = [
-        migrations.RunPython(refresh_recommended_preset, reverse_code=migrations.RunPython.noop),
+        migrations.RunPython(
+            refresh_recommended_preset, reverse_code=migrations.RunPython.noop
+        ),
     ]

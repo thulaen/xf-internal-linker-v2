@@ -13,7 +13,9 @@ class AlertDeliveryAttemptSerializer(serializers.ModelSerializer):
 
 class OperatorAlertSerializer(serializers.ModelSerializer):
     delivery_attempts = AlertDeliveryAttemptSerializer(many=True, read_only=True)
-    error_log_id = serializers.PrimaryKeyRelatedField(source="error_log", read_only=True)
+    error_log_id = serializers.PrimaryKeyRelatedField(
+        source="error_log", read_only=True
+    )
 
     class Meta:
         model = OperatorAlert

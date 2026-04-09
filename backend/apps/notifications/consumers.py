@@ -20,10 +20,12 @@ class NotificationConsumer(AsyncJsonWebsocketConsumer):
             return
         await self.channel_layer.group_add(_NOTIFICATION_GROUP, self.channel_name)
         await self.accept()
-        await self.send_json({
-            "type": "connection.established",
-            "message": "Connected to notification stream.",
-        })
+        await self.send_json(
+            {
+                "type": "connection.established",
+                "message": "Connected to notification stream.",
+            }
+        )
 
     async def disconnect(self, close_code: int) -> None:
         await self.channel_layer.group_discard(_NOTIFICATION_GROUP, self.channel_name)

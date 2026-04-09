@@ -165,13 +165,19 @@ def build_browser_bridge_snippet(
 +</script>"""
 
 
-def build_integration_payload(*, ga4_settings: dict, matomo_settings: dict) -> dict[str, object]:
+def build_integration_payload(
+    *, ga4_settings: dict, matomo_settings: dict
+) -> dict[str, object]:
     """Return read-only setup status plus a copy-ready browser bridge snippet."""
 
-    event_schema = str(ga4_settings.get("event_schema") or "fr016_v1").strip() or "fr016_v1"
+    event_schema = (
+        str(ga4_settings.get("event_schema") or "fr016_v1").strip() or "fr016_v1"
+    )
     measurement_id = str(ga4_settings.get("measurement_id") or "").strip().upper()
     ga4_enabled = bool(ga4_settings.get("behavior_enabled")) and bool(measurement_id)
-    matomo_enabled = bool(matomo_settings.get("enabled")) and bool(matomo_settings.get("url"))
+    matomo_enabled = bool(matomo_settings.get("enabled")) and bool(
+        matomo_settings.get("url")
+    )
     ready = ga4_enabled or matomo_enabled
 
     if ready:
@@ -183,7 +189,9 @@ def build_integration_payload(*, ga4_settings: dict, matomo_settings: dict) -> d
 
     snippet = build_browser_bridge_snippet(
         event_schema=event_schema,
-        impression_visible_ratio=float(ga4_settings.get("impression_visible_ratio") or 0.5),
+        impression_visible_ratio=float(
+            ga4_settings.get("impression_visible_ratio") or 0.5
+        ),
         impression_min_ms=int(ga4_settings.get("impression_min_ms") or 1000),
         engaged_min_seconds=int(ga4_settings.get("engaged_min_seconds") or 10),
         ga4_measurement_id=measurement_id,

@@ -15,7 +15,14 @@ class AuditEntryAdmin(ModelAdmin):
     list_display = ["action", "target_type", "target_id", "ip_address", "created_at"]
     list_filter = ["action", "target_type"]
     search_fields = ["target_id", "action"]
-    readonly_fields = ["action", "target_type", "target_id", "detail", "ip_address", "created_at"]
+    readonly_fields = [
+        "action",
+        "target_type",
+        "target_id",
+        "detail",
+        "ip_address",
+        "created_at",
+    ]
     ordering = ["-created_at"]
 
     def has_add_permission(self, request) -> bool:
@@ -30,13 +37,26 @@ class ReviewerScorecardAdmin(ModelAdmin):
     """Admin for reviewer performance summaries."""
 
     list_display = [
-        "period_start", "period_end", "total_reviewed",
-        "approved_count", "rejected_count", "approval_rate", "verified_rate",
+        "period_start",
+        "period_end",
+        "total_reviewed",
+        "approved_count",
+        "rejected_count",
+        "approval_rate",
+        "verified_rate",
     ]
     readonly_fields = [
-        "period_start", "period_end", "total_reviewed", "approved_count",
-        "rejected_count", "approval_rate", "verified_rate", "stale_rate",
-        "avg_review_time_seconds", "top_rejection_reasons", "created_at",
+        "period_start",
+        "period_end",
+        "total_reviewed",
+        "approved_count",
+        "rejected_count",
+        "approval_rate",
+        "verified_rate",
+        "stale_rate",
+        "avg_review_time_seconds",
+        "top_rejection_reasons",
+        "created_at",
     ]
     ordering = ["-period_end"]
 
@@ -51,10 +71,21 @@ class ErrorLogAdmin(ModelAdmin):
     list_display = ["job_type", "step", "error_preview", "acknowledged", "created_at"]
     list_filter = ["job_type", "acknowledged"]
     search_fields = ["job_type", "step", "error_message"]
-    readonly_fields = ["job_type", "step", "error_message", "raw_exception", "why", "created_at"]
+    readonly_fields = [
+        "job_type",
+        "step",
+        "error_message",
+        "raw_exception",
+        "why",
+        "created_at",
+    ]
     list_editable = ["acknowledged"]
     ordering = ["-created_at"]
 
     @admin.display(description="Error")
     def error_preview(self, obj: ErrorLog) -> str:
-        return obj.error_message[:80] + "…" if len(obj.error_message) > 80 else obj.error_message
+        return (
+            obj.error_message[:80] + "…"
+            if len(obj.error_message) > 80
+            else obj.error_message
+        )

@@ -24,7 +24,9 @@ def _on_error_log_created(sender, instance, created: bool, **kwargs) -> None:
             event_type="error.logged",
             severity=OperatorAlert.SEVERITY_ERROR,
             title=f"Background job error: {instance.job_type}",
-            message=instance.error_message[:300] if instance.error_message else "An error was recorded.",
+            message=instance.error_message[:300]
+            if instance.error_message
+            else "An error was recorded.",
             source_area=OperatorAlert.AREA_JOBS,
             dedupe_key=f"error.logged:{instance.pk}",
             related_route="/jobs",
@@ -42,4 +44,8 @@ def connect_signals() -> None:
     """Connect all notification signals. Called from NotificationsConfig.ready()."""
     from apps.audit.models import ErrorLog
 
-    post_save.connect(_on_error_log_created, sender=ErrorLog, dispatch_uid="notifications.error_log_created")
+    post_save.connect(
+        _on_error_log_created,
+        sender=ErrorLog,
+        dispatch_uid="notifications.error_log_created",
+    )

@@ -40,9 +40,15 @@ class SlateDiversitySettings:
     """Settings controlling the final slate diversity reranker."""
 
     enabled: bool = recommended_bool("slate_diversity.enabled")
-    diversity_lambda: float = recommended_float("slate_diversity.diversity_lambda")  # 1.0 = pure relevance, 0.0 = pure diversity
-    score_window: float = recommended_float("slate_diversity.score_window")  # max score gap from top candidate to be eligible
-    similarity_cap: float = recommended_float("slate_diversity.similarity_cap")  # cosine similarity above which items are flagged as redundant
+    diversity_lambda: float = recommended_float(
+        "slate_diversity.diversity_lambda"
+    )  # 1.0 = pure relevance, 0.0 = pure diversity
+    score_window: float = recommended_float(
+        "slate_diversity.score_window"
+    )  # max score gap from top candidate to be eligible
+    similarity_cap: float = recommended_float(
+        "slate_diversity.similarity_cap"
+    )  # cosine similarity above which items are flagged as redundant
     algorithm_version: str = "fr015-v1"
 
 
@@ -143,7 +149,8 @@ def _mmr_select_for_host(
     """
     # Filter: skip already-claimed destinations and circular pairs
     eligible = [
-        c for c in host_candidates
+        c
+        for c in host_candidates
         if c.destination_key not in claimed
         and (c.host_key, c.destination_key) not in selected_directions
     ]
@@ -156,8 +163,7 @@ def _mmr_select_for_host(
     score_range = (top_score - bottom_score) if top_score != bottom_score else 1.0
 
     window_pool = [
-        c for c in eligible
-        if (top_score - c.score_final) <= settings.score_window
+        c for c in eligible if (top_score - c.score_final) <= settings.score_window
     ]
     fallback_pool = [c for c in eligible if c not in window_pool]
 
@@ -188,7 +194,9 @@ def _mmr_select_for_host(
                 "max_similarity_to_selected": None,
                 "mmr_score": round(normalize(pick.score_final), 4),
                 "swapped_from_rank": None,
-                "window_source": "score_window" if pick in window_pool else "fallback_pool",
+                "window_source": "score_window"
+                if pick in window_pool
+                else "fallback_pool",
                 "runtime_path": runtime_path,
                 "runtime_reason": runtime_reason,
                 "algorithm_version": settings.algorithm_version,
@@ -210,12 +218,16 @@ def _mmr_select_for_host(
             )
             candidate_embeddings = np.asarray(
                 [
-                    embedding_lookup.get(candidate.destination_key, np.zeros(0, dtype=np.float32))
+                    embedding_lookup.get(
+                        candidate.destination_key, np.zeros(0, dtype=np.float32)
+                    )
                     for candidate in pool
                 ],
                 dtype=object,
             )
-            usable_cpp = HAS_CPP_DIVERSITY and all(embedding.size > 0 for embedding in candidate_embeddings)
+            usable_cpp = HAS_CPP_DIVERSITY and all(
+                embedding.size > 0 for embedding in candidate_embeddings
+            )
 
             if usable_cpp:
                 mmr_scores, max_similarities = feedrerank.calculate_mmr_scores_batch(
@@ -230,7 +242,10 @@ def _mmr_select_for_host(
                 for i, candidate in enumerate(pool):
                     emb = embedding_lookup.get(candidate.destination_key)
                     if emb is not None and selected_embeddings:
-                        sims = [float(np.dot(emb, selected_emb)) for selected_emb in selected_embeddings]
+                        sims = [
+                            float(np.dot(emb, selected_emb))
+                            for selected_emb in selected_embeddings
+                        ]
                         max_sim = max(sims)
                     else:
                         max_sim = 0.0
@@ -259,10 +274,14 @@ def _mmr_select_for_host(
                 "relevance_normalized": round(normalize(best_pick.score_final), 4),
                 "max_similarity_to_selected": round(best_max_sim, 4),
                 "mmr_score": round(best_mmr, 4),
-                "swapped_from_rank": best_original_rank if best_original_rank > 0 else None,
+                "swapped_from_rank": best_original_rank
+                if best_original_rank > 0
+                else None,
                 "similarity_cap": settings.similarity_cap,
                 "flagged_redundant": best_max_sim >= settings.similarity_cap,
-                "window_source": "score_window" if pool is window_pool else "fallback_pool",
+                "window_source": "score_window"
+                if pool is window_pool
+                else "fallback_pool",
                 "runtime_path": "cpp_extension" if usable_cpp else runtime_path,
                 "runtime_reason": (
                     "Native C++ MMR kernel handled this slot."

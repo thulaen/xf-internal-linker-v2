@@ -7,26 +7,27 @@ URL = "http://127.0.0.1:8000/api/sync/webhooks/xenforo/"
 # The secret we configured
 SECRET = "MySuperSecretSync123"
 
+
 def test_thread_insert():
     payload = {
         "event": "thread_insert",
         "content_type": "thread",
-        "content_id": 999999, # Dummy ID
+        "content_id": 999999,  # Dummy ID
         "node_id": 2,
         "data": {
             "title": "Webhook Test Thread",
             "thread_id": 999999,
             "node_id": 2,
-            "view_url": "https://www.goldmidi.com/threads/webhook-test.999999/"
-        }
+            "view_url": "https://www.goldmidi.com/threads/webhook-test.999999/",
+        },
     }
-    
+
     headers = {
         "XF-Webhook-Secret": SECRET,
         "XF-Webhook-Event": "thread_insert",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
     }
-    
+
     print(f"Sending thread_insert to {URL}...")
     try:
         response = requests.post(URL, json=payload, headers=headers)
@@ -35,10 +36,11 @@ def test_thread_insert():
     except Exception as e:
         print(f"Error: {e}")
 
+
 def test_invalid_secret():
     payload = {"event": "test"}
     headers = {"XF-Webhook-Secret": "WRONG_SECRET"}
-    
+
     print(f"\nSending with WRONG SECRET to {URL}...")
     try:
         response = requests.post(URL, json=payload, headers=headers)
@@ -46,6 +48,7 @@ def test_invalid_secret():
         print(f"Response: {response.text}")
     except Exception as e:
         print(f"Error: {e}")
+
 
 if __name__ == "__main__":
     # Check if server is up first

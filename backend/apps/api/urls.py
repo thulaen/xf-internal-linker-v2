@@ -82,18 +82,26 @@ from apps.suggestions.views import (
     WeightChallengerInternalView,
     WeightPresetViewSet,
 )
-from apps.sync.views import ImportUploadView, SyncJobViewSet, XenForoWebhookView, WordPressWebhookView, WebhookReceiptViewSet
+from apps.sync.views import (
+    ImportUploadView,
+    SyncJobViewSet,
+    XenForoWebhookView,
+    WordPressWebhookView,
+    WebhookReceiptViewSet,
+)
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.throttling import AnonRateThrottle
 
 
 class _LoginRateThrottle(AnonRateThrottle):
     """Tight per-IP throttle on the login endpoint to prevent brute-force."""
+
     rate = "10/min"
 
 
 class _CsrfFreeObtainAuthToken(ObtainAuthToken):
     """Token login endpoint — no session auth so CSRF is never checked."""
+
     authentication_classes = []
     throttle_classes = [_LoginRateThrottle]
 
@@ -116,8 +124,12 @@ router.register(r"diagnostics", PipelineDiagnosticViewSet, basename="diagnostic"
 router.register(r"sync-jobs", SyncJobViewSet, basename="sync-job")
 router.register(r"broken-links", BrokenLinkViewSet, basename="broken-link")
 router.register(r"weight-presets", WeightPresetViewSet, basename="weight-preset")
-router.register(r"weight-history", WeightAdjustmentHistoryViewSet, basename="weight-history")
-router.register(r"weight-challengers", RankingChallengerViewSet, basename="weight-challenger")
+router.register(
+    r"weight-history", WeightAdjustmentHistoryViewSet, basename="weight-history"
+)
+router.register(
+    r"weight-challengers", RankingChallengerViewSet, basename="weight-challenger"
+)
 router.register(r"webhook-receipts", WebhookReceiptViewSet, basename="webhook-receipt")
 router.register(r"health", HealthStatusViewSet, basename="health")
 
@@ -133,62 +145,216 @@ urlpatterns = [
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
     path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
-    path("sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"),
-    path("sync/webhooks/wordpress/", WordPressWebhookView.as_view(), name="wordpress-webhook"),
-    path("settings/appearance/", AppearanceSettingsView.as_view(), name="appearance-settings"),
+    path(
+        "sync/webhooks/xenforo/", XenForoWebhookView.as_view(), name="xenforo-webhook"
+    ),
+    path(
+        "sync/webhooks/wordpress/",
+        WordPressWebhookView.as_view(),
+        name="wordpress-webhook",
+    ),
+    path(
+        "settings/appearance/",
+        AppearanceSettingsView.as_view(),
+        name="appearance-settings",
+    ),
     path("settings/silos/", SiloSettingsView.as_view(), name="silo-settings"),
-    path("settings/weighted-authority/", WeightedAuthoritySettingsView.as_view(), name="weighted-authority-settings"),
-    path("settings/weighted-authority/recalculate/", WeightedAuthorityRecalculateView.as_view(), name="weighted-authority-recalculate"),
-    path("settings/link-freshness/", LinkFreshnessSettingsView.as_view(), name="link-freshness-settings"),
-    path("settings/link-freshness/recalculate/", LinkFreshnessRecalculateView.as_view(), name="link-freshness-recalculate"),
-    path("settings/phrase-matching/", PhraseMatchingSettingsView.as_view(), name="phrase-matching-settings"),
-    path("settings/learned-anchor/", LearnedAnchorSettingsView.as_view(), name="learned-anchor-settings"),
-    path("settings/rare-term-propagation/", RareTermPropagationSettingsView.as_view(), name="rare-term-propagation-settings"),
-    path("settings/field-aware-relevance/", FieldAwareRelevanceSettingsView.as_view(), name="field-aware-relevance-settings"),
+    path(
+        "settings/weighted-authority/",
+        WeightedAuthoritySettingsView.as_view(),
+        name="weighted-authority-settings",
+    ),
+    path(
+        "settings/weighted-authority/recalculate/",
+        WeightedAuthorityRecalculateView.as_view(),
+        name="weighted-authority-recalculate",
+    ),
+    path(
+        "settings/link-freshness/",
+        LinkFreshnessSettingsView.as_view(),
+        name="link-freshness-settings",
+    ),
+    path(
+        "settings/link-freshness/recalculate/",
+        LinkFreshnessRecalculateView.as_view(),
+        name="link-freshness-recalculate",
+    ),
+    path(
+        "settings/phrase-matching/",
+        PhraseMatchingSettingsView.as_view(),
+        name="phrase-matching-settings",
+    ),
+    path(
+        "settings/learned-anchor/",
+        LearnedAnchorSettingsView.as_view(),
+        name="learned-anchor-settings",
+    ),
+    path(
+        "settings/rare-term-propagation/",
+        RareTermPropagationSettingsView.as_view(),
+        name="rare-term-propagation-settings",
+    ),
+    path(
+        "settings/field-aware-relevance/",
+        FieldAwareRelevanceSettingsView.as_view(),
+        name="field-aware-relevance-settings",
+    ),
     path("settings/ga4-gsc/", GA4GSCSettingsView.as_view(), name="ga4-gsc-settings"),
-    path("settings/ga4-gsc/test-connection/", GSCConnectionTestView.as_view(), name="ga4-gsc-test-connection"),
-    path("settings/explore-exploit/", FeedbackRerankSettingsView.as_view(), name="explore-exploit-settings"),
-    path("settings/click-distance/", ClickDistanceSettingsView.as_view(), name="settings-click-distance"),
-    path("settings/click-distance/recalculate/", ClickDistanceRecalculateView.as_view(), name="settings-click-distance-recalculate"),
-    path("settings/clustering/", ClusteringSettingsView.as_view(), name="clustering-settings"),
-    path("settings/clustering/recalculate/", ClusteringRecalculateView.as_view(), name="clustering-recalculate"),
-    path("settings/slate-diversity/", SlateDiversitySettingsView.as_view(), name="slate-diversity-settings"),
+    path(
+        "settings/ga4-gsc/test-connection/",
+        GSCConnectionTestView.as_view(),
+        name="ga4-gsc-test-connection",
+    ),
+    path(
+        "settings/explore-exploit/",
+        FeedbackRerankSettingsView.as_view(),
+        name="explore-exploit-settings",
+    ),
+    path(
+        "settings/click-distance/",
+        ClickDistanceSettingsView.as_view(),
+        name="settings-click-distance",
+    ),
+    path(
+        "settings/click-distance/recalculate/",
+        ClickDistanceRecalculateView.as_view(),
+        name="settings-click-distance-recalculate",
+    ),
+    path(
+        "settings/clustering/",
+        ClusteringSettingsView.as_view(),
+        name="clustering-settings",
+    ),
+    path(
+        "settings/clustering/recalculate/",
+        ClusteringRecalculateView.as_view(),
+        name="clustering-recalculate",
+    ),
+    path(
+        "settings/slate-diversity/",
+        SlateDiversitySettingsView.as_view(),
+        name="slate-diversity-settings",
+    ),
     path("settings/r-tune/trigger/", RTuneTriggerView.as_view(), name="r-tune-trigger"),
-    path("settings/cs-tune/trigger/", CSTuneTriggerView.as_view(), name="cs-tune-trigger"),
-    path("settings/cs-tune/evaluate/<str:run_id>/", ChallengerEvaluateView.as_view(), name="cs-tune-evaluate"),
-    path("internal/weight-challenger/", WeightChallengerInternalView.as_view(), name="internal-weight-challenger"),
-    path("settings/wordpress/", WordPressSettingsView.as_view(), name="wordpress-settings"),
-    path("settings/wordpress/test-connection/", WordPressTestConnectionView.as_view(), name="wordpress-test-connection"),
+    path(
+        "settings/cs-tune/trigger/", CSTuneTriggerView.as_view(), name="cs-tune-trigger"
+    ),
+    path(
+        "settings/cs-tune/evaluate/<str:run_id>/",
+        ChallengerEvaluateView.as_view(),
+        name="cs-tune-evaluate",
+    ),
+    path(
+        "internal/weight-challenger/",
+        WeightChallengerInternalView.as_view(),
+        name="internal-weight-challenger",
+    ),
+    path(
+        "settings/wordpress/",
+        WordPressSettingsView.as_view(),
+        name="wordpress-settings",
+    ),
+    path(
+        "settings/wordpress/test-connection/",
+        WordPressTestConnectionView.as_view(),
+        name="wordpress-test-connection",
+    ),
     path("settings/xenforo/", XenForoSettingsView.as_view(), name="xenforo-settings"),
-    path("settings/xenforo/test-connection/", XenForoTestConnectionView.as_view(), name="xenforo-test-connection"),
+    path(
+        "settings/xenforo/test-connection/",
+        XenForoTestConnectionView.as_view(),
+        name="xenforo-test-connection",
+    ),
     path("settings/webhooks/", WebhookSettingsView.as_view(), name="webhook-settings"),
     path("settings/webhooks/test/", WebhookTestView.as_view(), name="webhook-test"),
     path("settings/logo/", LogoUploadView.as_view(), name="settings-logo"),
     path("settings/favicon/", FaviconUploadView.as_view(), name="settings-favicon"),
-    path("settings/graph-candidate/", GraphCandidateSettingsView.as_view(), name="graph-candidate-settings"),
-    path("settings/value-model/", ValueModelSettingsView.as_view(), name="value-model-settings"),
-    path("settings/spam-guards/", SpamGuardSettingsView.as_view(), name="settings-spam-guards"),
+    path(
+        "settings/graph-candidate/",
+        GraphCandidateSettingsView.as_view(),
+        name="graph-candidate-settings",
+    ),
+    path(
+        "settings/value-model/",
+        ValueModelSettingsView.as_view(),
+        name="value-model-settings",
+    ),
+    path(
+        "settings/spam-guards/",
+        SpamGuardSettingsView.as_view(),
+        name="settings-spam-guards",
+    ),
     path("settings/graph/rebuild/", GraphRebuildView.as_view(), name="graph-rebuild"),
-    path("settings/cooccurrence/", CoOccurrenceSettingsView.as_view(), name="cooccurrence-settings"),
-    path("cooccurrence/pairs/", CoOccurrencePairListView.as_view(), name="cooccurrence-pairs"),
-    path("cooccurrence/pairs/<int:source_id>/", CoOccurrencePairBySourceView.as_view(), name="cooccurrence-pairs-by-source"),
-    path("cooccurrence/runs/", CoOccurrenceRunListView.as_view(), name="cooccurrence-runs"),
-    path("cooccurrence/compute/", TriggerCoOccurrenceView.as_view(), name="cooccurrence-compute"),
+    path(
+        "settings/cooccurrence/",
+        CoOccurrenceSettingsView.as_view(),
+        name="cooccurrence-settings",
+    ),
+    path(
+        "cooccurrence/pairs/",
+        CoOccurrencePairListView.as_view(),
+        name="cooccurrence-pairs",
+    ),
+    path(
+        "cooccurrence/pairs/<int:source_id>/",
+        CoOccurrencePairBySourceView.as_view(),
+        name="cooccurrence-pairs-by-source",
+    ),
+    path(
+        "cooccurrence/runs/",
+        CoOccurrenceRunListView.as_view(),
+        name="cooccurrence-runs",
+    ),
+    path(
+        "cooccurrence/compute/",
+        TriggerCoOccurrenceView.as_view(),
+        name="cooccurrence-compute",
+    ),
     path("behavioral-hubs/", BehavioralHubListView.as_view(), name="behavioral-hubs"),
-    path("behavioral-hubs/detect/", TriggerHubDetectionView.as_view(), name="behavioral-hub-detect"),
-    path("behavioral-hubs/<uuid:hub_id>/", BehavioralHubDetailView.as_view(), name="behavioral-hub-detail"),
-    path("behavioral-hubs/<uuid:hub_id>/members/", BehavioralHubMemberView.as_view(), name="behavioral-hub-members"),
-    path("behavioral-hubs/<uuid:hub_id>/members/<int:content_item_id>/", BehavioralHubMemberDetailView.as_view(), name="behavioral-hub-member-detail"),
+    path(
+        "behavioral-hubs/detect/",
+        TriggerHubDetectionView.as_view(),
+        name="behavioral-hub-detect",
+    ),
+    path(
+        "behavioral-hubs/<uuid:hub_id>/",
+        BehavioralHubDetailView.as_view(),
+        name="behavioral-hub-detail",
+    ),
+    path(
+        "behavioral-hubs/<uuid:hub_id>/members/",
+        BehavioralHubMemberView.as_view(),
+        name="behavioral-hub-members",
+    ),
+    path(
+        "behavioral-hubs/<uuid:hub_id>/members/<int:content_item_id>/",
+        BehavioralHubMemberDetailView.as_view(),
+        name="behavioral-hub-member-detail",
+    ),
     path("graph/stats/", GraphStatsView.as_view(), name="graph-stats"),
     path("graph/entities/", EntityListView.as_view(), name="graph-entities"),
     path("graph/orphans/", OrphanArticleListView.as_view(), name="graph-orphans"),
-    path("graph/orphans/export-csv/", OrphanExportCSVView.as_view(), name="graph-orphans-export-csv"),
-    path("graph/orphans/<int:pk>/suggest/", OrphanSuggestView.as_view(), name="graph-orphan-suggest"),
+    path(
+        "graph/orphans/export-csv/",
+        OrphanExportCSVView.as_view(),
+        name="graph-orphans-export-csv",
+    ),
+    path(
+        "graph/orphans/<int:pk>/suggest/",
+        OrphanSuggestView.as_view(),
+        name="graph-orphan-suggest",
+    ),
     path("graph/path/", GraphPathView.as_view(), name="graph-path"),
     path("graph/topology/", GraphTopologyView.as_view(), name="graph-topology"),
-    path("graph/pagerank-equity/", PageRankEquityView.as_view(), name="graph-pagerank-equity"),
+    path(
+        "graph/pagerank-equity/",
+        PageRankEquityView.as_view(),
+        name="graph-pagerank-equity",
+    ),
     path("graph/gap-analysis/", GapAnalysisView.as_view(), name="graph-gap-analysis"),
-    path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),
+    path(
+        "sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"
+    ),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
     path("crawler/", include("apps.crawler.urls")),
     path("", include("apps.notifications.urls")),

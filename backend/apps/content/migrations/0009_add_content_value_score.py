@@ -4,19 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0008_change_embedding_dimensions_to_768'),
+        ("content", "0008_change_embedding_dimensions_to_768"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='content_value_score',
-            field=models.FloatField(db_index=True, default=0.5, help_text='Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.'),
+            model_name="contentitem",
+            name="content_value_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.5,
+                help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
+            ),
         ),
         migrations.AddIndex(
-            model_name='contentitem',
-            index=models.Index(fields=['content_type', 'content_value_score'], name='content_con_content_3c8d6b_idx'),
+            model_name="contentitem",
+            index=models.Index(
+                fields=["content_type", "content_value_score"],
+                name="content_con_content_3c8d6b_idx",
+            ),
         ),
     ]

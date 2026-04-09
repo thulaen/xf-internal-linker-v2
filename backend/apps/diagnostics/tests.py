@@ -25,7 +25,9 @@ class HttpWorkerHealthTests(TestCase):
         HTTP_WORKER_URL="http://http-worker-api:8080",
     )
     @patch("apps.diagnostics.health.requests.get")
-    def test_check_http_worker_marks_healthy_when_worker_heartbeat_is_live(self, mock_get):
+    def test_check_http_worker_marks_healthy_when_worker_heartbeat_is_live(
+        self, mock_get
+    ):
         response = MagicMock(status_code=200)
         response.json.return_value = {
             "status": "ok",
@@ -96,7 +98,9 @@ class HttpWorkerHealthTests(TestCase):
         HTTP_WORKER_URL="http://http-worker-api:8080",
     )
     @patch("apps.diagnostics.health.requests.get")
-    def test_check_http_worker_marks_degraded_when_worker_lane_is_offline(self, mock_get):
+    def test_check_http_worker_marks_degraded_when_worker_lane_is_offline(
+        self, mock_get
+    ):
         response = MagicMock(status_code=200)
         response.json.return_value = {
             "status": "ok",
@@ -194,8 +198,13 @@ class SchedulerDispatchViewTests(TestCase):
     def setUp(self):
         self.client = APIClient()
 
-    @patch("apps.pipeline.tasks.dispatch_import_content", return_value={"job_id": "abc", "runtime_owner": "celery", "message": "queued"})
-    def test_scheduler_dispatch_accepts_import_job_with_token(self, dispatch_import_content):
+    @patch(
+        "apps.pipeline.tasks.dispatch_import_content",
+        return_value={"job_id": "abc", "runtime_owner": "celery", "message": "queued"},
+    )
+    def test_scheduler_dispatch_accepts_import_job_with_token(
+        self, dispatch_import_content
+    ):
         response = self.client.post(
             "/api/system/status/internal/scheduler/dispatch/",
             {

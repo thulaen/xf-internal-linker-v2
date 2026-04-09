@@ -6,14 +6,22 @@ from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
-from apps.suggestions.recommended_weights import recommended_bool, recommended_float, recommended_int
+from apps.suggestions.recommended_weights import (
+    recommended_bool,
+    recommended_float,
+    recommended_int,
+)
 from apps.sync.models import SyncJob
 
 
-@override_settings(WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD="")
+@override_settings(
+    WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD=""
+)
 class WordPressSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="settings-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="settings-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_wordpress_settings_round_trip_and_schedule_task(self):
@@ -34,7 +42,7 @@ class WordPressSettingsApiTests(APITestCase):
                     "issue": "",
                     "fix": "Wait for the next scheduled health check (30m) or run manually.",
                     "is_healthy": False,
-                    "last_success": None
+                    "last_success": None,
                 },
             },
             format="json",
@@ -58,12 +66,17 @@ class WordPressSettingsApiTests(APITestCase):
                     "issue": "",
                     "fix": "Wait for the next scheduled health check (30m) or run manually.",
                     "is_healthy": False,
-                    "last_success": None
+                    "last_success": None,
                 },
             },
         )
-        self.assertEqual(AppSetting.objects.get(key="wordpress.base_url").value, "https://blog.example.com")
-        self.assertEqual(AppSetting.objects.get(key="wordpress.username").value, "editor")
+        self.assertEqual(
+            AppSetting.objects.get(key="wordpress.base_url").value,
+            "https://blog.example.com",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="wordpress.username").value, "editor"
+        )
         self.assertTrue(AppSetting.objects.get(key="wordpress.app_password").is_secret)
 
         periodic_task = PeriodicTask.objects.get(name="wordpress-content-sync")
@@ -88,7 +101,7 @@ class WordPressSettingsApiTests(APITestCase):
                     "issue": "",
                     "fix": "Wait for the next scheduled health check (30m) or run manually.",
                     "is_healthy": False,
-                    "last_success": None
+                    "last_success": None,
                 },
             },
             format="json",
@@ -117,10 +130,14 @@ class WordPressSettingsApiTests(APITestCase):
         dispatch_import_mock.assert_called_once()
 
 
-@override_settings(WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD="")
+@override_settings(
+    WORDPRESS_BASE_URL="", WORDPRESS_USERNAME="", WORDPRESS_APP_PASSWORD=""
+)
 class WordPressSettingsDefaultsTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="defaults-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="defaults-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_defaults_expose_blank_public_configuration(self):
@@ -144,7 +161,7 @@ class WordPressSettingsDefaultsTests(APITestCase):
                     "issue": "",
                     "fix": "Wait for the next scheduled health check (30m) or run manually.",
                     "is_healthy": False,
-                    "last_success": None
+                    "last_success": None,
                 },
             },
         )
@@ -152,7 +169,9 @@ class WordPressSettingsDefaultsTests(APITestCase):
 
 class WeightedAuthoritySettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="weighted-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="weighted-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_weighted_authority_defaults_and_round_trip(self):
@@ -162,12 +181,22 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": recommended_float("weighted_authority.ranking_weight"),
+                "ranking_weight": recommended_float(
+                    "weighted_authority.ranking_weight"
+                ),
                 "position_bias": recommended_float("weighted_authority.position_bias"),
-                "empty_anchor_factor": recommended_float("weighted_authority.empty_anchor_factor"),
-                "bare_url_factor": recommended_float("weighted_authority.bare_url_factor"),
-                "weak_context_factor": recommended_float("weighted_authority.weak_context_factor"),
-                "isolated_context_factor": recommended_float("weighted_authority.isolated_context_factor"),
+                "empty_anchor_factor": recommended_float(
+                    "weighted_authority.empty_anchor_factor"
+                ),
+                "bare_url_factor": recommended_float(
+                    "weighted_authority.bare_url_factor"
+                ),
+                "weak_context_factor": recommended_float(
+                    "weighted_authority.weak_context_factor"
+                ),
+                "isolated_context_factor": recommended_float(
+                    "weighted_authority.isolated_context_factor"
+                ),
             },
         )
 
@@ -186,8 +215,12 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
 
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["ranking_weight"], 0.2)
-        self.assertEqual(AppSetting.objects.get(key="weighted_authority.ranking_weight").value, "0.2")
-        self.assertEqual(AppSetting.objects.get(key="weighted_authority.position_bias").value, "0.25")
+        self.assertEqual(
+            AppSetting.objects.get(key="weighted_authority.ranking_weight").value, "0.2"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="weighted_authority.position_bias").value, "0.25"
+        )
 
     def test_weighted_authority_validation_rejects_bad_bounds(self):
         response = self.client.put(
@@ -208,7 +241,9 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
 
     @patch("apps.pipeline.tasks.recalculate_weighted_authority.delay")
     def test_weighted_authority_recalculate_endpoint_returns_job(self, delay_mock):
-        response = self.client.post("/api/settings/weighted-authority/recalculate/", {}, format="json")
+        response = self.client.post(
+            "/api/settings/weighted-authority/recalculate/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 202)
         self.assertIn("job_id", response.json())
@@ -217,7 +252,9 @@ class WeightedAuthoritySettingsApiTests(APITestCase):
 
 class LinkFreshnessSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="freshness-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="freshness-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_link_freshness_defaults_and_round_trip(self):
@@ -228,8 +265,12 @@ class LinkFreshnessSettingsApiTests(APITestCase):
             default_response.json(),
             {
                 "ranking_weight": recommended_float("link_freshness.ranking_weight"),
-                "recent_window_days": recommended_int("link_freshness.recent_window_days"),
-                "newest_peer_percent": recommended_float("link_freshness.newest_peer_percent"),
+                "recent_window_days": recommended_int(
+                    "link_freshness.recent_window_days"
+                ),
+                "newest_peer_percent": recommended_float(
+                    "link_freshness.newest_peer_percent"
+                ),
                 "min_peer_count": recommended_int("link_freshness.min_peer_count"),
                 "w_recent": recommended_float("link_freshness.w_recent"),
                 "w_growth": recommended_float("link_freshness.w_growth"),
@@ -255,9 +296,16 @@ class LinkFreshnessSettingsApiTests(APITestCase):
 
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["ranking_weight"], 0.1)
-        self.assertEqual(AppSetting.objects.get(key="link_freshness.ranking_weight").value, "0.1")
-        self.assertEqual(AppSetting.objects.get(key="link_freshness.recent_window_days").value, "45")
-        self.assertEqual(AppSetting.objects.get(key="link_freshness.ranking_weight").category, "link_freshness")
+        self.assertEqual(
+            AppSetting.objects.get(key="link_freshness.ranking_weight").value, "0.1"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="link_freshness.recent_window_days").value, "45"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="link_freshness.ranking_weight").category,
+            "link_freshness",
+        )
 
     def test_link_freshness_validation_rejects_bad_weights(self):
         response = self.client.put(
@@ -280,7 +328,9 @@ class LinkFreshnessSettingsApiTests(APITestCase):
 
     @patch("apps.pipeline.tasks.recalculate_link_freshness.delay")
     def test_link_freshness_recalculate_endpoint_returns_job(self, delay_mock):
-        response = self.client.post("/api/settings/link-freshness/recalculate/", {}, format="json")
+        response = self.client.post(
+            "/api/settings/link-freshness/recalculate/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 202)
         self.assertIn("job_id", response.json())
@@ -289,7 +339,9 @@ class LinkFreshnessSettingsApiTests(APITestCase):
 
 class PhraseMatchingSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="phrase-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="phrase-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_phrase_matching_defaults_and_round_trip(self):
@@ -300,9 +352,15 @@ class PhraseMatchingSettingsApiTests(APITestCase):
             default_response.json(),
             {
                 "ranking_weight": recommended_float("phrase_matching.ranking_weight"),
-                "enable_anchor_expansion": recommended_bool("phrase_matching.enable_anchor_expansion"),
-                "enable_partial_matching": recommended_bool("phrase_matching.enable_partial_matching"),
-                "context_window_tokens": recommended_int("phrase_matching.context_window_tokens"),
+                "enable_anchor_expansion": recommended_bool(
+                    "phrase_matching.enable_anchor_expansion"
+                ),
+                "enable_partial_matching": recommended_bool(
+                    "phrase_matching.enable_partial_matching"
+                ),
+                "context_window_tokens": recommended_int(
+                    "phrase_matching.context_window_tokens"
+                ),
             },
         )
 
@@ -320,9 +378,17 @@ class PhraseMatchingSettingsApiTests(APITestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["ranking_weight"], 0.05)
         self.assertFalse(update_response.json()["enable_anchor_expansion"])
-        self.assertEqual(AppSetting.objects.get(key="phrase_matching.ranking_weight").value, "0.05")
-        self.assertEqual(AppSetting.objects.get(key="phrase_matching.context_window_tokens").value, "10")
-        self.assertEqual(AppSetting.objects.get(key="phrase_matching.ranking_weight").category, "anchor")
+        self.assertEqual(
+            AppSetting.objects.get(key="phrase_matching.ranking_weight").value, "0.05"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="phrase_matching.context_window_tokens").value,
+            "10",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="phrase_matching.ranking_weight").category,
+            "anchor",
+        )
 
     def test_phrase_matching_validation_rejects_bad_bounds(self):
         response = self.client.put(
@@ -342,7 +408,9 @@ class PhraseMatchingSettingsApiTests(APITestCase):
 
 class LearnedAnchorSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="learned-anchor-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="learned-anchor-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_learned_anchor_defaults_and_round_trip(self):
@@ -353,9 +421,15 @@ class LearnedAnchorSettingsApiTests(APITestCase):
             default_response.json(),
             {
                 "ranking_weight": recommended_float("learned_anchor.ranking_weight"),
-                "minimum_anchor_sources": recommended_int("learned_anchor.minimum_anchor_sources"),
-                "minimum_family_support_share": recommended_float("learned_anchor.minimum_family_support_share"),
-                "enable_noise_filter": recommended_bool("learned_anchor.enable_noise_filter"),
+                "minimum_anchor_sources": recommended_int(
+                    "learned_anchor.minimum_anchor_sources"
+                ),
+                "minimum_family_support_share": recommended_float(
+                    "learned_anchor.minimum_family_support_share"
+                ),
+                "enable_noise_filter": recommended_bool(
+                    "learned_anchor.enable_noise_filter"
+                ),
             },
         )
 
@@ -372,9 +446,17 @@ class LearnedAnchorSettingsApiTests(APITestCase):
 
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["ranking_weight"], 0.04)
-        self.assertEqual(AppSetting.objects.get(key="learned_anchor.ranking_weight").value, "0.04")
-        self.assertEqual(AppSetting.objects.get(key="learned_anchor.minimum_anchor_sources").value, "3")
-        self.assertEqual(AppSetting.objects.get(key="learned_anchor.ranking_weight").category, "anchor")
+        self.assertEqual(
+            AppSetting.objects.get(key="learned_anchor.ranking_weight").value, "0.04"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="learned_anchor.minimum_anchor_sources").value,
+            "3",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="learned_anchor.ranking_weight").category,
+            "anchor",
+        )
 
     def test_learned_anchor_validation_rejects_bad_bounds(self):
         response = self.client.put(
@@ -394,7 +476,9 @@ class LearnedAnchorSettingsApiTests(APITestCase):
 
 class RareTermPropagationSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="rare-term-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="rare-term-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_rare_term_propagation_defaults_and_round_trip(self):
@@ -405,9 +489,15 @@ class RareTermPropagationSettingsApiTests(APITestCase):
             default_response.json(),
             {
                 "enabled": recommended_bool("rare_term_propagation.enabled"),
-                "ranking_weight": recommended_float("rare_term_propagation.ranking_weight"),
-                "max_document_frequency": recommended_int("rare_term_propagation.max_document_frequency"),
-                "minimum_supporting_related_pages": recommended_int("rare_term_propagation.minimum_supporting_related_pages"),
+                "ranking_weight": recommended_float(
+                    "rare_term_propagation.ranking_weight"
+                ),
+                "max_document_frequency": recommended_int(
+                    "rare_term_propagation.max_document_frequency"
+                ),
+                "minimum_supporting_related_pages": recommended_int(
+                    "rare_term_propagation.minimum_supporting_related_pages"
+                ),
             },
         )
 
@@ -425,13 +515,25 @@ class RareTermPropagationSettingsApiTests(APITestCase):
         self.assertEqual(update_response.status_code, 200)
         self.assertFalse(update_response.json()["enabled"])
         self.assertEqual(update_response.json()["ranking_weight"], 0.04)
-        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.enabled").value, "false")
-        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.max_document_frequency").value, "5")
         self.assertEqual(
-            AppSetting.objects.get(key="rare_term_propagation.minimum_supporting_related_pages").value,
+            AppSetting.objects.get(key="rare_term_propagation.enabled").value, "false"
+        )
+        self.assertEqual(
+            AppSetting.objects.get(
+                key="rare_term_propagation.max_document_frequency"
+            ).value,
+            "5",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(
+                key="rare_term_propagation.minimum_supporting_related_pages"
+            ).value,
             "3",
         )
-        self.assertEqual(AppSetting.objects.get(key="rare_term_propagation.ranking_weight").category, "ml")
+        self.assertEqual(
+            AppSetting.objects.get(key="rare_term_propagation.ranking_weight").category,
+            "ml",
+        )
 
     def test_rare_term_propagation_validation_rejects_bad_bounds(self):
         response = self.client.put(
@@ -451,7 +553,9 @@ class RareTermPropagationSettingsApiTests(APITestCase):
 
 class FieldAwareRelevanceSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="field-aware-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="field-aware-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_field_aware_relevance_defaults_and_round_trip(self):
@@ -461,11 +565,21 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
         self.assertEqual(
             default_response.json(),
             {
-                "ranking_weight": recommended_float("field_aware_relevance.ranking_weight"),
-                "title_field_weight": recommended_float("field_aware_relevance.title_field_weight"),
-                "body_field_weight": recommended_float("field_aware_relevance.body_field_weight"),
-                "scope_field_weight": recommended_float("field_aware_relevance.scope_field_weight"),
-                "learned_anchor_field_weight": recommended_float("field_aware_relevance.learned_anchor_field_weight"),
+                "ranking_weight": recommended_float(
+                    "field_aware_relevance.ranking_weight"
+                ),
+                "title_field_weight": recommended_float(
+                    "field_aware_relevance.title_field_weight"
+                ),
+                "body_field_weight": recommended_float(
+                    "field_aware_relevance.body_field_weight"
+                ),
+                "scope_field_weight": recommended_float(
+                    "field_aware_relevance.scope_field_weight"
+                ),
+                "learned_anchor_field_weight": recommended_float(
+                    "field_aware_relevance.learned_anchor_field_weight"
+                ),
             },
         )
 
@@ -483,9 +597,18 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
 
         self.assertEqual(update_response.status_code, 200)
         self.assertEqual(update_response.json()["ranking_weight"], 0.05)
-        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.ranking_weight").value, "0.05")
-        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.body_field_weight").value, "0.35")
-        self.assertEqual(AppSetting.objects.get(key="field_aware_relevance.ranking_weight").category, "ml")
+        self.assertEqual(
+            AppSetting.objects.get(key="field_aware_relevance.ranking_weight").value,
+            "0.05",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="field_aware_relevance.body_field_weight").value,
+            "0.35",
+        )
+        self.assertEqual(
+            AppSetting.objects.get(key="field_aware_relevance.ranking_weight").category,
+            "ml",
+        )
 
     def test_field_aware_relevance_validation_rejects_bad_weights(self):
         response = self.client.put(
@@ -521,14 +644,19 @@ class FieldAwareRelevanceSettingsApiTests(APITestCase):
 
 class GA4GSCSettingsApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="ga4-gsc-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="ga4-gsc-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_ga4_gsc_defaults_and_round_trip(self):
         default_response = self.client.get("/api/settings/ga4-gsc/")
 
         self.assertEqual(default_response.status_code, 200)
-        self.assertEqual(default_response.json()["ranking_weight"], recommended_float("ga4_gsc.ranking_weight"))
+        self.assertEqual(
+            default_response.json()["ranking_weight"],
+            recommended_float("ga4_gsc.ranking_weight"),
+        )
         self.assertEqual(default_response.json()["property_url"], "")
         self.assertFalse(default_response.json()["private_key_configured"])
 
@@ -548,11 +676,17 @@ class GA4GSCSettingsApiTests(APITestCase):
         self.assertEqual(update_response.status_code, 200)
         payload = update_response.json()
         self.assertEqual(payload["property_url"], "https://example.com")
-        self.assertEqual(payload["service_account_email"], "search-console@example.iam.gserviceaccount.com")
+        self.assertEqual(
+            payload["service_account_email"],
+            "search-console@example.iam.gserviceaccount.com",
+        )
         self.assertTrue(payload["private_key_configured"])
         self.assertTrue(payload["sync_enabled"])
         self.assertEqual(payload["sync_lookback_days"], 14)
-        self.assertEqual(AppSetting.objects.get(key="ga4_gsc.property_url").value, "https://example.com")
+        self.assertEqual(
+            AppSetting.objects.get(key="ga4_gsc.property_url").value,
+            "https://example.com",
+        )
         self.assertTrue(AppSetting.objects.get(key="ga4_gsc.private_key").is_secret)
 
     def test_ga4_gsc_validation_rejects_bad_values(self):
@@ -604,19 +738,22 @@ class GA4GSCSettingsApiTests(APITestCase):
             "siteEntry": [{"siteUrl": "https://example.com"}]
         }
 
-        response = self.client.post("/api/settings/ga4-gsc/test-connection/", {}, format="json")
+        response = self.client.post(
+            "/api/settings/ga4-gsc/test-connection/", {}, format="json"
+        )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "connected")
         build_service_mock.assert_called_once()
 
 
-
 class ValueModelEngagementSettingsTests(APITestCase):
     """FR-024: tests for the engagement signal fields added to /api/settings/value-model/."""
 
     def setUp(self):
-        user = get_user_model().objects.create_user(username="engagement-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="engagement-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     def test_get_returns_all_14_keys(self):
@@ -624,12 +761,26 @@ class ValueModelEngagementSettingsTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         data = response.json()
         # Original 8 keys
-        for key in ("enabled", "w_relevance", "w_traffic", "w_freshness",
-                    "w_authority", "w_penalty", "traffic_lookback_days", "traffic_fallback_value"):
+        for key in (
+            "enabled",
+            "w_relevance",
+            "w_traffic",
+            "w_freshness",
+            "w_authority",
+            "w_penalty",
+            "traffic_lookback_days",
+            "traffic_fallback_value",
+        ):
             self.assertIn(key, data, msg=f"Missing original key: {key}")
         # FR-024 engagement keys
-        for key in ("engagement_signal_enabled", "w_engagement", "engagement_lookback_days",
-                    "engagement_words_per_minute", "engagement_cap_ratio", "engagement_fallback_value"):
+        for key in (
+            "engagement_signal_enabled",
+            "w_engagement",
+            "engagement_lookback_days",
+            "engagement_words_per_minute",
+            "engagement_cap_ratio",
+            "engagement_fallback_value",
+        ):
             self.assertIn(key, data, msg=f"Missing engagement key: {key}")
 
     def test_get_returns_correct_engagement_defaults(self):
@@ -660,7 +811,9 @@ class ValueModelEngagementSettingsTests(APITestCase):
             "engagement_cap_ratio": 2.0,
             "engagement_fallback_value": 0.4,
         }
-        put_response = self.client.put("/api/settings/value-model/", payload, format="json")
+        put_response = self.client.put(
+            "/api/settings/value-model/", payload, format="json"
+        )
         self.assertEqual(put_response.status_code, 200)
 
         get_response = self.client.get("/api/settings/value-model/")
@@ -674,13 +827,20 @@ class ValueModelEngagementSettingsTests(APITestCase):
 
     def test_put_clamps_w_engagement_to_zero_one(self):
         payload = {
-            "enabled": True, "w_relevance": 0.4, "w_traffic": 0.3,
-            "w_freshness": 0.1, "w_authority": 0.1, "w_penalty": 0.5,
-            "traffic_lookback_days": 90, "traffic_fallback_value": 0.5,
+            "enabled": True,
+            "w_relevance": 0.4,
+            "w_traffic": 0.3,
+            "w_freshness": 0.1,
+            "w_authority": 0.1,
+            "w_penalty": 0.5,
+            "traffic_lookback_days": 90,
+            "traffic_fallback_value": 0.5,
             "engagement_signal_enabled": True,
             "w_engagement": 99.9,  # out of range
-            "engagement_lookback_days": 30, "engagement_words_per_minute": 200,
-            "engagement_cap_ratio": 1.5, "engagement_fallback_value": 0.5,
+            "engagement_lookback_days": 30,
+            "engagement_words_per_minute": 200,
+            "engagement_cap_ratio": 1.5,
+            "engagement_fallback_value": 0.5,
         }
         response = self.client.put("/api/settings/value-model/", payload, format="json")
         self.assertEqual(response.status_code, 200)
@@ -688,13 +848,20 @@ class ValueModelEngagementSettingsTests(APITestCase):
 
     def test_put_clamps_engagement_lookback_days(self):
         payload = {
-            "enabled": True, "w_relevance": 0.4, "w_traffic": 0.3,
-            "w_freshness": 0.1, "w_authority": 0.1, "w_penalty": 0.5,
-            "traffic_lookback_days": 90, "traffic_fallback_value": 0.5,
-            "engagement_signal_enabled": True, "w_engagement": 0.1,
+            "enabled": True,
+            "w_relevance": 0.4,
+            "w_traffic": 0.3,
+            "w_freshness": 0.1,
+            "w_authority": 0.1,
+            "w_penalty": 0.5,
+            "traffic_lookback_days": 90,
+            "traffic_fallback_value": 0.5,
+            "engagement_signal_enabled": True,
+            "w_engagement": 0.1,
             "engagement_lookback_days": -5,  # below minimum
             "engagement_words_per_minute": 200,
-            "engagement_cap_ratio": 1.5, "engagement_fallback_value": 0.5,
+            "engagement_cap_ratio": 1.5,
+            "engagement_fallback_value": 0.5,
         }
         response = self.client.put("/api/settings/value-model/", payload, format="json")
         self.assertEqual(response.status_code, 200)

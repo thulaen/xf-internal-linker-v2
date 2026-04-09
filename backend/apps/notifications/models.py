@@ -217,7 +217,9 @@ class AlertDeliveryAttempt(models.Model):
     )
     channel = models.CharField(max_length=20, choices=CHANNEL_CHOICES, db_index=True)
     result = models.CharField(max_length=20, choices=RESULT_CHOICES, db_index=True)
-    reason = models.TextField(blank=True, help_text="Why the delivery was skipped, blocked, or failed.")
+    reason = models.TextField(
+        blank=True, help_text="Why the delivery was skipped, blocked, or failed."
+    )
     attempted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

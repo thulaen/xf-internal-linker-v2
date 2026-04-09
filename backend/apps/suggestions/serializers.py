@@ -7,9 +7,18 @@ The SuggestionReviewSerializer supports partial updates for approve/reject actio
 
 from rest_framework import serializers
 
-from apps.pipeline.services.link_freshness import get_destination_link_freshness_diagnostics
+from apps.pipeline.services.link_freshness import (
+    get_destination_link_freshness_diagnostics,
+)
 
-from .models import PipelineDiagnostic, PipelineRun, RankingChallenger, Suggestion, WeightAdjustmentHistory, WeightPreset
+from .models import (
+    PipelineDiagnostic,
+    PipelineRun,
+    RankingChallenger,
+    Suggestion,
+    WeightAdjustmentHistory,
+    WeightPreset,
+)
 from .telemetry_markup import build_suggestion_telemetry_payload
 
 
@@ -21,14 +30,23 @@ class WeightPresetSerializer(serializers.ModelSerializer):
 
 
 class WeightAdjustmentHistorySerializer(serializers.ModelSerializer):
-    preset_name = serializers.CharField(source="preset.name", read_only=True, allow_null=True)
+    preset_name = serializers.CharField(
+        source="preset.name", read_only=True, allow_null=True
+    )
 
     class Meta:
         model = WeightAdjustmentHistory
         fields = [
-            "id", "source", "preset", "preset_name",
-            "previous_weights", "new_weights", "delta",
-            "reason", "r_run_id", "created_at",
+            "id",
+            "source",
+            "preset",
+            "preset_name",
+            "previous_weights",
+            "new_weights",
+            "delta",
+            "reason",
+            "r_run_id",
+            "created_at",
         ]
         read_only_fields = fields
 
@@ -41,18 +59,34 @@ class PipelineRunSerializer(serializers.ModelSerializer):
     class Meta:
         model = PipelineRun
         fields = [
-            "run_id", "rerun_mode", "run_state",
-            "suggestions_created", "destinations_processed", "destinations_skipped",
-            "duration_seconds", "duration_display",
-            "error_message", "celery_task_id",
-            "host_scope", "destination_scope", "config_snapshot",
-            "created_at", "updated_at",
+            "run_id",
+            "rerun_mode",
+            "run_state",
+            "suggestions_created",
+            "destinations_processed",
+            "destinations_skipped",
+            "duration_seconds",
+            "duration_display",
+            "error_message",
+            "celery_task_id",
+            "host_scope",
+            "destination_scope",
+            "config_snapshot",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "run_id", "run_state", "suggestions_created",
-            "destinations_processed", "destinations_skipped",
-            "duration_seconds", "celery_task_id", "error_message", "config_snapshot",
-            "created_at", "updated_at",
+            "run_id",
+            "run_state",
+            "suggestions_created",
+            "destinations_processed",
+            "destinations_skipped",
+            "duration_seconds",
+            "celery_task_id",
+            "error_message",
+            "config_snapshot",
+            "created_at",
+            "updated_at",
         ]
 
     def get_duration_display(self, obj: PipelineRun) -> str | None:
@@ -88,50 +122,95 @@ class _SuggestionSerializerMixin:
 class SuggestionListSerializer(_SuggestionSerializerMixin, serializers.ModelSerializer):
     """Lightweight serializer for paginated suggestion list views."""
 
-    destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
+    destination_url = serializers.CharField(
+        source="destination.url", read_only=True, default=""
+    )
     host_title = serializers.CharField(source="host.title", read_only=True, default="")
-    destination_content_type = serializers.CharField(source="destination.content_type", read_only=True, default="")
+    destination_content_type = serializers.CharField(
+        source="destination.content_type", read_only=True, default=""
+    )
     destination_source_label = serializers.SerializerMethodField()
-    host_content_type = serializers.CharField(source="host.content_type", read_only=True, default="")
+    host_content_type = serializers.CharField(
+        source="host.content_type", read_only=True, default=""
+    )
     host_source_label = serializers.SerializerMethodField()
-    destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
-    destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
-    host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
-    host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
+    destination_silo_group = serializers.IntegerField(
+        source="destination.scope.silo_group_id", read_only=True, allow_null=True
+    )
+    destination_silo_group_name = serializers.CharField(
+        source="destination.scope.silo_group.name", read_only=True, default=""
+    )
+    host_silo_group = serializers.IntegerField(
+        source="host.scope.silo_group_id", read_only=True, allow_null=True
+    )
+    host_silo_group_name = serializers.CharField(
+        source="host.scope.silo_group.name", read_only=True, default=""
+    )
     same_silo = serializers.SerializerMethodField()
 
     class Meta:
         model = Suggestion
         fields = [
-            "suggestion_id", "status", "score_final",
-            "destination", "destination_title", "destination_url",
-            "destination_content_type", "destination_source_label",
-            "destination_silo_group", "destination_silo_group_name",
-            "host", "host_title", "host_sentence_text",
-            "host_content_type", "host_source_label",
-            "host_silo_group", "host_silo_group_name", "same_silo",
-            "anchor_phrase", "anchor_confidence", "anchor_edited",
+            "suggestion_id",
+            "status",
+            "score_final",
+            "destination",
+            "destination_title",
+            "destination_url",
+            "destination_content_type",
+            "destination_source_label",
+            "destination_silo_group",
+            "destination_silo_group_name",
+            "host",
+            "host_title",
+            "host_sentence_text",
+            "host_content_type",
+            "host_source_label",
+            "host_silo_group",
+            "host_silo_group_name",
+            "same_silo",
+            "anchor_phrase",
+            "anchor_confidence",
+            "anchor_edited",
             "repeated_anchor",
             "candidate_origin",
-            "rejection_reason", "reviewed_at", "is_applied",
+            "rejection_reason",
+            "reviewed_at",
+            "is_applied",
             "created_at",
         ]
         read_only_fields = fields
 
 
-class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSerializer):
+class SuggestionDetailSerializer(
+    _SuggestionSerializerMixin, serializers.ModelSerializer
+):
     """Full serializer for the suggestion review detail view."""
 
-    destination_url = serializers.CharField(source="destination.url", read_only=True, default="")
-    destination_content_type = serializers.CharField(source="destination.content_type", read_only=True, default="")
+    destination_url = serializers.CharField(
+        source="destination.url", read_only=True, default=""
+    )
+    destination_content_type = serializers.CharField(
+        source="destination.content_type", read_only=True, default=""
+    )
     destination_source_label = serializers.SerializerMethodField()
     host_title = serializers.CharField(source="host.title", read_only=True, default="")
-    host_content_type = serializers.CharField(source="host.content_type", read_only=True, default="")
+    host_content_type = serializers.CharField(
+        source="host.content_type", read_only=True, default=""
+    )
     host_source_label = serializers.SerializerMethodField()
-    destination_silo_group = serializers.IntegerField(source="destination.scope.silo_group_id", read_only=True, allow_null=True)
-    destination_silo_group_name = serializers.CharField(source="destination.scope.silo_group.name", read_only=True, default="")
-    host_silo_group = serializers.IntegerField(source="host.scope.silo_group_id", read_only=True, allow_null=True)
-    host_silo_group_name = serializers.CharField(source="host.scope.silo_group.name", read_only=True, default="")
+    destination_silo_group = serializers.IntegerField(
+        source="destination.scope.silo_group_id", read_only=True, allow_null=True
+    )
+    destination_silo_group_name = serializers.CharField(
+        source="destination.scope.silo_group.name", read_only=True, default=""
+    )
+    host_silo_group = serializers.IntegerField(
+        source="host.scope.silo_group_id", read_only=True, allow_null=True
+    )
+    host_silo_group_name = serializers.CharField(
+        source="host.scope.silo_group.name", read_only=True, default=""
+    )
     same_silo = serializers.SerializerMethodField()
     link_freshness_diagnostics = serializers.SerializerMethodField()
     telemetry_instrumentation = serializers.SerializerMethodField()
@@ -139,60 +218,136 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
     class Meta:
         model = Suggestion
         fields = [
-            "suggestion_id", "pipeline_run",
-            "status", "score_final",
-            "score_semantic", "score_keyword", "score_node_affinity",
-            "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
-            "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
-            "score_field_aware_relevance", "score_click_distance", "score_explore_exploit",
-            "score_cluster_suppression", "score_slate_diversity",
-            "destination", "destination_title", "destination_url",
-            "destination_content_type", "destination_source_label",
-            "destination_silo_group", "destination_silo_group_name",
-            "host", "host_title", "host_sentence", "host_sentence_text",
-            "host_content_type", "host_source_label",
-            "host_silo_group", "host_silo_group_name", "same_silo",
-            "anchor_phrase", "anchor_start", "anchor_end",
-            "anchor_confidence", "anchor_edited", "repeated_anchor",
-            "rejection_reason", "reviewer_notes", "reviewed_at",
-            "is_applied", "applied_at", "verified_at", "stale_reason",
-            "superseded_by", "superseded_at",
-            "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
-            "field_aware_diagnostics", "click_distance_diagnostics",
-            "explore_exploit_diagnostics", "cluster_diagnostics",
+            "suggestion_id",
+            "pipeline_run",
+            "status",
+            "score_final",
+            "score_semantic",
+            "score_keyword",
+            "score_node_affinity",
+            "score_quality",
+            "score_march_2026_pagerank",
+            "score_velocity",
+            "score_link_freshness",
+            "score_ga4_gsc",
+            "score_phrase_relevance",
+            "score_learned_anchor_corroboration",
+            "score_rare_term_propagation",
+            "score_field_aware_relevance",
+            "score_click_distance",
+            "score_explore_exploit",
+            "score_cluster_suppression",
+            "score_slate_diversity",
+            "destination",
+            "destination_title",
+            "destination_url",
+            "destination_content_type",
+            "destination_source_label",
+            "destination_silo_group",
+            "destination_silo_group_name",
+            "host",
+            "host_title",
+            "host_sentence",
+            "host_sentence_text",
+            "host_content_type",
+            "host_source_label",
+            "host_silo_group",
+            "host_silo_group_name",
+            "same_silo",
+            "anchor_phrase",
+            "anchor_start",
+            "anchor_end",
+            "anchor_confidence",
+            "anchor_edited",
+            "repeated_anchor",
+            "rejection_reason",
+            "reviewer_notes",
+            "reviewed_at",
+            "is_applied",
+            "applied_at",
+            "verified_at",
+            "stale_reason",
+            "superseded_by",
+            "superseded_at",
+            "phrase_match_diagnostics",
+            "learned_anchor_diagnostics",
+            "rare_term_diagnostics",
+            "field_aware_diagnostics",
+            "click_distance_diagnostics",
+            "explore_exploit_diagnostics",
+            "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
-            "candidate_origin", "score_value_model", "value_model_diagnostics",
+            "candidate_origin",
+            "score_value_model",
+            "value_model_diagnostics",
             "graph_walk_diagnostics",
             "telemetry_instrumentation",
-            "created_at", "updated_at",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = [
-            "suggestion_id", "pipeline_run",
-            "score_final", "score_semantic", "score_keyword",
-            "score_node_affinity", "score_quality", "score_march_2026_pagerank", "score_velocity", "score_link_freshness", "score_ga4_gsc",
-            "score_phrase_relevance", "score_learned_anchor_corroboration", "score_rare_term_propagation",
-            "score_field_aware_relevance", "score_click_distance", "score_explore_exploit",
-            "score_cluster_suppression", "score_slate_diversity",
-            "destination", "destination_title", "destination_url",
-            "destination_content_type", "destination_source_label",
-            "destination_silo_group", "destination_silo_group_name",
-            "host", "host_title", "host_sentence", "host_sentence_text",
-            "host_content_type", "host_source_label",
-            "host_silo_group", "host_silo_group_name", "same_silo",
-            "anchor_phrase", "anchor_start", "anchor_end", "anchor_confidence",
+            "suggestion_id",
+            "pipeline_run",
+            "score_final",
+            "score_semantic",
+            "score_keyword",
+            "score_node_affinity",
+            "score_quality",
+            "score_march_2026_pagerank",
+            "score_velocity",
+            "score_link_freshness",
+            "score_ga4_gsc",
+            "score_phrase_relevance",
+            "score_learned_anchor_corroboration",
+            "score_rare_term_propagation",
+            "score_field_aware_relevance",
+            "score_click_distance",
+            "score_explore_exploit",
+            "score_cluster_suppression",
+            "score_slate_diversity",
+            "destination",
+            "destination_title",
+            "destination_url",
+            "destination_content_type",
+            "destination_source_label",
+            "destination_silo_group",
+            "destination_silo_group_name",
+            "host",
+            "host_title",
+            "host_sentence",
+            "host_sentence_text",
+            "host_content_type",
+            "host_source_label",
+            "host_silo_group",
+            "host_silo_group_name",
+            "same_silo",
+            "anchor_phrase",
+            "anchor_start",
+            "anchor_end",
+            "anchor_confidence",
             "repeated_anchor",
-            "applied_at", "verified_at", "stale_reason",
-            "superseded_by", "superseded_at",
-            "phrase_match_diagnostics", "learned_anchor_diagnostics", "rare_term_diagnostics",
-            "field_aware_diagnostics", "click_distance_diagnostics",
-            "explore_exploit_diagnostics", "cluster_diagnostics",
+            "applied_at",
+            "verified_at",
+            "stale_reason",
+            "superseded_by",
+            "superseded_at",
+            "phrase_match_diagnostics",
+            "learned_anchor_diagnostics",
+            "rare_term_diagnostics",
+            "field_aware_diagnostics",
+            "click_distance_diagnostics",
+            "explore_exploit_diagnostics",
+            "cluster_diagnostics",
             "slate_diversity_diagnostics",
             "link_freshness_diagnostics",
-            "candidate_origin", "score_value_model", "value_model_diagnostics",
+            "candidate_origin",
+            "score_value_model",
+            "value_model_diagnostics",
             "graph_walk_diagnostics",
             "telemetry_instrumentation",
-            "created_at", "updated_at",
+            "created_at",
+            "updated_at",
         ]
 
     def get_link_freshness_diagnostics(self, obj: Suggestion) -> dict[str, object]:
@@ -200,6 +355,7 @@ class SuggestionDetailSerializer(_SuggestionSerializerMixin, serializers.ModelSe
 
     def get_telemetry_instrumentation(self, obj: Suggestion) -> dict[str, object]:
         return build_suggestion_telemetry_payload(obj)
+
 
 class SuggestionReviewSerializer(serializers.ModelSerializer):
     """
@@ -223,8 +379,12 @@ class SuggestionReviewSerializer(serializers.ModelSerializer):
     class Meta:
         model = Suggestion
         fields = [
-            "suggestion_id", "status", "anchor_edited",
-            "rejection_reason", "reviewer_notes", "is_applied",
+            "suggestion_id",
+            "status",
+            "anchor_edited",
+            "rejection_reason",
+            "reviewer_notes",
+            "is_applied",
         ]
         read_only_fields = ["suggestion_id"]
 
@@ -245,13 +405,20 @@ class SuggestionReviewSerializer(serializers.ModelSerializer):
 class PipelineDiagnosticSerializer(serializers.ModelSerializer):
     """Serializes pipeline skip diagnostics for the why-no-suggestion explorer."""
 
-    destination_title = serializers.CharField(source="destination.title", read_only=True)
+    destination_title = serializers.CharField(
+        source="destination.title", read_only=True
+    )
 
     class Meta:
         model = PipelineDiagnostic
         fields = [
-            "id", "pipeline_run", "destination", "destination_title",
-            "skip_reason", "detail", "created_at",
+            "id",
+            "pipeline_run",
+            "destination",
+            "destination_title",
+            "skip_reason",
+            "detail",
+            "created_at",
         ]
         read_only_fields = fields
 
@@ -260,10 +427,15 @@ class RankingChallengerSerializer(serializers.ModelSerializer):
     class Meta:
         model = RankingChallenger
         fields = [
-            "id", "run_id", "status",
-            "candidate_weights", "baseline_weights",
-            "predicted_quality_score", "champion_quality_score",
-            "created_at", "updated_at",
+            "id",
+            "run_id",
+            "status",
+            "candidate_weights",
+            "baseline_weights",
+            "predicted_quality_score",
+            "champion_quality_score",
+            "created_at",
+            "updated_at",
         ]
         read_only_fields = fields
 

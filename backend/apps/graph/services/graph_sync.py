@@ -84,8 +84,7 @@ def _sync_existing_links_py(
     tracked_at = tracked_at or timezone.now()
     with transaction.atomic():
         existing_qs = (
-            ExistingLink.objects
-            .filter(from_content_item=content_item)
+            ExistingLink.objects.filter(from_content_item=content_item)
             .select_related("to_content_item")
             .order_by("pk")
         )
@@ -93,7 +92,10 @@ def _sync_existing_links_py(
         current_map: dict[tuple[int, str], list[ExistingLink]] = defaultdict(list)
         for existing_link in existing_qs:
             current_map[
-                (existing_link.to_content_item.content_id, existing_link.to_content_item.content_type)
+                (
+                    existing_link.to_content_item.content_id,
+                    existing_link.to_content_item.content_type,
+                )
             ].append(existing_link)
 
         destination_ids_by_type: dict[str, set[int]] = defaultdict(set)
@@ -106,7 +108,9 @@ def _sync_existing_links_py(
                 content_type=content_type,
                 content_id__in=content_ids,
             ):
-                destination_map[(destination.content_id, destination.content_type)] = destination
+                destination_map[(destination.content_id, destination.content_type)] = (
+                    destination
+                )
 
         target_keys: set[tuple[int, str]] = set()
         new_links: list[ExistingLink] = []
@@ -140,15 +144,17 @@ def _sync_existing_links_py(
             to_item = destination_map.get(key)
             if to_item is None:
                 continue
-            new_links.append(ExistingLink(
-                from_content_item=content_item,
-                to_content_item=to_item,
-                anchor_text=edge.anchor_text,
-                extraction_method=edge.extraction_method,
-                link_ordinal=edge.link_ordinal,
-                source_internal_link_count=edge.source_internal_link_count,
-                context_class=edge.context_class,
-            ))
+            new_links.append(
+                ExistingLink(
+                    from_content_item=content_item,
+                    to_content_item=to_item,
+                    anchor_text=edge.anchor_text,
+                    extraction_method=edge.extraction_method,
+                    link_ordinal=edge.link_ordinal,
+                    source_internal_link_count=edge.source_internal_link_count,
+                    context_class=edge.context_class,
+                )
+            )
 
         if new_links:
             ExistingLink.objects.bulk_create(new_links)
@@ -196,8 +202,7 @@ def refresh_existing_links(*, tracked_at=None) -> int:
 def _refresh_existing_links_py(*, tracked_at=None) -> int:
     """Rebuild existing-link edges for all indexed content with stored bodies."""
     content_items = (
-        ContentItem.objects
-        .select_related("post")
+        ContentItem.objects.select_related("post")
         .filter(is_deleted=False, post__raw_bbcode__gt="")
         .order_by("pk")
     )
@@ -252,8 +257,7 @@ def _sync_link_freshness_edges(
     tracked_at,
 ) -> None:
     history_qs = (
-        LinkFreshnessEdge.objects
-        .filter(from_content_item=content_item)
+        LinkFreshnessEdge.objects.filter(from_content_item=content_item)
         .select_related("to_content_item")
         .order_by("pk")
     )

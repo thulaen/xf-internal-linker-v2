@@ -17,6 +17,7 @@ from scipy.sparse import coo_matrix, csr_matrix
 
 try:
     from extensions import pagerank as pagerank_ext
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
@@ -61,8 +62,7 @@ def load_weighted_graph(
     from apps.graph.models import ExistingLink
 
     node_qs = (
-        ContentItem.objects
-        .filter(is_deleted=False)
+        ContentItem.objects.filter(is_deleted=False)
         .order_by("pk", "content_type")
         .values_list("pk", "content_type")
     )
@@ -152,7 +152,9 @@ def load_weighted_graph(
             continue
 
         dangling_mask[source_index] = False
-        probabilities, used_fallback = _normalize_source_edges(source_edges, weights_config)
+        probabilities, used_fallback = _normalize_source_edges(
+            source_edges, weights_config
+        )
         if used_fallback:
             fallback_row_count += 1
 
@@ -174,7 +176,10 @@ def load_weighted_graph(
     adjacency_matrix = coo_matrix(
         (
             np.asarray(weights, dtype=np.float64),
-            (np.asarray(row_indices, dtype=np.int32), np.asarray(col_indices, dtype=np.int32)),
+            (
+                np.asarray(row_indices, dtype=np.int32),
+                np.asarray(col_indices, dtype=np.int32),
+            ),
         ),
         shape=(node_count, node_count),
         dtype=np.float64,
@@ -290,7 +295,9 @@ def persist_weighted_pagerank(scores: dict[NodeKey, float]) -> int:
             march_2026_pagerank_score=0.0
         )
 
-    logger.info("March 2026 PageRank persisted: %d items updated.", len(items_to_update))
+    logger.info(
+        "March 2026 PageRank persisted: %d items updated.", len(items_to_update)
+    )
     return len(items_to_update)
 
 
@@ -312,7 +319,9 @@ def _pagerank_step_py(
             row_total += float(data[idx]) * float(ranks[indices[idx]])
         link_mass[row] = row_total
 
-    dangling_mass = float(ranks[dangling_mask].sum()) if int(dangling_mask.sum()) else 0.0
+    dangling_mass = (
+        float(ranks[dangling_mask].sum()) if int(dangling_mask.sum()) else 0.0
+    )
     next_ranks = (1.0 - damping) * link_mass
     next_ranks += ((1.0 - damping) * dangling_mass + damping) / node_count
     next_ranks /= float(next_ranks.sum())
@@ -384,11 +393,7 @@ def _raw_edge_score(edge: _WeightedEdge, settings_map: Mapping[str, float]) -> f
 
     position_factor = 1.0
     link_count = edge.source_internal_link_count
-    if (
-        edge.link_ordinal is not None
-        and link_count is not None
-        and link_count > 1
-    ):
+    if edge.link_ordinal is not None and link_count is not None and link_count > 1:
         position_ratio = edge.link_ordinal / (link_count - 1)
         position_factor = 1.0 - (float(settings_map["position_bias"]) * position_ratio)
 

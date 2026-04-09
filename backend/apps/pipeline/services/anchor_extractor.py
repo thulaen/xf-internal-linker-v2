@@ -49,13 +49,15 @@ def extract_anchor(
             continue
 
         for host_start_idx in range(0, len(host_norms) - window_size + 1):
-            host_ngram = tuple(host_norms[host_start_idx:host_start_idx + window_size])
+            host_ngram = tuple(
+                host_norms[host_start_idx : host_start_idx + window_size]
+            )
             if host_ngram not in title_ngrams:
                 continue
 
             first_token = host_tokens[host_start_idx]
             last_token = host_tokens[host_start_idx + window_size - 1]
-            phrase = host_sentence_text[first_token.start:last_token.end]
+            phrase = host_sentence_text[first_token.start : last_token.end]
             confidence = _confidence_for_match(host_ngram)
             if confidence == "none":
                 continue
@@ -94,14 +96,10 @@ def _build_title_ngram_set(
         return set()
 
     if window_size == 1:
-        return {
-            (token,)
-            for token in title_norms
-            if len(token) >= 5
-        }
+        return {(token,) for token in title_norms if len(token) >= 5}
 
     return {
-        tuple(title_norms[start_idx:start_idx + window_size])
+        tuple(title_norms[start_idx : start_idx + window_size])
         for start_idx in range(0, len(title_norms) - window_size + 1)
     }
 

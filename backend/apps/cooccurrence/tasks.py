@@ -9,7 +9,11 @@ from celery import shared_task
 logger = logging.getLogger(__name__)
 
 
-@shared_task(name="cooccurrence.compute_session_cooccurrence", time_limit=3600, soft_time_limit=3540)
+@shared_task(
+    name="cooccurrence.compute_session_cooccurrence",
+    time_limit=3600,
+    soft_time_limit=3540,
+)
 def compute_session_cooccurrence() -> dict:
     """Fetch GA4 session data and build the co-occurrence matrix.
 
@@ -40,6 +44,7 @@ def compute_session_cooccurrence() -> dict:
     min_jaccard = _read_float("cooccurrence.min_jaccard", 0.05)
 
     from datetime import date, timedelta
+
     window_end = date.today()
     window_start = window_end - timedelta(days=data_window_days)
 
@@ -50,10 +55,12 @@ def compute_session_cooccurrence() -> dict:
     )
 
     try:
-        sessions_processed, pairs_written, ga4_rows_fetched = fetch_ga4_session_cooccurrence(
-            data_window_days=data_window_days,
-            min_co_session_count=min_co_session_count,
-            min_jaccard=min_jaccard,
+        sessions_processed, pairs_written, ga4_rows_fetched = (
+            fetch_ga4_session_cooccurrence(
+                data_window_days=data_window_days,
+                min_co_session_count=min_co_session_count,
+                min_jaccard=min_jaccard,
+            )
         )
     except Exception as exc:
         run.status = SessionCoOccurrenceRun.STATUS_FAILED
@@ -99,7 +106,9 @@ def compute_session_cooccurrence() -> dict:
     )
 
     # Chain hub detection
-    hub_enabled = AppSetting.objects.filter(key="cooccurrence.hub_detection_enabled").first()
+    hub_enabled = AppSetting.objects.filter(
+        key="cooccurrence.hub_detection_enabled"
+    ).first()
     if not hub_enabled or hub_enabled.value.lower() != "false":
         detect_behavioral_hubs.delay()
 
@@ -112,7 +121,9 @@ def compute_session_cooccurrence() -> dict:
     }
 
 
-@shared_task(name="cooccurrence.detect_behavioral_hubs", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    name="cooccurrence.detect_behavioral_hubs", time_limit=1800, soft_time_limit=1740
+)
 def detect_behavioral_hubs() -> dict:
     """Run hub detection from existing co-occurrence data."""
     from apps.core.models import AppSetting
@@ -146,7 +157,9 @@ def detect_behavioral_hubs() -> dict:
     return {"hubs_created": hubs_created, "members_assigned": members_assigned}
 
 
-@shared_task(name="cooccurrence.apply_value_model_scores", time_limit=1800, soft_time_limit=1740)
+@shared_task(
+    name="cooccurrence.apply_value_model_scores", time_limit=1800, soft_time_limit=1740
+)
 def apply_value_model_scores(run_id: str) -> dict:
     """Compute score_value_model and value_model_diagnostics for all suggestions in a run.
 
@@ -159,14 +172,18 @@ def apply_value_model_scores(run_id: str) -> dict:
 
     settings = get_value_model_settings()
     if not settings.get("enabled", True):
-        logger.info("Value model disabled — skipping apply_value_model_scores for run %s", run_id)
+        logger.info(
+            "Value model disabled — skipping apply_value_model_scores for run %s",
+            run_id,
+        )
         return {"skipped": True, "reason": "value_model.enabled=false"}
 
     site_max_jaccard = get_site_max_jaccard()
 
     suggestions = list(
-        Suggestion.objects.filter(pipeline_run_id=run_id)
-        .select_related("destination", "host")
+        Suggestion.objects.filter(pipeline_run_id=run_id).select_related(
+            "destination", "host"
+        )
     )
 
     if not suggestions:

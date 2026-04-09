@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0009_suggestion_field_aware_relevance_fields'),
+        ("suggestions", "0009_suggestion_field_aware_relevance_fields"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='score_ga4_gsc',
-            field=models.FloatField(default=0.5, help_text='Stores the destination content-value score at suggestion-scoring time. 0.5 = neutral.'),
+            model_name="suggestion",
+            name="score_ga4_gsc",
+            field=models.FloatField(
+                default=0.5,
+                help_text="Stores the destination content-value score at suggestion-scoring time. 0.5 = neutral.",
+            ),
         ),
     ]

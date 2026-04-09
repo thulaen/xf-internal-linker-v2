@@ -10,7 +10,9 @@ def _source_label(content_type: str) -> str:
     return "wordpress" if (content_type or "").startswith("wp_") else "xenforo"
 
 
-def build_suggestion_telemetry_payload(suggestion, *, event_schema: str = "fr016_v1") -> dict[str, object]:
+def build_suggestion_telemetry_payload(
+    suggestion, *, event_schema: str = "fr016_v1"
+) -> dict[str, object]:
     """Return copy-ready telemetry attributes for one suggestion."""
 
     anchor_text = (suggestion.anchor_edited or suggestion.anchor_phrase or "").strip()
@@ -22,7 +24,11 @@ def build_suggestion_telemetry_payload(suggestion, *, event_schema: str = "fr016
         version_date = suggestion.pipeline_run.created_at.date().isoformat()
         version_slug = version_date.replace("-", "_")
 
-    anchor_hash = hashlib.sha256(anchor_text.lower().encode("utf-8")).hexdigest()[:12] if anchor_text else ""
+    anchor_hash = (
+        hashlib.sha256(anchor_text.lower().encode("utf-8")).hexdigest()[:12]
+        if anchor_text
+        else ""
+    )
     status = "instrumented" if anchor_text and destination_url else "plain_manual"
     attributes = {
         "data-xfil-schema": event_schema,
@@ -31,12 +37,20 @@ def build_suggestion_telemetry_payload(suggestion, *, event_schema: str = "fr016
         "data-xfil-algorithm-key": "pipeline_bundle",
         "data-xfil-algorithm-version-date": version_date,
         "data-xfil-algorithm-version-slug": version_slug,
-        "data-xfil-destination-id": str(getattr(suggestion.destination, "content_id", "")),
-        "data-xfil-destination-type": str(getattr(suggestion.destination, "content_type", "")),
+        "data-xfil-destination-id": str(
+            getattr(suggestion.destination, "content_id", "")
+        ),
+        "data-xfil-destination-type": str(
+            getattr(suggestion.destination, "content_type", "")
+        ),
         "data-xfil-host-id": str(getattr(suggestion.host, "content_id", "")),
         "data-xfil-host-type": str(getattr(suggestion.host, "content_type", "")),
-        "data-xfil-source-label": _source_label(getattr(suggestion.host, "content_type", "")),
-        "data-xfil-same-silo": "1" if getattr(suggestion, "_same_silo_cached", False) else "0",
+        "data-xfil-source-label": _source_label(
+            getattr(suggestion.host, "content_type", "")
+        ),
+        "data-xfil-same-silo": "1"
+        if getattr(suggestion, "_same_silo_cached", False)
+        else "0",
         "data-xfil-link-position-bucket": "unknown",
         "data-xfil-anchor-hash": anchor_hash,
         "data-xfil-anchor-length": str(len(anchor_text)),

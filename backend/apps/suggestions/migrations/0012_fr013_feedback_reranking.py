@@ -4,20 +4,26 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0011_suggestion_click_distance_diagnostics_and_more'),
+        ("suggestions", "0011_suggestion_click_distance_diagnostics_and_more"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='explore_exploit_diagnostics',
-            field=models.JSONField(blank=True, default=dict, help_text='Explainable FR-013 explore/exploit details for review and debugging.'),
+            model_name="suggestion",
+            name="explore_exploit_diagnostics",
+            field=models.JSONField(
+                blank=True,
+                default=dict,
+                help_text="Explainable FR-013 explore/exploit details for review and debugging.",
+            ),
         ),
         migrations.AddField(
-            model_name='suggestion',
-            name='score_explore_exploit',
-            field=models.FloatField(default=0.5, help_text='FR-013 feedback-driven explore/exploit reranking score. 0.5 = neutral.'),
+            model_name="suggestion",
+            name="score_explore_exploit",
+            field=models.FloatField(
+                default=0.5,
+                help_text="FR-013 feedback-driven explore/exploit reranking score. 0.5 = neutral.",
+            ),
         ),
     ]

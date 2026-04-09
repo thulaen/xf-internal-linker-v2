@@ -9,8 +9,12 @@ from .models import BrokenLink
 class BrokenLinkSerializer(serializers.ModelSerializer):
     """Serialize broken-link scan records for the Link Health UI."""
 
-    source_content_title = serializers.CharField(source="source_content.title", read_only=True)
-    source_content_url = serializers.CharField(source="source_content.url", read_only=True)
+    source_content_title = serializers.CharField(
+        source="source_content.title", read_only=True
+    )
+    source_content_url = serializers.CharField(
+        source="source_content.url", read_only=True
+    )
 
     class Meta:
         model = BrokenLink

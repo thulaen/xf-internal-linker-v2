@@ -5,20 +5,24 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('analytics', '0005_gscdailyperformance_gscimpactsnapshot'),
-        ('suggestions', '0018_alter_weightadjustmenthistory_reason'),
+        ("analytics", "0005_gscdailyperformance_gscimpactsnapshot"),
+        ("suggestions", "0018_alter_weightadjustmenthistory_reason"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='gscimpactsnapshot',
-            name='suggestion',
-            field=models.ForeignKey(help_text='The suggestion this attribution belongs to.', on_delete=django.db.models.deletion.CASCADE, related_name='gsc_impacts', to='suggestions.suggestion'),
+            model_name="gscimpactsnapshot",
+            name="suggestion",
+            field=models.ForeignKey(
+                help_text="The suggestion this attribution belongs to.",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="gsc_impacts",
+                to="suggestions.suggestion",
+            ),
         ),
         migrations.AlterUniqueTogether(
-            name='gscimpactsnapshot',
-            unique_together={('suggestion', 'window_type')},
+            name="gscimpactsnapshot",
+            unique_together={("suggestion", "window_type")},
         ),
     ]

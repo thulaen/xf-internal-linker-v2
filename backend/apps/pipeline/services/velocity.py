@@ -71,7 +71,9 @@ def load_velocity_settings() -> VelocitySettings:
     """Load velocity settings from AppSetting model, falling back to defaults."""
     from apps.core.models import AppSetting
 
-    rows = AppSetting.objects.filter(category="velocity").values_list("key", "value", "value_type")
+    rows = AppSetting.objects.filter(category="velocity").values_list(
+        "key", "value", "value_type"
+    )
     if not rows:
         return VelocitySettings()
 
@@ -149,7 +151,9 @@ def calculate_velocity_score(
         raw_base += settings.thread_reply_weight * log1p(reply_rate)
 
     freshness_multiplier = _compute_freshness_multiplier(
-        row, reference_ts=reference_ts, settings=settings,
+        row,
+        reference_ts=reference_ts,
+        settings=settings,
     )
     orphan_multiplier = settings.orphan_multiplier if not has_incoming_link else 1.0
 
@@ -175,10 +179,20 @@ def load_and_calculate(
     if settings is None:
         settings = load_velocity_settings()
 
-    content_qs = ContentItem.objects.filter().values(
-        "pk", "content_type", "view_count", "reply_count",
-        "download_count", "post_date", "last_post_date", "is_deleted",
-    ).order_by("pk", "content_type")
+    content_qs = (
+        ContentItem.objects.filter()
+        .values(
+            "pk",
+            "content_type",
+            "view_count",
+            "reply_count",
+            "download_count",
+            "post_date",
+            "last_post_date",
+            "is_deleted",
+        )
+        .order_by("pk", "content_type")
+    )
 
     if not content_qs:
         return {}
@@ -245,8 +259,14 @@ def persist_metric_snapshots(*, import_job_id: str, captured_at: int) -> int:
     from apps.content.models import ContentItem, ContentMetricSnapshot
 
     rows = ContentItem.objects.values(
-        "pk", "content_type", "view_count", "reply_count",
-        "download_count", "post_date", "last_post_date", "is_deleted",
+        "pk",
+        "content_type",
+        "view_count",
+        "reply_count",
+        "download_count",
+        "post_date",
+        "last_post_date",
+        "is_deleted",
     ).order_by("pk", "content_type")
 
     snapshots = [
@@ -268,8 +288,13 @@ def persist_metric_snapshots(*, import_job_id: str, captured_at: int) -> int:
         snapshots,
         update_conflicts=True,
         update_fields=[
-            "captured_at", "view_count", "reply_count",
-            "download_count", "post_date", "last_post_date", "is_deleted",
+            "captured_at",
+            "view_count",
+            "reply_count",
+            "download_count",
+            "post_date",
+            "last_post_date",
+            "is_deleted",
         ],
         unique_fields=["import_job_id", "content_item"],
     )
@@ -286,8 +311,7 @@ def prune_old_snapshots(*, keep: int = SNAPSHOT_RETENTION_COUNT) -> int:
 
     # Find the IDs to keep per content_item
     latest_ids = (
-        ContentMetricSnapshot.objects
-        .values("content_item")
+        ContentMetricSnapshot.objects.values("content_item")
         .annotate(max_id=Max("pk"))
         .values_list("max_id", flat=True)
     )
@@ -299,6 +323,7 @@ def prune_old_snapshots(*, keep: int = SNAPSHOT_RETENTION_COUNT) -> int:
         return deleted
 
     from django.db import connection
+
     with connection.cursor() as cursor:
         cursor.execute(
             """
@@ -329,9 +354,9 @@ def run_velocity(*, reference_ts: int) -> int:
 
 def _load_incoming_set() -> set[NodeKey]:
     from apps.graph.models import ExistingLink
+
     return set(
-        ExistingLink.objects
-        .filter(
+        ExistingLink.objects.filter(
             from_content_item__is_deleted=False,
             to_content_item__is_deleted=False,
         )
@@ -345,14 +370,17 @@ def _load_latest_snapshots() -> dict[NodeKey, MetricSnapshot]:
     from django.db.models import Max
 
     latest_ids = (
-        ContentMetricSnapshot.objects
-        .values("content_item")
+        ContentMetricSnapshot.objects.values("content_item")
         .annotate(max_id=Max("pk"))
         .values_list("max_id", flat=True)
     )
     rows = ContentMetricSnapshot.objects.filter(pk__in=latest_ids).values(
-        "content_item__pk", "content_item__content_type",
-        "captured_at", "view_count", "reply_count", "download_count",
+        "content_item__pk",
+        "content_item__content_type",
+        "captured_at",
+        "view_count",
+        "reply_count",
+        "download_count",
     )
     return {
         (r["content_item__pk"], r["content_item__content_type"]): MetricSnapshot(
@@ -371,8 +399,7 @@ def _load_primary_clean_text_lens() -> dict[NodeKey, int]:
     from django.db.models.functions import Length
 
     thread_post_len = (
-        Post.objects
-        .filter(
+        Post.objects.filter(
             content_item=OuterRef("pk"),
         )
         .annotate(len=Length("clean_text"))
@@ -411,7 +438,9 @@ def _compute_activity_rates(
             download_delta / interval_days,
         )
 
-    bootstrap_days = _estimate_bootstrap_days(row, reference_ts=reference_ts, settings=settings)
+    bootstrap_days = _estimate_bootstrap_days(
+        row, reference_ts=reference_ts, settings=settings
+    )
     return (
         max(row.view_count, 0) / bootstrap_days,
         max(row.reply_count, 0) / bootstrap_days,
@@ -437,7 +466,9 @@ def _compute_freshness_multiplier(
     reference_ts: int,
     settings: VelocitySettings,
 ) -> float:
-    activity_ts = row.last_post_date if row.last_post_date is not None else row.post_date
+    activity_ts = (
+        row.last_post_date if row.last_post_date is not None else row.post_date
+    )
     if activity_ts is None:
         return 1.0
     days_since_activity = max((reference_ts - activity_ts) / SECONDS_PER_DAY, 0.0)

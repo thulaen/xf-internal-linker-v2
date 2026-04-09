@@ -23,15 +23,17 @@ from typing import Any, Callable
 import numpy as np
 import pyroaring as pr
 from django.conf import settings
- 
+
 try:
     from extensions import inv_index, strpool  # noqa: F401
+
     HAS_CPP_EXT = True
 except ImportError:
     HAS_CPP_EXT = False
 
 try:
     from extensions import simsearch
+
     HAS_CPP_SIMSEARCH = True
 except ImportError:
     HAS_CPP_SIMSEARCH = False
@@ -107,6 +109,7 @@ class PipelineResult:
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 def run_pipeline(
     run_id: str,
@@ -191,7 +194,9 @@ def run_pipeline(
         _progress(0.14, "Building rare-term propagation profiles...")
         rare_term_source_records = (
             content_records
-            if destination_scope_ids is None and host_scope_ids is None and destination_content_item_ids is None
+            if destination_scope_ids is None
+            and host_scope_ids is None
+            and destination_content_item_ids is None
             else _load_content_records()
         )
         rare_term_profiles = build_rare_term_profiles(
@@ -236,8 +241,7 @@ def run_pipeline(
         )
 
     sentence_id_to_row = {
-        sentence_id: index
-        for index, sentence_id in enumerate(sentence_ids_ordered)
+        sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
     }
 
     march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
@@ -288,7 +292,9 @@ def run_pipeline(
             rare_term_profiles=rare_term_profiles,
             weights=weights,
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
-            weighted_authority_ranking_weight=weighted_authority_settings["ranking_weight"],
+            weighted_authority_ranking_weight=weighted_authority_settings[
+                "ranking_weight"
+            ],
             link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
             phrase_matching_settings=phrase_matching_settings,
             learned_anchor_settings=learned_anchor_settings,
@@ -306,31 +312,37 @@ def run_pipeline(
                 scored = feedback_rerank_service.rerank_candidates(
                     scored,
                     host_scope_id_map={
-                        c.host_content_id: content_records[(c.host_content_id, c.host_content_type)].scope_id
+                        c.host_content_id: content_records[
+                            (c.host_content_id, c.host_content_type)
+                        ].scope_id
                         for c in scored
                     },
                     destination_scope_id_map={
                         destination.content_id: destination.scope_id
-                    }
+                    },
                 )
             candidates_by_destination[dest_key] = scored
         elif "cross_silo_blocked" in blocked_reasons:
-            diagnostics.append((
-                dest_key[0],
-                dest_key[1],
-                "cross_silo_blocked",
-                {
-                    "mode": silo_settings.mode,
-                    "destination_silo_group_id": destination.silo_group_id,
-                    "destination_silo_group_name": destination.silo_group_name,
-                },
-            ))
+            diagnostics.append(
+                (
+                    dest_key[0],
+                    dest_key[1],
+                    "cross_silo_blocked",
+                    {
+                        "mode": silo_settings.mode,
+                        "destination_silo_group_id": destination.silo_group_id,
+                        "destination_silo_group_name": destination.silo_group_name,
+                    },
+                )
+            )
         elif "max_links_reached" in blocked_reasons:
             diagnostics.append((dest_key[0], dest_key[1], "max_links_reached", None))
         elif "anchor_too_long" in blocked_reasons:
             diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
         else:
-            diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))
+            diagnostics.append(
+                (dest_key[0], dest_key[1], "all_candidates_filtered", None)
+            )
 
         if dest_idx % 100 == 0 and dest_idx > 0:
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
@@ -338,8 +350,7 @@ def run_pipeline(
 
     # Build embedding lookup before freeing the numpy arrays (used by FR-015)
     embedding_lookup: dict[ContentKey, np.ndarray] = {
-        dest_key: dest_embeddings[i]
-        for i, dest_key in enumerate(destination_keys)
+        dest_key: dest_embeddings[i] for i, dest_key in enumerate(destination_keys)
     }
 
     del dest_embeddings, sentence_embeddings
@@ -354,7 +365,10 @@ def run_pipeline(
             max_per_host=max_host_reuse,
         )
     else:
-        _progress(0.87, "Resolving host-reuse, circular-pair, and paragraph-cluster filters...")
+        _progress(
+            0.87,
+            "Resolving host-reuse, circular-pair, and paragraph-cluster filters...",
+        )
         blocked_diagnostics: dict[ContentKey, str] = {}
         selected_candidates = select_final_candidates(
             candidates_by_destination,
@@ -390,9 +404,11 @@ def run_pipeline(
 # Data loaders
 # ---------------------------------------------------------------------------
 
+
 def _load_weights() -> dict[str, float]:
     try:
         from apps.core.models import AppSetting
+
         qs = AppSetting.objects.filter(
             key__in=["w_semantic", "w_keyword", "w_node", "w_quality"]
         ).values_list("key", "value")
@@ -406,6 +422,7 @@ def _load_weights() -> dict[str, float]:
 def _get_max_host_reuse() -> int:
     try:
         from apps.core.models import AppSetting
+
         setting = AppSetting.objects.filter(key="max_host_reuse").first()
         if setting:
             return int(setting.value)
@@ -424,11 +441,16 @@ def _get_max_existing_links_per_host() -> int:
     """
     try:
         from apps.core.models import AppSetting
-        setting = AppSetting.objects.filter(key="spam_guards.max_existing_links_per_host").first()
+
+        setting = AppSetting.objects.filter(
+            key="spam_guards.max_existing_links_per_host"
+        ).first()
         if setting:
             return int(setting.value)
     except Exception:
-        logger.exception("Failed to load spam_guards.max_existing_links_per_host; using default.")
+        logger.exception(
+            "Failed to load spam_guards.max_existing_links_per_host; using default."
+        )
     return 2
 
 
@@ -442,6 +464,7 @@ def _get_max_anchor_words() -> int:
     """
     try:
         from apps.core.models import AppSetting
+
         setting = AppSetting.objects.filter(key="spam_guards.max_anchor_words").first()
         if setting:
             return int(setting.value)
@@ -463,6 +486,7 @@ def _get_paragraph_window() -> int:
     """
     try:
         from apps.core.models import AppSetting
+
         setting = AppSetting.objects.filter(key="spam_guards.paragraph_window").first()
         if setting:
             return int(setting.value)
@@ -478,8 +502,14 @@ def _load_silo_settings() -> SiloSettings:
         config = get_silo_settings()
         return SiloSettings(
             mode=str(config.get("mode", recommended_str("silo.mode"))),
-            same_silo_boost=float(config.get("same_silo_boost", recommended_float("silo.same_silo_boost"))),
-            cross_silo_penalty=float(config.get("cross_silo_penalty", recommended_float("silo.cross_silo_penalty"))),
+            same_silo_boost=float(
+                config.get("same_silo_boost", recommended_float("silo.same_silo_boost"))
+            ),
+            cross_silo_penalty=float(
+                config.get(
+                    "cross_silo_penalty", recommended_float("silo.cross_silo_penalty")
+                )
+            ),
         )
     except Exception:
         logger.exception("Failed to load silo settings; using defaults.")
@@ -492,7 +522,12 @@ def _load_weighted_authority_settings() -> dict[str, float]:
 
         config = get_weighted_authority_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", recommended_float("weighted_authority.ranking_weight"))),
+            "ranking_weight": float(
+                config.get(
+                    "ranking_weight",
+                    recommended_float("weighted_authority.ranking_weight"),
+                )
+            ),
         }
     except Exception:
         logger.exception("Failed to load weighted authority settings; using defaults.")
@@ -507,7 +542,11 @@ def _load_link_freshness_settings() -> dict[str, float]:
 
         config = get_link_freshness_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", recommended_float("link_freshness.ranking_weight"))),
+            "ranking_weight": float(
+                config.get(
+                    "ranking_weight", recommended_float("link_freshness.ranking_weight")
+                )
+            ),
         }
     except Exception:
         logger.exception("Failed to load link freshness settings; using defaults.")
@@ -522,10 +561,20 @@ def _load_phrase_matching_settings() -> PhraseMatchingSettings:
 
         config = get_phrase_matching_settings()
         return PhraseMatchingSettings(
-            ranking_weight=float(config.get("ranking_weight", recommended_float("phrase_matching.ranking_weight"))),
+            ranking_weight=float(
+                config.get(
+                    "ranking_weight",
+                    recommended_float("phrase_matching.ranking_weight"),
+                )
+            ),
             enable_anchor_expansion=bool(config.get("enable_anchor_expansion", True)),
             enable_partial_matching=bool(config.get("enable_partial_matching", True)),
-            context_window_tokens=int(config.get("context_window_tokens", recommended_float("phrase_matching.context_window_tokens"))),
+            context_window_tokens=int(
+                config.get(
+                    "context_window_tokens",
+                    recommended_float("phrase_matching.context_window_tokens"),
+                )
+            ),
         )
     except Exception:
         logger.exception("Failed to load phrase matching settings; using defaults.")
@@ -538,9 +587,23 @@ def _load_learned_anchor_settings() -> LearnedAnchorSettings:
 
         config = get_learned_anchor_settings()
         return LearnedAnchorSettings(
-            ranking_weight=float(config.get("ranking_weight", recommended_float("learned_anchor.ranking_weight"))),
-            minimum_anchor_sources=int(config.get("minimum_anchor_sources", recommended_float("learned_anchor.minimum_anchor_sources"))),
-            minimum_family_support_share=float(config.get("minimum_family_support_share", recommended_float("learned_anchor.minimum_family_support_share"))),
+            ranking_weight=float(
+                config.get(
+                    "ranking_weight", recommended_float("learned_anchor.ranking_weight")
+                )
+            ),
+            minimum_anchor_sources=int(
+                config.get(
+                    "minimum_anchor_sources",
+                    recommended_float("learned_anchor.minimum_anchor_sources"),
+                )
+            ),
+            minimum_family_support_share=float(
+                config.get(
+                    "minimum_family_support_share",
+                    recommended_float("learned_anchor.minimum_family_support_share"),
+                )
+            ),
             enable_noise_filter=bool(config.get("enable_noise_filter", True)),
         )
     except Exception:
@@ -555,12 +618,31 @@ def _load_rare_term_propagation_settings() -> RareTermPropagationSettings:
         config = get_rare_term_propagation_settings()
         return RareTermPropagationSettings(
             enabled=bool(config.get("enabled", True)),
-            ranking_weight=float(config.get("ranking_weight", recommended_float("rare_term_propagation.ranking_weight"))),
-            max_document_frequency=int(config.get("max_document_frequency", recommended_float("rare_term_propagation.max_document_frequency"))),
-            minimum_supporting_related_pages=int(config.get("minimum_supporting_related_pages", recommended_float("rare_term_propagation.minimum_supporting_related_pages"))),
+            ranking_weight=float(
+                config.get(
+                    "ranking_weight",
+                    recommended_float("rare_term_propagation.ranking_weight"),
+                )
+            ),
+            max_document_frequency=int(
+                config.get(
+                    "max_document_frequency",
+                    recommended_float("rare_term_propagation.max_document_frequency"),
+                )
+            ),
+            minimum_supporting_related_pages=int(
+                config.get(
+                    "minimum_supporting_related_pages",
+                    recommended_float(
+                        "rare_term_propagation.minimum_supporting_related_pages"
+                    ),
+                )
+            ),
         )
     except Exception:
-        logger.exception("Failed to load rare-term propagation settings; using defaults.")
+        logger.exception(
+            "Failed to load rare-term propagation settings; using defaults."
+        )
         return RareTermPropagationSettings()
 
 
@@ -570,14 +652,43 @@ def _load_field_aware_relevance_settings() -> FieldAwareRelevanceSettings:
 
         config = get_field_aware_relevance_settings()
         return FieldAwareRelevanceSettings(
-            ranking_weight=float(config.get("ranking_weight", recommended_float("field_aware_relevance.ranking_weight"))),
-            title_field_weight=float(config.get("title_field_weight", recommended_float("field_aware_relevance.title_field_weight"))),
-            body_field_weight=float(config.get("body_field_weight", recommended_float("field_aware_relevance.body_field_weight"))),
-            scope_field_weight=float(config.get("scope_field_weight", recommended_float("field_aware_relevance.scope_field_weight"))),
-            learned_anchor_field_weight=float(config.get("learned_anchor_field_weight", recommended_float("field_aware_relevance.learned_anchor_field_weight"))),
+            ranking_weight=float(
+                config.get(
+                    "ranking_weight",
+                    recommended_float("field_aware_relevance.ranking_weight"),
+                )
+            ),
+            title_field_weight=float(
+                config.get(
+                    "title_field_weight",
+                    recommended_float("field_aware_relevance.title_field_weight"),
+                )
+            ),
+            body_field_weight=float(
+                config.get(
+                    "body_field_weight",
+                    recommended_float("field_aware_relevance.body_field_weight"),
+                )
+            ),
+            scope_field_weight=float(
+                config.get(
+                    "scope_field_weight",
+                    recommended_float("field_aware_relevance.scope_field_weight"),
+                )
+            ),
+            learned_anchor_field_weight=float(
+                config.get(
+                    "learned_anchor_field_weight",
+                    recommended_float(
+                        "field_aware_relevance.learned_anchor_field_weight"
+                    ),
+                )
+            ),
         )
     except Exception:
-        logger.exception("Failed to load field-aware relevance settings; using defaults.")
+        logger.exception(
+            "Failed to load field-aware relevance settings; using defaults."
+        )
         return FieldAwareRelevanceSettings()
 
 
@@ -587,7 +698,11 @@ def _load_ga4_gsc_settings() -> dict[str, float]:
 
         config = get_ga4_gsc_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", recommended_float("ga4_gsc.ranking_weight"))),
+            "ranking_weight": float(
+                config.get(
+                    "ranking_weight", recommended_float("ga4_gsc.ranking_weight")
+                )
+            ),
         }
     except Exception:
         logger.exception("Failed to load GA4/GSC settings; using defaults.")
@@ -602,7 +717,11 @@ def _load_click_distance_settings() -> dict[str, float]:
 
         config = get_click_distance_settings()
         return {
-            "ranking_weight": float(config.get("ranking_weight", recommended_float("click_distance.ranking_weight"))),
+            "ranking_weight": float(
+                config.get(
+                    "ranking_weight", recommended_float("click_distance.ranking_weight")
+                )
+            ),
         }
     except Exception:
         logger.exception("Failed to load click-distance settings; using defaults.")
@@ -615,6 +734,7 @@ def _load_feedback_rerank_settings() -> FeedbackRerankSettings:
     """Load feedback-driven explore/exploit settings from the DB."""
     try:
         from apps.core.views import get_feedback_rerank_settings
+
         raw = get_feedback_rerank_settings()
         return FeedbackRerankSettings(
             enabled=raw["enabled"],
@@ -697,7 +817,7 @@ def _load_sentence_records(
     content_pks = sorted({pk for pk, _ in content_keys})
     if not content_pks:
         return {}, {}
-    
+
     in_clause, params = _sql_in_clause_params(content_pks)
     query = f"""
         SELECT s.id, s.content_item_id, ci.content_type, s.text, s.char_count, s.position
@@ -739,8 +859,10 @@ def _load_existing_links() -> set[ExistingLinkKey]:
     from apps.graph.models import ExistingLink
 
     qs = ExistingLink.objects.values_list(
-        "from_content_item__pk", "from_content_item__content_type",
-        "to_content_item__pk", "to_content_item__content_type",
+        "from_content_item__pk",
+        "from_content_item__content_type",
+        "to_content_item__pk",
+        "to_content_item__content_type",
     )
     return {
         (
@@ -751,10 +873,14 @@ def _load_existing_links() -> set[ExistingLinkKey]:
     }
 
 
-def _load_learned_anchor_rows_by_destination() -> dict[ContentKey, list[LearnedAnchorInputRow]]:
+def _load_learned_anchor_rows_by_destination() -> (
+    dict[ContentKey, list[LearnedAnchorInputRow]]
+):
     from apps.graph.models import ExistingLink
 
-    rows_by_destination: dict[ContentKey, list[LearnedAnchorInputRow]] = defaultdict(list)
+    rows_by_destination: dict[ContentKey, list[LearnedAnchorInputRow]] = defaultdict(
+        list
+    )
     for row in ExistingLink.objects.values(
         "to_content_item__pk",
         "to_content_item__content_type",
@@ -779,6 +905,7 @@ def _get_pending_destinations(rerun_mode: str) -> set[ContentKey]:
         return set()
 
     from apps.suggestions.models import Suggestion
+
     qs = Suggestion.objects.filter(status="pending").values_list(
         "destination__pk", "destination__content_type"
     )
@@ -787,6 +914,7 @@ def _get_pending_destinations(rerun_mode: str) -> set[ContentKey]:
 
 def _supersede_pending_suggestions(destination_keys: list[ContentKey]) -> None:
     from apps.suggestions.models import Suggestion
+
     dest_pks = [pk for pk, _ in destination_keys]
     Suggestion.objects.filter(
         destination__pk__in=dest_pks,
@@ -804,9 +932,13 @@ def _load_destination_embeddings(
     from apps.content.models import ContentItem
 
     candidate_keys = [
-        key for key in content_records
+        key
+        for key in content_records
         if key not in pending_destinations
-        and (destination_content_item_ids is None or key[0] in destination_content_item_ids)
+        and (
+            destination_content_item_ids is None
+            or key[0] in destination_content_item_ids
+        )
     ]
     if not candidate_keys:
         return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
@@ -826,7 +958,9 @@ def _load_destination_embeddings(
     if not valid_keys:
         return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
 
-    matrix = np.vstack([found[key] for key in valid_keys]).astype(np.float32, copy=False)
+    matrix = np.vstack([found[key] for key in valid_keys]).astype(
+        np.float32, copy=False
+    )
     return tuple(valid_keys), matrix
 
 
@@ -872,6 +1006,7 @@ def _load_sentence_embeddings(
 # Stage 1 — coarse content-level candidate retrieval
 # ---------------------------------------------------------------------------
 
+
 def _stage1_candidates(
     *,
     destination_keys: tuple[ContentKey, ...],
@@ -888,13 +1023,19 @@ def _stage1_candidates(
     """
     # Build a host embedding matrix from content items that have sentence embeddings
     host_keys = [
-        key for key in content_records
+        key
+        for key in content_records
         if key in content_to_sentence_ids and content_to_sentence_ids[key]
     ]
     if not host_keys:
         return {}
 
-    from .faiss_index import is_faiss_gpu_active, faiss_search, build_faiss_index, HAS_FAISS
+    from .faiss_index import (
+        is_faiss_gpu_active,
+        faiss_search,
+        build_faiss_index,
+        HAS_FAISS,
+    )
 
     host_pk_set = {pk for pk, _ in host_keys}
 
@@ -932,11 +1073,14 @@ def _stage1_candidates(
 
     if HAS_FAISS:
         # FAISS installed but no embeddings in DB — return empty (NumPy would too).
-        logger.warning("FAISS installed but no embeddings in DB — returning empty Stage 1 results")
+        logger.warning(
+            "FAISS installed but no embeddings in DB — returning empty Stage 1 results"
+        )
         return {}
 
     # NumPy fallback path — faiss package not installed -------------------------
     from apps.content.models import ContentItem
+
     host_pks_list = [pk for pk, _ in host_keys]
     host_emb_qs = ContentItem.objects.filter(
         pk__in=host_pks_list,
@@ -944,13 +1088,17 @@ def _stage1_candidates(
     ).values_list("pk", "content_type", "embedding")
 
     host_emb_map: dict[ContentKey, np.ndarray] = {
-        (pk, ct): _coerce_embedding_vector(emb) for pk, ct, emb in host_emb_qs if emb is not None
+        (pk, ct): _coerce_embedding_vector(emb)
+        for pk, ct, emb in host_emb_qs
+        if emb is not None
     }
     valid_host_keys = [k for k in host_keys if k in host_emb_map]
     if not valid_host_keys:
         return {}
 
-    host_matrix = np.vstack([host_emb_map[k] for k in valid_host_keys]).astype(np.float32, copy=False)
+    host_matrix = np.vstack([host_emb_map[k] for k in valid_host_keys]).astype(
+        np.float32, copy=False
+    )
 
     result: dict[ContentKey, list[int]] = {}
     n_dest = len(destination_keys)
@@ -966,7 +1114,9 @@ def _stage1_candidates(
         for b_idx, dest_key in enumerate(dest_keys_block):
             row = sims[b_idx]
             # Get top-K host indices (excluding self)
-            top_indices = np.argpartition(row, -min(top_k, len(valid_host_keys)))[-top_k:]
+            top_indices = np.argpartition(row, -min(top_k, len(valid_host_keys)))[
+                -top_k:
+            ]
             top_indices = top_indices[np.argsort(-row[top_indices])]
 
             sentence_ids: list[int] = []
@@ -986,6 +1136,7 @@ def _stage1_candidates(
 # Stage 2 — sentence-level scoring
 # ---------------------------------------------------------------------------
 
+
 def _score_sentences_stage2(
     *,
     destination_embedding: np.ndarray,
@@ -1002,8 +1153,7 @@ def _score_sentences_stage2(
 
     if sentence_id_to_row is None:
         sentence_id_to_row = {
-            sentence_id: index
-            for index, sentence_id in enumerate(sentence_ids_ordered)
+            sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
         }
 
     candidate_rows: list[int] = []
@@ -1026,7 +1176,9 @@ def _score_sentences_stage2(
         )
     else:
         candidate_matrix = sentence_embeddings[candidate_rows]
-        scores = candidate_matrix @ destination_embedding  # cosine similarity (normalized)
+        scores = (
+            candidate_matrix @ destination_embedding
+        )  # cosine similarity (normalized)
 
         # Keep top-K
         k = min(top_k, len(scores))
@@ -1040,12 +1192,14 @@ def _score_sentences_stage2(
         record = sentence_records.get(sid)
         if record is None:
             continue
-        matches.append(SentenceSemanticMatch(
-            host_content_id=record.content_id,
-            host_content_type=record.content_type,
-            sentence_id=sid,
-            score_semantic=float(score),
-        ))
+        matches.append(
+            SentenceSemanticMatch(
+                host_content_id=record.content_id,
+                host_content_type=record.content_type,
+                sentence_id=sid,
+                score_semantic=float(score),
+            )
+        )
 
     return matches
 
@@ -1053,6 +1207,7 @@ def _score_sentences_stage2(
 # ---------------------------------------------------------------------------
 # Persist suggestions
 # ---------------------------------------------------------------------------
+
 
 def _persist_suggestions(
     *,
@@ -1186,12 +1341,14 @@ def _persist_diagnostics(
         ci = content_items.get((content_id, content_type))
         if ci is None:
             continue
-        to_create.append(PipelineDiagnostic(
-            pipeline_run=run,
-            destination=ci,
-            skip_reason=reason,
-            detail=detail or {},
-        ))
+        to_create.append(
+            PipelineDiagnostic(
+                pipeline_run=run,
+                destination=ci,
+                skip_reason=reason,
+                detail=detail or {},
+            )
+        )
 
     if to_create:
         PipelineDiagnostic.objects.bulk_create(to_create, ignore_conflicts=True)
@@ -1200,6 +1357,7 @@ def _persist_diagnostics(
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _destination_text(title: str, distilled_text: str) -> str:
     title_clean = (title or "").strip()
@@ -1213,6 +1371,7 @@ def _load_clustering_settings() -> ClusteringSettings:
     """Load near-duplicate clustering settings from the DB."""
     try:
         from apps.core.views import get_clustering_settings
+
         raw = get_clustering_settings()
         return ClusteringSettings(
             enabled=raw["enabled"],
@@ -1228,6 +1387,7 @@ def _load_slate_diversity_settings() -> SlateDiversitySettings:
     """Load FR-015 slate diversity settings from the DB."""
     try:
         from apps.core.views import get_slate_diversity_settings
+
         raw = get_slate_diversity_settings()
         return SlateDiversitySettings(
             enabled=raw["enabled"],

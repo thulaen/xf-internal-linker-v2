@@ -30,9 +30,7 @@ class CrawlSession(TimestampedModel):
         ("failed", "Failed"),
     ]
 
-    session_id = models.UUIDField(
-        default=uuid.uuid4, primary_key=True, editable=False
-    )
+    session_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     status = models.CharField(
         max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
     )
@@ -93,7 +91,9 @@ class CrawlSession(TimestampedModel):
         verbose_name_plural = "Crawl Sessions"
 
     def __str__(self) -> str:
-        return f"Crawl {self.site_domain} [{self.status}] {self.created_at:%Y-%m-%d %H:%M}"
+        return (
+            f"Crawl {self.site_domain} [{self.status}] {self.created_at:%Y-%m-%d %H:%M}"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -381,9 +381,7 @@ class SystemEvent(models.Model):
         ("system", "System"),
     ]
 
-    event_id = models.UUIDField(
-        default=uuid.uuid4, primary_key=True, editable=False
-    )
+    event_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
     severity = models.CharField(
         max_length=10, choices=SEVERITY_CHOICES, default="info", db_index=True
     )
@@ -402,9 +400,7 @@ class SystemEvent(models.Model):
         default=dict,
         help_text="Structured data for the event (e.g. items_count, duration_ms).",
     )
-    timestamp = models.DateTimeField(
-        auto_now_add=True, db_index=True
-    )
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
         ordering = ["-timestamp"]

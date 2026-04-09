@@ -5,75 +5,125 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more'),
-        ('graph', '0002_brokenlink'),
+        (
+            "content",
+            "0004_remove_contentmetricsnapshot_content_cms_ci_date_idx_and_more",
+        ),
+        ("graph", "0002_brokenlink"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='brokenlink',
-            new_name='graph_broke_status_b62621_idx',
-            old_name='graph_broke_status_11a3c0_idx',
+            model_name="brokenlink",
+            new_name="graph_broke_status_b62621_idx",
+            old_name="graph_broke_status_11a3c0_idx",
         ),
         migrations.RenameIndex(
-            model_name='brokenlink',
-            new_name='graph_broke_source__a1ac71_idx',
-            old_name='graph_broke_source__72a24f_idx',
+            model_name="brokenlink",
+            new_name="graph_broke_source__a1ac71_idx",
+            old_name="graph_broke_source__72a24f_idx",
         ),
         migrations.RenameIndex(
-            model_name='existinglink',
-            new_name='graph_exist_to_cont_6285df_idx',
-            old_name='graph_link_to_idx',
+            model_name="existinglink",
+            new_name="graph_exist_to_cont_6285df_idx",
+            old_name="graph_link_to_idx",
         ),
         migrations.RenameIndex(
-            model_name='existinglink',
-            new_name='graph_exist_from_co_fe0957_idx',
-            old_name='graph_link_from_idx',
+            model_name="existinglink",
+            new_name="graph_exist_from_co_fe0957_idx",
+            old_name="graph_link_from_idx",
         ),
         migrations.AlterField(
-            model_name='existinglink',
-            name='anchor_text',
-            field=models.CharField(blank=True, help_text='The anchor text used for this link on the live forum.', max_length=500),
+            model_name="existinglink",
+            name="anchor_text",
+            field=models.CharField(
+                blank=True,
+                help_text="The anchor text used for this link on the live forum.",
+                max_length=500,
+            ),
         ),
         migrations.AddField(
-            model_name='existinglink',
-            name='context_class',
-            field=models.CharField(blank=True, choices=[('contextual', 'Contextual'), ('weak_context', 'Weak Context'), ('isolated', 'Isolated')], default='', help_text='Whether the link appears in contextual prose, weak context, or isolated markup.', max_length=30),
+            model_name="existinglink",
+            name="context_class",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("contextual", "Contextual"),
+                    ("weak_context", "Weak Context"),
+                    ("isolated", "Isolated"),
+                ],
+                default="",
+                help_text="Whether the link appears in contextual prose, weak context, or isolated markup.",
+                max_length=30,
+            ),
         ),
         migrations.AlterField(
-            model_name='existinglink',
-            name='discovered_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='When this link was first detected during a sync.'),
+            model_name="existinglink",
+            name="discovered_at",
+            field=models.DateTimeField(
+                auto_now_add=True,
+                help_text="When this link was first detected during a sync.",
+            ),
         ),
         migrations.AddField(
-            model_name='existinglink',
-            name='extraction_method',
-            field=models.CharField(blank=True, choices=[('bbcode_anchor', 'BBCode Anchor'), ('html_anchor', 'HTML Anchor'), ('bare_url', 'Bare URL')], default='', help_text='How this link was extracted from the source body.', max_length=30),
+            model_name="existinglink",
+            name="extraction_method",
+            field=models.CharField(
+                blank=True,
+                choices=[
+                    ("bbcode_anchor", "BBCode Anchor"),
+                    ("html_anchor", "HTML Anchor"),
+                    ("bare_url", "Bare URL"),
+                ],
+                default="",
+                help_text="How this link was extracted from the source body.",
+                max_length=30,
+            ),
         ),
         migrations.AlterField(
-            model_name='existinglink',
-            name='from_content_item',
-            field=models.ForeignKey(help_text='The content item that contains this link (the host).', on_delete=django.db.models.deletion.CASCADE, related_name='outgoing_links', to='content.contentitem'),
+            model_name="existinglink",
+            name="from_content_item",
+            field=models.ForeignKey(
+                help_text="The content item that contains this link (the host).",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="outgoing_links",
+                to="content.contentitem",
+            ),
         ),
         migrations.AddField(
-            model_name='existinglink',
-            name='link_ordinal',
-            field=models.PositiveIntegerField(blank=True, help_text='Zero-based order of this internal link within the source body.', null=True),
+            model_name="existinglink",
+            name="link_ordinal",
+            field=models.PositiveIntegerField(
+                blank=True,
+                help_text="Zero-based order of this internal link within the source body.",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='existinglink',
-            name='source_internal_link_count',
-            field=models.PositiveIntegerField(blank=True, help_text='Total resolved internal links on the source item after destination deduplication.', null=True),
+            model_name="existinglink",
+            name="source_internal_link_count",
+            field=models.PositiveIntegerField(
+                blank=True,
+                help_text="Total resolved internal links on the source item after destination deduplication.",
+                null=True,
+            ),
         ),
         migrations.AlterField(
-            model_name='existinglink',
-            name='to_content_item',
-            field=models.ForeignKey(help_text='The content item being linked to (the destination).', on_delete=django.db.models.deletion.CASCADE, related_name='incoming_links', to='content.contentitem'),
+            model_name="existinglink",
+            name="to_content_item",
+            field=models.ForeignKey(
+                help_text="The content item being linked to (the destination).",
+                on_delete=django.db.models.deletion.CASCADE,
+                related_name="incoming_links",
+                to="content.contentitem",
+            ),
         ),
         migrations.AddIndex(
-            model_name='existinglink',
-            index=models.Index(fields=['from_content_item', 'link_ordinal'], name='graph_exist_from_co_79df81_idx'),
+            model_name="existinglink",
+            index=models.Index(
+                fields=["from_content_item", "link_ordinal"],
+                name="graph_exist_from_co_79df81_idx",
+            ),
         ),
     ]

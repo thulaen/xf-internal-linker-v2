@@ -29,8 +29,14 @@ def compute_weekly_reviewer_scorecard():
     period_start = period_end - timedelta(days=6)  # Monday
 
     # Skip if scorecard already exists for this period
-    if ReviewerScorecard.objects.filter(period_start=period_start, period_end=period_end).exists():
-        logger.info("[reviewer_scorecard] Scorecard already exists for %s–%s", period_start, period_end)
+    if ReviewerScorecard.objects.filter(
+        period_start=period_start, period_end=period_end
+    ).exists():
+        logger.info(
+            "[reviewer_scorecard] Scorecard already exists for %s–%s",
+            period_start,
+            period_end,
+        )
         return {"status": "already_exists"}
 
     # ── Gather review actions ──────────────────────────────────
@@ -44,7 +50,9 @@ def compute_weekly_reviewer_scorecard():
     approved_count = review_actions.filter(action="approve").count()
     rejected_count = total_reviewed - approved_count
 
-    approval_rate = (approved_count / total_reviewed * 100.0) if total_reviewed > 0 else 0.0
+    approval_rate = (
+        (approved_count / total_reviewed * 100.0) if total_reviewed > 0 else 0.0
+    )
 
     # ── Verified rate: approved suggestions later verified as live ──
     verified_count = Suggestion.objects.filter(
@@ -52,7 +60,9 @@ def compute_weekly_reviewer_scorecard():
         updated_at__date__gte=period_start,
         updated_at__date__lte=period_end,
     ).count()
-    verified_rate = (verified_count / approved_count * 100.0) if approved_count > 0 else 0.0
+    verified_rate = (
+        (verified_count / approved_count * 100.0) if approved_count > 0 else 0.0
+    )
 
     # ── Stale rate ──
     stale_count = Suggestion.objects.filter(
@@ -66,7 +76,9 @@ def compute_weekly_reviewer_scorecard():
     review_times: list[float] = []
     for audit in review_actions.only("target_id", "created_at")[:200]:
         try:
-            suggestion = Suggestion.objects.only("created_at").get(suggestion_id=audit.target_id)
+            suggestion = Suggestion.objects.only("created_at").get(
+                suggestion_id=audit.target_id
+            )
             elapsed = (audit.created_at - suggestion.created_at).total_seconds()
             if 0 <= elapsed <= 604_800:  # cap at 7 days to filter outliers
                 review_times.append(elapsed)
@@ -92,7 +104,9 @@ def compute_weekly_reviewer_scorecard():
         approval_rate=round(approval_rate, 2),
         verified_rate=round(verified_rate, 2),
         stale_rate=round(stale_rate, 2),
-        avg_review_time_seconds=round(avg_review_time, 1) if avg_review_time is not None else None,
+        avg_review_time_seconds=round(avg_review_time, 1)
+        if avg_review_time is not None
+        else None,
         top_rejection_reasons=top_reasons,
     )
 

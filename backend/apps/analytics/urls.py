@@ -31,29 +31,125 @@ from .views import (
 )
 
 urlpatterns = [
-    path("telemetry/overview/", AnalyticsTelemetryOverviewView.as_view(), name="analytics-telemetry-overview"),
-    path("telemetry/health/", AnalyticsTelemetryHealthView.as_view(), name="analytics-telemetry-health"),
-    path("telemetry/breakdowns/", AnalyticsTelemetryBreakdownView.as_view(), name="analytics-telemetry-breakdowns"),
-    path("telemetry/funnel/", AnalyticsTelemetryFunnelView.as_view(), name="analytics-telemetry-funnel"),
-    path("telemetry/trend/", AnalyticsTelemetryTrendView.as_view(), name="analytics-telemetry-trend"),
-    path("telemetry/top-suggestions/", AnalyticsTelemetryTopSuggestionsView.as_view(), name="analytics-telemetry-top-suggestions"),
-    path("telemetry/by-version/", AnalyticsTelemetryByVersionView.as_view(), name="analytics-telemetry-by-version"),
-    path("telemetry/geo-detail/", AnalyticsTelemetryGeoDetailView.as_view(), name="analytics-telemetry-geo-detail"),
-    path("telemetry/integration/", AnalyticsTelemetryIntegrationView.as_view(), name="analytics-telemetry-integration"),
-    path("telemetry/ga4-sync/", AnalyticsGA4SyncView.as_view(), name="analytics-ga4-sync"),
-    path("telemetry/matomo-sync/", AnalyticsMatomoSyncView.as_view(), name="analytics-matomo-sync"),
-    path("telemetry/gsc-sync/", AnalyticsGSCSyncView.as_view(), name="analytics-gsc-sync"),
-    path("settings/ga4/", AnalyticsGA4SettingsView.as_view(), name="analytics-ga4-settings"),
-    path("settings/ga4/test-connection/", AnalyticsGA4TestConnectionView.as_view(), name="analytics-ga4-test-connection"),
-    path("settings/ga4/test-read-connection/", AnalyticsGA4ReadConnectionView.as_view(), name="analytics-ga4-read-connection"),
-    path("settings/matomo/", AnalyticsMatomoSettingsView.as_view(), name="analytics-matomo-settings"),
-    path("settings/matomo/test-connection/", AnalyticsMatomoTestConnectionView.as_view(), name="analytics-matomo-test-connection"),
-    path("settings/gsc/", AnalyticsGSCSettingsView.as_view(), name="analytics-gsc-settings"),
-    path("settings/gsc/test-connection/", AnalyticsGSCTestConnectionView.as_view(), name="analytics-gsc-test-connection"),
-    path("settings/google-oauth/", AnalyticsGoogleOAuthSettingsView.as_view(), name="analytics-google-oauth-settings"),
-    path("oauth/authorize/", AnalyticsGoogleOAuthStartView.as_view(), name="analytics-google-oauth-authorize"),
-    path("oauth/callback/", AnalyticsGoogleOAuthCallbackView.as_view(), name="analytics-google-oauth-callback"),
-    path("oauth/unlink/", AnalyticsGoogleOAuthUnlinkView.as_view(), name="analytics-google-oauth-unlink"),
-    path("search-impact/", AnalyticsSearchImpactListView.as_view(), name="search-impact-list"),
-    path("search-impact/<uuid:suggestion_id>/", AnalyticsSearchImpactDetailView.as_view(), name="search-impact-detail"),
+    path(
+        "telemetry/overview/",
+        AnalyticsTelemetryOverviewView.as_view(),
+        name="analytics-telemetry-overview",
+    ),
+    path(
+        "telemetry/health/",
+        AnalyticsTelemetryHealthView.as_view(),
+        name="analytics-telemetry-health",
+    ),
+    path(
+        "telemetry/breakdowns/",
+        AnalyticsTelemetryBreakdownView.as_view(),
+        name="analytics-telemetry-breakdowns",
+    ),
+    path(
+        "telemetry/funnel/",
+        AnalyticsTelemetryFunnelView.as_view(),
+        name="analytics-telemetry-funnel",
+    ),
+    path(
+        "telemetry/trend/",
+        AnalyticsTelemetryTrendView.as_view(),
+        name="analytics-telemetry-trend",
+    ),
+    path(
+        "telemetry/top-suggestions/",
+        AnalyticsTelemetryTopSuggestionsView.as_view(),
+        name="analytics-telemetry-top-suggestions",
+    ),
+    path(
+        "telemetry/by-version/",
+        AnalyticsTelemetryByVersionView.as_view(),
+        name="analytics-telemetry-by-version",
+    ),
+    path(
+        "telemetry/geo-detail/",
+        AnalyticsTelemetryGeoDetailView.as_view(),
+        name="analytics-telemetry-geo-detail",
+    ),
+    path(
+        "telemetry/integration/",
+        AnalyticsTelemetryIntegrationView.as_view(),
+        name="analytics-telemetry-integration",
+    ),
+    path(
+        "telemetry/ga4-sync/", AnalyticsGA4SyncView.as_view(), name="analytics-ga4-sync"
+    ),
+    path(
+        "telemetry/matomo-sync/",
+        AnalyticsMatomoSyncView.as_view(),
+        name="analytics-matomo-sync",
+    ),
+    path(
+        "telemetry/gsc-sync/", AnalyticsGSCSyncView.as_view(), name="analytics-gsc-sync"
+    ),
+    path(
+        "settings/ga4/",
+        AnalyticsGA4SettingsView.as_view(),
+        name="analytics-ga4-settings",
+    ),
+    path(
+        "settings/ga4/test-connection/",
+        AnalyticsGA4TestConnectionView.as_view(),
+        name="analytics-ga4-test-connection",
+    ),
+    path(
+        "settings/ga4/test-read-connection/",
+        AnalyticsGA4ReadConnectionView.as_view(),
+        name="analytics-ga4-read-connection",
+    ),
+    path(
+        "settings/matomo/",
+        AnalyticsMatomoSettingsView.as_view(),
+        name="analytics-matomo-settings",
+    ),
+    path(
+        "settings/matomo/test-connection/",
+        AnalyticsMatomoTestConnectionView.as_view(),
+        name="analytics-matomo-test-connection",
+    ),
+    path(
+        "settings/gsc/",
+        AnalyticsGSCSettingsView.as_view(),
+        name="analytics-gsc-settings",
+    ),
+    path(
+        "settings/gsc/test-connection/",
+        AnalyticsGSCTestConnectionView.as_view(),
+        name="analytics-gsc-test-connection",
+    ),
+    path(
+        "settings/google-oauth/",
+        AnalyticsGoogleOAuthSettingsView.as_view(),
+        name="analytics-google-oauth-settings",
+    ),
+    path(
+        "oauth/authorize/",
+        AnalyticsGoogleOAuthStartView.as_view(),
+        name="analytics-google-oauth-authorize",
+    ),
+    path(
+        "oauth/callback/",
+        AnalyticsGoogleOAuthCallbackView.as_view(),
+        name="analytics-google-oauth-callback",
+    ),
+    path(
+        "oauth/unlink/",
+        AnalyticsGoogleOAuthUnlinkView.as_view(),
+        name="analytics-google-oauth-unlink",
+    ),
+    path(
+        "search-impact/",
+        AnalyticsSearchImpactListView.as_view(),
+        name="search-impact-list",
+    ),
+    path(
+        "search-impact/<uuid:suggestion_id>/",
+        AnalyticsSearchImpactDetailView.as_view(),
+        name="search-impact-detail",
+    ),
 ]

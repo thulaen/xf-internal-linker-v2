@@ -6,11 +6,12 @@ from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
+
 def import_from_jsonl(file_path: str) -> Generator[Dict[str, Any], None, None]:
     """
     Read a JSONL file line-by-line and yield records.
-    
-    Security: 
+
+    Security:
     - Validates that the file exists and is a file.
     - Path traversal protection: Ensures the file is within the project root.
     - Memory efficiency: Reads line-by-line using a generator.
@@ -19,7 +20,10 @@ def import_from_jsonl(file_path: str) -> Generator[Dict[str, Any], None, None]:
     abs_root = os.path.abspath(settings.BASE_DIR.parent)
     abs_file = os.path.abspath(file_path)
     if not abs_file.startswith(abs_root):
-        logger.error("JSONL import failed: Security - Blocked access to file outside root: %s", file_path)
+        logger.error(
+            "JSONL import failed: Security - Blocked access to file outside root: %s",
+            file_path,
+        )
         raise PermissionError(f"Access denied: {file_path}")
 
     if not os.path.isfile(abs_file):

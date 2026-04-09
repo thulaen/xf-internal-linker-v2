@@ -136,7 +136,84 @@ jobs:
         working-directory: frontend
         run: npx ng lint
 
-  # ── 7. Validate docker-compose.yml ─────────────────────────────
+  # ── 7. Python type checking (mypy) ──────────────────────────────
+  backend-typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run mypy
+        working-directory: backend
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.test
+          DJANGO_SECRET_KEY: ci-fake-secret-key
+        run: python -m mypy apps/crawler/ --config-file mypy.ini
+
+  # ── 8. Python security scanning (bandit) ──────────────────────
+  backend-security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install bandit
+        run: pip install bandit
+
+      - name: Run bandit security scan
+        working-directory: backend
+        run: bandit -r apps/ -c bandit.yml
+
+  # ── 9. Python dependency vulnerability scan ───────────────────
+  python-deps-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Audit Python dependencies
+        run: pip-audit -r backend/requirements.txt
+
+  # ── 10. Frontend dependency vulnerability scan ─────────────────
+  frontend-deps-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Audit npm dependencies
+        working-directory: frontend
+        run: npm audit --audit-level=high
+
+  # ── 11. Validate docker-compose.yml ────────────────────────────
   docker-compose-validate:
     runs-on: ubuntu-latest
     steps:

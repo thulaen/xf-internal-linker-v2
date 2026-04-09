@@ -9,7 +9,6 @@ suggestion was applied to measure real SEO impact.
 from django.db import models
 
 
-
 class SearchMetric(models.Model):
     """
     A single day's GSC or GA4 performance data for a content item.
@@ -203,7 +202,9 @@ class SuggestionTelemetryDaily(models.Model):
     ]
 
     date = models.DateField(db_index=True)
-    telemetry_source = models.CharField(max_length=20, choices=TELEMETRY_SOURCE_CHOICES, db_index=True)
+    telemetry_source = models.CharField(
+        max_length=20, choices=TELEMETRY_SOURCE_CHOICES, db_index=True
+    )
     suggestion = models.ForeignKey(
         "suggestions.Suggestion",
         null=True,
@@ -301,7 +302,9 @@ class TelemetryCoverageDaily(models.Model):
     duplicate_event_drops = models.IntegerField(default=0)
     missing_metadata_events = models.IntegerField(default=0)
     delayed_rows_rewritten = models.IntegerField(default=0)
-    coverage_state = models.CharField(max_length=20, choices=COVERAGE_STATE_CHOICES, default="partial")
+    coverage_state = models.CharField(
+        max_length=20, choices=COVERAGE_STATE_CHOICES, default="partial"
+    )
     last_synced_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -310,7 +313,12 @@ class TelemetryCoverageDaily(models.Model):
         ordering = ["-date", "source_label", "algorithm_version_slug"]
         constraints = [
             models.UniqueConstraint(
-                fields=["date", "event_schema", "source_label", "algorithm_version_slug"],
+                fields=[
+                    "date",
+                    "event_schema",
+                    "source_label",
+                    "algorithm_version_slug",
+                ],
                 name="analytics_coverage_daily_unique_rollup",
             )
         ]
@@ -337,7 +345,9 @@ class AnalyticsSyncRun(models.Model):
     source = models.CharField(max_length=20, choices=SOURCE_CHOICES, db_index=True)
     started_at = models.DateTimeField(auto_now_add=True, db_index=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True)
+    status = models.CharField(
+        max_length=20, choices=STATUS_CHOICES, default="pending", db_index=True
+    )
     lookback_days = models.IntegerField(default=7)
     rows_read = models.IntegerField(default=0)
     rows_written = models.IntegerField(default=0)
@@ -355,6 +365,8 @@ class AnalyticsSyncRun(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source} {self.status} at {self.started_at}"
+
+
 class GSCDailyPerformance(models.Model):
     """
     Stores raw daily performance rows for a specific page from Google Search Console.
@@ -367,7 +379,9 @@ class GSCDailyPerformance(models.Model):
     clicks = models.PositiveIntegerField(default=0)
     avg_position = models.FloatField(default=0.0)
     ctr = models.FloatField(default=0.0)
-    property_url = models.CharField(max_length=500, blank=True, help_text="The GSC property this belongs to.")
+    property_url = models.CharField(
+        max_length=500, blank=True, help_text="The GSC property this belongs to."
+    )
 
     class Meta:
         verbose_name = "GSC Daily Performance"
@@ -407,18 +421,26 @@ class GSCImpactSnapshot(models.Model):
         help_text="The suggestion this attribution belongs to.",
     )
     apply_date = models.DateTimeField(db_index=True)
-    window_type = models.CharField(max_length=10, choices=WINDOW_TYPE_CHOICES, default="28d")
-    
+    window_type = models.CharField(
+        max_length=10, choices=WINDOW_TYPE_CHOICES, default="28d"
+    )
+
     baseline_clicks = models.IntegerField(default=0)
     post_clicks = models.IntegerField(default=0)
     baseline_impressions = models.IntegerField(default=0)
     post_impressions = models.IntegerField(default=0)
-    lift_clicks_pct = models.FloatField(default=0.0, help_text="Relative click lift: (post - baseline) / baseline.")
+    lift_clicks_pct = models.FloatField(
+        default=0.0, help_text="Relative click lift: (post - baseline) / baseline."
+    )
     lift_clicks_absolute = models.IntegerField(default=0)
-    
-    probability_of_uplift = models.FloatField(default=0.0, help_text="Bayesian probability of positive lift (0.0 to 1.0).")
-    reward_label = models.CharField(max_length=20, choices=REWARD_LABEL_CHOICES, default="inconclusive")
-    
+
+    probability_of_uplift = models.FloatField(
+        default=0.0, help_text="Bayesian probability of positive lift (0.0 to 1.0)."
+    )
+    reward_label = models.CharField(
+        max_length=20, choices=REWARD_LABEL_CHOICES, default="inconclusive"
+    )
+
     last_computed_at = models.DateTimeField(auto_now=True)
 
     class Meta:

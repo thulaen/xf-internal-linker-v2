@@ -1,11 +1,16 @@
 from rest_framework import serializers
 from .models import GSCImpactSnapshot, GSCKeywordImpact
 
+
 class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
     """Serializer for suggestion-level search attribution."""
 
-    anchor_phrase = serializers.CharField(source="suggestion.anchor_phrase", read_only=True)
-    destination_title = serializers.CharField(source="suggestion.destination_title", read_only=True)
+    anchor_phrase = serializers.CharField(
+        source="suggestion.anchor_phrase", read_only=True
+    )
+    destination_title = serializers.CharField(
+        source="suggestion.destination_title", read_only=True
+    )
     status = serializers.CharField(source="suggestion.status", read_only=True)
     source_type = serializers.SerializerMethodField()
     source_label = serializers.SerializerMethodField()
@@ -29,15 +34,15 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
         n = obj.post_impressions
         if n < 1:
             return 0.0
-            
+
         clicks = obj.post_clicks
         p = clicks / n
         z = 1.96  # 95% confidence
-        
+
         denominator = 1 + (z**2 / n)
         adjustment = z**2 / (2 * n)
-        error = z * ((p * (1 - p) + (z**2 / (4 * n))) / n)**0.5
-        
+        error = z * ((p * (1 - p) + (z**2 / (4 * n))) / n) ** 0.5
+
         lower_bound = (p + adjustment - error) / denominator
         return round(max(0.0, lower_bound), 4)
 
@@ -75,9 +80,10 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
             "source_label",
         ]
 
+
 class GSCKeywordImpactSerializer(serializers.ModelSerializer):
     """Serializer for query-level search attribution."""
-    
+
     class Meta:
         model = GSCKeywordImpact
         fields = [

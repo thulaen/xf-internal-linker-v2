@@ -17,9 +17,10 @@ from apps.content.models import ScopeItem, ContentItem, Post, Sentence
 from apps.graph.models import ExistingLink
 from apps.suggestions.models import Suggestion
 
+
 def migrate_db(cursor):
     """Migrate SQLite tables to PostgreSQL via Django ORM."""
-    
+
     # 1. Migrate ScopeItems
     print("Migrating ScopeItems...")
     cursor.execute("SELECT * FROM scope_items")
@@ -32,7 +33,7 @@ def migrate_db(cursor):
                 "title": s["title"],
                 "is_enabled": bool(s["is_enabled"]),
                 "display_order": s.get("display_order", 0),
-            }
+            },
         )
     print(f"Done. {len(scopes)} scopes processed.")
 
@@ -42,14 +43,16 @@ def migrate_db(cursor):
     items = cursor.fetchall()
     for item in items:
         try:
-            scope = ScopeItem.objects.get(scope_id=item["scope_id"], scope_type=item["scope_type"])
-            
+            scope = ScopeItem.objects.get(
+                scope_id=item["scope_id"], scope_type=item["scope_type"]
+            )
+
             # xf_update_id was used for resources in V1 as the primary identifier for edits
             # V2 has explicit fields for both
             xf_post_id = item["xf_post_id"]
             xf_update_id = item.get("xf_update_id")
-            
-            # If it's a resource and we have update_id but no post_id, 
+
+            # If it's a resource and we have update_id but no post_id,
             # we treat update_id as the primary body anchor for V2 consistency
             if item["content_type"] == "resource" and xf_update_id and not xf_post_id:
                 xf_post_id = xf_update_id
@@ -71,12 +74,14 @@ def migrate_db(cursor):
                     "distilled_text": item["distilled_text"] or "",
                     "content_hash": item["content_hash"] or "",
                     "is_deleted": bool(item.get("is_deleted", 0)),
-                }
+                },
             )
         except ScopeItem.DoesNotExist:
-            print(f"Warning: Scope {item['scope_id']} not found for item {item['content_id']}")
+            print(
+                f"Warning: Scope {item['scope_id']} not found for item {item['content_id']}"
+            )
             continue
-            
+
     print(f"Done. {len(items)} items processed.")
 
     # 3. Migrate Posts
@@ -85,8 +90,10 @@ def migrate_db(cursor):
     v1_posts = cursor.fetchall()
     for p in v1_posts:
         try:
-            content_item = ContentItem.objects.get(content_id=p["content_id"], content_type=p["content_type"])
-            
+            content_item = ContentItem.objects.get(
+                content_id=p["content_id"], content_type=p["content_type"]
+            )
+
             xf_post_id = p["xf_post_id"]
             xf_update_id = p.get("xf_update_id")
             if p["content_type"] == "resource" and xf_update_id and not xf_post_id:
@@ -100,8 +107,10 @@ def migrate_db(cursor):
                     "raw_bbcode": p["raw_bbcode"],
                     "clean_text": p["clean_text"],
                     "char_count": p["char_count"],
-                    "word_count": len(p["clean_text"].split()) if p["clean_text"] else 0,
-                }
+                    "word_count": len(p["clean_text"].split())
+                    if p["clean_text"]
+                    else 0,
+                },
             )
         except ContentItem.DoesNotExist:
             continue
@@ -113,7 +122,9 @@ def migrate_db(cursor):
     v1_sentences = cursor.fetchall()
     for s in v1_sentences:
         try:
-            content_item = ContentItem.objects.get(content_id=s["content_id"], content_type=s["content_type"])
+            content_item = ContentItem.objects.get(
+                content_id=s["content_id"], content_type=s["content_type"]
+            )
             post = Post.objects.get(content_item=content_item)
             Sentence.objects.get_or_create(
                 post=post,
@@ -125,8 +136,8 @@ def migrate_db(cursor):
                     "start_char": s["start_char"],
                     "end_char": s["end_char"],
                     # word_position wasn't in V1 sentences, we can approximate or let re-sync fix it
-                    "word_position": len(post.clean_text[:s["start_char"]].split())
-                }
+                    "word_position": len(post.clean_text[: s["start_char"]].split()),
+                },
             )
         except (ContentItem.DoesNotExist, Post.DoesNotExist):
             continue
@@ -138,8 +149,12 @@ def migrate_db(cursor):
     v1_links = cursor.fetchall()
     for l in v1_links:
         try:
-            from_item = ContentItem.objects.get(content_id=l["from_content_id"], content_type=l["from_content_type"])
-            to_item = ContentItem.objects.get(content_id=l["to_content_id"], content_type=l["to_content_type"])
+            from_item = ContentItem.objects.get(
+                content_id=l["from_content_id"], content_type=l["from_content_type"]
+            )
+            to_item = ContentItem.objects.get(
+                content_id=l["to_content_id"], content_type=l["to_content_type"]
+            )
             ExistingLink.objects.get_or_create(
                 from_content_item=from_item,
                 to_content_item=to_item,
@@ -155,14 +170,22 @@ def migrate_db(cursor):
     v1_sugs = cursor.fetchall()
     for s in v1_sugs:
         try:
-            dest = ContentItem.objects.get(content_id=s["destination_content_id"], content_type=s["destination_content_type"])
-            host = ContentItem.objects.get(content_id=s["host_content_id"], content_type=s["host_content_type"])
-            
-            cursor.execute("SELECT position FROM sentences WHERE local_sentence_id = ?", (s["host_sentence_id"],))
+            dest = ContentItem.objects.get(
+                content_id=s["destination_content_id"],
+                content_type=s["destination_content_type"],
+            )
+            host = ContentItem.objects.get(
+                content_id=s["host_content_id"], content_type=s["host_content_type"]
+            )
+
+            cursor.execute(
+                "SELECT position FROM sentences WHERE local_sentence_id = ?",
+                (s["host_sentence_id"],),
+            )
             sent_row = cursor.fetchone()
             if not sent_row:
                 continue
-            
+
             pos = sent_row["position"]
             host_sent = Sentence.objects.get(post__content_item=host, position=pos)
 
@@ -182,11 +205,12 @@ def migrate_db(cursor):
                     "status": s["status"],
                     "rejection_reason": s["rejection_reason"] or "",
                     "reviewer_note": s["reviewer_note"] or "",
-                }
+                },
             )
         except (ContentItem.DoesNotExist, Sentence.DoesNotExist):
             continue
     print(f"Done. {len(v1_sugs)} suggestions processed.")
+
 
 def migrate_embeddings(data_dir: Path):
     """Load V1 .npy embeddings and inject into pgvector columns."""
@@ -205,7 +229,7 @@ def migrate_embeddings(data_dir: Path):
         print("Loading destination embeddings...")
         dest_matrix = np.load(dest_path)
         content_keys = metadata.get("content_id_list", [])
-        
+
         for idx, (c_id, c_type) in enumerate(content_keys):
             try:
                 item = ContentItem.objects.get(content_id=c_id, content_type=c_type)
@@ -222,21 +246,29 @@ def migrate_embeddings(data_dir: Path):
         print("Loading sentence embeddings...")
         sent_matrix = np.load(sent_path)
         sent_id_map = np.load(sent_map_path)
-        
+
         for idx, v1_sent_id in enumerate(sent_id_map):
             # We need to map v1_sent_id back to something in V2.
-            # V2 Sentences are unique by (post, position). 
+            # V2 Sentences are unique by (post, position).
             # This requires a second pass or more SQLite lookups.
-            # For simplicity in this script, we'll skip sentence embeddings 
+            # For simplicity in this script, we'll skip sentence embeddings
             # and recommend re-generating as they depend on exact spaCy version/splitting.
             pass
-        print("Sentence vector migration skipped (recommended to re-generate in V2 for consistency).")
+        print(
+            "Sentence vector migration skipped (recommended to re-generate in V2 for consistency)."
+        )
+
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(description="Migrate V1 SQLite data to V2 PostgreSQL.")
+
+    parser = argparse.ArgumentParser(
+        description="Migrate V1 SQLite data to V2 PostgreSQL."
+    )
     parser.add_argument("db_path", help="Path to V1 linker.db")
-    parser.add_argument("--data-dir", help="Path to V1 data directory (for embeddings)", default=None)
+    parser.add_argument(
+        "--data-dir", help="Path to V1 data directory (for embeddings)", default=None
+    )
     args = parser.parse_args()
 
     v1_db_path = args.db_path
@@ -253,7 +285,7 @@ def main():
     try:
         with transaction.atomic():
             migrate_db(cursor)
-        
+
         if v1_data_dir:
             migrate_embeddings(v1_data_dir)
 
@@ -261,9 +293,11 @@ def main():
     except Exception as e:
         print(f"\nMigration failed: {e}")
         import traceback
+
         traceback.print_exc()
     finally:
         conn.close()
+
 
 if __name__ == "__main__":
     main()

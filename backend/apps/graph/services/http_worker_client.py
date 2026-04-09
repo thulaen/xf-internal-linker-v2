@@ -28,7 +28,9 @@ def _base_url() -> str:
     enabled = getattr(settings, "HTTP_WORKER_ENABLED", False)
     if not enabled:
         raise HttpWorkerDisabledError("HttpWorker is disabled")
-    base_url = getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080").rstrip("/")
+    base_url = getattr(
+        settings, "HTTP_WORKER_URL", "http://http-worker-api:8080"
+    ).rstrip("/")
     if base_url.endswith("/api/v1/status"):
         return base_url[: -len("/api/v1/status")]
     return base_url
@@ -53,6 +55,7 @@ def _request_json(
         headers=headers,
         method=method,
     )
+
     def _do_request():
         with request.urlopen(http_request, timeout=60) as resp:
             return resp.getcode(), resp.read().decode("utf-8")
@@ -137,7 +140,9 @@ def queue_job(job_id: str, job_type: str, payload: dict[str, Any]) -> dict[str, 
     )
 
 
-def run_job(job_type: str, payload: dict[str, Any], job_id: str | None = None) -> dict[str, Any]:
+def run_job(
+    job_type: str, payload: dict[str, Any], job_id: str | None = None
+) -> dict[str, Any]:
     """Execute a job synchronously and return the results immediately."""
     request_payload = {
         "schema_version": getattr(settings, "HTTP_WORKER_SCHEMA_VERSION", "v1"),

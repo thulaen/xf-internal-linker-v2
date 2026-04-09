@@ -7,7 +7,9 @@ from .views import AuditEntryViewSet, ReviewerScorecardViewSet, SiloLeakageView
 
 router = DefaultRouter()
 router.register(r"audit-entries", AuditEntryViewSet, basename="audit-entry")
-router.register(r"reviewer-scorecards", ReviewerScorecardViewSet, basename="reviewer-scorecard")
+router.register(
+    r"reviewer-scorecards", ReviewerScorecardViewSet, basename="reviewer-scorecard"
+)
 
 urlpatterns = [
     path("", include(router.urls)),

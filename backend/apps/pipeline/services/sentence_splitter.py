@@ -21,10 +21,7 @@ class SentenceSpan:
     end_char: int
 
 
-_SENT_RE = re.compile(
-    r"(?<=[.!?])\s+(?=[A-Z])"
-    r"|(?:\n\s*\n)"
-)
+_SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])" r"|(?:\n\s*\n)")
 
 _MIN_SENT_LEN = 15
 
@@ -46,8 +43,7 @@ def split_sentence_spans(text: str) -> list[SentenceSpan]:
     if nlp is not None:
         doc = nlp(text)
         raw_spans = [
-            (sent.text.strip(), sent.start_char, sent.end_char)
-            for sent in doc.sents
+            (sent.text.strip(), sent.start_char, sent.end_char) for sent in doc.sents
         ]
     else:
         raw_spans = _regex_split_with_offsets(text)
@@ -56,12 +52,14 @@ def split_sentence_spans(text: str) -> list[SentenceSpan]:
     position = 0
     for raw_text, start, end in raw_spans:
         if len(raw_text) >= _MIN_SENT_LEN:
-            spans.append(SentenceSpan(
-                text=raw_text,
-                position=position,
-                start_char=start,
-                end_char=end,
-            ))
+            spans.append(
+                SentenceSpan(
+                    text=raw_text,
+                    position=position,
+                    start_char=start,
+                    end_char=end,
+                )
+            )
             position += 1
     return spans
 
@@ -70,7 +68,7 @@ def _regex_split_with_offsets(text: str) -> list[tuple[str, int, int]]:
     parts: list[tuple[str, int, int]] = []
     last_end = 0
     for match in _SENT_RE.finditer(text):
-        segment = text[last_end:match.start()]
+        segment = text[last_end : match.start()]
         stripped = segment.strip()
         if stripped:
             offset = last_end + segment.index(stripped)

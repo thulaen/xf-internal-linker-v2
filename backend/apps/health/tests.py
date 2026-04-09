@@ -1,7 +1,12 @@
 from django.test import TestCase
 from django.utils import timezone
 from apps.health.models import ServiceHealthRecord
-from apps.health.services import perform_health_check, HealthCheckRegistry, ServiceHealthResult
+from apps.health.services import (
+    perform_health_check,
+    HealthCheckRegistry,
+    ServiceHealthResult,
+)
+
 
 class HealthCheckTests(TestCase):
     def test_model_creation(self):
@@ -11,7 +16,7 @@ class HealthCheckTests(TestCase):
             status_label="All good",
             last_check_at=timezone.now(),
             issue_description="No problems found.",
-            suggested_fix="Enjoy the uptime."
+            suggested_fix="Enjoy the uptime.",
         )
         self.assertEqual(record.service_key, "test_service")
         self.assertEqual(record.status, "healthy")
@@ -31,9 +36,9 @@ class HealthCheckTests(TestCase):
                 status_label="Mock is fine",
                 issue_description="Mocking is successful.",
                 suggested_fix="No action needed.",
-                last_success_at=timezone.now()
+                last_success_at=timezone.now(),
             )
-        
+
         try:
             record = perform_health_check("mock_service_test")
             self.assertEqual(record.status, "healthy")

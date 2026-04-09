@@ -102,6 +102,7 @@ def _cluster_penalty(
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def compute_penalty_signal(
     host_content_id: int,
     anchor_text: str | None,

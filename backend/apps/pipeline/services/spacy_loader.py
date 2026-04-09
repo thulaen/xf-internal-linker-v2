@@ -29,6 +29,7 @@ def get_spacy_nlp() -> Any | None:
     _attempted = True
     try:
         import spacy
+
         _nlp = spacy.load("en_core_web_sm", disable=["lemmatizer"])
         _spacy_available = True
         logger.info("Successfully loaded shared spaCy model (en_core_web_sm).")

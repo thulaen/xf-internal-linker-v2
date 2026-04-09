@@ -75,7 +75,9 @@ DEFAULT_WEIGHTED_AUTHORITY_SETTINGS = {
     "empty_anchor_factor": recommended_float("weighted_authority.empty_anchor_factor"),
     "bare_url_factor": recommended_float("weighted_authority.bare_url_factor"),
     "weak_context_factor": recommended_float("weighted_authority.weak_context_factor"),
-    "isolated_context_factor": recommended_float("weighted_authority.isolated_context_factor"),
+    "isolated_context_factor": recommended_float(
+        "weighted_authority.isolated_context_factor"
+    ),
 }
 
 DEFAULT_LINK_FRESHNESS_SETTINGS = {
@@ -91,23 +93,33 @@ DEFAULT_LINK_FRESHNESS_SETTINGS = {
 
 DEFAULT_PHRASE_MATCHING_SETTINGS = {
     "ranking_weight": recommended_float("phrase_matching.ranking_weight"),
-    "enable_anchor_expansion": recommended_bool("phrase_matching.enable_anchor_expansion"),
-    "enable_partial_matching": recommended_bool("phrase_matching.enable_partial_matching"),
+    "enable_anchor_expansion": recommended_bool(
+        "phrase_matching.enable_anchor_expansion"
+    ),
+    "enable_partial_matching": recommended_bool(
+        "phrase_matching.enable_partial_matching"
+    ),
     "context_window_tokens": recommended_int("phrase_matching.context_window_tokens"),
 }
 
 DEFAULT_LEARNED_ANCHOR_SETTINGS = {
     "ranking_weight": recommended_float("learned_anchor.ranking_weight"),
     "minimum_anchor_sources": recommended_int("learned_anchor.minimum_anchor_sources"),
-    "minimum_family_support_share": recommended_float("learned_anchor.minimum_family_support_share"),
+    "minimum_family_support_share": recommended_float(
+        "learned_anchor.minimum_family_support_share"
+    ),
     "enable_noise_filter": recommended_bool("learned_anchor.enable_noise_filter"),
 }
 
 DEFAULT_RARE_TERM_PROPAGATION_SETTINGS = {
     "enabled": recommended_bool("rare_term_propagation.enabled"),
     "ranking_weight": recommended_float("rare_term_propagation.ranking_weight"),
-    "max_document_frequency": recommended_int("rare_term_propagation.max_document_frequency"),
-    "minimum_supporting_related_pages": recommended_int("rare_term_propagation.minimum_supporting_related_pages"),
+    "max_document_frequency": recommended_int(
+        "rare_term_propagation.max_document_frequency"
+    ),
+    "minimum_supporting_related_pages": recommended_int(
+        "rare_term_propagation.minimum_supporting_related_pages"
+    ),
 }
 
 DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
@@ -115,7 +127,9 @@ DEFAULT_FIELD_AWARE_RELEVANCE_SETTINGS = {
     "title_field_weight": recommended_float("field_aware_relevance.title_field_weight"),
     "body_field_weight": recommended_float("field_aware_relevance.body_field_weight"),
     "scope_field_weight": recommended_float("field_aware_relevance.scope_field_weight"),
-    "learned_anchor_field_weight": recommended_float("field_aware_relevance.learned_anchor_field_weight"),
+    "learned_anchor_field_weight": recommended_float(
+        "field_aware_relevance.learned_anchor_field_weight"
+    ),
 }
 
 DEFAULT_GA4_GSC_SETTINGS = {
@@ -162,7 +176,9 @@ DEFAULT_GRAPH_CANDIDATE_SETTINGS = {
     "min_stable_candidates": recommended_int("graph_candidate.min_stable_candidates"),
     "min_visit_threshold": recommended_int("graph_candidate.min_visit_threshold"),
     "top_k_candidates": recommended_int("graph_candidate.top_k_candidates"),
-    "top_n_entities_per_article": recommended_int("graph_candidate.top_n_entities_per_article"),
+    "top_n_entities_per_article": recommended_int(
+        "graph_candidate.top_n_entities_per_article"
+    ),
 }
 
 DEFAULT_VALUE_MODEL_SETTINGS = {
@@ -175,12 +191,18 @@ DEFAULT_VALUE_MODEL_SETTINGS = {
     "traffic_lookback_days": recommended_int("value_model.traffic_lookback_days"),
     "traffic_fallback_value": recommended_float("value_model.traffic_fallback_value"),
     # FR-024 engagement signal
-    "engagement_signal_enabled": recommended_bool("value_model.engagement_signal_enabled"),
+    "engagement_signal_enabled": recommended_bool(
+        "value_model.engagement_signal_enabled"
+    ),
     "w_engagement": recommended_float("value_model.w_engagement"),
     "engagement_lookback_days": recommended_int("value_model.engagement_lookback_days"),
-    "engagement_words_per_minute": recommended_int("value_model.engagement_words_per_minute"),
+    "engagement_words_per_minute": recommended_int(
+        "value_model.engagement_words_per_minute"
+    ),
     "engagement_cap_ratio": recommended_float("value_model.engagement_cap_ratio"),
-    "engagement_fallback_value": recommended_float("value_model.engagement_fallback_value"),
+    "engagement_fallback_value": recommended_float(
+        "value_model.engagement_fallback_value"
+    ),
     # FR-023 hot decay signal
     "hot_decay_enabled": recommended_bool("value_model.hot_decay_enabled"),
     "hot_gravity": recommended_float("value_model.hot_gravity"),
@@ -188,18 +210,28 @@ DEFAULT_VALUE_MODEL_SETTINGS = {
     "hot_impressions_weight": recommended_float("value_model.hot_impressions_weight"),
     "hot_lookback_days": recommended_int("value_model.hot_lookback_days"),
     # FR-025 co-occurrence signal
-    "co_occurrence_signal_enabled": recommended_bool("value_model.co_occurrence_signal_enabled"),
+    "co_occurrence_signal_enabled": recommended_bool(
+        "value_model.co_occurrence_signal_enabled"
+    ),
     "w_cooccurrence": recommended_float("value_model.w_cooccurrence"),
-    "co_occurrence_fallback_value": recommended_float("value_model.co_occurrence_fallback_value"),
-    "co_occurrence_min_co_sessions": recommended_int("value_model.co_occurrence_min_co_sessions"),
+    "co_occurrence_fallback_value": recommended_float(
+        "value_model.co_occurrence_fallback_value"
+    ),
+    "co_occurrence_min_co_sessions": recommended_int(
+        "value_model.co_occurrence_min_co_sessions"
+    ),
 }
 
 # Allowed MIME types for site asset uploads
 _LOGO_ALLOWED = frozenset({"image/png", "image/svg+xml", "image/webp", "image/jpeg"})
-_FAVICON_ALLOWED = frozenset({
-    "image/png", "image/svg+xml",
-    "image/x-icon", "image/vnd.microsoft.icon",
-})
+_FAVICON_ALLOWED = frozenset(
+    {
+        "image/png",
+        "image/svg+xml",
+        "image/x-icon",
+        "image/vnd.microsoft.icon",
+    }
+)
 _ASSET_MAX_BYTES = 2 * 1024 * 1024  # 2 MB
 
 
@@ -214,7 +246,10 @@ def _get_app_setting_value(key: str, default: str | None = None) -> str | None:
 
 def get_silo_settings() -> dict[str, float | str]:
     """Load persisted silo settings with defensive defaults."""
-    mode = _get_app_setting_value("silo.mode", DEFAULT_SILO_SETTINGS["mode"]) or DEFAULT_SILO_SETTINGS["mode"]
+    mode = (
+        _get_app_setting_value("silo.mode", DEFAULT_SILO_SETTINGS["mode"])
+        or DEFAULT_SILO_SETTINGS["mode"]
+    )
     if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
         mode = DEFAULT_SILO_SETTINGS["mode"]
 
@@ -227,15 +262,21 @@ def get_silo_settings() -> dict[str, float | str]:
 
     return {
         "mode": mode,
-        "same_silo_boost": _read_float("silo.same_silo_boost", DEFAULT_SILO_SETTINGS["same_silo_boost"]),
-        "cross_silo_penalty": _read_float("silo.cross_silo_penalty", DEFAULT_SILO_SETTINGS["cross_silo_penalty"]),
+        "same_silo_boost": _read_float(
+            "silo.same_silo_boost", DEFAULT_SILO_SETTINGS["same_silo_boost"]
+        ),
+        "cross_silo_penalty": _read_float(
+            "silo.cross_silo_penalty", DEFAULT_SILO_SETTINGS["cross_silo_penalty"]
+        ),
     }
 
 
 def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
     mode = payload.get("mode", DEFAULT_SILO_SETTINGS["mode"])
     if mode not in {"disabled", "prefer_same_silo", "strict_same_silo"}:
-        raise ValueError("mode must be one of disabled, prefer_same_silo, strict_same_silo.")
+        raise ValueError(
+            "mode must be one of disabled, prefer_same_silo, strict_same_silo."
+        )
 
     def _coerce_float(key: str) -> float:
         value = payload.get(key, DEFAULT_SILO_SETTINGS[key])
@@ -260,9 +301,26 @@ def _validate_silo_settings(payload: dict) -> dict[str, float | str]:
 
 def get_wordpress_settings() -> dict[str, object]:
     """Load persisted WordPress sync settings with environment fallbacks."""
-    base_url = (_get_app_setting_value("wordpress.base_url", django_settings.WORDPRESS_BASE_URL) or "").strip().rstrip("/")
-    username = (_get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME) or "").strip()
-    app_password = _get_app_setting_value("wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD) or ""
+    base_url = (
+        (
+            _get_app_setting_value(
+                "wordpress.base_url", django_settings.WORDPRESS_BASE_URL
+            )
+            or ""
+        )
+        .strip()
+        .rstrip("/")
+    )
+    username = (
+        _get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME)
+        or ""
+    ).strip()
+    app_password = (
+        _get_app_setting_value(
+            "wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD
+        )
+        or ""
+    )
 
     def _read_int(key: str, default: int) -> int:
         raw = _get_app_setting_value(key)
@@ -271,9 +329,12 @@ def get_wordpress_settings() -> dict[str, object]:
         except (TypeError, ValueError):
             return default
 
-    sync_enabled = (_get_app_setting_value("wordpress.sync_enabled") or "").strip().lower() in {"1", "true", "yes", "on"}
+    sync_enabled = (
+        _get_app_setting_value("wordpress.sync_enabled") or ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
 
     from apps.health.services import get_service_health_status
+
     health = get_service_health_status("wordpress")
 
     return {
@@ -281,18 +342,39 @@ def get_wordpress_settings() -> dict[str, object]:
         "username": username,
         "app_password_configured": bool(app_password.strip()),
         "sync_enabled": sync_enabled,
-        "sync_hour": _read_int("wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"]),
-        "sync_minute": _read_int("wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"]),
-        "health": health
+        "sync_hour": _read_int(
+            "wordpress.sync_hour", DEFAULT_WORDPRESS_SETTINGS["sync_hour"]
+        ),
+        "sync_minute": _read_int(
+            "wordpress.sync_minute", DEFAULT_WORDPRESS_SETTINGS["sync_minute"]
+        ),
+        "health": health,
     }
 
 
 def get_wordpress_runtime_config() -> dict[str, str]:
     """Return WordPress connection settings including the stored secret."""
     return {
-        "base_url": (_get_app_setting_value("wordpress.base_url", django_settings.WORDPRESS_BASE_URL) or "").strip().rstrip("/"),
-        "username": (_get_app_setting_value("wordpress.username", django_settings.WORDPRESS_USERNAME) or "").strip(),
-        "app_password": (_get_app_setting_value("wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD) or "").strip(),
+        "base_url": (
+            _get_app_setting_value(
+                "wordpress.base_url", django_settings.WORDPRESS_BASE_URL
+            )
+            or ""
+        )
+        .strip()
+        .rstrip("/"),
+        "username": (
+            _get_app_setting_value(
+                "wordpress.username", django_settings.WORDPRESS_USERNAME
+            )
+            or ""
+        ).strip(),
+        "app_password": (
+            _get_app_setting_value(
+                "wordpress.app_password", django_settings.WORDPRESS_APP_PASSWORD
+            )
+            or ""
+        ).strip(),
     }
 
 
@@ -397,11 +479,12 @@ def get_ga4_gsc_settings() -> dict[str, object]:
     settings = _read_ga4_gsc_settings()
     if not isinstance(settings.get("ranking_weight"), (float, int)):
         settings["ranking_weight"] = DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
-    
+
     from apps.health.services import get_service_health_status
+
     settings["ga4_health"] = get_service_health_status("ga4")
     settings["gsc_health"] = get_service_health_status("gsc")
-    
+
     return settings
 
 
@@ -443,6 +526,7 @@ def get_clustering_settings() -> dict[str, float | bool]:
 
 def _read_clustering_settings() -> dict[str, float | bool]:
     """Read near-duplicate clustering settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -462,14 +546,23 @@ def _read_clustering_settings() -> dict[str, float | bool]:
         return bool(raw)
 
     return {
-        "enabled": _read_bool("clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"]),
-        "similarity_threshold": _read_float("clustering.similarity_threshold", DEFAULT_CLUSTERING_SETTINGS["similarity_threshold"]),
-        "suppression_penalty": _read_float("clustering.suppression_penalty", DEFAULT_CLUSTERING_SETTINGS["suppression_penalty"]),
+        "enabled": _read_bool(
+            "clustering.enabled", DEFAULT_CLUSTERING_SETTINGS["enabled"]
+        ),
+        "similarity_threshold": _read_float(
+            "clustering.similarity_threshold",
+            DEFAULT_CLUSTERING_SETTINGS["similarity_threshold"],
+        ),
+        "suppression_penalty": _read_float(
+            "clustering.suppression_penalty",
+            DEFAULT_CLUSTERING_SETTINGS["suppression_penalty"],
+        ),
     }
 
 
 def _read_weighted_authority_settings() -> dict[str, float]:
     """Read weighted-authority settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -481,12 +574,30 @@ def _read_weighted_authority_settings() -> dict[str, float]:
         return value
 
     return {
-        "ranking_weight": _read_float("weighted_authority.ranking_weight", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["ranking_weight"]),
-        "position_bias": _read_float("weighted_authority.position_bias", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["position_bias"]),
-        "empty_anchor_factor": _read_float("weighted_authority.empty_anchor_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["empty_anchor_factor"]),
-        "bare_url_factor": _read_float("weighted_authority.bare_url_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["bare_url_factor"]),
-        "weak_context_factor": _read_float("weighted_authority.weak_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["weak_context_factor"]),
-        "isolated_context_factor": _read_float("weighted_authority.isolated_context_factor", DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["isolated_context_factor"]),
+        "ranking_weight": _read_float(
+            "weighted_authority.ranking_weight",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["ranking_weight"],
+        ),
+        "position_bias": _read_float(
+            "weighted_authority.position_bias",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["position_bias"],
+        ),
+        "empty_anchor_factor": _read_float(
+            "weighted_authority.empty_anchor_factor",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["empty_anchor_factor"],
+        ),
+        "bare_url_factor": _read_float(
+            "weighted_authority.bare_url_factor",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["bare_url_factor"],
+        ),
+        "weak_context_factor": _read_float(
+            "weighted_authority.weak_context_factor",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["weak_context_factor"],
+        ),
+        "isolated_context_factor": _read_float(
+            "weighted_authority.isolated_context_factor",
+            DEFAULT_WEIGHTED_AUTHORITY_SETTINGS["isolated_context_factor"],
+        ),
     }
 
 
@@ -512,14 +623,34 @@ def _read_link_freshness_settings() -> dict[str, float | int]:
         return value
 
     return {
-        "ranking_weight": _read_float("link_freshness.ranking_weight", DEFAULT_LINK_FRESHNESS_SETTINGS["ranking_weight"]),
-        "recent_window_days": _read_int("link_freshness.recent_window_days", DEFAULT_LINK_FRESHNESS_SETTINGS["recent_window_days"]),
-        "newest_peer_percent": _read_float("link_freshness.newest_peer_percent", DEFAULT_LINK_FRESHNESS_SETTINGS["newest_peer_percent"]),
-        "min_peer_count": _read_int("link_freshness.min_peer_count", DEFAULT_LINK_FRESHNESS_SETTINGS["min_peer_count"]),
-        "w_recent": _read_float("link_freshness.w_recent", DEFAULT_LINK_FRESHNESS_SETTINGS["w_recent"]),
-        "w_growth": _read_float("link_freshness.w_growth", DEFAULT_LINK_FRESHNESS_SETTINGS["w_growth"]),
-        "w_cohort": _read_float("link_freshness.w_cohort", DEFAULT_LINK_FRESHNESS_SETTINGS["w_cohort"]),
-        "w_loss": _read_float("link_freshness.w_loss", DEFAULT_LINK_FRESHNESS_SETTINGS["w_loss"]),
+        "ranking_weight": _read_float(
+            "link_freshness.ranking_weight",
+            DEFAULT_LINK_FRESHNESS_SETTINGS["ranking_weight"],
+        ),
+        "recent_window_days": _read_int(
+            "link_freshness.recent_window_days",
+            DEFAULT_LINK_FRESHNESS_SETTINGS["recent_window_days"],
+        ),
+        "newest_peer_percent": _read_float(
+            "link_freshness.newest_peer_percent",
+            DEFAULT_LINK_FRESHNESS_SETTINGS["newest_peer_percent"],
+        ),
+        "min_peer_count": _read_int(
+            "link_freshness.min_peer_count",
+            DEFAULT_LINK_FRESHNESS_SETTINGS["min_peer_count"],
+        ),
+        "w_recent": _read_float(
+            "link_freshness.w_recent", DEFAULT_LINK_FRESHNESS_SETTINGS["w_recent"]
+        ),
+        "w_growth": _read_float(
+            "link_freshness.w_growth", DEFAULT_LINK_FRESHNESS_SETTINGS["w_growth"]
+        ),
+        "w_cohort": _read_float(
+            "link_freshness.w_cohort", DEFAULT_LINK_FRESHNESS_SETTINGS["w_cohort"]
+        ),
+        "w_loss": _read_float(
+            "link_freshness.w_loss", DEFAULT_LINK_FRESHNESS_SETTINGS["w_loss"]
+        ),
     }
 
 
@@ -551,10 +682,22 @@ def _read_phrase_matching_settings() -> dict[str, float | int | bool]:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "ranking_weight": _read_float("phrase_matching.ranking_weight", DEFAULT_PHRASE_MATCHING_SETTINGS["ranking_weight"]),
-        "enable_anchor_expansion": _read_bool("phrase_matching.enable_anchor_expansion", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"]),
-        "enable_partial_matching": _read_bool("phrase_matching.enable_partial_matching", DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"]),
-        "context_window_tokens": _read_int("phrase_matching.context_window_tokens", DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"]),
+        "ranking_weight": _read_float(
+            "phrase_matching.ranking_weight",
+            DEFAULT_PHRASE_MATCHING_SETTINGS["ranking_weight"],
+        ),
+        "enable_anchor_expansion": _read_bool(
+            "phrase_matching.enable_anchor_expansion",
+            DEFAULT_PHRASE_MATCHING_SETTINGS["enable_anchor_expansion"],
+        ),
+        "enable_partial_matching": _read_bool(
+            "phrase_matching.enable_partial_matching",
+            DEFAULT_PHRASE_MATCHING_SETTINGS["enable_partial_matching"],
+        ),
+        "context_window_tokens": _read_int(
+            "phrase_matching.context_window_tokens",
+            DEFAULT_PHRASE_MATCHING_SETTINGS["context_window_tokens"],
+        ),
     }
 
 
@@ -574,6 +717,7 @@ def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
 
 def _read_click_distance_settings() -> dict[str, float]:
     """Read click-distance settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -585,15 +729,25 @@ def _read_click_distance_settings() -> dict[str, float]:
         return value
 
     return {
-        "ranking_weight": _read_float("click_distance.ranking_weight", DEFAULT_CLICK_DISTANCE_SETTINGS["ranking_weight"]),
-        "k_cd": _read_float("click_distance.k_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["k_cd"]),
-        "b_cd": _read_float("click_distance.b_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]),
-        "b_ud": _read_float("click_distance.b_ud", DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]),
+        "ranking_weight": _read_float(
+            "click_distance.ranking_weight",
+            DEFAULT_CLICK_DISTANCE_SETTINGS["ranking_weight"],
+        ),
+        "k_cd": _read_float(
+            "click_distance.k_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["k_cd"]
+        ),
+        "b_cd": _read_float(
+            "click_distance.b_cd", DEFAULT_CLICK_DISTANCE_SETTINGS["b_cd"]
+        ),
+        "b_ud": _read_float(
+            "click_distance.b_ud", DEFAULT_CLICK_DISTANCE_SETTINGS["b_ud"]
+        ),
     }
 
 
 def _read_feedback_rerank_settings() -> dict[str, float | bool]:
     """Read feedback-driven explore/exploit settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -611,14 +765,23 @@ def _read_feedback_rerank_settings() -> dict[str, float | bool]:
         return raw.lower() == "true"
 
     return {
-        "enabled": _read_bool("explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"]),
-        "ranking_weight": _read_float("explore_exploit.ranking_weight", DEFAULT_FEEDBACK_RERANK_SETTINGS["ranking_weight"]),
-        "exploration_rate": _read_float("explore_exploit.exploration_rate", DEFAULT_FEEDBACK_RERANK_SETTINGS["exploration_rate"]),
+        "enabled": _read_bool(
+            "explore_exploit.enabled", DEFAULT_FEEDBACK_RERANK_SETTINGS["enabled"]
+        ),
+        "ranking_weight": _read_float(
+            "explore_exploit.ranking_weight",
+            DEFAULT_FEEDBACK_RERANK_SETTINGS["ranking_weight"],
+        ),
+        "exploration_rate": _read_float(
+            "explore_exploit.exploration_rate",
+            DEFAULT_FEEDBACK_RERANK_SETTINGS["exploration_rate"],
+        ),
     }
 
 
 def _read_slate_diversity_settings() -> dict:
     """Read FR-015 slate diversity settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -636,10 +799,21 @@ def _read_slate_diversity_settings() -> dict:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "enabled": _read_bool("slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"]),
-        "diversity_lambda": _read_float("slate_diversity.diversity_lambda", DEFAULT_SLATE_DIVERSITY_SETTINGS["diversity_lambda"]),
-        "score_window": _read_float("slate_diversity.score_window", DEFAULT_SLATE_DIVERSITY_SETTINGS["score_window"]),
-        "similarity_cap": _read_float("slate_diversity.similarity_cap", DEFAULT_SLATE_DIVERSITY_SETTINGS["similarity_cap"]),
+        "enabled": _read_bool(
+            "slate_diversity.enabled", DEFAULT_SLATE_DIVERSITY_SETTINGS["enabled"]
+        ),
+        "diversity_lambda": _read_float(
+            "slate_diversity.diversity_lambda",
+            DEFAULT_SLATE_DIVERSITY_SETTINGS["diversity_lambda"],
+        ),
+        "score_window": _read_float(
+            "slate_diversity.score_window",
+            DEFAULT_SLATE_DIVERSITY_SETTINGS["score_window"],
+        ),
+        "similarity_cap": _read_float(
+            "slate_diversity.similarity_cap",
+            DEFAULT_SLATE_DIVERSITY_SETTINGS["similarity_cap"],
+        ),
         "algorithm_version": DEFAULT_SLATE_DIVERSITY_SETTINGS["algorithm_version"],
     }
 
@@ -654,6 +828,7 @@ def get_slate_diversity_settings() -> dict:
 
 def _validate_slate_diversity_settings(payload: dict, current: dict) -> dict:
     """Validate and clamp slate diversity settings."""
+
     def _get_float(key: str) -> float:
         val = payload.get(key, current.get(key))
         try:
@@ -678,6 +853,7 @@ def _validate_slate_diversity_settings(payload: dict, current: dict) -> dict:
 
 def _validate_click_distance_settings(payload: dict, current: dict) -> dict[str, float]:
     """Validate and clamp click-distance settings."""
+
     def _get_float(key: str) -> float:
         val = payload.get(key, current.get(key))
         try:
@@ -730,10 +906,22 @@ def _read_learned_anchor_settings() -> dict[str, float | int | bool]:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "ranking_weight": _read_float("learned_anchor.ranking_weight", DEFAULT_LEARNED_ANCHOR_SETTINGS["ranking_weight"]),
-        "minimum_anchor_sources": _read_int("learned_anchor.minimum_anchor_sources", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_anchor_sources"]),
-        "minimum_family_support_share": _read_float("learned_anchor.minimum_family_support_share", DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_family_support_share"]),
-        "enable_noise_filter": _read_bool("learned_anchor.enable_noise_filter", DEFAULT_LEARNED_ANCHOR_SETTINGS["enable_noise_filter"]),
+        "ranking_weight": _read_float(
+            "learned_anchor.ranking_weight",
+            DEFAULT_LEARNED_ANCHOR_SETTINGS["ranking_weight"],
+        ),
+        "minimum_anchor_sources": _read_int(
+            "learned_anchor.minimum_anchor_sources",
+            DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_anchor_sources"],
+        ),
+        "minimum_family_support_share": _read_float(
+            "learned_anchor.minimum_family_support_share",
+            DEFAULT_LEARNED_ANCHOR_SETTINGS["minimum_family_support_share"],
+        ),
+        "enable_noise_filter": _read_bool(
+            "learned_anchor.enable_noise_filter",
+            DEFAULT_LEARNED_ANCHOR_SETTINGS["enable_noise_filter"],
+        ),
     }
 
 
@@ -765,9 +953,18 @@ def _read_rare_term_propagation_settings() -> dict[str, float | int | bool]:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "enabled": _read_bool("rare_term_propagation.enabled", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["enabled"]),
-        "ranking_weight": _read_float("rare_term_propagation.ranking_weight", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["ranking_weight"]),
-        "max_document_frequency": _read_int("rare_term_propagation.max_document_frequency", DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["max_document_frequency"]),
+        "enabled": _read_bool(
+            "rare_term_propagation.enabled",
+            DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["enabled"],
+        ),
+        "ranking_weight": _read_float(
+            "rare_term_propagation.ranking_weight",
+            DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["ranking_weight"],
+        ),
+        "max_document_frequency": _read_int(
+            "rare_term_propagation.max_document_frequency",
+            DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["max_document_frequency"],
+        ),
         "minimum_supporting_related_pages": _read_int(
             "rare_term_propagation.minimum_supporting_related_pages",
             DEFAULT_RARE_TERM_PROPAGATION_SETTINGS["minimum_supporting_related_pages"],
@@ -812,7 +1009,9 @@ def _read_field_aware_relevance_settings() -> dict[str, float]:
     }
 
 
-def _validate_clustering_settings(payload: dict, current: dict) -> dict[str, float | bool]:
+def _validate_clustering_settings(
+    payload: dict, current: dict
+) -> dict[str, float | bool]:
     """Validate and clamp near-duplicate clustering settings."""
 
     def _get_float(key: str) -> float:
@@ -833,9 +1032,9 @@ def _validate_clustering_settings(payload: dict, current: dict) -> dict[str, flo
     }
 
 
-
 def _read_ga4_gsc_settings() -> dict[str, object]:
     """Read GA4/GSC settings from AppSetting without applying bounds."""
+
     def _read_float(key: str, default: float) -> float:
         raw = _get_app_setting_value(key)
         try:
@@ -860,22 +1059,34 @@ def _read_ga4_gsc_settings() -> dict[str, object]:
             return default
         return value
 
-    property_url = (_get_app_setting_value("ga4_gsc.property_url", "") or "").strip().rstrip("/")
-    service_account_email = (_get_app_setting_value("ga4_gsc.service_account_email", "") or "").strip()
+    property_url = (
+        (_get_app_setting_value("ga4_gsc.property_url", "") or "").strip().rstrip("/")
+    )
+    service_account_email = (
+        _get_app_setting_value("ga4_gsc.service_account_email", "") or ""
+    ).strip()
     private_key = (_get_app_setting_value("ga4_gsc.private_key", "") or "").strip()
     connection_status = "not_configured"
-    connection_message = "Fill in the Search Console property URL and service-account credentials."
+    connection_message = (
+        "Fill in the Search Console property URL and service-account credentials."
+    )
     if property_url and service_account_email and private_key:
         connection_status = "saved"
         connection_message = "Search Console credentials are saved. Run Test Connection to confirm access."
 
     return {
-        "ranking_weight": _read_float("ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]),
+        "ranking_weight": _read_float(
+            "ga4_gsc.ranking_weight", DEFAULT_GA4_GSC_SETTINGS["ranking_weight"]
+        ),
         "property_url": property_url,
         "service_account_email": service_account_email,
         "private_key_configured": bool(private_key),
-        "sync_enabled": _read_bool("ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"]),
-        "sync_lookback_days": _read_int("ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"]),
+        "sync_enabled": _read_bool(
+            "ga4_gsc.sync_enabled", DEFAULT_GA4_GSC_SETTINGS["sync_enabled"]
+        ),
+        "sync_lookback_days": _read_int(
+            "ga4_gsc.sync_lookback_days", DEFAULT_GA4_GSC_SETTINGS["sync_lookback_days"]
+        ),
         "connection_status": connection_status,
         "connection_message": connection_message,
     }
@@ -918,16 +1129,24 @@ def _validate_wordpress_settings(payload: dict) -> dict[str, object]:
             raise ValueError(f"{key} must be between {minimum} and {maximum}.")
         return value
 
-    sync_enabled = _coerce_bool(payload.get("sync_enabled"), bool(current["sync_enabled"]))
+    sync_enabled = _coerce_bool(
+        payload.get("sync_enabled"), bool(current["sync_enabled"])
+    )
     sync_hour = _coerce_int("sync_hour", 0, 23)
     sync_minute = _coerce_int("sync_minute", 0, 59)
 
     if username and not effective_has_password:
-        raise ValueError("Application Password is required when a WordPress username is configured.")
+        raise ValueError(
+            "Application Password is required when a WordPress username is configured."
+        )
     if effective_has_password and not username:
-        raise ValueError("username is required when an Application Password is configured.")
+        raise ValueError(
+            "username is required when an Application Password is configured."
+        )
     if sync_enabled and not base_url:
-        raise ValueError("base_url is required when scheduled WordPress sync is enabled.")
+        raise ValueError(
+            "base_url is required when scheduled WordPress sync is enabled."
+        )
 
     return {
         "base_url": base_url,
@@ -1092,7 +1311,10 @@ def _validate_phrase_matching_settings(
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
         raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if validated["context_window_tokens"] < 4 or validated["context_window_tokens"] > 12:
+    if (
+        validated["context_window_tokens"] < 4
+        or validated["context_window_tokens"] > 12
+    ):
         raise ValueError("context_window_tokens must be between 4 and 12.")
 
     return validated
@@ -1137,9 +1359,15 @@ def _validate_learned_anchor_settings(
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
         raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if validated["minimum_anchor_sources"] < 1 or validated["minimum_anchor_sources"] > 10:
+    if (
+        validated["minimum_anchor_sources"] < 1
+        or validated["minimum_anchor_sources"] > 10
+    ):
         raise ValueError("minimum_anchor_sources must be between 1 and 10.")
-    if validated["minimum_family_support_share"] < 0.05 or validated["minimum_family_support_share"] > 0.50:
+    if (
+        validated["minimum_family_support_share"] < 0.05
+        or validated["minimum_family_support_share"] > 0.50
+    ):
         raise ValueError("minimum_family_support_share must be between 0.05 and 0.50.")
 
     return validated
@@ -1179,14 +1407,22 @@ def _validate_rare_term_propagation_settings(
         "enabled": _coerce_bool("enabled"),
         "ranking_weight": _coerce_float("ranking_weight"),
         "max_document_frequency": _coerce_int("max_document_frequency"),
-        "minimum_supporting_related_pages": _coerce_int("minimum_supporting_related_pages"),
+        "minimum_supporting_related_pages": _coerce_int(
+            "minimum_supporting_related_pages"
+        ),
     }
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 0.10:
         raise ValueError("ranking_weight must be between 0.0 and 0.10.")
-    if validated["max_document_frequency"] < 1 or validated["max_document_frequency"] > 10:
+    if (
+        validated["max_document_frequency"] < 1
+        or validated["max_document_frequency"] > 10
+    ):
         raise ValueError("max_document_frequency must be between 1 and 10.")
-    if validated["minimum_supporting_related_pages"] < 1 or validated["minimum_supporting_related_pages"] > 5:
+    if (
+        validated["minimum_supporting_related_pages"] < 1
+        or validated["minimum_supporting_related_pages"] > 5
+    ):
         raise ValueError("minimum_supporting_related_pages must be between 1 and 5.")
 
     return validated
@@ -1232,7 +1468,9 @@ def _validate_field_aware_relevance_settings(
         field_weight_sum += validated[key]
 
     if not math.isclose(field_weight_sum, 1.0, abs_tol=1e-6):
-        raise ValueError("title/body/scope/learned-anchor field weights must sum to 1.0.")
+        raise ValueError(
+            "title/body/scope/learned-anchor field weights must sum to 1.0."
+        )
 
     return validated
 
@@ -1278,13 +1516,19 @@ def _validate_ga4_gsc_settings(
 
     validated = {
         "ranking_weight": _coerce_float("ranking_weight"),
-        "property_url": str(payload.get("property_url", current["property_url"])).strip().rstrip("/"),
-        "service_account_email": str(payload.get("service_account_email", current["service_account_email"])).strip(),
+        "property_url": str(payload.get("property_url", current["property_url"]))
+        .strip()
+        .rstrip("/"),
+        "service_account_email": str(
+            payload.get("service_account_email", current["service_account_email"])
+        ).strip(),
         "sync_enabled": _coerce_bool("sync_enabled"),
         "sync_lookback_days": _coerce_int("sync_lookback_days", 1, 30),
     }
     private_key_provided = "private_key" in payload
-    private_key = str(payload.get("private_key", "")).strip() if private_key_provided else None
+    private_key = (
+        str(payload.get("private_key", "")).strip() if private_key_provided else None
+    )
 
     if validated["ranking_weight"] < 0.0 or validated["ranking_weight"] > 1.0:
         raise ValueError("ranking_weight must be between 0.0 and 1.0.")
@@ -1292,11 +1536,20 @@ def _validate_ga4_gsc_settings(
         parsed = urlparse(validated["property_url"])
         if parsed.scheme not in {"http", "https"} or not parsed.netloc:
             raise ValueError("property_url must be a valid http(s) URL.")
-    if validated["service_account_email"] and "@" not in validated["service_account_email"]:
+    if (
+        validated["service_account_email"]
+        and "@" not in validated["service_account_email"]
+    ):
         raise ValueError("service_account_email must look like an email address.")
     has_private_key = bool(current.get("private_key_configured")) or bool(private_key)
-    if validated["sync_enabled"] and (not validated["property_url"] or not validated["service_account_email"] or not has_private_key):
-        raise ValueError("Search Console sync needs property_url, service_account_email, and private_key.")
+    if validated["sync_enabled"] and (
+        not validated["property_url"]
+        or not validated["service_account_email"]
+        or not has_private_key
+    ):
+        raise ValueError(
+            "Search Console sync needs property_url, service_account_email, and private_key."
+        )
 
     validated["private_key"] = private_key
     validated["private_key_provided"] = private_key_provided
@@ -1383,10 +1636,12 @@ class AppearanceSettingsView(APIView):
     GET  /api/settings/appearance/ — returns current appearance config (or defaults)
     PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
     """
+
     permission_classes = [IsAuthenticated]
 
     def _get_config(self) -> dict:
         from apps.core.models import AppSetting
+
         try:
             setting = AppSetting.objects.get(key="appearance.config")
             stored = json.loads(setting.value)
@@ -1406,6 +1661,7 @@ class AppearanceSettingsView(APIView):
 
     def put(self, request):
         from apps.core.models import AppSetting
+
         current = self._get_config()
         # Shallow merge — client sends only the keys it wants to change
         for k, v in request.data.items():
@@ -1429,6 +1685,7 @@ class SiloSettingsView(APIView):
     GET  /api/settings/silos/ - returns persisted silo-ranking configuration
     PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1479,6 +1736,7 @@ class WeightedAuthoritySettingsView(APIView):
     GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
     PUT  /api/settings/weighted-authority/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1535,6 +1793,7 @@ class WeightedAuthoritySettingsView(APIView):
 
 class WeightedAuthorityRecalculateView(APIView):
     """POST /api/settings/weighted-authority/recalculate/ - recalculate March 2026 PageRank."""
+
     throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
@@ -1550,6 +1809,7 @@ class LinkFreshnessSettingsView(APIView):
     GET  /api/settings/link-freshness/ - returns Link Freshness settings
     PUT  /api/settings/link-freshness/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1622,6 +1882,7 @@ class LinkFreshnessSettingsView(APIView):
 
 class LinkFreshnessRecalculateView(APIView):
     """POST /api/settings/link-freshness/recalculate/ - recalculate Link Freshness."""
+
     throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
@@ -1637,6 +1898,7 @@ class PhraseMatchingSettingsView(APIView):
     GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
     PUT  /api/settings/phrase-matching/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1692,6 +1954,7 @@ class LearnedAnchorSettingsView(APIView):
     GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
     PUT  /api/settings/learned-anchor/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1747,6 +2010,7 @@ class RareTermPropagationSettingsView(APIView):
     GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1802,6 +2066,7 @@ class FieldAwareRelevanceSettingsView(APIView):
     GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
     PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1862,6 +2127,7 @@ class GA4GSCSettingsView(APIView):
     GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -1962,27 +2228,53 @@ class GSCConnectionTestView(APIView):
 
     def post(self, request):
         current = get_ga4_gsc_settings()
-        property_url = str(request.data.get("property_url") or current["property_url"] or "").strip().rstrip("/")
-        service_account_email = str(request.data.get("service_account_email") or current["service_account_email"] or "").strip()
+        property_url = (
+            str(request.data.get("property_url") or current["property_url"] or "")
+            .strip()
+            .rstrip("/")
+        )
+        service_account_email = str(
+            request.data.get("service_account_email")
+            or current["service_account_email"]
+            or ""
+        ).strip()
         private_key = str(request.data.get("private_key") or _gsc_private_key()).strip()
         if not property_url or not service_account_email or not private_key:
             return Response(
-                {"status": "not_configured", "message": "Save the property URL, service-account email, and private key first."},
+                {
+                    "status": "not_configured",
+                    "message": "Save the property URL, service-account email, and private key first.",
+                },
                 status=400,
             )
 
         try:
-            service = _build_gsc_service(service_account_email=service_account_email, private_key=private_key)
+            service = _build_gsc_service(
+                service_account_email=service_account_email, private_key=private_key
+            )
             response = service.sites().list().execute()
         except Exception as exc:
-            return Response({"status": "error", "message": f"Search Console connection failed: {exc}"}, status=400)
+            return Response(
+                {
+                    "status": "error",
+                    "message": f"Search Console connection failed: {exc}",
+                },
+                status=400,
+            )
 
-        site_entries = response.get("siteEntry", []) if isinstance(response, dict) else []
-        property_match = any(str(entry.get("siteUrl") or "").rstrip("/") == property_url for entry in site_entries)
+        site_entries = (
+            response.get("siteEntry", []) if isinstance(response, dict) else []
+        )
+        property_match = any(
+            str(entry.get("siteUrl") or "").rstrip("/") == property_url
+            for entry in site_entries
+        )
         message = "Search Console credentials worked and the property is visible."
         if not property_match:
             message = "Search Console credentials worked, but this property URL was not listed for the service account."
-        return Response({"status": "connected" if property_match else "saved", "message": message})
+        return Response(
+            {"status": "connected" if property_match else "saved", "message": message}
+        )
 
 
 class WordPressSettingsView(APIView):
@@ -1990,6 +2282,7 @@ class WordPressSettingsView(APIView):
     GET  /api/settings/wordpress/ - returns saved WordPress sync settings
     PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2111,26 +2404,35 @@ class XenForoSettingsView(APIView):
     GET  /api/settings/xenforo/ - returns saved XenForo connection settings
     PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
         from apps.health.services import get_service_health_status
-        
+
         base_url = (
-            _get_app_setting_value("xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")) or ""
+            _get_app_setting_value(
+                "xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")
+            )
+            or ""
         ).strip()
         api_key = (
-            _get_app_setting_value("xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")) or ""
+            _get_app_setting_value(
+                "xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")
+            )
+            or ""
         ).strip()
-        
+
         # Get actual connectivity health
         health = get_service_health_status("xenforo")
-        
-        return Response({
-            "base_url": base_url,
-            "api_key_configured": bool(api_key),
-            "health": health
-        })
+
+        return Response(
+            {
+                "base_url": base_url,
+                "api_key_configured": bool(api_key),
+                "health": health,
+            }
+        )
 
     def put(self, request):
         from apps.core.models import AppSetting
@@ -2143,12 +2445,22 @@ class XenForoSettingsView(APIView):
 
         AppSetting.objects.update_or_create(
             key="xenforo.base_url",
-            defaults={"value": base_url, "value_type": "str", "category": "api", "is_secret": False},
+            defaults={
+                "value": base_url,
+                "value_type": "str",
+                "category": "api",
+                "is_secret": False,
+            },
         )
         if api_key:
             AppSetting.objects.update_or_create(
                 key="xenforo.api_key",
-                defaults={"value": api_key, "value_type": "str", "category": "api", "is_secret": True},
+                defaults={
+                    "value": api_key,
+                    "value_type": "str",
+                    "category": "api",
+                    "is_secret": True,
+                },
             )
 
         return Response({"status": "saved"})
@@ -2163,19 +2475,30 @@ class XenForoTestConnectionView(APIView):
         import requests as http_requests
 
         base_url = (
-            request.data.get("base_url")
-            or _get_app_setting_value("xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", ""))
-            or ""
-        ).strip().rstrip("/")
+            (
+                request.data.get("base_url")
+                or _get_app_setting_value(
+                    "xenforo.base_url", getattr(django_settings, "XENFORO_BASE_URL", "")
+                )
+                or ""
+            )
+            .strip()
+            .rstrip("/")
+        )
         api_key = (
             request.data.get("api_key")
-            or _get_app_setting_value("xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", ""))
+            or _get_app_setting_value(
+                "xenforo.api_key", getattr(django_settings, "XENFORO_API_KEY", "")
+            )
             or ""
         ).strip()
 
         if not base_url or not api_key:
             return Response(
-                {"status": "not_configured", "message": "Both Forum URL and API Key are required."},
+                {
+                    "status": "not_configured",
+                    "message": "Both Forum URL and API Key are required.",
+                },
                 status=400,
             )
 
@@ -2194,11 +2517,17 @@ class XenForoTestConnectionView(APIView):
 
         if resp.status_code != 200:
             errors = payload.get("errors", [])
-            detail = errors[0].get("message", "Authentication failed.") if errors else f"HTTP {resp.status_code}"
+            detail = (
+                errors[0].get("message", "Authentication failed.")
+                if errors
+                else f"HTTP {resp.status_code}"
+            )
             return Response({"status": "error", "message": detail}, status=400)
 
         username = payload.get("me", {}).get("username", "unknown")
-        return Response({"status": "connected", "message": f"Connected to XenForo as '{username}'."})
+        return Response(
+            {"status": "connected", "message": f"Connected to XenForo as '{username}'."}
+        )
 
 
 class WordPressTestConnectionView(APIView):
@@ -2210,24 +2539,39 @@ class WordPressTestConnectionView(APIView):
         import requests as http_requests
 
         base_url = (
-            request.data.get("base_url")
-            or _get_app_setting_value("wordpress.base_url", getattr(django_settings, "WORDPRESS_BASE_URL", ""))
-            or ""
-        ).strip().rstrip("/")
+            (
+                request.data.get("base_url")
+                or _get_app_setting_value(
+                    "wordpress.base_url",
+                    getattr(django_settings, "WORDPRESS_BASE_URL", ""),
+                )
+                or ""
+            )
+            .strip()
+            .rstrip("/")
+        )
         username = (
             request.data.get("username")
-            or _get_app_setting_value("wordpress.username", getattr(django_settings, "WORDPRESS_USERNAME", ""))
+            or _get_app_setting_value(
+                "wordpress.username", getattr(django_settings, "WORDPRESS_USERNAME", "")
+            )
             or ""
         ).strip()
         app_password = (
             request.data.get("app_password")
-            or _get_app_setting_value("wordpress.app_password", getattr(django_settings, "WORDPRESS_APP_PASSWORD", ""))
+            or _get_app_setting_value(
+                "wordpress.app_password",
+                getattr(django_settings, "WORDPRESS_APP_PASSWORD", ""),
+            )
             or ""
         ).strip()
 
         if not base_url or not username or not app_password:
             return Response(
-                {"status": "not_configured", "message": "Site URL, username, and app password are all required."},
+                {
+                    "status": "not_configured",
+                    "message": "Site URL, username, and app password are all required.",
+                },
                 status=400,
             )
 
@@ -2249,7 +2593,12 @@ class WordPressTestConnectionView(APIView):
             return Response({"status": "error", "message": detail}, status=400)
 
         display_name = payload.get("name", "unknown")
-        return Response({"status": "connected", "message": f"Connected to WordPress as '{display_name}'."})
+        return Response(
+            {
+                "status": "connected",
+                "message": f"Connected to WordPress as '{display_name}'.",
+            }
+        )
 
 
 class WebhookTestView(APIView):
@@ -2276,7 +2625,8 @@ class WebhookTestView(APIView):
             results["xenforo"] = {
                 "status": "ok" if xf_response.status_code in (200, 403) else "error",
                 "http_status": xf_response.status_code,
-                "message": "Endpoint reachable." if xf_response.status_code == 200
+                "message": "Endpoint reachable."
+                if xf_response.status_code == 200
                 else "Endpoint reachable but webhook secret mismatch — check XENFORO_WEBHOOK_SECRET."
                 if xf_response.status_code == 403
                 else f"Unexpected response: HTTP {xf_response.status_code}",
@@ -2295,7 +2645,8 @@ class WebhookTestView(APIView):
             results["wordpress"] = {
                 "status": "ok" if wp_response.status_code in (200, 403) else "error",
                 "http_status": wp_response.status_code,
-                "message": "Endpoint reachable." if wp_response.status_code == 200
+                "message": "Endpoint reachable."
+                if wp_response.status_code == 200
                 else "Endpoint reachable but webhook secret mismatch — check WORDPRESS_WEBHOOK_SECRET."
                 if wp_response.status_code == 403
                 else f"Unexpected response: HTTP {wp_response.status_code}",
@@ -2304,11 +2655,15 @@ class WebhookTestView(APIView):
             results["wordpress"] = {"status": "error", "message": str(exc)}
 
         all_ok = all(r.get("status") == "ok" for r in results.values())
-        return Response({
-            "status": "connected" if all_ok else "partial",
-            "message": "All webhook endpoints are reachable." if all_ok else "Some webhook endpoints have issues.",
-            "details": results,
-        })
+        return Response(
+            {
+                "status": "connected" if all_ok else "partial",
+                "message": "All webhook endpoints are reachable."
+                if all_ok
+                else "Some webhook endpoints have issues.",
+                "details": results,
+            }
+        )
 
 
 class WebhookSettingsView(APIView):
@@ -2316,15 +2671,30 @@ class WebhookSettingsView(APIView):
     GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
     PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        xf = (_get_app_setting_value("webhook.xenforo_secret", getattr(django_settings, "XENFORO_WEBHOOK_SECRET", "")) or "").strip()
-        wp = (_get_app_setting_value("webhook.wordpress_secret", getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", "")) or "").strip()
-        return Response({
-            "xf_secret_configured": bool(xf),
-            "wp_secret_configured": bool(wp),
-        })
+        xf = (
+            _get_app_setting_value(
+                "webhook.xenforo_secret",
+                getattr(django_settings, "XENFORO_WEBHOOK_SECRET", ""),
+            )
+            or ""
+        ).strip()
+        wp = (
+            _get_app_setting_value(
+                "webhook.wordpress_secret",
+                getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", ""),
+            )
+            or ""
+        ).strip()
+        return Response(
+            {
+                "xf_secret_configured": bool(xf),
+                "wp_secret_configured": bool(wp),
+            }
+        )
 
     def put(self, request):
         from apps.core.models import AppSetting
@@ -2355,17 +2725,32 @@ class WebhookSettingsView(APIView):
                 },
             )
 
-        xf = (_get_app_setting_value("webhook.xenforo_secret", getattr(django_settings, "XENFORO_WEBHOOK_SECRET", "")) or "").strip()
-        wp = (_get_app_setting_value("webhook.wordpress_secret", getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", "")) or "").strip()
-        return Response({
-            "xf_secret_configured": bool(xf),
-            "wp_secret_configured": bool(wp),
-        })
+        xf = (
+            _get_app_setting_value(
+                "webhook.xenforo_secret",
+                getattr(django_settings, "XENFORO_WEBHOOK_SECRET", ""),
+            )
+            or ""
+        ).strip()
+        wp = (
+            _get_app_setting_value(
+                "webhook.wordpress_secret",
+                getattr(django_settings, "WORDPRESS_WEBHOOK_SECRET", ""),
+            )
+            or ""
+        ).strip()
+        return Response(
+            {
+                "xf_secret_configured": bool(xf),
+                "wp_secret_configured": bool(wp),
+            }
+        )
 
 
 def _save_appearance_key(key: str, value) -> None:
     """Persist a single key into the appearance config AppSetting blob."""
     from apps.core.models import AppSetting
+
     try:
         setting = AppSetting.objects.get(key="appearance.config")
         stored = json.loads(setting.value)
@@ -2403,7 +2788,9 @@ class _SiteAssetUploadView(APIView):
     def post(self, request):
         upload = request.FILES.get("file")
         if not upload:
-            return Response({"error": "No file uploaded. Use field name 'file'."}, status=400)
+            return Response(
+                {"error": "No file uploaded. Use field name 'file'."}, status=400
+            )
 
         # Size check
         if upload.size > _ASSET_MAX_BYTES:
@@ -2442,7 +2829,9 @@ class _SiteAssetUploadView(APIView):
             for chunk in upload.chunks():
                 f.write(chunk)
 
-        asset_url = f"{django_settings.MEDIA_URL}site-assets/{self.subfolder}/{filename}"
+        asset_url = (
+            f"{django_settings.MEDIA_URL}site-assets/{self.subfolder}/{filename}"
+        )
         _save_appearance_key(self.asset_key, asset_url)
 
         return Response({self.url_field: asset_url}, status=201)
@@ -2481,6 +2870,7 @@ class DashboardView(APIView):
     - recent pipeline runs (last 5)
     - recent import jobs (last 5)
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2491,10 +2881,7 @@ class DashboardView(APIView):
         from django.db.models import Count
 
         # Suggestion counts by status
-        status_rows = (
-            Suggestion.objects.values("status")
-            .annotate(count=Count("pk"))
-        )
+        status_rows = Suggestion.objects.values("status").annotate(count=Count("pk"))
         suggestion_counts = {row["status"]: row["count"] for row in status_rows}
 
         # Total content items
@@ -2513,9 +2900,13 @@ class DashboardView(APIView):
         # Recent pipeline runs (last 5)
         pipeline_runs = list(
             PipelineRun.objects.values(
-                "run_id", "run_state", "rerun_mode",
-                "suggestions_created", "destinations_processed",
-                "duration_seconds", "created_at",
+                "run_id",
+                "run_state",
+                "rerun_mode",
+                "suggestions_created",
+                "destinations_processed",
+                "duration_seconds",
+                "created_at",
             ).order_by("-created_at")[:5]
         )
         for run in pipeline_runs:
@@ -2525,15 +2916,22 @@ class DashboardView(APIView):
             ds = run.pop("duration_seconds")
             if ds is not None:
                 minutes, seconds = divmod(int(ds), 60)
-                run["duration_display"] = f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+                run["duration_display"] = (
+                    f"{minutes}m {seconds}s" if minutes else f"{seconds}s"
+                )
             else:
                 run["duration_display"] = None
 
         # Recent import jobs (last 5)
         recent_imports = list(
             SyncJob.objects.values(
-                "job_id", "status", "source", "mode",
-                "items_synced", "created_at", "completed_at",
+                "job_id",
+                "status",
+                "source",
+                "mode",
+                "items_synced",
+                "created_at",
+                "completed_at",
             ).order_by("-created_at")[:5]
         )
         for job in recent_imports:
@@ -2545,39 +2943,47 @@ class DashboardView(APIView):
 
         # System Health Summary
         from apps.health.models import ServiceHealthRecord
-        
+
         health_records = ServiceHealthRecord.objects.all()
         status_counts = health_records.values("status").annotate(count=Count("status"))
         summary = {row["status"]: row["count"] for row in status_counts}
-        
+
         # Determine overall system state
         overall_status = ServiceHealthRecord.STATUS_HEALTHY
         if any(r.status == ServiceHealthRecord.STATUS_DOWN for r in health_records):
             overall_status = ServiceHealthRecord.STATUS_DOWN
-        elif any(r.status in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_STALE) for r in health_records):
+        elif any(
+            r.status
+            in (ServiceHealthRecord.STATUS_ERROR, ServiceHealthRecord.STATUS_STALE)
+            for r in health_records
+        ):
             overall_status = ServiceHealthRecord.STATUS_ERROR
-        elif any(r.status == ServiceHealthRecord.STATUS_WARNING for r in health_records):
+        elif any(
+            r.status == ServiceHealthRecord.STATUS_WARNING for r in health_records
+        ):
             overall_status = ServiceHealthRecord.STATUS_WARNING
 
-        return Response({
-            "suggestion_counts": {
-                "pending":  suggestion_counts.get("pending", 0),
-                "approved": suggestion_counts.get("approved", 0),
-                "rejected": suggestion_counts.get("rejected", 0),
-                "applied":  suggestion_counts.get("applied", 0),
-                "total":    sum(suggestion_counts.values()),
-            },
-            "content_count": content_count,
-            "open_broken_links": open_broken_links,
-            "last_sync": last_sync,
-            "pipeline_runs": pipeline_runs,
-            "recent_imports": recent_imports,
-            "system_health": {
-                "status": overall_status,
-                "summary": summary,
-                "total_monitored": health_records.count()
+        return Response(
+            {
+                "suggestion_counts": {
+                    "pending": suggestion_counts.get("pending", 0),
+                    "approved": suggestion_counts.get("approved", 0),
+                    "rejected": suggestion_counts.get("rejected", 0),
+                    "applied": suggestion_counts.get("applied", 0),
+                    "total": sum(suggestion_counts.values()),
+                },
+                "content_count": content_count,
+                "open_broken_links": open_broken_links,
+                "last_sync": last_sync,
+                "pipeline_runs": pipeline_runs,
+                "recent_imports": recent_imports,
+                "system_health": {
+                    "status": overall_status,
+                    "summary": summary,
+                    "total_monitored": health_records.count(),
+                },
             }
-        })
+        )
 
 
 class ClickDistanceSettingsView(APIView):
@@ -2585,6 +2991,7 @@ class ClickDistanceSettingsView(APIView):
     GET /api/settings/click-distance/
     PUT /api/settings/click-distance/
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2592,7 +2999,7 @@ class ClickDistanceSettingsView(APIView):
 
     def put(self, request):
         from apps.core.models import AppSetting
-        
+
         current = get_click_distance_settings()
         try:
             validated = _validate_click_distance_settings(request.data, current)
@@ -2601,8 +3008,7 @@ class ClickDistanceSettingsView(APIView):
 
         for key, value in validated.items():
             AppSetting.objects.update_or_create(
-                key=f"click_distance.{key}",
-                defaults={"value": str(value)}
+                key=f"click_distance.{key}", defaults={"value": str(value)}
             )
 
         return Response(validated)
@@ -2612,17 +3018,15 @@ class ClickDistanceRecalculateView(APIView):
     """
     POST /api/settings/click-distance/recalculate/
     """
+
     throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
         """Trigger bulk recalculation of click distance scores."""
         from apps.pipeline.tasks import recalculate_click_distance_task
-        
+
         task = recalculate_click_distance_task.delay()
-        return Response({
-            "status": "queued",
-            "job_id": task.id
-        })
+        return Response({"status": "queued", "job_id": task.id})
 
 
 class FeedbackRerankSettingsView(APIView):
@@ -2630,6 +3034,7 @@ class FeedbackRerankSettingsView(APIView):
     GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
     PUT  /api/settings/explore-exploit/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2637,10 +3042,12 @@ class FeedbackRerankSettingsView(APIView):
 
     def put(self, request):
         from apps.core.models import AppSetting
-        
+
         current = get_feedback_rerank_settings()
         try:
-            validated = _validate_feedback_rerank_settings(request.data, current=current)
+            validated = _validate_feedback_rerank_settings(
+                request.data, current=current
+            )
         except ValueError as exc:
             return Response({"error": str(exc)}, status=400)
 
@@ -2682,6 +3089,7 @@ class ClusteringSettingsView(APIView):
     GET  /api/settings/clustering/ - returns FR-014 clustering configuration
     PUT  /api/settings/clustering/ - validates and persists clustering configuration
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2730,6 +3138,7 @@ class ClusteringSettingsView(APIView):
 
 class ClusteringRecalculateView(APIView):
     """POST /api/settings/clustering/recalculate/ - run batch clustering pass."""
+
     throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
@@ -2745,6 +3154,7 @@ class SlateDiversitySettingsView(APIView):
     GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
     PUT  /api/settings/slate-diversity/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2797,7 +3207,6 @@ class SlateDiversitySettingsView(APIView):
         return Response(validated)
 
 
-
 class RTuneTriggerView(APIView):
     """POST /api/settings/r-tune/trigger/ — manually queue the monthly R auto-tune task."""
 
@@ -2805,7 +3214,9 @@ class RTuneTriggerView(APIView):
         from apps.pipeline.tasks import monthly_r_auto_tune
 
         task = monthly_r_auto_tune.delay()
-        return Response({"detail": "R auto-tune task queued.", "task_id": task.id}, status=202)
+        return Response(
+            {"detail": "R auto-tune task queued.", "task_id": task.id}, status=202
+        )
 
 
 class CSTuneTriggerView(APIView):
@@ -2817,7 +3228,9 @@ class CSTuneTriggerView(APIView):
         from apps.pipeline.tasks import monthly_cs_weight_tune
 
         task = monthly_cs_weight_tune.delay()
-        return Response({"detail": "C# weight-tune task queued.", "task_id": task.id}, status=202)
+        return Response(
+            {"detail": "C# weight-tune task queued.", "task_id": task.id}, status=202
+        )
 
 
 class ChallengerEvaluateView(APIView):
@@ -2830,14 +3243,18 @@ class ChallengerEvaluateView(APIView):
         from apps.pipeline.tasks import evaluate_weight_challenger
         from apps.suggestions.models import RankingChallenger
 
-        if not RankingChallenger.objects.filter(run_id=run_id, status="pending").exists():
+        if not RankingChallenger.objects.filter(
+            run_id=run_id, status="pending"
+        ).exists():
             return Response(
                 {"detail": f"No pending challenger with run_id '{run_id}'."},
                 status=404,
             )
 
         task = evaluate_weight_challenger.delay(run_id=run_id)
-        return Response({"detail": "Evaluation queued.", "task_id": task.id}, status=202)
+        return Response(
+            {"detail": "Evaluation queued.", "task_id": task.id}, status=202
+        )
 
 
 class GraphCandidateSettingsView(APIView):
@@ -2845,6 +3262,7 @@ class GraphCandidateSettingsView(APIView):
     GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
     PUT  /api/settings/graph-candidate/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -2911,6 +3329,7 @@ class ValueModelSettingsView(APIView):
     GET  /api/settings/value-model/ - returns FR-021 value model settings
     PUT  /api/settings/value-model/ - validates and persists those settings
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -3024,7 +3443,9 @@ class ValueModelSettingsView(APIView):
             },
             # FR-025 co-occurrence signal
             "value_model.co_occurrence_signal_enabled": {
-                "value": "true" if validated["co_occurrence_signal_enabled"] else "false",
+                "value": "true"
+                if validated["co_occurrence_signal_enabled"]
+                else "false",
                 "value_type": "bool",
                 "description": "Whether the FR-025 session co-occurrence signal is active.",
             },
@@ -3068,6 +3489,7 @@ DEFAULT_SPAM_GUARD_SETTINGS: dict[str, int] = {
 
 def get_spam_guard_settings() -> dict[str, int]:
     """Return current spam-guard limits, falling back to patent-backed defaults."""
+
     def _read_int(key: str, default: int) -> int:
         raw = _get_app_setting_value(key)
         try:
@@ -3093,6 +3515,7 @@ def get_spam_guard_settings() -> dict[str, int]:
 
 def _validate_spam_guard_settings(payload: dict, current: dict) -> dict[str, int]:
     """Validate and clamp spam-guard settings."""
+
     def _get_int(key: str, lo: int, hi: int) -> int:
         val = payload.get(key, current.get(key))
         try:
@@ -3123,6 +3546,7 @@ class SpamGuardSettingsView(APIView):
     * paragraph_window — block a second suggestion within this many sentence
       positions of an already-selected one on the same host (default 3).
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
@@ -3184,6 +3608,7 @@ class SpamGuardSettingsView(APIView):
 
 class GraphRebuildView(APIView):
     """POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh."""
+
     permission_classes = [IsAuthenticated]
     throttle_classes = [_GraphRebuildThrottle]
 
@@ -3217,12 +3642,29 @@ def _read_graph_candidate_settings() -> dict[str, float | int | bool]:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "enabled": _read_bool("graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"]),
-        "walk_steps_per_entity": _read_int("graph_candidate.walk_steps_per_entity", DEFAULT_GRAPH_CANDIDATE_SETTINGS["walk_steps_per_entity"]),
-        "min_stable_candidates": _read_int("graph_candidate.min_stable_candidates", DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_stable_candidates"]),
-        "min_visit_threshold": _read_int("graph_candidate.min_visit_threshold", DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_visit_threshold"]),
-        "top_k_candidates": _read_int("graph_candidate.top_k_candidates", DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_k_candidates"]),
-        "top_n_entities_per_article": _read_int("graph_candidate.top_n_entities_per_article", DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_n_entities_per_article"]),
+        "enabled": _read_bool(
+            "graph_candidate.enabled", DEFAULT_GRAPH_CANDIDATE_SETTINGS["enabled"]
+        ),
+        "walk_steps_per_entity": _read_int(
+            "graph_candidate.walk_steps_per_entity",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["walk_steps_per_entity"],
+        ),
+        "min_stable_candidates": _read_int(
+            "graph_candidate.min_stable_candidates",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_stable_candidates"],
+        ),
+        "min_visit_threshold": _read_int(
+            "graph_candidate.min_visit_threshold",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["min_visit_threshold"],
+        ),
+        "top_k_candidates": _read_int(
+            "graph_candidate.top_k_candidates",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_k_candidates"],
+        ),
+        "top_n_entities_per_article": _read_int(
+            "graph_candidate.top_n_entities_per_article",
+            DEFAULT_GRAPH_CANDIDATE_SETTINGS["top_n_entities_per_article"],
+        ),
     }
 
 
@@ -3253,7 +3695,9 @@ def _validate_graph_candidate_settings(payload: dict, current: dict) -> dict:
         "min_stable_candidates": max(5, min(500, _get_int("min_stable_candidates"))),
         "min_visit_threshold": max(1, min(20, _get_int("min_visit_threshold"))),
         "top_k_candidates": max(10, min(1000, _get_int("top_k_candidates"))),
-        "top_n_entities_per_article": max(1, min(100, _get_int("top_n_entities_per_article"))),
+        "top_n_entities_per_article": max(
+            1, min(100, _get_int("top_n_entities_per_article"))
+        ),
     }
 
 
@@ -3279,31 +3723,91 @@ def _read_value_model_settings() -> dict[str, float | int | bool]:
         return str(raw).strip().lower() in {"1", "true", "yes", "on"}
 
     return {
-        "enabled": _read_bool("value_model.enabled", DEFAULT_VALUE_MODEL_SETTINGS["enabled"]),
-        "w_relevance": _read_float("value_model.w_relevance", DEFAULT_VALUE_MODEL_SETTINGS["w_relevance"]),
-        "w_traffic": _read_float("value_model.w_traffic", DEFAULT_VALUE_MODEL_SETTINGS["w_traffic"]),
-        "w_freshness": _read_float("value_model.w_freshness", DEFAULT_VALUE_MODEL_SETTINGS["w_freshness"]),
-        "w_authority": _read_float("value_model.w_authority", DEFAULT_VALUE_MODEL_SETTINGS["w_authority"]),
-        "w_penalty": _read_float("value_model.w_penalty", DEFAULT_VALUE_MODEL_SETTINGS["w_penalty"]),
-        "traffic_lookback_days": _read_int("value_model.traffic_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["traffic_lookback_days"]),
-        "traffic_fallback_value": _read_float("value_model.traffic_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["traffic_fallback_value"]),
-        "engagement_signal_enabled": _read_bool("value_model.engagement_signal_enabled", DEFAULT_VALUE_MODEL_SETTINGS["engagement_signal_enabled"]),
-        "w_engagement": _read_float("value_model.w_engagement", DEFAULT_VALUE_MODEL_SETTINGS["w_engagement"]),
-        "engagement_lookback_days": _read_int("value_model.engagement_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["engagement_lookback_days"]),
-        "engagement_words_per_minute": _read_int("value_model.engagement_words_per_minute", DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"]),
-        "engagement_cap_ratio": _read_float("value_model.engagement_cap_ratio", DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"]),
-        "engagement_fallback_value": _read_float("value_model.engagement_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"]),
+        "enabled": _read_bool(
+            "value_model.enabled", DEFAULT_VALUE_MODEL_SETTINGS["enabled"]
+        ),
+        "w_relevance": _read_float(
+            "value_model.w_relevance", DEFAULT_VALUE_MODEL_SETTINGS["w_relevance"]
+        ),
+        "w_traffic": _read_float(
+            "value_model.w_traffic", DEFAULT_VALUE_MODEL_SETTINGS["w_traffic"]
+        ),
+        "w_freshness": _read_float(
+            "value_model.w_freshness", DEFAULT_VALUE_MODEL_SETTINGS["w_freshness"]
+        ),
+        "w_authority": _read_float(
+            "value_model.w_authority", DEFAULT_VALUE_MODEL_SETTINGS["w_authority"]
+        ),
+        "w_penalty": _read_float(
+            "value_model.w_penalty", DEFAULT_VALUE_MODEL_SETTINGS["w_penalty"]
+        ),
+        "traffic_lookback_days": _read_int(
+            "value_model.traffic_lookback_days",
+            DEFAULT_VALUE_MODEL_SETTINGS["traffic_lookback_days"],
+        ),
+        "traffic_fallback_value": _read_float(
+            "value_model.traffic_fallback_value",
+            DEFAULT_VALUE_MODEL_SETTINGS["traffic_fallback_value"],
+        ),
+        "engagement_signal_enabled": _read_bool(
+            "value_model.engagement_signal_enabled",
+            DEFAULT_VALUE_MODEL_SETTINGS["engagement_signal_enabled"],
+        ),
+        "w_engagement": _read_float(
+            "value_model.w_engagement", DEFAULT_VALUE_MODEL_SETTINGS["w_engagement"]
+        ),
+        "engagement_lookback_days": _read_int(
+            "value_model.engagement_lookback_days",
+            DEFAULT_VALUE_MODEL_SETTINGS["engagement_lookback_days"],
+        ),
+        "engagement_words_per_minute": _read_int(
+            "value_model.engagement_words_per_minute",
+            DEFAULT_VALUE_MODEL_SETTINGS["engagement_words_per_minute"],
+        ),
+        "engagement_cap_ratio": _read_float(
+            "value_model.engagement_cap_ratio",
+            DEFAULT_VALUE_MODEL_SETTINGS["engagement_cap_ratio"],
+        ),
+        "engagement_fallback_value": _read_float(
+            "value_model.engagement_fallback_value",
+            DEFAULT_VALUE_MODEL_SETTINGS["engagement_fallback_value"],
+        ),
         # FR-023 hot decay signal
-        "hot_decay_enabled": _read_bool("value_model.hot_decay_enabled", DEFAULT_VALUE_MODEL_SETTINGS["hot_decay_enabled"]),
-        "hot_gravity": _read_float("value_model.hot_gravity", DEFAULT_VALUE_MODEL_SETTINGS["hot_gravity"]),
-        "hot_clicks_weight": _read_float("value_model.hot_clicks_weight", DEFAULT_VALUE_MODEL_SETTINGS["hot_clicks_weight"]),
-        "hot_impressions_weight": _read_float("value_model.hot_impressions_weight", DEFAULT_VALUE_MODEL_SETTINGS["hot_impressions_weight"]),
-        "hot_lookback_days": _read_int("value_model.hot_lookback_days", DEFAULT_VALUE_MODEL_SETTINGS["hot_lookback_days"]),
+        "hot_decay_enabled": _read_bool(
+            "value_model.hot_decay_enabled",
+            DEFAULT_VALUE_MODEL_SETTINGS["hot_decay_enabled"],
+        ),
+        "hot_gravity": _read_float(
+            "value_model.hot_gravity", DEFAULT_VALUE_MODEL_SETTINGS["hot_gravity"]
+        ),
+        "hot_clicks_weight": _read_float(
+            "value_model.hot_clicks_weight",
+            DEFAULT_VALUE_MODEL_SETTINGS["hot_clicks_weight"],
+        ),
+        "hot_impressions_weight": _read_float(
+            "value_model.hot_impressions_weight",
+            DEFAULT_VALUE_MODEL_SETTINGS["hot_impressions_weight"],
+        ),
+        "hot_lookback_days": _read_int(
+            "value_model.hot_lookback_days",
+            DEFAULT_VALUE_MODEL_SETTINGS["hot_lookback_days"],
+        ),
         # FR-025 co-occurrence signal
-        "co_occurrence_signal_enabled": _read_bool("value_model.co_occurrence_signal_enabled", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_signal_enabled"]),
-        "w_cooccurrence": _read_float("value_model.w_cooccurrence", DEFAULT_VALUE_MODEL_SETTINGS["w_cooccurrence"]),
-        "co_occurrence_fallback_value": _read_float("value_model.co_occurrence_fallback_value", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_fallback_value"]),
-        "co_occurrence_min_co_sessions": _read_int("value_model.co_occurrence_min_co_sessions", DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_min_co_sessions"]),
+        "co_occurrence_signal_enabled": _read_bool(
+            "value_model.co_occurrence_signal_enabled",
+            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_signal_enabled"],
+        ),
+        "w_cooccurrence": _read_float(
+            "value_model.w_cooccurrence", DEFAULT_VALUE_MODEL_SETTINGS["w_cooccurrence"]
+        ),
+        "co_occurrence_fallback_value": _read_float(
+            "value_model.co_occurrence_fallback_value",
+            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_fallback_value"],
+        ),
+        "co_occurrence_min_co_sessions": _read_int(
+            "value_model.co_occurrence_min_co_sessions",
+            DEFAULT_VALUE_MODEL_SETTINGS["co_occurrence_min_co_sessions"],
+        ),
     }
 
 
@@ -3336,24 +3840,38 @@ def _validate_value_model_settings(payload: dict, current: dict) -> dict:
         "w_authority": max(0.0, min(1.0, _get_float("w_authority"))),
         "w_penalty": max(0.0, min(1.0, _get_float("w_penalty"))),
         "traffic_lookback_days": max(1, min(365, _get_int("traffic_lookback_days"))),
-        "traffic_fallback_value": max(0.0, min(1.0, _get_float("traffic_fallback_value"))),
+        "traffic_fallback_value": max(
+            0.0, min(1.0, _get_float("traffic_fallback_value"))
+        ),
         "engagement_signal_enabled": _get_bool("engagement_signal_enabled"),
         "w_engagement": max(0.0, min(1.0, _get_float("w_engagement"))),
-        "engagement_lookback_days": max(1, min(365, _get_int("engagement_lookback_days"))),
-        "engagement_words_per_minute": max(50, min(600, _get_int("engagement_words_per_minute"))),
+        "engagement_lookback_days": max(
+            1, min(365, _get_int("engagement_lookback_days"))
+        ),
+        "engagement_words_per_minute": max(
+            50, min(600, _get_int("engagement_words_per_minute"))
+        ),
         "engagement_cap_ratio": max(1.0, min(5.0, _get_float("engagement_cap_ratio"))),
-        "engagement_fallback_value": max(0.0, min(1.0, _get_float("engagement_fallback_value"))),
+        "engagement_fallback_value": max(
+            0.0, min(1.0, _get_float("engagement_fallback_value"))
+        ),
         # FR-023 hot decay signal
         "hot_decay_enabled": _get_bool("hot_decay_enabled"),
         "hot_gravity": max(0.001, min(0.5, _get_float("hot_gravity"))),
         "hot_clicks_weight": max(0.0, min(5.0, _get_float("hot_clicks_weight"))),
-        "hot_impressions_weight": max(0.0, min(5.0, _get_float("hot_impressions_weight"))),
+        "hot_impressions_weight": max(
+            0.0, min(5.0, _get_float("hot_impressions_weight"))
+        ),
         "hot_lookback_days": max(7, min(365, _get_int("hot_lookback_days"))),
         # FR-025 co-occurrence signal
         "co_occurrence_signal_enabled": _get_bool("co_occurrence_signal_enabled"),
         "w_cooccurrence": max(0.0, min(1.0, _get_float("w_cooccurrence"))),
-        "co_occurrence_fallback_value": max(0.0, min(1.0, _get_float("co_occurrence_fallback_value"))),
-        "co_occurrence_min_co_sessions": max(1, min(100, _get_int("co_occurrence_min_co_sessions"))),
+        "co_occurrence_fallback_value": max(
+            0.0, min(1.0, _get_float("co_occurrence_fallback_value"))
+        ),
+        "co_occurrence_min_co_sessions": max(
+            1, min(100, _get_int("co_occurrence_min_co_sessions"))
+        ),
     }
 
 
@@ -3362,22 +3880,26 @@ class UserMeView(APIView):
     Returns the currently authenticated user's profile.
     Returns 401 when no valid token is provided.
     """
+
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        return Response({
-            "id": request.user.id,
-            "username": request.user.username,
-            "email": request.user.email,
-            "is_staff": request.user.is_staff,
-            "date_joined": request.user.date_joined,
-        })
+        return Response(
+            {
+                "id": request.user.id,
+                "username": request.user.username,
+                "email": request.user.email,
+                "is_staff": request.user.is_staff,
+                "date_joined": request.user.date_joined,
+            }
+        )
 
 
 class UserLogoutView(APIView):
     """
     Deletes the user's auth token, invalidating all future requests with it.
     """
+
     permission_classes = [IsAuthenticated]
 
     def post(self, request):

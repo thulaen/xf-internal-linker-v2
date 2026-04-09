@@ -4,14 +4,13 @@ from django.db import migrations
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('knowledge_graph', '0001_initial'),
+        ("knowledge_graph", "0001_initial"),
     ]
 
     operations = [
         migrations.AlterUniqueTogether(
-            name='entitynode',
-            unique_together={('canonical_form', 'entity_type')},
+            name="entitynode",
+            unique_together={("canonical_form", "entity_type")},
         ),
     ]

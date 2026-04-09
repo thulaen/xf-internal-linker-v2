@@ -19,15 +19,25 @@ from apps.suggestions.models import PipelineRun, Suggestion
 
 class SuggestionSiloApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="reviewer", password="pass")
+        user = get_user_model().objects.create_user(
+            username="reviewer", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
         silo_a = SiloGroup.objects.create(name="Silo A", slug="silo-a")
         silo_b = SiloGroup.objects.create(name="Silo B", slug="silo-b")
-        scope_a = ScopeItem.objects.create(scope_id=1, scope_type="node", title="A", silo_group=silo_a)
-        scope_a_host = ScopeItem.objects.create(scope_id=2, scope_type="node", title="A Host", silo_group=silo_a)
-        scope_b = ScopeItem.objects.create(scope_id=3, scope_type="node", title="B", silo_group=silo_b)
-        scope_unassigned = ScopeItem.objects.create(scope_id=4, scope_type="node", title="Loose")
+        scope_a = ScopeItem.objects.create(
+            scope_id=1, scope_type="node", title="A", silo_group=silo_a
+        )
+        scope_a_host = ScopeItem.objects.create(
+            scope_id=2, scope_type="node", title="A Host", silo_group=silo_a
+        )
+        scope_b = ScopeItem.objects.create(
+            scope_id=3, scope_type="node", title="B", silo_group=silo_b
+        )
+        scope_unassigned = ScopeItem.objects.create(
+            scope_id=4, scope_type="node", title="Loose"
+        )
 
         dest_same = ContentItem.objects.create(
             content_id=10,
@@ -36,12 +46,27 @@ class SuggestionSiloApiTests(APITestCase):
             url="https://example.test/dest-same",
             scope=scope_a,
         )
-        host_same = ContentItem.objects.create(content_id=11, content_type="thread", title="Host Same", scope=scope_a_host)
-        host_cross = ContentItem.objects.create(content_id=12, content_type="thread", title="Host Cross", scope=scope_b)
-        host_unassigned = ContentItem.objects.create(content_id=13, content_type="thread", title="Host Loose", scope=scope_unassigned)
-        post_same = Post.objects.create(content_item=host_same, raw_bbcode="same", clean_text="same")
-        post_cross = Post.objects.create(content_item=host_cross, raw_bbcode="cross", clean_text="cross")
-        post_unassigned = Post.objects.create(content_item=host_unassigned, raw_bbcode="loose", clean_text="loose")
+        host_same = ContentItem.objects.create(
+            content_id=11, content_type="thread", title="Host Same", scope=scope_a_host
+        )
+        host_cross = ContentItem.objects.create(
+            content_id=12, content_type="thread", title="Host Cross", scope=scope_b
+        )
+        host_unassigned = ContentItem.objects.create(
+            content_id=13,
+            content_type="thread",
+            title="Host Loose",
+            scope=scope_unassigned,
+        )
+        post_same = Post.objects.create(
+            content_item=host_same, raw_bbcode="same", clean_text="same"
+        )
+        post_cross = Post.objects.create(
+            content_item=host_cross, raw_bbcode="cross", clean_text="cross"
+        )
+        post_unassigned = Post.objects.create(
+            content_item=host_unassigned, raw_bbcode="loose", clean_text="loose"
+        )
 
         sentence_same = Sentence.objects.create(
             content_item=host_same,
@@ -272,26 +297,50 @@ class SuggestionSiloApiTests(APITestCase):
         self.assertIn("learned_anchor_diagnostics", payload)
         self.assertIn("rare_term_diagnostics", payload)
         self.assertIn("field_aware_diagnostics", payload)
-        self.assertEqual(payload["phrase_match_diagnostics"]["phrase_match_state"], "computed_exact_title")
-        self.assertEqual(payload["learned_anchor_diagnostics"]["learned_anchor_state"], "exact_variant_match")
-        self.assertEqual(payload["rare_term_diagnostics"]["rare_term_state"], "computed_match")
-        self.assertEqual(payload["field_aware_diagnostics"]["field_aware_state"], "computed_match")
+        self.assertEqual(
+            payload["phrase_match_diagnostics"]["phrase_match_state"],
+            "computed_exact_title",
+        )
+        self.assertEqual(
+            payload["learned_anchor_diagnostics"]["learned_anchor_state"],
+            "exact_variant_match",
+        )
+        self.assertEqual(
+            payload["rare_term_diagnostics"]["rare_term_state"], "computed_match"
+        )
+        self.assertEqual(
+            payload["field_aware_diagnostics"]["field_aware_state"], "computed_match"
+        )
         self.assertIn("link_freshness_diagnostics", payload)
-        self.assertEqual(payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5)
+        self.assertEqual(
+            payload["link_freshness_diagnostics"]["link_freshness_score"], 0.5
+        )
         self.assertIn("telemetry_instrumentation", payload)
         self.assertEqual(payload["telemetry_instrumentation"]["status"], "instrumented")
-        self.assertEqual(payload["telemetry_instrumentation"]["event_schema"], "fr016_v1")
-        self.assertIn("data-xfil-suggestion-id", payload["telemetry_instrumentation"]["attributes"])
-        self.assertIn(str(suggestion.suggestion_id), payload["telemetry_instrumentation"]["instrumented_markup"])
+        self.assertEqual(
+            payload["telemetry_instrumentation"]["event_schema"], "fr016_v1"
+        )
+        self.assertIn(
+            "data-xfil-suggestion-id",
+            payload["telemetry_instrumentation"]["attributes"],
+        )
+        self.assertIn(
+            str(suggestion.suggestion_id),
+            payload["telemetry_instrumentation"]["instrumented_markup"],
+        )
 
 
 class PipelineRunWeightedSnapshotTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="pipeline-user", password="pass")
+        user = get_user_model().objects.create_user(
+            username="pipeline-user", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
     @patch("apps.pipeline.tasks.dispatch_pipeline_run")
-    def test_start_pipeline_persists_weighted_authority_snapshot(self, dispatch_pipeline_mock):
+    def test_start_pipeline_persists_weighted_authority_snapshot(
+        self, dispatch_pipeline_mock
+    ):
         AppSetting.objects.update_or_create(
             key="weighted_authority.ranking_weight",
             defaults={
@@ -356,38 +405,58 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
             },
         )
 
-        response = self.client.post("/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json")
+        response = self.client.post(
+            "/api/pipeline-runs/start/", {"rerun_mode": "skip_pending"}, format="json"
+        )
 
         self.assertEqual(response.status_code, 201)
         run = PipelineRun.objects.get(run_id=response.json()["run_id"])
         self.assertIn("weighted_authority", run.config_snapshot)
-        self.assertEqual(run.config_snapshot["weighted_authority"]["ranking_weight"], 0.2)
-        self.assertEqual(run.config_snapshot["weighted_authority"]["position_bias"], 0.4)
+        self.assertEqual(
+            run.config_snapshot["weighted_authority"]["ranking_weight"], 0.2
+        )
+        self.assertEqual(
+            run.config_snapshot["weighted_authority"]["position_bias"], 0.4
+        )
         self.assertIn("algorithm_versions", run.config_snapshot)
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["weighted_authority"],
             WEIGHTED_AUTHORITY_VERSION,
         )
         self.assertEqual(
-            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_date"],
+            run.config_snapshot["algorithm_versions"]["weighted_authority"][
+                "version_date"
+            ],
             "2026-03-25",
         )
         self.assertEqual(
-            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_month"],
+            run.config_snapshot["algorithm_versions"]["weighted_authority"][
+                "version_month"
+            ],
             "March",
         )
         self.assertEqual(
-            run.config_snapshot["algorithm_versions"]["weighted_authority"]["version_year"],
+            run.config_snapshot["algorithm_versions"]["weighted_authority"][
+                "version_year"
+            ],
             2026,
         )
         self.assertIn("phrase_matching", run.config_snapshot)
-        self.assertEqual(run.config_snapshot["phrase_matching"]["context_window_tokens"], 10)
+        self.assertEqual(
+            run.config_snapshot["phrase_matching"]["context_window_tokens"], 10
+        )
         self.assertIn("learned_anchor", run.config_snapshot)
-        self.assertEqual(run.config_snapshot["learned_anchor"]["minimum_anchor_sources"], 4)
+        self.assertEqual(
+            run.config_snapshot["learned_anchor"]["minimum_anchor_sources"], 4
+        )
         self.assertIn("rare_term_propagation", run.config_snapshot)
-        self.assertEqual(run.config_snapshot["rare_term_propagation"]["max_document_frequency"], 5)
+        self.assertEqual(
+            run.config_snapshot["rare_term_propagation"]["max_document_frequency"], 5
+        )
         self.assertIn("field_aware_relevance", run.config_snapshot)
-        self.assertEqual(run.config_snapshot["field_aware_relevance"]["title_field_weight"], 0.5)
+        self.assertEqual(
+            run.config_snapshot["field_aware_relevance"]["title_field_weight"], 0.5
+        )
         self.assertEqual(
             run.config_snapshot["algorithm_versions"]["phrase_matching"],
             PHRASE_MATCHING_VERSION,
@@ -409,13 +478,21 @@ class PipelineRunWeightedSnapshotTests(APITestCase):
 
 class SuggestionBatchActionApiTests(APITestCase):
     def setUp(self):
-        user = get_user_model().objects.create_user(username="batch-reviewer", password="pass")
+        user = get_user_model().objects.create_user(
+            username="batch-reviewer", password="pass"
+        )
         self.client.force_authenticate(user=user)
 
-        self.scope = ScopeItem.objects.create(scope_id=20, scope_type="node", title="Forum")
-        self.destination = ContentItem.objects.create(content_id=200, content_type="thread", title="Destination", scope=self.scope)
+        self.scope = ScopeItem.objects.create(
+            scope_id=20, scope_type="node", title="Forum"
+        )
+        self.destination = ContentItem.objects.create(
+            content_id=200, content_type="thread", title="Destination", scope=self.scope
+        )
 
-        self.pending = self._suggestion(content_id=201, title="Pending Host", status="pending")
+        self.pending = self._suggestion(
+            content_id=201, title="Pending Host", status="pending"
+        )
         self.approved_reviewed_at = timezone.now()
         self.approved = self._suggestion(
             content_id=202,
@@ -441,8 +518,12 @@ class SuggestionBatchActionApiTests(APITestCase):
         reviewed_at=None,
         rejection_reason: str = "",
     ) -> Suggestion:
-        host = ContentItem.objects.create(content_id=content_id, content_type="thread", title=title, scope=self.scope)
-        post = Post.objects.create(content_item=host, raw_bbcode=title, clean_text=title)
+        host = ContentItem.objects.create(
+            content_id=content_id, content_type="thread", title=title, scope=self.scope
+        )
+        post = Post.objects.create(
+            content_item=host, raw_bbcode=title, clean_text=title
+        )
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -465,12 +546,17 @@ class SuggestionBatchActionApiTests(APITestCase):
             rejection_reason=rejection_reason,
         )
 
-    def test_batch_approve_only_updates_pending_suggestions_and_keeps_response_shape(self):
+    def test_batch_approve_only_updates_pending_suggestions_and_keeps_response_shape(
+        self,
+    ):
         response = self.client.post(
             "/api/suggestions/batch_action/",
             {
                 "action": "approve",
-                "ids": [str(self.pending.suggestion_id), str(self.approved.suggestion_id)],
+                "ids": [
+                    str(self.pending.suggestion_id),
+                    str(self.approved.suggestion_id),
+                ],
             },
             format="json",
         )
@@ -486,12 +572,17 @@ class SuggestionBatchActionApiTests(APITestCase):
         self.assertEqual(self.approved.status, "approved")
         self.assertEqual(self.approved.reviewed_at, self.approved_reviewed_at)
 
-    def test_batch_reject_only_updates_pending_suggestions_and_leaves_non_pending_untouched(self):
+    def test_batch_reject_only_updates_pending_suggestions_and_leaves_non_pending_untouched(
+        self,
+    ):
         response = self.client.post(
             "/api/suggestions/batch_action/",
             {
                 "action": "reject",
-                "ids": [str(self.pending.suggestion_id), str(self.rejected.suggestion_id)],
+                "ids": [
+                    str(self.pending.suggestion_id),
+                    str(self.rejected.suggestion_id),
+                ],
                 "rejection_reason": "wrong_context",
             },
             format="json",

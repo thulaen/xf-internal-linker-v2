@@ -216,7 +216,9 @@ def _evaluate_learned_anchor_corroboration(
         diagnostics["score_learned_anchor_corroboration"] = NEUTRAL_LEARNED_ANCHOR_SCORE
         diagnostics["matched_family_canonical"] = canonical_family.canonical_display
         diagnostics["family_support_share"] = round(canonical_family.support_share, 6)
-        diagnostics["supporting_source_count"] = canonical_family.supporting_source_count
+        diagnostics["supporting_source_count"] = (
+            canonical_family.supporting_source_count
+        )
         return LearnedAnchorResult(
             score_learned_anchor_corroboration=NEUTRAL_LEARNED_ANCHOR_SCORE,
             learned_anchor_component=0.0,
@@ -252,7 +254,11 @@ def _accepted_result(
 ) -> LearnedAnchorResult:
     match_strength = 1.0 if learned_anchor_state == "exact_variant_match" else 0.65
     family_support_strength = _clamp(matched_family.support_share, 0.0, 1.0)
-    variant_share_strength = matched_variant.support_share if learned_anchor_state == "exact_variant_match" else 0.0
+    variant_share_strength = (
+        matched_variant.support_share
+        if learned_anchor_state == "exact_variant_match"
+        else 0.0
+    )
     source_count_strength = min(1.0, matched_family.supporting_source_count / 5.0)
     corroboration_lift = _clamp(
         0.45 * match_strength
@@ -303,7 +309,10 @@ def _build_variants(
         raw_normalized_text = _normalize_noise_text(display_text)
         if not tokens:
             continue
-        if enable_noise_filter and (normalized_text in KNOWN_NOISE_ANCHORS or raw_normalized_text in KNOWN_NOISE_ANCHORS):
+        if enable_noise_filter and (
+            normalized_text in KNOWN_NOISE_ANCHORS
+            or raw_normalized_text in KNOWN_NOISE_ANCHORS
+        ):
             continue
         usable_source_ids.add(int(row.source_content_id))
         source_ids_by_variant.setdefault(tokens, set()).add(int(row.source_content_id))
@@ -355,7 +364,9 @@ def _build_families(
 
     for left_index, left_variant in enumerate(variants):
         for right_index in range(left_index + 1, len(variants)):
-            if _variants_belong_together(left_variant.tokens, variants[right_index].tokens):
+            if _variants_belong_together(
+                left_variant.tokens, variants[right_index].tokens
+            ):
                 _union(left_index, right_index)
 
     grouped: dict[int, list[_AnchorVariant]] = {}
@@ -396,7 +407,9 @@ def _find_exact_variant_match(
         for variant in family.variants:
             if candidate_tokens != variant.tokens:
                 continue
-            if best_match is None or _matched_variant_sort_key(family, variant) < _matched_variant_sort_key(*best_match):
+            if best_match is None or _matched_variant_sort_key(
+                family, variant
+            ) < _matched_variant_sort_key(*best_match):
                 best_match = (family, variant)
     return best_match
 
@@ -412,7 +425,9 @@ def _find_family_match(
                 continue
             if not _variants_belong_together(candidate_tokens, variant.tokens):
                 continue
-            if best_match is None or _matched_variant_sort_key(family, variant) < _matched_variant_sort_key(*best_match):
+            if best_match is None or _matched_variant_sort_key(
+                family, variant
+            ) < _matched_variant_sort_key(*best_match):
                 best_match = (family, variant)
     return best_match
 
@@ -457,11 +472,21 @@ def _base_diagnostics(
         "learned_anchor_state": learned_anchor_state,
         "candidate_anchor_text": candidate_anchor_text or None,
         "candidate_anchor_normalized": " ".join(candidate_anchor_tokens) or None,
-        "matched_family_canonical": matched_family.canonical_display if matched_family else None,
-        "matched_variant_display": matched_variant.display_text if matched_variant else None,
-        "family_support_share": round(matched_family.support_share, 6) if matched_family else 0.0,
-        "variant_support_share": round(matched_variant.support_share, 6) if matched_variant else 0.0,
-        "supporting_source_count": matched_family.supporting_source_count if matched_family else 0,
+        "matched_family_canonical": matched_family.canonical_display
+        if matched_family
+        else None,
+        "matched_variant_display": matched_variant.display_text
+        if matched_variant
+        else None,
+        "family_support_share": round(matched_family.support_share, 6)
+        if matched_family
+        else 0.0,
+        "variant_support_share": round(matched_variant.support_share, 6)
+        if matched_variant
+        else 0.0,
+        "supporting_source_count": matched_family.supporting_source_count
+        if matched_family
+        else 0,
         "usable_inbound_anchor_sources": usable_inbound_anchor_sources,
         "learned_family_count": len(families),
         "top_learned_families": top_families,
@@ -484,7 +509,9 @@ def _normalize_noise_text(text: str) -> str:
     return " ".join(match.group(0).lower() for match in TOKEN_RE.finditer(text or ""))
 
 
-def _choose_display_text(counter: Counter[str], tokens: tuple[str, ...]) -> tuple[str, int]:
+def _choose_display_text(
+    counter: Counter[str], tokens: tuple[str, ...]
+) -> tuple[str, int]:
     if not counter:
         normalized = " ".join(tokens)
         return normalized, 0
@@ -557,7 +584,8 @@ def _longest_contiguous_overlap(
             while (
                 left_start + match_len < len(left_tokens)
                 and right_start + match_len < len(right_tokens)
-                and left_tokens[left_start + match_len] == right_tokens[right_start + match_len]
+                and left_tokens[left_start + match_len]
+                == right_tokens[right_start + match_len]
             ):
                 match_len += 1
             if match_len > best:
@@ -592,7 +620,9 @@ def _edit_distance(left: str, right: str) -> int:
         for right_index, right_char in enumerate(right, start=1):
             insertion = current[right_index - 1] + 1
             deletion = previous[right_index] + 1
-            substitution = previous[right_index - 1] + (0 if left_char == right_char else 1)
+            substitution = previous[right_index - 1] + (
+                0 if left_char == right_char else 1
+            )
             current.append(min(insertion, deletion, substitution))
         previous = current
     return previous[-1]
@@ -609,7 +639,7 @@ def _sentence_contains_tokens(
         return False
     window_size = len(tokens)
     for start_index in range(0, len(sentence_tokens) - window_size + 1):
-        if sentence_tokens[start_index:start_index + window_size] == tokens:
+        if sentence_tokens[start_index : start_index + window_size] == tokens:
             return True
     return False
 

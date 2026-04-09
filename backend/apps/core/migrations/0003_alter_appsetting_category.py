@@ -4,15 +4,29 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('core', '0002_alter_appsetting_category'),
+        ("core", "0002_alter_appsetting_category"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='appsetting',
-            name='category',
-            field=models.CharField(choices=[('general', 'General'), ('ml', 'ML / AI'), ('link_freshness', 'Link Freshness'), ('sync', 'Sync'), ('performance', 'Performance'), ('api', 'API Keys'), ('anchor', 'Anchor Policy'), ('appearance', 'Appearance')], db_index=True, default='general', help_text='Grouping shown in the admin sidebar.', max_length=50),
+            model_name="appsetting",
+            name="category",
+            field=models.CharField(
+                choices=[
+                    ("general", "General"),
+                    ("ml", "ML / AI"),
+                    ("link_freshness", "Link Freshness"),
+                    ("sync", "Sync"),
+                    ("performance", "Performance"),
+                    ("api", "API Keys"),
+                    ("anchor", "Anchor Policy"),
+                    ("appearance", "Appearance"),
+                ],
+                db_index=True,
+                default="general",
+                help_text="Grouping shown in the admin sidebar.",
+                max_length=50,
+            ),
         ),
     ]

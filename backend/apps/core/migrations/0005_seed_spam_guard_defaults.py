@@ -73,13 +73,10 @@ def seed_spam_guard_defaults(apps, schema_editor):
 
 def unseed_spam_guard_defaults(apps, schema_editor):
     AppSetting = apps.get_model("core", "AppSetting")
-    AppSetting.objects.filter(
-        key__in=[row["key"] for row in SPAM_GUARD_ROWS]
-    ).delete()
+    AppSetting.objects.filter(key__in=[row["key"] for row in SPAM_GUARD_ROWS]).delete()
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("core", "0004_alter_appsetting_category"),
     ]

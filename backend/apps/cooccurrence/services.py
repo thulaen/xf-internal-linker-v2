@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # GA4 credential helpers (mirrors pattern in apps.analytics.sync)
 # ---------------------------------------------------------------------------
 
+
 def _build_ga4_service():
     """Return an authenticated GA4 Data API service object using stored credentials."""
     from apps.analytics.ga4_client import build_ga4_data_service
@@ -68,6 +69,7 @@ def _build_ga4_service():
 # ---------------------------------------------------------------------------
 # GA4 session co-occurrence data pipeline
 # ---------------------------------------------------------------------------
+
 
 def fetch_ga4_session_cooccurrence(
     data_window_days: int = 90,
@@ -159,7 +161,7 @@ def fetch_ga4_session_cooccurrence(
         path_to_id[url] = ci["id"]
     # Also try matching on path portion of stored URL
     for ci in ContentItem.objects.values("id", "url"):
-        raw = (ci["url"] or "")
+        raw = ci["url"] or ""
         # Strip scheme+host to get path
         if "://" in raw:
             try:
@@ -243,6 +245,7 @@ def fetch_ga4_session_cooccurrence(
 # Co-occurrence signal
 # ---------------------------------------------------------------------------
 
+
 def get_site_max_jaccard() -> float:
     """Return the maximum Jaccard similarity across all stored pairs (for normalization)."""
     from .models import SessionCoOccurrencePair
@@ -306,6 +309,7 @@ def compute_co_occurrence_signal(
 # Behavioral hub detection
 # ---------------------------------------------------------------------------
 
+
 def detect_behavioral_hubs(
     hub_min_jaccard: float = 0.15,
     hub_min_members: int = 3,
@@ -361,7 +365,9 @@ def detect_behavioral_hubs(
         (a, b): j
         for a, b, j in SessionCoOccurrencePair.objects.filter(
             jaccard_similarity__gte=hub_min_jaccard
-        ).values_list("source_content_item_id", "dest_content_item_id", "jaccard_similarity")
+        ).values_list(
+            "source_content_item_id", "dest_content_item_id", "jaccard_similarity"
+        )
     }
 
     # Load existing manual_remove_override memberships so we can skip them
@@ -436,6 +442,7 @@ def detect_behavioral_hubs(
 # Value model scoring (post-pipeline pass)
 # ---------------------------------------------------------------------------
 
+
 def compute_value_model_score(
     suggestion: "Suggestion",
     settings: dict,
@@ -463,7 +470,9 @@ def compute_value_model_score(
     traffic_signal = float(getattr(dest, "content_value_score", 0.5) or 0.5)
     freshness_signal = float(getattr(dest, "link_freshness_score", 0.5) or 0.5)
     authority_signal = float(getattr(dest, "march_2026_pagerank_score", 0.5) or 0.5)
-    engagement_signal = traffic_signal  # same composite until per-signal breakdown exists
+    engagement_signal = (
+        traffic_signal  # same composite until per-signal breakdown exists
+    )
 
     # Graduated penalty signal — falls back to 0.0 on any error.
     try:
@@ -482,7 +491,9 @@ def compute_value_model_score(
         else:
             penalty_signal = 0.0
     except Exception:
-        logger.debug("Penalty signal computation failed; defaulting to 0.0", exc_info=True)
+        logger.debug(
+            "Penalty signal computation failed; defaulting to 0.0", exc_info=True
+        )
         penalty_signal = 0.0
 
     min_co_sessions = int(settings.get("co_occurrence_min_co_sessions", 5))
