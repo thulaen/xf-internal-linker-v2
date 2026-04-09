@@ -16,6 +16,7 @@ import { AuthService } from './core/services/auth.service';
 import { GlobalLinkInterceptorService } from './core/services/global-link-interceptor.service';
 import { HealthService } from './health/health.service';
 import { DashboardService } from './dashboard/dashboard.service';
+import { PulseService, PulseState } from './core/services/pulse.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
@@ -66,8 +67,10 @@ export class AppComponent implements OnInit {
   private linkInterceptor = inject(GlobalLinkInterceptorService);
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
+  private pulseService = inject(PulseService);
 
   currentUser$ = this.auth.currentUser$;
+  pulse: PulseState = { ok: false, status: 'unknown', lastBeatAt: 0, checks: {}, taskCount: 0 };
 
   // Hide the app shell on the login page so it gets its own minimal layout
   isLoginPage$ = this.router.events.pipe(
@@ -156,6 +159,12 @@ export class AppComponent implements OnInit {
           tooltip: 'Operator alert center',
         },
         {
+          label: 'Web Crawler',
+          icon: 'travel_explore',
+          route: '/crawler',
+          tooltip: 'Crawl your sites for SEO audit, broken links, and content discovery',
+        },
+        {
           label: 'Error Log',
           icon: 'bug_report',
           route: '/error-log',
@@ -195,6 +204,11 @@ export class AppComponent implements OnInit {
         next: (summary: any) => this.systemStatus = summary.system_status,
         error: () => this.systemStatus = 'unknown'
       });
+
+    // Subscribe to the real-time pulse for toolbar indicator.
+    this.pulseService.pulse$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((p) => (this.pulse = p));
 
   }
 

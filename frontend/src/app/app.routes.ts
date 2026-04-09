@@ -103,6 +103,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'crawler',
+    loadComponent: () =>
+      import('./crawler/crawler.component').then((m) => m.CrawlerComponent),
+    title: 'Web Crawler — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: 'error-log',
     loadComponent: () =>
       import('./error-log/error-log.component').then((m) => m.ErrorLogComponent),

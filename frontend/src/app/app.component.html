@@ -11,6 +11,16 @@
   }
   <span>{{ siteName }}</span>
   <span class="toolbar-spacer"></span>
+
+  <!-- Live Pulse Indicator -->
+  <div class="pulse-indicator" [matTooltip]="'System: ' + pulse.status + (pulse.taskCount ? ' — ' + pulse.taskCount + ' tasks' : '')">
+    <span class="pulse-dot" [ngClass]="'pulse-' + pulse.status"></span>
+    <span class="pulse-label">{{ pulse.status === 'live' ? 'Live' : pulse.status === 'degraded' ? 'Degraded' : pulse.status === 'down' ? 'Down' : '...' }}</span>
+    @if (pulse.taskCount > 0) {
+      <span class="pulse-tasks">{{ pulse.taskCount }}</span>
+    }
+  </div>
+
   <app-notification-center
     [(open)]="notifPanelOpen"
   />

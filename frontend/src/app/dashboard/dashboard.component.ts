@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -22,6 +23,7 @@ import { SystemSummaryComponent } from './components/system-summary/system-summa
 import { WebhookLogComponent } from './components/webhook-log/webhook-log.component';
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 import { SetupWizardDialogComponent } from './components/setup-wizard/setup-wizard-dialog.component';
+import { PulseService, SystemEvent } from '../core/services/pulse.service';
 
 @Component({
   selector: 'app-dashboard',
@@ -49,10 +51,13 @@ export class DashboardComponent implements OnInit {
   private dashSvc = inject(DashboardService);
   private suggSvc = inject(SuggestionService);
   private syncSvc = inject(SyncService);
+  private pulseService = inject(PulseService);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
+  private destroyRef = inject(DestroyRef);
 
   data: DashboardData | null = null;
+  activityEvents: SystemEvent[] = [];
   loading = true;
   startingPipeline = false;
   syncing = false;
@@ -68,6 +73,11 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+
+    // Subscribe to live activity feed.
+    this.pulseService.events$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((events) => (this.activityEvents = events));
   }
 
   load(): void {

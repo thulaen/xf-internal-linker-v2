@@ -1262,6 +1262,148 @@ def check_celery_beat_health() -> ServiceHealthResult:
         )
 
 @HealthCheckRegistry.register(
+    "sitemaps",
+    name="Sitemaps",
+    description="Configured sitemaps for the web crawler."
+)
+def check_sitemaps() -> ServiceHealthResult:
+    try:
+        from apps.crawler.models import SitemapConfig
+        total = SitemapConfig.objects.count()
+        enabled = SitemapConfig.objects.filter(is_enabled=True).count()
+
+        if total == 0:
+            return ServiceHealthResult(
+                service_key="sitemaps",
+                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+                status_label="No sitemaps configured.",
+                issue_description="The web crawler needs at least one sitemap URL to seed its crawl.",
+                suggested_fix="Go to the Web Crawler page and add your sitemap URLs.",
+                metadata={"total": 0, "enabled": 0},
+            )
+
+        return ServiceHealthResult(
+            service_key="sitemaps",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"{enabled} of {total} sitemaps enabled.",
+            last_success_at=timezone.now(),
+            metadata={"total": total, "enabled": enabled},
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="sitemaps",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Sitemap check failed.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e),
+        )
+
+
+@HealthCheckRegistry.register(
+    "crawler_status",
+    name="Web Crawler",
+    description="Status of the most recent web crawl session."
+)
+def check_crawler_status() -> ServiceHealthResult:
+    try:
+        from apps.crawler.models import CrawlSession
+        latest = CrawlSession.objects.order_by("-created_at").first()
+
+        if latest is None:
+            return ServiceHealthResult(
+                service_key="crawler_status",
+                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+                status_label="No crawl sessions yet.",
+                issue_description="The web crawler has never been run.",
+                suggested_fix="Go to the Web Crawler page and start your first crawl.",
+            )
+
+        meta = {
+            "last_status": latest.status,
+            "pages_crawled": latest.pages_crawled,
+            "domain": latest.site_domain,
+        }
+
+        if latest.status == "failed":
+            return ServiceHealthResult(
+                service_key="crawler_status",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Last crawl failed ({latest.site_domain}).",
+                issue_description=latest.error_message[:200] if latest.error_message else "Unknown error.",
+                suggested_fix="Check the error message and try running the crawl again.",
+                last_error_at=latest.updated_at,
+                metadata=meta,
+            )
+
+        if latest.status == "running":
+            return ServiceHealthResult(
+                service_key="crawler_status",
+                status=ServiceHealthRecord.STATUS_HEALTHY,
+                status_label=f"Crawl running — {latest.pages_crawled} pages done.",
+                last_success_at=timezone.now(),
+                metadata=meta,
+            )
+
+        return ServiceHealthResult(
+            service_key="crawler_status",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Last crawl: {latest.status} — {latest.pages_crawled} pages ({latest.site_domain}).",
+            last_success_at=latest.completed_at or latest.updated_at,
+            metadata=meta,
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="crawler_status",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Crawler status check failed.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e),
+        )
+
+
+@HealthCheckRegistry.register(
+    "crawler_storage",
+    name="Crawler Storage",
+    description="Disk space consumed by crawler data."
+)
+def check_crawler_storage() -> ServiceHealthResult:
+    try:
+        from apps.crawler.models import CrawledPageMeta
+        from django.db.models import Sum
+        agg = CrawledPageMeta.objects.aggregate(total=Sum("content_length"))
+        total_bytes = agg["total"] or 0
+        total_mb = round(total_bytes / (1024 * 1024), 1)
+
+        meta = {"storage_bytes": total_bytes, "storage_mb": total_mb}
+
+        if total_mb > 5000:
+            return ServiceHealthResult(
+                service_key="crawler_storage",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label=f"Crawler data: {total_mb} MB — consider pruning.",
+                issue_description="Crawler data exceeds 5 GB. Auto-prune should reduce this.",
+                suggested_fix="Check that auto-prune is running (every 4 weeks) or manually prune old sessions.",
+                metadata=meta,
+            )
+
+        return ServiceHealthResult(
+            service_key="crawler_storage",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Crawler data: {total_mb} MB.",
+            last_success_at=timezone.now(),
+            metadata=meta,
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="crawler_storage",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Crawler storage check failed.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e),
+        )
+
+
+@HealthCheckRegistry.register(
     "disk_space",
     name="Disk Space",
     description="Available storage on the server filesystem (models, logs, media)."

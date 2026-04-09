@@ -160,6 +160,7 @@ class ContentItem(TimestampedModel):
         ("resource", "Resource"),
         ("wp_post", "WordPress Post"),
         ("wp_page", "WordPress Page"),
+        ("crawled_page", "Crawled Page"),
     ]
 
     DISTILL_METHOD_CHOICES = [

@@ -41,6 +41,7 @@ public sealed class JobsControllerTests
             Substitute.For<IUrlFetchService>(),
             healthCheckService ?? Substitute.For<IHealthCheckService>(),
             Substitute.For<ISitemapService>(),
+            Substitute.For<ICrawlSessionService>(),
             gscService,
             Substitute.For<IImportContentService>(),
             Substitute.For<IRunPipelineService>(),

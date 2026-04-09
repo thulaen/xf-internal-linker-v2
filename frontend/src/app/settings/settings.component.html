@@ -1031,6 +1031,33 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- ── Sitemap Configuration ─────────────────────────────── -->
+          <mat-card class="settings-card settings-card--wide" id="sitemap-settings">
+            <mat-card-header>
+              <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                <div class="title-group">
+                  <mat-card-title>Sitemap Configuration</mat-card-title>
+                  <mat-card-subtitle>Add sitemap URLs for each domain so the crawler knows where to find your pages</mat-card-subtitle>
+                </div>
+              </div>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">
+                The web crawler uses these sitemaps to seed its URL frontier. Auto-discover checks common locations
+                like /sitemap.xml, /sitemap_index.xml, /sitemap.php, and your robots.txt for Sitemap directives.
+                Duplicate URLs are automatically detected and skipped.
+              </p>
+
+              <div class="sitemap-list">
+                <p class="hint" style="font-style: italic; color: var(--color-text-muted);">
+                  Sitemap management is available on the <a routerLink="/crawler" style="color: var(--color-primary);">Web Crawler</a> page.
+                  Configure your XenForo sitemap (e.g. https://goldmidi.com/community/sitemap.php) and WordPress
+                  sitemap there.
+                </p>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <mat-card class="settings-card settings-card--wide" id="webhook-settings">
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">

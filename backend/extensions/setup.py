@@ -66,6 +66,11 @@ ext_modules = [
         extra_compile_args=["-O3", "-std=c++17", "-march=native"] if sys.platform != "win32" else ["/O2", "/std:c++17", "/arch:AVX2"],
         libraries=["tbb"] if sys.platform != "win32" else [],
     ),
+    Pybind11Extension(
+        "pulse_metrics",
+        ["pulse_metrics.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"] if sys.platform != "win32" else ["/O2", "/std:c++17"],
+    ),
 ]
 
 setup(

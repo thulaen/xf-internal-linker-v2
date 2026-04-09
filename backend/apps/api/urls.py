@@ -190,6 +190,7 @@ urlpatterns = [
     path("graph/gap-analysis/", GapAnalysisView.as_view(), name="graph-gap-analysis"),
     path("sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    path("crawler/", include("apps.crawler.urls")),
     path("", include("apps.notifications.urls")),
     path("system/status/", include("apps.diagnostics.urls")),
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),

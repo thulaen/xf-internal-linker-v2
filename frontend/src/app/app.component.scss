@@ -211,6 +211,63 @@
     flex: 1 1 auto;
   }
 
+  .pulse-indicator {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 12px;
+    border-radius: 16px;
+    background: var(--color-bg-faint, rgba(0, 0, 0, 0.04));
+    margin-right: 8px;
+    cursor: default;
+
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background-color: var(--color-border);
+      transition: background-color 0.3s ease;
+
+      &.pulse-live {
+        background-color: var(--color-success);
+        animation: pulse-glow 2s ease-in-out infinite;
+      }
+      &.pulse-degraded {
+        background-color: var(--color-warning);
+      }
+      &.pulse-down {
+        background-color: var(--color-error);
+      }
+      &.pulse-unknown {
+        background-color: var(--color-border);
+      }
+    }
+
+    .pulse-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+      text-transform: capitalize;
+    }
+
+    .pulse-tasks {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--color-bg-white);
+      background-color: var(--color-primary);
+      border-radius: 8px;
+      padding: 0 6px;
+      min-width: 16px;
+      text-align: center;
+      line-height: 16px;
+    }
+  }
+
+  @keyframes pulse-glow {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+  }
+
   .system-status-dot {
     width: 10px;
     height: 10px;

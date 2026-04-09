@@ -44,6 +44,9 @@ _NATIVE_RUNTIME_MODULES = (
     ("rankagg", "power_iter", "FR-067 Markov rank aggregation", False),
     ("cascade", "stage_score", "FR-068 Cascade re-ranker", False),
 
+    # ── System pulse metrics (ring buffer) ──
+    ("pulse_metrics", "get_summary", "Pulse metrics ring buffer", False),
+
     # ── OPT-01 to OPT-06: Initial resource optimisations ──
     ("embpool", "alloc", "OPT-01 Embedding memory pool", False),
     ("vecdeser", "parse_vector", "OPT-02 Fast vector deserialiser", False),

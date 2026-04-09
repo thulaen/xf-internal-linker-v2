@@ -64,6 +64,7 @@ LOCAL_APPS = [
     "apps.knowledge_graph",
     "apps.health",
     "apps.cooccurrence",
+    "apps.crawler",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -272,6 +273,24 @@ CELERY_BEAT_SCHEDULE = {
         "task": "audit.compute_weekly_reviewer_scorecard",
         "schedule": crontab(hour=3, minute=0, day_of_week=1),
         "options": {"queue": "default"},
+    },
+    # System heartbeat pulse: every 60 seconds.
+    "pulse-heartbeat": {
+        "task": "crawler.pulse_heartbeat",
+        "schedule": 60.0,
+        "options": {"queue": "default", "expires": 55},
+    },
+    # Watchdog check: every 5 minutes (checks for stuck jobs).
+    "watchdog-check": {
+        "task": "crawler.watchdog_check",
+        "schedule": 300.0,
+        "options": {"queue": "default", "expires": 290},
+    },
+    # Crawler auto-prune: every 4 weeks (Sunday 04:00 UTC).
+    "crawler-auto-prune": {
+        "task": "crawler.auto_prune",
+        "schedule": crontab(hour=4, minute=0, day_of_week=0, day_of_month="1-7"),
+        "options": {"queue": "pipeline"},
     },
 }
 

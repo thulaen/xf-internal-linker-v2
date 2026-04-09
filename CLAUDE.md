@@ -6,6 +6,15 @@
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 
+# Mandatory Research Rule for All Features
+
+Before implementing any new feature or idea:
+1. **Patent/technical doc research** — Find at least one patent, RFC, or peer-reviewed paper that supports the approach. Document the reference in the feature spec.
+2. **Duplicate/overlap check** — Search the codebase for existing implementations that overlap. If overlap exists, extend the existing code rather than creating new code.
+3. **Regression check** — Identify any existing behavior that could break. Document what needs testing.
+4. **Architecture alignment** — Verify the approach fits the existing architecture (C# for I/O, C++ for CPU, Python for ML, Angular for UI).
+5. **Flag conflicts** — If the idea conflicts with an existing feature, flag it for review before proceeding.
+
 When responding to the user in this repository:
 
 - Talk in plain English.

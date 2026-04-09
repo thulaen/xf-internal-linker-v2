@@ -607,6 +607,25 @@ def score_destination_matches(
                     "penalty": 0.0
                 }
 
+        # Thin content penalty (Panda-based, US Patent 8,682,892).
+        # Pages with fewer words are penalised but NOT excluded — they
+        # remain valid fallback destinations.  Empty pages (0 words) are
+        # fully suppressed.
+        thin_penalty = 0.0
+        crawled_meta = getattr(destination, "_crawled_word_count", None)
+        if crawled_meta is not None:
+            wc = crawled_meta
+        else:
+            wc = getattr(destination, "word_count", None)
+        if wc is not None:
+            if wc == 0:
+                thin_penalty = -score_final  # fully suppress
+            elif wc < 100:
+                thin_penalty = score_final * -0.30
+            elif wc < 200:
+                thin_penalty = score_final * -0.15
+        score_final += thin_penalty
+
         ranked.append(
             ScoredCandidate(
                 destination_content_id=destination.content_id,

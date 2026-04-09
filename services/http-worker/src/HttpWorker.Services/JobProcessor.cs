@@ -13,6 +13,7 @@ public sealed class JobProcessor(
     IUrlFetchService urlFetchService,
     IHealthCheckService healthCheckService,
     ISitemapService sitemapService,
+    ICrawlSessionService crawlSessionService,
     GSCAttributionService gscAttributionService,
     IImportContentService importContentService,
     IRunPipelineService runPipelineService,
@@ -89,6 +90,12 @@ public sealed class JobProcessor(
                          DeserializePayload<GraphSyncRefreshRequest>(request.Payload),
                          cancellationToken),
                     JsonOptions),
+                "crawl_session" => JsonSerializer.SerializeToNode(
+                    await crawlSessionService.ExecuteAsync(
+                         DeserializePayload<CrawlSessionRequest>(request.Payload),
+                         request.JobId,
+                         cancellationToken),
+                    JsonOptions),
                 _ => throw new Exception("unknown job_type"),
             };
 
@@ -144,7 +151,7 @@ public sealed class JobProcessor(
             throw new Exception("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "gsc_attribution" or "import_content" or "run_pipeline" or "weight_tune" or "graph_sync_content" or "graph_sync_refresh"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "crawl_session" or "gsc_attribution" or "import_content" or "run_pipeline" or "weight_tune" or "graph_sync_content" or "graph_sync_refresh"))
         {
             throw new Exception("unknown job_type");
         }

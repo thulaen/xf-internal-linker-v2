@@ -149,6 +149,16 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
     @action(detail=False, methods=["post"])
+    def trigger_full_run(self, request):
+        """
+        One-button workflow: Sync all sources + crawl + pipeline.
+        Dispatches the orchestrator Celery task.
+        """
+        from apps.crawler.tasks import orchestrate_full_run
+        orchestrate_full_run.apply_async(queue="pipeline")
+        return Response({"status": "queued", "message": "Full sync, crawl, and pipeline started."})
+
+    @action(detail=False, methods=["post"])
     def trigger_api_sync(self, request):
         """
         Trigger a direct API sync for a specific source (api|wp).

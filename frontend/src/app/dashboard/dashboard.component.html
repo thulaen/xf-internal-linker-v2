@@ -200,6 +200,34 @@
     </section>
   }
 
+  <!-- ── Activity Feed (Live System Events) ────────────────────── -->
+  <mat-card class="activity-feed-card">
+    <mat-card-header>
+      <mat-card-title>
+        <mat-icon class="icon-sm">timeline</mat-icon>
+        Activity Feed
+      </mat-card-title>
+      <span class="feed-live-dot"></span>
+    </mat-card-header>
+    <mat-card-content>
+      @if (activityEvents.length === 0) {
+        <p class="feed-empty">No recent system events. Start a sync or crawl to see activity here.</p>
+      } @else {
+        <div class="feed-list">
+          @for (event of activityEvents; track event.event_id) {
+            <div class="feed-item" [ngClass]="'feed-' + event.severity">
+              <span class="feed-time">{{ event.timestamp | date:'shortTime' }}</span>
+              <span class="feed-title">{{ event.title }}</span>
+              @if (event.detail) {
+                <span class="feed-detail">{{ event.detail }}</span>
+              }
+            </div>
+          }
+        </div>
+      }
+    </mat-card-content>
+  </mat-card>
+
   <div class="stat-grid" id="suggestion-stats">
     @if (data.open_broken_links > 0) {
       <mat-card class="stat-card stat-card-warning" [routerLink]="['/link-health']" fragment="link-health-table" tabindex="0">

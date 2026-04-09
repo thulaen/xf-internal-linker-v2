@@ -1,3 +1,88 @@
+/* ── Activity Feed Card ──────────────────────────────── */
+.activity-feed-card {
+  border: var(--card-border);
+  box-shadow: none;
+  border-radius: var(--card-border-radius, 8px);
+  margin-bottom: 24px;
+
+  mat-card-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    mat-card-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 14px;
+      font-weight: 500;
+    }
+  }
+
+  .feed-live-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: var(--color-success);
+    animation: pulse-glow 2s ease-in-out infinite;
+    margin-left: auto;
+  }
+
+  .feed-empty {
+    font-size: 13px;
+    color: var(--color-text-muted);
+    padding: 16px 0;
+  }
+
+  .feed-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .feed-item {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+    transition: background 0.15s ease;
+
+    &:hover {
+      background: var(--color-bg-faint, rgba(0, 0, 0, 0.03));
+    }
+
+    &.feed-success .feed-title { color: var(--color-success); }
+    &.feed-warning .feed-title { color: var(--color-warning); }
+    &.feed-error .feed-title { color: var(--color-error); }
+  }
+
+  .feed-time {
+    flex-shrink: 0;
+    width: 56px;
+    font-size: 11px;
+    color: var(--color-text-muted);
+  }
+
+  .feed-title {
+    color: var(--color-text-primary);
+  }
+
+  .feed-detail {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    margin-left: auto;
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
 /* ── Setup Checklist ─────────────────────────────────── */
 .setup-checklist {
   position: relative;

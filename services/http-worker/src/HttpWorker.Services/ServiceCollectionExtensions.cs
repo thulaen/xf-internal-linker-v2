@@ -51,6 +51,7 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<IRunPipelineService, RunPipelineService>();
         services.AddSingleton<IGraphCandidateService, GraphCandidateService>();
         services.AddSingleton<TrafficDecayService>();
+        services.AddSingleton<ICrawlSessionService, CrawlSessionService>();
         services.AddSingleton<JobProcessor>();
         return services;
     }
