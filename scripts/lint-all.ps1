@@ -89,12 +89,13 @@ try {
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
     $env:DJANGO_SECRET_KEY = "lint-only-key"
     # Ensure mypy + Django stubs are installed (they may be missing in some envs).
-    & $python -m pip install --quiet mypy django-stubs djangorestframework-stubs 2>$null
-    # Redirect stderr to suppress Django startup noise (plugin table missing in test DB).
-    # mypy's actual type errors go to stdout.
+    $ErrorActionPreference = "Continue"
+    & $python -m pip install --quiet mypy django-stubs djangorestframework-stubs 2>&1 | Out-Null
+    # Run mypy — redirect stderr to suppress Django startup noise.
     $mypyOutput = & $python -m mypy apps/crawler/ --config-file mypy.ini --follow-imports=silent 2>&1
     $mypyExitCode = $LASTEXITCODE
-    $mypyOutput | Where-Object { $_ -notmatch "OperationalError|Plugin loading|faiss|RuntimeWarning|Traceback|sqlite3" } | Write-Host
+    $ErrorActionPreference = "Stop"
+    $mypyOutput | Where-Object { $_ -notmatch "OperationalError|Plugin loading|faiss|RuntimeWarning|Traceback|sqlite3|^$" } | Write-Host
     if ($mypyExitCode -ne 0) {
         throw "mypy type check failed. Fix the type errors above."
     }
