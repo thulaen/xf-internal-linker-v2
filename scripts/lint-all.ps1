@@ -107,8 +107,13 @@ try {
 Write-Step "4/7  Python: bandit security scan"
 Push-Location (Join-Path $repoRoot "backend")
 try {
-    & $python -m bandit -r apps/ -c bandit.yml --quiet
-    if ($LASTEXITCODE -ne 0) {
+    $ErrorActionPreference = "Continue"
+    & $python -m pip install --quiet bandit 2>&1 | Out-Null
+    $banditOutput = & $python -m bandit -r apps/ -c bandit.yml --quiet 2>&1
+    $banditExitCode = $LASTEXITCODE
+    $ErrorActionPreference = "Stop"
+    if ($banditOutput) { $banditOutput | Write-Host }
+    if ($banditExitCode -ne 0) {
         throw "bandit found security issues. Fix the findings above."
     }
 } finally {
