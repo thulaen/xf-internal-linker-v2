@@ -22,20 +22,20 @@
     <!-- Resource Metrics Bar -->
     <section class="metrics-bar" *ngIf="resources">
       <div class="metric-item">
-        <label>CPU Usage</label>
+        <span>CPU Usage</span>
         <div class="metric-value">
           <span class="value">{{ resources.cpu_percent === 'unavailable' ? 'N/A' : resources.cpu_percent + '%' }}</span>
           <div class="mini-progress"><div class="fill" [style.width]="resources.cpu_percent + '%'"></div></div>
         </div>
       </div>
       <div class="metric-item">
-        <label>RAM Usage</label>
+        <span>RAM Usage</span>
         <div class="metric-value">
           <span class="value">{{ resources.ram_usage_mb === 'unavailable' ? 'N/A' : (resources.ram_usage_mb | number:'1.0-0') + ' MB' }}</span>
         </div>
       </div>
       <div class="metric-item">
-        <label>Disk Space</label>
+        <span>Disk Space</span>
         <div class="metric-value">
           <span class="value">{{ resources.disk_usage_percent === 'unavailable' ? 'N/A' : resources.disk_usage_percent + '%' }}</span>
           <div class="mini-progress"><div class="fill" [style.width]="resources.disk_usage_percent + '%'"></div></div>
@@ -82,7 +82,7 @@
           </div>
 
           <div class="lane-next-step">
-            <label>Next Step</label>
+            <span>Next Step</span>
             <p>{{ lane.nextStep }}</p>
           </div>
         </article>
@@ -130,13 +130,13 @@
 
           <div class="runtime-detail-grid" *ngIf="card.details.length > 0">
             <div class="runtime-detail-item" *ngFor="let detail of card.details; trackBy: trackByLabel">
-              <label>{{ detail.label }}</label>
+              <span>{{ detail.label }}</span>
               <span>{{ detail.value }}</span>
             </div>
           </div>
 
           <div class="native-module-list" *ngIf="card.moduleStatuses.length > 0">
-            <label class="module-list-label">Tracked Modules</label>
+            <span class="module-list-label">Tracked Modules</span>
             <div class="native-module-item" *ngFor="let module of card.moduleStatuses; trackBy: trackByLabel">
               <div class="native-module-copy">
                 <span class="native-module-name">{{ module.label }}</span>
@@ -154,7 +154,7 @@
           </div>
 
           <div class="lane-next-step">
-            <label>Next Step</label>
+            <span>Next Step</span>
             <p>{{ card.nextStep }}</p>
           </div>
         </article>

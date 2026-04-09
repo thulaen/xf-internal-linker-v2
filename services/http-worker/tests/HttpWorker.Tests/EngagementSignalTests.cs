@@ -157,7 +157,7 @@ public class EngagementSignalTests
     }
 
     [Fact]
-    public void EngagementSignalDisabled_GraphCandidateService_UsesFallback()
+    public async Task EngagementSignalDisabled_GraphCandidateService_UsesFallback()
     {
         // When EngagementSignalEnabled=false, score must not include engagement contribution.
         // Test via GraphCandidateService directly.
@@ -178,11 +178,11 @@ public class EngagementSignalTests
 
         // Run with no graph edges — returns empty. Just confirm no exception.
         var graphData = new KnowledgeGraphData();
-        var result = svc.GenerateGraphCandidatesAsync(
+        var result = await svc.GenerateGraphCandidatesAsync(
             1, graphData,
             new Dictionary<int, float>(),
             new Dictionary<int, EngagementSignalData>(),
-            CancellationToken.None).GetAwaiter().GetResult();
+            CancellationToken.None);
 
         Assert.Empty(result);
     }

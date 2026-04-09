@@ -338,7 +338,7 @@
             <th mat-header-cell *matHeaderCellDef>Article</th>
             <td mat-cell *matCellDef="let row">
               <span class="audit-title-cell">
-                <a class="article-link audit-focus-link" (click)="focusInGraph(row)" matTooltip="Show in network graph">
+                <a class="article-link audit-focus-link" tabindex="0" role="button" (click)="focusInGraph(row)" (keydown.enter)="focusInGraph(row)" matTooltip="Show in network graph">
                   {{ row.title }}
                 </a>
                 <a [href]="row.url" target="_blank" rel="noopener" class="audit-external-link" matTooltip="Open page">

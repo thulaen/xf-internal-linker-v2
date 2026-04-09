@@ -15,10 +15,11 @@
     <h3 class="section-title">Colors</h3>
 
     <div class="color-row">
-      <label class="color-label">Primary color</label>
+      <label class="color-label" for="color-primary">Primary color</label>
       <div class="color-picker-wrap">
         <input
           type="color"
+          id="color-primary"
           class="color-input"
           [value]="cfg.primaryColor"
           (input)="setPrimary($any($event.target).value)"
@@ -28,10 +29,11 @@
     </div>
 
     <div class="color-row">
-      <label class="color-label">Accent color</label>
+      <label class="color-label" for="color-accent">Accent color</label>
       <div class="color-picker-wrap">
         <input
           type="color"
+          id="color-accent"
           class="color-input"
           [value]="cfg.accentColor"
           (input)="setAccent($any($event.target).value)"
@@ -41,10 +43,11 @@
     </div>
 
     <div class="color-row">
-      <label class="color-label">Header background</label>
+      <label class="color-label" for="color-header-bg">Header background</label>
       <div class="color-picker-wrap">
         <input
           type="color"
+          id="color-header-bg"
           class="color-input"
           [value]="cfg.headerBg"
           (input)="setHeaderBg($any($event.target).value)"
@@ -223,10 +226,11 @@
       </mat-form-field>
 
       <div class="color-row">
-        <label class="color-label">Footer background</label>
+        <label class="color-label" for="color-footer-bg">Footer background</label>
         <div class="color-picker-wrap">
           <input
             type="color"
+            id="color-footer-bg"
             class="color-input"
             [value]="cfg.footerBg"
             (input)="setFooterBg($any($event.target).value)"

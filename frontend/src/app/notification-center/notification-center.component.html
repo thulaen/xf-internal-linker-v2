@@ -13,7 +13,7 @@
 
 <!-- Slide-over panel -->
 @if (open) {
-  <div class="notif-backdrop" (click)="close()"></div>
+  <div class="notif-backdrop" tabindex="-1" aria-hidden="true" (click)="close()" (keydown.escape)="close()"></div>
   <div class="notif-panel" role="dialog" aria-label="Notification center">
 
     <!-- Header -->
@@ -60,8 +60,10 @@
           <li
             class="notif-item notif-item--{{ alert.severity }}"
             role="listitem"
+            tabindex="0"
             [class.notif-item--clickable]="!!alert.related_route"
             (click)="onOpenRelated(alert)"
+            (keydown.enter)="onOpenRelated(alert)"
           >
             <mat-icon class="notif-icon icon-md">{{ severityIcon(alert.severity) }}</mat-icon>
             <div class="notif-body">

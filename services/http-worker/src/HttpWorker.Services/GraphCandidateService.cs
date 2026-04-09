@@ -13,14 +13,14 @@ public sealed class GraphCandidateService : IGraphCandidateService
         _options = options.Value;
     }
 
-    public async Task<IReadOnlyList<PipelineSuggestion>> GenerateGraphCandidatesAsync(
+    public Task<IReadOnlyList<PipelineSuggestion>> GenerateGraphCandidatesAsync(
         int sourceArticleId,
         KnowledgeGraphData graphData,
         Dictionary<int, float> trafficMetrics,
         Dictionary<int, EngagementSignalData> engagementSignals,
         CancellationToken cancellationToken)
     {
-        if (graphData.Edges.Count == 0) return [];
+        if (graphData.Edges.Count == 0) return Task.FromResult<IReadOnlyList<PipelineSuggestion>>([]);
 
         // 1. Build Adjacency Lists
         var articleToEntities = new Dictionary<int, List<(int EntityId, float Weight)>>();
@@ -49,7 +49,7 @@ public sealed class GraphCandidateService : IGraphCandidateService
 
         if (!articleToEntities.TryGetValue(sourceArticleId, out var startEntities))
         {
-            return [];
+            return Task.FromResult<IReadOnlyList<PipelineSuggestion>>([]);
         }
 
         int totalWalks = _options.Pipeline.PixieWalkCount;
@@ -111,7 +111,7 @@ public sealed class GraphCandidateService : IGraphCandidateService
             });
         }
 
-        return suggestions;
+        return Task.FromResult<IReadOnlyList<PipelineSuggestion>>(suggestions);
     }
 
     private int WeightedChoice(List<(int Id, float Weight)> items, Random random)

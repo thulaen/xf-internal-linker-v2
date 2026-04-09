@@ -154,7 +154,7 @@
 
           <!-- Edit name -->
           <div class="detail-section">
-            <label class="section-label">Hub name</label>
+            <span class="section-label">Hub name</span>
             <div class="name-row">
               <mat-form-field appearance="outline" class="name-field">
                 <input matInput [(ngModel)]="editName" placeholder="Hub name" />
@@ -167,7 +167,7 @@
 
           <!-- Auto-link toggle -->
           <div class="detail-section">
-            <label class="section-label">Auto-link</label>
+            <span class="section-label">Auto-link</span>
             <div class="autolink-row">
               <span class="autolink-status">
                 @if (selectedHub.auto_link_enabled) {
@@ -190,7 +190,7 @@
 
           <!-- Members -->
           <div class="detail-section">
-            <label class="section-label">Members ({{ selectedHub.member_count }})</label>
+            <span class="section-label">Members ({{ selectedHub.member_count }})</span>
             @if (selectedHub.members.length === 0) {
               <p class="no-members">No active members.</p>
             } @else {

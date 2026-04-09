@@ -143,13 +143,16 @@
     @for (s of suggestions; track s.suggestion_id) {
       <div
         class="suggestion-card"
+        tabindex="0"
+        role="button"
         [class.selected]="isSelected(s.suggestion_id)"
         [class.status-approved]="s.status === 'approved'"
         [class.status-rejected]="s.status === 'rejected'"
         [class.status-applied]="s.status === 'applied'"
         (click)="openDetail(s)"
+        (keydown.enter)="openDetail(s)"
       >
-        <div class="card-header" (click)="$event.stopPropagation()">
+        <div class="card-header" tabindex="-1" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
           <mat-checkbox
             [checked]="isSelected(s.suggestion_id)"
             (change)="toggleSelect(s.suggestion_id)"
@@ -218,7 +221,7 @@
           </div>
         }
 
-        <div class="card-actions" (click)="$event.stopPropagation()">
+        <div class="card-actions" tabindex="-1" (click)="$event.stopPropagation()" (keydown.enter)="$event.stopPropagation()">
           @if (s.status === 'pending' || s.status === 'rejected') {
             <button
               mat-flat-button

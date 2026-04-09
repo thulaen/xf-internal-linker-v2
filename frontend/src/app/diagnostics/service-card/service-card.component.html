@@ -10,18 +10,18 @@
     
     <div class="timestamp-group">
       <div class="timestamp">
-        <label>Last Check:</label>
+        <span>Last Check:</span>
         <span>{{ service.last_check | date:'shortTime' }}</span>
       </div>
       <div class="timestamp" *ngIf="service.last_failure">
-        <label>Last Failure:</label>
+        <span>Last Failure:</span>
         <span class="text-error">{{ service.last_failure | date:'shortTime' }}</span>
       </div>
     </div>
 
     <div class="metadata-grid" *ngIf="metadataEntries.length > 0">
       <div class="metadata-item" *ngFor="let entry of metadataEntries; trackBy: trackByLabel">
-        <label>{{ entry.label | titlecase }}</label>
+        <span>{{ entry.label | titlecase }}</span>
         <span>{{ entry.value }}</span>
       </div>
     </div>
@@ -29,7 +29,7 @@
   
   <div class="card-footer" *ngIf="service.state !== 'healthy'">
     <div class="next-step">
-      <label>Next Step:</label>
+      <span>Next Step:</span>
       <p>{{ service.next_action_step }}</p>
     </div>
   </div>

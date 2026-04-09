@@ -212,12 +212,16 @@
             <div class="jsonl-drop-area">
               <div
                 class="drop-zone"
+                tabindex="0"
+                role="button"
+                aria-label="Choose file to upload"
                 [class.drag-over]="isDragOver"
                 [class.has-file]="!!selectedFile"
                 (dragover)="onDragOver($event)"
                 (dragleave)="onDragLeave()"
                 (drop)="onDrop($event)"
                 (click)="fileInput.click()"
+                (keydown.enter)="fileInput.click()"
               >
                 <input #fileInput type="file" accept=".jsonl" hidden (change)="onFileSelected($event)" />
                 <mat-icon class="icon-xl">{{ selectedFile ? 'task' : 'cloud_upload' }}</mat-icon>
