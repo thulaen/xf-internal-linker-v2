@@ -96,6 +96,8 @@ class ContentItemViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        if self.action == "retrieve":
+            queryset = queryset.select_related("scope__silo_group")
         freshness_bucket = self.request.query_params.get("freshness_bucket", "").strip().lower()
         if freshness_bucket == "fresh":
             queryset = queryset.filter(link_freshness_score__gte=0.60)

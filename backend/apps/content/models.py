@@ -236,6 +236,34 @@ class ContentItem(TimestampedModel):
         help_text="Soft structural prior based on click distance and URL depth. 1.0 = shallow/prominent, 0.5 = neutral.",
     )
 
+    # FR-040 — multimedia/engagement richness (0=sparse, 0.5=neutral, 1=rich)
+    multimedia_coverage_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text=(
+            "Multimedia richness: 0.4*video + 0.35*image_density + 0.25*alt_text_ratio. "
+            "1.0 = optimal (video + images with alt text). 0.5 = neutral (text-only)."
+        ),
+    )
+    # FR-042 — information density (0=filler, 0.5=balanced, 1=high-factual)
+    fact_density_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text=(
+            "Fact density: ratio of fact-like sentences minus filler penalty. "
+            "Min 120 words required; below that = neutral 0.5."
+        ),
+    )
+    # FR-044 — internal search demand (0=declining, 0.5=stable, 1=spike)
+    search_intensity_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text=(
+            "Recent (3-day) site-search impressions vs. 28-day baseline. "
+            "Sigmoid: ratio 0.5x→0.2, 1.0x→0.5, 2.0x→0.8, 10x→1.0."
+        ),
+    )
+
     # FR-014 near-duplicate clustering
     cluster = models.ForeignKey(
         ContentCluster,

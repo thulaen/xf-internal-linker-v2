@@ -8,6 +8,8 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.throttles import CoOccurrenceComputeThrottle as _CoOccurrenceComputeThrottle
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -151,6 +153,7 @@ class TriggerCoOccurrenceView(APIView):
     """POST /api/cooccurrence/compute/ — trigger on-demand run."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [_CoOccurrenceComputeThrottle]
 
     def post(self, request):
         from .tasks import compute_session_cooccurrence

@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from rest_framework import status
 
+from apps.api.throttles import MLEmbedThrottle as _MLEmbedThrottle
 from apps.pipeline.services.distiller import distill_body
 from apps.pipeline.services.embeddings import _load_model, _get_model_name, _get_batch_size, _l2_normalize
 
@@ -23,6 +24,7 @@ class MLDistillView(APIView):
     Returns: { "distilled": "..." }
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [_MLEmbedThrottle]
     
     def post(self, request):
         sentences = request.data.get("sentences", [])
@@ -44,6 +46,7 @@ class MLEmbedView(APIView):
     Returns: { "embeddings": [[0.1, ...], ...] }
     """
     permission_classes = [IsAuthenticated]
+    throttle_classes = [_MLEmbedThrottle]
     
     def post(self, request):
         texts = request.data.get("texts", [])

@@ -267,6 +267,12 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=3, minute=0, day_of_week=0),
         "options": {"queue": "pipeline", "expires": 3600},
     },
+    # Gap 3 — weekly reviewer scorecard computation: Monday 03:00 UTC.
+    "weekly-reviewer-scorecard": {
+        "task": "audit.compute_weekly_reviewer_scorecard",
+        "schedule": crontab(hour=3, minute=0, day_of_week=1),
+        "options": {"queue": "default"},
+    },
 }
 
 # ── C++ Native Extensions ────────────────────────────────────────
@@ -391,6 +397,22 @@ REST_FRAMEWORK = {
         "rest_framework.filters.SearchFilter",
         "rest_framework.filters.OrderingFilter",
     ],
+    "DEFAULT_THROTTLE_CLASSES": [
+        "rest_framework.throttling.AnonRateThrottle",
+        "rest_framework.throttling.UserRateThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "anon": "100/hour",
+        "user": "1000/hour",
+        # Per-endpoint scoped rates (see apps/api/throttles.py)
+        "graph_rebuild": "6/hour",
+        "weight_recalc": "12/hour",
+        "cooccurrence_compute": "6/hour",
+        "import_trigger": "2/minute",
+        "ml_embed": "5/minute",
+        "challenger_eval": "1/minute",
+        "settings_write": "10/minute",
+    },
 }
 
 

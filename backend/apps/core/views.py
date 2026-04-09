@@ -23,6 +23,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.api.throttles import (
+    GraphRebuildThrottle as _GraphRebuildThrottle,
+    WeightRecalcThrottle as _WeightRecalcThrottle,
+    ChallengerEvalThrottle as _ChallengerEvalThrottle,
+    SettingsWriteThrottle as _SettingsWriteThrottle,
+)
+
 from apps.suggestions.recommended_weights import (
     recommended_bool,
     recommended_float,
@@ -1529,6 +1536,7 @@ class WeightedAuthoritySettingsView(APIView):
 
 class WeightedAuthorityRecalculateView(APIView):
     """POST /api/settings/weighted-authority/recalculate/ - recalculate March 2026 PageRank."""
+    throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
         from apps.pipeline.tasks import recalculate_weighted_authority
@@ -1615,6 +1623,7 @@ class LinkFreshnessSettingsView(APIView):
 
 class LinkFreshnessRecalculateView(APIView):
     """POST /api/settings/link-freshness/recalculate/ - recalculate Link Freshness."""
+    throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
         from apps.pipeline.tasks import recalculate_link_freshness
@@ -2604,6 +2613,8 @@ class ClickDistanceRecalculateView(APIView):
     """
     POST /api/settings/click-distance/recalculate/
     """
+    throttle_classes = [_WeightRecalcThrottle]
+
     def post(self, request):
         """Trigger bulk recalculation of click distance scores."""
         from apps.pipeline.tasks import recalculate_click_distance_task
@@ -2720,6 +2731,7 @@ class ClusteringSettingsView(APIView):
 
 class ClusteringRecalculateView(APIView):
     """POST /api/settings/clustering/recalculate/ - run batch clustering pass."""
+    throttle_classes = [_WeightRecalcThrottle]
 
     def post(self, request):
         from apps.pipeline.tasks import run_clustering_pass
@@ -2813,6 +2825,7 @@ class ChallengerEvaluateView(APIView):
     """POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate a pending challenger."""
 
     permission_classes = [IsAuthenticated]
+    throttle_classes = [_ChallengerEvalThrottle]
 
     def post(self, request, run_id):
         from apps.pipeline.tasks import evaluate_weight_challenger
@@ -3173,6 +3186,7 @@ class SpamGuardSettingsView(APIView):
 class GraphRebuildView(APIView):
     """POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh."""
     permission_classes = [IsAuthenticated]
+    throttle_classes = [_GraphRebuildThrottle]
 
     def post(self, request):
         from apps.pipeline.tasks import dispatch_graph_rebuild

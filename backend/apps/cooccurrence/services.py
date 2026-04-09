@@ -452,8 +452,10 @@ def compute_value_model_score(
       authority    → dest.march_2026_pagerank_score
       engagement   → dest.content_value_score (same composite, different weight)
       cooccurrence → SessionCoOccurrencePair Jaccard (pairwise)
-      penalty      → 0.0 (placeholder; blocklist not yet in Python path)
+      penalty      → composite of density / anchor-overshoot / cluster proximity
     """
+    from apps.pipeline.services.penalty import compute_penalty_signal
+
     dest = suggestion.destination
     host = suggestion.host
 
@@ -462,7 +464,26 @@ def compute_value_model_score(
     freshness_signal = float(getattr(dest, "link_freshness_score", 0.5) or 0.5)
     authority_signal = float(getattr(dest, "march_2026_pagerank_score", 0.5) or 0.5)
     engagement_signal = traffic_signal  # same composite until per-signal breakdown exists
-    penalty_signal = 0.0
+
+    # Graduated penalty signal — falls back to 0.0 on any error.
+    try:
+        host_content_id = host.pk if host is not None else None
+        anchor_text = getattr(suggestion, "anchor_phrase", None) or None
+        sentence_position = None
+        host_sentence = getattr(suggestion, "host_sentence", None)
+        if host_sentence is not None:
+            sentence_position = getattr(host_sentence, "position", None)
+        if host_content_id is not None:
+            penalty_signal = compute_penalty_signal(
+                host_content_id=host_content_id,
+                anchor_text=anchor_text,
+                sentence_position=sentence_position,
+            )
+        else:
+            penalty_signal = 0.0
+    except Exception:
+        logger.debug("Penalty signal computation failed; defaulting to 0.0", exc_info=True)
+        penalty_signal = 0.0
 
     min_co_sessions = int(settings.get("co_occurrence_min_co_sessions", 5))
     fallback = float(settings.get("co_occurrence_fallback_value", 0.5))

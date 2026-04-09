@@ -1,4 +1,13 @@
-"""Plugins URL routes — DRF router added in Phase 1."""
+"""Plugin URL routes."""
 
+from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-urlpatterns: list = []
+from .views import PluginViewSet
+
+router = DefaultRouter()
+router.register(r"plugins", PluginViewSet, basename="plugin")
+
+urlpatterns = [
+    path("", include(router.urls)),
+]

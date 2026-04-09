@@ -1,6 +1,7 @@
 """Celery tasks for pipeline, sync, embeddings, verification, and link health."""
 
 from __future__ import annotations
+from celery.exceptions import SoftTimeLimitExceeded
 
 import logging
 import time
@@ -13,6 +14,10 @@ import requests
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
+from json import JSONDecodeError
+from requests import RequestException
+from django.db import DatabaseError, IntegrityError
+from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +54,7 @@ def _publish_progress(job_id: str, state: str, progress: float, message: str, **
     }
     try:
         async_to_sync(channel_layer.group_send)(f"job_{job_id}", event)
-    except Exception:
+    except (AttributeError, RuntimeError, ConnectionError):
         logger.exception("Failed to publish progress event for job %s", job_id)
 
 
@@ -82,7 +87,7 @@ def _emit_job_alert(
             payload={"job_id": job_id, "job_type": job_type},
             error_log_id=error_log_id,
         )
-    except Exception:
+    except (ImportError, AttributeError, DatabaseError):
         logger.warning("_emit_job_alert: failed to emit alert for job %s", job_id, exc_info=True)
 
 
@@ -110,6 +115,24 @@ def _broken_link_allowed_domains() -> list[str]:
         if host and host not in allowed_domains:
             allowed_domains.append(host)
     return allowed_domains
+
+
+def _save_checkpoint(job_id: str, stage: str, last_item_id: int, items_processed: int) -> None:
+    """Persist checkpoint to SyncJob for crash-resilient resume (FR-097).
+
+    Uses a single UPDATE query -- no SELECT, no .save().
+    Wrapped so a checkpoint failure never crashes the import.
+    """
+    try:
+        from apps.sync.models import SyncJob
+
+        SyncJob.objects.filter(job_id=job_id).update(
+            checkpoint_stage=stage,
+            checkpoint_last_item_id=last_item_id,
+            checkpoint_items_processed=items_processed,
+        )
+    except Exception:
+        logger.debug("Checkpoint write failed for job %s (stage=%s)", job_id, stage, exc_info=True)
 
 
 def _broken_link_scan_queue_payload() -> dict[str, Any]:
@@ -258,6 +281,8 @@ def orchestrate_csharp_import(
                     if job:
                         job.spacy_items_completed = index + 1
                         job.save(update_fields=["spacy_items_completed", "updated_at"])
+                    # FR-097: checkpoint during spaCy stage (every 20 items)
+                    _save_checkpoint(str(job_id), "spacy", post.content_item_id, index + 1)
                     _publish_progress(
                         job_id,
                         "running",
@@ -313,7 +338,7 @@ def orchestrate_csharp_import(
             "ml_enrichment_queued": len(updated_pks),
             "runtime_owner": "csharp",
         }
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Orchestrated C# import %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Orchestration failed: {exc}", error=str(exc))
         raise
@@ -525,7 +550,7 @@ def run_pipeline(
         try:
             from apps.cooccurrence.tasks import apply_value_model_scores
             apply_value_model_scores.delay(run_id)
-        except Exception:
+        except (ImportError, AttributeError):
             logger.warning("apply_value_model_scores could not be queued for run %s", run_id)
         _emit_job_alert(
             "job.completed",
@@ -542,7 +567,7 @@ def run_pipeline(
             "items_in_scope": result.items_in_scope,
             "duration_seconds": round(duration, 2),
         }
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Pipeline run %s failed", run_id)
         run.run_state = "failed"
         run.error_message = str(exc)
@@ -591,7 +616,7 @@ def generate_embeddings(
         try:
             from apps.pipeline.services.faiss_index import build_faiss_index
             build_faiss_index()
-        except Exception:
+        except (ImportError, MemoryError, FileNotFoundError):
             logger.warning("FAISS index rebuild after embeddings failed", exc_info=True)
 
         if job:
@@ -619,7 +644,7 @@ def generate_embeddings(
             job_type="embed",
         )
         return {"job_id": job_id, **stats}
-    except Exception as exc:
+    except (MemoryError, TimeoutError, RuntimeError) as exc:
         logger.exception("Embedding job %s failed", job_id)
         if job:
             job.status = "failed"
@@ -664,7 +689,7 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
             **diagnostics,
         )
         return {"job_id": job_id, **diagnostics}
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("March 2026 PageRank recalculation %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"March 2026 PageRank recalculation failed: {exc}", error=str(exc))
         raise
@@ -688,7 +713,7 @@ def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
             **diagnostics,
         )
         return {"job_id": job_id, **diagnostics}
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Link Freshness recalculation %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Link Freshness recalculation failed: {exc}", error=str(exc))
         raise
@@ -736,7 +761,7 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
         count = refresh_existing_links()
         _publish_progress(job_id, "completed", 1.0, f"Knowledge graph build complete; {count} items refreshed.")
         return {"job_id": job_id, "items_refreshed": count}
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Knowledge graph build %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Knowledge graph build failed: {exc}", error=str(exc))
         raise
@@ -790,7 +815,25 @@ def import_content(
         job.mode = mode
         job.save(update_fields=["status", "started_at", "source", "mode", "updated_at"])
 
-    _publish_progress(job_id, "running", 0.0, f"Starting {mode} content import from {source}...")
+    # ── FR-097: Resume from checkpoint if the job was previously interrupted ──
+    _resume_checkpoint_last_item_id: int | None = None
+    _resume_stage: str = ""
+    if job.is_resumable and job.checkpoint_stage and job.checkpoint_last_item_id:
+        _resume_checkpoint_last_item_id = job.checkpoint_last_item_id
+        _resume_stage = job.checkpoint_stage
+        logger.info(
+            "Resuming import job %s from checkpoint: stage=%s, last_item_id=%d, items_processed=%d",
+            job_id, _resume_stage, _resume_checkpoint_last_item_id, job.checkpoint_items_processed,
+        )
+        _publish_progress(
+            job_id, "running", 0.0,
+            f"Resuming {mode} import from checkpoint (stage={_resume_stage}, "
+            f"after item {_resume_checkpoint_last_item_id})...",
+        )
+        # Clear the resumable flag now that we are actively resuming.
+        SyncJob.objects.filter(job_id=job_id).update(is_resumable=False)
+    else:
+        _publish_progress(job_id, "running", 0.0, f"Starting {mode} content import from {source}...")
 
     items_synced = 0
     items_updated = 0
@@ -901,6 +944,14 @@ def import_content(
                 "last_post_date": last_post_date,
             },
         )
+
+        # FR-097: Skip items already processed before the checkpoint.
+        if (
+            _resume_checkpoint_last_item_id is not None
+            and _resume_stage == "ingest"
+            and content_item.pk <= _resume_checkpoint_last_item_id
+        ):
+            return None
 
         content_item.title = title
         content_item.scope = current_scope
@@ -1015,6 +1066,8 @@ def import_content(
                                 items_updated += 1
                         if items_synced % 25 == 0 and items_synced > 0:
                             _flush_job_progress()
+                            if updated_pks:
+                                _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
                         if page >= resp.get("pagination", {}).get("last_page", 1):
                             break
                         page += 1
@@ -1063,10 +1116,12 @@ def import_content(
                                                         )
                                                     )
                                                 Sentence.objects.bulk_create(sentence_objs)
-                                    except Exception as exc:
+                                    except (TimeoutError, RequestException, URLError) as exc:
                                         logger.warning("Failed to fetch updates for resource %s: %s", resource.get("resource_id"), exc)
                         if items_synced % 25 == 0 and items_synced > 0:
                             _flush_job_progress()
+                            if updated_pks:
+                                _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
                         if page >= resp.get("pagination", {}).get("last_page", 1):
                             break
                         page += 1
@@ -1115,6 +1170,8 @@ def import_content(
                         items_updated += 1
                     if items_synced % 25 == 0 and items_synced > 0:
                         _flush_job_progress()
+                        if updated_pks:
+                            _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
 
         elif source == "jsonl":
             if not file_path:
@@ -1135,17 +1192,24 @@ def import_content(
                     items_updated += 1
                 if items_synced % 50 == 0 and items_synced > 0:
                     _flush_job_progress()
+                    if updated_pks:
+                        _save_checkpoint(str(job_id), "ingest", updated_pks[-1], items_synced)
         else:
             raise ValueError(f"Unsupported import source '{source}'.")
 
         _update_scope_counts()
 
         if mode == "full" and source in {"api", "wp"}:
+            # FR-097: checkpoint before graph_sync stage
+            if updated_pks:
+                _save_checkpoint(str(job_id), "graph_sync", updated_pks[-1], items_synced)
             _publish_progress(job_id, "running", 0.82, "Refreshing internal-link graph across indexed content...")
             refresh_existing_links()
 
         if updated_pks:
             unique_updated_pks = sorted(set(updated_pks))
+            # FR-097: checkpoint before embed stage
+            _save_checkpoint(str(job_id), "embed", unique_updated_pks[-1], items_synced)
             _publish_progress(job_id, "running", 0.87, f"Generating embeddings for {len(unique_updated_pks)} items...")
             generate_all_embeddings(unique_updated_pks)
 
@@ -1156,6 +1220,14 @@ def import_content(
 
             run_weighted_pagerank()
             run_velocity(reference_ts=int(time.time()))
+
+        # FR-097: Clear checkpoint on successful completion.
+        SyncJob.objects.filter(job_id=job_id).update(
+            checkpoint_stage="",
+            checkpoint_last_item_id=None,
+            checkpoint_items_processed=0,
+            is_resumable=False,
+        )
 
         job.status = "completed"
         job.progress = 1.0
@@ -1179,12 +1251,33 @@ def import_content(
             job_type="import",
         )
         return {"mode": mode, "job_id": job_id, "items_synced": items_synced, "items_updated": items_updated}
-    except Exception as exc:
+    except SoftTimeLimitExceeded:
+        # FR-097: Mark as resumable so the next run picks up from the checkpoint.
+        logger.warning("Import job %s hit soft time limit; marking as resumable.", job_id)
+        try:
+            SyncJob.objects.filter(job_id=job_id).update(
+                is_resumable=True,
+                status="failed",
+                error_message="Soft time limit exceeded -- job is resumable from checkpoint.",
+            )
+        except Exception:
+            logger.debug("Failed to mark job %s as resumable", job_id, exc_info=True)
+        _publish_progress(
+            job_id, "failed", 0.0,
+            "Import interrupted (time limit). Job is resumable.",
+            error="SoftTimeLimitExceeded",
+        )
+        raise
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Import job %s failed", job_id)
+        # FR-097: If there is a checkpoint, mark the job resumable.
+        _has_checkpoint = bool(updated_pks)
         job.status = "failed"
         job.error_message = str(exc)
         job.completed_at = timezone.now()
-        job.save(update_fields=["status", "error_message", "completed_at"])
+        if _has_checkpoint:
+            job.is_resumable = True
+        job.save(update_fields=["status", "error_message", "completed_at", "is_resumable"])
         _publish_progress(job_id, "failed", 0.0, f"Import failed: {exc}", error=str(exc))
         _emit_job_alert(
             "job.failed",
@@ -1275,6 +1368,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
 
     from apps.content.models import Post
     from apps.graph.models import BrokenLink, ExistingLink
+    from apps.graph.services.http_worker_client import HttpWorkerError
     from apps.pipeline.services.link_parser import extract_urls
 
     job_id = job_id or str(uuid.uuid4())
@@ -1411,7 +1505,7 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         try:
             http_worker_results = _check_broken_links_via_http_worker(scan_items)
             probe_backend = "csharp_http_worker"
-        except Exception as exc:
+        except (TimeoutError, RequestException, URLError, RuntimeError, HttpWorkerError) as exc:
             http_worker_error = str(exc)
             probe_backend = "python_requests_fallback"
             logger.warning(
@@ -1557,13 +1651,13 @@ def verify_suggestions(self, suggestion_ids: list[str] | None = None) -> dict:
                     suggestion.stale_reason = "Link not found in host post body"
                     suggestion.save(update_fields=["status", "stale_reason", "updated_at"])
                     stale += 1
-            except Exception as exc:
+            except (TimeoutError, RequestException, URLError) as exc:
                 logger.error("Failed to fetch host post for suggestion %s: %s", suggestion.suggestion_id, exc)
                 continue
 
         _publish_progress(job_id, "completed", 1.0, f"Verification complete. {verified} verified, {stale} stale.")
         return {"verified": verified, "stale": stale, "job_id": job_id}
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Verification %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Verification failed: {exc}", error=str(exc))
         raise
@@ -1589,7 +1683,7 @@ def recalculate_click_distance_task(self, job_id: str | None = None) -> dict:
             **diagnostics,
         )
         return {"job_id": job_id, **diagnostics}
-    except Exception as exc:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Click-Distance recalculation %s failed", job_id)
         _publish_progress(job_id, "failed", 0.0, f"Click-Distance recalculation failed: {exc}", error=str(exc))
         raise
@@ -1741,7 +1835,7 @@ def monthly_r_auto_tune(self):
         )
         return {"status": "applied", "changed_keys": sorted(changed_keys)}
 
-    except Exception:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[monthly_r_auto_tune] Failed: %s", raw)
         ErrorLog.objects.create(
@@ -1793,7 +1887,7 @@ def nightly_data_retention():
         deleted, _ = SearchMetric.objects.filter(date__lt=cutoff_12m.date()).delete()
         results["search_metrics_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d SearchMetric rows older than 12 months.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] SearchMetric purge failed.")
         ErrorLog.objects.create(
@@ -1811,7 +1905,7 @@ def nightly_data_retention():
         deleted, _ = PipelineRun.objects.filter(created_at__lt=cutoff_90d).delete()
         results["pipeline_runs_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d PipelineRun rows older than 90 days.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] PipelineRun purge failed.")
         ErrorLog.objects.create(
@@ -1828,7 +1922,7 @@ def nightly_data_retention():
         deleted = prune_old_snapshots(keep=2)
         results["metric_snapshots_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d ContentMetricSnapshot rows (keeping last 2 per item).", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] ContentMetricSnapshot purge failed.")
         ErrorLog.objects.create(
@@ -1849,7 +1943,7 @@ def nightly_data_retention():
         ).delete()
         results["superseded_suggestions_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d superseded Suggestion rows older than 30 days.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] Superseded Suggestion purge failed.")
         ErrorLog.objects.create(
@@ -1868,7 +1962,7 @@ def nightly_data_retention():
         deleted, _ = AuditEntry.objects.filter(created_at__lt=cutoff_180d).delete()
         results["audit_entries_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d AuditEntry rows older than 6 months.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] AuditEntry purge failed.")
         ErrorLog.objects.create(
@@ -1885,7 +1979,7 @@ def nightly_data_retention():
         deleted, _ = ErrorLog.objects.filter(created_at__lt=cutoff_30d_err).delete()
         results["error_logs_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d ErrorLog rows older than 30 days.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] ErrorLog purge failed.")
         # Cannot log to ErrorLog about ErrorLog failure — just log to stderr.
@@ -1898,7 +1992,7 @@ def nightly_data_retention():
         deleted, _ = WebhookReceipt.objects.filter(created_at__lt=cutoff_30d_wh).delete()
         results["webhook_receipts_deleted"] = deleted
         logger.info("[nightly_data_retention] Deleted %d WebhookReceipt rows older than 30 days.", deleted)
-    except Exception:
+    except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
         logger.exception("[nightly_data_retention] WebhookReceipt purge failed.")
         ErrorLog.objects.create(
@@ -1986,8 +2080,8 @@ def sync_single_xf_item(content_id: int, content_type: str = "thread", node_id: 
         # 3. Trigger the import logic for this specific scope
         # We reuse the existing robust logic in import_content
         return import_content(scope_ids=[scope.pk], mode="full", source="api")
-        
-    except Exception as e:
+
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as e:
         logger.exception("Failed to sync single item %d", content_id)
         return {"error": str(e)}
 
@@ -2021,8 +2115,8 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
         # 2. Trigger import logic
         # For single items we always use "full" to ensure we get the body and embeddings
         return import_content(mode="full", source="wp", job_id=f"wp_single_{post_id}_{int(time.time())}")
-        
-    except Exception as e:
+
+    except (DatabaseError, TimeoutError, MemoryError, ValueError) as e:
         logger.exception("Failed to sync single WP item %d", post_id)
         return {"error": str(e)}
 
@@ -2072,7 +2166,7 @@ def monthly_cs_weight_tune(self):
         logger.warning("[monthly_cs_weight_tune] HTTP-worker unavailable: %s", exc)
         return {"status": "skipped", "reason": str(exc)}
 
-    except Exception:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[monthly_cs_weight_tune] Failed: %s", raw)
         ErrorLog.objects.create(
@@ -2111,7 +2205,7 @@ def evaluate_weight_challenger(self, *, run_id: str):
         write_history,
     )
 
-    IMPROVEMENT_THRESHOLD = 1.05  # challenger must beat champion by >5%
+    from apps.pipeline.services.sprt_evaluator import ChallengerSPRTEvaluator
 
     try:
         challenger = RankingChallenger.objects.filter(run_id=run_id, status="pending").first()
@@ -2132,20 +2226,29 @@ def evaluate_weight_challenger(self, *, run_id: str):
                 run_id,
             )
             should_promote = True
+            sprt_decision = "auto"
         else:
-            should_promote = cand_score > champ_score * IMPROVEMENT_THRESHOLD
+            evaluator = ChallengerSPRTEvaluator(
+                alpha=0.05, beta=0.10, min_improvement_ratio=1.05, assumed_std_dev=0.08,
+            )
+            sprt_result = evaluator.evaluate(cand_score, champ_score)
+            should_promote = sprt_result.decision == "promote"
+            sprt_decision = sprt_result.decision
+            logger.info(
+                "[evaluate_weight_challenger] SPRT for %s: %s (LR=%.4f, bounds=[%.4f, %.4f])",
+                run_id, sprt_result.decision, sprt_result.log_likelihood_ratio,
+                sprt_result.lower_boundary, sprt_result.upper_boundary,
+            )
 
         if not should_promote:
             challenger.status = "rejected"
             challenger.save(update_fields=["status", "updated_at"])
             logger.info(
-                "[evaluate_weight_challenger] Challenger %s rejected: score %.4f vs champion %.4f (need %.4f).",
-                run_id,
-                cand_score,
-                champ_score,
-                champ_score * IMPROVEMENT_THRESHOLD if champ_score else 0,
+                "[evaluate_weight_challenger] Challenger %s rejected via SPRT (%s): "
+                "score %.4f vs champion %.4f.",
+                run_id, sprt_decision, cand_score, champ_score,
             )
-            return {"status": "rejected", "run_id": run_id}
+            return {"status": "rejected", "run_id": run_id, "decision": sprt_decision}
 
         # Promote: apply the four tunable weights; leave all other weights untouched.
         previous_weights = get_current_weights()
@@ -2180,7 +2283,7 @@ def evaluate_weight_challenger(self, *, run_id: str):
         )
         return {"status": "promoted", "run_id": run_id}
 
-    except Exception:
+    except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
         logger.exception("[evaluate_weight_challenger] Failed: %s", raw)
         ErrorLog.objects.create(
@@ -2225,7 +2328,7 @@ def check_weight_rollback():
     for challenger in candidates:
         try:
             _check_single_rollback(challenger)
-        except Exception:
+        except (DatabaseError, TimeoutError, MemoryError, ValueError):
             raw = traceback.format_exc()
             logger.exception("[check_weight_rollback] Error checking challenger %s.", challenger.run_id)
             ErrorLog.objects.create(
@@ -2348,7 +2451,7 @@ def check_gsc_spikes(self) -> dict:
         from apps.core.models import AppSetting
         raw = AppSetting.objects.filter(key="notifications.settings").first()
         prefs = json.loads(raw.value) if raw else {}
-    except Exception:
+    except (JSONDecodeError, KeyError, TypeError):
         prefs = {}
 
     min_impressions_delta = int(prefs.get("gsc_spike_min_impressions_delta", 50))
@@ -2427,7 +2530,7 @@ def check_gsc_spikes(self) -> dict:
                 cooldown_seconds=86400,  # 24-hour cooldown per page per day
             )
             alerts_emitted += 1
-        except Exception:
+        except (ImportError, AttributeError, DatabaseError):
             logger.warning("check_gsc_spikes: failed to emit alert for item %s", item.pk, exc_info=True)
 
     logger.info("check_gsc_spikes: %d spike alerts emitted.", alerts_emitted)

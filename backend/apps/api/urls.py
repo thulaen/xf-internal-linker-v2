@@ -127,6 +127,8 @@ urlpatterns = [
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
     path("", include("apps.core.urls")),
     path("analytics/", include("apps.analytics.urls")),
+    path("", include("apps.audit.urls")),
+    path("", include("apps.plugins.urls")),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),

@@ -15,6 +15,8 @@ from rest_framework.decorators import action
 from .models import SyncJob, WebhookReceipt
 from .serializers import SyncJobSerializer, WebhookReceiptSerializer
 
+from apps.api.throttles import ImportTriggerThrottle as _ImportTriggerThrottle
+
 
 ALLOWED_MODES = {"full", "titles", "quick"}
 MAX_UPLOAD_MB = 200
@@ -25,6 +27,7 @@ class ImportUploadView(APIView):
     """
 
     parser_classes = [MultiPartParser]
+    throttle_classes = [_ImportTriggerThrottle]
 
     def post(self, request):
         file_obj = request.FILES.get("file")
@@ -44,7 +47,47 @@ class ImportUploadView(APIView):
         if mode not in ALLOWED_MODES:
             return Response({"error": f"Invalid mode '{mode}'."}, status=400)
 
-        # Save to BASE_DIR/data/imports/ 
+        # ── Sample-validate the first 10 JSONL lines ──────────────
+        import json as _json
+
+        validation_errors: list[str] = []
+        try:
+            file_obj.seek(0)
+            for line_num, raw_line in enumerate(file_obj, 1):
+                if line_num > 10:
+                    break
+                line = raw_line.decode("utf-8", errors="replace").strip()
+                if not line:
+                    continue
+                try:
+                    item = _json.loads(line)
+                except _json.JSONDecodeError as exc:
+                    validation_errors.append(f"Line {line_num}: Invalid JSON — {exc}")
+                    continue
+
+                if not item.get("scope_id"):
+                    validation_errors.append(f"Line {line_num}: Missing 'scope_id'")
+                if not (item.get("content_id") or item.get("thread_id") or item.get("resource_id")):
+                    validation_errors.append(f"Line {line_num}: Missing 'content_id'/'thread_id'/'resource_id'")
+                if not item.get("title"):
+                    validation_errors.append(f"Line {line_num}: Missing 'title'")
+                if not (item.get("url") or item.get("view_url")):
+                    validation_errors.append(f"Line {line_num}: Missing 'url' or 'view_url'")
+
+            file_obj.seek(0)  # rewind for the actual save below
+        except Exception:
+            pass  # file-read errors will surface during the real import
+
+        if validation_errors:
+            return Response(
+                {
+                    "error": f"Validation failed ({len(validation_errors)} errors in first 10 lines):",
+                    "details": validation_errors,
+                },
+                status=400,
+            )
+
+        # Save to BASE_DIR/data/imports/
         imports_dir = Path(settings.BASE_DIR) / "data" / "imports"
         imports_dir.mkdir(parents=True, exist_ok=True)
 

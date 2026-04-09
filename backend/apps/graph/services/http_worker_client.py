@@ -10,6 +10,11 @@ import uuid
 
 from django.conf import settings
 
+from apps.pipeline.services.circuit_breaker import (
+    CircuitBreakerOpen,
+    http_worker_breaker,
+)
+
 
 class HttpWorkerError(Exception):
     """Raised when the helper service returns an error or cannot be reached."""
@@ -48,10 +53,14 @@ def _request_json(
         headers=headers,
         method=method,
     )
+    def _do_request():
+        with request.urlopen(http_request, timeout=60) as resp:
+            return resp.getcode(), resp.read().decode("utf-8")
+
     try:
-        with request.urlopen(http_request, timeout=60) as response:
-            status_code = response.getcode()
-            response_body = response.read().decode("utf-8")
+        status_code, response_body = http_worker_breaker.call(_do_request)
+    except CircuitBreakerOpen as exc:
+        raise HttpWorkerError(str(exc)) from exc
     except error.HTTPError as exc:
         raise HttpWorkerError(f"HttpWorker returned status {exc.code}") from exc
     except error.URLError as exc:
