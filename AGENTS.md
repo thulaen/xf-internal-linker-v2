@@ -224,6 +224,44 @@ To prevent breaking the build on GitHub, every AI agent MUST verify their change
 3. **Never `--no-verify`**: Under no circumstances should an agent use `--no-verify` to bypass the pre-push checks.
 4. **Angular Peer Deps**: If you encounter peer dependency errors in the frontend, ensure `frontend/.npmrc` contains `legacy-peer-deps=true`.
 
+## Automatic Migration And Safe Artifact Prune
+
+This is the canonical migration/prune policy for all AI agents in this repo, including Codex, Claude, Gemini, CI agents, and future tools. Do not duplicate the full policy in other instruction files; they should point back here.
+
+### Mandatory backend-session migration flow
+
+For every backend-related session (backend bugs, Django models, migrations, settings, runtime, APIs, management commands):
+
+1. Run `docker compose exec backend python manage.py showmigrations`
+2. If any migration is unapplied, run `docker compose exec backend python manage.py migrate --noinput`
+3. Run `docker compose exec backend python manage.py makemigrations --check --dry-run`
+4. If Django models or migration files changed during the session, run `docker compose exec backend python manage.py migrate --noinput` again
+5. Before finishing, re-run `docker compose exec backend python manage.py showmigrations`
+6. Before finishing, re-run `docker compose exec backend python manage.py makemigrations --check --dry-run`
+
+Agents must not mark backend work complete while migrations are pending.
+
+If Docker or the backend container is unavailable, agents must stop and record a clear blocker instead of guessing migration state.
+
+### Mandatory safe artifact prune
+
+After verification or at the end of the session, agents must run the approved cleanup command:
+
+- `powershell -ExecutionPolicy Bypass -File scripts\\prune-verification-artifacts.ps1`
+
+Safe prune means disposable caches and build artifacts only. This includes frontend build/cache output, backend test/lint caches, native extension build folders, .NET `bin`/`obj`, Docker builder cache, and dangling Docker images.
+
+### Forbidden cleanup
+
+- Never run `docker-compose down -v`
+- Never prune database volumes
+- Never prune Redis/runtime data
+- Never prune embeddings
+- Never prune `media/`
+- Never prune checked-in files
+
+Reuse the existing repo cleanup script and Docker prune policy above. Do not invent competing cleanup commands or duplicate this policy elsewhere.
+
 ---
 
 ## UX and Smart Navigation - Mandatory for All Agents
@@ -235,4 +273,3 @@ Everything in this app must be "One-Click Away" from being found.
 3. **Auto-Reveal**: If a target element is inside a tab or accordion, the component MUST implement logic to automatically switch tabs/open the container when that fragment is detected in the URL.
 4. **Visual Feedback**: Use the `ScrollHighlightService` (or `appScrollHighlight` directive) to ensure the target element is centered and highlighted for 6 seconds upon arrival.
 6. **Plain-English Guidance**: Every error, status alert, or health warning MUST include a concise, plain-English explanation of exactly what is wrong and a direct, actionable "how-to-fix" instruction. Avoid technical jargon unless the target audience is strictly developers (e.g., C++ stack traces). For non-technical users, use simple terminology and direct links.
-

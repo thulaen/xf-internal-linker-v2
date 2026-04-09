@@ -6,6 +6,8 @@
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 
+**For backend sessions, follow the canonical migration and safe-prune policy in `AGENTS.md`.**
+
 Repository communication rule:
 
 - Talk to the user in plain English.
@@ -25,4 +27,3 @@ See `AGENTS.md` "Layout Precision Rules" for the full detail. Apply these every 
 - **Rule B** — Form fields: `24px` card padding, always. Sparse forms centred horizontally and vertically.
 - **Rule C** — Buttons: `16px` clearance from all edges. Baseline-align buttons with adjacent form fields.
 - **Rule D** — Compound labels: use ` • `, ` — `, or `: ` between two metadata strings. Never bare whitespace.
-

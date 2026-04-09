@@ -73,6 +73,7 @@ Do not leave mystery changes behind.
 - Stage only the intended files for the current slice.
 - If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass. Session-type gate: if backend or frontend application code changed, `docker-compose build` must succeed before any commit is allowed; if only documentation or configuration files changed, skip the build step and state that plainly in the commit message. If `docker-compose build` fails on a code-change session, do not commit — leave a Current Session Note in AI-CONTEXT.md describing the failure and stop.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
+- All backend sessions must follow the migration/prune policy in `AGENTS.md`.
 
 ## User Communication Preference
 
