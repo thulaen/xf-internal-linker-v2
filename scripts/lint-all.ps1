@@ -137,7 +137,7 @@ try {
 
 # ── 6. C++ cppcheck ──────────────────────────────────────────────
 Write-Step "6/7  C++: cppcheck static analysis"
-$extensionsDir = Join-Path $repoRoot "backend" "extensions"
+$extensionsDir = Join-Path (Join-Path $repoRoot "backend") "extensions"
 $ErrorActionPreference = "Continue"
 & $cppcheckExe `
     --enable=warning,performance,portability `
