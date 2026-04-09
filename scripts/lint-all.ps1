@@ -88,8 +88,12 @@ Push-Location (Join-Path $repoRoot "backend")
 try {
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
     $env:DJANGO_SECRET_KEY = "lint-only-key"
-    & $python -m mypy apps/crawler/ --config-file mypy.ini --follow-imports=silent
-    if ($LASTEXITCODE -ne 0) {
+    # Redirect stderr to suppress Django startup noise (plugin table missing in test DB).
+    # mypy's actual type errors go to stdout.
+    $mypyOutput = & $python -m mypy apps/crawler/ --config-file mypy.ini --follow-imports=silent 2>&1
+    $mypyExitCode = $LASTEXITCODE
+    $mypyOutput | Where-Object { $_ -notmatch "OperationalError|Plugin loading|faiss|RuntimeWarning|Traceback|sqlite3" } | Write-Host
+    if ($mypyExitCode -ne 0) {
         throw "mypy type check failed. Fix the type errors above."
     }
 } finally {
