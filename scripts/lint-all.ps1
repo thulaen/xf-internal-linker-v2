@@ -468,13 +468,13 @@ $complexityDiffPy = @($complexityDiffPy | Where-Object { $_ -notmatch '\\migrati
 if ($complexityDiffPy.Count -gt 0) {
     Push-Location (Join-Path $repoRoot "backend")
     try {
-        $relPaths = $complexityDiffPy | ForEach-Object {
+        $relPaths = @($complexityDiffPy | ForEach-Object {
             $backendRoot = Join-Path $repoRoot "backend"
             $rel = $_.Substring($backendRoot.Length + 1) -replace '\\', '/'
             $rel
-        }
+        })
         $ErrorActionPreference = "Continue"
-        $complexOut = & $python -m ruff check @relPaths --select C901 --config "lint.mccabe.max-complexity = 15" 2>&1
+        $complexOut = & $python -m ruff check $relPaths --select C901 --config "lint.mccabe.max-complexity = 15" 2>&1
         $complexExit = $LASTEXITCODE
         $ErrorActionPreference = "Stop"
         if ($complexOut) { $complexOut | Write-Host }
