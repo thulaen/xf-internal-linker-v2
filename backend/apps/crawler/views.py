@@ -40,8 +40,8 @@ from .serializers import (
 logger = logging.getLogger(__name__)
 
 # SEO audit thresholds
-THIN_CONTENT_WORD_LIMIT = 200       # Pages with fewer words are flagged as thin
-SLOW_PAGE_MS_THRESHOLD = 2000       # Response time above this is flagged as slow
+THIN_CONTENT_WORD_LIMIT = 200  # Pages with fewer words are flagged as thin
+SLOW_PAGE_MS_THRESHOLD = 2000  # Response time above this is flagged as slow
 
 
 # ---------------------------------------------------------------------------
@@ -330,8 +330,12 @@ class SEOAuditView(APIView):
             "multiple_h1": pages.filter(h1_count__gt=1).count(),
             "missing_canonical": pages.filter(canonical_url="").count(),
             "noindexed_pages": noindexed,
-            "thin_content": pages.filter(word_count__lt=THIN_CONTENT_WORD_LIMIT, word_count__gt=0).count(),
-            "slow_pages": pages.filter(response_time_ms__gt=SLOW_PAGE_MS_THRESHOLD).count(),
+            "thin_content": pages.filter(
+                word_count__lt=THIN_CONTENT_WORD_LIMIT, word_count__gt=0
+            ).count(),
+            "slow_pages": pages.filter(
+                response_time_ms__gt=SLOW_PAGE_MS_THRESHOLD
+            ).count(),
             "non_mobile": pages.filter(has_viewport=False).count(),
             "missing_og": pages.filter(og_title="").count(),
             "images_missing_alt": img_missing_alt_total,
