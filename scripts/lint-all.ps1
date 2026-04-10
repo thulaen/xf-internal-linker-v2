@@ -519,7 +519,9 @@ Write-Step "18/32 Cross-language: duplicate code block detector (diff-scoped)"
 $dupeWindow = 6
 $dupeHashes = @{}  # hash -> @(filepath:line)
 $dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cs", ".cpp"))
-$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|Tests\.cs$' })
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|Tests\.cs$|\\benchmarks\\' })
+# Exclude C++ extensions — each is a standalone pybind11 module with inherently repeated TBB/SIMD boilerplate
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\extensions\\.*\.cpp$' })
 foreach ($f in $dupeSourceFiles) {
     $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
     $cleaned = @()
