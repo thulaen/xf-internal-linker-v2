@@ -405,7 +405,7 @@ foreach ($f in $funcDiffPy) {
 }
 
 $funcDiffTs = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts"))
-$funcDiffTs = @($funcDiffTs | Where-Object { $_.FullName -notmatch '\.spec\.ts$' })
+$funcDiffTs = @($funcDiffTs | Where-Object { $_ -notmatch '\.spec\.ts$' })
 foreach ($f in $funcDiffTs) {
     $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
     $funcStart = -1; $funcName = ""
