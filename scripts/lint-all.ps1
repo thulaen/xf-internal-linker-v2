@@ -310,6 +310,7 @@ if ($diffFiles.Count -gt 0) {
 Write-Step "11/32 Repo: merge conflict marker detector"
 $ErrorActionPreference = "Continue"
 $markerHits = git -C $repoRoot grep -n -E "^<{7} |^>{7} " -- "*.py" "*.ts" "*.cs" "*.cpp" "*.html" "*.scss" "*.yml" "*.yaml" 2>$null
+$global:LASTEXITCODE = 0  # git grep returns 1 when no matches — not an error
 $ErrorActionPreference = "Stop"
 if ($markerHits) {
     $markerHits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
@@ -904,3 +905,4 @@ if ($unusedScssHits -gt 5) {
 
 Write-Host ""
 Write-Host "All 32 checks passed." -ForegroundColor Green
+$global:LASTEXITCODE = 0  # ensure parent script sees clean exit
