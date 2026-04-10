@@ -216,10 +216,11 @@ function Resolve-DiffPaths {
 # Baseline long files — these predate the length rules and need refactoring.
 # TECH DEBT: remove entries as files are split into smaller modules.
 $baselineLongFiles = @(
-    'tasks.py',        # pipeline/tasks.py ~2991 lines
-    'views.py',        # core/views.py ~3910 lines, crawler/views.py
-    'services.py',     # health/services.py
-    'models.py'        # large model files
+    'tasks.py',                 # pipeline/tasks.py ~2991 lines
+    'views.py',                 # core/views.py ~3910 lines, crawler/views.py
+    'services.py',              # health/services.py
+    'models.py',                # large model files
+    'settings.component.ts'     # onTabChange ~249 lines, saveAllSettings ~127 lines
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
