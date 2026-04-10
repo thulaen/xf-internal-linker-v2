@@ -54,4 +54,6 @@ class BenchmarkResult(models.Model):
         ordering = ["language", "extension", "function_name", "input_size"]
 
     def __str__(self):
-        return f"{self.language}/{self.extension}.{self.function_name} @ {self.input_size}"
+        return (
+            f"{self.language}/{self.extension}.{self.function_name} @ {self.input_size}"
+        )

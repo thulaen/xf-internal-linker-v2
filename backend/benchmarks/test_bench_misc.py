@@ -5,16 +5,19 @@ import numpy as np
 
 def _import_strpool():
     import strpool
+
     return strpool
 
 
 def _import_feedrerank():
     import feedrerank
+
     return feedrerank
 
 
 def _import_pulse_metrics():
     import pulse_metrics
+
     return pulse_metrics
 
 
@@ -53,8 +56,9 @@ def test_bench_rerank_factors_small(benchmark):
     n = 100
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
-    benchmark(fr.calculate_rerank_factors_batch,
-              successes, totals, 10000, 1.0, 1.0, 0.3, 0.1)
+    benchmark(
+        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+    )
 
 
 def test_bench_rerank_factors_medium(benchmark):
@@ -62,8 +66,9 @@ def test_bench_rerank_factors_medium(benchmark):
     n = 5_000
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
-    benchmark(fr.calculate_rerank_factors_batch,
-              successes, totals, 10000, 1.0, 1.0, 0.3, 0.1)
+    benchmark(
+        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+    )
 
 
 def test_bench_rerank_factors_large(benchmark):
@@ -71,8 +76,9 @@ def test_bench_rerank_factors_large(benchmark):
     n = 50_000
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
-    benchmark(fr.calculate_rerank_factors_batch,
-              successes, totals, 10000, 1.0, 1.0, 0.3, 0.1)
+    benchmark(
+        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+    )
 
 
 def test_bench_mmr_scores_small(benchmark):
@@ -82,8 +88,7 @@ def test_bench_mmr_scores_small(benchmark):
     relevance = rng.standard_normal(n_cand)
     candidates = rng.standard_normal((n_cand, dim))
     selected = rng.standard_normal((n_sel, dim))
-    benchmark(fr.calculate_mmr_scores_batch,
-              relevance, candidates, selected, 0.7)
+    benchmark(fr.calculate_mmr_scores_batch, relevance, candidates, selected, 0.7)
 
 
 def test_bench_mmr_scores_medium(benchmark):
@@ -93,8 +98,7 @@ def test_bench_mmr_scores_medium(benchmark):
     relevance = rng.standard_normal(n_cand)
     candidates = rng.standard_normal((n_cand, dim))
     selected = rng.standard_normal((n_sel, dim))
-    benchmark(fr.calculate_mmr_scores_batch,
-              relevance, candidates, selected, 0.7)
+    benchmark(fr.calculate_mmr_scores_batch, relevance, candidates, selected, 0.7)
 
 
 # ── Pulse Metrics ───────────────────────────────────────────────

@@ -5,16 +5,19 @@ import numpy as np
 
 def _import_linkparse():
     import linkparse
+
     return linkparse
 
 
 def _import_pagerank():
     import pagerank
+
     return pagerank
 
 
 def _import_inv_index():
     import inv_index
+
     return inv_index
 
 

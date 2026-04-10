@@ -5,6 +5,7 @@ import numpy as np
 
 def _import_l2norm():
     import l2norm
+
     return l2norm
 
 

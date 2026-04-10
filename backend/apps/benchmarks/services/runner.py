@@ -51,7 +51,9 @@ def run_cpp_benchmarks(run: BenchmarkRun) -> list[dict]:
             for bench in data.get("benchmarks", []):
                 name_parts = bench["name"].split("/")
                 func_name = name_parts[0].replace("BM_", "")
-                input_size = _classify_size(name_parts[1] if len(name_parts) > 1 else "0")
+                input_size = _classify_size(
+                    name_parts[1] if len(name_parts) > 1 else "0"
+                )
                 mean_ns = int(bench.get("real_time", 0))
 
                 result = BenchmarkResult(
@@ -89,7 +91,9 @@ def run_python_benchmarks(run: BenchmarkRun) -> list[dict]:
     try:
         subprocess.run(
             [
-                "python", "-m", "pytest",
+                "python",
+                "-m",
+                "pytest",
                 str(PY_BENCH_DIR),
                 f"--benchmark-json={tmp_path}",
                 "--benchmark-disable-gc",
@@ -112,7 +116,9 @@ def run_python_benchmarks(run: BenchmarkRun) -> list[dict]:
 
             parts = name.split("::")
             func_name = parts[-1] if parts else name
-            ext = func_name.split("_")[2] if len(func_name.split("_")) > 2 else "unknown"
+            ext = (
+                func_name.split("_")[2] if len(func_name.split("_")) > 2 else "unknown"
+            )
             size = _extract_size_from_name(func_name)
 
             result = BenchmarkResult(

@@ -58,7 +58,10 @@ def run_all_benchmarks(run_id: int | None = None, trigger: str = "scheduled"):
         run.save()
         logger.info(
             "Benchmark run #%d completed: %d fast, %d ok, %d slow",
-            run.pk, fast_count, ok_count, slow_count,
+            run.pk,
+            fast_count,
+            ok_count,
+            slow_count,
         )
     except Exception as exc:
         run.status = "failed"

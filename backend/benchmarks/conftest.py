@@ -51,20 +51,63 @@ def query_embedding():
 @pytest.fixture
 def stopwords():
     """Common English stopwords set."""
-    return frozenset({
-        "the", "a", "an", "is", "are", "was", "were", "be", "been",
-        "being", "have", "has", "had", "do", "does", "did", "will",
-        "would", "could", "should", "may", "might", "can", "shall",
-        "to", "of", "in", "for", "on", "with", "at", "by", "from",
-    })
+    return frozenset(
+        {
+            "the",
+            "a",
+            "an",
+            "is",
+            "are",
+            "was",
+            "were",
+            "be",
+            "been",
+            "being",
+            "have",
+            "has",
+            "had",
+            "do",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "may",
+            "might",
+            "can",
+            "shall",
+            "to",
+            "of",
+            "in",
+            "for",
+            "on",
+            "with",
+            "at",
+            "by",
+            "from",
+        }
+    )
 
 
 @pytest.fixture
 def sample_texts_small():
     """10 short texts."""
     rng = np.random.default_rng(42)
-    words = ["hello", "world", "python", "benchmark", "test", "performance",
-             "measure", "speed", "fast", "slow", "code", "optimize"]
+    words = [
+        "hello",
+        "world",
+        "python",
+        "benchmark",
+        "test",
+        "performance",
+        "measure",
+        "speed",
+        "fast",
+        "slow",
+        "code",
+        "optimize",
+    ]
     return [" ".join(rng.choice(words, size=15)) for _ in range(10)]
 
 
@@ -72,9 +115,26 @@ def sample_texts_small():
 def sample_texts_medium():
     """1,000 texts."""
     rng = np.random.default_rng(42)
-    words = ["hello", "world", "python", "benchmark", "test", "performance",
-             "measure", "speed", "fast", "slow", "code", "optimize",
-             "internal", "linking", "content", "page", "url", "anchor"]
+    words = [
+        "hello",
+        "world",
+        "python",
+        "benchmark",
+        "test",
+        "performance",
+        "measure",
+        "speed",
+        "fast",
+        "slow",
+        "code",
+        "optimize",
+        "internal",
+        "linking",
+        "content",
+        "page",
+        "url",
+        "anchor",
+    ]
     return [" ".join(rng.choice(words, size=20)) for _ in range(1_000)]
 
 
@@ -82,9 +142,26 @@ def sample_texts_medium():
 def sample_texts_large():
     """10,000 texts."""
     rng = np.random.default_rng(42)
-    words = ["hello", "world", "python", "benchmark", "test", "performance",
-             "measure", "speed", "fast", "slow", "code", "optimize",
-             "internal", "linking", "content", "page", "url", "anchor"]
+    words = [
+        "hello",
+        "world",
+        "python",
+        "benchmark",
+        "test",
+        "performance",
+        "measure",
+        "speed",
+        "fast",
+        "slow",
+        "code",
+        "optimize",
+        "internal",
+        "linking",
+        "content",
+        "page",
+        "url",
+        "anchor",
+    ]
     return [" ".join(rng.choice(words, size=20)) for _ in range(10_000)]
 
 
@@ -92,9 +169,9 @@ def sample_texts_large():
 def bbcode_small():
     """~500 chars of BBCode with links."""
     return (
-        '[url=https://example.com/page1]Link One[/url] some text here '
+        "[url=https://example.com/page1]Link One[/url] some text here "
         '<a href="https://example.com/page2">Link Two</a> more text '
-        'https://example.com/bare-url and some filler content to pad'
+        "https://example.com/bare-url and some filler content to pad"
     )
 
 
@@ -102,9 +179,9 @@ def bbcode_small():
 def bbcode_medium():
     """~10K chars of BBCode with links."""
     base = (
-        '[url=https://example.com/page{i}]Link {i}[/url] filler text '
+        "[url=https://example.com/page{i}]Link {i}[/url] filler text "
         '<a href="https://example.com/html{i}">Anchor {i}</a> padding '
-        'https://example.com/bare{i} more text and content here. '
+        "https://example.com/bare{i} more text and content here. "
     )
     return "".join(base.format(i=i) for i in range(60))
 
@@ -113,8 +190,8 @@ def bbcode_medium():
 def bbcode_large():
     """~100K chars of BBCode with links."""
     base = (
-        '[url=https://example.com/page{i}]Link {i}[/url] filler text '
+        "[url=https://example.com/page{i}]Link {i}[/url] filler text "
         '<a href="https://example.com/html{i}">Anchor {i}</a> padding '
-        'https://example.com/bare{i} more text and content here. '
+        "https://example.com/bare{i} more text and content here. "
     )
     return "".join(base.format(i=i) for i in range(600))
