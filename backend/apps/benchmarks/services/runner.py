@@ -20,6 +20,10 @@ BASE_DIR = Path(settings.BASE_DIR)
 EXT_BENCH_DIR = BASE_DIR / "extensions" / "benchmarks"
 PY_BENCH_DIR = BASE_DIR / "benchmarks"
 
+# Size classification thresholds for benchmark input sizes
+_SIZE_SMALL_MAX = 500
+_SIZE_MEDIUM_MAX = 15000
+
 
 def run_cpp_benchmarks(run: BenchmarkRun) -> list[dict]:
     """Execute all C++ benchmark executables and parse JSON output."""
@@ -162,9 +166,9 @@ def _classify_size(value: str) -> str:
         n = int(value)
     except ValueError:
         return "medium"
-    if n <= 500:
+    if n <= _SIZE_SMALL_MAX:
         return "small"
-    if n <= 15000:
+    if n <= _SIZE_MEDIUM_MAX:
         return "medium"
     return "large"
 

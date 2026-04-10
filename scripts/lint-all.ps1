@@ -501,11 +501,13 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch '(status|STATUS)' -and  # HTTP status codes
             $_.Line -notmatch 'port\s*=' -and         # port numbers
             $_.Line -notmatch 'maxsize\s*=' -and      # lru_cache maxsize
-            $_.Line -notmatch '(ALLOWED|CHOICES|RANGE|VERSION|__version__)' # constants
+            $_.Line -notmatch '(ALLOWED|CHOICES|RANGE|VERSION|__version__)' -and # constants
+            $_.Line -notmatch '(max_length|timeout|time_limit|soft_time_limit)' # Django/Celery config
         }
     if ($hits) {
-        $hits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
-        $magicHits += $hits.Count
+        $hitsArray = @($hits)
+        $hitsArray | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        $magicHits += $hitsArray.Count
     }
 }
 if ($magicHits -gt 0) {
