@@ -1,5 +1,8 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <algorithm>
 #include <stdexcept>
 #include <string>
@@ -7,24 +10,18 @@
 #include <utility>
 #include <vector>
 
-namespace py = pybind11;
+#include "include/rareterm_core.h"
 
-std::pair<bool, double> evaluate_rare_terms(
+std::pair<bool, double> evaluate_rare_terms_core(
     const std::vector<std::string>& terms,
     const std::vector<double>& term_evidences,
     const std::vector<int>& supporting_pages,
-    const py::iterable& host_tokens,
+    const std::unordered_set<std::string>& host_token_set,
     int max_terms
 ) {
     const size_t term_count = terms.size();
     if (term_evidences.size() != term_count || supporting_pages.size() != term_count) {
         throw std::runtime_error("terms, term_evidences, and supporting_pages must be positionally aligned");
-    }
-
-    std::unordered_set<std::string> host_token_set;
-    host_token_set.reserve(py::len(host_tokens));
-    for (const auto& item : host_tokens) {
-        host_token_set.insert(py::cast<std::string>(item));
     }
 
     struct MatchedTerm {
@@ -68,6 +65,22 @@ std::pair<bool, double> evaluate_rare_terms(
     return {true, 0.5 + 0.5 * rare_term_lift};
 }
 
+#ifndef XF_BENCH_MODE
+std::pair<bool, double> evaluate_rare_terms(
+    const std::vector<std::string>& terms,
+    const std::vector<double>& term_evidences,
+    const std::vector<int>& supporting_pages,
+    const py::iterable& host_tokens,
+    int max_terms
+) {
+    std::unordered_set<std::string> host_token_set;
+    host_token_set.reserve(py::len(host_tokens));
+    for (const auto& item : host_tokens) {
+        host_token_set.insert(py::cast<std::string>(item));
+    }
+    return evaluate_rare_terms_core(terms, term_evidences, supporting_pages, host_token_set, max_terms);
+}
+
 PYBIND11_MODULE(rareterm, m) {
     m.def(
         "evaluate_rare_terms",
@@ -75,3 +88,4 @@ PYBIND11_MODULE(rareterm, m) {
         "Score aligned rare terms where index i refers to the same term, evidence, and supporting page count"
     );
 }
+#endif

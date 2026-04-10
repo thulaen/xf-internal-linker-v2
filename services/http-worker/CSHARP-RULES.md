@@ -590,6 +590,7 @@ Every C# PR in the HttpWorker must pass ALL of these before merge:
 | 8. Resource disposal | Manual review | Every `IDisposable` in `using` / `await using`, every cache has eviction |
 | 9. Docker build | `docker build .` | Image builds, health check passes |
 | 10. Code review | Human reviewer | Confirms all rules in this file are followed |
+| 11. Benchmark | `dotnet run -c Release` in benchmarks project | Hot-path methods have BenchmarkDotNet coverage with `[Params]` for 3 input sizes |
 
 ---
 

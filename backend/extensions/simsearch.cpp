@@ -1,20 +1,25 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#endif
 #ifdef _WIN32
 #include <execution>
 #include <algorithm>
 #define HAS_PAR_EXECUTION 1
-#else
+#elif !defined(XF_BENCH_MODE) || defined(HAS_TBB)
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#ifndef HAS_TBB
 #define HAS_TBB 1
+#endif
 #endif
 #include <numeric>
 #include <vector>
 #include <stdexcept>
 #include <cmath>
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
 
 std::tuple<py::array_t<int64_t>, py::array_t<float>> score_and_topk(
@@ -131,6 +136,7 @@ PYBIND11_MODULE(simsearch, m) {
         "Score candidate sentence rows and return top-K positional indices with scores"
     );
 }
+#endif /* XF_BENCH_MODE */
 
 extern "C" {
 #ifdef _WIN32

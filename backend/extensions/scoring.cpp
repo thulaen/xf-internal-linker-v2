@@ -1,14 +1,18 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
 #include <pybind11/stl.h>
+#endif
 #ifdef _WIN32
 #include <execution>
 #include <algorithm>
 #define HAS_PAR_EXECUTION 1
-#else
+#elif !defined(XF_BENCH_MODE) || defined(HAS_TBB)
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#ifndef HAS_TBB
 #define HAS_TBB 1
+#endif
 #endif
 #include <numeric>
 #include <vector>
@@ -17,7 +21,9 @@
 #include <vector>
 #include <stdexcept>
 
+#ifndef XF_BENCH_MODE
 namespace py = pybind11;
+#endif
 
 /**
  * Parallel composite scoring for suggestions.
@@ -37,6 +43,7 @@ struct Candidate {
           score_pr(p), score_freshness(f), score_ga4(g) {}
 };
 
+#ifndef XF_BENCH_MODE
 std::vector<float> calculate_composite_scores(
     const std::vector<Candidate>& candidates,
     float w_semantic,
@@ -188,6 +195,7 @@ PYBIND11_MODULE(scoring, m) {
         "Calculate batch composite scores from per-row components plus silo adjustments"
     );
 }
+#endif /* XF_BENCH_MODE */
 
 extern "C" {
 #ifdef _WIN32

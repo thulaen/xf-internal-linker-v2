@@ -170,6 +170,12 @@ export class AppComponent implements OnInit {
           route: '/error-log',
           tooltip: 'Background job errors with plain-English explanations',
         },
+        {
+          label: 'Performance',
+          icon: 'speed',
+          route: '/performance',
+          tooltip: 'Benchmark results for C++, Python, and C# hot paths',
+        },
       ],
     },
   ];

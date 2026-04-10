@@ -1,12 +1,13 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <algorithm>
 #include <cctype>
 #include <string>
 #include <tuple>
 #include <vector>
-
-namespace py = pybind11;
 
 namespace {
 
@@ -289,6 +290,7 @@ std::vector<RawMatch> find_urls(const std::string& raw_bbcode) {
     return find_urls_impl(raw_bbcode);
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(linkparse, m) {
     m.def(
         "find_urls",
@@ -296,3 +298,4 @@ PYBIND11_MODULE(linkparse, m) {
         "Find BBCode anchors, HTML anchors, and bare URLs with overlap handling"
     );
 }
+#endif

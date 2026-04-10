@@ -6,6 +6,16 @@
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 
+# Mandatory Benchmark Rule — All Languages
+
+Every hot-path function must have a benchmark before merge. No exceptions.
+
+- **C++**: `backend/extensions/benchmarks/bench_*.cpp` using Google Benchmark. 3 input sizes.
+- **Python**: `backend/benchmarks/test_bench_*.py` using pytest-benchmark. 3 input sizes.
+- **C#**: `services/http-worker/benchmarks/*Benchmarks.cs` using BenchmarkDotNet. `[Params]` for 3 sizes.
+
+This applies to past, present, and future code. The Performance Dashboard at `/performance` shows results.
+
 # Mandatory Research Rule for All Features
 
 Before implementing any new feature or idea:

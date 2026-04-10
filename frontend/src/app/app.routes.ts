@@ -117,6 +117,14 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'performance',
+    loadComponent: () =>
+      import('./performance/performance.component').then((m) => m.PerformanceComponent),
+    providers: [provideCharts(withDefaultRegisterables())],
+    title: 'Performance — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: '**',
     redirectTo: '/dashboard',
   },

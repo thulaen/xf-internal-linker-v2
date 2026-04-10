@@ -1,18 +1,120 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+namespace py = pybind11;
+#endif
 #ifdef _WIN32
 #define TBB_VERSION_MAJOR 0
-#else
+#elif !defined(XF_BENCH_MODE) || defined(HAS_TBB)
 #include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#ifndef TBB_VERSION_MAJOR
+#define TBB_VERSION_MAJOR 1
+#endif
+#else
+#define TBB_VERSION_MAJOR 0
 #endif
 #include <algorithm>
 #include <cmath>
+#include <cstddef>
+#include <cstdint>
 #include <stdexcept>
 #include <utility>
 
-namespace py = pybind11;
+#include "include/feedrerank_core.h"
 
+void rerank_factors_core(
+    const int32_t* successes, const int32_t* totals, size_t count,
+    int n_global, double alpha, double beta, double weight,
+    double exploration_rate, double* out_factors
+) {
+    auto compute_one = [&](size_t index) {
+        const double score_exploit =
+            (static_cast<double>(successes[index]) + alpha) /
+            (static_cast<double>(totals[index]) + alpha + beta);
+        const double score_explore =
+            exploration_rate *
+            std::sqrt(std::log(static_cast<double>(n_global) + 1.0) /
+                      (static_cast<double>(totals[index]) + 1.0));
+        const double raw_modifier = (score_exploit + score_explore) - 0.5;
+        double factor = 1.0 + (weight * raw_modifier);
+        factor = std::max(0.5, std::min(2.0, factor));
+        out_factors[index] = factor;
+    };
+
+    if (count > 256) {
+#if TBB_VERSION_MAJOR > 0
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, count),
+            [&](const tbb::blocked_range<size_t>& range) {
+                for (size_t index = range.begin(); index < range.end(); ++index) {
+                    compute_one(index);
+                }
+            }
+        );
+#else
+        for (size_t index = 0; index < count; ++index) {
+            compute_one(index);
+        }
+#endif
+    } else {
+        for (size_t index = 0; index < count; ++index) {
+            compute_one(index);
+        }
+    }
+}
+
+void mmr_scores_core(
+    const double* relevance, size_t candidate_count,
+    const double* candidate_ptr, const double* selected_ptr,
+    size_t selected_count, size_t embedding_width,
+    double diversity_lambda,
+    double* mmr_ptr, double* max_sim_ptr
+) {
+    auto compute_one = [&](size_t candidate_index) {
+        const auto* candidate_row = candidate_ptr + (candidate_index * embedding_width);
+        double max_similarity = 0.0;
+
+        for (size_t selected_index = 0; selected_index < selected_count; ++selected_index) {
+            const auto* selected_row = selected_ptr + (selected_index * embedding_width);
+            double dot = 0.0;
+            for (size_t dim = 0; dim < embedding_width; ++dim) {
+                dot += candidate_row[dim] * selected_row[dim];
+            }
+            if (selected_index == 0 || dot > max_similarity) {
+                max_similarity = dot;
+            }
+        }
+
+        max_sim_ptr[candidate_index] = max_similarity;
+        mmr_ptr[candidate_index] =
+            (diversity_lambda * relevance[candidate_index]) -
+            ((1.0 - diversity_lambda) * max_similarity);
+    };
+
+    if (candidate_count > 128) {
+#if TBB_VERSION_MAJOR > 0
+        tbb::parallel_for(
+            tbb::blocked_range<size_t>(0, candidate_count),
+            [&](const tbb::blocked_range<size_t>& range) {
+                for (size_t index = range.begin(); index < range.end(); ++index) {
+                    compute_one(index);
+                }
+            }
+        );
+#else
+        for (size_t index = 0; index < candidate_count; ++index) {
+            compute_one(index);
+        }
+#endif
+    } else {
+        for (size_t index = 0; index < candidate_count; ++index) {
+            compute_one(index);
+        }
+    }
+}
+
+#ifndef XF_BENCH_MODE
 py::array_t<double> calculate_rerank_factors_batch(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_successes,
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_totals,
@@ -33,50 +135,17 @@ py::array_t<double> calculate_rerank_factors_batch(
     }
 
     const size_t count = static_cast<size_t>(successes_buf.shape[0]);
-    const auto* successes_ptr = static_cast<const int32_t*>(successes_buf.ptr);
-    const auto* totals_ptr = static_cast<const int32_t*>(totals_buf.ptr);
-
     auto factors = py::array_t<double>(count);
     auto factors_buf = factors.request();
-    auto* factors_ptr = static_cast<double*>(factors_buf.ptr);
 
     {
         py::gil_scoped_release release;
-
-        auto compute_one = [&](size_t index) {
-            const double score_exploit =
-                (static_cast<double>(successes_ptr[index]) + alpha) /
-                (static_cast<double>(totals_ptr[index]) + alpha + beta);
-            const double score_explore =
-                exploration_rate *
-                std::sqrt(std::log(static_cast<double>(n_global) + 1.0) /
-                          (static_cast<double>(totals_ptr[index]) + 1.0));
-            const double raw_modifier = (score_exploit + score_explore) - 0.5;
-            double factor = 1.0 + (weight * raw_modifier);
-            factor = std::max(0.5, std::min(2.0, factor));
-            factors_ptr[index] = factor;
-        };
-
-        if (count > 256) {
-#if TBB_VERSION_MAJOR > 0
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, count),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t index = range.begin(); index < range.end(); ++index) {
-                        compute_one(index);
-                    }
-                }
-            );
-#else
-            for (size_t index = 0; index < count; ++index) {
-                compute_one(index);
-            }
-#endif
-        } else {
-            for (size_t index = 0; index < count; ++index) {
-                compute_one(index);
-            }
-        }
+        rerank_factors_core(
+            static_cast<const int32_t*>(successes_buf.ptr),
+            static_cast<const int32_t*>(totals_buf.ptr),
+            count, n_global, alpha, beta, weight, exploration_rate,
+            static_cast<double*>(factors_buf.ptr)
+        );
     }
 
     return factors;
@@ -109,61 +178,20 @@ py::tuple calculate_mmr_scores_batch(
     const auto selected_count = static_cast<size_t>(selected_buf.shape[0]);
     const auto embedding_width = static_cast<size_t>(candidate_buf.shape[1]);
 
-    const auto* relevance_ptr = static_cast<const double*>(relevance_buf.ptr);
-    const auto* candidate_ptr = static_cast<const double*>(candidate_buf.ptr);
-    const auto* selected_ptr = static_cast<const double*>(selected_buf.ptr);
-
     auto mmr_scores = py::array_t<double>(candidate_count);
     auto max_similarities = py::array_t<double>(candidate_count);
-    auto mmr_buf = mmr_scores.request();
-    auto max_sim_buf = max_similarities.request();
-    auto* mmr_ptr = static_cast<double*>(mmr_buf.ptr);
-    auto* max_sim_ptr = static_cast<double*>(max_sim_buf.ptr);
 
     {
         py::gil_scoped_release release;
-
-        auto compute_one = [&](size_t candidate_index) {
-            const auto* candidate_row = candidate_ptr + (candidate_index * embedding_width);
-            double max_similarity = 0.0;
-
-            for (size_t selected_index = 0; selected_index < selected_count; ++selected_index) {
-                const auto* selected_row = selected_ptr + (selected_index * embedding_width);
-                double dot = 0.0;
-                for (size_t dim = 0; dim < embedding_width; ++dim) {
-                    dot += candidate_row[dim] * selected_row[dim];
-                }
-                if (selected_index == 0 || dot > max_similarity) {
-                    max_similarity = dot;
-                }
-            }
-
-            max_sim_ptr[candidate_index] = max_similarity;
-            mmr_ptr[candidate_index] =
-                (diversity_lambda * relevance_ptr[candidate_index]) -
-                ((1.0 - diversity_lambda) * max_similarity);
-        };
-
-        if (candidate_count > 128) {
-#if TBB_VERSION_MAJOR > 0
-            tbb::parallel_for(
-                tbb::blocked_range<size_t>(0, candidate_count),
-                [&](const tbb::blocked_range<size_t>& range) {
-                    for (size_t index = range.begin(); index < range.end(); ++index) {
-                        compute_one(index);
-                    }
-                }
-            );
-#else
-            for (size_t index = 0; index < candidate_count; ++index) {
-                compute_one(index);
-            }
-#endif
-        } else {
-            for (size_t index = 0; index < candidate_count; ++index) {
-                compute_one(index);
-            }
-        }
+        mmr_scores_core(
+            static_cast<const double*>(relevance_buf.ptr),
+            candidate_count,
+            static_cast<const double*>(candidate_buf.ptr),
+            static_cast<const double*>(selected_buf.ptr),
+            selected_count, embedding_width, diversity_lambda,
+            static_cast<double*>(mmr_scores.request().ptr),
+            static_cast<double*>(max_similarities.request().ptr)
+        );
     }
 
     return py::make_tuple(mmr_scores, max_similarities);
@@ -181,3 +209,4 @@ PYBIND11_MODULE(feedrerank, m) {
         "Calculate FR-015 MMR scores and max similarities for a candidate batch"
     );
 }
+#endif

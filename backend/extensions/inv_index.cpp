@@ -1,10 +1,11 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <vector>
 #include <unordered_map>
 #include <cmath>
-
-namespace py = pybind11;
 
 /**
  * Fast C++ Inverted Index for BM25-style keyword matching.
@@ -58,9 +59,11 @@ private:
     int total_docs_ = 0;
 };
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(inv_index, m) {
     py::class_<InvertedIndex>(m, "InvertedIndex")
         .def(py::init<>())
         .def("add_document", &InvertedIndex::add_document, "Add a document to the index")
         .def("search", &InvertedIndex::search, "Search the index using BM25 scoring");
 }
+#endif

@@ -16,6 +16,9 @@ pytest-cov==6.0.0
 factory-boy==3.3.1                   # Test data factories
 faker==33.1.0                        # Fake data for tests
 
+# ── Benchmarking ─────────────────────────────────────────────────
+pytest-benchmark==5.1.0              # Microbenchmark harness for pytest
+
 # ── Code Quality ─────────────────────────────────────────────────
 ruff==0.8.6                          # Linting + formatting (replaces flake8/black)
 mypy==1.13.0                         # Type checking

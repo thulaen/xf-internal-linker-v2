@@ -450,6 +450,7 @@ Every C++ extension PR must pass ALL of these before merge:
 | 6. Valgrind (Linux) | `valgrind --leak-check=full` | Zero leaks, zero errors |
 | 7. Thread safety | `TSAN=1 build + pytest` | Zero ThreadSanitizer data races (for threaded extensions) |
 | 8. Code review | Human reviewer | Confirms all rules in this file are followed |
+| 9. Benchmark | `benchmarks/bench_*.cpp` | Hot path exercised at 3 input sizes (small/medium/large) |
 
 ---
 

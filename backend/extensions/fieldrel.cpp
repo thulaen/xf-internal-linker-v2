@@ -1,13 +1,14 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <string>
 #include <tuple>
 #include <vector>
-
-namespace py = pybind11;
 
 double score_field_tokens(
     const std::vector<std::string>& tokens,
@@ -80,6 +81,7 @@ double score_field_tokens(
     return field_raw / (1.0 + field_raw);
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(fieldrel, m) {
     m.def(
         "score_field_tokens",
@@ -87,3 +89,4 @@ PYBIND11_MODULE(fieldrel, m) {
         "Score aligned field tokens where index i refers to the same token in tokens, host_tfs, field_tfs, and field_presence_counts"
     );
 }
+#endif

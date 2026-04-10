@@ -65,6 +65,7 @@ LOCAL_APPS = [
     "apps.health",
     "apps.cooccurrence",
     "apps.crawler",
+    "apps.benchmarks",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -291,6 +292,13 @@ CELERY_BEAT_SCHEDULE = {
         "task": "crawler.auto_prune",
         "schedule": crontab(hour=4, minute=0, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
+    },
+    # OPT-84 — nightly performance benchmarks: 02:15 UTC daily.
+    "nightly-benchmarks": {
+        "task": "apps.benchmarks.tasks.run_all_benchmarks",
+        "schedule": crontab(hour=2, minute=15),
+        "kwargs": {"trigger": "scheduled"},
+        "options": {"queue": "default"},
     },
 }
 

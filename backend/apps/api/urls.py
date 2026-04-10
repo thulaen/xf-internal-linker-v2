@@ -360,4 +360,5 @@ urlpatterns = [
     path("", include("apps.notifications.urls")),
     path("system/status/", include("apps.diagnostics.urls")),
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),
+    path("benchmarks/", include("apps.benchmarks.urls")),
 ]

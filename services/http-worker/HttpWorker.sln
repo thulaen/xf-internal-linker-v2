@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HttpWorker.Worker", "src\Ht
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HttpWorker.Tests", "tests\HttpWorker.Tests\HttpWorker.Tests.csproj", "{D4E3A593-1B7E-4B9A-8C1F-7E1FB954E005}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HttpWorker.Benchmarks", "benchmarks\HttpWorker.Benchmarks.csproj", "{7D7B1AB3-AE99-4E33-8EF4-20DE675D1BA0}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -39,6 +41,10 @@ Global
 		{D4E3A593-1B7E-4B9A-8C1F-7E1FB954E005}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{D4E3A593-1B7E-4B9A-8C1F-7E1FB954E005}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{D4E3A593-1B7E-4B9A-8C1F-7E1FB954E005}.Release|Any CPU.Build.0 = Release|Any CPU
+		{7D7B1AB3-AE99-4E33-8EF4-20DE675D1BA0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7D7B1AB3-AE99-4E33-8EF4-20DE675D1BA0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7D7B1AB3-AE99-4E33-8EF4-20DE675D1BA0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7D7B1AB3-AE99-4E33-8EF4-20DE675D1BA0}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

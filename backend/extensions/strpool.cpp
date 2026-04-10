@@ -1,11 +1,12 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <string>
 #include <unordered_map>
 #include <vector>
 #include <mutex>
-
-namespace py = pybind11;
 
 /**
  * A thread-safe string pool for token interning.
@@ -50,6 +51,7 @@ private:
     std::unordered_map<std::string, uint32_t> string_to_id_;
 };
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(strpool, m) {
     py::class_<StringPool>(m, "StringPool")
         .def(py::init<>())
@@ -58,3 +60,4 @@ PYBIND11_MODULE(strpool, m) {
         .def("size", &StringPool::size, "Get the number of unique strings in the pool")
         .def("clear", &StringPool::clear, "Clear the pool");
 }
+#endif

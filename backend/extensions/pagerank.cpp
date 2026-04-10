@@ -1,11 +1,56 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
-#include <cmath>
-#include <tuple>
-#include <stdexcept>
-
 namespace py = pybind11;
+#endif
+#include <cmath>
+#include <cstddef>
+#include <cstdint>
+#include <stdexcept>
+#include <tuple>
 
+#include "include/pagerank_core.h"
+
+double pagerank_step_core(
+    const int32_t* indptr_ptr, const int32_t* indices_ptr, const double* data_ptr,
+    const double* ranks_ptr, const bool* dangling_ptr,
+    double damping, int node_count,
+    double* next_ptr
+) {
+    double dangling_mass = 0.0;
+
+    for (int row = 0; row < node_count; ++row) {
+        double link_mass = 0.0;
+        for (int32_t idx = indptr_ptr[row]; idx < indptr_ptr[row + 1]; ++idx) {
+            const int32_t col = indices_ptr[idx];
+            link_mass += data_ptr[idx] * ranks_ptr[col];
+        }
+        next_ptr[row] = (1.0 - damping) * link_mass;
+        if (dangling_ptr[row]) {
+            dangling_mass += ranks_ptr[row];
+        }
+    }
+
+    const double base_mass = ((1.0 - damping) * dangling_mass + damping) / node_count;
+    double total_mass = 0.0;
+    for (int row = 0; row < node_count; ++row) {
+        next_ptr[row] += base_mass;
+        total_mass += next_ptr[row];
+    }
+
+    for (int row = 0; row < node_count; ++row) {
+        next_ptr[row] /= total_mass;
+    }
+
+    double delta = 0.0;
+    for (int row = 0; row < node_count; ++row) {
+        delta += std::abs(next_ptr[row] - ranks_ptr[row]);
+    }
+
+    return delta;
+}
+
+#ifndef XF_BENCH_MODE
 std::tuple<py::array_t<double>, double> pagerank_step(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> indptr,
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> indices,
@@ -41,47 +86,21 @@ std::tuple<py::array_t<double>, double> pagerank_step(
         throw std::runtime_error("indices and data must have the same length");
     }
 
-    const auto* indptr_ptr = static_cast<const int32_t*>(indptr_buf.ptr);
-    const auto* indices_ptr = static_cast<const int32_t*>(indices_buf.ptr);
-    const auto* data_ptr = static_cast<const double*>(data_buf.ptr);
-    const auto* ranks_ptr = static_cast<const double*>(ranks_buf.ptr);
-    const auto* dangling_ptr = static_cast<const bool*>(dangling_buf.ptr);
-
     auto next_ranks = py::array_t<double>(node_count);
     auto next_buf = next_ranks.request();
-    auto* next_ptr = static_cast<double*>(next_buf.ptr);
 
-    double dangling_mass = 0.0;
+    double delta;
     {
         py::gil_scoped_release release;
-
-        for (int row = 0; row < node_count; ++row) {
-            double link_mass = 0.0;
-            for (int32_t idx = indptr_ptr[row]; idx < indptr_ptr[row + 1]; ++idx) {
-                const int32_t col = indices_ptr[idx];
-                link_mass += data_ptr[idx] * ranks_ptr[col];
-            }
-            next_ptr[row] = (1.0 - damping) * link_mass;
-            if (dangling_ptr[row]) {
-                dangling_mass += ranks_ptr[row];
-            }
-        }
-
-        const double base_mass = ((1.0 - damping) * dangling_mass + damping) / node_count;
-        double total_mass = 0.0;
-        for (int row = 0; row < node_count; ++row) {
-            next_ptr[row] += base_mass;
-            total_mass += next_ptr[row];
-        }
-
-        for (int row = 0; row < node_count; ++row) {
-            next_ptr[row] /= total_mass;
-        }
-    }
-
-    double delta = 0.0;
-    for (int row = 0; row < node_count; ++row) {
-        delta += std::abs(next_ptr[row] - ranks_ptr[row]);
+        delta = pagerank_step_core(
+            static_cast<const int32_t*>(indptr_buf.ptr),
+            static_cast<const int32_t*>(indices_buf.ptr),
+            static_cast<const double*>(data_buf.ptr),
+            static_cast<const double*>(ranks_buf.ptr),
+            static_cast<const bool*>(dangling_buf.ptr),
+            damping, node_count,
+            static_cast<double*>(next_buf.ptr)
+        );
     }
 
     return std::make_tuple(next_ranks, delta);
@@ -94,3 +113,4 @@ PYBIND11_MODULE(pagerank, m) {
         "Run one weighted PageRank iteration step from CSR inputs"
     );
 }
+#endif

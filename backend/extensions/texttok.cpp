@@ -1,10 +1,13 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <string>
 #include <unordered_set>
 #include <vector>
 
-namespace py = pybind11;
+#include "include/texttok_core.h"
 
 namespace {
 
@@ -21,7 +24,9 @@ char ascii_lower(char ch) {
     return ch;
 }
 
-py::frozenset tokenize_one(
+}  // namespace
+
+std::unordered_set<std::string> tokenize_one_core(
     const std::string& text,
     const std::unordered_set<std::string>& stopwords
 ) {
@@ -59,15 +64,22 @@ py::frozenset tokenize_one(
         }
     }
 
-    py::set token_set;
-    for (const auto& token : unique_tokens) {
-        token_set.add(py::str(token));
-    }
-    return py::frozenset(token_set);
+    return unique_tokens;
 }
 
-}  // namespace
+std::vector<std::unordered_set<std::string>> tokenize_text_batch_core(
+    const std::vector<std::string>& texts,
+    const std::unordered_set<std::string>& stopwords
+) {
+    std::vector<std::unordered_set<std::string>> results;
+    results.reserve(texts.size());
+    for (const auto& text : texts) {
+        results.push_back(tokenize_one_core(text, stopwords));
+    }
+    return results;
+}
 
+#ifndef XF_BENCH_MODE
 py::list tokenize_text_batch(
     const std::vector<std::string>& texts,
     const py::iterable& stopwords
@@ -80,7 +92,12 @@ py::list tokenize_text_batch(
 
     py::list results;
     for (const auto& text : texts) {
-        results.append(tokenize_one(text, stopword_lookup));
+        auto tokens = tokenize_one_core(text, stopword_lookup);
+        py::set token_set;
+        for (const auto& token : tokens) {
+            token_set.add(py::str(token));
+        }
+        results.append(py::frozenset(token_set));
     }
     return results;
 }
@@ -92,3 +109,4 @@ PYBIND11_MODULE(texttok, m) {
         "Tokenize texts into lowercase frozensets with stopword filtering"
     );
 }
+#endif

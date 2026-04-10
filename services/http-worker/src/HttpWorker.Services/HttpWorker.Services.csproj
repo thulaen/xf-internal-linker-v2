@@ -16,4 +16,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="HttpWorker.Benchmarks" />
+  </ItemGroup>
 </Project>

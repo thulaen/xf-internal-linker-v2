@@ -1192,6 +1192,7 @@ Every Python backend PR must pass ALL of these before merge:
 | 8 | Import order | `ruff check --select I` | Imports sorted correctly |
 | 9 | No `eval`/`exec` | `ruff check --select S307` | Zero uses |
 | 10 | Docker build | `docker-compose build backend` | Clean build, no errors |
+| 11 | Benchmark | `pytest backend/benchmarks/test_bench_*.py` | Hot-path functions have benchmark coverage at 3 input sizes |
 
 ---
 

@@ -1,9 +1,10 @@
+#ifndef XF_BENCH_MODE
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+namespace py = pybind11;
+#endif
 #include <string>
 #include <vector>
-
-namespace py = pybind11;
 
 int longest_contiguous_overlap(
     const std::vector<std::string>& left,
@@ -29,6 +30,7 @@ int longest_contiguous_overlap(
     return best;
 }
 
+#ifndef XF_BENCH_MODE
 PYBIND11_MODULE(phrasematch, m) {
     m.def(
         "longest_contiguous_overlap",
@@ -36,3 +38,4 @@ PYBIND11_MODULE(phrasematch, m) {
         "Find the longest contiguous overlap length between two token lists"
     );
 }
+#endif
