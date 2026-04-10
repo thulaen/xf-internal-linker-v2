@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
-import subprocess
+import subprocess  # nosec B404 — runs benchmark executables, not user input
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -39,7 +39,7 @@ def run_cpp_benchmarks(run: BenchmarkRun) -> list[dict]:
             tmp_path = tmp.name
 
         try:
-            subprocess.run(
+            subprocess.run(  # nosec B603
                 [str(exe), "--benchmark_format=json", f"--benchmark_out={tmp_path}"],
                 timeout=300,
                 capture_output=True,
@@ -89,7 +89,7 @@ def run_python_benchmarks(run: BenchmarkRun) -> list[dict]:
         tmp_path = tmp.name
 
     try:
-        subprocess.run(
+        subprocess.run(  # nosec B603 B607
             [
                 "python",
                 "-m",
