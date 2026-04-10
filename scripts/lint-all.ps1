@@ -221,7 +221,8 @@ $baselineLongFiles = @(
     'views.py',                 # core/views.py ~3910 lines, crawler/views.py
     'services.py',              # health/services.py
     'models.py',                # large model files
-    'settings.component.ts'     # onTabChange ~249 lines, saveAllSettings ~127 lines
+    'settings.component.ts',    # onTabChange ~249 lines, saveAllSettings ~127 lines
+    'base.py'                   # Django settings — many small config blocks, hard to split further
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
