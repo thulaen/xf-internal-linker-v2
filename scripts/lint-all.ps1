@@ -141,6 +141,7 @@ $ErrorActionPreference = "Continue"
     --std=c++17 `
     --error-exitcode=1 `
     --suppress=missingIncludeSystem `
+    -i "$extensionsDir\benchmarks\build" `
     --quiet `
     "$extensionsDir"
 $cppExitCode = $LASTEXITCODE
