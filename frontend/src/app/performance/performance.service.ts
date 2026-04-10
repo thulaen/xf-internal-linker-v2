@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 export interface BenchmarkResult {
   id: number;
@@ -54,26 +55,38 @@ export class PerformanceService {
   private baseUrl = '/api/benchmarks';
 
   getLatest(): Observable<BenchmarkRun> {
-    return this.http.get<BenchmarkRun>(`${this.baseUrl}/latest/`);
+    return this.http.get<BenchmarkRun>(`${this.baseUrl}/latest/`).pipe(
+      catchError(() => { throw new Error('Failed to load benchmark data'); })
+    );
   }
 
   getRuns(): Observable<BenchmarkRunListItem[]> {
-    return this.http.get<BenchmarkRunListItem[]>(`${this.baseUrl}/`);
+    return this.http.get<BenchmarkRunListItem[]>(`${this.baseUrl}/`).pipe(
+      catchError(() => of([]))
+    );
   }
 
   getRun(id: number): Observable<BenchmarkRun> {
-    return this.http.get<BenchmarkRun>(`${this.baseUrl}/${id}/`);
+    return this.http.get<BenchmarkRun>(`${this.baseUrl}/${id}/`).pipe(
+      catchError(() => { throw new Error('Failed to load benchmark run'); })
+    );
   }
 
   trigger(): Observable<{ id: number; status: string }> {
-    return this.http.post<{ id: number; status: string }>(`${this.baseUrl}/trigger/`, {});
+    return this.http.post<{ id: number; status: string }>(`${this.baseUrl}/trigger/`, {}).pipe(
+      catchError(() => { throw new Error('Failed to trigger benchmark run'); })
+    );
   }
 
   getReport(id: number): Observable<{ report: string }> {
-    return this.http.get<{ report: string }>(`${this.baseUrl}/${id}/report/`);
+    return this.http.get<{ report: string }>(`${this.baseUrl}/${id}/report/`).pipe(
+      catchError(() => of({ report: 'Failed to generate report.' }))
+    );
   }
 
   getTrends(): Observable<BenchmarkTrendPoint[]> {
-    return this.http.get<BenchmarkTrendPoint[]>(`${this.baseUrl}/trends/`);
+    return this.http.get<BenchmarkTrendPoint[]>(`${this.baseUrl}/trends/`).pipe(
+      catchError(() => of([]))
+    );
   }
 }
