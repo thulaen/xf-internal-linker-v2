@@ -17,7 +17,14 @@
         </mat-select>
       </mat-form-field>
 
-      <button mat-flat-button color="primary" (click)="syncAllWpxf()" [disabled]="!canSyncAll" class="sync-all-btn">
+      <button
+        mat-flat-button
+        color="primary"
+        (click)="syncAllWpxf()"
+        [disabled]="!canSyncAll"
+        class="sync-all-btn"
+        [matTooltip]="!sourceStatus.api && !sourceStatus.wp ? 'Configure at least one source (XenForo or WordPress) in Settings first' : canSyncAll ? 'Sync all configured sources at once' : 'A sync is already running'"
+      >
         <mat-icon>sync</mat-icon>
         Sync All (WP & XF)
       </button>
@@ -39,8 +46,14 @@
       </mat-card-header>
 
       <mat-card-content>
+        @if (!sourceStatus.api && !sourceStatus.wp) {
+          <div class="unconfigured-hint">
+            <mat-icon>info</mat-icon>
+            <span>Connect your XenForo or WordPress site in <a routerLink="/settings">Settings</a> to start syncing content.</span>
+          </div>
+        }
         <div class="source-list">
-          
+
           <!-- XenForo -->
           <div class="source-item" [class.is-running]="getJob('api').state === 'running'">
             <div class="source-main-info">

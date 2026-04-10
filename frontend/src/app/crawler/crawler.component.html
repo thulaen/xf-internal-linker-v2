@@ -23,12 +23,16 @@
           </mat-select>
         </mat-form-field>
 
-        <mat-form-field class="slider-field">
+        <mat-form-field class="slider-field"
+          matTooltip="How many pages per second to crawl. Lower = gentler on your server. Start with 2-4 for most sites."
+        >
           <mat-label>Rate (req/sec)</mat-label>
           <input matInput type="number" [(ngModel)]="rateLimit" min="1" max="10" />
         </mat-form-field>
 
-        <mat-form-field class="slider-field">
+        <mat-form-field class="slider-field"
+          matTooltip="How many clicks deep from the homepage to crawl. 5 is usually enough for most sites."
+        >
           <mat-label>Max Depth</mat-label>
           <input matInput type="number" [(ngModel)]="maxDepth" min="1" max="10" />
         </mat-form-field>
@@ -71,12 +75,65 @@
         </div>
       </div>
 
+      <!-- ── Sitemap Management (inline) ──────────────────────── -->
+      <mat-divider class="sitemap-divider" />
+
       @if (sitemaps.length === 0) {
-        <div class="empty-hint">
-          <mat-icon>info</mat-icon>
-          <span>No sitemaps configured yet. Go to <strong>Settings</strong> to add your sitemap URLs.</span>
+        <div class="sitemap-onboarding">
+          <mat-icon class="onboarding-icon">info</mat-icon>
+          <div class="onboarding-text">
+            <strong>Step 1:</strong> Add your sitemap URL below (e.g. <code>https://yoursite.com/sitemap.xml</code>).
+            <br />
+            <strong>Step 2:</strong> Pick the domain above and click <strong>Start Crawl</strong>.
+          </div>
         </div>
       }
+
+      <div class="sitemap-section">
+        <div class="sitemap-add-row">
+          <mat-form-field class="sitemap-domain-field">
+            <mat-label>Domain</mat-label>
+            <input matInput [(ngModel)]="newSitemapDomain" placeholder="yoursite.com" />
+          </mat-form-field>
+          <mat-form-field class="sitemap-url-field">
+            <mat-label>Sitemap URL</mat-label>
+            <input matInput [(ngModel)]="newSitemapUrl" placeholder="https://yoursite.com/sitemap.xml" />
+          </mat-form-field>
+          <button
+            mat-stroked-button
+            color="primary"
+            (click)="addSitemap()"
+            [disabled]="!newSitemapDomain || !newSitemapUrl"
+            matTooltip="Add this sitemap so the crawler knows where to find your pages"
+          >
+            <mat-icon>add</mat-icon>
+            Add
+          </button>
+        </div>
+
+        @if (sitemaps.length > 0) {
+          <div class="sitemap-list">
+            @for (sm of sitemaps; track sm.id) {
+              <div class="sitemap-item">
+                <mat-icon class="sitemap-item-icon">map</mat-icon>
+                <div class="sitemap-item-info">
+                  <span class="sitemap-item-domain">{{ sm.domain }}</span>
+                  <span class="sitemap-item-url">{{ sm.sitemap_url }}</span>
+                </div>
+                <span class="sitemap-item-method">{{ sm.discovery_method }}</span>
+                <button
+                  mat-icon-button
+                  color="warn"
+                  matTooltip="Remove this sitemap"
+                  (click)="removeSitemap(sm.id)"
+                >
+                  <mat-icon>delete</mat-icon>
+                </button>
+              </div>
+            }
+          </div>
+        }
+      </div>
     </mat-card-content>
   </mat-card>
 
@@ -161,9 +218,37 @@
               [value]="(storageBytes / (20 * 1073741824)) * 100"
               matTooltip="Percentage of your 20 GB remaining disk used by crawler data"
             ></mat-progress-bar>
-            <p class="storage-hint">
-              Auto-prune runs every 4 weeks. Crawl data older than 90 days is automatically deleted.
-            </p>
+          </mat-card-content>
+        </mat-card>
+
+        <mat-card class="storage-card prune-card">
+          <mat-card-content>
+            <h3 class="prune-title">
+              <mat-icon>auto_delete</mat-icon>
+              Auto-Prune Policy
+            </h3>
+            <div class="prune-rules">
+              <div class="prune-rule">
+                <mat-icon>schedule</mat-icon>
+                <span>Runs every <strong>4 weeks</strong> automatically</span>
+              </div>
+              <div class="prune-rule">
+                <mat-icon>delete_sweep</mat-icon>
+                <span>Page data older than <strong>90 days</strong> is deleted (session summaries kept)</span>
+              </div>
+              <div class="prune-rule">
+                <mat-icon>link_off</mat-icon>
+                <span>Pages with <strong>3+ consecutive 404s</strong> are marked dead and skipped</span>
+              </div>
+              <div class="prune-rule">
+                <mat-icon>event_available</mat-icon>
+                <span>System events older than <strong>90 days</strong> are cleaned up</span>
+              </div>
+              <div class="prune-rule">
+                <mat-icon>auto_fix_high</mat-icon>
+                <span>Fixed broken links are archived after <strong>30 days</strong></span>
+              </div>
+            </div>
           </mat-card-content>
         </mat-card>
       </div>

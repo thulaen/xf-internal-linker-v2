@@ -48,6 +48,7 @@ class CrawlSessionViewSet(ModelViewSet):
 
     queryset = CrawlSession.objects.all()
     serializer_class = CrawlSessionSerializer
+    pagination_class = None
 
     def create(self, request):
         """Start a new crawl session or resume a paused one."""
@@ -157,6 +158,7 @@ class CrawledPageMetaViewSet(ReadOnlyModelViewSet):
     """List and detail view for crawled page metadata."""
 
     serializer_class = CrawledPageMetaSummarySerializer
+    pagination_class = None
 
     def get_queryset(self):
         qs = CrawledPageMeta.objects.all()
@@ -181,6 +183,7 @@ class CrawledLinkViewSet(ReadOnlyModelViewSet):
     """List internal links discovered during crawl."""
 
     serializer_class = CrawledLinkSerializer
+    pagination_class = None
 
     def get_queryset(self):
         qs = CrawledLink.objects.select_related("page").all()
@@ -201,6 +204,7 @@ class SitemapConfigViewSet(ModelViewSet):
 
     queryset = SitemapConfig.objects.all()
     serializer_class = SitemapConfigSerializer
+    pagination_class = None
 
     def create(self, request):
         ser = SitemapConfigCreateSerializer(data=request.data)
@@ -263,6 +267,7 @@ class SystemEventViewSet(ReadOnlyModelViewSet):
     """Activity feed for the Dashboard. Most recent 50 events."""
 
     serializer_class = SystemEventSerializer
+    pagination_class = None
 
     def get_queryset(self):
         qs = SystemEvent.objects.all()

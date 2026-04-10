@@ -15,6 +15,7 @@ import {
   Observable,
   Subject,
   catchError,
+  map,
   of,
   tap,
 } from 'rxjs';
@@ -108,7 +109,17 @@ export class NotificationService implements OnDestroy {
   loadSummary(): void {
     this.http
       .get<AlertSummary>('/api/notifications/alerts/summary/')
-      .pipe(catchError(() => of(null)))
+      .pipe(
+        catchError(() => {
+          // Fallback: count unread alerts directly if summary endpoint fails
+          return this.http
+            .get<OperatorAlert[]>('/api/notifications/alerts/', { params: { status: 'unread' } })
+            .pipe(
+              map((alerts) => ({ total_unread: alerts.length, by_severity: {}, latest_at: null } as AlertSummary)),
+              catchError(() => of(null)),
+            );
+        }),
+      )
       .subscribe((s) => {
         if (s) this._unreadCount$.next(s.total_unread);
       });

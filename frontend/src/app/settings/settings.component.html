@@ -1031,30 +1031,105 @@
             </mat-card-content>
           </mat-card>
 
-          <!-- ── Sitemap Configuration ─────────────────────────────── -->
-          <mat-card class="settings-card settings-card--wide" id="sitemap-settings">
+          <!-- ── Crawler Settings ─────────────────────────────────── -->
+          <mat-card class="settings-card settings-card--wide" id="crawler-settings">
             <mat-card-header>
               <div class="header-main" style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
                 <div class="title-group">
-                  <mat-card-title>Sitemap Configuration</mat-card-title>
-                  <mat-card-subtitle>Add sitemap URLs for each domain so the crawler knows where to find your pages</mat-card-subtitle>
+                  <mat-card-title>Crawler Settings</mat-card-title>
+                  <mat-card-subtitle>Default crawl parameters, URL exclusions, and data retention policy</mat-card-subtitle>
                 </div>
               </div>
             </mat-card-header>
             <mat-card-content class="card-content">
+
+              <!-- Sitemaps pointer -->
               <p class="hint">
-                The web crawler uses these sitemaps to seed its URL frontier. Auto-discover checks common locations
-                like /sitemap.xml, /sitemap_index.xml, /sitemap.php, and your robots.txt for Sitemap directives.
-                Duplicate URLs are automatically detected and skipped.
+                <mat-icon style="font-size: 16px; width: 16px; height: 16px; vertical-align: middle; color: var(--color-primary);">info</mat-icon>
+                Sitemap management (add, remove, auto-discover) is on the
+                <a routerLink="/crawler" style="color: var(--color-primary);">Web Crawler</a> page.
               </p>
 
-              <div class="sitemap-list">
-                <p class="hint" style="font-style: italic; color: var(--color-text-muted);">
-                  Sitemap management is available on the <a routerLink="/crawler" style="color: var(--color-primary);">Web Crawler</a> page.
-                  Configure your XenForo sitemap (e.g. https://goldmidi.com/community/sitemap.php) and WordPress
-                  sitemap there.
-                </p>
+              <!-- Default crawl parameters -->
+              <div class="settings-row" style="margin-top: 16px;">
+                <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+                  Default Crawl Parameters
+                </h4>
+                <p class="hint">These defaults are used when starting a new crawl. You can override them per-session on the crawler page.</p>
+                <div style="display: flex; gap: 16px; margin-top: 8px;">
+                  <mat-form-field style="width: 140px;">
+                    <mat-label>Rate (req/sec)</mat-label>
+                    <input matInput type="number" value="4" min="1" max="10"
+                      matTooltip="Pages per second. Lower = gentler on your server." />
+                  </mat-form-field>
+                  <mat-form-field style="width: 140px;">
+                    <mat-label>Max Depth</mat-label>
+                    <input matInput type="number" value="5" min="1" max="10"
+                      matTooltip="Click distance from homepage. 5 is enough for most sites." />
+                  </mat-form-field>
+                </div>
               </div>
+
+              <mat-divider style="margin: 16px 0;" />
+
+              <!-- URL exclusion patterns -->
+              <div class="settings-row">
+                <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+                  URL Exclusion Patterns
+                </h4>
+                <p class="hint">
+                  Paths the crawler will skip. These apply to all domains.
+                  One path per line (e.g. <code style="background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; font-size: 12px;">/members/</code>).
+                </p>
+                <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
+                  @for (path of crawlerExcludedPaths; track path) {
+                    <mat-chip-row (removed)="removeCrawlerExclusion(path)">
+                      {{ path }}
+                      <button matChipRemove>
+                        <mat-icon>cancel</mat-icon>
+                      </button>
+                    </mat-chip-row>
+                  }
+                </div>
+                <div style="display: flex; gap: 8px; align-items: flex-end; margin-top: 12px;">
+                  <mat-form-field style="flex: 1; max-width: 300px;">
+                    <mat-label>Add exclusion path</mat-label>
+                    <input matInput [(ngModel)]="newCrawlerExclusion" placeholder="/admin/" />
+                  </mat-form-field>
+                  <button mat-stroked-button (click)="addCrawlerExclusion()" [disabled]="!newCrawlerExclusion"
+                    style="margin-bottom: 16px;">
+                    <mat-icon>add</mat-icon> Add
+                  </button>
+                </div>
+              </div>
+
+              <mat-divider style="margin: 16px 0;" />
+
+              <!-- Auto-prune policy (read-only info) -->
+              <div class="settings-row">
+                <h4 style="font-size: 13px; font-weight: 500; color: var(--color-text-primary); margin: 0 0 8px;">
+                  Data Retention &amp; Auto-Prune
+                </h4>
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 13px; color: var(--color-text-secondary);">
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">schedule</mat-icon>
+                    Runs automatically every <strong>4 weeks</strong>
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">delete_sweep</mat-icon>
+                    Crawl page data older than <strong>90 days</strong> is deleted (session summaries are kept)
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">link_off</mat-icon>
+                    Pages returning 404 three times in a row are marked as dead and skipped
+                  </div>
+                  <div style="display: flex; align-items: center; gap: 8px;">
+                    <mat-icon style="font-size: 18px; width: 18px; height: 18px; color: var(--color-text-muted);">auto_fix_high</mat-icon>
+                    Fixed broken links are archived after <strong>30 days</strong>
+                  </div>
+                </div>
+              </div>
+
             </mat-card-content>
           </mat-card>
 

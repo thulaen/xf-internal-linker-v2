@@ -5,6 +5,7 @@ import { forkJoin, Subject, takeUntil } from 'rxjs';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
@@ -1723,6 +1724,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatButtonModule,
     MatCardModule,
     MatCheckboxModule,
+    MatChipsModule,
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
@@ -1819,6 +1821,13 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   savingGoogleAuth = false;
   savingNotifPrefs = false;
   testingNotification = false;
+
+  // ── Crawler settings ──────────────────────────────────────────
+  crawlerExcludedPaths: string[] = [
+    '/members/', '/login/', '/register/', '/account/',
+    '/search/', '/admin.php', '/help/',
+  ];
+  newCrawlerExclusion = '';
 
   notifPrefs: NotificationPreferences = {
     desktop_enabled: true,
@@ -3716,5 +3725,19 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     } else if (result === 'denied') {
       this.snack.open('Desktop notifications blocked by the browser.', 'Dismiss', { duration: 5000 });
     }
+  }
+
+  // ── Crawler exclusion helpers ─────────────────────────────────
+  addCrawlerExclusion(): void {
+    const path = this.newCrawlerExclusion.trim();
+    if (!path || this.crawlerExcludedPaths.includes(path)) return;
+    this.crawlerExcludedPaths = [...this.crawlerExcludedPaths, path];
+    this.newCrawlerExclusion = '';
+    this.isDirty = true;
+  }
+
+  removeCrawlerExclusion(path: string): void {
+    this.crawlerExcludedPaths = this.crawlerExcludedPaths.filter((p) => p !== path);
+    this.isDirty = true;
   }
 }

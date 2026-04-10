@@ -82,6 +82,10 @@ export class CrawlerComponent implements OnInit {
   audit: SEOAuditSummary | null = null;
   storageBytes = 0;
 
+  // ── Sitemap management ─────────────────────────────────────────
+  newSitemapDomain = '';
+  newSitemapUrl = '';
+
   // ── Table columns ─────────────────────────────────────────────
   linkColumns = ['source_url', 'destination_url', 'anchor_text', 'context_class'];
   pageColumns = ['url', 'http_status', 'title', 'word_count', 'internal_link_count', 'crawl_depth'];
@@ -168,6 +172,35 @@ export class CrawlerComponent implements OnInit {
         this.activeSession = session;
         this.snack.open('Crawl paused.', 'OK', { duration: 3000 });
       },
+    });
+  }
+
+  // ── Sitemap management ────────────────────────────────────────
+  addSitemap(): void {
+    if (!this.newSitemapDomain || !this.newSitemapUrl) return;
+    this.crawlerSvc.addSitemap(this.newSitemapDomain, this.newSitemapUrl).subscribe({
+      next: (sm) => {
+        this.sitemaps = [...this.sitemaps, sm];
+        if (!this.selectedDomain) {
+          this.selectedDomain = sm.domain;
+        }
+        this.newSitemapDomain = '';
+        this.newSitemapUrl = '';
+        this.snack.open('Sitemap added!', 'OK', { duration: 3000 });
+      },
+      error: (err) =>
+        this.snack.open(err.error?.error ?? 'Failed to add sitemap', 'OK', { duration: 5000 }),
+    });
+  }
+
+  removeSitemap(id: number): void {
+    this.crawlerSvc.deleteSitemap(id).subscribe({
+      next: () => {
+        this.sitemaps = this.sitemaps.filter((s) => s.id !== id);
+        this.snack.open('Sitemap removed.', 'OK', { duration: 3000 });
+      },
+      error: () =>
+        this.snack.open('Failed to remove sitemap', 'OK', { duration: 5000 }),
     });
   }
 
