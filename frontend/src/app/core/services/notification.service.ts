@@ -150,11 +150,15 @@ export class NotificationService implements OnDestroy {
   }
 
   loadPreferences(): Observable<NotificationPreferences> {
-    return this.http.get<NotificationPreferences>('/api/settings/notifications/');
+    return this.http
+      .get<NotificationPreferences>('/api/settings/notifications/')
+      .pipe(catchError(() => of({} as NotificationPreferences)));
   }
 
   savePreferences(prefs: Partial<NotificationPreferences>): Observable<NotificationPreferences> {
-    return this.http.put<NotificationPreferences>('/api/settings/notifications/', prefs);
+    return this.http
+      .put<NotificationPreferences>('/api/settings/notifications/', prefs)
+      .pipe(catchError(() => of({} as NotificationPreferences)));
   }
 
   sendTestNotification(severity = 'warning'): Observable<OperatorAlert> {
