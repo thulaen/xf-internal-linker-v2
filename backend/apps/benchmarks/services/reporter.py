@@ -48,7 +48,6 @@ def generate_report(run: BenchmarkRun) -> str:
     lines.append(f"FAST FUNCTIONS ({len(fast)} total): all within baseline")
     lines.append("")
 
-    summary = run.summary_json or {}
     lines.append(f"Total benchmarked: {len(results)}")
     lines.append(f"Fast: {len(fast)} | OK: {len(ok)} | Slow: {len(slow)}")
 

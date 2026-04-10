@@ -10,10 +10,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from django.conf import settings
-from django.utils import timezone
 
 if TYPE_CHECKING:
-    from apps.benchmarks.models import BenchmarkResult, BenchmarkRun
+    from apps.benchmarks.models import BenchmarkRun
 
 logger = logging.getLogger(__name__)
 
