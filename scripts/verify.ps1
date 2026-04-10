@@ -13,6 +13,47 @@ try {
         throw "Linting failed. Fix the errors above before pushing."
     }
 
+    # ── Rule 26: Test existence check for new modules ───────────────
+    Write-Host ""
+    Write-Host "--- [Test existence check for new modules] ---" -ForegroundColor Cyan
+    $base = "origin/master"
+    $null = git -C $repoRoot rev-parse --verify $base 2>$null
+    if ($LASTEXITCODE -ne 0) { $base = "HEAD~1" }
+    $newFiles = @(git -C $repoRoot diff --name-only --diff-filter=A "$base...HEAD" 2>$null)
+    $missingTests = @()
+    foreach ($f in $newFiles) {
+        # Python: new .py file in apps/ (not __init__, migrations, admin, urls, apps)
+        if ($f -match '^backend/apps/([^/]+)/(?!tests|migrations|__init__|admin|urls|apps|manage)(\w+)\.py$') {
+            $appName = $Matches[1]
+            $testFile = "backend/apps/$appName/tests.py"
+            $testDir  = "backend/apps/$appName/tests/"
+            $hasNewTest = ($newFiles | Where-Object { $_ -match "backend/apps/$appName/test" }).Count -gt 0
+            if (-not $hasNewTest) {
+                $tfPath = Join-Path $repoRoot ($testFile -replace '/', '\')
+                $tdPath = Join-Path $repoRoot ($testDir -replace '/', '\')
+                if (-not (Test-Path $tfPath) -and -not (Test-Path $tdPath)) {
+                    $missingTests += $f
+                }
+            }
+        }
+        # C#: new .cs file (not interfaces, DTOs, Program, Startup)
+        if ($f -match '^services/http-worker/src/(.+)\.cs$' -and $f -notmatch '(Tests|\.Designer|Program|Startup|I[A-Z]\w+)\.cs$') {
+            $className = [System.IO.Path]::GetFileNameWithoutExtension($f)
+            $testPattern = "${className}Tests.cs"
+            $hasTest = ($newFiles | Where-Object { $_ -match $testPattern }).Count -gt 0
+            if (-not $hasTest) {
+                $testExists = Get-ChildItem -Path (Join-Path $repoRoot "services\http-worker\tests") -Filter $testPattern -Recurse -ErrorAction SilentlyContinue
+                if (-not $testExists) {
+                    $missingTests += $f
+                }
+            }
+        }
+    }
+    if ($missingTests.Count -gt 0) {
+        $missingTests | ForEach-Object { Write-Host "  No test coverage: $_" -ForegroundColor Yellow }
+        throw "Found $($missingTests.Count) new source file(s) without corresponding tests."
+    }
+
     & (Join-Path $PSScriptRoot "build-native-extensions.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Native extension build failed."

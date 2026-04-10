@@ -264,6 +264,72 @@ Reuse the existing repo cleanup script and Docker prune policy above. Do not inv
 
 ---
 
+## Vibe-Coding Pre-Push Rules — 26 Automated Checks
+
+These rules run automatically via `scripts/lint-all.ps1` (steps 8-32) and `scripts/verify.ps1` (rule 26). They catch bugs AI agents commonly introduce. **Zero disk footprint, zero installs, self-pruning.** All agents (Claude, Gemini, Codex) must follow them.
+
+### AI Agent Behavior
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 1 | Debug artifact purge | TS, C++, C# | `console.log`, `std::cout`, `Console.Write`, `debugger;` |
+| 2 | Placeholder/stub blocker | All (diff) | `TODO`, `FIXME`, `HACK`, `NotImplementedError` |
+| 3 | Diff-scope enforcement | Repo | >8 files outside primary directory = blocked |
+
+### Code Quality
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 4 | Function length (80 lines) | All (diff) | Monolithic functions |
+| 5 | File length (500/400 lines) | All (diff) | God files |
+| 6 | Cyclomatic complexity (C901 ≤ 15) | Python | Nested if/elif/else chains |
+| 7 | Magic number detector | Python (diff) | Unnamed 3+ digit literals |
+| 8 | Duplicate code blocks | All (diff) | Identical 6-line blocks across files |
+| 9 | Merge conflict markers | All | `<<<<<<<` / `>>>>>>>` left in code |
+
+### Error Handling
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 10 | Empty catch/except | All | `catch {}`, `except: pass` |
+| 11 | Missing HTTP error handling | Angular (diff) | `HttpClient` calls without `catchError` |
+| 12 | Logger f-string detector | Python (diff) | `logger.info(f"...")` — bypasses lazy eval |
+
+### Security
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 13 | Hardcoded secrets | TS, C++, C# | API keys, passwords, connection strings |
+| 14 | Angular XSS safety | HTML/TS | `bypassSecurityTrust*` in components |
+| 15 | SQL concatenation | C# | `$"SELECT...{var}"` — injection risk |
+| 16 | ReDoS detector | All | Nested regex quantifiers `(a+)+` |
+
+### Performance
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 17 | Resource leak detector | Python, C# | `open()` without `with`, `requests.get` without timeout, `new HttpClient()` |
+| 18 | N+1 query detector | Python, C# (diff) | ORM queries inside `for` loops |
+| 19 | Async anti-patterns | C# | `async void`, `.Result`, `.Wait()`, `Thread.Sleep` |
+| 20 | Dangerous imports | Python (diff) | `from X import *`, `datetime.now()`, unbounded `@cache`, `eval()` |
+
+### Repo Hygiene
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 21 | Binary/large file blocker | Repo | `.pyc`, `.dll`, `.env`, files >2MB |
+| 22 | Dockerfile layer check | Docker | `COPY . .` before dependency install |
+| 23 | Lock file consistency | Repo | `package.json` changed without `package-lock.json` |
+
+### Design System
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 24 | Hardcoded style detector | SCSS | Hex colors, gradients, `font-family` in components |
+| 25 | Unused SCSS classes | SCSS/HTML (diff) | Classes in `.scss` not referenced in `.html` |
+
+### Test Coverage
+| # | Rule | Scope | What it catches |
+|---|------|-------|-----------------|
+| 26 | Test existence check | Python, C# | New source files without corresponding test files |
+
+**"(diff)" = only checks files changed in this push.** Existing violations in untouched files are not flagged, but as files are modified they must be cleaned up.
+
+---
+
 ## UX and Smart Navigation - Mandatory for All Agents
 
 Everything in this app must be "One-Click Away" from being found.

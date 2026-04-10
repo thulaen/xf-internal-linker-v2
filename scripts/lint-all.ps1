@@ -12,13 +12,10 @@
 #   - C++:    cppcheck             (choco install cppcheck)
 #
 # Checks (in order):
-#   1. Python ruff check       (lint + dead code + style)
-#   2. Python ruff format      (formatting consistency)
-#   3. Python mypy             (type safety)
-#   4. Python bandit           (security scan)
-#   5. Angular ESLint          (TS lint + template accessibility)
-#   6. C++ cppcheck            (static analysis)
-#   7. C# dotnet build strict  (Roslyn warnings as errors)
+#   1–7.   Existing tool-based linters (ruff, mypy, bandit, ESLint, cppcheck, C#)
+#   8–32.  Vibe-coding pre-push rules (grep-based, zero disk footprint)
+#          See plan: .claude/plans/groovy-wibbling-robin.md for full spec.
+#          All 26 rules self-prune — run in memory, leave no artifacts.
 ##############################################################################
 
 param()
@@ -59,7 +56,7 @@ Assert-ToolExists "npx"    "Install Node.js 22 LTS"
 $cppcheckExe = Get-Cppcheck
 
 # ── 1. Python ruff check ──────────────────────────────────────────
-Write-Step "1/7  Python: ruff check (lint + dead code)"
+Write-Step "1/32Python: ruff check (lint + dead code)"
 Push-Location (Join-Path $repoRoot "backend")
 try {
     & $python -m ruff check .
@@ -71,7 +68,7 @@ try {
 }
 
 # ── 2. Python ruff format check ───────────────────────────────────
-Write-Step "2/7  Python: ruff format --check (formatting)"
+Write-Step "2/32Python: ruff format --check (formatting)"
 Push-Location (Join-Path $repoRoot "backend")
 try {
     & $python -m ruff format --check .
@@ -83,7 +80,7 @@ try {
 }
 
 # ── 3. Python mypy (type safety) ─────────────────────────────────
-Write-Step "3/7  Python: mypy type check"
+Write-Step "3/32Python: mypy type check"
 Push-Location (Join-Path $repoRoot "backend")
 try {
     $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
@@ -104,7 +101,7 @@ try {
 }
 
 # ── 4. Python bandit (security scan) ──────────────────────────────
-Write-Step "4/7  Python: bandit security scan"
+Write-Step "4/32Python: bandit security scan"
 Push-Location (Join-Path $repoRoot "backend")
 try {
     $ErrorActionPreference = "Continue"
@@ -121,7 +118,7 @@ try {
 }
 
 # ── 5. Angular ESLint ─────────────────────────────────────────────
-Write-Step "5/7  Angular: ESLint (TypeScript + templates)"
+Write-Step "5/32Angular: ESLint (TypeScript + templates)"
 Push-Location (Join-Path $repoRoot "frontend")
 try {
     $ErrorActionPreference = "Continue"
@@ -136,7 +133,7 @@ try {
 }
 
 # ── 6. C++ cppcheck ──────────────────────────────────────────────
-Write-Step "6/7  C++: cppcheck static analysis"
+Write-Step "6/32C++: cppcheck static analysis"
 $extensionsDir = Join-Path (Join-Path $repoRoot "backend") "extensions"
 $ErrorActionPreference = "Continue"
 & $cppcheckExe `
@@ -153,7 +150,7 @@ if ($cppExitCode -ne 0) {
 }
 
 # ── 7. C# strict build (TreatWarningsAsErrors) ───────────────────
-Write-Step "7/7  C#: dotnet build with TreatWarningsAsErrors"
+Write-Step "7/32C#: dotnet build with TreatWarningsAsErrors"
 $httpWorkerDir = Join-Path (Join-Path $repoRoot "services") "http-worker"
 Push-Location $httpWorkerDir
 try {
@@ -168,5 +165,742 @@ try {
     Pop-Location
 }
 
+##############################################################################
+# VIBE-CODING PRE-PUSH RULES (steps 8–32)
+#
+# Zero-disk-footprint, grep-based checks for AI-agent code quality.
+# Every rule self-prunes — runs in memory, exits, leaves no artifacts.
+# Storage impact: 0 bytes.  All agents must follow these (Claude, Gemini, Codex).
+##############################################################################
+
+# ── Helpers ──────────────────────────────────────────────────────────
+
+function Get-PushDiffFiles {
+    <# Returns relative paths of files changed compared to origin/master. #>
+    $base = "origin/master"
+    $null = git -C $repoRoot rev-parse --verify $base 2>$null
+    if ($LASTEXITCODE -ne 0) { $base = "HEAD~1" }
+    $raw = git -C $repoRoot diff --name-only "$base...HEAD" 2>$null
+    if (-not $raw) { return @() }
+    return @($raw | Where-Object { $_ })
+}
+
+function Get-PushNewFiles {
+    <# Returns relative paths of newly ADDED files in this push. #>
+    $base = "origin/master"
+    $null = git -C $repoRoot rev-parse --verify $base 2>$null
+    if ($LASTEXITCODE -ne 0) { $base = "HEAD~1" }
+    $raw = git -C $repoRoot diff --name-only --diff-filter=A "$base...HEAD" 2>$null
+    if (-not $raw) { return @() }
+    return @($raw | Where-Object { $_ })
+}
+
+function Resolve-DiffPaths {
+    <# Turn relative git paths into full paths, filtered by extension. #>
+    param([string[]]$RelPaths, [string[]]$Extensions)
+    if (-not $RelPaths -or $RelPaths.Count -eq 0) { return @() }
+    $result = [System.Collections.ArrayList]::new()
+    foreach ($f in $RelPaths) {
+        if (-not $f) { continue }
+        foreach ($ext in $Extensions) {
+            if ($f -like "*$ext") {
+                $full = Join-Path $repoRoot ($f -replace '/', '\')
+                if (Test-Path $full) { $null = $result.Add($full) }
+                break
+            }
+        }
+    }
+    return @($result)
+}
+
+# Baseline long files — these predate the length rules and need refactoring.
+# TECH DEBT: remove entries as files are split into smaller modules.
+$baselineLongFiles = @(
+    'tasks.py',        # pipeline/tasks.py ~2991 lines
+    'views.py',        # core/views.py ~3910 lines, crawler/views.py
+    'services.py',     # health/services.py
+    'models.py'        # large model files
+)
+
+# ── 8.  Cross-language debug artifact purge ──────────────────────────
+Write-Step "8/32 Cross-language: debug artifact purge"
+$debugHits = 0
+
+# TypeScript: console.log/debug and debugger; (NOT console.error/warn — those are legit error handlers)
+$tsPath = Join-Path (Join-Path $repoRoot "frontend") "src"
+$tsHits = Get-ChildItem -Path $tsPath -Filter "*.ts" -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\\node_modules\\|\.spec\.ts$' } |
+    Select-String -Pattern '(console\.(log|debug)\s*\(|^\s*debugger\s*;)'
+if ($tsHits) {
+    $tsHits | ForEach-Object { Write-Host "  [TS] $_" -ForegroundColor Yellow }
+    $debugHits += $tsHits.Count
+}
+
+# C++: std::cout, std::cerr, printf
+$cppPath = Join-Path (Join-Path $repoRoot "backend") "extensions"
+$cppHits = Get-ChildItem -Path $cppPath -Filter "*.cpp" -Recurse -ErrorAction SilentlyContinue |
+    Select-String -Pattern '(std::cout|std::cerr|fprintf\s*\(\s*stderr|(?<!\w)printf\s*\()' -CaseSensitive
+if ($cppHits) {
+    $cppHits | ForEach-Object { Write-Host "  [C++] $_" -ForegroundColor Yellow }
+    $debugHits += $cppHits.Count
+}
+
+# C#: Console.Write/Error, Debug.Log/Write
+$csPath = Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"
+$csHits = Get-ChildItem -Path $csPath -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
+    Select-String -Pattern '(Console\.(Write|Error)|Debug\.(Log|Write|Print))' -CaseSensitive
+if ($csHits) {
+    $csHits | ForEach-Object { Write-Host "  [C#] $_" -ForegroundColor Yellow }
+    $debugHits += $csHits.Count
+}
+
+if ($debugHits -gt 0) {
+    throw "Found $debugHits debug artifact(s). Remove all console.log/cout/Console.Write before pushing."
+}
+
+# ── 9.  Placeholder / stub logic blocker ─────────────────────────────
+Write-Step "9/32 Cross-language: placeholder / stub blocker (diff-scoped)"
+$diffFiles = @(Get-PushDiffFiles)
+$stubFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp", ".cs", ".html"))
+$stubHits = 0
+if ($stubFiles.Count -gt 0) {
+    $stubPattern = '(?i)\b(TODO|FIXME|HACK|XXX)\b|NotImplementedError|NotImplementedException|throw\s+new\s+Error\s*\(\s*[''"]not\s+implemented'
+    $hits = $stubFiles | Select-String -Pattern $stubPattern
+    if ($hits) {
+        $hits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        $stubHits = $hits.Count
+    }
+}
+if ($stubHits -gt 0) {
+    throw "Found $stubHits placeholder(s)/stub(s) (TODO/FIXME/HACK/NotImplemented) in changed files. Finish or remove before pushing."
+}
+
+# ── 10. Diff-scope enforcement ───────────────────────────────────────
+Write-Step "10/32 Repo: diff-scope enforcement"
+if ($diffFiles.Count -gt 0) {
+    $dirCounts = @{}
+    $configExts = @("*.md", "*.yml", "*.yaml", "*.json", "*.toml", "*.ps1", "*.sh", "*.txt", "*.cfg", "*.ini", "*.lock")
+    foreach ($f in $diffFiles) {
+        $isConfig = $false
+        foreach ($ext in $configExts) { if ($f -like $ext) { $isConfig = $true; break } }
+        if ($isConfig) { continue }
+        $topDir = ($f -split '/')[0]
+        if (-not $dirCounts.ContainsKey($topDir)) { $dirCounts[$topDir] = 0 }
+        $dirCounts[$topDir]++
+    }
+    if ($dirCounts.Count -gt 0) {
+        $primaryDir = ($dirCounts.GetEnumerator() | Sort-Object Value -Descending | Select-Object -First 1).Key
+        $outOfScope = @()
+        foreach ($f in $diffFiles) {
+            $isConfig = $false
+            foreach ($ext in $configExts) { if ($f -like $ext) { $isConfig = $true; break } }
+            if ($isConfig) { continue }
+            $topDir = ($f -split '/')[0]
+            if ($topDir -ne $primaryDir) { $outOfScope += $f }
+        }
+        if ($outOfScope.Count -gt 8) {
+            Write-Host "  Primary directory: $primaryDir" -ForegroundColor Cyan
+            $outOfScope | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
+            throw "Push touches $($outOfScope.Count) source files outside '$primaryDir' (threshold: 8). Limit changes to the requested scope."
+        }
+    }
+}
+
+# ── 11. Merge conflict marker detector ───────────────────────────────
+Write-Step "11/32 Repo: merge conflict marker detector"
+$ErrorActionPreference = "Continue"
+$markerHits = git -C $repoRoot grep -n -E "^<{7} |^>{7} " -- "*.py" "*.ts" "*.cs" "*.cpp" "*.html" "*.scss" "*.yml" "*.yaml" 2>$null
+$ErrorActionPreference = "Stop"
+if ($markerHits) {
+    $markerHits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Found merge conflict marker(s). Resolve all conflicts before pushing."
+}
+
+# ── 12. Empty catch / error swallowing detector (diff-scoped) ────────
+Write-Step "12/32 Cross-language: empty catch / error swallowing (diff-scoped)"
+$emptyCatchHits = 0
+$pyAppsPath = Join-Path (Join-Path $repoRoot "backend") "apps"
+
+# TS/C#: catch (...) { }  — only in changed files
+$catchDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts", ".cs"))
+$catchDiffFiles = @($catchDiffFiles | Where-Object { $_ -notmatch '\.spec\.ts$|Tests\.cs$|\\node_modules\\' })
+foreach ($f in $catchDiffFiles) {
+    $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
+    if ($content -match 'catch\s*(\([^)]*\))?\s*\{\s*\}') {
+        Write-Host "  [empty catch] $f" -ForegroundColor Yellow
+        $emptyCatchHits++
+    }
+}
+
+# Python: except ...: pass — only in changed files
+$catchDiffPy = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$catchDiffPy = @($catchDiffPy | Where-Object { $_ -notmatch '\\migrations\\|\\tests' })
+foreach ($f in $catchDiffPy) {
+    $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
+    for ($i = 0; $i -lt ($lines.Count - 1); $i++) {
+        if ($lines[$i] -match '^\s*except(\s+\w[\w.,\s]*)?\s*(\s+as\s+\w+)?\s*:\s*$' -and $lines[$i+1] -match '^\s*pass\s*$') {
+            Write-Host "  [except:pass] $(Split-Path $f -Leaf):$($i+1)" -ForegroundColor Yellow
+            $emptyCatchHits++
+        }
+    }
+}
+
+if ($emptyCatchHits -gt 0) {
+    throw "Found $emptyCatchHits empty catch/except block(s). Every exception must be logged or handled."
+}
+
+# ── 13. Binary / large file blocker ──────────────────────────────────
+Write-Step "13/32 Repo: binary / large file blocker"
+$binaryViolations = @()
+if ($diffFiles.Count -gt 0) {
+    $forbiddenExts = '\.(pyc|pyo|pyd|so|dll|exe|obj|o|lib|a|whl|egg|class|jar|war|npy)$'
+    $forbiddenPaths = '(node_modules/|__pycache__/|\.env$|\.env\.local$|\.env\.production$)'
+    foreach ($f in $diffFiles) {
+        if ($f -match $forbiddenExts) { $binaryViolations += "Binary: $f" }
+        if ($f -match $forbiddenPaths) { $binaryViolations += "Forbidden: $f" }
+    }
+    foreach ($f in $diffFiles) {
+        $fullPath = Join-Path $repoRoot ($f -replace '/', '\')
+        if (Test-Path $fullPath) {
+            $size = (Get-Item $fullPath).Length
+            if ($size -gt 2MB) {
+                $sizeMB = [math]::Round($size / 1MB, 1)
+                $binaryViolations += "Large (${sizeMB}MB): $f"
+            }
+        }
+    }
+}
+if ($binaryViolations.Count -gt 0) {
+    $binaryViolations | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Found $($binaryViolations.Count) binary/large/forbidden file(s) in push. Remove them."
+}
+
+# ── 14. Function length limiter (80 lines, diff-scoped) ─────────────
+Write-Step "14/32 Cross-language: function length limiter (80-line cap, diff-scoped)"
+$maxFuncLines = 80
+$funcViolations = @()
+$funcDiffPy = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$funcDiffPy = @($funcDiffPy | Where-Object { $name = (Split-Path $_ -Leaf); -not ($baselineLongFiles -contains $name) })
+foreach ($f in $funcDiffPy) {
+    $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
+    $funcStart = -1; $funcName = ""
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^\s*(async\s+)?def\s+(\w+)') {
+            if ($funcStart -ge 0) {
+                $length = $i - $funcStart
+                if ($length -gt $maxFuncLines) {
+                    $funcViolations += "$(Split-Path $f -Leaf):$($funcStart+1) '$funcName' = $length lines"
+                }
+            }
+            $funcStart = $i; $funcName = $Matches[2]
+        }
+    }
+    if ($funcStart -ge 0) {
+        $length = $lines.Count - $funcStart
+        if ($length -gt $maxFuncLines) {
+            $funcViolations += "$(Split-Path $f -Leaf):$($funcStart+1) '$funcName' = $length lines"
+        }
+    }
+}
+
+$funcDiffTs = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts"))
+$funcDiffTs = @($funcDiffTs | Where-Object { $_.FullName -notmatch '\.spec\.ts$' })
+foreach ($f in $funcDiffTs) {
+    $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
+    $funcStart = -1; $funcName = ""
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^\s*(public|private|protected|async|static|export)?\s*(async\s+)?\s*(\w+)\s*\([^)]*\)\s*[:{]') {
+            if ($funcStart -ge 0) {
+                $length = $i - $funcStart
+                if ($length -gt $maxFuncLines) {
+                    $funcViolations += "$(Split-Path $f -Leaf):$($funcStart+1) '$funcName' = $length lines"
+                }
+            }
+            $funcStart = $i; $funcName = $Matches[3]
+        }
+    }
+    if ($funcStart -ge 0) {
+        $length = $lines.Count - $funcStart
+        if ($length -gt $maxFuncLines) {
+            $funcViolations += "$(Split-Path $f -Leaf):$($funcStart+1) '$funcName' = $length lines"
+        }
+    }
+}
+
+if ($funcViolations.Count -gt 0) {
+    $funcViolations | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Found $($funcViolations.Count) function(s) exceeding $maxFuncLines lines. Refactor into smaller units."
+}
+
+# ── 15. File length limiter (diff-scoped) ────────────────────────────
+Write-Step "15/32 Cross-language: file length limiter (diff-scoped)"
+$fileViolations = @()
+$fileLimits = @(
+    @{ Ext = ".py"; Max = 500 },
+    @{ Ext = ".ts"; Max = 500 },
+    @{ Ext = ".cpp"; Max = 400 },
+    @{ Ext = ".cs"; Max = 400 }
+)
+foreach ($spec in $fileLimits) {
+    $files = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @($spec.Ext))
+    foreach ($f in $files) {
+        $name = Split-Path $f -Leaf
+        if ($baselineLongFiles -contains $name) { continue }
+        if ($f -match '\\migrations\\|\\tests|\.spec\.ts$|Tests\.cs$') { continue }
+        $lineCount = (Get-Content $f -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
+        if ($lineCount -gt $spec.Max) {
+            $fileViolations += "$name = $lineCount lines (max $($spec.Max))"
+        }
+    }
+}
+if ($fileViolations.Count -gt 0) {
+    $fileViolations | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Found $($fileViolations.Count) file(s) exceeding line limits. Split into smaller modules."
+}
+
+# ── 16. Cyclomatic complexity cap (C901 <= 15, diff-scoped) ──────────
+Write-Step "16/32 Python: cyclomatic complexity cap (C901, max 15, diff-scoped)"
+$complexityDiffPy = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$complexityDiffPy = @($complexityDiffPy | Where-Object { $_ -notmatch '\\migrations\\|\\tests' })
+if ($complexityDiffPy.Count -gt 0) {
+    Push-Location (Join-Path $repoRoot "backend")
+    try {
+        $relPaths = $complexityDiffPy | ForEach-Object {
+            $backendRoot = Join-Path $repoRoot "backend"
+            $rel = $_.Substring($backendRoot.Length + 1) -replace '\\', '/'
+            $rel
+        }
+        $ErrorActionPreference = "Continue"
+        $complexOut = & $python -m ruff check @relPaths --select C901 --config "lint.mccabe.max-complexity = 15" 2>&1
+        $complexExit = $LASTEXITCODE
+        $ErrorActionPreference = "Stop"
+        if ($complexOut) { $complexOut | Write-Host }
+        if ($complexExit -ne 0) {
+            throw "Cyclomatic complexity exceeds 15 in changed function(s). Simplify control flow."
+        }
+    } finally {
+        Pop-Location
+    }
+}
+
+# ── 17. Magic number detector (diff-scoped) ──────────────────────────
+Write-Step "17/32 Python: magic number detector (diff-scoped)"
+$magicHits = 0
+$magicPyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings' })
+$magicPattern = '(?<![.\w])\b(\d{3,})\b(?!\s*(#|px|rem|em|MB|GB|KB|ms|seconds?|minutes?|hours?|days?))' # 3+ digit literals
+foreach ($f in $magicPyFiles) {
+    $hits = Select-String -Path $f -Pattern $magicPattern |
+        Where-Object {
+            $_.Line -notmatch '^\s*#' -and           # not a comment
+            $_.Line -notmatch '(status|STATUS)' -and  # HTTP status codes
+            $_.Line -notmatch 'port\s*=' -and         # port numbers
+            $_.Line -notmatch 'maxsize\s*=' -and      # lru_cache maxsize
+            $_.Line -notmatch '(ALLOWED|CHOICES|RANGE|VERSION|__version__)' # constants
+        }
+    if ($hits) {
+        $hits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        $magicHits += $hits.Count
+    }
+}
+if ($magicHits -gt 0) {
+    throw "Found $magicHits magic number(s) (3+ digits) in changed files. Extract into named constants."
+}
+
+# ── 18. Duplicate code block detector (diff-scoped) ──────────────────
+Write-Step "18/32 Cross-language: duplicate code block detector (diff-scoped)"
+$dupeWindow = 6
+$dupeHashes = @{}  # hash -> @(filepath:line)
+$dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cs", ".cpp"))
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|Tests\.cs$' })
+foreach ($f in $dupeSourceFiles) {
+    $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
+    $cleaned = @()
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if ($trimmed -eq '' -or $trimmed -match '^(#|//|/\*|\*|import |from |using |@|}\s*$|\{\s*$)') { continue }
+        $cleaned += $trimmed
+    }
+    if ($cleaned.Count -lt $dupeWindow) { continue }
+    for ($i = 0; $i -le ($cleaned.Count - $dupeWindow); $i++) {
+        $block = ($cleaned[$i..($i + $dupeWindow - 1)]) -join "`n"
+        $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash(
+            [System.Text.Encoding]::UTF8.GetBytes($block)
+        )
+        $key = [System.BitConverter]::ToString($hash).Substring(0, 16)
+        $location = "$(Split-Path $f -Leaf):$($i+1)"
+        if (-not $dupeHashes.ContainsKey($key)) {
+            $dupeHashes[$key] = @($location)
+        } else {
+            $dupeHashes[$key] += $location
+        }
+    }
+}
+$dupeViolations = @()
+foreach ($entry in $dupeHashes.GetEnumerator()) {
+    $locs = $entry.Value
+    $uniqueFiles = ($locs | ForEach-Object { ($_ -split ':')[0] } | Sort-Object -Unique)
+    if ($uniqueFiles.Count -gt 1 -and $locs.Count -ge 2) {
+        $dupeViolations += "Duplicate block in: $($locs -join ', ')"
+    }
+}
+if ($dupeViolations.Count -gt 5) {
+    $dupeViolations | Select-Object -First 10 | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Found $($dupeViolations.Count) duplicate code block(s) across files. Extract shared logic into utilities."
+}
+
+# ── 19. Empty catch / error swallowing (done above in step 12) ──────
+# Rule 10 (empty catch) is already implemented as step 12 above.
+
+# ── 20. Missing HTTP error handling — Angular (diff-scoped) ──────────
+Write-Step "19/32 Angular: missing HTTP error handling (diff-scoped)"
+$httpHits = 0
+$serviceTsFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts"))
+$serviceTsFiles = @($serviceTsFiles | Where-Object { $_ -like "*.service.ts" })
+foreach ($f in $serviceTsFiles) {
+    $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
+    # Find all this.http.get/post/put/delete/patch calls
+    $httpCalls = [regex]::Matches($content, 'this\.http\.(get|post|put|delete|patch)\s*[<(]')
+    foreach ($call in $httpCalls) {
+        $pos = $call.Index
+        # Check the next 200 chars for catchError or error handler
+        $context = $content.Substring($pos, [Math]::Min(300, $content.Length - $pos))
+        if ($context -notmatch 'catchError|\.subscribe\s*\(\s*\{[^}]*error') {
+            $lineNum = ($content.Substring(0, $pos) -split "`n").Count
+            Write-Host "  $(Split-Path $f -Leaf):$lineNum this.http.$($call.Groups[1].Value)() without catchError" -ForegroundColor Yellow
+            $httpHits++
+        }
+    }
+}
+if ($httpHits -gt 0) {
+    throw "Found $httpHits HttpClient call(s) without error handling in changed services. Add catchError() to every HTTP call."
+}
+
+# ── 21. Logger f-string detector — Python (diff-scoped) ─────────────
+Write-Step "20/32 Python: logger f-string detector (diff-scoped)"
+$fstrHits = 0
+$fstrFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+if ($fstrFiles.Count -gt 0) {
+    $hits = $fstrFiles | Select-String -Pattern 'logger\.(info|warning|error|debug|critical|exception)\(f[''"]'
+    if ($hits) {
+        $hits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+        $fstrHits = $hits.Count
+    }
+}
+if ($fstrHits -gt 0) {
+    throw "Found $fstrHits logger call(s) using f-strings. Use lazy formatting: logger.info('msg %s', var)"
+}
+
+# ── 22. Hardcoded config / secret detector (cross-language) ──────────
+Write-Step "21/32 Cross-language: hardcoded config / secret detector"
+$secretHits = 0
+$secretDirs = @(
+    (Join-Path (Join-Path $repoRoot "frontend") "src\app"),
+    (Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"),
+    (Join-Path (Join-Path $repoRoot "backend") "extensions")
+)
+$secretPatterns = @(
+    '(?i)(api[_-]?key|api[_-]?secret|auth[_-]?token|password|passwd|secret[_-]?key)\s*[:=]\s*[''"][^''"]{8,}',
+    '(?i)(mongodb|postgres|mysql|redis|amqp)://\w+:\w+@',
+    '(?i)bearer\s+[a-zA-Z0-9._\-]{20,}'
+)
+foreach ($dir in $secretDirs) {
+    if (-not (Test-Path $dir)) { continue }
+    $files = Get-ChildItem -Path $dir -Include "*.ts","*.cs","*.cpp" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\.spec\.ts$|Tests\.cs$|test_' }
+    foreach ($pat in $secretPatterns) {
+        $hits = $files | Select-String -Pattern $pat
+        if ($hits) {
+            $hits | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+            $secretHits += $hits.Count
+        }
+    }
+}
+if ($secretHits -gt 0) {
+    throw "Found $secretHits potential hardcoded secret(s). Use environment variables or settings files."
+}
+
+# ── 23. Angular template XSS safety ──────────────────────────────────
+Write-Step "22/32 Angular: template XSS safety"
+$xssHits = 0
+$htmlPath = Join-Path (Join-Path (Join-Path $repoRoot "frontend") "src") "app"
+# bypassSecurityTrust* calls in components (not pipes — pipes sanitize first)
+$xssFiles = Get-ChildItem -Path $htmlPath -Filter "*.ts" -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.FullName -notmatch '\.spec\.ts$|\.pipe\.ts$' }
+$hits = $xssFiles | Select-String -Pattern 'bypassSecurityTrust(Html|Url|Script|ResourceUrl)\s*\('
+if ($hits) {
+    $hits | ForEach-Object { Write-Host "  [bypassSecurityTrust] $_" -ForegroundColor Yellow }
+    $xssHits += $hits.Count
+}
+# document.write in templates
+$htmlHits = Get-ChildItem -Path $htmlPath -Filter "*.html" -Recurse -ErrorAction SilentlyContinue |
+    Select-String -Pattern 'document\.write\s*\('
+if ($htmlHits) {
+    $htmlHits | ForEach-Object { Write-Host "  [document.write] $_" -ForegroundColor Yellow }
+    $xssHits += $htmlHits.Count
+}
+if ($xssHits -gt 0) {
+    throw "Found $xssHits XSS-risk pattern(s). Use Angular DomSanitizer pipe, never bypassSecurityTrust* in components."
+}
+
+# ── 24. SQL string concatenation detector — C# ──────────────────────
+Write-Step "23/32 C#: SQL string concatenation detector"
+$sqlHits = 0
+$sqlDir = Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"
+if (Test-Path $sqlDir) {
+    $sqlPatterns = @(
+        '\$"[^"]*\b(SELECT|INSERT|UPDATE|DELETE|WHERE)\b[^"]*\{',
+        '"[^"]*\b(SELECT|INSERT|UPDATE|DELETE)\b[^"]*"\s*\+'
+    )
+    $sqlFiles = Get-ChildItem -Path $sqlDir -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch 'Tests\.cs$' }
+    foreach ($pat in $sqlPatterns) {
+        $hits = $sqlFiles | Select-String -Pattern $pat
+        if ($hits) {
+            $hits | ForEach-Object { Write-Host "  [SQL concat] $_" -ForegroundColor Yellow }
+            $sqlHits += $hits.Count
+        }
+    }
+}
+if ($sqlHits -gt 0) {
+    throw "Found $sqlHits SQL string concatenation(s). Use NpgsqlParameter for all query values."
+}
+
+# ── 25. Regex safety / ReDoS detector (diff-scoped) ──────────────────
+Write-Step "24/32 Cross-language: regex safety / ReDoS detector (diff-scoped)"
+$redosHits = 0
+$redosDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cs", ".cpp"))
+if ($redosDiffFiles.Count -gt 0) {
+    # Flag capturing groups with nested quantifiers: (something+)+ or (something*)*
+    $hits = @($redosDiffFiles | Select-String -Pattern '\((?!\?)[^)]*[+*][^)]*\)[+*]')
+    if ($hits.Count -gt 0) {
+        $hits | ForEach-Object { Write-Host "  [ReDoS] $_" -ForegroundColor Yellow }
+        $redosHits += $hits.Count
+    }
+}
+if ($redosHits -gt 0) {
+    throw "Found $redosHits regex pattern(s) with nested quantifiers (ReDoS risk). Simplify the regex."
+}
+
+# ── 26. Resource leak pattern detector (diff-scoped) ─────────────────
+Write-Step "25/32 Python/C#: resource leak pattern detector (diff-scoped)"
+$leakHits = 0
+
+# Python: open() without with — only in changed files
+$leakDiffPy = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$leakDiffPy = @($leakDiffPy | Where-Object { $_ -notmatch '\\tests|\\migrations\\' })
+if ($leakDiffPy.Count -gt 0) {
+    $pyHits = @($leakDiffPy | Select-String -Pattern '\bopen\s*\(\s*[''"\w]' |
+        Where-Object { $_.Line -notmatch '^\s*#' -and $_.Line -notmatch 'with\s+open' -and $_.Line -notmatch 'urlopen' -and $_.Line -match '=\s*open\s*\(' })
+    if ($pyHits.Count -gt 0) {
+        $pyHits | ForEach-Object { Write-Host "  [open w/o with] $_" -ForegroundColor Yellow }
+        $leakHits += $pyHits.Count
+    }
+
+    # Python: requests.get/post without timeout (single-line check)
+    $reqHits = @($leakDiffPy | Select-String -Pattern '\brequests\.(get|post|put|delete|patch|head)\s*\(' |
+        Where-Object { $_.Line -notmatch 'timeout\s*=' -and $_.Line -notmatch '^\s*#' })
+    if ($reqHits.Count -gt 0) {
+        $reqHits | ForEach-Object { Write-Host "  [no timeout] $_" -ForegroundColor Yellow }
+        $leakHits += $reqHits.Count
+    }
+}
+
+# C#: new HttpClient() — only in changed files
+$leakDiffCs = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".cs"))
+if ($leakDiffCs.Count -gt 0) {
+    $csClientHits = @($leakDiffCs | Select-String -Pattern 'new\s+HttpClient\s*\(' -CaseSensitive)
+    if ($csClientHits.Count -gt 0) {
+        $csClientHits | ForEach-Object { Write-Host "  [new HttpClient] $_" -ForegroundColor Yellow }
+        $leakHits += $csClientHits.Count
+    }
+}
+
+if ($leakHits -gt 0) {
+    throw "Found $leakHits resource leak pattern(s). Use 'with' for open(), add timeout= to requests, use IHttpClientFactory."
+}
+
+# ── 27. N+1 query pattern detector ──────────────────────────────────
+Write-Step "26/32 Python/C#: N+1 query pattern detector (diff-scoped)"
+$n1Hits = 0
+$n1PyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$n1PyFiles = @($n1PyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\' })
+foreach ($f in $n1PyFiles) {
+    $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
+    $inFor = $false; $forIndent = 0
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if ($lines[$i] -match '^(\s*)for\s+\w+\s+in\s+') {
+            $inFor = $true; $forIndent = $Matches[1].Length
+        } elseif ($inFor -and $lines[$i].Length -gt 0 -and $lines[$i] -notmatch '^\s' -and $forIndent -eq 0) {
+            $inFor = $false
+        } elseif ($inFor -and $lines[$i] -match '^(\s*)' -and $Matches[1].Length -le $forIndent -and $lines[$i].Trim() -ne '' -and $lines[$i] -notmatch '^\s*(#|$)') {
+            $inFor = $false
+        }
+        if ($inFor -and $lines[$i] -match '\.(objects\.(get|filter|exclude|all|first|last|count)\s*\(|\.save\s*\()') {
+            Write-Host "  $(Split-Path $f -Leaf):$($i+1) ORM in loop: $($lines[$i].Trim())" -ForegroundColor Yellow
+            $n1Hits++
+        }
+    }
+}
+if ($n1Hits -gt 0) {
+    throw "Found $n1Hits potential N+1 query pattern(s). Use select_related/prefetch_related or bulk operations."
+}
+
+# ── 28. C# async anti-pattern detector ──────────────────────────────
+Write-Step "27/32 C#: async anti-pattern detector"
+$asyncHits = 0
+if (Test-Path $csPath) {
+    $csFiles = Get-ChildItem -Path $csPath -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch 'Tests\.cs$' }
+    # async void
+    $hits = @($csFiles | Select-String -Pattern 'async\s+void\s+' -CaseSensitive |
+        Where-Object { $_.Line -notmatch '// event handler' })
+    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [async void] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
+
+    # .Result / .Wait() — word boundary to avoid matching ResultTtl etc.
+    $hits = @($csFiles | Select-String -Pattern '\.(Result\b|Wait\s*\(\s*\))' -CaseSensitive |
+        Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -notmatch 'ResultTtl|ResultKey|ResultSet' })
+    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [.Result/.Wait()] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
+
+    # Thread.Sleep
+    $hits = @($csFiles | Select-String -Pattern 'Thread\.Sleep' -CaseSensitive)
+    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [Thread.Sleep] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
+}
+if ($asyncHits -gt 0) {
+    throw "Found $asyncHits C# async anti-pattern(s). No async void, no .Result/.Wait(), no Thread.Sleep."
+}
+
+# ── 29. Dangerous import / forbidden pattern — Python ────────────────
+Write-Step "28/32 Python: dangerous import / forbidden pattern (diff-scoped)"
+$dangerHits = 0
+$dangerFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
+$dangerFiles = @($dangerFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|__init__' })
+if ($dangerFiles.Count -gt 0) {
+    # Wildcard imports
+    $hits = $dangerFiles | Select-String -Pattern '^from\s+\S+\s+import\s+\*' |
+        Where-Object { $_.Line -notmatch '^\s*#' }
+    if ($hits) { $hits | ForEach-Object { Write-Host "  [wildcard import] $_" -ForegroundColor Yellow }; $dangerHits += $hits.Count }
+
+    # datetime.now() / datetime.utcnow()
+    $hits = $dangerFiles | Select-String -Pattern 'datetime\.(now|utcnow)\s*\(' |
+        Where-Object { $_.Line -notmatch '^\s*#' -and $_.Line -notmatch 'timezone' }
+    if ($hits) { $hits | ForEach-Object { Write-Host "  [datetime.now()] $_" -ForegroundColor Yellow }; $dangerHits += $hits.Count }
+
+    # Unbounded @cache
+    $hits = $dangerFiles | Select-String -Pattern '^\s*@cache\s*$'
+    if ($hits) { $hits | ForEach-Object { Write-Host "  [unbounded @cache] $_" -ForegroundColor Yellow }; $dangerHits += $hits.Count }
+
+    # eval/exec
+    $hits = $dangerFiles | Select-String -Pattern '\b(eval|exec)\s*\(' |
+        Where-Object { $_.Line -notmatch '^\s*#' }
+    if ($hits) { $hits | ForEach-Object { Write-Host "  [eval/exec] $_" -ForegroundColor Yellow }; $dangerHits += $hits.Count }
+}
+if ($dangerHits -gt 0) {
+    throw "Found $dangerHits forbidden Python pattern(s). No wildcard imports, no datetime.now(), no unbounded @cache, no eval/exec."
+}
+
+# ── 30. Dockerfile layer regression check ────────────────────────────
+Write-Step "29/32 Docker: layer order regression check"
+$dockerViolations = @()
+$dockerfiles = @(
+    (Join-Path (Join-Path $repoRoot "backend") "Dockerfile"),
+    (Join-Path (Join-Path $repoRoot "frontend") "Dockerfile"),
+    (Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "Dockerfile")
+)
+foreach ($df in $dockerfiles) {
+    if (-not (Test-Path $df)) { continue }
+    $lines = @(Get-Content $df -ErrorAction SilentlyContinue)
+    $sawFullCopy = $false; $sawDepsInstall = $false
+    foreach ($line in $lines) {
+        if ($line -match '^\s*COPY\s+\.\s+\.') { $sawFullCopy = $true }
+        if ($line -match '^\s*RUN\s+.*(pip install|npm (ci|install)|dotnet restore)') {
+            if ($sawFullCopy) {
+                $dockerViolations += "$(Split-Path $df -Leaf): COPY . . appears BEFORE dependency install (breaks layer caching)"
+            }
+            $sawDepsInstall = $true
+        }
+    }
+}
+if ($dockerViolations.Count -gt 0) {
+    $dockerViolations | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Dockerfile layer order regression. Dependencies must be installed BEFORE copying full source."
+}
+
+# ── 31. Lock file consistency check ──────────────────────────────────
+Write-Step "30/32 Repo: lock file consistency check"
+$lockViolations = @()
+if ($diffFiles.Count -gt 0) {
+    $hasPkgJson = $diffFiles | Where-Object { $_ -like "*/package.json" -or $_ -eq "frontend/package.json" }
+    $hasPkgLock = $diffFiles | Where-Object { $_ -like "*/package-lock.json" -or $_ -eq "frontend/package-lock.json" }
+    if ($hasPkgJson -and -not $hasPkgLock) {
+        $lockViolations += "package.json changed but package-lock.json not updated. Run 'npm install'."
+    }
+    if ($hasPkgLock -and -not $hasPkgJson) {
+        # Lock updated without manifest change is usually OK (npm audit fix), skip
+    }
+}
+if ($lockViolations.Count -gt 0) {
+    $lockViolations | ForEach-Object { Write-Host "  $_" -ForegroundColor Yellow }
+    throw "Lock file out of sync. $($lockViolations[0])"
+}
+
+# ── 32. Frontend hardcoded style detector (diff-scoped) ──────────────
+Write-Step "31/32 Frontend: hardcoded style detector (SCSS, diff-scoped)"
+$styleHits = 0
+$styleDiffScss = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".scss"))
+$styleDiffScss = @($styleDiffScss | Where-Object { $_ -like "*\app\*" })
+if ($styleDiffScss.Count -gt 0) {
+    # Hex colors
+    $hexHits = @($styleDiffScss | Select-String -Pattern '#[0-9a-fA-F]{3,8}\b' |
+        Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -notmatch 'var\(' -and $_.Line -notmatch '//.*#' })
+    if ($hexHits.Count -gt 0) {
+        $hexHits | ForEach-Object { Write-Host "  [hex color] $_" -ForegroundColor Yellow }
+        $styleHits += $hexHits.Count
+    }
+
+    # Gradients
+    $gradHits = @($styleDiffScss | Select-String -Pattern '(linear|radial)-gradient\s*\(')
+    if ($gradHits.Count -gt 0) {
+        $gradHits | ForEach-Object { Write-Host "  [gradient] $_" -ForegroundColor Yellow }
+        $styleHits += $gradHits.Count
+    }
+
+    # font-family without var()
+    $fontHits = @($styleDiffScss | Select-String -Pattern 'font-family\s*:' |
+        Where-Object { $_.Line -notmatch 'var\(' -and $_.Line -notmatch '^\s*//' })
+    if ($fontHits.Count -gt 0) {
+        $fontHits | ForEach-Object { Write-Host "  [font-family] $_" -ForegroundColor Yellow }
+        $styleHits += $fontHits.Count
+    }
+}
+if ($styleHits -gt 0) {
+    throw "Found $styleHits hardcoded style(s). Use CSS variables from default-theme.scss. No hex colors, gradients, or font-family."
+}
+
+# ── 33. Unused SCSS class detector (diff-scoped) ────────────────────
+Write-Step "32/32 Frontend: unused SCSS class detector (diff-scoped)"
+$unusedScssHits = 0
+$scssDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".scss"))
+$scssDiffFiles = @($scssDiffFiles | Where-Object { $_ -like "*.component.scss" })
+foreach ($scss in $scssDiffFiles) {
+    $htmlFile = $scss -replace '\.scss$', '.html'
+    if (-not (Test-Path $htmlFile)) { continue }
+    $htmlContent = Get-Content $htmlFile -Raw -ErrorAction SilentlyContinue
+    $scssContent = Get-Content $scss -ErrorAction SilentlyContinue
+    foreach ($line in $scssContent) {
+        if ($line -match '\.([a-zA-Z][\w-]+)\s*[{,:]') {
+            $className = $Matches[1]
+            if ($className -eq 'mat' -or $className -eq 'cdk') { continue } # Angular Material
+            if ($htmlContent -notmatch $className) {
+                Write-Host "  $(Split-Path $scss -Leaf): .$className not found in template" -ForegroundColor Yellow
+                $unusedScssHits++
+            }
+        }
+    }
+}
+if ($unusedScssHits -gt 5) {
+    throw "Found $unusedScssHits unused SCSS class(es) in changed components. Remove dead styles."
+}
+
 Write-Host ""
-Write-Host "All 7 linting checks passed." -ForegroundColor Green
+Write-Host "All 32 checks passed." -ForegroundColor Green
