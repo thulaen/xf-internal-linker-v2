@@ -2070,6 +2070,29 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ---
 
+### FR-097 — Crawl Priority Scheduling via OR-Tools
+**Requested:** 2026-04-10
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Wolf J. et al., "Optimal Re-Visiting of Web Pages", WWW 2002. Knapsack formulation.
+**Spec:** `docs/specs/fr097-crawl-priority-scheduling.md`
+
+### What's wanted
+- Value-optimized crawl scheduling: given a crawl budget of X pages/hour, pick the pages that maximize freshness-weighted traffic value. Replaces FIFO/sitemap ordering with a knapsack solver.
+- Uses Google OR-Tools CP-SAT solver (`pip install ortools`) for the general case, greedy top-K for the common uniform-weight case.
+
+### Specific controls / behaviour
+- Settings: `crawl_priority.enabled`, `crawl_priority.budget_per_window` (500), `crawl_priority.half_life_hours` (168), `crawl_priority.min_staleness_hours` (24), `crawl_priority.traffic_weight` (0.7), `crawl_priority.pagerank_weight` (0.3).
+- Fallback: if OR-Tools not installed or data missing, uses existing FIFO ordering.
+
+### Implementation notes for the AI
+- Python service in `backend/apps/crawler/services/crawl_priority.py`. OR-Tools runs in Python process.
+- C++ is NOT used -- OR-Tools provides its own native solver behind the Python API.
+- Add `ortools>=9.9` to `backend/requirements.txt`.
+
+---
+
 ### FR-0XX - Add your next request here
 
 Template placeholder only. Not backlog scope.

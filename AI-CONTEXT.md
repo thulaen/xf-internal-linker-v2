@@ -231,11 +231,11 @@ Last verified against code: 2026-04-08
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
-| Feature Requests    |   31 |       5 |      59 |         1 |    96 |
+| Feature Requests    |   31 |       5 |      60 |         1 |    97 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
 | C++ META extensions |    0 |       0 |      36 |         0 |    36 |
-| C++ OPT extensions  |    0 |       0 |      72 |         0 |    72 |
-| **All work items**  | **31** | **5** | **167** | **1** | **204** |
+| C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
+| **All work items**  | **31** | **5** | **188** | **1** | **225** |
 
 **Completed FRs (31):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
@@ -251,19 +251,22 @@ FR-033, FR-035
 - FR-042: config keys in migration 0019 exist, score field and scoring logic missing
 - FR-044: config keys in migration 0019 exist, score field and analytics aggregation missing
 
-**Pending FRs (59):**
+**Pending FRs (60):**
 FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-045, FR-046, FR-047, FR-048,
 FR-049, FR-050, FR-051, FR-052, FR-053, FR-054, FR-055, FR-056, FR-057, FR-058,
 FR-059, FR-060, FR-061, FR-062, FR-063, FR-064, FR-065, FR-066, FR-067, FR-068,
 FR-069, FR-070, FR-071, FR-072, FR-073, FR-074, FR-075, FR-076, FR-077, FR-078,
 FR-079, FR-080, FR-081, FR-082, FR-083, FR-084, FR-085, FR-086, FR-087, FR-088,
-FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096
+FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097
 
 **C++ META extensions (36 — all pending):**
 meta-04 through meta-39. Full specs in `docs/specs/meta-*.md`.
 
-**C++ OPT extensions (72 — all pending):**
-opt-01 through opt-72. Full specs in `docs/specs/opt-*.md`.
+**C++ OPT extensions (92 — all pending):**
+opt-01 through opt-92. Full specs in `docs/specs/opt-*.md`.
+OPT-73 to OPT-84: Google C++ library integrations (Abseil, Highway, FarmHash, Google Benchmark).
+OPT-85 to OPT-89: New Python C++ extensions (bbcclean, cooccur_matrix, link_reconcile, phrase_inventory, pipeline_accel).
+OPT-90 to OPT-92: New C# native interop extensions (pixie_walk, dom_extract, bayes_attrib).
 
 **Known gaps in completed work:**
 - FR-032: deep-linked discovery (click depth > 5) deferred to Phase 2
