@@ -27,7 +27,7 @@ try {
             $appName = $Matches[1]
             $testFile = "backend/apps/$appName/tests.py"
             $testDir  = "backend/apps/$appName/tests/"
-            $hasNewTest = ($newFiles | Where-Object { $_ -match "backend/apps/$appName/test" }).Count -gt 0
+            $hasNewTest = @($newFiles | Where-Object { $_ -match "backend/apps/$appName/test" }).Count -gt 0
             if (-not $hasNewTest) {
                 $tfPath = Join-Path $repoRoot ($testFile -replace '/', '\')
                 $tdPath = Join-Path $repoRoot ($testDir -replace '/', '\')
