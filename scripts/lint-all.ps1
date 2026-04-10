@@ -893,7 +893,7 @@ foreach ($scss in $scssDiffFiles) {
     foreach ($line in $scssContent) {
         if ($line -match '\.([a-zA-Z][\w-]+)\s*[{,:]') {
             $className = $Matches[1]
-            if ($className -eq 'mat' -or $className -eq 'cdk') { continue } # Angular Material
+            if ($className -eq 'mat' -or $className -eq 'cdk' -or $className -match '^mat-mdc-' -or $className -match '^mdc-') { continue } # Angular Material / MDC
             if ($htmlContent -notmatch $className) {
                 Write-Host "  $(Split-Path $scss -Leaf): .$className not found in template" -ForegroundColor Yellow
                 $unusedScssHits++
