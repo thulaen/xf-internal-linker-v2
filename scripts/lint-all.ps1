@@ -542,7 +542,7 @@ foreach ($f in $dupeSourceFiles) {
 $dupeViolations = @()
 foreach ($entry in $dupeHashes.GetEnumerator()) {
     $locs = $entry.Value
-    $uniqueFiles = ($locs | ForEach-Object { ($_ -split ':')[0] } | Sort-Object -Unique)
+    $uniqueFiles = @($locs | ForEach-Object { ($_ -split ':')[0] } | Sort-Object -Unique)
     if ($uniqueFiles.Count -gt 1 -and $locs.Count -ge 2) {
         $dupeViolations += "Duplicate block in: $($locs -join ', ')"
     }
