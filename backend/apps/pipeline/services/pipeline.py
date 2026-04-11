@@ -125,68 +125,247 @@ def run_pipeline(
     host_scope_ids: set[int] | None = None,
     progress_fn: Callable[[float, str], None] | None = None,
 ) -> PipelineResult:
-    """Execute the full 3-stage ML suggestion pipeline.
-
-    Args:
-        run_id: UUID string of the PipelineRun record.
-        rerun_mode: 'skip_pending' | 'supersede_pending' | 'full_regenerate'
-        destination_scope_ids: Restrict destinations to these ScopeItem PKs.
-        destination_content_item_ids: Restrict destinations to these ContentItem PKs.
-        host_scope_ids: Restrict hosts to these ScopeItem PKs.
-        progress_fn: Optional callback(progress_0_to_1, message) for live updates.
-    """
+    """Execute the full 3-stage ML suggestion pipeline."""
 
     def _progress(pct: float, msg: str) -> None:
         logger.info("[run=%s] %.0f%% — %s", run_id, pct * 100, msg)
         if progress_fn:
             progress_fn(pct, msg)
 
-    suggestions_created = 0
-    items_in_scope = 0
-
     _progress(0.02, "Loading settings and weights...")
-    weights = _load_weights()
-    silo_settings = _load_silo_settings()
-    weighted_authority_settings = _load_weighted_authority_settings()
-    link_freshness_settings = _load_link_freshness_settings()
-    phrase_matching_settings = _load_phrase_matching_settings()
-    learned_anchor_settings = _load_learned_anchor_settings()
-    rare_term_settings = _load_rare_term_propagation_settings()
-    field_aware_settings = _load_field_aware_relevance_settings()
-    ga4_gsc_settings = _load_ga4_gsc_settings()
-    click_distance_settings = _load_click_distance_settings()
-    feedback_rerank_settings = _load_feedback_rerank_settings()
-    clustering_settings = _load_clustering_settings()
-    slate_diversity_settings = _load_slate_diversity_settings()
-    max_host_reuse = _get_max_host_reuse()
+    settings = _load_all_pipeline_settings()
 
     _progress(0.04, "Initializing feedback reranker...")
-    feedback_rerank_service = FeedbackRerankService(feedback_rerank_settings)
-    if feedback_rerank_settings.enabled:
+    feedback_rerank_service = FeedbackRerankService(settings["feedback_rerank"])
+    if settings["feedback_rerank"].enabled:
         feedback_rerank_service.load_historical_stats()
 
-    _progress(0.05, "Loading content records...")
+    _progress(0.05, "Loading pipeline data...")
+    data = _load_pipeline_resources(
+        destination_scope_ids=destination_scope_ids,
+        destination_content_item_ids=destination_content_item_ids,
+        host_scope_ids=host_scope_ids,
+        rerun_mode=rerun_mode,
+        rare_term_settings=settings["rare_term"],
+        progress_fn=_progress,
+    )
+    if isinstance(data, PipelineResult):
+        return data
+
+    return _execute_pipeline_stages(
+        run_id=run_id,
+        rerun_mode=rerun_mode,
+        data=data,
+        settings=settings,
+        feedback_rerank_service=feedback_rerank_service,
+        progress_fn=_progress,
+    )
+
+
+def _execute_pipeline_stages(
+    *,
+    run_id: str,
+    rerun_mode: str,
+    data: tuple,
+    settings: dict[str, Any],
+    feedback_rerank_service: Any,
+    progress_fn: Callable,
+) -> PipelineResult:
+    """Run Stage 1, Stage 2+3, and finalize the pipeline."""
+    (
+        content_records,
+        sentence_records,
+        content_to_sentence_ids,
+        existing_links,
+        existing_outgoing_counts,
+        max_existing_links_per_host,
+        max_anchor_words,
+        paragraph_window,
+        learned_anchor_rows_by_destination,
+        rare_term_profiles,
+        destination_keys,
+        dest_embeddings,
+        items_in_scope,
+        sentence_ids_ordered,
+        sentence_embeddings,
+        sentence_id_to_row,
+        march_2026_pagerank_bounds,
+    ) = data
+
+    progress_fn(0.25, "Stage 1: coarse content-level candidate retrieval...")
+    stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        content_records=content_records,
+        content_to_sentence_ids=content_to_sentence_ids,
+        top_k=STAGE1_TOP_K,
+        block_size=BLOCK_SIZE,
+    )
+
+    progress_fn(0.50, "Stage 2+3: sentence scoring and ranking...")
+    settings["max_existing_links_per_host"] = max_existing_links_per_host
+    settings["max_anchor_words"] = max_anchor_words
+    candidates_by_destination, diagnostics = _score_all_destinations(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        stage1_candidates=stage1_candidates,
+        content_records=content_records,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
+        settings=settings,
+        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+        rare_term_profiles=rare_term_profiles,
+        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
+        feedback_rerank_service=feedback_rerank_service,
+        progress_fn=progress_fn,
+        items_in_scope=items_in_scope,
+    )
+
+    return _finalize_pipeline(
+        run_id=run_id,
+        rerun_mode=rerun_mode,
+        settings=settings,
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        sentence_embeddings=sentence_embeddings,
+        candidates_by_destination=candidates_by_destination,
+        diagnostics=diagnostics,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        paragraph_window=paragraph_window,
+        items_in_scope=items_in_scope,
+        progress_fn=progress_fn,
+    )
+
+
+def _finalize_pipeline(
+    *,
+    run_id: str,
+    rerun_mode: str,
+    settings: dict[str, Any],
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    sentence_embeddings: np.ndarray,
+    candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
+    diagnostics: list[tuple],
+    content_records: dict[ContentKey, ContentRecord],
+    sentence_records: dict[int, SentenceRecord],
+    paragraph_window: int,
+    items_in_scope: int,
+    progress_fn: Callable,
+) -> PipelineResult:
+    """Apply diversity/filtering, persist suggestions, and return the result."""
+    embedding_lookup: dict[ContentKey, np.ndarray] = {
+        dest_key: dest_embeddings[i] for i, dest_key in enumerate(destination_keys)
+    }
+
+    del dest_embeddings, sentence_embeddings
+    gc.collect()
+
+    if settings["slate_diversity"].enabled:
+        progress_fn(0.87, "FR-015: applying slate diversity reranking...")
+        selected_candidates = apply_slate_diversity(
+            candidates_by_destination=candidates_by_destination,
+            embedding_lookup=embedding_lookup,
+            settings=settings["slate_diversity"],
+            max_per_host=settings["max_host_reuse"],
+        )
+    else:
+        progress_fn(
+            0.87,
+            "Resolving host-reuse, circular-pair, and paragraph-cluster filters...",
+        )
+        blocked_diagnostics: dict[ContentKey, str] = {}
+        selected_candidates = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=settings["max_host_reuse"],
+            sentence_records=sentence_records,
+            paragraph_window=paragraph_window,
+            blocked_diagnostics=blocked_diagnostics,
+        )
+        for dest_key, reason in blocked_diagnostics.items():
+            diagnostics.append((dest_key[0], dest_key[1], reason, None))
+
+    progress_fn(0.92, "Persisting suggestions...")
+    suggestions_created = _persist_suggestions(
+        run_id=run_id,
+        selected_candidates=selected_candidates,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        rerun_mode=rerun_mode,
+    )
+
+    _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)
+
+    progress_fn(1.0, f"Pipeline complete — {suggestions_created} suggestions created.")
+    return PipelineResult(
+        run_id=run_id,
+        items_in_scope=items_in_scope,
+        suggestions_created=suggestions_created,
+        destinations_skipped=items_in_scope - suggestions_created,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Pipeline setup helpers (extracted from run_pipeline for function-length compliance)
+# ---------------------------------------------------------------------------
+
+
+def _load_all_pipeline_settings() -> dict[str, Any]:
+    """Load every ranking setting into a single dict."""
+    return {
+        "weights": _load_weights(),
+        "silo": _load_silo_settings(),
+        "weighted_authority": _load_weighted_authority_settings(),
+        "link_freshness": _load_link_freshness_settings(),
+        "phrase_matching": _load_phrase_matching_settings(),
+        "learned_anchor": _load_learned_anchor_settings(),
+        "rare_term": _load_rare_term_propagation_settings(),
+        "field_aware": _load_field_aware_relevance_settings(),
+        "ga4_gsc": _load_ga4_gsc_settings(),
+        "click_distance": _load_click_distance_settings(),
+        "feedback_rerank": _load_feedback_rerank_settings(),
+        "clustering": _load_clustering_settings(),
+        "slate_diversity": _load_slate_diversity_settings(),
+        "max_host_reuse": _get_max_host_reuse(),
+    }
+
+
+def _load_pipeline_content(
+    *,
+    destination_scope_ids: set[int] | None,
+    destination_content_item_ids: set[int] | None,
+    host_scope_ids: set[int] | None,
+    rare_term_settings: Any,
+    progress_fn: Callable,
+) -> PipelineResult | tuple:
+    """Load content records, sentences, existing links, and rare-term profiles.
+
+    Returns PipelineResult on early exit (no content), or a tuple of loaded
+    content-level resources on success.
+    """
+    progress_fn(0.05, "Loading content records...")
     content_records = _load_content_records(
         destination_scope_ids=destination_scope_ids,
         host_scope_ids=host_scope_ids,
     )
     if not content_records:
-        _progress(1.0, "No content records found — pipeline complete.")
+        progress_fn(1.0, "No content records found — pipeline complete.")
         return PipelineResult(
-            run_id=run_id,
-            items_in_scope=0,
-            suggestions_created=0,
-            destinations_skipped=0,
+            run_id="", items_in_scope=0, suggestions_created=0, destinations_skipped=0
         )
 
-    _progress(0.08, "Loading sentence records...")
+    progress_fn(0.08, "Loading sentence records...")
     sentence_records, content_to_sentence_ids = _load_sentence_records(
         set(content_records.keys())
     )
 
-    _progress(0.12, "Loading existing links...")
+    progress_fn(0.12, "Loading existing links...")
     existing_links = _load_existing_links()
-    # Count outgoing links per host — used by the max-links-per-host guard.
     existing_outgoing_counts: dict[ContentKey, int] = Counter(
         from_key for from_key, _to_key in existing_links
     )
@@ -194,9 +373,9 @@ def run_pipeline(
     max_anchor_words = _get_max_anchor_words()
     paragraph_window = _get_paragraph_window()
     learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
-    rare_term_profiles = {}
+    rare_term_profiles: dict = {}
     if rare_term_settings.enabled:
-        _progress(0.14, "Building rare-term propagation profiles...")
+        progress_fn(0.14, "Building rare-term propagation profiles...")
         rare_term_source_records = (
             content_records
             if destination_scope_ids is None
@@ -209,12 +388,75 @@ def run_pipeline(
             settings=rare_term_settings,
         )
 
-    _progress(0.15, "Applying rerun mode filter...")
+    return (
+        content_records,
+        sentence_records,
+        content_to_sentence_ids,
+        existing_links,
+        existing_outgoing_counts,
+        max_existing_links_per_host,
+        max_anchor_words,
+        paragraph_window,
+        learned_anchor_rows_by_destination,
+        rare_term_profiles,
+    )
+
+
+def _load_pipeline_resources(
+    *,
+    destination_scope_ids: set[int] | None,
+    destination_content_item_ids: set[int] | None,
+    host_scope_ids: set[int] | None,
+    rerun_mode: str,
+    rare_term_settings: Any,
+    progress_fn: Callable,
+) -> PipelineResult | tuple:
+    """Load all pipeline resources including embeddings.
+
+    Returns PipelineResult on early exit (no data), or a tuple of all loaded
+    resources on success.
+    """
+    content_data = _load_pipeline_content(
+        destination_scope_ids=destination_scope_ids,
+        destination_content_item_ids=destination_content_item_ids,
+        host_scope_ids=host_scope_ids,
+        rare_term_settings=rare_term_settings,
+        progress_fn=progress_fn,
+    )
+    if isinstance(content_data, PipelineResult):
+        return content_data
+
+    content_records = content_data[0]
+
+    progress_fn(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
     if rerun_mode == "supersede_pending":
         _supersede_pending_suggestions(list(content_records.keys()))
 
-    _progress(0.18, "Loading destination embeddings from pgvector...")
+    embedding_data = _load_pipeline_embeddings(
+        content_records=content_records,
+        pending_destinations=pending_destinations,
+        destination_content_item_ids=destination_content_item_ids,
+        progress_fn=progress_fn,
+    )
+    if isinstance(embedding_data, PipelineResult):
+        return embedding_data
+
+    return content_data + embedding_data
+
+
+def _load_pipeline_embeddings(
+    *,
+    content_records: dict[ContentKey, ContentRecord],
+    pending_destinations: set[ContentKey],
+    destination_content_item_ids: set[int] | None,
+    progress_fn: Callable,
+) -> PipelineResult | tuple:
+    """Load destination and sentence embeddings from pgvector.
+
+    Returns PipelineResult on early exit, or a tuple of embedding resources.
+    """
+    progress_fn(0.18, "Loading destination embeddings from pgvector...")
     destination_keys, dest_embeddings = _load_destination_embeddings(
         content_records,
         pending_destinations=pending_destinations,
@@ -223,23 +465,20 @@ def run_pipeline(
     items_in_scope = len(destination_keys)
 
     if items_in_scope == 0:
-        _progress(1.0, "No destinations to process — pipeline complete.")
+        progress_fn(1.0, "No destinations to process — pipeline complete.")
         return PipelineResult(
-            run_id=run_id,
-            items_in_scope=0,
-            suggestions_created=0,
-            destinations_skipped=0,
+            run_id="", items_in_scope=0, suggestions_created=0, destinations_skipped=0
         )
 
-    _progress(0.22, "Loading sentence embeddings from pgvector...")
+    progress_fn(0.22, "Loading sentence embeddings from pgvector...")
     sentence_ids_ordered, sentence_embeddings = _load_sentence_embeddings(
         set(content_records.keys())
     )
 
     if sentence_embeddings.shape[0] == 0:
-        _progress(1.0, "No sentence embeddings available — pipeline complete.")
+        progress_fn(1.0, "No sentence embeddings available — pipeline complete.")
         return PipelineResult(
-            run_id=run_id,
+            run_id="",
             items_in_scope=items_in_scope,
             suggestions_created=0,
             destinations_skipped=items_in_scope,
@@ -248,102 +487,16 @@ def run_pipeline(
     sentence_id_to_row = {
         sentence_id: index for index, sentence_id in enumerate(sentence_ids_ordered)
     }
-
     march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
 
-    _progress(0.25, "Stage 1: coarse content-level candidate retrieval...")
-    stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(
-        destination_keys=destination_keys,
-        dest_embeddings=dest_embeddings,
-        content_records=content_records,
-        content_to_sentence_ids=content_to_sentence_ids,
-        top_k=STAGE1_TOP_K,
-        block_size=BLOCK_SIZE,
-    )
-
-    _progress(0.50, "Stage 2+3: sentence scoring and ranking...")
-    candidates_by_destination, diagnostics = _score_all_destinations(
-        destination_keys=destination_keys,
-        dest_embeddings=dest_embeddings,
-        stage1_candidates=stage1_candidates,
-        content_records=content_records,
-        sentence_ids_ordered=sentence_ids_ordered,
-        sentence_embeddings=sentence_embeddings,
-        sentence_records=sentence_records,
-        sentence_id_to_row=sentence_id_to_row,
-        existing_links=existing_links,
-        existing_outgoing_counts=existing_outgoing_counts,
-        max_existing_links_per_host=max_existing_links_per_host,
-        max_anchor_words=max_anchor_words,
-        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
-        rare_term_profiles=rare_term_profiles,
-        weights=weights,
-        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
-        weighted_authority_settings=weighted_authority_settings,
-        link_freshness_settings=link_freshness_settings,
-        phrase_matching_settings=phrase_matching_settings,
-        learned_anchor_settings=learned_anchor_settings,
-        rare_term_settings=rare_term_settings,
-        field_aware_settings=field_aware_settings,
-        ga4_gsc_settings=ga4_gsc_settings,
-        click_distance_settings=click_distance_settings,
-        silo_settings=silo_settings,
-        clustering_settings=clustering_settings,
-        feedback_rerank_settings=feedback_rerank_settings,
-        feedback_rerank_service=feedback_rerank_service,
-        progress_fn=_progress,
-        items_in_scope=items_in_scope,
-    )
-
-    # Build embedding lookup before freeing the numpy arrays (used by FR-015)
-    embedding_lookup: dict[ContentKey, np.ndarray] = {
-        dest_key: dest_embeddings[i] for i, dest_key in enumerate(destination_keys)
-    }
-
-    del dest_embeddings, sentence_embeddings
-    gc.collect()
-
-    if slate_diversity_settings.enabled:
-        _progress(0.87, "FR-015: applying slate diversity reranking...")
-        selected_candidates = apply_slate_diversity(
-            candidates_by_destination=candidates_by_destination,
-            embedding_lookup=embedding_lookup,
-            settings=slate_diversity_settings,
-            max_per_host=max_host_reuse,
-        )
-    else:
-        _progress(
-            0.87,
-            "Resolving host-reuse, circular-pair, and paragraph-cluster filters...",
-        )
-        blocked_diagnostics: dict[ContentKey, str] = {}
-        selected_candidates = select_final_candidates(
-            candidates_by_destination,
-            max_host_reuse=max_host_reuse,
-            sentence_records=sentence_records,
-            paragraph_window=paragraph_window,
-            blocked_diagnostics=blocked_diagnostics,
-        )
-        for dest_key, reason in blocked_diagnostics.items():
-            diagnostics.append((dest_key[0], dest_key[1], reason, None))
-
-    _progress(0.92, "Persisting suggestions...")
-    suggestions_created = _persist_suggestions(
-        run_id=run_id,
-        selected_candidates=selected_candidates,
-        content_records=content_records,
-        sentence_records=sentence_records,
-        rerun_mode=rerun_mode,
-    )
-
-    _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)
-
-    _progress(1.0, f"Pipeline complete — {suggestions_created} suggestions created.")
-    return PipelineResult(
-        run_id=run_id,
-        items_in_scope=items_in_scope,
-        suggestions_created=suggestions_created,
-        destinations_skipped=items_in_scope - suggestions_created,
+    return (
+        destination_keys,
+        dest_embeddings,
+        items_in_scope,
+        sentence_ids_ordered,
+        sentence_embeddings,
+        sentence_id_to_row,
+        march_2026_pagerank_bounds,
     )
 
 
@@ -364,23 +517,10 @@ def _score_all_destinations(
     sentence_id_to_row: dict[int, int],
     existing_links: set[tuple[ContentKey, ContentKey]],
     existing_outgoing_counts: dict[ContentKey, int],
-    max_existing_links_per_host: int,
-    max_anchor_words: int,
+    settings: dict[str, Any],
     learned_anchor_rows_by_destination: dict,
     rare_term_profiles: dict,
-    weights: dict[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
-    weighted_authority_settings: dict,
-    link_freshness_settings: dict,
-    phrase_matching_settings: Any,
-    learned_anchor_settings: Any,
-    rare_term_settings: Any,
-    field_aware_settings: Any,
-    ga4_gsc_settings: dict,
-    click_distance_settings: dict,
-    silo_settings: Any,
-    clustering_settings: Any,
-    feedback_rerank_settings: Any,
     feedback_rerank_service: Any,
     progress_fn: Callable,
     items_in_scope: int,
@@ -390,95 +530,163 @@ def _score_all_destinations(
     diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
 
     for dest_idx, dest_key in enumerate(destination_keys):
-        destination = content_records[dest_key]
-        host_sentence_ids = stage1_candidates.get(dest_key, [])
-
-        matches = _score_sentences_stage2(
-            destination_embedding=dest_embeddings[dest_idx],
-            sentence_ids=host_sentence_ids,
+        _score_single_destination(
+            dest_idx=dest_idx,
+            dest_key=dest_key,
+            dest_embeddings=dest_embeddings,
+            stage1_candidates=stage1_candidates,
+            content_records=content_records,
             sentence_ids_ordered=sentence_ids_ordered,
             sentence_embeddings=sentence_embeddings,
             sentence_records=sentence_records,
             sentence_id_to_row=sentence_id_to_row,
-            top_k=STAGE2_TOP_K,
-        )
-
-        if not matches:
-            diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
-            continue
-
-        blocked_reasons: set[str] = set()
-        scored = score_destination_matches(
-            destination,
-            matches,
-            content_records=content_records,
-            sentence_records=sentence_records,
             existing_links=existing_links,
             existing_outgoing_counts=existing_outgoing_counts,
-            max_existing_links_per_host=max_existing_links_per_host,
-            max_anchor_words=max_anchor_words,
+            settings=settings,
             learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
             rare_term_profiles=rare_term_profiles,
-            weights=weights,
             march_2026_pagerank_bounds=march_2026_pagerank_bounds,
-            weighted_authority_ranking_weight=weighted_authority_settings[
-                "ranking_weight"
-            ],
-            link_freshness_ranking_weight=link_freshness_settings["ranking_weight"],
-            phrase_matching_settings=phrase_matching_settings,
-            learned_anchor_settings=learned_anchor_settings,
-            rare_term_settings=rare_term_settings,
-            field_aware_settings=field_aware_settings,
-            ga4_gsc_ranking_weight=ga4_gsc_settings["ranking_weight"],
-            click_distance_ranking_weight=click_distance_settings["ranking_weight"],
-            silo_settings=silo_settings,
-            clustering_settings=clustering_settings,
-            blocked_reasons=blocked_reasons,
-            min_semantic_score=MIN_SEMANTIC_SCORE,
+            feedback_rerank_service=feedback_rerank_service,
+            candidates_by_destination=candidates_by_destination,
+            diagnostics=diagnostics,
         )
-
-        if scored:
-            if feedback_rerank_settings.enabled:
-                scored = feedback_rerank_service.rerank_candidates(
-                    scored,
-                    host_scope_id_map={
-                        c.host_content_id: content_records[
-                            (c.host_content_id, c.host_content_type)
-                        ].scope_id
-                        for c in scored
-                    },
-                    destination_scope_id_map={
-                        destination.content_id: destination.scope_id
-                    },
-                )
-            candidates_by_destination[dest_key] = scored
-        elif "cross_silo_blocked" in blocked_reasons:
-            diagnostics.append(
-                (
-                    dest_key[0],
-                    dest_key[1],
-                    "cross_silo_blocked",
-                    {
-                        "mode": silo_settings.mode,
-                        "destination_silo_group_id": destination.silo_group_id,
-                        "destination_silo_group_name": destination.silo_group_name,
-                    },
-                )
-            )
-        elif "max_links_reached" in blocked_reasons:
-            diagnostics.append((dest_key[0], dest_key[1], "max_links_reached", None))
-        elif "anchor_too_long" in blocked_reasons:
-            diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
-        else:
-            diagnostics.append(
-                (dest_key[0], dest_key[1], "all_candidates_filtered", None)
-            )
 
         if dest_idx % 100 == 0 and dest_idx > 0:
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
             progress_fn(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
 
     return candidates_by_destination, diagnostics
+
+
+def _score_single_destination(
+    *,
+    dest_idx: int,
+    dest_key: ContentKey,
+    dest_embeddings: np.ndarray,
+    stage1_candidates: dict[ContentKey, list[int]],
+    content_records: dict[ContentKey, ContentRecord],
+    sentence_ids_ordered: list[int],
+    sentence_embeddings: np.ndarray,
+    sentence_records: dict[int, SentenceRecord],
+    sentence_id_to_row: dict[int, int],
+    existing_links: set[tuple[ContentKey, ContentKey]],
+    existing_outgoing_counts: dict[ContentKey, int],
+    settings: dict[str, Any],
+    learned_anchor_rows_by_destination: dict,
+    rare_term_profiles: dict,
+    march_2026_pagerank_bounds: tuple[float, float],
+    feedback_rerank_service: Any,
+    candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
+    diagnostics: list[tuple],
+) -> None:
+    """Score a single destination through Stage 2 + Stage 3."""
+    destination = content_records[dest_key]
+    host_sentence_ids = stage1_candidates.get(dest_key, [])
+
+    matches = _score_sentences_stage2(
+        destination_embedding=dest_embeddings[dest_idx],
+        sentence_ids=host_sentence_ids,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row,
+        top_k=STAGE2_TOP_K,
+    )
+
+    if not matches:
+        diagnostics.append((dest_key[0], dest_key[1], "no_semantic_matches", None))
+        return
+
+    blocked_reasons: set[str] = set()
+    scored = score_destination_matches(
+        destination,
+        matches,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
+        max_existing_links_per_host=settings["max_existing_links_per_host"],
+        max_anchor_words=settings["max_anchor_words"],
+        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+        rare_term_profiles=rare_term_profiles,
+        weights=settings["weights"],
+        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
+        weighted_authority_ranking_weight=settings["weighted_authority"][
+            "ranking_weight"
+        ],
+        link_freshness_ranking_weight=settings["link_freshness"]["ranking_weight"],
+        phrase_matching_settings=settings["phrase_matching"],
+        learned_anchor_settings=settings["learned_anchor"],
+        rare_term_settings=settings["rare_term"],
+        field_aware_settings=settings["field_aware"],
+        ga4_gsc_ranking_weight=settings["ga4_gsc"]["ranking_weight"],
+        click_distance_ranking_weight=settings["click_distance"]["ranking_weight"],
+        silo_settings=settings["silo"],
+        clustering_settings=settings["clustering"],
+        blocked_reasons=blocked_reasons,
+        min_semantic_score=MIN_SEMANTIC_SCORE,
+    )
+
+    _collect_destination_result(
+        dest_key=dest_key,
+        destination=destination,
+        scored=scored,
+        blocked_reasons=blocked_reasons,
+        settings=settings,
+        content_records=content_records,
+        feedback_rerank_service=feedback_rerank_service,
+        candidates_by_destination=candidates_by_destination,
+        diagnostics=diagnostics,
+    )
+
+
+def _collect_destination_result(
+    *,
+    dest_key: ContentKey,
+    destination: ContentRecord,
+    scored: list[ScoredCandidate],
+    blocked_reasons: set[str],
+    settings: dict[str, Any],
+    content_records: dict[ContentKey, ContentRecord],
+    feedback_rerank_service: Any,
+    candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
+    diagnostics: list[tuple],
+) -> None:
+    """Store scored candidates or record a diagnostic for this destination."""
+    if scored:
+        if settings["feedback_rerank"].enabled:
+            scored = feedback_rerank_service.rerank_candidates(
+                scored,
+                host_scope_id_map={
+                    c.host_content_id: content_records[
+                        (c.host_content_id, c.host_content_type)
+                    ].scope_id
+                    for c in scored
+                },
+                destination_scope_id_map={destination.content_id: destination.scope_id},
+            )
+        candidates_by_destination[dest_key] = scored
+        return
+
+    if "cross_silo_blocked" in blocked_reasons:
+        diagnostics.append(
+            (
+                dest_key[0],
+                dest_key[1],
+                "cross_silo_blocked",
+                {
+                    "mode": settings["silo"].mode,
+                    "destination_silo_group_id": destination.silo_group_id,
+                    "destination_silo_group_name": destination.silo_group_name,
+                },
+            )
+        )
+    elif "max_links_reached" in blocked_reasons:
+        diagnostics.append((dest_key[0], dest_key[1], "max_links_reached", None))
+    elif "anchor_too_long" in blocked_reasons:
+        diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
+    else:
+        diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))
 
 
 # ---------------------------------------------------------------------------
