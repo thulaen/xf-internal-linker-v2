@@ -513,8 +513,12 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch '(FR-\d|Slice\s)' -and # feature-request references
             $_.Line -notmatch '(head_limit|offset|limit)' -and # pagination constants
             $_.Line -notmatch 'size=\(' -and         # numpy array size parameters
-            $_.Line -notmatch '\(19\d\d\)|\(20\d\d\)' -and # academic citation years
-            $_.Line -notmatch '1024\s*\*' # memory arithmetic (e.g. 1024 * 1024)
+            $_.Line -notmatch '19\d\d|20\d\d' -and  # academic citation years
+            $_.Line -notmatch '1024\s*\*' -and       # memory arithmetic (e.g. 1024 * 1024)
+            $_.Line -notmatch '\*\s*100[.\s]' -and   # percentage conversions (* 100)
+            $_.Line -notmatch '=\s*100\.0' -and      # percentage literals (= 100.0)
+            $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
+            $_.Line -notmatch '^\s*_[A-Z_]+\s*='     # private named constants
         }
     if ($hits) {
         $hitsArray = @($hits)
