@@ -30,6 +30,7 @@ This is the single source of truth for what every AI must read, update, and chec
 | 3 | `FEATURE-REQUESTS.md` | Always — backlog status, what's done, what's pending |
 | 4 | `docs/BUSINESS-LOGIC-CHECKLIST.md` | If touching ranking, scoring, attribution, import, or reranking |
 | 5 | Language-specific rules file for your work area | If touching that language's code |
+| 6 | `AGENTS.md` § Code Quality Mandate | Always — before writing any code |
 
 Language-specific rules files:
 - `frontend/FRONTEND-RULES.md` — before any frontend work

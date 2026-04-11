@@ -14,6 +14,30 @@ Read all sections before making any changes to frontend styles.
 
 ---
 
+## Code Quality Mandate — All AI Agents
+
+These rules apply to every AI agent working in this repo (Claude, Codex, Gemini, etc.).
+Goal: keep the codebase fast, organised, and stable as it grows — without introducing surprise changes.
+
+### Do this automatically (no approval needed)
+- **Clean up code you are already touching.** If a function you are modifying is messy, overly long, or duplicates logic nearby, tidy it as part of the same task. Do not leave it worse than you found it.
+- **Fix bugs you encounter in the area you are working in**, even if they were not part of the original request. Note what you fixed in your response.
+- **Prefer reuse over invention.** Before writing new logic, search for an existing function, utility, or component that already does the job. Extend it rather than duplicate it.
+- **Handle unexpected errors.** Every function that touches external data (API calls, file I/O, DB queries) must include error handling. Never let an exception silently swallow a failure.
+
+### Flag and ask first (do NOT do automatically)
+- **Large refactors** — if fixing the task properly requires restructuring a file, module, or service beyond what you are already touching, stop and explain the situation in plain English before writing code. Get approval first.
+- **Confusing or conflicting requirements** — if the request contradicts existing logic, another rule, or the architecture, pause and flag the conflict before writing code.
+- **Risky logic** — if a change could affect data integrity, scoring, ranking, attribution, or imports, flag it explicitly and wait for confirmation.
+- **A clearly better approach exists** — if you see a significantly better way to build what was asked, describe it and ask whether to proceed with the original plan or the better one.
+
+### Never do
+- Do not refactor code outside the scope of the current task without explicit approval.
+- Do not silently change behaviour while "cleaning up" — correctness always comes first.
+- Do not introduce new abstractions, helpers, or utilities for a one-time use case.
+
+---
+
 ## Design System - GA4 Visual Identity
 
 This app is styled to match **Google Analytics 4 pixel-for-pixel** as of 2026-04-03.

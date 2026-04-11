@@ -7,6 +7,7 @@
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
+**Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**
 
 # Mandatory Benchmark Rule — All Languages
 
