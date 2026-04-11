@@ -455,7 +455,7 @@ foreach ($spec in $fileLimits) {
     foreach ($f in $files) {
         $name = Split-Path $f -Leaf
         if ($baselineLongFiles -contains $name) { continue }
-        if ($f -match '\\migrations\\|\\tests|\.spec\.ts$|Tests\.cs$') { continue }
+        if ($f -match '\\migrations\\|\\tests|\.spec\.ts$|Tests\.cs$|\.d\.ts$') { continue }
         $lineCount = (Get-Content $f -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
         if ($lineCount -gt $spec.Max) {
             $fileViolations += "$name = $lineCount lines (max $($spec.Max))"

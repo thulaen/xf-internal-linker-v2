@@ -389,6 +389,7 @@ REST_FRAMEWORK = {
         "challenger_eval": "1/minute",
         "settings_write": "10/minute",
     },
+    "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
 }
 
 
