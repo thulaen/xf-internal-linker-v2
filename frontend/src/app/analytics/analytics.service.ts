@@ -1,6 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, catchError, throwError } from 'rxjs';
 
 export interface AnalyticsOverviewResponse {
   ga4: {
@@ -244,54 +244,54 @@ export class AnalyticsService {
   private http = inject(HttpClient);
 
   getOverview(): Observable<AnalyticsOverviewResponse> {
-    return this.http.get<AnalyticsOverviewResponse>('/api/analytics/telemetry/overview/');
+    return this.http.get<AnalyticsOverviewResponse>('/api/analytics/telemetry/overview/').pipe(catchError((err) => throwError(() => err)));
   }
 
   getIntegration(): Observable<AnalyticsIntegrationResponse> {
-    return this.http.get<AnalyticsIntegrationResponse>('/api/analytics/telemetry/integration/');
+    return this.http.get<AnalyticsIntegrationResponse>('/api/analytics/telemetry/integration/').pipe(catchError((err) => throwError(() => err)));
   }
 
   getFunnel(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsFunnelResponse> {
-    return this.http.get<AnalyticsFunnelResponse>(`/api/analytics/telemetry/funnel/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsFunnelResponse>(`/api/analytics/telemetry/funnel/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getTrend(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTrendResponse> {
-    return this.http.get<AnalyticsTrendResponse>(`/api/analytics/telemetry/trend/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsTrendResponse>(`/api/analytics/telemetry/trend/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getTopSuggestions(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTopSuggestionsResponse> {
-    return this.http.get<AnalyticsTopSuggestionsResponse>(`/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsTopSuggestionsResponse>(`/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getHealth(days = 30): Observable<AnalyticsHealthResponse> {
-    return this.http.get<AnalyticsHealthResponse>(`/api/analytics/telemetry/health/?days=${days}`);
+    return this.http.get<AnalyticsHealthResponse>(`/api/analytics/telemetry/health/?days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getBreakdowns(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsBreakdownsResponse> {
-    return this.http.get<AnalyticsBreakdownsResponse>(`/api/analytics/telemetry/breakdowns/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsBreakdownsResponse>(`/api/analytics/telemetry/breakdowns/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getTelemetryByVersion(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsVersionComparisonResponse> {
-    return this.http.get<AnalyticsVersionComparisonResponse>(`/api/analytics/telemetry/by-version/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsVersionComparisonResponse>(`/api/analytics/telemetry/by-version/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getTelemetryGeoDetail(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsGeoDetailResponse> {
-    return this.http.get<AnalyticsGeoDetailResponse>(`/api/analytics/telemetry/geo-detail/?source=${source}&days=${days}`);
+    return this.http.get<AnalyticsGeoDetailResponse>(`/api/analytics/telemetry/geo-detail/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   runGa4Sync(): Observable<AnalyticsSyncTriggerResponse> {
-    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/ga4-sync/', {});
+    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/ga4-sync/', {}).pipe(catchError((err) => throwError(() => err)));
   }
 
   runMatomoSync(): Observable<AnalyticsSyncTriggerResponse> {
-    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/matomo-sync/', {});
+    return this.http.post<AnalyticsSyncTriggerResponse>('/api/analytics/telemetry/matomo-sync/', {}).pipe(catchError((err) => throwError(() => err)));
   }
 
   getSearchImpactList(window = '28d'): Observable<{ items: GSCImpactSnapshot[] }> {
-    return this.http.get<{ items: GSCImpactSnapshot[] }>(`/api/analytics/search-impact/?window=${window}`);
+    return this.http.get<{ items: GSCImpactSnapshot[] }>(`/api/analytics/search-impact/?window=${window}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getSearchImpactDetail(suggestionId: string, window = '28d'): Observable<SearchImpactDetailResponse> {
-    return this.http.get<SearchImpactDetailResponse>(`/api/analytics/search-impact/${suggestionId}/?window=${window}`);
+    return this.http.get<SearchImpactDetailResponse>(`/api/analytics/search-impact/${suggestionId}/?window=${window}`).pipe(catchError((err) => throwError(() => err)));
   }
 }
