@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0016_alter_contentitem_content_type'),
+        ("content", "0016_alter_contentitem_content_type"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='engagement_quality_score',
-            field=models.FloatField(db_index=True, default=0.5, help_text='GA4 engagement quality: 0.50*engaged_session_rate + 0.30*normalized_avg_engagement_time + 0.20*inverse_bounce_rate. 0.5 = neutral. Written by analytics sync layer.'),
+            model_name="contentitem",
+            name="engagement_quality_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.5,
+                help_text="GA4 engagement quality: 0.50*engaged_session_rate + 0.30*normalized_avg_engagement_time + 0.20*inverse_bounce_rate. 0.5 = neutral. Written by analytics sync layer.",
+            ),
         ),
     ]

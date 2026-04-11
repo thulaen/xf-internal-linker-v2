@@ -4,15 +4,21 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('cooccurrence', '0002_rename_cooccurrenc_source__idx_cooccurrenc_source__4e59db_idx_and_more'),
+        (
+            "cooccurrence",
+            "0002_rename_cooccurrenc_source__idx_cooccurrenc_source__4e59db_idx_and_more",
+        ),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='sessioncooccurrencepair',
-            name='log_likelihood_score',
-            field=models.FloatField(db_index=True, default=0.0, help_text='Dunning 1993 log-likelihood ratio (G-squared) for this pair. Higher = more statistically surprising co-occurrence.'),
+            model_name="sessioncooccurrencepair",
+            name="log_likelihood_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.0,
+                help_text="Dunning 1993 log-likelihood ratio (G-squared) for this pair. Higher = more statistically surprising co-occurrence.",
+            ),
         ),
     ]

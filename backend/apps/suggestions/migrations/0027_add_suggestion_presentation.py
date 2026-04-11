@@ -6,28 +6,77 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0026_upsert_missing_preset_keys'),
+        ("suggestions", "0026_upsert_missing_preset_keys"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='SuggestionPresentation',
+            name="SuggestionPresentation",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('presented_date', models.DateField(help_text='Calendar date of the presentation (for daily dedup).')),
-                ('suggestion', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='presentations', to='suggestions.suggestion')),
-                ('user', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, to=settings.AUTH_USER_MODEL)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "presented_date",
+                    models.DateField(
+                        help_text="Calendar date of the presentation (for daily dedup)."
+                    ),
+                ),
+                (
+                    "suggestion",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="presentations",
+                        to="suggestions.suggestion",
+                    ),
+                ),
+                (
+                    "user",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        to=settings.AUTH_USER_MODEL,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Suggestion Presentation',
-                'verbose_name_plural': 'Suggestion Presentations',
-                'indexes': [models.Index(fields=['suggestion', '-presented_date'], name='suggestions_present_idx')],
-                'constraints': [models.UniqueConstraint(fields=('suggestion', 'user', 'presented_date'), name='unique_presentation_per_user_day')],
+                "verbose_name": "Suggestion Presentation",
+                "verbose_name_plural": "Suggestion Presentations",
+                "indexes": [
+                    models.Index(
+                        fields=["suggestion", "-presented_date"],
+                        name="suggestions_present_idx",
+                    )
+                ],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("suggestion", "user", "presented_date"),
+                        name="unique_presentation_per_user_day",
+                    )
+                ],
             },
         ),
     ]
