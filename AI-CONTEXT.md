@@ -50,6 +50,16 @@ Language-specific rules files:
 
 If you find any bug, performance bottleneck, logic flaw, missing validation, or code smell during your session — even if it's outside your current task scope — add it to `docs/reports/REPORT-REGISTRY.md` as an individual issue entry. Don't just ignore it and move on. Future AIs will see it and can fix it.
 
+### MUST TELL THE USER IN CHAT about relevant report-registry findings
+
+If `docs/reports/REPORT-REGISTRY.md` contains an `OPEN` or reopened finding that overlaps with the area you are about to touch, you must say so to the user in chat before writing code. Use plain English. Do not rely only on `AI-CONTEXT.md`, handoff notes, or silent compliance with the registry.
+
+Silence is forbidden. An AI must never notice a relevant open or reopened finding and continue working without telling the user in chat first.
+
+If you decide not to fix that finding in the current session, you must do both:
+- tell the user in chat that you are skipping it and why
+- record the same justification in the Current Session Note in `AI-CONTEXT.md`
+
 ### MUST CHECK for forward clashes (before starting work)
 
 1. Read the next 3 queued phases in the Execution Ledger
@@ -420,6 +430,23 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-11 - Chat notification rule for report-registry overlaps
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `AI-CONTEXT.md`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AGENTS.md`
+  - `CLAUDE.md`
+- What changed:
+  - Added an explicit repo rule that any AI who sees an open or reopened Report Registry finding in the same work area must tell the user in chat before writing code.
+  - Kept the existing written-justification requirement in `AI-CONTEXT.md`, but made chat notification mandatory as well so the user is not expected to discover overlaps by reading docs.
+  - Tightened the wording further so silence is explicitly forbidden: an AI may not notice a relevant open or reopened finding and continue work without telling the user in chat first.
+- Verification that passed:
+  - Documentation review only.
+- Commit/push state:
+  - Changes are currently uncommitted.
 
 ### 2026-04-06 - Phase 27 / FR-024: TikTok Read-Through Rate Engagement Signal
 

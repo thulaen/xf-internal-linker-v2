@@ -1,6 +1,7 @@
 # Claude Instructions
 
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
+**If the Report Registry shows an open or reopened finding in the area you are about to touch, tell the user in chat before writing code. Silence is forbidden.**
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
