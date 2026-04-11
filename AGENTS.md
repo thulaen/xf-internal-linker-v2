@@ -1,6 +1,7 @@
 # Agent Instructions (Codex / OpenAI Codex / CI Agents / Gemini / Claude)
 
 **Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
+**Before any ranking, scoring, attribution, import, or reranking work, read `docs/BUSINESS-LOGIC-CHECKLIST.md` in full and complete every applicable checkbox.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**

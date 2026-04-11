@@ -18,6 +18,8 @@ This applies to past, present, and future code. The Performance Dashboard at `/p
 
 # Mandatory Research Rule for All Features
 
+**Before any session touching ranking, scoring, attribution, import, or reranking logic, read `docs/BUSINESS-LOGIC-CHECKLIST.md` in full. You must check every box or explicitly explain in writing why a box does not apply before writing code.**
+
 Before implementing any new feature or idea:
 1. **Patent/technical doc research** — Find at least one patent, RFC, or peer-reviewed paper that supports the approach. Document the reference in the feature spec.
 2. **Duplicate/overlap check** — Search the codebase for existing implementations that overlap. If overlap exists, extend the existing code rather than creating new code.

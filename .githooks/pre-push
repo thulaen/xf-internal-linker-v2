@@ -56,6 +56,29 @@ if [ $? -ne 0 ]; then
   exit 1
 fi
 
+# 4. Business Logic Checklist reminder
+BUSINESS_LOGIC_DIRS=(
+  "backend/apps/pipeline"
+  "backend/apps/analytics"
+  "backend/apps/cooccurrence"
+  "services/http-worker/src/HttpWorker.Services/Analytics"
+  "services/http-worker/src/HttpWorker.Services/PipelineServices"
+)
+STAGED_FILES=$(git diff --cached --name-only 2>/dev/null)
+for DIR in "${BUSINESS_LOGIC_DIRS[@]}"; do
+  if echo "$STAGED_FILES" | grep -q "^$DIR"; then
+    echo ""
+    echo "========================================="
+    echo "  REMINDER: Business logic files staged."
+    echo "  Did you complete docs/BUSINESS-LOGIC-CHECKLIST.md"
+    echo "  before writing this code? All 7 sections"
+    echo "  (0-6) must be checked or justified."
+    echo "========================================="
+    echo ""
+    break
+  fi
+done
+
 echo "========================================="
 echo "All checks passed! Push proceeding..."
 echo "========================================="

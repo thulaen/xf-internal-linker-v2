@@ -3,157 +3,208 @@
 Date: 2026-04-11
 
 Scope:
-- Verified shipped vs pending work from repo docs against live code.
-- Audited the ranking, import, attribution, and value-model paths.
-- Backed improvement recommendations with primary academic or patent-adjacent research sources.
+- Re-checked repo status from live code, not just backlog text.
+- Focused the logic audit on the current import, feedback, attribution, ranking, and value-model paths.
+- Kept only findings that still hold up in the current code.
+- Backed each improvement recommendation with primary academic sources.
 
 ## Executive Summary
 
-The repo is substantially implemented: the core 3-stage suggestion pipeline, review flow, graph tooling, telemetry sync, attribution path, co-occurrence layer, and C# worker infrastructure are all present in code.
+The repo is much farther along than the backlog text alone suggests. The core pipeline, manual review flow, graph tooling, telemetry sync, attribution plumbing, and co-occurrence/value-model layer are all live in code.
 
-The bigger issue is not "nothing is built"; it is "some important business rules are simpler or noisier than the roadmap language suggests." The highest-impact weaknesses are:
+The main status drift is that the docs still count `FR-036` as pending, but the code already ships a working coverage-gap endpoint, tests, and UI copy for it. A few other items are only partially true in the docs as well: `FR-040`, `FR-042`, and `FR-044` are no longer just "future keys" because model fields now exist, but they are still not wired into scoring.
 
-1. content import silently truncates large sources after five pages;
-2. feedback reranking is still biased by presentation/exposure effects;
-3. search-impact attribution uses weak control construction;
-4. weight auto-tuning optimizes global averages instead of real ranking quality;
-5. the value model still contains duplicated/noisy signals.
+The highest-impact current business-logic weaknesses are:
 
-## Verified Done
+1. import coverage is still silently capped at five pages per source;
+2. feedback reranking still uses a weak exposure proxy instead of real propensities;
+3. attribution currently mixes two different counterfactual stories, one matched and one global;
+4. FR-018 auto-tuning still optimizes four global averages, not actual ranking quality.
 
-- Core pipeline is live: `backend/apps/pipeline/services/pipeline.py:119-297`, `backend/apps/pipeline/services/ranker.py:355-830`.
-- Review/apply flow is live: `backend/apps/suggestions/views.py:217-274`.
-- Graph analysis is live, including coverage-gap analysis: `backend/apps/graph/views.py:628-777`, `frontend/src/app/graph/graph.component.html:981-1075`, `backend/apps/graph/tests.py:288-379`.
-- Context-quality graph audit UI exists: `frontend/src/app/graph/graph.component.html:602-794`.
-- Telemetry-driven destination scoring exists: `backend/apps/analytics/sync.py:879-975`.
-- GSC attribution exists in both Django and C#: `backend/apps/analytics/impact_engine.py:17-239`, `services/http-worker/src/HttpWorker.Services/GSCAttributionService.cs:20-138`.
-- Co-occurrence and value-model scoring exist: `backend/apps/cooccurrence/services.py:257-305`, `backend/apps/cooccurrence/services.py:446-556`.
-- FR-036 appears implemented in code even though `AI-CONTEXT.md` still lists it as pending: `backend/apps/graph/views.py:628-777`, `frontend/src/app/graph/graph.component.ts:177-181,646-682`, `backend/apps/graph/tests.py:288-379`.
+One important correction to the previous version of this report: the older value-model criticism is now stale. Co-occurrence no longer uses max-normalized Jaccard, and traffic and engagement are now separate fields.
 
-## Verified Partial Or Pending
+## Code-Verified Status
 
-- FR-020 is still pending. I found documentation and stale readiness flags, but no real hot-swap/runtime-registry implementation: `backend/apps/diagnostics/health.py:1457-1462`.
-- FR-037 is only partially present. The backend exposes silo-leakage stats, but there is no matching frontend leakage-map view: `backend/apps/audit/views.py:56-112`; no matching frontend search hits for `silo-leakage`.
-- FR-040, FR-042, and FR-044 are only seeded, not integrated into ranking logic. Their fields exist on `ContentItem`, but the diagnostics registry entries are still commented out and the current ranker does not score them:
-  - `backend/apps/content/models.py:240-265`
-  - `backend/apps/diagnostics/signal_registry.py:243-275`
-  - `backend/apps/pipeline/services/ranker.py:355-568`
-- A legacy R-based tuning stub still exists even though the current tuning path is C#: `backend/apps/pipeline/tasks.py:1441-1476`.
-- The diagnostics readiness matrix is stale and under-reports shipped features (`FR-016` to `FR-019` are still marked `planned_only`): `backend/apps/diagnostics/health.py:1442-1462`.
+### Documented baseline
 
-## Business Logic Flaws And Research-Backed Improvements
+The continuity docs currently say the project has `31` completed FRs, `5` partial FRs, and `60` pending FRs, and they still list `FR-036` as pending:
 
-### 1. Import coverage is artificially capped at five pages per source
+- `AI-CONTEXT.md:232-260`
+- `FEATURE-REQUESTS.md:799-860`
 
-Evidence:
-- XenForo threads loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:35-38`
-- XenForo resources loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:94-97`
-- WordPress loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:151-157`
+That baseline is useful, but it is no longer fully aligned with the code.
 
-Why this is a business-logic problem:
-- The whole product depends on having a representative corpus.
-- A fixed `page <= 5` cap silently under-imports large forums/blogs, which then biases embeddings, PageRank, freshness, existing-link extraction, orphan detection, and downstream ranking.
+### Code-verified implemented
 
-Improve it by:
-- Replacing the fixed page cap with a resumable frontier or continuation-token loop.
-- Prioritizing pages/scopes by importance and freshness instead of stopping after an arbitrary depth.
-- Persisting crawl checkpoints so imports can resume instead of restarting from page 1.
+- Core pipeline wiring is live: `backend/apps/pipeline/services/pipeline.py:119`, `backend/apps/pipeline/services/ranker.py:577-668`
+- Manual review and apply flow is live: `backend/apps/suggestions/views.py:115-271`
+- `FR-036` is implemented even though the docs still mark it pending:
+  - backend coverage-gap endpoint: `backend/apps/graph/views.py:628-777`
+  - tests: `backend/apps/graph/tests.py:288-382`
+  - frontend copy/UI evidence: `frontend/src/app/graph/graph.component.html:1027`
 
-Research basis:
-- Cho, Garcia-Molina, and Page, *Efficient Crawling Through URL Ordering* (1998): [archives.iw3c2.org/www7/proceedings/1919/com1919.htm](https://archives.iw3c2.org/www7/proceedings/1919/com1919.htm)
+### Code-verified partial
 
-### 2. Feedback reranking claims exposure correction, but does not use real propensities
+- `FR-034` is partially implemented, not absent:
+  - topology edges already expose anchor/context data: `backend/apps/graph/views.py:471-490`
+  - tests already assert the anchor field: `backend/apps/graph/tests.py:271-278`
+  - crawler UI already renders anchor text and context class: `frontend/src/app/crawler/crawler.component.html:276-285`
+  - but the spec also calls for a fuller audit experience, including anchor-frequency warning/reporting behavior: `docs/specs/fr034-link-context-quality-audit.md:15-24`
+- `FR-037` is still partial:
+  - backend leakage summary endpoint exists: `backend/apps/audit/views.py:56-112`
+  - the spec calls for a richer leakage-map visualization and graph interaction layer: `docs/specs/fr037-silo-connectivity-leakage-map.md:17-25`
+  - I did not find a matching frontend leakage-map implementation during repo search.
 
-Evidence:
-- Historical stats are aggregated only by `(host_scope, destination_scope)`: `backend/apps/pipeline/services/feedback_rerank.py:51-97`
-- The so-called exposure correction is just `reviewed / generated`, not rank-position or display propensity logging: `backend/apps/pipeline/services/feedback_rerank.py:89-96`
-- Final factor uses those aggregated counts directly: `backend/apps/pipeline/services/feedback_rerank.py:121-162`
+### Code-verified pending or seeded-only
 
-Why this is a business-logic problem:
-- Suggestions shown higher, shown more often, or shown in more review-friendly contexts will collect more approvals.
-- The current reranker can therefore learn reviewer-interface bias, not true suggestion quality.
-- Over time this can self-reinforce a narrow set of scope pairs.
+- `FR-020` still appears genuinely pending:
+  - backlog entry remains open: `FEATURE-REQUESTS.md:805-860`
+  - readiness matrix still lists it as postponed: `backend/apps/diagnostics/health.py:1442-1463`
+  - repo search found specs and wording, but no actual model-registry / hot-swap implementation.
+- `FR-040`, `FR-042`, and `FR-044` are seeded, but not integrated:
+  - `ContentItem` fields now exist: `backend/apps/content/models.py:249-274`
+  - forward-declared recommended settings exist: `backend/apps/suggestions/recommended_weights_forward_settings.py:36-90`
+  - tooltip/preset metadata exists in Angular settings TS: `frontend/src/app/settings/settings.component.ts:1041-1185`
+  - diagnostics entries are still commented out: `backend/apps/diagnostics/signal_registry.py:238-276`
+  - current pipeline/value-model search still does not show active scoring functions for these FRs.
 
-Improve it by:
-- Logging actual display/exposure propensities per suggestion, including position and whether the item was visible.
-- Replacing the current proxy correction with inverse-propensity or doubly robust counterfactual learning-to-rank.
-- Keeping the current Bayesian smoothing only as a prior, not as the whole debiasing story.
+## Status-Drift Findings
 
-Research basis:
-- Joachims, Swaminathan, and Schnabel, *Unbiased Learning-to-Rank with Biased Feedback* (2017): [microsoft.com/en-us/research/?p=398159](https://www.microsoft.com/en-us/research/?p=398159)
+### 1. The docs undercount shipped functionality
 
-### 3. Search-impact attribution uses weak counterfactual construction
+`AI-CONTEXT.md` still lists `FR-036` inside pending FRs (`AI-CONTEXT.md:254-260`), but the code already ships a working implementation (`backend/apps/graph/views.py:628-777`, `backend/apps/graph/tests.py:288-382`).
 
-Evidence:
-- Django-side control group is "same silo, first 10 items, no applied links in window": `backend/apps/analytics/impact_engine.py:109-123`
-- Normalization is then a simple control multiplier ratio: `backend/apps/analytics/impact_engine.py:194-237`
-- C# attribution uses sitewide CTR trend as the counterfactual multiplier: `services/http-worker/src/HttpWorker.Services/GSCAttributionService.cs:55-113`
+Practical impact:
+- a future engineer could waste time re-planning or duplicating `FR-036`;
+- the status dashboard is stale by at least one FR.
 
-Why this is a business-logic problem:
-- Same-silo pages are not necessarily matched on baseline traffic, seasonality, content age, or SERP/query mix.
-- Sitewide CTR is too coarse for page-level causal claims.
-- The system can over-credit or under-credit a link when the destination sits inside a changing cohort.
+### 2. The partial-note for FR-040 / FR-042 / FR-044 is now imprecise
 
-Improve it by:
-- Building matched controls from pre-intervention behavior, not just shared silo.
-- Moving attribution toward Bayesian structural time-series or synthetic-control style counterfactuals.
-- Returning uncertainty bands and "insufficient control quality" states when the match is weak.
+The continuity file says these items are partial because config keys exist but the score fields are missing (`AI-CONTEXT.md:250-252`). That is no longer true: the score fields now exist on `ContentItem` (`backend/apps/content/models.py:249-274`).
 
-Research basis:
-- Brodersen et al., *Inferring causal impact using Bayesian structural time-series models* (2015): [research.google/pubs/pub41854](https://research.google/pubs/pub41854)
-- Abadie, Diamond, and Hainmueller, *Synthetic Control Methods for Comparative Case Studies* (2007/2010): [nber.org/papers/t0335](https://www.nber.org/papers/t0335)
+The real current state is:
+- fields exist;
+- forward settings exist;
+- diagnostics placeholders exist;
+- scoring integration is still missing.
 
-### 4. Auto-tuning optimizes a global scalar, not actual ranking quality
+### 3. FR-034 is more implemented than the dashboard text suggests
+
+The continuity note says `FR-034` only has parser/context refs and no usable UI (`AI-CONTEXT.md:247-249`). In practice, anchor/context evidence is already exposed in topology data and surfaced in the crawler table (`backend/apps/graph/views.py:471-490`, `frontend/src/app/crawler/crawler.component.html:276-285`).
+
+The better classification is "partial with operator-visible subset already shipped," not "just refs exist."
+
+## Current Business-Logic Flaws And Research-Backed Improvements
+
+### 1. Import coverage is still artificially capped at five pages per source
 
 Evidence:
-- The tuner only collects four global aggregate signals: `services/http-worker/src/HttpWorker.Core/Contracts/V1/WeightTuningContracts.cs:18-33`
-- The collector returns a single average per signal for the whole lookback window: `services/http-worker/src/HttpWorker.Services/Analytics/WeightTunerDataCollector.cs:35-58`
-- The optimizer score is just a weighted sum of those four aggregates: `services/http-worker/src/HttpWorker.Services/Analytics/WeightObjectiveFunction.cs:44-50`
+- XenForo thread import loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:31-37`
+- XenForo resource import loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:89-95`
+- WordPress import loop: `services/http-worker/src/HttpWorker.Services/PipelineServices.cs:144-154`
 
-Why this is a business-logic problem:
-- A ranking system is judged by how it orders candidates within each decision context, not by one global average per metric.
-- With the current objective, whichever aggregate metric is largest can attract weight even if actual per-suggestion ranking gets worse.
-- This is closer to metric blending than learning-to-rank.
+Why this is a business-logic flaw:
+- The system's downstream quality depends on having a representative corpus.
+- A fixed `page <= 5` cap silently truncates larger forums and blogs.
+- That under-import then propagates into embeddings, graph structure, PageRank, freshness, orphan detection, and suggestion generation.
 
 Improve it by:
-- Optimizing per-suggestion or per-destination ranking metrics such as NDCG, approval lift, or verified-apply lift.
-- Using listwise or counterfactual ranking objectives rather than a single global weighted-average score.
-- Keeping the current bounded optimizer as the outer search wrapper if desired, but giving it a ranking-aware objective.
+- replacing the fixed page cap with a continuation-token or resumable frontier loop;
+- persisting per-scope crawl checkpoints so imports resume instead of restarting from page 1;
+- prioritizing higher-value or fresher scopes first rather than stopping at an arbitrary depth.
 
 Research basis:
-- Cao et al., *Learning to Rank: From Pairwise Approach to Listwise Approach* (2007): [microsoft.com/en-us/research/?p=153086](https://www.microsoft.com/en-us/research/?p=153086)
-- Joachims, Swaminathan, and Schnabel, *Unbiased Learning-to-Rank with Biased Feedback* (2017): [microsoft.com/en-us/research/?p=398159](https://www.microsoft.com/en-us/research/?p=398159)
+- Cho, Garcia-Molina, and Page, ["Efficient Crawling Through URL Ordering"](https://archives.iw3c2.org/www7/proceedings/1919/com1919.htm) (1998)
 
-### 5. The value model still mixes duplicated and weakly calibrated signals
+### 2. Feedback reranking uses a daily presentation count, not real propensities
 
 Evidence:
-- `traffic_signal` and `engagement_signal` are currently the same value: `backend/apps/cooccurrence/services.py:469-475`
-- Co-occurrence scoring uses Jaccard normalized by the single sitewide maximum and does not score with `lift` even though it is stored: `backend/apps/cooccurrence/services.py:257-305`
-- The final value score linearly combines those signals as if they were independent: `backend/apps/cooccurrence/services.py:521-555`
+- rerank stats are aggregated only at the `(host_scope, destination_scope)` level: `backend/apps/pipeline/services/feedback_rerank.py:51-120`
+- the exploit term uses `reviewed / exposure` where exposure is just presented-count or generated-count: `backend/apps/pipeline/services/feedback_rerank.py:108-161`
+- presentation logging stores only `(suggestion, user, presented_date)`: `backend/apps/suggestions/models.py:726-759`
 
-Why this is a business-logic problem:
-- The model is presented as a richer multi-signal value layer, but one signal is duplicated and one is based on an outlier-sensitive normalization rule.
-- This can overstate popular pairs, understate statistically surprising pairs, and make the score harder to interpret.
+Why this is a business-logic flaw:
+- The current model knows that a suggestion was shown on a day, but not:
+  - rank position,
+  - whether it was actually visible on screen,
+  - how long it stayed visible,
+  - which competing suggestions surrounded it.
+- That means the reranker still learns from a weak proxy for exposure, not from true viewing propensity.
+- The code comments describe inverse-propensity logic, but the stored signal is too coarse to support strong debiasing claims.
 
 Improve it by:
-- Splitting true engagement into its own separately measured feature instead of aliasing traffic.
-- Replacing max-normalized Jaccard with a significance-aware association measure plus minimum-support/shrinkage logic.
-- Calibrating the value-model output before it is consumed as a pre-ranking score.
+- logging per-impression rank position and visibility state;
+- storing enough impression detail to estimate propensities per displayed suggestion, not just per scope pair per day;
+- moving from the current proxy correction toward propensity-weighted or doubly robust learning-to-rank.
 
 Research basis:
-- Dunning, *Accurate Methods for the Statistics of Surprise and Coincidence* (1993): [aclanthology.org/J93-1003/](https://aclanthology.org/J93-1003/)
+- Joachims, Swaminathan, and Schnabel, ["Unbiased Learning-to-Rank with Biased Feedback"](https://www.ijcai.org/proceedings/2018/738) (2017)
+
+### 3. Attribution currently mixes matched-control logic in Django with global-trend logic in the C# result shown to operators
+
+Evidence:
+- Django builds a matched control pool from same-silo, same-content-type pages and scores candidates on pre-period metrics: `backend/apps/analytics/impact_engine.py:31-123`
+- Django then computes normalized deltas from the matched controls and stores `ImpactReport` quality fields such as `control_match_quality` and `is_conclusive`: `backend/apps/analytics/impact_engine.py:233-342`
+- the C# worker instead uses a sitewide CTR trend multiplier as the counterfactual: `services/http-worker/src/HttpWorker.Services/GSCAttributionService.cs:31-100`
+- the operator-facing search-impact list is driven from `GSCImpactSnapshot`, not `ImpactReport`: `backend/apps/analytics/views.py:1940-1959`
+- the analytics UI explicitly describes the method as a "Global Control Baseline": `frontend/src/app/analytics/analytics.component.html:599-610`
+
+Why this is a business-logic flaw:
+- There are effectively two attribution stories in the codebase:
+  - matched controls in Django;
+  - global trend normalization in the C# output shown in the UI.
+- That split can confuse operators and make the same suggestion look more or less trustworthy depending on which layer they inspect.
+- The global baseline is also much coarser than the matched-control layer, so surfacing only that result throws away higher-quality counterfactual work already present elsewhere.
+
+Improve it by:
+- picking one primary operator-facing attribution contract and making both layers agree on it;
+- preferring matched or synthetic controls over sitewide CTR when page-level controls are available;
+- surfacing control quality and uncertainty alongside any uplift label shown in the UI.
+
+Research basis:
+- Brodersen et al., ["Inferring causal impact using Bayesian structural time-series models"](https://research.google.com/pubs/pub41854.html?trk=article-ssr-frontend-pulse_x-social-details_comments-action_comment-text) (2015)
+- Abadie, Diamond, and Hainmueller, ["Synthetic Control Methods for Comparative Case Studies"](https://econpapers.repec.org/paper/nbrnberte/0335.htm) (2007/2010)
+
+### 4. FR-018 auto-tuning still optimizes four global aggregate metrics instead of ranking quality
+
+Evidence:
+- the collector reduces the whole window to four aggregate signals: `services/http-worker/src/HttpWorker.Services/Analytics/WeightTunerDataCollector.cs:28-59`
+- the contract only carries those four top-level metrics plus an applied-count indicator: `services/http-worker/src/HttpWorker.Core/Contracts/V1/WeightTuningContracts.cs:18-34`
+- the optimizer score is a direct weighted sum of those metrics: `services/http-worker/src/HttpWorker.Services/Analytics/WeightObjectiveFunction.cs:44-50`
+
+Why this is a business-logic flaw:
+- Ranking quality is about ordering candidates correctly within each decision context.
+- A single global blend of `GscLift`, `Ga4Ctr`, `ReviewApprovalRate`, and `MatomoClickRate` does not measure that.
+- The current objective can improve the aggregate scalar while still making per-destination ranking worse.
+
+Improve it by:
+- evaluating candidate weights against per-destination ranking outcomes, not only global averages;
+- using ranking-aware objectives such as NDCG, approval-at-top-k, applied-at-top-k, or counterfactual listwise loss;
+- keeping the current bounded optimizer if desired, but feeding it a ranking-aware objective instead of a metric blend.
+
+Research basis:
+- Cao et al., ["Learning to Rank: From Pairwise Approach to Listwise Approach"](https://dl.acm.org/doi/10.1145/1273496.1273513) (2007)
+- Joachims, Swaminathan, and Schnabel, ["Unbiased Learning-to-Rank with Biased Feedback"](https://www.ijcai.org/proceedings/2018/738) (2017)
+
+## Not A Current Flaw Anymore
+
+The previous version of this audit said the value model still duplicated traffic and engagement and still used max-normalized Jaccard. That is no longer true in the current code:
+
+- co-occurrence now uses sigmoid-normalized log-likelihood ratio rather than site-max Jaccard normalization: `backend/apps/cooccurrence/services.py:336-383`
+- traffic and engagement are now separate destination fields in the value model: `backend/apps/cooccurrence/services.py:548-566`
+
+That does not prove the value model is perfect, but it does mean the earlier criticism should not remain in the active flaw list.
 
 ## Priority Order
 
 If this were my next-work queue, I would do it in this order:
 
 1. Fix import coverage and checkpointing.
-2. Fix attribution counterfactuals.
-3. Fix feedback-rerank debiasing.
-4. Replace the tuner objective with ranking-aware evaluation.
-5. Clean up the value model and remove duplicated signals.
-6. Reconcile status drift in `AI-CONTEXT.md` and `backend/apps/diagnostics/health.py`.
+2. Unify attribution around one counterfactual contract and expose control quality clearly.
+3. Strengthen feedback-impression logging so the reranker can estimate real propensities.
+4. Replace the FR-018 objective with ranking-aware evaluation.
+5. Reconcile `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` with the current code state.
 
 ## Bottom Line
 
-The repo is much farther along than a "prototype" and already contains a large amount of real product logic. The main risk now is not missing scaffolding. It is silent statistical bias: incomplete imports, biased feedback reuse, weak attribution controls, and objective functions that optimize the wrong target.
+The repo already contains a large amount of real product logic. The biggest risks are no longer "missing scaffolding" problems. They are silent logic-quality problems: incomplete imports, weak exposure modeling, split attribution semantics, and an optimizer that still tunes toward a convenient summary metric instead of the ranking task itself.
