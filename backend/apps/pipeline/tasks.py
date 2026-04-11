@@ -2240,26 +2240,22 @@ def check_gsc_spikes(self) -> dict:
     alerts_emitted = 0
 
     # Bulk-aggregate recent and baseline averages in two queries (avoids N+1).
-    recent_stats = {
-        row["content_item_id"]: row
-        for row in SearchMetric.objects.filter(
-            source="gsc",
-            date__gte=recent_start,
-            date__lte=recent_end,
+    recent_qs = (
+        SearchMetric.objects.filter(
+            source="gsc", date__gte=recent_start, date__lte=recent_end
         )
         .values("content_item_id")
         .annotate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
-    }
-    baseline_stats = {
-        row["content_item_id"]: row
-        for row in SearchMetric.objects.filter(
-            source="gsc",
-            date__gte=baseline_start,
-            date__lte=baseline_end,
+    )
+    recent_stats = {row["content_item_id"]: row for row in recent_qs}
+    baseline_qs = (
+        SearchMetric.objects.filter(
+            source="gsc", date__gte=baseline_start, date__lte=baseline_end
         )
         .values("content_item_id")
         .annotate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
-    }
+    )
+    baseline_stats = {row["content_item_id"]: row for row in baseline_qs}
 
     # Only iterate content items that appear in at least one window.
     relevant_ids = recent_stats.keys() | baseline_stats.keys()
