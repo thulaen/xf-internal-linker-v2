@@ -48,9 +48,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<HttpWorker.Core.Interfaces.IWordPressClient, HttpWorker.Services.External.WordPressClient>();
         services.AddSingleton<HttpWorker.Core.Interfaces.ITextDistiller, HttpWorker.Services.Distillation.TextDistiller>();
         services.AddSingleton<IImportContentService, ImportContentService>();
-        services.AddSingleton<IRunPipelineService, RunPipelineService>();
-        services.AddSingleton<IGraphCandidateService, GraphCandidateService>();
-        services.AddSingleton<TrafficDecayService>();
         services.AddSingleton<ICrawlSessionService, CrawlSessionService>();
         services.AddSingleton<JobProcessor>();
         return services;

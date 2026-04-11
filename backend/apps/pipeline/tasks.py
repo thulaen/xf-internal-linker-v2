@@ -424,74 +424,7 @@ def dispatch_pipeline_run(
     destination_scope: dict[str, Any],
     rerun_mode: str = "skip_pending",
 ) -> dict[str, Any]:
-    owner = _runtime_owner_for_lane("pipeline")
-
-    if owner == "csharp":
-        from apps.core.views import (
-            get_click_distance_settings,
-            get_clustering_settings,
-            get_field_aware_relevance_settings,
-            get_ga4_gsc_settings,
-            get_graph_candidate_settings,
-            get_learned_anchor_settings,
-            get_link_freshness_settings,
-            get_phrase_matching_settings,
-            get_rare_term_propagation_settings,
-            get_silo_settings,
-            get_slate_diversity_settings,
-            get_value_model_settings,
-            get_weighted_authority_settings,
-        )
-        from apps.graph.services.http_worker_client import queue_job
-        from apps.suggestions.recommended_weights import RECOMMENDED_PRESET_WEIGHTS
-
-        registry_weights = {}
-        for k, v in RECOMMENDED_PRESET_WEIGHTS.items():
-            if (
-                k.startswith("silo.")
-                or v.lower() in ("true", "false")
-                or "enable" in k.lower()
-            ):
-                continue
-            try:
-                registry_weights[k] = float(v)
-            except (ValueError, TypeError):
-                continue
-
-        payload = {
-            "run_id": run_id,
-            "host_scope": host_scope,
-            "destination_scope": destination_scope,
-            "rerun_mode": rerun_mode,
-            "settings": {
-                "silo": get_silo_settings(),
-                "weighted_authority": get_weighted_authority_settings(),
-                "link_freshness": get_link_freshness_settings(),
-                "phrase_matching": get_phrase_matching_settings(),
-                "learned_anchor": get_learned_anchor_settings(),
-                "rare_term_propagation": get_rare_term_propagation_settings(),
-                "field_aware_relevance": get_field_aware_relevance_settings(),
-                "ga4_gsc": get_ga4_gsc_settings(),
-                "click_distance": get_click_distance_settings(),
-                "clustering": get_clustering_settings(),
-                "slate_diversity": get_slate_diversity_settings(),
-                "graph_candidate": get_graph_candidate_settings(),
-                "value_model": get_value_model_settings(),
-                "weights": registry_weights,
-            },
-        }
-
-        queue_job(
-            job_id=run_id,
-            job_type="run_pipeline",
-            payload=payload,
-        )
-        return {
-            "job_id": run_id,
-            "runtime_owner": "csharp",
-            "message": "Pipeline queued.",
-        }
-
+    """Dispatch pipeline to Celery. Python owns all ranking permanently."""
     run_pipeline.delay(
         run_id=run_id,
         host_scope=host_scope,

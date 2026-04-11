@@ -197,26 +197,6 @@ internal sealed class BenchmarkPostgresRuntimeStore(
     public Task<List<(int ScopePk, int ExternalScopeId, string ScopeType)>> GetScopesAsync(IReadOnlyList<int> scopePks, CancellationToken cancellationToken)
         => Task.FromResult(new List<(int ScopePk, int ExternalScopeId, string ScopeType)>());
 
-    public Task<IReadOnlyList<HostNode>> GetHostNodesAsync(List<int> scopeIds, CancellationToken cancellationToken)
-        => Task.FromResult<IReadOnlyList<HostNode>>([]);
-
-    public Task<IReadOnlyList<DestinationNode>> GetDestinationNodesAsync(List<int> destScopeIds, CancellationToken cancellationToken)
-        => Task.FromResult<IReadOnlyList<DestinationNode>>([]);
-
-    public Task PersistPipelineSuggestionsAsync(string runId, IReadOnlyList<PipelineSuggestion> suggestions, CancellationToken cancellationToken)
-        => Task.CompletedTask;
-
-    public Task<KnowledgeGraphData> LoadKnowledgeGraphDataAsync(CancellationToken cancellationToken)
-        => Task.FromResult(new KnowledgeGraphData());
-
-    public Task<Dictionary<int, float>> GetTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
-        => Task.FromResult(new Dictionary<int, float>());
-
-    public Task<Dictionary<int, List<GSCDailyMetrics>>> GetDailyTrafficMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
-        => Task.FromResult(new Dictionary<int, List<GSCDailyMetrics>>());
-
-    public Task<Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>> GetEngagementMetricsAsync(int lookbackDays, CancellationToken cancellationToken)
-        => Task.FromResult(new Dictionary<int, (float AvgEngTime, float? AvgBounce, int WordCount, int RowsUsed)>());
 }
 
 internal sealed class BenchmarkProgressStreamService : IProgressStreamService

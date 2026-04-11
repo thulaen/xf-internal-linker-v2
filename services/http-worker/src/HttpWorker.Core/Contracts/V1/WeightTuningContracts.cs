@@ -20,8 +20,8 @@ public sealed class WeightTuneSignals
     /// <summary>Average GSC causal lift across applied suggestions in the window.</summary>
     public double GscLift { get; set; }
 
-    /// <summary>Average GA4 dwell-time engagement rate for destination pages.</summary>
-    public double Ga4Dwell { get; set; }
+    /// <summary>Average GA4 click-through rate (clicks / impressions) for destination pages.</summary>
+    public double Ga4Ctr { get; set; }
 
     /// <summary>Fraction of reviewed suggestions that were approved.</summary>
     public double ReviewApprovalRate { get; set; }

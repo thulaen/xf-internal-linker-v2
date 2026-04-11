@@ -514,16 +514,9 @@ RUNTIME_OWNER_IMPORT = (
 if RUNTIME_OWNER_IMPORT not in {"celery", "csharp"}:
     RUNTIME_OWNER_IMPORT = HEAVY_RUNTIME_OWNER
 
-RUNTIME_OWNER_PIPELINE = (
-    env(
-        "RUNTIME_OWNER_PIPELINE",
-        default=HEAVY_RUNTIME_OWNER,
-    )
-    .strip()
-    .lower()
-)
-if RUNTIME_OWNER_PIPELINE not in {"celery", "csharp"}:
-    RUNTIME_OWNER_PIPELINE = HEAVY_RUNTIME_OWNER
+# Pipeline ranking is permanently owned by Python (celery).
+# C# handles I/O tasks only (crawling, graph sync, broken links, analytics).
+RUNTIME_OWNER_PIPELINE = "celery"
 
 
 # ── ML / AI Settings ─────────────────────────────────────────────

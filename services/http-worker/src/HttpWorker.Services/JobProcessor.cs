@@ -16,7 +16,6 @@ public sealed class JobProcessor(
     ICrawlSessionService crawlSessionService,
     GSCAttributionService gscAttributionService,
     IImportContentService importContentService,
-    IRunPipelineService runPipelineService,
     WeightTunerService weightTunerService,
     IGraphSyncService graphSyncService,
     IOptions<HttpWorkerOptions> options)
@@ -67,12 +66,6 @@ public sealed class JobProcessor(
                     await importContentService.ExecuteAsync(
                          request.JobId,
                          DeserializePayload<ImportContentRequest>(request.Payload),
-                         cancellationToken),
-                    JsonOptions),
-                "run_pipeline" => JsonSerializer.SerializeToNode(
-                    await runPipelineService.ExecuteAsync(
-                         request.JobId,
-                         DeserializePayload<RunPipelineRequest>(request.Payload),
                          cancellationToken),
                     JsonOptions),
                 "weight_tune" => JsonSerializer.SerializeToNode(
@@ -151,7 +144,7 @@ public sealed class JobProcessor(
             throw new Exception("payload is required");
         }
 
-        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "crawl_session" or "gsc_attribution" or "import_content" or "run_pipeline" or "weight_tune" or "graph_sync_content" or "graph_sync_refresh"))
+        if (request.JobType is not ("broken_link_scan" or "broken_link_check" or "url_fetch" or "health_check" or "sitemap_crawl" or "crawl_session" or "gsc_attribution" or "import_content" or "weight_tune" or "graph_sync_content" or "graph_sync_refresh"))
         {
             throw new Exception("unknown job_type");
         }

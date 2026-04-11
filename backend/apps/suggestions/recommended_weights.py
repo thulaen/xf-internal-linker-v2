@@ -661,6 +661,13 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "monthly_safe_prune.broken_links_days": "60",
     "monthly_safe_prune.impact_reports_days": "365",
     "monthly_safe_prune.diagnostics_json_days": "90",
+    # Pipeline recall thresholds — tunable to trade recall vs. speed.
+    # Research basis: Bruch et al. 2024 and Cormack et al. 2009 recommend
+    # tunable fan-out over fixed budgets. These defaults match the original
+    # hardcoded values but can now be adjusted per-site.
+    "pipeline.stage1_top_k": "50",
+    "pipeline.stage2_top_k": "10",
+    "pipeline.min_semantic_score": "0.25",
 }
 
 

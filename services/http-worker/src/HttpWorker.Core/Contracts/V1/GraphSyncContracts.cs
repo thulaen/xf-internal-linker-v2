@@ -229,38 +229,3 @@ public sealed class GraphSyncEntityNode
     public double Weight { get; set; }
 }
 
-public sealed class KnowledgeGraphEdge
-{
-    public int ArticleId { get; set; }
-
-    public int EntityId { get; set; }
-
-    public float Weight { get; set; }
-}
-
-public sealed class KnowledgeGraphData
-{
-    public List<KnowledgeGraphEdge> Edges { get; } = [];
-
-    public Dictionary<int, string> EntityTypeMap { get; } = [];
-
-    public Dictionary<int, (float PageRank, float Freshness)> ArticleMetrics { get; } = [];
-}
-
-/// <summary>
-/// FR-024: Pre-computed engagement signal for one destination article.
-/// Built from SearchMetric.avg_engagement_time and bounce_rate via a rolling window,
-/// then site-wide min-max normalized in PipelineServices before being passed to
-/// GraphCandidateService.
-/// </summary>
-public record EngagementSignalData(
-    float NormalizedSignal,
-    float ReadThroughRateRaw,
-    float EngagementQualityRaw,
-    float AvgEngagementTimeSecs,
-    float? AvgBounceRate,
-    int WordCount,
-    float EstimatedReadTimeSecs,
-    int RowsUsed,
-    bool FallbackUsed
-);

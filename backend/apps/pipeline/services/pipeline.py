@@ -61,12 +61,13 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     build_rare_term_profiles,
 )
-from apps.suggestions.recommended_weights import recommended_float, recommended_str
+from apps.suggestions.recommended_weights import recommended_float, recommended_int, recommended_str
 
 logger = logging.getLogger(__name__)
 
-STAGE1_TOP_K = 50
-STAGE2_TOP_K = 10
+STAGE1_TOP_K = recommended_int("pipeline.stage1_top_k")
+STAGE2_TOP_K = recommended_int("pipeline.stage2_top_k")
+MIN_SEMANTIC_SCORE = recommended_float("pipeline.min_semantic_score")
 FALLBACK_CANDIDATES_PER_DESTINATION = 5
 BLOCK_SIZE = 256
 
@@ -305,6 +306,7 @@ def run_pipeline(
             silo_settings=silo_settings,
             clustering_settings=clustering_settings,
             blocked_reasons=blocked_reasons,
+            min_semantic_score=MIN_SEMANTIC_SCORE,
         )
 
         if scored:

@@ -49,11 +49,16 @@ class FeedbackRerankService:
         self._global_total_samples = 0
 
     def load_historical_stats(self) -> None:
-        """Fetch and aggregate approval rates for (host_scope, destination_scope) pairs."""
+        """Fetch and aggregate approval rates for (host_scope, destination_scope) pairs.
+
+        Also loads total generated counts per pair to compute exposure probability
+        for inverse-propensity weighting, correcting for presentation bias
+        (Joachims, Swaminathan & Schnabel 2017).
+        """
         from apps.suggestions.models import Suggestion
 
-        # We only care about explicit human reviews: approved or rejected
-        qs = (
+        # Count reviewed suggestions per pair (explicit human reviews only)
+        reviewed_qs = (
             Suggestion.objects.filter(
                 status__in=["approved", "rejected", "applied", "verified"]
             )
@@ -67,41 +72,67 @@ class FeedbackRerankService:
             )
         )
 
+        # Count ALL generated suggestions per pair (for exposure probability)
+        generated_qs = (
+            Suggestion.objects.values("host__scope_id", "destination__scope_id")
+            .annotate(generated=Count("suggestion_id"))
+        )
+        generated_map: dict[tuple[int, int], int] = {}
+        for row in generated_qs:
+            pair = (row["host__scope_id"], row["destination__scope_id"])
+            generated_map[pair] = row["generated"]
+
         self._pair_stats = {}
         self._global_total_samples = 0
 
-        for row in qs:
+        for row in reviewed_qs:
             pair = (row["host__scope_id"], row["destination__scope_id"])
+            n_generated = generated_map.get(pair, row["total"])
+            exposure_prob = row["total"] / max(n_generated, 1)
             self._pair_stats[pair] = {
                 "total": row["total"],
                 "successes": row["successes"],
+                "generated": n_generated,
+                "exposure_prob": exposure_prob,
             }
             self._global_total_samples += row["total"]
 
     def calculate_rerank_factor(
         self, host_scope_id: int, destination_scope_id: int
     ) -> tuple[float, dict[str, Any]]:
-        """Compute the Explore/Exploit multiplier for a candidate pair."""
+        """Compute the Explore/Exploit multiplier for a candidate pair.
+
+        Uses inverse-propensity weighting to correct for exposure bias:
+        pairs that were reviewed more often relative to how many were generated
+        get a more reliable exploit score, while under-exposed pairs lean more
+        on exploration (Joachims, Swaminathan & Schnabel 2017).
+        """
         if not self.settings.enabled:
             return 1.0, {"status": "disabled"}
 
         pair = (host_scope_id, destination_scope_id)
-        stats = self._pair_stats.get(pair, {"total": 0, "successes": 0})
+        stats = self._pair_stats.get(
+            pair, {"total": 0, "successes": 0, "generated": 0, "exposure_prob": 0.0}
+        )
 
         n_total = stats["total"]
         n_success = stats["successes"]
+        exposure_prob = stats.get("exposure_prob", 0.0)
 
-        # 1. Exploit: Bayesian-Smoothed Acceptance Rate
+        # 1. Exploit: Bayesian-Smoothed Acceptance Rate with exposure discount.
         # mu = (success + alpha) / (total + alpha + beta)
-        # Guard against zero denominator if priors are misconfigured.
+        # Discounted by exposure_prob: low-exposure pairs get less exploitation
+        # benefit because their approval signal is unreliable.
         exploit_denom = n_total + self.settings.alpha_prior + self.settings.beta_prior
-        score_exploit = (n_success + self.settings.alpha_prior) / max(
+        score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
             exploit_denom, 1e-9
         )
+        # Blend toward neutral (0.5) based on how little of the pair was reviewed.
+        # exposure_prob=1.0 → full exploit signal; exposure_prob=0.0 → neutral 0.5
+        score_exploit = exposure_prob * score_exploit_raw + (1.0 - exposure_prob) * 0.5
 
         # 2. Explore: UCB1 Confidence Bound
         # Boost = k * sqrt(ln(N_global) / (n_pair + 1))
-        # We use a small epsilon in ln to avoid log(0)
         n_global = max(1, self._global_total_samples)
         score_explore = self.settings.exploration_rate * math.sqrt(
             math.log(n_global + 1.0) / (n_total + 1.0)
@@ -109,7 +140,7 @@ class FeedbackRerankService:
 
         # 3. Combined rerank factor
         # Initial score is multiplied by (1.0 + weight * (exploit + explore - 0.5))
-        # 0.5 is subtracted because a neutral explore/exploit score is 0.5 (alpha=1, beta=1, total=0)
+        # 0.5 is subtracted because a neutral explore/exploit score is 0.5
         raw_modifier = (score_exploit + score_explore) - 0.5
         factor = 1.0 + (self.settings.ranking_weight * raw_modifier)
 
@@ -119,7 +150,10 @@ class FeedbackRerankService:
         diagnostics = {
             "n_pair": n_total,
             "n_success": n_success,
+            "n_generated": stats.get("generated", 0),
+            "exposure_prob": round(exposure_prob, 4),
             "n_global": n_global,
+            "score_exploit_raw": round(score_exploit_raw, 4),
             "score_exploit": round(score_exploit, 4),
             "score_explore": round(score_explore, 4),
             "raw_modifier": round(raw_modifier, 4),

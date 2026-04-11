@@ -44,7 +44,6 @@ public sealed class JobsControllerTests
             Substitute.For<ICrawlSessionService>(),
             gscService,
             Substitute.For<IImportContentService>(),
-            Substitute.For<IRunPipelineService>(),
             weightTuner,
             graphSyncService ?? Substitute.For<IGraphSyncService>(),
             options);

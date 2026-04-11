@@ -31,7 +31,6 @@ public sealed class JobProcessorTests
             Substitute.For<ICrawlSessionService>(),
             gscService,
             Substitute.For<IImportContentService>(),
-            Substitute.For<IRunPipelineService>(),
             weightTuner,
             graphSync,
             options);

@@ -8,7 +8,7 @@ namespace HttpWorker.Services.Analytics;
 ///
 /// Objective (maximise):
 ///   Score(w) = w_semantic * GscLift
-///            + w_keyword  * Ga4Dwell
+///            + w_keyword  * Ga4Ctr
 ///            + w_node     * ReviewApprovalRate
 ///            + w_quality  * MatomoClickRate
 ///
@@ -44,7 +44,7 @@ public sealed class WeightObjectiveFunction
     public static double Score(double[] weights, WeightTuneSignals signals)
     {
         return weights[0] * signals.GscLift
-             + weights[1] * signals.Ga4Dwell
+             + weights[1] * signals.Ga4Ctr
              + weights[2] * signals.ReviewApprovalRate
              + weights[3] * signals.MatomoClickRate;
     }
@@ -94,7 +94,7 @@ public sealed class WeightObjectiveFunction
             var grad = new double[4];
 
             // 1. Partial derivative of -Score(w): d/dw_i = -Signal_i
-            double[] sigArr = [signals.GscLift, signals.Ga4Dwell, signals.ReviewApprovalRate, signals.MatomoClickRate];
+            double[] sigArr = [signals.GscLift, signals.Ga4Ctr, signals.ReviewApprovalRate, signals.MatomoClickRate];
             for (int i = 0; i < 4; i++) grad[i] = -sigArr[i];
 
             // 2. Partial derivative of sum penalty: d/dw_i (1000 * (sum-1)^2) = 2000 * (sum-1)

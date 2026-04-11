@@ -23,7 +23,7 @@ public class WeightTunerTests
         var signals = new WeightTuneSignals
         {
             GscLift = 5.0,           // High lift for semantic
-            Ga4Dwell = 0.1,          // Low dwell for keyword
+            Ga4Ctr = 0.1,            // Low CTR for keyword
             ReviewApprovalRate = 0.1, // Low approval for node
             MatomoClickRate = 0.1,    // Low clicks for quality
             AppliedSuggestionCount = 100

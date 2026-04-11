@@ -31,32 +31,3 @@ public class SentenceMutation
     public int WordPosition { get; set; }
 }
 
-public class HostNode
-{
-    public int ContentId { get; set; }
-    public int SentenceId { get; set; }
-    public string SentenceText { get; set; } = string.Empty;
-    public float[] Embedding { get; set; } = [];
-}
-
-public class DestinationNode
-{
-    public int ContentId { get; set; }
-    public string Title { get; set; } = string.Empty;
-    public float[] Embedding { get; set; } = [];
-    public float PageRank { get; set; }
-    public float NodeQuality { get; set; }
-}
-
-public class PipelineSuggestion
-{
-    public int HostContentId { get; set; }
-    public int HostSentenceId { get; set; }
-    public int DestinationContentId { get; set; }
-    public string ExactMatchAnchor { get; set; } = string.Empty;
-    public float CompositeScore { get; set; }
-
-    public string CandidateOrigin { get; set; } = "embedding";
-    public float? ValueScore { get; set; }
-    public string? ValueModelDiagnostics { get; set; }
-}

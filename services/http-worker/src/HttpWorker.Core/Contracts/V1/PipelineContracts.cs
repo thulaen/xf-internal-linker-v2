@@ -17,21 +17,6 @@ public class ImportContentRequest
     public string? FilePath { get; set; }
 }
 
-public class RunPipelineRequest
-{
-    [JsonPropertyName("run_id")]
-    public string RunId { get; set; } = string.Empty;
-
-    [JsonPropertyName("host_scope")]
-    public Dictionary<string, object> HostScope { get; set; } = new();
-
-    [JsonPropertyName("destination_scope")]
-    public Dictionary<string, object> DestinationScope { get; set; } = new();
-
-    [JsonPropertyName("rerun_mode")]
-    public string RerunMode { get; set; } = "skip_pending";
-}
-
 public class ImportContentResult
 {
     [JsonPropertyName("items_synced")]
@@ -44,14 +29,3 @@ public class ImportContentResult
     public List<int> UpdatedPks { get; set; } = new();
 }
 
-public class RunPipelineResult
-{
-    [JsonPropertyName("suggestions_created")]
-    public int SuggestionsCreated { get; set; }
-    
-    [JsonPropertyName("items_in_scope")]
-    public int ItemsInScope { get; set; }
-    
-    [JsonPropertyName("duration_seconds")]
-    public double DurationSeconds { get; set; }
-}
