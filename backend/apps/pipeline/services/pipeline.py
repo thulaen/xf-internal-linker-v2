@@ -96,6 +96,8 @@ from .pipeline_persist import (  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
+_PCT_MULTIPLIER = 100  # maxsize
+
 
 @dataclass
 class PipelineResult:
@@ -126,7 +128,7 @@ def run_pipeline(
     """Execute the full 3-stage ML suggestion pipeline."""
 
     def _progress(pct: float, msg: str) -> None:
-        logger.info("[run=%s] %.0f%% — %s", run_id, pct * 100, msg)
+        logger.info("[run=%s] %.0f%% — %s", run_id, pct * _PCT_MULTIPLIER, msg)
         if progress_fn:
             progress_fn(pct, msg)
 
@@ -265,7 +267,7 @@ def _finalize_pipeline(
     gc.collect()
 
     if settings["slate_diversity"].enabled:
-        progress_fn(0.87, "FR-015: applying slate diversity reranking...")
+        progress_fn(0.87, "FR-15: applying slate diversity reranking...")
         selected_candidates = apply_slate_diversity(
             candidates_by_destination=candidates_by_destination,
             embedding_lookup=embedding_lookup,
