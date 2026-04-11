@@ -121,9 +121,7 @@ Do not leave mystery changes behind.
 - Do not claim a session is complete if the intended files are still uncommitted without explanation.
 - Never use `git add -A` in a dirty tree.
 - Stage only the intended files for the current slice.
-- Branch transparency rule: never create, switch to, or push a new branch without telling the user in chat first, in plain English.
-- When a branch is proposed, explain that work on that branch does not appear on `master` until it is merged.
-- If the user did not explicitly ask for a branch and has not been clearly informed, stay on the current branch instead of silently making a new one.
+- **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
 - If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass. Session-type gate: if backend or frontend application code changed, `docker-compose build` must succeed before any commit is allowed; if only documentation or configuration files changed, skip the build step and state that plainly in the commit message. If `docker-compose build` fails on a code-change session, do not commit — leave a Current Session Note in AI-CONTEXT.md describing the failure and stop.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 - All backend sessions must follow the migration/prune policy in `AGENTS.md`.
