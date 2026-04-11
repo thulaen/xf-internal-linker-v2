@@ -281,7 +281,9 @@ class FeedbackRerankService:
             n_successes, n_totals, exposure_probs = self._collect_pair_arrays(
                 candidates, host_scope_id_map, destination_scope_id_map
             )
-            return self._rerank_cpp_batch(candidates, n_successes, n_totals, exposure_probs)
+            return self._rerank_cpp_batch(
+                candidates, n_successes, n_totals, exposure_probs
+            )
 
         from dataclasses import replace
 

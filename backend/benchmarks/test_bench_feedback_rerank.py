@@ -9,6 +9,7 @@ Run with:
 Django settings must be reachable. Run from the backend/ directory or with
 DJANGO_SETTINGS_MODULE=config.settings.development in the environment.
 """
+
 from __future__ import annotations
 
 import os
@@ -24,6 +25,7 @@ if _ext_dir not in sys.path:
     sys.path.insert(0, _ext_dir)
 
 import django  # noqa: E402
+
 django.setup()
 
 # ── Imports after Django setup ────────────────────────────────────────────────
@@ -38,6 +40,7 @@ import apps.pipeline.services.feedback_rerank as _fr_mod  # noqa: E402
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
+
 
 def _make_service(n: int) -> FeedbackRerankService:
     """Build a service with n pre-populated pair stats (no DB access)."""
@@ -110,6 +113,7 @@ def _dest_map(n: int) -> dict[int, int]:
 
 
 # ── Benchmarks ────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.parametrize("n", [10, 100, 500])
 def test_bench_rerank_candidates_python_path(benchmark, n):

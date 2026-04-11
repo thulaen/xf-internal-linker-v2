@@ -1968,7 +1968,11 @@ class AnalyticsSearchImpactDetailView(APIView):
         from django.shortcuts import get_object_or_404
         from apps.suggestions.models import Suggestion
         from .models import GSCImpactSnapshot
-        from .serializers import GSCImpactSnapshotSerializer, GSCKeywordImpactSerializer, ImpactReportSerializer
+        from .serializers import (
+            GSCImpactSnapshotSerializer,
+            GSCKeywordImpactSerializer,
+            ImpactReportSerializer,
+        )
 
         window = request.query_params.get("window", "28d")
         sug = get_object_or_404(Suggestion, pk=suggestion_id)
@@ -1990,7 +1994,9 @@ class AnalyticsSearchImpactDetailView(APIView):
                 if snapshot
                 else None,
                 "keywords": GSCKeywordImpactSerializer(keywords, many=True).data,
-                "impact_reports": ImpactReportSerializer(impact_reports, many=True).data,
+                "impact_reports": ImpactReportSerializer(
+                    impact_reports, many=True
+                ).data,
             }
         )
 
