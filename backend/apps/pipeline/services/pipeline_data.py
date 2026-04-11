@@ -31,7 +31,12 @@ logger = logging.getLogger(__name__)
 try:
     from .embeddings import EMBEDDING_DIM
 except ImportError:
-    EMBEDDING_DIM = 1024
+    EMBEDDING_DIM = 1024  # RANGE: default BGE-M3 embedding dimension
+
+# Iterator / fetch batch sizes
+_CONTENT_ITERATOR_CHUNK = 500  # maxsize for ContentItem iterator
+_SENTENCE_FETCH_BATCH = 2000  # maxsize for sentence cursor fetch
+_EMBEDDING_FETCH_BATCH = 1000  # maxsize for embedding cursor fetch
 
 
 def _sql_in_clause_params(values: list[int]) -> tuple[str, list[int]]:
@@ -123,17 +128,17 @@ def _load_pipeline_content(
             settings=rare_term_settings,
         )
 
-    return (
-        content_records,
-        sentence_records,
-        content_to_sentence_ids,
-        existing_links,
-        existing_outgoing_counts,
-        max_existing_links_per_host,
-        max_anchor_words,
-        paragraph_window,
-        learned_anchor_rows_by_destination,
-        rare_term_profiles,
+    return dict(
+        content_records=content_records,
+        sentence_records=sentence_records,
+        content_to_sentence_ids=content_to_sentence_ids,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
+        max_existing_links_per_host=max_existing_links_per_host,
+        max_anchor_words=max_anchor_words,
+        paragraph_window=paragraph_window,
+        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+        rare_term_profiles=rare_term_profiles,
     )
 
 
@@ -163,7 +168,7 @@ def _load_pipeline_resources(
     if isinstance(content_data, PipelineResult):
         return content_data
 
-    content_records = content_data[0]
+    content_records = content_data["content_records"]
 
     progress_fn(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
@@ -179,7 +184,8 @@ def _load_pipeline_resources(
     if isinstance(embedding_data, PipelineResult):
         return embedding_data
 
-    return content_data + embedding_data
+    content_data.update(embedding_data)
+    return content_data
 
 
 def _load_pipeline_embeddings(
@@ -228,14 +234,14 @@ def _load_pipeline_embeddings(
     }
     march_2026_pagerank_bounds = derive_march_2026_pagerank_bounds(content_records)
 
-    return (
-        destination_keys,
-        dest_embeddings,
-        items_in_scope,
-        sentence_ids_ordered,
-        sentence_embeddings,
-        sentence_id_to_row,
-        march_2026_pagerank_bounds,
+    return dict(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        items_in_scope=items_in_scope,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_id_to_row=sentence_id_to_row,
+        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
     )
 
 
@@ -265,7 +271,7 @@ def _load_content_records(
         qs = qs.filter(scope_id__in=scope_ids)
 
     records: dict[ContentKey, ContentRecord] = {}
-    for ci in qs.iterator(chunk_size=500):
+    for ci in qs.iterator(chunk_size=_CONTENT_ITERATOR_CHUNK):
         scope = ci.scope
         parent = scope.parent if scope else None
         grandparent = parent.parent if parent else None
@@ -332,7 +338,7 @@ def _load_sentence_records(
     with connection.cursor() as cursor:
         cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
         while True:
-            rows = cursor.fetchmany(2000)
+            rows = cursor.fetchmany(_SENTENCE_FETCH_BATCH)
             if not rows:
                 break
 
@@ -487,7 +493,7 @@ def _load_sentence_embeddings(
     with connection.cursor() as cursor:
         cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
         while True:
-            rows = cursor.fetchmany(1000)
+            rows = cursor.fetchmany(_EMBEDDING_FETCH_BATCH)
             if not rows:
                 break
             for sentence_id, embedding in rows:
