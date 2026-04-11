@@ -6,7 +6,6 @@ from celery.exceptions import SoftTimeLimitExceeded
 import logging
 import time
 import uuid
-from html import unescape
 from typing import Any
 from urllib.parse import urljoin, urlparse
 
@@ -815,29 +814,17 @@ def import_content(
     force_reembed: bool = False,
 ) -> dict:
     """Import/sync content from XenForo, WordPress, or JSONL export."""
-    from django.db import models, transaction
     from django.utils import timezone
-    from django.utils.dateparse import parse_datetime
 
-    from apps.content.models import ContentItem, Post, ScopeItem, Sentence
-    from apps.core.views import get_wordpress_runtime_config
-    from apps.graph.services.graph_sync import (
-        refresh_existing_links,
-        sync_existing_links_for_content_item,
-    )
-    from apps.pipeline.services.distiller import distill_body
-    from apps.pipeline.services.embeddings import generate_all_embeddings
-    from apps.pipeline.services.link_parser import normalize_internal_url
-    from apps.pipeline.services.sentence_splitter import split_sentence_spans
-    from apps.pipeline.services.text_cleaner import (
-        clean_bbcode,
-        clean_import_text,
-        generate_content_hash,
+    from apps.pipeline.tasks_import import (
+        ImportState,
+        import_jsonl_content,
+        import_wordpress_content,
+        import_xenforo_scopes,
+        run_post_import_steps,
+        update_scope_counts,
     )
     from apps.sync.models import SyncJob
-    from apps.sync.services.jsonl_importer import import_from_jsonl
-    from apps.sync.services.wordpress_api import WordPressAPIClient
-    from apps.sync.services.xenforo_api import XenForoAPIClient
 
     job_id = job_id or str(uuid.uuid4())
     job, created = SyncJob.objects.get_or_create(
@@ -856,512 +843,51 @@ def import_content(
         job.mode = mode
         job.save(update_fields=["status", "started_at", "source", "mode", "updated_at"])
 
+    state = ImportState(
+        job_id=job_id,
+        source=source,
+        mode=mode,
+        force_reembed=force_reembed,
+    )
+
     # ── FR-097: Resume from checkpoint if the job was previously interrupted ──
-    _resume_checkpoint_last_item_id: int | None = None
-    _resume_stage: str = ""
     if job.is_resumable and job.checkpoint_stage and job.checkpoint_last_item_id:
-        _resume_checkpoint_last_item_id = job.checkpoint_last_item_id
-        _resume_stage = job.checkpoint_stage
+        state.resume_last_item_id = job.checkpoint_last_item_id
+        state.resume_stage = job.checkpoint_stage
         logger.info(
             "Resuming import job %s from checkpoint: stage=%s, last_item_id=%d, items_processed=%d",
             job_id,
-            _resume_stage,
-            _resume_checkpoint_last_item_id,
+            state.resume_stage,
+            state.resume_last_item_id,
             job.checkpoint_items_processed,
         )
         _publish_progress(
             job_id,
             "running",
             0.0,
-            f"Resuming {mode} import from checkpoint (stage={_resume_stage}, "
-            f"after item {_resume_checkpoint_last_item_id})...",
+            f"Resuming {mode} import from checkpoint (stage={state.resume_stage}, "
+            f"after item {state.resume_last_item_id})...",
         )
-        # Clear the resumable flag now that we are actively resuming.
         SyncJob.objects.filter(job_id=job_id).update(is_resumable=False)
     else:
         _publish_progress(
             job_id, "running", 0.0, f"Starting {mode} content import from {source}..."
         )
 
-    items_synced = 0
-    items_updated = 0
-    updated_pks: list[int] = []
-    touched_scope_ids: set[int] = set()
-    xf_client: XenForoAPIClient | None = None
-
-    def _plain_title(value: Any) -> str:
-        if isinstance(value, dict):
-            value = value.get("rendered", "")
-        return str(unescape(value or "")).strip() or "Untitled"
-
-    def _parse_wp_timestamp(value: str | None) -> Any:
-        if not value:
-            return None
-        parsed = parse_datetime(value)
-        if parsed is None:
-            parsed = parse_datetime(f"{value}Z")
-        return parsed
-
-    def _flush_job_progress() -> None:
-        job.items_synced = items_synced
-        job.items_updated = items_updated
-        job.save(update_fields=["items_synced", "items_updated", "updated_at"])
-
-    def _update_scope_counts() -> None:
-        if not touched_scope_ids:
-            return
-        count_map = {
-            row["scope_id"]: row["total"]
-            for row in (
-                ContentItem.objects.filter(scope_id__in=touched_scope_ids)
-                .values("scope_id")
-                .annotate(total=models.Count("pk"))
-            )
-        }
-        scopes = list(ScopeItem.objects.filter(pk__in=touched_scope_ids))
-        for scope in scopes:
-            scope.content_count = count_map.get(scope.pk, 0)
-        if scopes:
-            ScopeItem.objects.bulk_update(scopes, ["content_count"])
-
-    def _process_item(
-        item_data: dict[str, Any], current_scope: ScopeItem
-    ) -> int | None:
-        nonlocal items_synced, xf_client
-
-        items_synced += 1
-        touched_scope_ids.add(current_scope.pk)
-
-        c_type = str(item_data.get("content_type", "thread"))
-        first_post_id = None
-        raw_body = ""
-        view_url = ""
-        title = "Untitled"
-        view_count = 0
-        reply_count = 0
-        download_count = 0
-        post_date = None
-        last_post_date = None
-
-        if source == "wp":
-            c_id = item_data.get("id")
-            if not c_id:
-                return None
-            title = _plain_title(item_data.get("title"))
-            view_url = item_data.get("link", "")
-            raw_body = item_data.get("content", {}).get(
-                "rendered", ""
-            ) or item_data.get("excerpt", {}).get("rendered", "")
-            post_date = _parse_wp_timestamp(
-                item_data.get("date_gmt") or item_data.get("date")
-            )
-            last_post_date = _parse_wp_timestamp(
-                item_data.get("modified_gmt") or item_data.get("modified")
-            )
-        else:
-            c_id = (
-                item_data.get("thread_id")
-                if c_type == "thread"
-                else item_data.get("resource_id")
-            )
-            if not c_id:
-                c_id = item_data.get("content_id")
-            if not c_id:
-                return None
-            first_post_id = item_data.get("first_post_id")
-            title = _plain_title(item_data.get("title"))
-            view_url = item_data.get("view_url") or item_data.get("url", "")
-            view_count = int(item_data.get("view_count") or 0)
-            reply_count = int(item_data.get("reply_count") or 0)
-            download_count = int(item_data.get("download_count") or 0)
-            raw_body = (
-                item_data.get("message")
-                or item_data.get("post_body")
-                or item_data.get("description")
-                or item_data.get("tag_line")
-                or item_data.get("raw_body")
-                or ""
-            )
-            if (
-                not raw_body
-                and mode == "full"
-                and source == "api"
-                and c_type == "thread"
-                and first_post_id
-            ):
-                if xf_client is None:
-                    xf_client = XenForoAPIClient()
-                raw_body = (
-                    xf_client.get_post(first_post_id).get("post", {}).get("message", "")
-                )
-
-        canonical_url = normalize_internal_url(view_url) or view_url
-        content_item, _ = ContentItem.objects.get_or_create(
-            content_id=int(c_id),
-            content_type=c_type,
-            defaults={
-                "title": title,
-                "scope": current_scope,
-                "url": canonical_url,
-                "xf_post_id": first_post_id,
-                "post_date": post_date,
-                "last_post_date": last_post_date,
-            },
-        )
-
-        # FR-097: Skip items already processed before the checkpoint.
-        if (
-            _resume_checkpoint_last_item_id is not None
-            and _resume_stage == "ingest"
-            and content_item.pk <= _resume_checkpoint_last_item_id
-        ):
-            return None
-
-        content_item.title = title
-        content_item.scope = current_scope
-        content_item.url = canonical_url
-        content_item.view_count = view_count
-        content_item.reply_count = reply_count
-        content_item.download_count = download_count
-        if post_date is not None:
-            content_item.post_date = post_date
-        if last_post_date is not None:
-            content_item.last_post_date = last_post_date
-        content_item.xf_post_id = first_post_id
-        content_item.is_deleted = False
-        content_item.save(
-            update_fields=[
-                "title",
-                "scope",
-                "url",
-                "view_count",
-                "reply_count",
-                "download_count",
-                "post_date",
-                "last_post_date",
-                "xf_post_id",
-                "is_deleted",
-                "updated_at",
-            ]
-        )
-
-        if not raw_body:
-            return None
-
-        clean_text = clean_import_text(raw_body)
-        new_hash = generate_content_hash(title, clean_text)
-        if content_item.content_hash == new_hash:
-            if mode == "full":
-                sync_existing_links_for_content_item(
-                    content_item,
-                    raw_body,
-                    allow_disappearance=True,
-                )
-            return content_item.pk if force_reembed else None
-
-        with transaction.atomic():  # noqa: F823 — transaction is in closure from import_content
-            content_item.content_hash = new_hash
-
-            post, _ = Post.objects.get_or_create(content_item=content_item)
-            post.raw_bbcode = raw_body
-            post.clean_text = clean_text
-            post.char_count = len(clean_text)
-            post.word_count = len(clean_text.split())
-            post.xf_post_id = first_post_id
-            post.save(
-                update_fields=[
-                    "raw_bbcode",
-                    "clean_text",
-                    "char_count",
-                    "word_count",
-                    "xf_post_id",
-                ]
-            )
-
-            spans = split_sentence_spans(clean_text)
-            sentence_objs = [
-                Sentence(
-                    content_item=content_item,
-                    post=post,
-                    text=span.text,
-                    position=span.position,
-                    char_count=len(span.text),
-                    start_char=span.start_char,
-                    end_char=span.end_char,
-                    word_position=len(clean_text[: span.start_char].split()),
-                )
-                for span in spans
-            ]
-            from django.db import transaction
-
-            with transaction.atomic():
-                Sentence.objects.filter(content_item=content_item).delete()
-                Sentence.objects.bulk_create(sentence_objs)
-
-            content_item.distilled_text = distill_body(
-                [item.text for item in sentence_objs], max_sentences=5
-            )
-            content_item.save(
-                update_fields=["content_hash", "distilled_text", "updated_at"]
-            )
-
-        sync_existing_links_for_content_item(
-            content_item,
-            raw_body,
-            allow_disappearance=(mode == "full"),
-        )
-
-        return content_item.pk
-
     try:
         if source == "api":
-            xf_client = XenForoAPIClient()
-            scopes = ScopeItem.objects.filter(
-                is_enabled=True, scope_type__in=["node", "resource_category"]
-            )
-            if scope_ids:
-                scopes = scopes.filter(pk__in=scope_ids)
-
-            total_scopes = max(scopes.count(), 1)
-            for index, scope in enumerate(scopes, start=1):
-                _publish_progress(
-                    job_id,
-                    "running",
-                    ((index - 1) / total_scopes) * 0.7,
-                    f"Syncing XenForo scope: {scope.title}",
-                )
-                if scope.scope_type == "node":
-                    page = 1
-                    while page <= _MAX_PAGES:
-                        resp = xf_client.get_threads(scope.scope_id, page=page)
-                        threads = resp.get("threads", [])
-                        if not threads:
-                            break
-                        for thread in threads:
-                            thread["content_type"] = "thread"
-                            pk = _process_item(thread, scope)
-                            if pk:
-                                updated_pks.append(pk)
-                                items_updated += 1
-                        if items_synced % 25 == 0 and items_synced > 0:
-                            _flush_job_progress()
-                            if updated_pks:
-                                _save_checkpoint(
-                                    str(job_id), "ingest", updated_pks[-1], items_synced
-                                )
-                        if page >= resp.get("pagination", {}).get("last_page", 1):
-                            break
-                        page += 1
-                else:
-                    page = 1
-                    while page <= _MAX_PAGES:
-                        resp = xf_client.get_resources(scope.scope_id, page=page)
-                        resources = resp.get("resources", [])
-                        if not resources:
-                            break
-                        for resource in resources:
-                            resource["content_type"] = "resource"
-                            pk = _process_item(resource, scope)
-                            if pk:
-                                updated_pks.append(pk)
-                                items_updated += 1
-                                if mode == "full":
-                                    try:
-                                        updates_resp = xf_client.get_resource_updates(
-                                            resource.get("resource_id")
-                                        )
-                                        update_list = updates_resp.get(
-                                            "resource_updates", []
-                                        ) or updates_resp.get("updates", [])
-                                        if update_list:
-                                            content_item = ContentItem.objects.get(
-                                                pk=pk
-                                            )
-                                            post = content_item.post
-                                            max_pos = (
-                                                Sentence.objects.filter(
-                                                    post=post
-                                                ).aggregate(models.Max("position"))[
-                                                    "position__max"
-                                                ]
-                                                or 0
-                                            )
-                                            for update in update_list:
-                                                update_body = update.get("message", "")
-                                                if not update_body:
-                                                    continue
-                                                clean = clean_bbcode(update_body)
-                                                sentence_objs: list[Sentence] = []
-                                                for span in split_sentence_spans(clean):
-                                                    max_pos += 1
-                                                    sentence_objs.append(
-                                                        Sentence(
-                                                            content_item=content_item,
-                                                            post=post,
-                                                            text=span.text,
-                                                            position=max_pos,
-                                                            char_count=len(span.text),
-                                                            start_char=span.start_char,
-                                                            end_char=span.end_char,
-                                                            word_position=post.word_count
-                                                            + 1,
-                                                        )
-                                                    )
-                                                Sentence.objects.bulk_create(
-                                                    sentence_objs
-                                                )
-                                    except (
-                                        TimeoutError,
-                                        RequestException,
-                                        URLError,
-                                    ) as exc:
-                                        logger.warning(
-                                            "Failed to fetch updates for resource %s: %s",
-                                            resource.get("resource_id"),
-                                            exc,
-                                        )
-                        if items_synced % 25 == 0 and items_synced > 0:
-                            _flush_job_progress()
-                            if updated_pks:
-                                _save_checkpoint(
-                                    str(job_id), "ingest", updated_pks[-1], items_synced
-                                )
-                        if page >= resp.get("pagination", {}).get("last_page", 1):
-                            break
-                        page += 1
-
+            import_xenforo_scopes(state, job, scope_ids, _publish_progress)
         elif source == "wp":
-            wp_config = get_wordpress_runtime_config()
-            client = WordPressAPIClient(
-                base_url=wp_config["base_url"],
-                username=wp_config["username"],
-                app_password=wp_config["app_password"],
-            )
-            wp_scopes = {
-                "wp_post": ScopeItem.objects.get_or_create(
-                    scope_id=1,
-                    scope_type="wp_posts",
-                    defaults={"title": "WordPress Posts", "is_enabled": True},
-                )[0],
-                "wp_page": ScopeItem.objects.get_or_create(
-                    scope_id=1,
-                    scope_type="wp_pages",
-                    defaults={"title": "WordPress Pages", "is_enabled": True},
-                )[0],
-            }
-            # Incremental Sync Logic: Find last successful sync for this source
-            last_sync_date = ""
-            if mode != "full":
-                last_job = SyncJob.objects.filter(
-                    source="wp", status="completed"
-                ).first()
-                if last_job and last_job.completed_at:
-                    # WP API expects ISO 8601 string, e.g. "2026-04-01T12:00:00"
-                    last_sync_date = last_job.completed_at.isoformat()
-                    logger.info(
-                        "Using incremental sync for WordPress: after=%s", last_sync_date
-                    )
-
-            for index, (content_type, label, iterator) in enumerate(
-                [
-                    (
-                        "wp_post",
-                        "WordPress posts",
-                        client.iter_posts(after=last_sync_date),
-                    ),
-                    (
-                        "wp_page",
-                        "WordPress pages",
-                        client.iter_pages(after=last_sync_date),
-                    ),
-                ],
-                start=1,
-            ):
-                _publish_progress(
-                    job_id,
-                    "running",
-                    0.1 + ((index - 1) / 2) * 0.5,
-                    f"Syncing {label}...",
-                )
-                for item in iterator:
-                    item["content_type"] = content_type
-                    pk = _process_item(item, wp_scopes[content_type])
-                    if pk:
-                        updated_pks.append(pk)
-                        items_updated += 1
-                    if items_synced % 25 == 0 and items_synced > 0:
-                        _flush_job_progress()
-                        if updated_pks:
-                            _save_checkpoint(
-                                str(job_id), "ingest", updated_pks[-1], items_synced
-                            )
-
+            import_wordpress_content(state, job, _publish_progress)
         elif source == "jsonl":
             if not file_path:
                 raise ValueError("file_path is required for JSONL import.")
-            for item in import_from_jsonl(file_path):
-                scope_id = item.get("scope_id")
-                scope_type = item.get("scope_type", "node")
-                if not scope_id:
-                    continue
-                scope, _ = ScopeItem.objects.get_or_create(
-                    scope_id=scope_id,
-                    scope_type=scope_type,
-                    defaults={"title": f"Imported Scope {scope_id}"},
-                )
-                pk = _process_item(item, scope)
-                if pk:
-                    updated_pks.append(pk)
-                    items_updated += 1
-                if items_synced % 50 == 0 and items_synced > 0:
-                    _flush_job_progress()
-                    if updated_pks:
-                        _save_checkpoint(
-                            str(job_id), "ingest", updated_pks[-1], items_synced
-                        )
+            import_jsonl_content(state, job, file_path)
         else:
             raise ValueError(f"Unsupported import source '{source}'.")
 
-        _update_scope_counts()
-
-        if mode == "full" and source in {"api", "wp"}:
-            # FR-097: checkpoint before graph_sync stage
-            if updated_pks:
-                _save_checkpoint(
-                    str(job_id), "graph_sync", updated_pks[-1], items_synced
-                )
-            _publish_progress(
-                job_id,
-                "running",
-                0.82,
-                "Refreshing internal-link graph across indexed content...",
-            )
-            refresh_existing_links()
-
-        if updated_pks:
-            unique_updated_pks = sorted(set(updated_pks))
-            # FR-097: checkpoint before embed stage
-            _save_checkpoint(str(job_id), "embed", unique_updated_pks[-1], items_synced)
-            _publish_progress(
-                job_id,
-                "running",
-                0.87,
-                f"Generating embeddings for {len(unique_updated_pks)} items...",
-            )
-            generate_all_embeddings(unique_updated_pks)
-
-        if mode in {"titles", "full"}:
-            _publish_progress(
-                job_id,
-                "running",
-                0.93,
-                "Recalculating March 2026 PageRank and velocity...",
-            )
-            from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank
-            from apps.pipeline.services.velocity import run_velocity
-
-            run_weighted_pagerank()
-            run_velocity(reference_ts=int(time.time()))
+        update_scope_counts(state.touched_scope_ids)
+        run_post_import_steps(state, job_id, _publish_progress)
 
         # FR-097: Clear checkpoint on successful completion.
         SyncJob.objects.filter(job_id=job_id).update(
@@ -1374,11 +900,9 @@ def import_content(
         job.status = "completed"
         job.progress = 1.0
         job.completed_at = timezone.now()
-        job.items_synced = items_synced
-        job.items_updated = items_updated
-        job.message = (
-            f"Import complete. {items_synced} synced, {items_updated} updated."
-        )
+        job.items_synced = state.items_synced
+        job.items_updated = state.items_updated
+        job.message = f"Import complete. {state.items_synced} synced, {state.items_updated} updated."
         job.save(
             update_fields=[
                 "status",
@@ -1393,24 +917,23 @@ def import_content(
             job_id,
             "completed",
             1.0,
-            f"Content import complete ({source}). {items_synced} items synced, {items_updated} updated.",
+            f"Content import complete ({source}). {state.items_synced} items synced, {state.items_updated} updated.",
         )
         _emit_job_alert(
             "job.completed",
             "success",
             "Import job completed",
-            f"Content import finished. {items_synced} items synced, {items_updated} updated.",
+            f"Content import finished. {state.items_synced} items synced, {state.items_updated} updated.",
             job_id=job_id,
             job_type="import",
         )
         return {
             "mode": mode,
             "job_id": job_id,
-            "items_synced": items_synced,
-            "items_updated": items_updated,
+            "items_synced": state.items_synced,
+            "items_updated": state.items_updated,
         }
     except SoftTimeLimitExceeded:
-        # FR-097: Mark as resumable so the next run picks up from the checkpoint.
         logger.warning(
             "Import job %s hit soft time limit; marking as resumable.", job_id
         )
@@ -1432,8 +955,7 @@ def import_content(
         raise
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
         logger.exception("Import job %s failed", job_id)
-        # FR-097: If there is a checkpoint, mark the job resumable.
-        _has_checkpoint = bool(updated_pks)
+        _has_checkpoint = bool(state.updated_pks)
         job.status = "failed"
         job.error_message = str(exc)
         job.completed_at = timezone.now()
@@ -1546,67 +1068,19 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     from django.conf import settings
     from django.utils import timezone
 
-    from apps.content.models import Post
-    from apps.graph.models import BrokenLink, ExistingLink
     from apps.graph.services.http_worker_client import HttpWorkerError
-    from apps.pipeline.services.link_parser import extract_urls
+    from apps.pipeline.tasks_broken_links import (
+        build_existing_records_map,
+        collect_urls_to_scan,
+        persist_scan_results,
+        scan_via_http_worker,
+        scan_via_python_requests,
+    )
 
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(job_id, "running", 0.0, "Collecting URLs for broken-link scan...")
 
-    allowed_domains: list[str] | None = None
-    for raw_url in [
-        getattr(settings, "XENFORO_BASE_URL", ""),
-        getattr(settings, "WORDPRESS_BASE_URL", ""),
-    ]:
-        host = urlparse(raw_url).netloc.strip().lower()
-        if host:
-            if allowed_domains is None:
-                allowed_domains = []
-            if host not in allowed_domains:
-                allowed_domains.append(host)
-
-    urls_to_scan: dict[tuple[int, str], dict[str, Any]] = {}
-    hit_scan_cap = False
-
-    existing_links = (
-        ExistingLink.objects.select_related("from_content_item", "to_content_item")
-        .filter(from_content_item__is_deleted=False)
-        .exclude(to_content_item__url="")
-        .order_by("from_content_item_id", "to_content_item_id")
-    )
-    for link in existing_links.iterator(chunk_size=250):
-        if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
-            hit_scan_cap = True
-            break
-        urls_to_scan.setdefault(
-            (link.from_content_item_id, link.to_content_item.url),
-            {
-                "source_content_id": link.from_content_item_id,
-                "url": link.to_content_item.url,
-            },
-        )
-
-    if not hit_scan_cap:
-        posts = (
-            Post.objects.select_related("content_item")
-            .filter(content_item__is_deleted=False)
-            .exclude(raw_bbcode="")
-            .order_by("content_item_id")
-        )
-        for post in posts.iterator(chunk_size=100):
-            if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
-                hit_scan_cap = True
-                break
-            for url in extract_urls(post.raw_bbcode, allowed_domains=allowed_domains):
-                urls_to_scan.setdefault(
-                    (post.content_item_id, url),
-                    {"source_content_id": post.content_item_id, "url": url},
-                )
-                if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
-                    hit_scan_cap = True
-                    break
-
+    urls_to_scan, hit_scan_cap = collect_urls_to_scan()
     total_urls = len(urls_to_scan)
     if total_urls == 0:
         _publish_progress(job_id, "completed", 1.0, "No URLs found to scan.")
@@ -1621,77 +1095,28 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         hit_scan_cap=hit_scan_cap,
     )
 
-    flagged_urls = 0
-    fixed_urls = 0
     checked_at = timezone.now()
-    delay_seconds = _get_broken_link_scan_delay_seconds()
     scan_items = list(urls_to_scan.values())
-    existing_records = {
-        (record.source_content_id, record.url): record
-        for record in BrokenLink.objects.filter(
-            source_content_id__in={
-                source_content_id for source_content_id, _ in urls_to_scan.keys()
-            },
-            url__in={url for _, url in urls_to_scan.keys()},
-        )
-    }
-    to_create: list[BrokenLink] = []
-    to_update: list[BrokenLink] = []
+    existing_records = build_existing_records_map(urls_to_scan)
+    to_create: list = []
+    to_update: list = []
     probe_backend = "python_requests"
     http_worker_error = ""
-    http_worker_results: dict[tuple[int, str], tuple[int, str]] | None = None
-
-    def _store_probe_result(
-        *,
-        source_content_id: int,
-        url: str,
-        http_status: int,
-        redirect_url: str,
-    ) -> None:
-        nonlocal flagged_urls, fixed_urls
-
-        existing_record = existing_records.get((source_content_id, url))
-        issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 300
-
-        if issue_detected:
-            flagged_urls += 1
-            record_status = (
-                BrokenLink.STATUS_IGNORED
-                if existing_record
-                and existing_record.status == BrokenLink.STATUS_IGNORED
-                else BrokenLink.STATUS_OPEN
-            )
-            if existing_record is None:
-                to_create.append(
-                    BrokenLink(
-                        source_content_id=source_content_id,
-                        url=url,
-                        http_status=http_status,
-                        redirect_url=redirect_url,
-                        status=record_status,
-                        notes="",
-                        first_detected_at=checked_at,
-                        last_checked_at=checked_at,
-                    )
-                )
-            else:
-                existing_record.http_status = http_status
-                existing_record.redirect_url = redirect_url
-                existing_record.status = record_status
-                existing_record.last_checked_at = checked_at
-                to_update.append(existing_record)
-        elif existing_record:
-            fixed_urls += 1
-            existing_record.http_status = http_status
-            existing_record.redirect_url = ""
-            existing_record.status = BrokenLink.STATUS_FIXED
-            existing_record.last_checked_at = checked_at
-            to_update.append(existing_record)
+    flagged_urls = 0
+    fixed_urls = 0
 
     if getattr(settings, "HTTP_WORKER_ENABLED", False):
         try:
-            http_worker_results = _check_broken_links_via_http_worker(scan_items)
-            probe_backend = "csharp_http_worker"
+            flagged_urls, fixed_urls, probe_backend = scan_via_http_worker(
+                scan_items,
+                job_id=job_id,
+                total_urls=total_urls,
+                existing_records=existing_records,
+                to_create=to_create,
+                to_update=to_update,
+                checked_at=checked_at,
+                hit_scan_cap=hit_scan_cap,
+            )
         except (
             TimeoutError,
             RequestException,
@@ -1701,84 +1126,28 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         ) as exc:
             http_worker_error = str(exc)
             probe_backend = "python_requests_fallback"
-            logger.warning(
-                "HttpWorker broken-link scan fallback engaged: %s",
-                exc,
-            )
+            logger.warning("HttpWorker broken-link scan fallback engaged: %s", exc)
 
-    if http_worker_results is not None:
-        for index, scan_item in enumerate(scan_items, start=1):
-            source_content_id = int(scan_item["source_content_id"])
-            url = str(scan_item["url"])
-            http_status, redirect_url = http_worker_results[(source_content_id, url)]
-            _store_probe_result(
-                source_content_id=source_content_id,
-                url=url,
-                http_status=http_status,
-                redirect_url=redirect_url,
-            )
-            _publish_progress(
-                job_id,
-                "running",
-                index / total_urls,
-                f"Checked {index}/{total_urls}: {_status_label(http_status)}",
-                scanned_urls=index,
-                total_urls=total_urls,
-                flagged_urls=flagged_urls,
-                fixed_urls=fixed_urls,
-                current_url=url,
-                hit_scan_cap=hit_scan_cap,
-                probe_backend=probe_backend,
-            )
-    else:
-        with requests.Session() as session:
-            session.headers.update(
-                {"User-Agent": "XF Internal Linker V2 Broken Link Scanner"}
-            )
-            for index, scan_item in enumerate(scan_items, start=1):
-                source_content_id = int(scan_item["source_content_id"])
-                url = str(scan_item["url"])
-                http_status, redirect_url = _probe_link_health(session, url)
-                _store_probe_result(
-                    source_content_id=source_content_id,
-                    url=url,
-                    http_status=http_status,
-                    redirect_url=redirect_url,
-                )
-
-                _publish_progress(
-                    job_id,
-                    "running",
-                    index / total_urls,
-                    f"Checked {index}/{total_urls}: {_status_label(http_status)}",
-                    scanned_urls=index,
-                    total_urls=total_urls,
-                    flagged_urls=flagged_urls,
-                    fixed_urls=fixed_urls,
-                    current_url=url,
-                    hit_scan_cap=hit_scan_cap,
-                    probe_backend=probe_backend,
-                    http_worker_error=http_worker_error,
-                )
-                if delay_seconds > 0.0 and index < total_urls:
-                    time.sleep(delay_seconds)
-
-    if to_create:
-        BrokenLink.objects.bulk_create(to_create)
-    if to_update:
-        BrokenLink.objects.bulk_update(
-            to_update,
-            [
-                "http_status",
-                "redirect_url",
-                "status",
-                "notes",
-                "last_checked_at",
-                "updated_at",
-            ],
+    if probe_backend != "csharp_http_worker":
+        flagged_urls, fixed_urls = scan_via_python_requests(
+            scan_items,
+            job_id=job_id,
+            total_urls=total_urls,
+            existing_records=existing_records,
+            to_create=to_create,
+            to_update=to_update,
+            checked_at=checked_at,
+            hit_scan_cap=hit_scan_cap,
+            probe_backend=probe_backend,
+            http_worker_error=http_worker_error,
         )
 
-    completion_message = f"Broken link scan complete. {flagged_urls} issue(s) flagged, {fixed_urls} previously flagged link(s) resolved."
+    persist_scan_results(to_create, to_update)
+
+    completion_message = (
+        f"Broken link scan complete. {flagged_urls} issue(s) flagged, "
+        f"{fixed_urls} previously flagged link(s) resolved."
+    )
     if hit_scan_cap:
         completion_message += (
             f" Scan stopped at the {_MAX_BROKEN_LINK_SCAN_URLS:,} URL safety cap."

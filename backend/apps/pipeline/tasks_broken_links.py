@@ -1,0 +1,308 @@
+"""Extracted helpers for the scan_broken_links Celery task.
+
+Pure structural refactoring -- no behavior change.  Every function here was
+previously inlined inside ``scan_broken_links`` in ``tasks.py``.
+"""
+
+from __future__ import annotations
+
+import logging
+import time
+from typing import Any
+from urllib.parse import urlparse
+
+import requests
+
+from apps.pipeline.tasks import (
+    _MAX_BROKEN_LINK_SCAN_URLS,
+    _get_broken_link_scan_delay_seconds,
+    _probe_link_health,
+    _publish_progress,
+    _status_label,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def collect_urls_to_scan() -> tuple[dict[tuple[int, str], dict[str, Any]], bool]:
+    """Gather URLs from ExistingLink and Post tables up to the scan cap.
+
+    Returns ``(urls_to_scan_dict, hit_scan_cap)``.
+    """
+    from django.conf import settings
+
+    from apps.content.models import Post
+    from apps.graph.models import ExistingLink
+    from apps.pipeline.services.link_parser import extract_urls
+
+    allowed_domains: list[str] | None = None
+    for raw_url in [
+        getattr(settings, "XENFORO_BASE_URL", ""),
+        getattr(settings, "WORDPRESS_BASE_URL", ""),
+    ]:
+        host = urlparse(raw_url).netloc.strip().lower()
+        if host:
+            if allowed_domains is None:
+                allowed_domains = []
+            if host not in allowed_domains:
+                allowed_domains.append(host)
+
+    urls_to_scan: dict[tuple[int, str], dict[str, Any]] = {}
+    hit_scan_cap = False
+
+    existing_links = (
+        ExistingLink.objects.select_related("from_content_item", "to_content_item")
+        .filter(from_content_item__is_deleted=False)
+        .exclude(to_content_item__url="")
+        .order_by("from_content_item_id", "to_content_item_id")
+    )
+    for link in existing_links.iterator(chunk_size=250):
+        if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+            hit_scan_cap = True
+            break
+        urls_to_scan.setdefault(
+            (link.from_content_item_id, link.to_content_item.url),
+            {
+                "source_content_id": link.from_content_item_id,
+                "url": link.to_content_item.url,
+            },
+        )
+
+    if not hit_scan_cap:
+        posts = (
+            Post.objects.select_related("content_item")
+            .filter(content_item__is_deleted=False)
+            .exclude(raw_bbcode="")
+            .order_by("content_item_id")
+        )
+        for post in posts.iterator(chunk_size=100):
+            if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+                hit_scan_cap = True
+                break
+            for url in extract_urls(post.raw_bbcode, allowed_domains=allowed_domains):
+                urls_to_scan.setdefault(
+                    (post.content_item_id, url),
+                    {"source_content_id": post.content_item_id, "url": url},
+                )
+                if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
+                    hit_scan_cap = True
+                    break
+
+    return urls_to_scan, hit_scan_cap
+
+
+def build_existing_records_map(
+    urls_to_scan: dict[tuple[int, str], dict[str, Any]],
+) -> dict[tuple[int, str], Any]:
+    """Load existing BrokenLink rows that match the scan set."""
+    from apps.graph.models import BrokenLink
+
+    return {
+        (record.source_content_id, record.url): record
+        for record in BrokenLink.objects.filter(
+            source_content_id__in={
+                source_content_id for source_content_id, _ in urls_to_scan.keys()
+            },
+            url__in={url for _, url in urls_to_scan.keys()},
+        )
+    }
+
+
+def store_probe_result(
+    *,
+    source_content_id: int,
+    url: str,
+    http_status: int,
+    redirect_url: str,
+    existing_records: dict[tuple[int, str], Any],
+    to_create: list[Any],
+    to_update: list[Any],
+    checked_at: Any,
+) -> tuple[int, int]:
+    """Classify a probe result and append to create/update lists.
+
+    Returns ``(flagged_delta, fixed_delta)`` -- each is 0 or 1.
+    """
+    from apps.graph.models import BrokenLink
+
+    existing_record = existing_records.get((source_content_id, url))
+    issue_detected = http_status == 0 or bool(redirect_url) or http_status >= 300
+    flagged_delta = 0
+    fixed_delta = 0
+
+    if issue_detected:
+        flagged_delta = 1
+        record_status = (
+            BrokenLink.STATUS_IGNORED
+            if existing_record and existing_record.status == BrokenLink.STATUS_IGNORED
+            else BrokenLink.STATUS_OPEN
+        )
+        if existing_record is None:
+            to_create.append(
+                BrokenLink(
+                    source_content_id=source_content_id,
+                    url=url,
+                    http_status=http_status,
+                    redirect_url=redirect_url,
+                    status=record_status,
+                    notes="",
+                    first_detected_at=checked_at,
+                    last_checked_at=checked_at,
+                )
+            )
+        else:
+            existing_record.http_status = http_status
+            existing_record.redirect_url = redirect_url
+            existing_record.status = record_status
+            existing_record.last_checked_at = checked_at
+            to_update.append(existing_record)
+    elif existing_record:
+        fixed_delta = 1
+        existing_record.http_status = http_status
+        existing_record.redirect_url = ""
+        existing_record.status = BrokenLink.STATUS_FIXED
+        existing_record.last_checked_at = checked_at
+        to_update.append(existing_record)
+
+    return flagged_delta, fixed_delta
+
+
+def scan_via_http_worker(
+    scan_items: list[dict[str, Any]],
+    *,
+    job_id: str,
+    total_urls: int,
+    existing_records: dict[tuple[int, str], Any],
+    to_create: list[Any],
+    to_update: list[Any],
+    checked_at: Any,
+    hit_scan_cap: bool,
+) -> tuple[int, int, str]:
+    """Attempt to scan all URLs through the C# HTTP Worker.
+
+    Returns ``(flagged_urls, fixed_urls, probe_backend)``.
+    Raises on HTTP-worker failure so the caller can fall back.
+    """
+    from apps.pipeline.tasks import _check_broken_links_via_http_worker
+
+    http_worker_results = _check_broken_links_via_http_worker(scan_items)
+    probe_backend = "csharp_http_worker"
+    flagged_urls = 0
+    fixed_urls = 0
+
+    for index, scan_item in enumerate(scan_items, start=1):
+        source_content_id = int(scan_item["source_content_id"])
+        url = str(scan_item["url"])
+        http_status, redirect_url = http_worker_results[(source_content_id, url)]
+        f_delta, x_delta = store_probe_result(
+            source_content_id=source_content_id,
+            url=url,
+            http_status=http_status,
+            redirect_url=redirect_url,
+            existing_records=existing_records,
+            to_create=to_create,
+            to_update=to_update,
+            checked_at=checked_at,
+        )
+        flagged_urls += f_delta
+        fixed_urls += x_delta
+        _publish_progress(
+            job_id,
+            "running",
+            index / total_urls,
+            f"Checked {index}/{total_urls}: {_status_label(http_status)}",
+            scanned_urls=index,
+            total_urls=total_urls,
+            flagged_urls=flagged_urls,
+            fixed_urls=fixed_urls,
+            current_url=url,
+            hit_scan_cap=hit_scan_cap,
+            probe_backend=probe_backend,
+        )
+
+    return flagged_urls, fixed_urls, probe_backend
+
+
+def scan_via_python_requests(
+    scan_items: list[dict[str, Any]],
+    *,
+    job_id: str,
+    total_urls: int,
+    existing_records: dict[tuple[int, str], Any],
+    to_create: list[Any],
+    to_update: list[Any],
+    checked_at: Any,
+    hit_scan_cap: bool,
+    probe_backend: str,
+    http_worker_error: str,
+) -> tuple[int, int]:
+    """Scan all URLs using Python requests (fallback path).
+
+    Returns ``(flagged_urls, fixed_urls)``.
+    """
+    flagged_urls = 0
+    fixed_urls = 0
+    delay_seconds = _get_broken_link_scan_delay_seconds()
+
+    with requests.Session() as session:
+        session.headers.update(
+            {"User-Agent": "XF Internal Linker V2 Broken Link Scanner"}
+        )
+        for index, scan_item in enumerate(scan_items, start=1):
+            source_content_id = int(scan_item["source_content_id"])
+            url = str(scan_item["url"])
+            http_status, redirect_url = _probe_link_health(session, url)
+            f_delta, x_delta = store_probe_result(
+                source_content_id=source_content_id,
+                url=url,
+                http_status=http_status,
+                redirect_url=redirect_url,
+                existing_records=existing_records,
+                to_create=to_create,
+                to_update=to_update,
+                checked_at=checked_at,
+            )
+            flagged_urls += f_delta
+            fixed_urls += x_delta
+
+            _publish_progress(
+                job_id,
+                "running",
+                index / total_urls,
+                f"Checked {index}/{total_urls}: {_status_label(http_status)}",
+                scanned_urls=index,
+                total_urls=total_urls,
+                flagged_urls=flagged_urls,
+                fixed_urls=fixed_urls,
+                current_url=url,
+                hit_scan_cap=hit_scan_cap,
+                probe_backend=probe_backend,
+                http_worker_error=http_worker_error,
+            )
+            if delay_seconds > 0.0 and index < total_urls:
+                time.sleep(delay_seconds)
+
+    return flagged_urls, fixed_urls
+
+
+def persist_scan_results(
+    to_create: list[Any],
+    to_update: list[Any],
+) -> None:
+    """Bulk-write new and updated BrokenLink rows."""
+    from apps.graph.models import BrokenLink
+
+    if to_create:
+        BrokenLink.objects.bulk_create(to_create)
+    if to_update:
+        BrokenLink.objects.bulk_update(
+            to_update,
+            [
+                "http_status",
+                "redirect_url",
+                "status",
+                "notes",
+                "last_checked_at",
+                "updated_at",
+            ],
+        )
