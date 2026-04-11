@@ -979,17 +979,36 @@ def _refresh_content_value_scores(
     return len(updates)
 
 
+def _compute_engagement_raw_score(telemetry: dict) -> float | None:
+    """Compute raw engagement quality from a single telemetry aggregate row.
+
+    Returns None when data is insufficient.
+    """
+    dest_views = int(telemetry.get("destination_views") or 0)
+    engaged = int(telemetry.get("engaged_sessions") or 0)
+    bounced = int(telemetry.get("bounce_sessions") or 0)
+    total_time = float(telemetry.get("total_engagement_time") or 0.0)
+    sessions = int(telemetry.get("sessions") or 0)
+
+    if dest_views == 0 and sessions == 0:
+        return None
+
+    engagement_rate = engaged / max(dest_views, 1)
+    avg_time = total_time / max(sessions, 1)
+    normalized_time = min(avg_time / 180.0, 1.0)
+    bounce_rate = bounced / max(sessions, 1)
+    inverse_bounce = 1.0 - min(bounce_rate, 1.0)
+
+    return 0.50 * engagement_rate + 0.30 * normalized_time + 0.20 * inverse_bounce
+
+
 def _refresh_engagement_quality_scores(
     *, destination_ids: set[int] | None = None, lookback_days: int = 28
 ) -> int:
     """Compute a distinct engagement quality score from GA4 behavioural data.
 
-    Unlike ``content_value_score`` (which blends traffic + engagement into one
-    composite), this isolates **user engagement quality**: engaged-session rate,
-    average engagement time, and inverse bounce rate.
-
-    Dunning 1993 and Joachims et al. 2017 both note that conflating traffic
-    volume with engagement quality distorts ranking signals.
+    Isolates user engagement quality (engaged-session rate, avg engagement
+    time, inverse bounce) separately from traffic volume.
     """
     import logging
 
@@ -1006,8 +1025,6 @@ def _refresh_engagement_quality_scores(
         return 0
 
     window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
-
-    # Aggregate GA4 telemetry per destination
     telemetry_rows = (
         SuggestionTelemetryDaily.objects.filter(
             destination_id__in=item_ids, date__gte=window_start
@@ -1027,41 +1044,16 @@ def _refresh_engagement_quality_scores(
     raw_scores: dict[int, float] = {}
     for item_id in item_ids:
         telemetry = telemetry_map.get(item_id)
-        if telemetry is None:
-            continue
+        if telemetry is not None:
+            score = _compute_engagement_raw_score(telemetry)
+            if score is not None:
+                raw_scores[item_id] = score
 
-        dest_views = int(telemetry.get("destination_views") or 0)
-        engaged = int(telemetry.get("engaged_sessions") or 0)
-        bounced = int(telemetry.get("bounce_sessions") or 0)
-        total_time = float(telemetry.get("total_engagement_time") or 0.0)
-        sessions = int(telemetry.get("sessions") or 0)
-
-        if dest_views == 0 and sessions == 0:
-            continue
-
-        # Engaged session rate: what fraction of views led to engagement
-        engagement_rate = engaged / max(dest_views, 1)
-
-        # Average engagement time normalized to [0, 1] (cap at 180s)
-        avg_time = total_time / max(sessions, 1)
-        normalized_time = min(avg_time / 180.0, 1.0)
-
-        # Inverse bounce rate
-        bounce_rate = bounced / max(sessions, 1)
-        inverse_bounce = 1.0 - min(bounce_rate, 1.0)
-
-        raw_scores[item_id] = (
-            0.50 * engagement_rate + 0.30 * normalized_time + 0.20 * inverse_bounce
-        )
-
-    # Reset items without data to neutral
     item_qs.update(engagement_quality_score=0.5)
     if not raw_scores:
         return 0
 
-    # Normalize to [0.30, 0.90] range (same pattern as content_value_score)
-    min_raw = min(raw_scores.values())
-    max_raw = max(raw_scores.values())
+    min_raw, max_raw = min(raw_scores.values()), max(raw_scores.values())
     updates = []
     for item in ContentItem.objects.filter(pk__in=raw_scores.keys()):
         if max_raw > min_raw:

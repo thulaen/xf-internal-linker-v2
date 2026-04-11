@@ -28,22 +28,13 @@ _POOL_MAX = 100
 _CONTROL_K = 5
 
 
-def _select_matched_controls(
-    suggestion: Suggestion,
+def _build_control_pool(
+    dest: ContentItem,
     baseline_start: date,
     baseline_end: date,
-    k: int = _CONTROL_K,
     pool_max: int = _POOL_MAX,
-) -> tuple[list[int], float | None, int]:
-    """Select k controls matched on pre-period GSC metrics.
-
-    Returns (control_ids, avg_match_quality, pool_size).
-    Uses normalized Euclidean distance on baseline clicks, impressions,
-    CTR, and average position to find the most similar pages.
-    """
-    dest = suggestion.destination
-
-    # Build candidate pool: same content_type + same silo + no applied suggestions
+) -> list[int]:
+    """Build a candidate control pool: same content_type + silo, no applied suggestions."""
     pool_qs = (
         ContentItem.objects.filter(
             scope__silo_group=dest.scope.silo_group_id,
@@ -59,13 +50,46 @@ def _select_matched_controls(
         )
         .values_list("pk", flat=True)[:pool_max]
     )
-    pool_ids = list(pool_qs)
+    return list(pool_qs)
+
+
+def _score_candidate_distance(
+    cand: dict,
+    target_clicks: float,
+    target_imps: float,
+    target_ctr: float,
+    target_pos: float,
+) -> float:
+    """Normalized Euclidean distance between a candidate and the target."""
+    c_clicks = float(cand["clicks"] or 0)
+    c_imps = float(cand["impressions"] or 0)
+    c_ctr = float(cand["ctr"] or 0)
+    c_pos = float(cand["average_position"] or 0)
+
+    dist_sq = ((target_clicks - c_clicks) / max(target_clicks, 1.0)) ** 2
+    dist_sq += ((target_imps - c_imps) / max(target_imps, 1.0)) ** 2
+    dist_sq += (target_ctr - c_ctr) ** 2
+    dist_sq += ((target_pos - c_pos) / max(target_pos, 1.0)) ** 2
+    return math.sqrt(dist_sq)
+
+
+def _select_matched_controls(
+    suggestion: Suggestion,
+    baseline_start: date,
+    baseline_end: date,
+    k: int = _CONTROL_K,
+) -> tuple[list[int], float | None, int]:
+    """Select k controls matched on pre-period GSC metrics.
+
+    Returns (control_ids, avg_match_quality, pool_size).
+    """
+    dest = suggestion.destination
+    pool_ids = _build_control_pool(dest, baseline_start, baseline_end)
     pool_size = len(pool_ids)
 
     if pool_size < _MIN_CONTROLS:
         return [], None, pool_size
 
-    # Fetch target baseline metrics
     target_agg = SearchMetric.objects.filter(
         content_item=dest,
         source="gsc",
@@ -76,12 +100,11 @@ def _select_matched_controls(
         ctr=Avg("ctr"),
         average_position=Avg("average_position"),
     )
-    target_clicks = float(target_agg["clicks"] or 0)
-    target_imps = float(target_agg["impressions"] or 0)
-    target_ctr = float(target_agg["ctr"] or 0)
-    target_pos = float(target_agg["average_position"] or 0)
+    t_clicks = float(target_agg["clicks"] or 0)
+    t_imps = float(target_agg["impressions"] or 0)
+    t_ctr = float(target_agg["ctr"] or 0)
+    t_pos = float(target_agg["average_position"] or 0)
 
-    # Fetch candidate baseline metrics in one batch query
     candidate_aggs = (
         SearchMetric.objects.filter(
             content_item_id__in=pool_ids,
@@ -96,31 +119,13 @@ def _select_matched_controls(
             average_position=Avg("average_position"),
         )
     )
-    candidate_map = {int(row["content_item_id"]): row for row in candidate_aggs}
+    cand_map = {int(r["content_item_id"]): r for r in candidate_aggs}
 
-    # Score each candidate by normalized distance from target
-    scored: list[tuple[int, float]] = []
-    for cid in pool_ids:
-        cand = candidate_map.get(cid)
-        if cand is None:
-            continue
-
-        c_clicks = float(cand["clicks"] or 0)
-        c_imps = float(cand["impressions"] or 0)
-        c_ctr = float(cand["ctr"] or 0)
-        c_pos = float(cand["average_position"] or 0)
-
-        # Normalized squared differences (divide by max(target, 1) to avoid scale bias)
-        dist_sq = 0.0
-        dist_sq += ((target_clicks - c_clicks) / max(target_clicks, 1.0)) ** 2
-        dist_sq += ((target_imps - c_imps) / max(target_imps, 1.0)) ** 2
-        # CTR and position are already small-scale; use absolute diff
-        dist_sq += (target_ctr - c_ctr) ** 2
-        dist_sq += ((target_pos - c_pos) / max(target_pos, 1.0)) ** 2
-
-        distance = math.sqrt(dist_sq)
-        scored.append((cid, distance))
-
+    scored = [
+        (cid, _score_candidate_distance(cand_map[cid], t_clicks, t_imps, t_ctr, t_pos))
+        for cid in pool_ids
+        if cid in cand_map
+    ]
     scored.sort(key=lambda x: x[1])
     selected = scored[:k]
 
@@ -128,10 +133,8 @@ def _select_matched_controls(
         return [], None, pool_size
 
     control_ids = [cid for cid, _ in selected]
-    # Quality = 1 - avg_distance, clamped to [0, 1]
     avg_dist = sum(d for _, d in selected) / len(selected)
     match_quality = max(0.0, min(1.0, 1.0 - avg_dist))
-
     return control_ids, round(match_quality, 4), pool_size
 
 

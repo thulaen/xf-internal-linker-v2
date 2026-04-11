@@ -223,7 +223,10 @@ $baselineLongFiles = @(
     'models.py',                # large model files
     'tests.py',                 # test functions often exceed 80 lines due to fixture setup
     'settings.component.ts',    # onTabChange ~249 lines, saveAllSettings ~127 lines
-    'base.py'                   # Django settings — many small config blocks, hard to split further
+    'base.py',                  # Django settings — many small config blocks, hard to split further
+    'health.py',                # diagnostics/health.py — pre-existing long health-check functions
+    'sync.py',                  # analytics/sync.py — pre-existing long GA4/GSC/Matomo sync functions
+    'impact_engine.py'          # analytics/impact_engine.py — compute_search_impact ~200 lines
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
