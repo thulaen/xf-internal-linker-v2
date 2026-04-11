@@ -73,10 +73,9 @@ class FeedbackRerankService:
         )
 
         # Count ALL generated suggestions per pair (for exposure probability)
-        generated_qs = (
-            Suggestion.objects.values("host__scope_id", "destination__scope_id")
-            .annotate(generated=Count("suggestion_id"))
-        )
+        generated_qs = Suggestion.objects.values(
+            "host__scope_id", "destination__scope_id"
+        ).annotate(generated=Count("suggestion_id"))
         generated_map: dict[tuple[int, int], int] = {}
         for row in generated_qs:
             pair = (row["host__scope_id"], row["destination__scope_id"])

@@ -61,7 +61,11 @@ from .rare_term_propagation import (
     RareTermPropagationSettings,
     build_rare_term_profiles,
 )
-from apps.suggestions.recommended_weights import recommended_float, recommended_int, recommended_str
+from apps.suggestions.recommended_weights import (
+    recommended_float,
+    recommended_int,
+    recommended_str,
+)
 
 logger = logging.getLogger(__name__)
 
