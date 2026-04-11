@@ -34,5 +34,5 @@ pip-audit==2.7.3                     # Dependency vulnerability scanner
 
 # ── Development Utilities ────────────────────────────────────────
 ipython==8.31.0                      # Better Django shell
-django-extensions==3.2.3             # Extra management commands
+django-extensions==4.1             # Extra management commands
 Werkzeug==3.1.3                      # Used by runserver_plus
