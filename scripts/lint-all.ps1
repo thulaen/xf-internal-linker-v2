@@ -221,6 +221,7 @@ $baselineLongFiles = @(
     'views.py',                 # core/views.py ~3910 lines, crawler/views.py
     'services.py',              # health/services.py
     'models.py',                # large model files
+    'tests.py',                 # test functions often exceed 80 lines due to fixture setup
     'settings.component.ts',    # onTabChange ~249 lines, saveAllSettings ~127 lines
     'base.py'                   # Django settings — many small config blocks, hard to split further
 )
