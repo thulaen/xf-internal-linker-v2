@@ -206,11 +206,13 @@ def _execute_pipeline_stages(
     stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(**stage1_kwargs)
 
     progress_fn(0.50, "Stage 2+3: sentence scoring and ranking...")
-    settings["max_existing_links_per_host"] = max_existing_links_per_host
-    settings["max_anchor_words"] = max_anchor_words
-    settings["learned_anchor_rows"] = learned_anchor_rows_by_destination
-    settings["rare_term_profiles"] = rare_term_profiles
-    settings["pagerank_bounds"] = march_2026_pagerank_bounds
+    settings.update(
+        max_existing_links_per_host=max_existing_links_per_host,
+        max_anchor_words=max_anchor_words,
+        learned_anchor_rows=learned_anchor_rows_by_destination,
+        rare_term_profiles=rare_term_profiles,
+        pagerank_bounds=march_2026_pagerank_bounds,
+    )
     scoring_kwargs = dict(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
