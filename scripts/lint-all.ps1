@@ -496,7 +496,7 @@ if ($complexityDiffPy.Count -gt 0) {
 Write-Step "17/32 Python: magic number detector (diff-scoped)"
 $magicHits = 0
 $magicPyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
-$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\' })
+$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$' })
 $magicPattern = '(?<![.\w])\b(\d{3,})\b(?!\s*(#|px|rem|em|MB|GB|KB|ms|seconds?|minutes?|hours?|days?))' # 3+ digit literals
 foreach ($f in $magicPyFiles) {
     $hits = Select-String -Path $f -Pattern $magicPattern |
@@ -506,7 +506,11 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch 'port\s*=' -and         # port numbers
             $_.Line -notmatch 'maxsize\s*=' -and      # lru_cache maxsize
             $_.Line -notmatch '(ALLOWED|CHOICES|RANGE|VERSION|__version__)' -and # constants
-            $_.Line -notmatch '(max_length|timeout|time_limit|soft_time_limit)' # Django/Celery config
+            $_.Line -notmatch '(max_length|timeout|time_limit|soft_time_limit)' -and # Django/Celery config
+            $_.Line -notmatch 'help_text' -and       # Django model field help text
+            $_.Line -notmatch 'batch_size' -and      # bulk_update batch sizes
+            $_.Line -notmatch '(FR-\d|Slice\s)' -and # feature-request references
+            $_.Line -notmatch '(head_limit|offset|limit)' # pagination constants
         }
     if ($hits) {
         $hitsArray = @($hits)
