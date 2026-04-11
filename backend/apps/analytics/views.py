@@ -22,6 +22,12 @@ from .models import AnalyticsSyncRun, SuggestionTelemetryDaily, TelemetryCoverag
 from .tasks import sync_ga4_telemetry, sync_matomo_telemetry
 from .ga4_client import build_ga4_data_service, test_ga4_data_api_access
 
+_GA4_RETENTION_DAYS_DEFAULT = 400
+_GA4_RETENTION_DAYS_MAX = 800
+_GA4_IMPRESSION_MIN_MS_DEFAULT = 1000
+_GA4_IMPRESSION_MIN_MS_MIN = 250
+_GA4_IMPRESSION_MIN_MS_MAX = 5000
+
 GA4_DEFAULTS = {
     "behavior_enabled": False,
     "property_id": "",
@@ -34,9 +40,9 @@ GA4_DEFAULTS = {
     "sync_lookback_days": 7,
     "event_schema": "fr016_v1",
     "geo_granularity": "country",
-    "retention_days": 400,
+    "retention_days": _GA4_RETENTION_DAYS_DEFAULT,
     "impression_visible_ratio": 0.5,
-    "impression_min_ms": 1000,
+    "impression_min_ms": _GA4_IMPRESSION_MIN_MS_DEFAULT,
     "engaged_min_seconds": 10,
 }
 
@@ -470,7 +476,7 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
             payload.get("retention_days", current["retention_days"]),
             "retention_days",
             1,
-            800,
+            _GA4_RETENTION_DAYS_MAX,
         ),
         "impression_visible_ratio": _coerce_float(
             payload.get(
@@ -483,8 +489,8 @@ def _validate_ga4_payload(payload: dict) -> tuple[dict, bool]:
         "impression_min_ms": _coerce_int(
             payload.get("impression_min_ms", current["impression_min_ms"]),
             "impression_min_ms",
-            250,
-            5000,
+            _GA4_IMPRESSION_MIN_MS_MIN,
+            _GA4_IMPRESSION_MIN_MS_MAX,
         ),
         "engaged_min_seconds": _coerce_int(
             payload.get("engaged_min_seconds", current["engaged_min_seconds"]),

@@ -1,6 +1,9 @@
 from rest_framework import serializers
 from .models import GSCImpactSnapshot, GSCKeywordImpact, ImpactReport
 
+_WILSON_MODERATE_MIN = 100
+_WILSON_GOOD_MIN = 500
+
 
 class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
     """Serializer for suggestion-level search attribution."""
@@ -50,9 +53,9 @@ class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
         n = obj.post_impressions
         if n < 20:
             return "Low"
-        if n < 100:
+        if n < _WILSON_MODERATE_MIN:
             return "Moderate"
-        if n < 500:
+        if n < _WILSON_GOOD_MIN:
             return "Good"
         return "High"
 
