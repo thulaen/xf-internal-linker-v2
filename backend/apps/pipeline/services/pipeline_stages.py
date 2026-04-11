@@ -44,7 +44,8 @@ STAGE1_TOP_K = recommended_int("pipeline.stage1_top_k")
 STAGE2_TOP_K = recommended_int("pipeline.stage2_top_k")
 MIN_SEMANTIC_SCORE = recommended_float("pipeline.min_semantic_score")
 FALLBACK_CANDIDATES_PER_DESTINATION = 5
-BLOCK_SIZE = 256
+BLOCK_SIZE = 256  # maxsize for embedding block processing
+_SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
 
 
 # ---------------------------------------------------------------------------
@@ -309,7 +310,7 @@ def _score_all_destinations(
             diagnostics=diagnostics,
         )
 
-        if dest_idx % 100 == 0 and dest_idx > 0:
+        if dest_idx % _SCORING_PROGRESS_INTERVAL == 0 and dest_idx > 0:
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
             progress_fn(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
 

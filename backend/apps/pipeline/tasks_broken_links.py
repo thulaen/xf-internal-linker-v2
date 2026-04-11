@@ -23,6 +23,10 @@ from apps.pipeline.tasks import (
 
 logger = logging.getLogger(__name__)
 
+# Iterator batch sizes
+_CHUNK_SIZE_LINKS = 250  # maxsize for ExistingLink iterator
+_CHUNK_SIZE_POSTS = 100  # maxsize for Post iterator
+
 
 def collect_urls_to_scan() -> tuple[dict[tuple[int, str], dict[str, Any]], bool]:
     """Gather URLs from ExistingLink and Post tables up to the scan cap.
@@ -56,7 +60,7 @@ def collect_urls_to_scan() -> tuple[dict[tuple[int, str], dict[str, Any]], bool]
         .exclude(to_content_item__url="")
         .order_by("from_content_item_id", "to_content_item_id")
     )
-    for link in existing_links.iterator(chunk_size=250):
+    for link in existing_links.iterator(chunk_size=_CHUNK_SIZE_LINKS):
         if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
             hit_scan_cap = True
             break
@@ -75,7 +79,7 @@ def collect_urls_to_scan() -> tuple[dict[tuple[int, str], dict[str, Any]], bool]
             .exclude(raw_bbcode="")
             .order_by("content_item_id")
         )
-        for post in posts.iterator(chunk_size=100):
+        for post in posts.iterator(chunk_size=_CHUNK_SIZE_POSTS):
             if len(urls_to_scan) >= _MAX_BROKEN_LINK_SCAN_URLS:
                 hit_scan_cap = True
                 break
@@ -97,15 +101,13 @@ def build_existing_records_map(
     """Load existing BrokenLink rows that match the scan set."""
     from apps.graph.models import BrokenLink
 
-    return {
-        (record.source_content_id, record.url): record
-        for record in BrokenLink.objects.filter(
-            source_content_id__in={
-                source_content_id for source_content_id, _ in urls_to_scan.keys()
-            },
-            url__in={url for _, url in urls_to_scan.keys()},
-        )
-    }
+    existing_qs = BrokenLink.objects.filter(
+        source_content_id__in={
+            source_content_id for source_content_id, _ in urls_to_scan.keys()
+        },
+        url__in={url for _, url in urls_to_scan.keys()},
+    )
+    return {(record.source_content_id, record.url): record for record in existing_qs}
 
 
 def store_probe_result(

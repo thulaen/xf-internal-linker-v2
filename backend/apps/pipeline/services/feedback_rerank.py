@@ -1,4 +1,4 @@
-"""FR-013 Feedback-Driven Explore/Exploit Reranker.
+"""FR-13 Feedback-Driven Explore/Exploit Reranker.
 
 This service implements a post-ranking layer that optimizes suggestion quality using
 historical reviewer feedback. It uses Bayesian Smoothing for Exploitation
@@ -53,7 +53,7 @@ class FeedbackRerankService:
 
         Also loads total generated counts per pair to compute exposure probability
         for inverse-propensity weighting, correcting for presentation bias
-        (Joachims, Swaminathan & Schnabel 2017).
+        (Joachims, Swaminathan & Schnabel).
         """
         from apps.suggestions.models import Suggestion
 
@@ -104,7 +104,7 @@ class FeedbackRerankService:
         Uses inverse-propensity weighting to correct for exposure bias:
         pairs that were reviewed more often relative to how many were generated
         get a more reliable exploit score, while under-exposed pairs lean more
-        on exploration (Joachims, Swaminathan & Schnabel 2017).
+        on exploration (Joachims, Swaminathan & Schnabel).
         """
         if not self.settings.enabled:
             return 1.0, {"status": "disabled"}

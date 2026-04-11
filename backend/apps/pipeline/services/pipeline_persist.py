@@ -160,11 +160,12 @@ def _persist_diagnostics(
     except PipelineRun.DoesNotExist:
         return
 
+    content_qs = ContentItem.objects.filter(
+        pk__in={content_id for content_id, _, _, _ in diagnostics}
+    )
     content_items = {
         (content_item.pk, content_item.content_type): content_item
-        for content_item in ContentItem.objects.filter(
-            pk__in={content_id for content_id, _, _, _ in diagnostics}
-        )
+        for content_item in content_qs
     }
 
     to_create = []

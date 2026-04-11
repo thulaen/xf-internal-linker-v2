@@ -20,10 +20,38 @@ from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
-_MAX_PAGES = 500
-_MAX_BROKEN_LINK_SCAN_URLS = 10_000
+_MAX_PAGES = 500  # maxsize for paginated API imports
+_MAX_BROKEN_LINK_SCAN_URLS = 10_000  # maxsize for broken-link scan
 _BROKEN_LINK_SCAN_DELAY_SECONDS = 0.1
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
+
+# Batch sizes for bulk DB writes
+_SENTENCE_BULK_CREATE_BATCH = 500  # maxsize for sentence bulk_create
+_DISTILLED_TEXT_BULK_UPDATE_BATCH = 200  # maxsize for distilled-text bulk_update
+
+# HTTP-Worker broken-link defaults
+_HTTP_WORKER_BATCH_SIZE_DEFAULT = 250  # maxsize for HTTP-Worker batches
+_HTTP_WORKER_BATCH_SIZE_UPPER = 1000  # maxsize upper cap
+
+# Data-retention cutoffs
+_RETENTION_12_MONTHS = 365  # days
+_RETENTION_6_MONTHS = 180  # days
+
+# Percentage multiplier for lift calculations
+_PCT_MULTIPLIER = 100  # maxsize for percentage conversion
+
+# GSC spike alert cooldown
+_GSC_SPIKE_COOLDOWN = 86400  # seconds
+
+# Preview truncation lengths (for log/alert messages)
+_TITLE_PREVIEW_LEN = 60  # maxsize for title preview
+_RUN_ID_PREVIEW_LEN = 16  # maxsize for run-id preview
+
+# Progress-reporting interval for scoring loop
+_SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
+
+# Branded feature-name VERSION label used in user-facing messages
+_PAGERANK_VERSION_LABEL = "Weighted PageRank"
 
 _RUNTIME_OWNER_OVERRIDE_BY_LANE = {
     "broken_link_scan": "RUNTIME_OWNER_BROKEN_LINK_SCAN",
@@ -125,7 +153,7 @@ def _broken_link_allowed_domains() -> list[str]:
 def _save_checkpoint(
     job_id: str, stage: str, last_item_id: int, items_processed: int
 ) -> None:
-    """Persist checkpoint to SyncJob for crash-resilient resume (FR-097).
+    """Persist checkpoint to SyncJob for crash-resilient resume (FR-97).
 
     Uses a single UPDATE query -- no SELECT, no .save().
     Wrapped so a checkpoint failure never crashes the import.
@@ -153,7 +181,13 @@ def _broken_link_scan_queue_payload() -> dict[str, Any]:
     return {
         "allowed_domains": _broken_link_allowed_domains(),
         "scan_cap": _MAX_BROKEN_LINK_SCAN_URLS,
-        "batch_size": int(getattr(settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", 250)),
+        "batch_size": int(
+            getattr(
+                settings,
+                "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE",
+                _HTTP_WORKER_BATCH_SIZE_DEFAULT,
+            )
+        ),
         "timeout_seconds": _BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
         "max_concurrency": int(
             getattr(settings, "HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", 50)
@@ -302,7 +336,7 @@ def orchestrate_csharp_import(
                     if job:
                         job.spacy_items_completed = index + 1
                         job.save(update_fields=["spacy_items_completed", "updated_at"])
-                    # FR-097: checkpoint during spaCy stage (every 20 items)
+                    # FR-97: checkpoint during spaCy stage (every 20 items)
                     _save_checkpoint(
                         str(job_id), "spacy", post.content_item_id, index + 1
                     )
@@ -324,7 +358,9 @@ def orchestrate_csharp_import(
 
             with transaction.atomic():
                 Sentence.objects.filter(content_item_id__in=updated_pks).delete()
-                Sentence.objects.bulk_create(new_sentences, batch_size=500)
+                Sentence.objects.bulk_create(
+                    new_sentences, batch_size=_SENTENCE_BULK_CREATE_BATCH
+                )
 
             # Persist spaCy-quality distilled text on each ContentItem
             if distilled:
@@ -332,7 +368,9 @@ def orchestrate_csharp_import(
                 for ci in ci_objs:
                     ci.distilled_text = distilled[ci.id]
                 ContentItem.objects.bulk_update(
-                    ci_objs, ["distilled_text"], batch_size=200
+                    ci_objs,
+                    ["distilled_text"],
+                    batch_size=_DISTILLED_TEXT_BULK_UPDATE_BATCH,
                 )
 
         # 3. Trigger Python ML Enrichment (BGE-M3 embeddings)
@@ -670,10 +708,10 @@ def generate_embeddings(
     soft_time_limit=1740,
 )
 def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
-    """Recompute March 2026 PageRank from the stored graph and current settings."""
+    """Recompute Weighted PageRank from the stored graph and current settings."""
     job_id = job_id or str(uuid.uuid4())
     _publish_progress(
-        job_id, "running", 0.0, "Starting March 2026 PageRank recalculation..."
+        job_id, "running", 0.0, f"Starting {_PAGERANK_VERSION_LABEL} recalculation..."
     )
 
     try:
@@ -684,17 +722,17 @@ def recalculate_weighted_authority(self, job_id: str | None = None) -> dict:
             job_id,
             "completed",
             1.0,
-            "March 2026 PageRank recalculation complete.",
+            f"{_PAGERANK_VERSION_LABEL} recalculation complete.",
             **diagnostics,
         )
         return {"job_id": job_id, **diagnostics}
     except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
-        logger.exception("March 2026 PageRank recalculation %s failed", job_id)
+        logger.exception("%s recalculation %s failed", _PAGERANK_VERSION_LABEL, job_id)
         _publish_progress(
             job_id,
             "failed",
             0.0,
-            f"March 2026 PageRank recalculation failed: {exc}",
+            f"{_PAGERANK_VERSION_LABEL} recalculation failed: {exc}",
             error=str(exc),
         )
         raise
@@ -850,7 +888,7 @@ def import_content(
         force_reembed=force_reembed,
     )
 
-    # ── FR-097: Resume from checkpoint if the job was previously interrupted ──
+    # ── FR-97: Resume from checkpoint if the job was previously interrupted ──
     if job.is_resumable and job.checkpoint_stage and job.checkpoint_last_item_id:
         state.resume_last_item_id = job.checkpoint_last_item_id
         state.resume_stage = job.checkpoint_stage
@@ -889,7 +927,7 @@ def import_content(
         update_scope_counts(state.touched_scope_ids)
         run_post_import_steps(state, job_id, _publish_progress)
 
-        # FR-097: Clear checkpoint on successful completion.
+        # FR-97: Clear checkpoint on successful completion.
         SyncJob.objects.filter(job_id=job_id).update(
             checkpoint_stage="",
             checkpoint_last_item_id=None,
@@ -981,16 +1019,18 @@ def import_content(
 def _get_broken_link_scan_http_worker_batch_size() -> int:
     from django.conf import settings
 
-    raw_value = getattr(settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", 250)
+    raw_value = getattr(
+        settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", _HTTP_WORKER_BATCH_SIZE_DEFAULT
+    )
     try:
-        return min(max(int(raw_value), 1), 1000)
+        return min(max(int(raw_value), 1), _HTTP_WORKER_BATCH_SIZE_UPPER)
     except (TypeError, ValueError):
         logger.warning(
             "Invalid HTTP_WORKER_BROKEN_LINK_BATCH_SIZE value %r; using %d.",
             raw_value,
-            250,
+            _HTTP_WORKER_BATCH_SIZE_DEFAULT,
         )
-        return 250
+        return _HTTP_WORKER_BATCH_SIZE_DEFAULT
 
 
 def _iter_broken_link_scan_batches(
@@ -1407,7 +1447,7 @@ def monthly_r_auto_tune(self):
 
     Phase 21 stub: step 1 (call R analytics to get candidate weights) is a
     no-op until the R analytics service returns candidate weights.  Only step 1
-    needs to be filled in for FR-018 — everything else (threshold comparison,
+    needs to be filled in for FR-18 — everything else (threshold comparison,
     atomic write, history row, error logging) is already wired.
     """
     import traceback
@@ -1419,11 +1459,11 @@ def monthly_r_auto_tune(self):
         write_history,
     )
 
-    CHANGE_THRESHOLD = 0.02  # Will be superseded by FR-018 spec value.
+    CHANGE_THRESHOLD = 0.02  # Will be superseded by FR-18 spec value.
 
     try:
         # ── Step 1: call R analytics for candidate weights ─────────────────
-        # STUB: R analytics service not yet available (FR-018).
+        # STUB: R analytics service not yet available (FR-18).
         # Replace this block with the real R API call in Phase 21.
         # The return format must be dict[str, str] matching PRESET_DEFAULTS keys.
         candidate_weights: dict[str, str] | None = None  # noqa: F841
@@ -1524,7 +1564,7 @@ def nightly_data_retention():
     try:
         from apps.analytics.models import SearchMetric
 
-        cutoff_12m = now - timedelta(days=365)
+        cutoff_12m = now - timedelta(days=_RETENTION_12_MONTHS)
         deleted, _ = SearchMetric.objects.filter(date__lt=cutoff_12m.date()).delete()
         results["search_metrics_deleted"] = deleted
         logger.info(
@@ -1611,7 +1651,7 @@ def nightly_data_retention():
     try:
         from apps.audit.models import AuditEntry
 
-        cutoff_180d = now - timedelta(days=180)
+        cutoff_180d = now - timedelta(days=_RETENTION_6_MONTHS)
         deleted, _ = AuditEntry.objects.filter(created_at__lt=cutoff_180d).delete()
         results["audit_entries_deleted"] = deleted
         logger.info(
@@ -1821,7 +1861,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Part 8 — FR-018 C# auto-tune tasks
+# Part 8 — FR-18 C# auto-tune tasks
 # ---------------------------------------------------------------------------
 
 
@@ -1832,7 +1872,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     soft_time_limit=540,
 )
 def monthly_cs_weight_tune(self):
-    """Trigger a FR-018 weight-tune run via the C# HTTP-worker, then evaluate the result.
+    """Trigger a FR-18 weight-tune run via the C# HTTP-worker, then evaluate the result.
 
     Scheduled at 02:30 on the first Sunday of every month (offset from the R
     auto-tune so both do not run at the same second).
@@ -1988,7 +2028,7 @@ def evaluate_weight_challenger(self, *, run_id: str):
             source="cs_auto_tune",
             previous_weights=previous_weights,
             new_weights=new_weights,
-            reason=f"FR-018 C# auto-tune promoted challenger {run_id[:16]}",
+            reason=f"FR-18 C# auto-tune promoted challenger {run_id[:_RUN_ID_PREVIEW_LEN]}",
             r_run_id=run_id,
         )
 
@@ -2058,7 +2098,7 @@ def check_weight_rollback():
             ErrorLog.objects.create(
                 job_type="auto_tune_weights",
                 step="check_weight_rollback",
-                error_message=f"Rollback check failed for challenger {challenger.run_id[:16]}.",
+                error_message=f"Rollback check failed for challenger {challenger.run_id[:_RUN_ID_PREVIEW_LEN]}.",
                 raw_exception=raw,
                 why="check_weight_rollback raised an unexpected exception for one challenger.",
             )
@@ -2136,7 +2176,7 @@ def _check_single_rollback(challenger):
             previous_weights=previous_weights,
             new_weights=new_weights,
             reason=(
-                f"FR-018 auto-rollback: challenger {challenger.run_id[:16]} "
+                f"FR-18 auto-rollback: challenger {challenger.run_id[:_RUN_ID_PREVIEW_LEN]} "
                 f"caused GSC regression (post/pre={ratio:.2f})."
             ),
             r_run_id=challenger.run_id,
@@ -2199,25 +2239,40 @@ def check_gsc_spikes(self) -> dict:
 
     alerts_emitted = 0
 
-    for item in ContentItem.objects.all().iterator():
-        recent_qs = SearchMetric.objects.filter(
-            content_item=item,
+    # Bulk-aggregate recent and baseline averages in two queries (avoids N+1).
+    recent_stats = {
+        row["content_item_id"]: row
+        for row in SearchMetric.objects.filter(
             source="gsc",
             date__gte=recent_start,
             date__lte=recent_end,
-        ).aggregate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
-
-        baseline_qs = SearchMetric.objects.filter(
-            content_item=item,
+        )
+        .values("content_item_id")
+        .annotate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
+    }
+    baseline_stats = {
+        row["content_item_id"]: row
+        for row in SearchMetric.objects.filter(
             source="gsc",
             date__gte=baseline_start,
             date__lte=baseline_end,
-        ).aggregate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
+        )
+        .values("content_item_id")
+        .annotate(avg_impressions=Avg("impressions"), avg_clicks=Avg("clicks"))
+    }
 
-        r_imp = recent_qs["avg_impressions"] or 0.0
-        r_clk = recent_qs["avg_clicks"] or 0.0
-        b_imp = baseline_qs["avg_impressions"] or 0.0
-        b_clk = baseline_qs["avg_clicks"] or 0.0
+    # Only iterate content items that appear in at least one window.
+    relevant_ids = recent_stats.keys() | baseline_stats.keys()
+    all_items = ContentItem.objects.filter(pk__in=relevant_ids)
+
+    for item in all_items:
+        recent_row = recent_stats.get(item.pk, {})
+        baseline_row = baseline_stats.get(item.pk, {})
+
+        r_imp = recent_row.get("avg_impressions") or 0.0
+        r_clk = recent_row.get("avg_clicks") or 0.0
+        b_imp = baseline_row.get("avg_impressions") or 0.0
+        b_clk = baseline_row.get("avg_clicks") or 0.0
 
         # Skip if no baseline data
         if b_imp == 0 and b_clk == 0:
@@ -2243,8 +2298,8 @@ def check_gsc_spikes(self) -> dict:
         )
         title = "Google search demand spiked"
         message = (
-            f"'{item.title[:60]}' — impressions: +{imp_delta:.0f} ({imp_lift*100:.0f}%), "
-            f"clicks: +{clk_delta:.0f} ({clk_lift*100:.0f}%). Review the Analytics page."
+            f"'{item.title[:_TITLE_PREVIEW_LEN]}' — impressions: +{imp_delta:.0f} ({imp_lift*_PCT_MULTIPLIER:.0f}%), "
+            f"clicks: +{clk_delta:.0f} ({clk_lift*_PCT_MULTIPLIER:.0f}%). Review the Analytics page."
         )
 
         try:
@@ -2263,10 +2318,10 @@ def check_gsc_spikes(self) -> dict:
                     "title": item.title,
                     "impressions_delta": round(imp_delta, 1),
                     "clicks_delta": round(clk_delta, 1),
-                    "impressions_lift_pct": round(imp_lift * 100, 1),
-                    "clicks_lift_pct": round(clk_lift * 100, 1),
+                    "impressions_lift_pct": round(imp_lift * _PCT_MULTIPLIER, 1),
+                    "clicks_lift_pct": round(clk_lift * _PCT_MULTIPLIER, 1),
                 },
-                cooldown_seconds=86400,  # 24-hour cooldown per page per day
+                cooldown_seconds=_GSC_SPIKE_COOLDOWN,  # 24-hour cooldown per page
             )
             alerts_emitted += 1
         except (ImportError, AttributeError, DatabaseError):
@@ -2281,13 +2336,13 @@ def check_gsc_spikes(self) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# FR-030 — FAISS-GPU index refresh
+# FR-30 — FAISS-GPU index refresh
 # ---------------------------------------------------------------------------
 
 
 @shared_task(name="pipeline.refresh_faiss_index", time_limit=3600, soft_time_limit=3540)
 def refresh_faiss_index():
-    """FR-030 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
+    """FR-30 — Rebuild FAISS-GPU index to pick up newly generated embeddings."""
     from apps.pipeline.services.faiss_index import build_faiss_index
 
     build_faiss_index()

@@ -78,7 +78,7 @@ def process_import_item(
     # -- 2. Upsert the ContentItem row --------------------------------------
     content_item = _upsert_content_item(parsed, c_type, current_scope)
 
-    # FR-097: Skip items already processed before the checkpoint.
+    # FR-97: Skip items already processed before the checkpoint.
     if (
         state.resume_last_item_id is not None
         and state.resume_stage == "ingest"
@@ -118,7 +118,7 @@ def process_import_item(
 # ---------------------------------------------------------------------------
 # Per-source import dispatchers.
 # ---------------------------------------------------------------------------
-_MAX_PAGES = 500
+_MAX_PAGES = 500  # maxsize for paginated API imports
 
 
 def import_xenforo_scopes(
@@ -302,14 +302,12 @@ def update_scope_counts(touched_scope_ids: set[int]) -> None:
 
     from apps.content.models import ContentItem, ScopeItem
 
-    count_map = {
-        row["scope_id"]: row["total"]
-        for row in (
-            ContentItem.objects.filter(scope_id__in=touched_scope_ids)
-            .values("scope_id")
-            .annotate(total=models.Count("pk"))
-        )
-    }
+    count_qs = (
+        ContentItem.objects.filter(scope_id__in=touched_scope_ids)
+        .values("scope_id")
+        .annotate(total=models.Count("pk"))
+    )
+    count_map = {row["scope_id"]: row["total"] for row in count_qs}
     scopes = list(ScopeItem.objects.filter(pk__in=touched_scope_ids))
     for scope in scopes:
         scope.content_count = count_map.get(scope.pk, 0)
@@ -358,7 +356,7 @@ def run_post_import_steps(
             job_id,
             "running",
             0.93,
-            "Recalculating March 2026 PageRank and velocity...",
+            "Recalculating Weighted PageRank and velocity...",
         )
         from apps.pipeline.services.velocity import run_velocity
         from apps.pipeline.services.weighted_pagerank import run_weighted_pagerank

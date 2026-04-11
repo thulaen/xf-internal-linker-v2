@@ -415,7 +415,7 @@ def _load_clustering_settings() -> ClusteringSettings:
 
 
 def _load_slate_diversity_settings() -> SlateDiversitySettings:
-    """Load FR-015 slate diversity settings from the DB."""
+    """Load FR-15 slate diversity settings from the DB."""
     try:
         from apps.core.views import get_slate_diversity_settings
 

@@ -39,7 +39,7 @@ def plain_title(value: Any) -> str:
 
 
 def parse_wp_timestamp(value: str | None) -> Any:
-    """Parse an ISO-8601 timestamp as returned by the WordPress REST API."""
+    """Parse an ISO8601 timestamp as returned by the WordPress REST API."""
     from django.utils.dateparse import parse_datetime
 
     if not value:
