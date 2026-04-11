@@ -23,6 +23,24 @@ const SERVICE_GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Content Sources', keys: ['xenforo', 'wordpress', 'sitemaps'] },
   { label: 'Web Crawler', keys: ['crawler_status', 'crawler_storage'] },
   { label: 'Features', keys: ['knowledge_graph', 'weights_plugins', 'webhooks', 'pipeline_health'] },
+  {
+    label: 'Dev Tools',
+    keys: [
+      'dev_tools.asan_ci',
+      'dev_tools.cpp_tests',
+      'dev_tools.coverage_threshold_python',
+      'dev_tools.coverage_threshold_angular',
+      'dev_tools.openapi_schema',
+      'dev_tools.pytest_ini',
+      'dev_tools.responses_library',
+      'dev_tools.clang_tidy',
+      'dev_tools.clang_format',
+      'dev_tools.prettier',
+      'dev_tools.editorconfig',
+      'dev_tools.glitchtip',
+      'dev_tools.dependabot',
+    ],
+  },
 ];
 
 const STATUS_SORT_ORDER: Record<string, number> = {

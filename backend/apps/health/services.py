@@ -1667,3 +1667,10 @@ def get_service_health_status(service_key: str) -> Dict[str, Any]:
             "last_success": None,
             "is_healthy": False,
         }
+
+
+# ── Dev Tools Checkers ────────────────────────────────────────────
+# Import at the bottom so HealthCheckRegistry and ServiceHealthResult are
+# already defined when the decorators in dev_tools_checks.py run.
+# This is a deliberate bottom-import pattern — not a circular import.
+from . import dev_tools_checks as _dev_tools_checks  # noqa: E402, F401

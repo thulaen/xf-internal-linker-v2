@@ -76,8 +76,10 @@ services:
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
       RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
     volumes:
       - ./backend:/app
+      - .:/repo:ro
       - media_files:/app/media
     ports:
       - "8000:8000"
@@ -131,8 +133,10 @@ services:
       RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
       RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
     volumes:
       - ./backend:/app
+      - .:/repo:ro
     healthcheck:
       test: ["CMD-SHELL", "celery -A config.celery inspect ping -t 10 2>&1 | grep -q pong"]
       interval: 30s
