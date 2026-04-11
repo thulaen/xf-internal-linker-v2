@@ -226,3 +226,95 @@ jobs:
 
       - name: Validate docker-compose.yml syntax
         run: docker compose config
+
+  # ── 12. Semgrep security scan (non-blocking — informational only) ─
+  semgrep:
+    name: Semgrep Security Scan
+    runs-on: ubuntu-latest
+    container:
+      image: returntocorp/semgrep
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run Semgrep (Django + Python rules)
+        run: >
+          semgrep
+          --config=p/django
+          --config=p/python
+          --config=p/secrets
+          --output=semgrep-results.json
+          --json
+          backend/
+          || true
+      - name: Upload Semgrep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: semgrep-results
+          path: semgrep-results.json
+          retention-days: 30
+
+  # ── 13. Trivy container vulnerability scan (non-blocking) ─────────
+  trivy-scan:
+    name: Trivy Dependency Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          severity: CRITICAL,HIGH
+          exit-code: '0'
+          format: table
+          output: trivy-results.txt
+      - name: Upload Trivy results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-results
+          path: trivy-results.txt
+          retention-days: 30
+
+  # ── 14. clang-format style check (blocking) ───────────────────────
+  cpp-format:
+    name: C++ Format Check (clang-format)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install clang-format
+        run: sudo apt-get update && sudo apt-get install -y clang-format
+      - name: Check C++ formatting
+        run: |
+          find backend/extensions -name "*.cpp" -o -name "*.h" | \
+            xargs clang-format --dry-run --Werror --style=file
+
+  # ── 15. Playwright E2E tests (non-blocking for now) ───────────────
+  playwright-e2e:
+    name: Playwright E2E Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v5
+        with:
+          node-version: "22"
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Install Playwright browsers
+        working-directory: frontend
+        run: npx playwright install --with-deps chromium
+      - name: Build production bundle
+        working-directory: frontend
+        run: npm run build:prod
+      - name: Run Playwright tests (CI-safe tests only)
+        working-directory: frontend
+        run: npx playwright test tests/ --reporter=html || true
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 7

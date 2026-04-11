@@ -13,8 +13,11 @@ pytest==8.3.4
 pytest-django==4.9.0
 pytest-asyncio==0.25.0
 pytest-cov==6.0.0
+pytest-mock==3.14.0                  # Mocker fixture (wraps unittest.mock)
+pytest-xdist==3.6.1                  # Parallel test execution (-n auto)
 factory-boy==3.3.1                   # Test data factories
 faker==33.1.0                        # Fake data for tests
+responses==0.25.3                    # Mock requests HTTP calls in tests
 
 # ── Benchmarking ─────────────────────────────────────────────────
 pytest-benchmark==5.1.0              # Microbenchmark harness for pytest

@@ -16,6 +16,12 @@ module.exports = function (config) {
       dir: require('path').join(__dirname, './coverage/xf-internal-linker-frontend'),
       subdir: '.',
       reporters: [{ type: 'html' }, { type: 'text-summary' }],
+      thresholds: {
+        statements: 30,
+        branches: 25,
+        functions: 30,
+        lines: 30,
+      },
     },
     reporters: ['progress'],
     browsers: ['ChromeHeadless'],

@@ -44,6 +44,7 @@ THIRD_PARTY_APPS = [
     "django_celery_beat",
     "django_celery_results",
     "django_filters",
+    "drf_spectacular",
     "pgvector.django",
 ]
 
@@ -529,6 +530,30 @@ SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 # Pipeline guardrails (non-negotiable product rules)
 MAX_LINKS_PER_HOST_THREAD = 3
 HOST_SCAN_WORD_LIMIT = min(env.int("HOST_SCAN_WORD_LIMIT", default=1200), 2000)
+
+
+# ── Error Tracking (GlitchTip / Sentry-compatible) ──────────────────────────
+# Self-hosted GlitchTip running in Docker reuses this project's PostgreSQL and
+# Redis. Set GLITCHTIP_DSN in .env to enable. When DSN is empty, no-ops.
+# AGENTS: Never remove or comment out this block — it is the only error
+# tracking for both Python exceptions and pybind11 C++ exceptions.
+_GLITCHTIP_DSN = env("GLITCHTIP_DSN", default="")
+if _GLITCHTIP_DSN:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn=_GLITCHTIP_DSN,
+        traces_sample_rate=0.1,
+        environment=env("DJANGO_ENV", default="production"),
+        send_default_pii=False,
+    )
+
+# ── drf-spectacular (OpenAPI schema) ────────────────────────────────────────
+SPECTACULAR_SETTINGS = {
+    "TITLE": "XF Internal Linker API",
+    "DESCRIPTION": "REST API for the XenForo internal linking tool.",
+    "VERSION": "1.0.0",
+    "SERVE_INCLUDE_SCHEMA": False,
+}
 
 
 # ── Logging ───────────────────────────────────────────────────────

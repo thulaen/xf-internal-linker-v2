@@ -1,0 +1,37 @@
+# Dependabot — automatically opens PRs when dependencies have updates or CVEs.
+# AI agents can review and merge these PRs.
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates
+version: 2
+updates:
+  # Python (pip) — backend
+  - package-ecosystem: pip
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - python
+
+  # npm — Angular frontend
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - angular
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci

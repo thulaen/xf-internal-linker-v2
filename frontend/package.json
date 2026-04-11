@@ -18,7 +18,9 @@
     "ui:test:live": "set PLAYWRIGHT_LIVE=1&& set PLAYWRIGHT_NO_WEBSERVER=1&& playwright test tests/live",
     "ui:test:live:headed": "set PLAYWRIGHT_LIVE=1&& set PLAYWRIGHT_NO_WEBSERVER=1&& playwright test tests/live --headed",
     "ui:snap": "playwright test tests/capture/page-snapshot.spec.ts --workers=1",
-    "ui:snap:live": "set PLAYWRIGHT_LIVE=1&& set PLAYWRIGHT_NO_WEBSERVER=1&& playwright test tests/capture/page-snapshot.spec.ts --workers=1"
+    "ui:snap:live": "set PLAYWRIGHT_LIVE=1&& set PLAYWRIGHT_NO_WEBSERVER=1&& playwright test tests/capture/page-snapshot.spec.ts --workers=1",
+    "format": "prettier --write \"src/**/*.{ts,html,scss,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss,json}\""
   },
   "private": true,
   "dependencies": {
@@ -64,6 +66,9 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "typescript": "~5.8.3",
-    "typescript-eslint": "^8.58.0"
+    "typescript-eslint": "^8.58.0",
+    "prettier": "^3.3.3",
+    "@testing-library/angular": "^17.3.6",
+    "@testing-library/jest-dom": "^6.4.6"
   }
 }

@@ -46,6 +46,12 @@ google-auth-httplib2==0.2.0          # Google Auth transport
 pandas==2.2.3                        # Data aggregation (FR-016, FR-018)
 statsmodels==0.14.4                  # Statistical modeling (FR-018)
 
+# ── API Documentation ────────────────────────────────────────────
+drf-spectacular==0.27.2              # OpenAPI 3 schema generation for DRF
+
+# ── Error Tracking ────────────────────────────────────────────────
+sentry-sdk==2.20.0                   # GlitchTip / Sentry-compatible error tracking
+
 # ── Utilities ────────────────────────────────────────────────────
 Pillow==12.1.1                       # Image handling
 paramiko==3.5.0                      # SSH sync

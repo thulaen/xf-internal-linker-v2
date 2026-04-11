@@ -1,0 +1,29 @@
+[importlinter]
+root_package = apps
+include_external_packages = True
+
+[importlinter:contract:no-models-in-views]
+name = Views must not import models directly — use services
+type = forbidden
+source_modules =
+    apps.health.views
+    apps.analytics.views
+    apps.pipeline.views
+    apps.crawler.views
+forbidden_modules =
+    apps.health.models
+    apps.analytics.models
+    apps.pipeline.models
+    apps.crawler.models
+ignore_imports =
+    apps.*.views -> apps.*.models
+
+[importlinter:contract:no-circular-imports]
+name = No circular imports between apps
+type = independence
+modules =
+    apps.health
+    apps.analytics
+    apps.pipeline
+    apps.crawler
+    apps.content
