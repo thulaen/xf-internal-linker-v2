@@ -7,7 +7,7 @@ keys.
 
 from __future__ import annotations
 
-from .recommended_weights_forward import FORWARD_DECLARED_WEIGHTS
+from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
