@@ -262,6 +262,130 @@ def run_pipeline(
     )
 
     _progress(0.50, "Stage 2+3: sentence scoring and ranking...")
+    candidates_by_destination, diagnostics = _score_all_destinations(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        stage1_candidates=stage1_candidates,
+        content_records=content_records,
+        sentence_ids_ordered=sentence_ids_ordered,
+        sentence_embeddings=sentence_embeddings,
+        sentence_records=sentence_records,
+        sentence_id_to_row=sentence_id_to_row,
+        existing_links=existing_links,
+        existing_outgoing_counts=existing_outgoing_counts,
+        max_existing_links_per_host=max_existing_links_per_host,
+        max_anchor_words=max_anchor_words,
+        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+        rare_term_profiles=rare_term_profiles,
+        weights=weights,
+        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
+        weighted_authority_settings=weighted_authority_settings,
+        link_freshness_settings=link_freshness_settings,
+        phrase_matching_settings=phrase_matching_settings,
+        learned_anchor_settings=learned_anchor_settings,
+        rare_term_settings=rare_term_settings,
+        field_aware_settings=field_aware_settings,
+        ga4_gsc_settings=ga4_gsc_settings,
+        click_distance_settings=click_distance_settings,
+        silo_settings=silo_settings,
+        clustering_settings=clustering_settings,
+        feedback_rerank_settings=feedback_rerank_settings,
+        feedback_rerank_service=feedback_rerank_service,
+        progress_fn=_progress,
+        items_in_scope=items_in_scope,
+    )
+
+    # Build embedding lookup before freeing the numpy arrays (used by FR-015)
+    embedding_lookup: dict[ContentKey, np.ndarray] = {
+        dest_key: dest_embeddings[i] for i, dest_key in enumerate(destination_keys)
+    }
+
+    del dest_embeddings, sentence_embeddings
+    gc.collect()
+
+    if slate_diversity_settings.enabled:
+        _progress(0.87, "FR-015: applying slate diversity reranking...")
+        selected_candidates = apply_slate_diversity(
+            candidates_by_destination=candidates_by_destination,
+            embedding_lookup=embedding_lookup,
+            settings=slate_diversity_settings,
+            max_per_host=max_host_reuse,
+        )
+    else:
+        _progress(
+            0.87,
+            "Resolving host-reuse, circular-pair, and paragraph-cluster filters...",
+        )
+        blocked_diagnostics: dict[ContentKey, str] = {}
+        selected_candidates = select_final_candidates(
+            candidates_by_destination,
+            max_host_reuse=max_host_reuse,
+            sentence_records=sentence_records,
+            paragraph_window=paragraph_window,
+            blocked_diagnostics=blocked_diagnostics,
+        )
+        for dest_key, reason in blocked_diagnostics.items():
+            diagnostics.append((dest_key[0], dest_key[1], reason, None))
+
+    _progress(0.92, "Persisting suggestions...")
+    suggestions_created = _persist_suggestions(
+        run_id=run_id,
+        selected_candidates=selected_candidates,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        rerun_mode=rerun_mode,
+    )
+
+    _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)
+
+    _progress(1.0, f"Pipeline complete — {suggestions_created} suggestions created.")
+    return PipelineResult(
+        run_id=run_id,
+        items_in_scope=items_in_scope,
+        suggestions_created=suggestions_created,
+        destinations_skipped=items_in_scope - suggestions_created,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Stage 2+3 scoring loop (extracted from run_pipeline for function-length compliance)
+# ---------------------------------------------------------------------------
+
+
+def _score_all_destinations(
+    *,
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    stage1_candidates: dict[ContentKey, list[int]],
+    content_records: dict[ContentKey, ContentRecord],
+    sentence_ids_ordered: list[int],
+    sentence_embeddings: np.ndarray,
+    sentence_records: dict[int, SentenceRecord],
+    sentence_id_to_row: dict[int, int],
+    existing_links: set[tuple[ContentKey, ContentKey]],
+    existing_outgoing_counts: dict[ContentKey, int],
+    max_existing_links_per_host: int,
+    max_anchor_words: int,
+    learned_anchor_rows_by_destination: dict,
+    rare_term_profiles: dict,
+    weights: dict[str, float],
+    march_2026_pagerank_bounds: tuple[float, float],
+    weighted_authority_settings: dict,
+    link_freshness_settings: dict,
+    phrase_matching_settings: Any,
+    learned_anchor_settings: Any,
+    rare_term_settings: Any,
+    field_aware_settings: Any,
+    ga4_gsc_settings: dict,
+    click_distance_settings: dict,
+    silo_settings: Any,
+    clustering_settings: Any,
+    feedback_rerank_settings: Any,
+    feedback_rerank_service: Any,
+    progress_fn: Callable,
+    items_in_scope: int,
+) -> tuple[dict[ContentKey, list[ScoredCandidate]], list[tuple]]:
+    """Score every destination through Stage 2 + Stage 3, with reranking."""
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
     diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
 
@@ -352,58 +476,9 @@ def run_pipeline(
 
         if dest_idx % 100 == 0 and dest_idx > 0:
             pct = 0.50 + 0.35 * (dest_idx / items_in_scope)
-            _progress(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
+            progress_fn(pct, f"Scored {dest_idx}/{items_in_scope} destinations...")
 
-    # Build embedding lookup before freeing the numpy arrays (used by FR-015)
-    embedding_lookup: dict[ContentKey, np.ndarray] = {
-        dest_key: dest_embeddings[i] for i, dest_key in enumerate(destination_keys)
-    }
-
-    del dest_embeddings, sentence_embeddings
-    gc.collect()
-
-    if slate_diversity_settings.enabled:
-        _progress(0.87, "FR-015: applying slate diversity reranking...")
-        selected_candidates = apply_slate_diversity(
-            candidates_by_destination=candidates_by_destination,
-            embedding_lookup=embedding_lookup,
-            settings=slate_diversity_settings,
-            max_per_host=max_host_reuse,
-        )
-    else:
-        _progress(
-            0.87,
-            "Resolving host-reuse, circular-pair, and paragraph-cluster filters...",
-        )
-        blocked_diagnostics: dict[ContentKey, str] = {}
-        selected_candidates = select_final_candidates(
-            candidates_by_destination,
-            max_host_reuse=max_host_reuse,
-            sentence_records=sentence_records,
-            paragraph_window=paragraph_window,
-            blocked_diagnostics=blocked_diagnostics,
-        )
-        for dest_key, reason in blocked_diagnostics.items():
-            diagnostics.append((dest_key[0], dest_key[1], reason, None))
-
-    _progress(0.92, "Persisting suggestions...")
-    suggestions_created = _persist_suggestions(
-        run_id=run_id,
-        selected_candidates=selected_candidates,
-        content_records=content_records,
-        sentence_records=sentence_records,
-        rerun_mode=rerun_mode,
-    )
-
-    _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)
-
-    _progress(1.0, f"Pipeline complete — {suggestions_created} suggestions created.")
-    return PipelineResult(
-        run_id=run_id,
-        items_in_scope=items_in_scope,
-        suggestions_created=suggestions_created,
-        destinations_skipped=items_in_scope - suggestions_created,
-    )
+    return candidates_by_destination, diagnostics
 
 
 # ---------------------------------------------------------------------------
@@ -1085,6 +1160,26 @@ def _stage1_candidates(
         return {}
 
     # NumPy fallback path — faiss package not installed -------------------------
+    return _stage1_numpy_fallback(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        host_keys=host_keys,
+        content_to_sentence_ids=content_to_sentence_ids,
+        top_k=top_k,
+        block_size=block_size,
+    )
+
+
+def _stage1_numpy_fallback(
+    *,
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    host_keys: list[ContentKey],
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    top_k: int,
+    block_size: int,
+) -> dict[ContentKey, list[int]]:
+    """NumPy cosine-similarity fallback when FAISS is not installed."""
     from apps.content.models import ContentItem
 
     host_pks_list = [pk for pk, _ in host_keys]
@@ -1114,12 +1209,10 @@ def _stage1_candidates(
         dest_block = dest_embeddings[block_start:block_end]
         dest_keys_block = destination_keys[block_start:block_end]
 
-        # cosine similarity: dest_block (B, D) @ host_matrix.T (D, H) -> (B, H)
         sims = dest_block @ host_matrix.T
 
         for b_idx, dest_key in enumerate(dest_keys_block):
             row = sims[b_idx]
-            # Get top-K host indices (excluding self)
             top_indices = np.argpartition(row, -min(top_k, len(valid_host_keys)))[
                 -top_k:
             ]
@@ -1266,15 +1359,37 @@ def _persist_suggestions(
             status__in=["pending", "superseded"],
         ).delete()
 
-    to_create: list[Suggestion] = []
+    to_create = _build_suggestion_records(
+        run=run,
+        valid_candidates=valid_candidates,
+        content_items=content_items,
+        sentences=sentences,
+    )
+
+    if to_create:
+        Suggestion.objects.bulk_create(to_create)
+
+    return len(to_create)
+
+
+def _build_suggestion_records(
+    *,
+    run: Any,
+    valid_candidates: list[ScoredCandidate],
+    content_items: dict[int, Any],
+    sentences: dict[int, Any],
+) -> list[Any]:
+    """Build Suggestion model instances from scored candidates."""
+    from apps.suggestions.models import Suggestion
+
+    records: list[Suggestion] = []
     for candidate in valid_candidates:
         dest_ci = content_items.get(candidate.destination_content_id)
         host_ci = content_items.get(candidate.host_content_id)
         host_sentence = sentences.get(candidate.host_sentence_id)
         if dest_ci is None or host_ci is None or host_sentence is None:
             continue
-
-        to_create.append(
+        records.append(
             Suggestion(
                 pipeline_run=run,
                 destination=dest_ci,
@@ -1314,11 +1429,7 @@ def _persist_suggestions(
                 status="pending",
             )
         )
-
-    if to_create:
-        Suggestion.objects.bulk_create(to_create)
-
-    return len(to_create)
+    return records
 
 
 def _persist_diagnostics(
