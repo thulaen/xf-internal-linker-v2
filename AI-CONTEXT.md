@@ -448,7 +448,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `git merge --ff-only origin/codex/report-registry-chat-notices`
   - Documentation review only for the new branch-disclosure rule.
 - Commit/push state:
-  - Pending commit on `master` for `AI-CONTEXT.md` only.
+  - Committed and pushed on `master` in `66555fe` (`docs: require branch disclosure before branch creation (docs-only, no build required)`).
   - Left the unrelated dirty file untouched: `docs/reports/repo-business-logic-audit-2026-04-11.md`
 
 ### 2026-04-11 - Chat notification rule for report-registry overlaps
