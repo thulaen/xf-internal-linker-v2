@@ -1667,4 +1667,3 @@ def get_service_health_status(service_key: str) -> Dict[str, Any]:
             "last_success": None,
             "is_healthy": False,
         }
-
