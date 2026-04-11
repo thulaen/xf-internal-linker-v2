@@ -21,6 +21,18 @@ Run this first. Before writing a single line of code. If any answer is YES, stop
 
 ---
 
+## Section 0.5 — Forward Clash Gate
+
+Before writing code, check that your work won't paint future phases into a corner.
+
+- [ ] I checked the next 3 queued phases in the Execution Ledger (`AI-CONTEXT.md`)
+- [ ] I searched pending FRs in `FEATURE-REQUESTS.md` for overlap with my current work area (same models, services, or signals)
+- [ ] I searched `docs/specs/` for specs that reference the same code paths I will modify
+- [ ] My implementation does not create new constraints, coupling, or breaking changes for any queued phase
+- [ ] If a clash exists, I flagged it to the user before proceeding
+
+---
+
 ## Section 1 — Pre-Session Research Gate
 
 ### 1.1 Source binding

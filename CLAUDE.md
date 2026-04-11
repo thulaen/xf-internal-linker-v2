@@ -1,6 +1,6 @@
 # Claude Instructions
 
-**Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
+**Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**

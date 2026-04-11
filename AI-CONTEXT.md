@@ -17,6 +17,46 @@ Execution order and FR IDs are decoupled.
 3. `FEATURE-REQUESTS.md` - backlog source of truth, request dates, request status, target/completed phases
 4. `PROMPTS.md` - workflow guidance only
 
+## Session Gate — Every AI, Every Session
+
+This is the single source of truth for what every AI must read, update, and check. CLAUDE.md and AGENTS.md point here. Do not duplicate these rules elsewhere.
+
+### MUST READ before any code changes
+
+| Order | Document | When |
+|-------|----------|------|
+| 1 | `AI-CONTEXT.md` (this file) | Always — project state, phase ledger, session notes |
+| 2 | `docs/reports/REPORT-REGISTRY.md` | Always — check for open findings in your work area |
+| 3 | `FEATURE-REQUESTS.md` | Always — backlog status, what's done, what's pending |
+| 4 | `docs/BUSINESS-LOGIC-CHECKLIST.md` | If touching ranking, scoring, attribution, import, or reranking |
+| 5 | Language-specific rules file for your work area | If touching that language's code |
+
+Language-specific rules files:
+- `frontend/FRONTEND-RULES.md` — before any frontend work
+- `backend/PYTHON-RULES.md` — before any Python backend work
+- `backend/extensions/CPP-RULES.md` — before any C++ work
+- `services/http-worker/CSHARP-RULES.md` — before any C# work
+
+### MUST UPDATE after work is done
+
+| Order | Document | When |
+|-------|----------|------|
+| 1 | `AI-CONTEXT.md` — Current Session Note | Always |
+| 2 | `AI-CONTEXT.md` — Execution Ledger + Dashboard | If a phase was completed |
+| 3 | `FEATURE-REQUESTS.md` — FR status | If an FR was completed or partially completed |
+| 4 | `docs/reports/REPORT-REGISTRY.md` | If you found a new issue, created a report, or resolved a finding |
+
+### MUST LOG issues discovered during work
+
+If you find any bug, performance bottleneck, logic flaw, missing validation, or code smell during your session — even if it's outside your current task scope — add it to `docs/reports/REPORT-REGISTRY.md` as an individual issue entry. Don't just ignore it and move on. Future AIs will see it and can fix it.
+
+### MUST CHECK for forward clashes (before starting work)
+
+1. Read the next 3 queued phases in the Execution Ledger
+2. Search `FEATURE-REQUESTS.md` for pending FRs that touch the same models, services, or signals
+3. Search `docs/specs/` for specs referencing the same code paths
+4. If your changes will constrain, break, or complicate any future work — STOP and tell the user before proceeding
+
 ## Tech Stack
 
 ### Backend
