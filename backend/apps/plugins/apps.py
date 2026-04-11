@@ -11,8 +11,8 @@ class PluginsConfig(AppConfig):
     verbose_name = "Plugins"
 
     def ready(self) -> None:
-        # Skip plugin loading during migrations and management commands
-        if "migrate" in sys.argv or "makemigrations" in sys.argv:
+        # Skip plugin loading during migrations, management commands, and tests
+        if any(cmd in sys.argv for cmd in ("migrate", "makemigrations", "test")):
             return
 
         from .loader import load_enabled_plugins
