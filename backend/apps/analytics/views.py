@@ -1967,7 +1967,7 @@ class AnalyticsSearchImpactDetailView(APIView):
     def get(self, request, suggestion_id):
         from django.shortcuts import get_object_or_404
         from apps.suggestions.models import Suggestion
-        from .models import GSCImpactSnapshot, ImpactReport
+        from .models import GSCImpactSnapshot
         from .serializers import GSCImpactSnapshotSerializer, GSCKeywordImpactSerializer, ImpactReportSerializer
 
         window = request.query_params.get("window", "28d")
