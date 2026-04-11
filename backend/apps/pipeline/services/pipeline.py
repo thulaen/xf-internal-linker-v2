@@ -205,6 +205,9 @@ def _execute_pipeline_stages(
     progress_fn(0.50, "Stage 2+3: sentence scoring and ranking...")
     settings["max_existing_links_per_host"] = max_existing_links_per_host
     settings["max_anchor_words"] = max_anchor_words
+    settings["learned_anchor_rows"] = learned_anchor_rows_by_destination
+    settings["rare_term_profiles"] = rare_term_profiles
+    settings["pagerank_bounds"] = march_2026_pagerank_bounds
     candidates_by_destination, diagnostics = _score_all_destinations(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
@@ -217,9 +220,6 @@ def _execute_pipeline_stages(
         existing_links=existing_links,
         existing_outgoing_counts=existing_outgoing_counts,
         settings=settings,
-        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
-        rare_term_profiles=rare_term_profiles,
-        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
         feedback_rerank_service=feedback_rerank_service,
         progress_fn=progress_fn,
         items_in_scope=items_in_scope,
@@ -518,9 +518,6 @@ def _score_all_destinations(
     existing_links: set[tuple[ContentKey, ContentKey]],
     existing_outgoing_counts: dict[ContentKey, int],
     settings: dict[str, Any],
-    learned_anchor_rows_by_destination: dict,
-    rare_term_profiles: dict,
-    march_2026_pagerank_bounds: tuple[float, float],
     feedback_rerank_service: Any,
     progress_fn: Callable,
     items_in_scope: int,
@@ -543,9 +540,6 @@ def _score_all_destinations(
             existing_links=existing_links,
             existing_outgoing_counts=existing_outgoing_counts,
             settings=settings,
-            learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
-            rare_term_profiles=rare_term_profiles,
-            march_2026_pagerank_bounds=march_2026_pagerank_bounds,
             feedback_rerank_service=feedback_rerank_service,
             candidates_by_destination=candidates_by_destination,
             diagnostics=diagnostics,
@@ -572,9 +566,6 @@ def _score_single_destination(
     existing_links: set[tuple[ContentKey, ContentKey]],
     existing_outgoing_counts: dict[ContentKey, int],
     settings: dict[str, Any],
-    learned_anchor_rows_by_destination: dict,
-    rare_term_profiles: dict,
-    march_2026_pagerank_bounds: tuple[float, float],
     feedback_rerank_service: Any,
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
     diagnostics: list[tuple],
@@ -607,10 +598,10 @@ def _score_single_destination(
         existing_outgoing_counts=existing_outgoing_counts,
         max_existing_links_per_host=settings["max_existing_links_per_host"],
         max_anchor_words=settings["max_anchor_words"],
-        learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
-        rare_term_profiles=rare_term_profiles,
+        learned_anchor_rows_by_destination=settings["learned_anchor_rows"],
+        rare_term_profiles=settings["rare_term_profiles"],
         weights=settings["weights"],
-        march_2026_pagerank_bounds=march_2026_pagerank_bounds,
+        march_2026_pagerank_bounds=settings["pagerank_bounds"],
         weighted_authority_ranking_weight=settings["weighted_authority"][
             "ranking_weight"
         ],
