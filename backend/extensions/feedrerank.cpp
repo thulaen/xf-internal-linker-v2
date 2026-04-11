@@ -180,6 +180,8 @@ py::tuple calculate_mmr_scores_batch(
 
     auto mmr_scores = py::array_t<double>(candidate_count);
     auto max_similarities = py::array_t<double>(candidate_count);
+    auto mmr_buf = mmr_scores.request();
+    auto max_sim_buf = max_similarities.request();
 
     {
         py::gil_scoped_release release;
@@ -189,8 +191,8 @@ py::tuple calculate_mmr_scores_batch(
             static_cast<const double*>(candidate_buf.ptr),
             static_cast<const double*>(selected_buf.ptr),
             selected_count, embedding_width, diversity_lambda,
-            static_cast<double*>(mmr_scores.request().ptr),
-            static_cast<double*>(max_similarities.request().ptr)
+            static_cast<double*>(mmr_buf.ptr),
+            static_cast<double*>(max_sim_buf.ptr)
         );
     }
 
