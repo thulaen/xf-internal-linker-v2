@@ -540,6 +540,7 @@ HOST_SCAN_WORD_LIMIT = min(env.int("HOST_SCAN_WORD_LIMIT", default=1200), 2000)
 _GLITCHTIP_DSN = env("GLITCHTIP_DSN", default="")
 if _GLITCHTIP_DSN:
     import sentry_sdk
+
     sentry_sdk.init(
         dsn=_GLITCHTIP_DSN,
         traces_sample_rate=0.1,
