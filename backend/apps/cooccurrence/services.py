@@ -127,6 +127,78 @@ def _build_ga4_service():
 # ---------------------------------------------------------------------------
 
 
+def _upsert_cooccurrence_pairs(
+    co_counts: dict[tuple[int, int], int],
+    marginal_counts: dict[int, int],
+    total_sessions: int,
+    min_co_session_count: int,
+    min_jaccard: float,
+    window_start: date,
+    window_end: date,
+) -> int:
+    """Compute Jaccard, lift, G-squared and upsert co-occurrence pairs."""
+    from .models import SessionCoOccurrencePair
+
+    pairs_written = 0
+    for (a_id, b_id), co_count in co_counts.items():
+        if co_count < min_co_session_count:
+            continue
+
+        a_total = marginal_counts.get(a_id, co_count)
+        b_total = marginal_counts.get(b_id, co_count)
+
+        union = a_total + b_total - co_count
+        jaccard = co_count / union if union > 0 else 0.0
+        if jaccard < min_jaccard:
+            continue
+
+        p_a = a_total / total_sessions if total_sessions else 0.0
+        p_b = b_total / total_sessions if total_sessions else 0.0
+        p_ab = co_count / total_sessions if total_sessions else 0.0
+        lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
+        g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
+
+        SessionCoOccurrencePair.objects.update_or_create(
+            source_content_item_id=a_id,
+            dest_content_item_id=b_id,
+            defaults={
+                "co_session_count": co_count,
+                "source_session_count": a_total,
+                "dest_session_count": b_total,
+                "jaccard_similarity": round(jaccard, 6),
+                "lift": round(lift, 4),
+                "log_likelihood_score": round(g2, 4),
+                "data_window_start": window_start,
+                "data_window_end": window_end,
+            },
+        )
+        pairs_written += 1
+    return pairs_written
+
+
+def _resolve_paths_to_content_ids(all_paths: set[str]) -> dict[str, int]:
+    """Map page paths to ContentItem PKs via exact URL then path-portion match."""
+    from apps.content.models import ContentItem
+
+    path_to_id: dict[str, int] = {}
+    for ci in ContentItem.objects.filter(url__in=all_paths).values("id", "url"):
+        url = (ci["url"] or "").split("?")[0].rstrip("/") or "/"
+        path_to_id[url] = ci["id"]
+    for ci in ContentItem.objects.values("id", "url"):
+        raw = ci["url"] or ""
+        if "://" in raw:
+            try:
+                path = "/" + raw.split("://", 1)[1].split("/", 1)[1]
+            except IndexError:
+                path = "/"
+        else:
+            path = raw
+        path = path.split("?")[0].rstrip("/") or "/"
+        if path in all_paths and path not in path_to_id:
+            path_to_id[path] = ci["id"]
+    return path_to_id
+
+
 def fetch_ga4_session_cooccurrence(
     data_window_days: int = 90,
     min_co_session_count: int = 5,
@@ -137,9 +209,6 @@ def fetch_ga4_session_cooccurrence(
     Returns (sessions_processed, pairs_written, ga4_rows_fetched).
     Session IDs are used only for grouping and discarded after aggregation.
     """
-    from apps.content.models import ContentItem
-    from .models import SessionCoOccurrencePair
-
     service, property_id = _build_ga4_service()
 
     window_end = date.today()
@@ -205,30 +274,10 @@ def fetch_ga4_session_cooccurrence(
         window_end,
     )
 
-    # Resolve page paths → ContentItem PKs
     all_paths: set[str] = set()
     for paths in session_paths.values():
         all_paths.update(paths)
-
-    path_to_id: dict[str, int] = {}
-    # Try exact URL match first, then path match
-    for ci in ContentItem.objects.filter(url__in=all_paths).values("id", "url"):
-        url = (ci["url"] or "").split("?")[0].rstrip("/") or "/"
-        path_to_id[url] = ci["id"]
-    # Also try matching on path portion of stored URL
-    for ci in ContentItem.objects.values("id", "url"):
-        raw = ci["url"] or ""
-        # Strip scheme+host to get path
-        if "://" in raw:
-            try:
-                path = "/" + raw.split("://", 1)[1].split("/", 1)[1]
-            except IndexError:
-                path = "/"
-        else:
-            path = raw
-        path = path.split("?")[0].rstrip("/") or "/"
-        if path in all_paths and path not in path_to_id:
-            path_to_id[path] = ci["id"]
+    path_to_id = _resolve_paths_to_content_ids(all_paths)
 
     # Build co-occurrence counts
     # co_counts[(a_id, b_id)] = co_session_count
@@ -256,45 +305,16 @@ def fetch_ga4_session_cooccurrence(
         len(co_counts),
     )
 
-    # Upsert SessionCoOccurrencePair rows
-    pairs_written = 0
     total_sessions = len(session_paths)
-
-    for (a_id, b_id), co_count in co_counts.items():
-        if co_count < min_co_session_count:
-            continue
-
-        a_total = marginal_counts.get(a_id, co_count)
-        b_total = marginal_counts.get(b_id, co_count)
-
-        union = a_total + b_total - co_count
-        jaccard = co_count / union if union > 0 else 0.0
-
-        if jaccard < min_jaccard:
-            continue
-
-        p_a = a_total / total_sessions if total_sessions else 0.0
-        p_b = b_total / total_sessions if total_sessions else 0.0
-        p_ab = co_count / total_sessions if total_sessions else 0.0
-        lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
-
-        g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
-
-        SessionCoOccurrencePair.objects.update_or_create(
-            source_content_item_id=a_id,
-            dest_content_item_id=b_id,
-            defaults={
-                "co_session_count": co_count,
-                "source_session_count": a_total,
-                "dest_session_count": b_total,
-                "jaccard_similarity": round(jaccard, 6),
-                "lift": round(lift, 4),
-                "log_likelihood_score": round(g2, 4),
-                "data_window_start": window_start,
-                "data_window_end": window_end,
-            },
-        )
-        pairs_written += 1
+    pairs_written = _upsert_cooccurrence_pairs(
+        co_counts,
+        marginal_counts,
+        total_sessions,
+        min_co_session_count,
+        min_jaccard,
+        window_start,
+        window_end,
+    )
 
     logger.info("Co-occurrence upsert complete: %d pairs written", pairs_written)
     return sessions_processed, pairs_written, ga4_rows_fetched
