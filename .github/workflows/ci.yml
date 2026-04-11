@@ -347,3 +347,65 @@ jobs:
         run: |
           ./build_ci/test_edges_simsearch
           ./build_ci/test_edges_scoring
+
+  # ── 17. GoogleTest C++ unit tests (blocking) ─────────────────────
+  cpp-test:
+    name: C++ Unit Tests (GoogleTest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
+      - name: Configure
+        working-directory: backend/extensions
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+      - name: Build
+        working-directory: backend/extensions
+        run: cmake --build build --parallel
+      - name: Test
+        working-directory: backend/extensions/build
+        run: ctest --output-on-failure
+
+  # ── 18. AddressSanitizer (blocking) ──────────────────────────────
+  cpp-asan:
+    name: C++ AddressSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
+      - name: Configure with ASAN
+        working-directory: backend/extensions
+        run: |
+          cmake -B build_asan \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fsanitize=address,undefined -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=address,undefined"
+      - name: Build
+        working-directory: backend/extensions
+        run: cmake --build build_asan --parallel
+      - name: Test
+        working-directory: backend/extensions/build_asan
+        run: ctest --output-on-failure
+
+  # ── 19. ThreadSanitizer (non-blocking — TBB may produce false positives) ─
+  cpp-tsan:
+    name: C++ ThreadSanitizer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake libtbb-dev
+      - name: Configure with TSAN
+        working-directory: backend/extensions
+        run: |
+          cmake -B build_tsan \
+            -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+            -DCMAKE_CXX_FLAGS="-fsanitize=thread -fno-omit-frame-pointer" \
+            -DCMAKE_EXE_LINKER_FLAGS="-fsanitize=thread"
+      - name: Build
+        working-directory: backend/extensions
+        run: cmake --build build_tsan --parallel
+      - name: Test (non-blocking)
+        working-directory: backend/extensions/build_tsan
+        run: ctest --output-on-failure || true
