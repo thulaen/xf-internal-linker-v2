@@ -7,7 +7,7 @@ keys.
 
 from __future__ import annotations
 
-from .recommended_weights_forward import get_forward_declared_weights
+from .recommended_weights_forward import FORWARD_DECLARED_WEIGHTS
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
@@ -73,7 +73,7 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
 }
 
 # Merge forward-declared FR keys (FR-038 through FR-096 etc.) into the main dict.
-RECOMMENDED_PRESET_WEIGHTS.update(get_forward_declared_weights())
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
 
 
 def recommended_bool(key: str) -> bool:
