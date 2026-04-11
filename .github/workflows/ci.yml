@@ -319,3 +319,31 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report/
           retention-days: 7
+
+  # ── 16. C++ edge-case unit tests (blocking) ───────────────────────────────
+  cpp-edge-tests:
+    name: C++ Edge-Case Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install build dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake build-essential libtbb-dev
+
+      - name: Configure CMake
+        working-directory: backend/extensions/benchmarks
+        run: >
+          cmake -B build_ci -S .
+          -DCMAKE_BUILD_TYPE=Release
+          -DBENCHMARK_ENABLE_TESTING=OFF
+          -DBENCHMARK_ENABLE_INSTALL=OFF
+
+      - name: Build edge-case test executables
+        working-directory: backend/extensions/benchmarks
+        run: cmake --build build_ci --target test_edges_simsearch test_edges_scoring -- -j$(nproc)
+
+      - name: Run edge-case tests
+        working-directory: backend/extensions/benchmarks
+        run: |
+          ./build_ci/test_edges_simsearch
+          ./build_ci/test_edges_scoring

@@ -80,3 +80,27 @@ add_bench(rareterm    "${EXT_ROOT}/rareterm.cpp")
 
 # Category E: class-based
 add_bench(pulse_metrics "${EXT_ROOT}/pulse_metrics.cpp")
+
+# ── Edge-case unit test executables ──
+function(add_edge_test NAME)
+    set(SOURCES ${ARGN})
+    add_executable(test_edges_${NAME} test_edges_${NAME}.cpp ${SOURCES})
+    target_include_directories(test_edges_${NAME} PRIVATE
+        ${EXT_INC}
+        ${EXT_ROOT}
+        ${CMAKE_CURRENT_SOURCE_DIR}
+    )
+    if(NOT MSVC)
+        find_package(TBB QUIET)
+        if(TBB_FOUND)
+            target_link_libraries(test_edges_${NAME} PRIVATE TBB::tbb)
+            target_compile_definitions(test_edges_${NAME} PRIVATE HAS_TBB=1)
+        endif()
+    endif()
+    add_test(NAME edge_${NAME} COMMAND test_edges_${NAME})
+endfunction()
+
+enable_testing()
+
+add_edge_test(simsearch "${EXT_ROOT}/simsearch.cpp")
+add_edge_test(scoring   "${EXT_ROOT}/scoring.cpp")
