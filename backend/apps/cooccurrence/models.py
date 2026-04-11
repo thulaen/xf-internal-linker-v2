@@ -38,6 +38,14 @@ class SessionCoOccurrencePair(models.Model):
     lift = models.FloatField(
         help_text="P(A∩B) / (P(A) × P(B)). Values > 1 mean articles are co-read more than chance.",
     )
+    log_likelihood_score = models.FloatField(
+        default=0.0,
+        db_index=True,
+        help_text=(
+            "Dunning 1993 log-likelihood ratio (G-squared) for this pair. "
+            "Higher = more statistically surprising co-occurrence."
+        ),
+    )
     last_computed_at = models.DateTimeField(auto_now=True)
     data_window_start = models.DateField()
     data_window_end = models.DateField()

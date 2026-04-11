@@ -118,7 +118,20 @@ def process_import_item(
 # ---------------------------------------------------------------------------
 # Per-source import dispatchers.
 # ---------------------------------------------------------------------------
-_MAX_PAGES = 500  # maxsize for paginated API imports
+_DEFAULT_MAX_PAGES = 500
+
+
+def _get_max_pages() -> int:
+    """Read the import page cap from AppSetting, default 500."""
+    from apps.core.models import AppSetting
+
+    setting = AppSetting.objects.filter(key="import.max_pages").first()
+    if setting is None:
+        return _DEFAULT_MAX_PAGES
+    try:
+        return max(1, int(setting.value))
+    except (ValueError, TypeError):
+        return _DEFAULT_MAX_PAGES
 
 
 def import_xenforo_scopes(
@@ -160,11 +173,14 @@ def _import_xenforo_threads(
     publish_progress: Any,
 ) -> None:
     """Paginate through XenForo threads for a single forum node."""
+    max_pages = _get_max_pages()
     page = 1
-    while page <= _MAX_PAGES:
+    exhausted = False
+    while page <= max_pages:
         resp = xf_client.get_threads(scope.scope_id, page=page)
         threads = resp.get("threads", [])
         if not threads:
+            exhausted = True
             break
         for thread in threads:
             thread["content_type"] = "thread"
@@ -174,8 +190,17 @@ def _import_xenforo_threads(
                 state.items_updated += 1
         _maybe_flush_and_checkpoint(state, job)
         if page >= resp.get("pagination", {}).get("last_page", 1):
+            exhausted = True
             break
         page += 1
+    if not exhausted:
+        logger.warning(
+            "Import reached page cap (%s) for scope %s. "
+            "Some content may not have been imported. "
+            "Increase import.max_pages in Settings to import more.",
+            max_pages,
+            scope.title,
+        )
 
 
 def _import_xenforo_resources(
@@ -186,11 +211,14 @@ def _import_xenforo_resources(
     publish_progress: Any,
 ) -> None:
     """Paginate through XenForo resources for a single resource category."""
+    max_pages = _get_max_pages()
     page = 1
-    while page <= _MAX_PAGES:
+    exhausted = False
+    while page <= max_pages:
         resp = xf_client.get_resources(scope.scope_id, page=page)
         resources = resp.get("resources", [])
         if not resources:
+            exhausted = True
             break
         for resource in resources:
             resource["content_type"] = "resource"
@@ -202,8 +230,17 @@ def _import_xenforo_resources(
                     handle_resource_updates(xf_client, resource, pk)
         _maybe_flush_and_checkpoint(state, job)
         if page >= resp.get("pagination", {}).get("last_page", 1):
+            exhausted = True
             break
         page += 1
+    if not exhausted:
+        logger.warning(
+            "Import reached page cap (%s) for scope %s. "
+            "Some content may not have been imported. "
+            "Increase import.max_pages in Settings to import more.",
+            max_pages,
+            scope.title,
+        )
 
 
 def import_wordpress_content(

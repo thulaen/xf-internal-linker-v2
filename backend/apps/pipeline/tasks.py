@@ -20,7 +20,6 @@ from urllib.error import URLError
 
 logger = logging.getLogger(__name__)
 
-_MAX_PAGES = 500  # maxsize for paginated API imports
 _MAX_BROKEN_LINK_SCAN_URLS = 10_000  # maxsize for broken-link scan
 _BROKEN_LINK_SCAN_DELAY_SECONDS = 0.1
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10

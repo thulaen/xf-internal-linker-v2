@@ -137,6 +137,23 @@ class ImpactReport(models.Model):
     delta_percent = models.FloatField(
         help_text="Percentage change: ((after - before) / before) * 100. Positive = improvement.",
     )
+    control_pool_size = models.IntegerField(
+        default=0,
+        help_text="Number of candidate control items before similarity matching.",
+    )
+    control_match_count = models.IntegerField(
+        default=0,
+        help_text="Number of controls selected after similarity matching.",
+    )
+    control_match_quality = models.FloatField(
+        null=True,
+        blank=True,
+        help_text="Average pre-period similarity score of selected controls (0-1).",
+    )
+    is_conclusive = models.BooleanField(
+        default=True,
+        help_text="False when insufficient controls or data make the result unreliable.",
+    )
     created_at = models.DateTimeField(
         auto_now_add=True,
         help_text="When this impact report was generated.",

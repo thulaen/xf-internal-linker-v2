@@ -459,6 +459,7 @@ def run_matomo_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         )
 
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
+    _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
 
     return {
         "rows_read": rows_read,
@@ -682,6 +683,7 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         )
 
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
+    _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
 
     return {
         "rows_read": rows_read,
@@ -867,6 +869,7 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
         )
 
     _refresh_content_value_scores(destination_ids=touched_destination_ids)
+    _refresh_engagement_quality_scores(destination_ids=touched_destination_ids)
 
     return {
         "rows_read": rows_read,
@@ -973,4 +976,105 @@ def _refresh_content_value_scores(
         ContentItem.objects.bulk_update(
             updates, ["content_value_score"], batch_size=500
         )
+    return len(updates)
+
+
+def _refresh_engagement_quality_scores(
+    *, destination_ids: set[int] | None = None, lookback_days: int = 28
+) -> int:
+    """Compute a distinct engagement quality score from GA4 behavioural data.
+
+    Unlike ``content_value_score`` (which blends traffic + engagement into one
+    composite), this isolates **user engagement quality**: engaged-session rate,
+    average engagement time, and inverse bounce rate.
+
+    Dunning 1993 and Joachims et al. 2017 both note that conflating traffic
+    volume with engagement quality distorts ranking signals.
+    """
+    import logging
+
+    logger_local = logging.getLogger(__name__)
+
+    item_qs = ContentItem.objects.all()
+    if destination_ids is not None:
+        if not destination_ids:
+            return 0
+        item_qs = item_qs.filter(pk__in=destination_ids)
+
+    item_ids = list(item_qs.values_list("pk", flat=True))
+    if not item_ids:
+        return 0
+
+    window_start = timezone.now().date() - timedelta(days=max(lookback_days, 1) - 1)
+
+    # Aggregate GA4 telemetry per destination
+    telemetry_rows = (
+        SuggestionTelemetryDaily.objects.filter(
+            destination_id__in=item_ids, date__gte=window_start
+        )
+        .exclude(country__in=BLOCKED_TELEMETRY_COUNTRY_VALUES)
+        .values("destination_id")
+        .annotate(
+            destination_views=Sum("destination_views"),
+            engaged_sessions=Sum("engaged_sessions"),
+            bounce_sessions=Sum("bounce_sessions"),
+            total_engagement_time=Sum("total_engagement_time_seconds"),
+            sessions=Sum("sessions"),
+        )
+    )
+    telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}
+
+    raw_scores: dict[int, float] = {}
+    for item_id in item_ids:
+        telemetry = telemetry_map.get(item_id)
+        if telemetry is None:
+            continue
+
+        dest_views = int(telemetry.get("destination_views") or 0)
+        engaged = int(telemetry.get("engaged_sessions") or 0)
+        bounced = int(telemetry.get("bounce_sessions") or 0)
+        total_time = float(telemetry.get("total_engagement_time") or 0.0)
+        sessions = int(telemetry.get("sessions") or 0)
+
+        if dest_views == 0 and sessions == 0:
+            continue
+
+        # Engaged session rate: what fraction of views led to engagement
+        engagement_rate = engaged / max(dest_views, 1)
+
+        # Average engagement time normalized to [0, 1] (cap at 180s)
+        avg_time = total_time / max(sessions, 1)
+        normalized_time = min(avg_time / 180.0, 1.0)
+
+        # Inverse bounce rate
+        bounce_rate = bounced / max(sessions, 1)
+        inverse_bounce = 1.0 - min(bounce_rate, 1.0)
+
+        raw_scores[item_id] = (
+            0.50 * engagement_rate + 0.30 * normalized_time + 0.20 * inverse_bounce
+        )
+
+    # Reset items without data to neutral
+    item_qs.update(engagement_quality_score=0.5)
+    if not raw_scores:
+        return 0
+
+    # Normalize to [0.30, 0.90] range (same pattern as content_value_score)
+    min_raw = min(raw_scores.values())
+    max_raw = max(raw_scores.values())
+    updates = []
+    for item in ContentItem.objects.filter(pk__in=raw_scores.keys()):
+        if max_raw > min_raw:
+            normalized = (raw_scores[item.pk] - min_raw) / (max_raw - min_raw)
+            score = 0.30 + (0.60 * normalized)
+        else:
+            score = 0.60
+        item.engagement_quality_score = round(score, 6)
+        updates.append(item)
+
+    if updates:
+        ContentItem.objects.bulk_update(
+            updates, ["engagement_quality_score"], batch_size=500
+        )
+    logger_local.info("Refreshed engagement_quality_score for %s items", len(updates))
     return len(updates)

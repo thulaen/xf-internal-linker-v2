@@ -721,3 +721,51 @@ class PipelineDiagnostic(models.Model):
             f"[{self.skip_reason}] {self.destination} "
             f"in run {str(self.pipeline_run_id)[:8]}"
         )
+
+
+class SuggestionPresentation(TimestampedModel):
+    """Logs when a suggestion was shown in the review list UI.
+
+    Used to compute exposure probability for inverse-propensity weighting
+    in the feedback reranker (FR-013).  One row per unique
+    (suggestion, user, date) triple — refreshes within the same day are
+    deduplicated by the unique constraint.
+
+    Joachims et al. 2017 ("Unbiased Learning-to-Rank with Biased Feedback")
+    shows that using presented-count rather than generated-count as the
+    exposure denominator removes position-bias from the learning signal.
+    """
+
+    suggestion = models.ForeignKey(
+        Suggestion,
+        on_delete=models.CASCADE,
+        related_name="presentations",
+    )
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+    )
+    presented_date = models.DateField(
+        help_text="Calendar date of the presentation (for daily dedup).",
+    )
+
+    class Meta:
+        verbose_name = "Suggestion Presentation"
+        verbose_name_plural = "Suggestion Presentations"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["suggestion", "user", "presented_date"],
+                name="unique_presentation_per_user_day",
+            ),
+        ]
+        indexes = [
+            models.Index(
+                fields=["suggestion", "-presented_date"],
+                name="suggestions_present_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Presented {self.suggestion_id} to user {self.user_id} on {self.presented_date}"

@@ -1454,11 +1454,11 @@ def get_feature_readinessMatrix():
         {"id": "FR-013", "name": "Node affinity", "status": "implemented"},
         {"id": "FR-014", "name": "Global ranking (PageRank)", "status": "implemented"},
         {"id": "FR-015", "name": "3-stage pipeline", "status": "verified"},
-        {"id": "FR-016", "name": "GA4 telemetry", "status": "planned_only"},
-        {"id": "FR-017", "name": "GSC attribution", "status": "planned_only"},
-        {"id": "FR-018", "name": "Weight tuning", "status": "planned_only"},
-        {"id": "FR-019", "name": "Alert delivery", "status": "planned_only"},
-        {"id": "FR-020", "name": "Hot swap", "status": "planned_only"},
-        {"id": "FR-021", "name": "System health", "status": "implementing"},
+        {"id": "FR-016", "name": "GA4 telemetry", "status": "implemented"},
+        {"id": "FR-017", "name": "GSC attribution", "status": "implemented"},
+        {"id": "FR-018", "name": "Weight tuning", "status": "implemented"},
+        {"id": "FR-019", "name": "Alert delivery", "status": "implemented"},
+        {"id": "FR-020", "name": "Hot swap", "status": "postponed"},
+        {"id": "FR-021", "name": "System health", "status": "implemented"},
     ]
     return features

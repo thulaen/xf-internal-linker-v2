@@ -24,6 +24,7 @@ from .models import (
     PipelineRun,
     RankingChallenger,
     Suggestion,
+    SuggestionPresentation,
     WeightAdjustmentHistory,
     WeightPreset,
 )
@@ -155,6 +156,44 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 destination__scope__silo_group=F("host__scope__silo_group"),
             )
         return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Override list to log suggestion presentations for exposure tracking.
+
+        Each suggestion returned in the list response is recorded as
+        "presented" to the requesting user. Deduplicated per user per day
+        via a unique constraint on SuggestionPresentation.
+        """
+        response = super().list(request, *args, **kwargs)
+
+        # Only log for authenticated, non-export requests
+        if request.user and request.user.is_authenticated:
+            suggestion_ids = [
+                item.get("suggestion_id") or item.get("id")
+                for item in (
+                    response.data.get("results", [])
+                    if isinstance(response.data, dict)
+                    else response.data
+                )
+                if isinstance(item, dict)
+            ]
+            if suggestion_ids:
+                today = datetime.now(tz=timezone.utc).date()
+                presentations = [
+                    SuggestionPresentation(
+                        suggestion_id=sid,
+                        user=request.user,
+                        presented_date=today,
+                    )
+                    for sid in suggestion_ids
+                    if sid is not None
+                ]
+                if presentations:
+                    SuggestionPresentation.objects.bulk_create(
+                        presentations, ignore_conflicts=True
+                    )
+
+        return response
 
     # ── Review actions ────────────────────────────────────────────
 

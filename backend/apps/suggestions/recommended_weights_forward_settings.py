@@ -172,6 +172,8 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     "value_model.w_cooccurrence": "0.12",
     "value_model.co_occurrence_fallback_value": "0.5",
     "value_model.co_occurrence_min_co_sessions": "5",
+    "value_model.co_occurrence.llr_sigmoid_alpha": "0.1",
+    "value_model.co_occurrence.llr_sigmoid_beta": "10.0",
     # =====================================================================
     # PATENT-BACKED RANKING SIGNALS (FR-051 to FR-059)
     # =====================================================================

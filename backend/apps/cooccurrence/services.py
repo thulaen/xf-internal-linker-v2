@@ -6,6 +6,7 @@ All database-heavy operations are here. Tasks in tasks.py call these.
 from __future__ import annotations
 
 import logging
+import math
 from collections import defaultdict
 from datetime import date, timedelta
 from itertools import combinations
@@ -17,6 +18,61 @@ if TYPE_CHECKING:
     from apps.suggestions.models import Suggestion
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Dunning 1993 log-likelihood ratio (G-squared) for co-occurrence pairs
+# ---------------------------------------------------------------------------
+
+
+def _compute_log_likelihood(
+    co_count: int,
+    a_total: int,
+    b_total: int,
+    total_sessions: int,
+) -> float:
+    """Compute the Dunning 1993 log-likelihood ratio (G-squared).
+
+    The 2x2 contingency table is:
+        k11 = co_count          (both A and B)
+        k12 = a_total - co      (A without B)
+        k21 = b_total - co      (B without A)
+        k22 = N - a - b + co    (neither)
+
+    G^2 = 2 * sum(k_ij * ln(k_ij * N / (R_i * C_j))) for non-zero cells.
+
+    Returns 0.0 when the table is degenerate (zero margins).
+    """
+    n = total_sessions
+    if n <= 0:
+        return 0.0
+
+    k11 = co_count
+    k12 = a_total - co_count
+    k21 = b_total - co_count
+    k22 = n - a_total - b_total + co_count
+
+    # Row and column totals
+    r1 = k11 + k12  # a_total
+    r2 = k21 + k22  # n - a_total
+    c1 = k11 + k21  # b_total
+    c2 = k12 + k22  # n - b_total
+
+    if r1 <= 0 or r2 <= 0 or c1 <= 0 or c2 <= 0:
+        return 0.0
+
+    g2 = 0.0
+    for k_ij, r_i, c_j in [
+        (k11, r1, c1),
+        (k12, r1, c2),
+        (k21, r2, c1),
+        (k22, r2, c2),
+    ]:
+        if k_ij > 0:
+            expected = (r_i * c_j) / n
+            g2 += k_ij * math.log(k_ij / expected)
+
+    return max(2.0 * g2, 0.0)
 
 
 # ---------------------------------------------------------------------------
@@ -222,6 +278,8 @@ def fetch_ga4_session_cooccurrence(
         p_ab = co_count / total_sessions if total_sessions else 0.0
         lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
 
+        g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
+
         SessionCoOccurrencePair.objects.update_or_create(
             source_content_item_id=a_id,
             dest_content_item_id=b_id,
@@ -231,6 +289,7 @@ def fetch_ga4_session_cooccurrence(
                 "dest_session_count": b_total,
                 "jaccard_similarity": round(jaccard, 6),
                 "lift": round(lift, 4),
+                "log_likelihood_score": round(g2, 4),
                 "data_window_start": window_start,
                 "data_window_end": window_end,
             },
@@ -260,11 +319,17 @@ def compute_co_occurrence_signal(
     min_co_sessions: int = 5,
     fallback: float = 0.5,
     site_max_jaccard: float = 1.0,
+    llr_sigmoid_alpha: float = 0.1,
+    llr_sigmoid_beta: float = 10.0,
 ) -> tuple[float, dict]:
-    """Return (signal_value, diagnostics) for a source→dest pair.
+    """Return (signal_value, diagnostics) for a source->dest pair.
 
-    Returns (fallback, diagnostics) when no qualifying pair exists.
-    Signal is normalized to [0, 1] relative to the site-wide max Jaccard.
+    Uses sigmoid-normalized Dunning 1993 log-likelihood ratio (G-squared)
+    instead of site-max Jaccard normalization.  The sigmoid maps the
+    unbounded G-squared into [0, 1]:  signal = 1 / (1 + exp(-alpha*(g2 - beta))).
+
+    ``site_max_jaccard`` is kept for backward compatibility but no longer
+    affects the signal value.
     """
     from .models import SessionCoOccurrencePair
 
@@ -272,7 +337,9 @@ def compute_co_occurrence_signal(
         "co_occurrence_signal": fallback,
         "co_session_count": 0,
         "jaccard_similarity": 0.0,
+        "log_likelihood_score": 0.0,
         "lift": 1.0,
+        "co_occurrence_method": "llr_sigmoid_v1",
         "co_occurrence_fallback_used": True,
     }
 
@@ -287,17 +354,23 @@ def compute_co_occurrence_signal(
     if pair.co_session_count < min_co_sessions:
         diagnostics["co_session_count"] = pair.co_session_count
         diagnostics["jaccard_similarity"] = pair.jaccard_similarity
+        diagnostics["log_likelihood_score"] = pair.log_likelihood_score
         diagnostics["lift"] = pair.lift
         return fallback, diagnostics
 
-    denom = max(site_max_jaccard, 1e-9)
-    signal = min(pair.jaccard_similarity / denom, 1.0)
+    # Sigmoid normalization of G-squared (Dunning 1993)
+    g2 = pair.log_likelihood_score
+    exponent = -llr_sigmoid_alpha * (g2 - llr_sigmoid_beta)
+    # Clamp to avoid overflow in exp()
+    exponent = max(-50.0, min(50.0, exponent))
+    signal = 1.0 / (1.0 + math.exp(exponent))
 
     diagnostics.update(
         {
             "co_occurrence_signal": round(signal, 6),
             "co_session_count": pair.co_session_count,
             "jaccard_similarity": round(pair.jaccard_similarity, 6),
+            "log_likelihood_score": round(g2, 4),
             "lift": round(pair.lift, 4),
             "co_occurrence_fallback_used": False,
         }
@@ -457,7 +530,7 @@ def compute_value_model_score(
       traffic      → dest.content_value_score (GA4/GSC composite)
       freshness    → dest.link_freshness_score
       authority    → dest.march_2026_pagerank_score
-      engagement   → dest.content_value_score (same composite, different weight)
+      engagement   → dest.engagement_quality_score (GA4 behavioural quality)
       cooccurrence → SessionCoOccurrencePair Jaccard (pairwise)
       penalty      → composite of density / anchor-overshoot / cluster proximity
     """
@@ -470,9 +543,7 @@ def compute_value_model_score(
     traffic_signal = float(getattr(dest, "content_value_score", 0.5) or 0.5)
     freshness_signal = float(getattr(dest, "link_freshness_score", 0.5) or 0.5)
     authority_signal = float(getattr(dest, "march_2026_pagerank_score", 0.5) or 0.5)
-    engagement_signal = (
-        traffic_signal  # same composite until per-signal breakdown exists
-    )
+    engagement_signal = float(getattr(dest, "engagement_quality_score", 0.5) or 0.5)
 
     # Graduated penalty signal — falls back to 0.0 on any error.
     try:
@@ -499,6 +570,8 @@ def compute_value_model_score(
     min_co_sessions = int(settings.get("co_occurrence_min_co_sessions", 5))
     fallback = float(settings.get("co_occurrence_fallback_value", 0.5))
     co_enabled = bool(settings.get("co_occurrence_signal_enabled", True))
+    llr_alpha = float(settings.get("co_occurrence.llr_sigmoid_alpha", 0.1))
+    llr_beta = float(settings.get("co_occurrence.llr_sigmoid_beta", 10.0))
 
     if co_enabled and host is not None and dest is not None:
         co_signal, co_diagnostics = compute_co_occurrence_signal(
@@ -507,6 +580,8 @@ def compute_value_model_score(
             min_co_sessions=min_co_sessions,
             fallback=fallback,
             site_max_jaccard=site_max_jaccard,
+            llr_sigmoid_alpha=llr_alpha,
+            llr_sigmoid_beta=llr_beta,
         )
     else:
         co_signal = fallback

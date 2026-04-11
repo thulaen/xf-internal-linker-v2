@@ -231,6 +231,15 @@ class ContentItem(TimestampedModel):
         db_index=True,
         help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
     )
+    engagement_quality_score = models.FloatField(
+        default=0.5,
+        db_index=True,
+        help_text=(
+            "GA4 engagement quality: 0.50*engaged_session_rate + "
+            "0.30*normalized_avg_engagement_time + 0.20*inverse_bounce_rate. "
+            "0.5 = neutral. Written by analytics sync layer."
+        ),
+    )
     click_distance_score = models.FloatField(
         default=0.5,
         db_index=True,

@@ -51,11 +51,15 @@ class FeedbackRerankService:
     def load_historical_stats(self) -> None:
         """Fetch and aggregate approval rates for (host_scope, destination_scope) pairs.
 
-        Also loads total generated counts per pair to compute exposure probability
-        for inverse-propensity weighting, correcting for presentation bias
-        (Joachims, Swaminathan & Schnabel).
+        Uses presentation counts (how many times a suggestion was shown in
+        the review list) rather than generated counts for inverse-propensity
+        weighting.  Falls back to generated counts when no presentation data
+        exists (new deployment, or before exposure logging was added).
+
+        Joachims, Swaminathan & Schnabel (2017) show that using
+        presented-count as the exposure denominator removes position-bias.
         """
-        from apps.suggestions.models import Suggestion
+        from apps.suggestions.models import Suggestion, SuggestionPresentation
 
         # Count reviewed suggestions per pair (explicit human reviews only)
         reviewed_qs = (
@@ -72,26 +76,45 @@ class FeedbackRerankService:
             )
         )
 
-        # Count ALL generated suggestions per pair (for exposure probability)
-        generated_qs = Suggestion.objects.values(
-            "host__scope_id", "destination__scope_id"
-        ).annotate(generated=Count("suggestion_id"))
+        # Count presented suggestions per pair (exposure-based denominator)
+        has_presentations = SuggestionPresentation.objects.exists()
+
+        presented_map: dict[tuple[int, int], int] = {}
+        if has_presentations:
+            presented_qs = SuggestionPresentation.objects.values(
+                "suggestion__host__scope_id",
+                "suggestion__destination__scope_id",
+            ).annotate(presented=Count("id", distinct=True))
+            for row in presented_qs:
+                pair = (
+                    row["suggestion__host__scope_id"],
+                    row["suggestion__destination__scope_id"],
+                )
+                presented_map[pair] = row["presented"]
+
+        # Fallback: count ALL generated suggestions per pair
         generated_map: dict[tuple[int, int], int] = {}
-        for row in generated_qs:
-            pair = (row["host__scope_id"], row["destination__scope_id"])
-            generated_map[pair] = row["generated"]
+        if not has_presentations:
+            generated_qs = Suggestion.objects.values(
+                "host__scope_id", "destination__scope_id"
+            ).annotate(generated=Count("suggestion_id"))
+            for row in generated_qs:
+                pair = (row["host__scope_id"], row["destination__scope_id"])
+                generated_map[pair] = row["generated"]
 
         self._pair_stats = {}
         self._global_total_samples = 0
 
         for row in reviewed_qs:
             pair = (row["host__scope_id"], row["destination__scope_id"])
-            n_generated = generated_map.get(pair, row["total"])
-            exposure_prob = row["total"] / max(n_generated, 1)
+            # Prefer presented count; fall back to generated count
+            n_exposure = presented_map.get(pair, generated_map.get(pair, row["total"]))
+            exposure_prob = row["total"] / max(n_exposure, 1)
             self._pair_stats[pair] = {
                 "total": row["total"],
                 "successes": row["successes"],
-                "generated": n_generated,
+                "presented": presented_map.get(pair, 0),
+                "generated": generated_map.get(pair, 0),
                 "exposure_prob": exposure_prob,
             }
             self._global_total_samples += row["total"]
@@ -111,7 +134,14 @@ class FeedbackRerankService:
 
         pair = (host_scope_id, destination_scope_id)
         stats = self._pair_stats.get(
-            pair, {"total": 0, "successes": 0, "generated": 0, "exposure_prob": 0.0}
+            pair,
+            {
+                "total": 0,
+                "successes": 0,
+                "presented": 0,
+                "generated": 0,
+                "exposure_prob": 0.0,
+            },
         )
 
         n_total = stats["total"]
@@ -149,6 +179,7 @@ class FeedbackRerankService:
         diagnostics = {
             "n_pair": n_total,
             "n_success": n_success,
+            "n_presented": stats.get("presented", 0),
             "n_generated": stats.get("generated", 0),
             "exposure_prob": round(exposure_prob, 4),
             "n_global": n_global,

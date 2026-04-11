@@ -1,8 +1,15 @@
-"""Impact Attribution Engine for FR-017 GSC Search Outcome Attribution."""
+"""Impact Attribution Engine for FR-017 GSC Search Outcome Attribution.
+
+Control-group matching follows the causal-inference approach from:
+  Abadie, Diamond & Hainmueller (2010) "Synthetic Control Methods"
+  Brodersen et al. (2015) "Inferring causal impact using Bayesian
+  structural time-series models"
+"""
 
 from __future__ import annotations
 
 import logging
+import math
 from datetime import timedelta, date
 
 from django.db.models import Avg, Sum
@@ -12,6 +19,120 @@ from apps.content.models import ContentItem
 from .models import SearchMetric, ImpactReport
 
 logger = logging.getLogger(__name__)
+
+# Minimum valid controls for a conclusive result
+_MIN_CONTROLS = 3
+# Maximum candidates to consider in the initial pool
+_POOL_MAX = 100
+# Default number of matched controls to select
+_CONTROL_K = 5
+
+
+def _select_matched_controls(
+    suggestion: Suggestion,
+    baseline_start: date,
+    baseline_end: date,
+    k: int = _CONTROL_K,
+    pool_max: int = _POOL_MAX,
+) -> tuple[list[int], float | None, int]:
+    """Select k controls matched on pre-period GSC metrics.
+
+    Returns (control_ids, avg_match_quality, pool_size).
+    Uses normalized Euclidean distance on baseline clicks, impressions,
+    CTR, and average position to find the most similar pages.
+    """
+    dest = suggestion.destination
+
+    # Build candidate pool: same content_type + same silo + no applied suggestions
+    pool_qs = (
+        ContentItem.objects.filter(
+            scope__silo_group=dest.scope.silo_group_id,
+            content_type=dest.content_type,
+        )
+        .exclude(pk=dest.pk)
+        .exclude(
+            destination_suggestions__status="applied",
+            destination_suggestions__applied_at__range=[
+                baseline_start,
+                baseline_end + timedelta(days=60),
+            ],
+        )
+        .values_list("pk", flat=True)[:pool_max]
+    )
+    pool_ids = list(pool_qs)
+    pool_size = len(pool_ids)
+
+    if pool_size < _MIN_CONTROLS:
+        return [], None, pool_size
+
+    # Fetch target baseline metrics
+    target_agg = SearchMetric.objects.filter(
+        content_item=dest,
+        source="gsc",
+        date__range=[baseline_start, baseline_end],
+    ).aggregate(
+        clicks=Sum("clicks"),
+        impressions=Sum("impressions"),
+        ctr=Avg("ctr"),
+        average_position=Avg("average_position"),
+    )
+    target_clicks = float(target_agg["clicks"] or 0)
+    target_imps = float(target_agg["impressions"] or 0)
+    target_ctr = float(target_agg["ctr"] or 0)
+    target_pos = float(target_agg["average_position"] or 0)
+
+    # Fetch candidate baseline metrics in one batch query
+    candidate_aggs = (
+        SearchMetric.objects.filter(
+            content_item_id__in=pool_ids,
+            source="gsc",
+            date__range=[baseline_start, baseline_end],
+        )
+        .values("content_item_id")
+        .annotate(
+            clicks=Sum("clicks"),
+            impressions=Sum("impressions"),
+            ctr=Avg("ctr"),
+            average_position=Avg("average_position"),
+        )
+    )
+    candidate_map = {int(row["content_item_id"]): row for row in candidate_aggs}
+
+    # Score each candidate by normalized distance from target
+    scored: list[tuple[int, float]] = []
+    for cid in pool_ids:
+        cand = candidate_map.get(cid)
+        if cand is None:
+            continue
+
+        c_clicks = float(cand["clicks"] or 0)
+        c_imps = float(cand["impressions"] or 0)
+        c_ctr = float(cand["ctr"] or 0)
+        c_pos = float(cand["average_position"] or 0)
+
+        # Normalized squared differences (divide by max(target, 1) to avoid scale bias)
+        dist_sq = 0.0
+        dist_sq += ((target_clicks - c_clicks) / max(target_clicks, 1.0)) ** 2
+        dist_sq += ((target_imps - c_imps) / max(target_imps, 1.0)) ** 2
+        # CTR and position are already small-scale; use absolute diff
+        dist_sq += (target_ctr - c_ctr) ** 2
+        dist_sq += ((target_pos - c_pos) / max(target_pos, 1.0)) ** 2
+
+        distance = math.sqrt(dist_sq)
+        scored.append((cid, distance))
+
+    scored.sort(key=lambda x: x[1])
+    selected = scored[:k]
+
+    if len(selected) < _MIN_CONTROLS:
+        return [], None, pool_size
+
+    control_ids = [cid for cid, _ in selected]
+    # Quality = 1 - avg_distance, clamped to [0, 1]
+    avg_dist = sum(d for _, d in selected) / len(selected)
+    match_quality = max(0.0, min(1.0, 1.0 - avg_dist))
+
+    return control_ids, round(match_quality, 4), pool_size
 
 
 def compute_search_impact(
@@ -106,27 +227,18 @@ def compute_search_impact(
                 f"Failed to run C# Bayesian attribution for {suggestion.suggestion_id}: {exc}"
             )
 
-    # 3. Control Group Normalization (Legacy Python reporting)
-    # Find similar items (same silo) that had NO links applied in the same whole window
-    control_items = (
-        ContentItem.objects.filter(
-            scope__silo_group=suggestion.destination.scope.silo_group_id
-        )
-        .exclude(pk=suggestion.destination_id)
-        .exclude(
-            destination_suggestions__status="applied",
-            destination_suggestions__applied_at__range=[
-                baseline_start,
-                actual_post_end,
-            ],
-        )[:10]
-    )  # Small sample is enough for trend
+    # 3. Matched Control Group Normalization
+    # Select similar items matched on pre-period metrics (Abadie et al. 2010)
+    control_item_ids, match_quality, pool_size = _select_matched_controls(
+        suggestion, baseline_start, baseline_end
+    )
+    is_conclusive = len(control_item_ids) >= _MIN_CONTROLS
 
     metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
     click_control_multiplier = 1.0
     reports = []
 
-    # Batch-fetch target item metrics in 2 queries instead of 2 per metric (8 total)
+    # Batch-fetch target item metrics in 2 queries
     target_baseline_qs = SearchMetric.objects.filter(
         content_item=suggestion.destination,
         source="gsc",
@@ -150,10 +262,9 @@ def compute_search_impact(
         average_position=Avg("average_position"),
     )
 
-    # Batch-fetch control group metrics in 2 queries instead of 2 × 10 × 4 (80+)
-    control_item_ids = list(control_items.values_list("pk", flat=True))
-    control_baseline_agg = {}
-    control_post_agg = {}
+    # Batch-fetch control group metrics
+    control_baseline_agg: dict = {}
+    control_post_agg: dict = {}
     if control_item_ids:
         control_baseline_agg = SearchMetric.objects.filter(
             content_item_id__in=control_item_ids,
@@ -177,11 +288,11 @@ def compute_search_impact(
         )
 
     for metric in metrics_to_calc:
-        # A. Target Item Performance (from pre-fetched aggregations)
+        # A. Target Item Performance
         target_base = float(target_baseline_agg.get(metric) or 0)
         target_post_val = float(target_post_agg.get(metric) or 0)
 
-        # B. Control Group Trend (from pre-fetched aggregations)
+        # B. Control Group Trend
         control_base = (
             float(control_baseline_agg.get(metric) or 0)
             if control_baseline_agg
@@ -197,15 +308,15 @@ def compute_search_impact(
         if metric == "clicks":
             click_control_multiplier = control_lift_multiplier
 
-        # C. Normalized Lift calculation:
-        # If site grew 10% (multiplier 1.1) and target grew 20%, target net lift is ~9%
+        # C. Normalized Lift
         normalized_before = target_base * control_lift_multiplier
 
         delta = 0.0
-        if normalized_before > 0:
+        if is_conclusive and normalized_before > 0:
             delta = ((target_post_val - normalized_before) / normalized_before) * 100
-        elif target_post_val > 0:
+        elif is_conclusive and target_post_val > 0:
             delta = 100.0
+        # When inconclusive, delta stays 0.0 — we don't trust the result
 
         report, _ = ImpactReport.objects.update_or_create(
             suggestion=suggestion,
@@ -222,6 +333,10 @@ def compute_search_impact(
                     "start": post_start.isoformat(),
                     "end": actual_post_end.isoformat(),
                 },
+                "control_pool_size": pool_size,
+                "control_match_count": len(control_item_ids),
+                "control_match_quality": match_quality,
+                "is_conclusive": is_conclusive,
             },
         )
         reports.append(report)
