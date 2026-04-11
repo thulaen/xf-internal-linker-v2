@@ -13,6 +13,10 @@ from django.conf.urls.static import static
 from django.views.generic import RedirectView
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
+# Angular dev server — extract port so the magic-number linter stays green.
+# Change this if your local ng serve runs on a different port.
+_FRONTEND_DEV_URL = "http://localhost:4200/"
+
 # Customize Django Admin branding
 admin.site.site_header = "XF Internal Linker V2"
 admin.site.site_title = "XF Linker Admin"
@@ -31,9 +35,7 @@ urlpatterns = [
 
 if settings.DEBUG:
     urlpatterns += [
-        path(
-            "", RedirectView.as_view(url="http://localhost:4200/"), name="root-redirect"
-        ),
+        path("", RedirectView.as_view(url=_FRONTEND_DEV_URL), name="root-redirect"),
     ]
 
 # Serve media files in development
