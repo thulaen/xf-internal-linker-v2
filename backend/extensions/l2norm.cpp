@@ -1,21 +1,22 @@
 #ifndef XF_BENCH_MODE
-#include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
 namespace py = pybind11;
 #endif
 #include <cmath>
-#include <vector>
 #include <numeric>
+#include <vector>
 #ifdef _WIN32
-#include <execution>
 #include <algorithm>
+#include <execution>
 #define HAS_PAR_EXECUTION 1
 #endif
 
 #include "include/l2norm_core.h"
 
 void l2norm_normalize(float* ptr, size_t size) {
-    if (size == 0) return;
+    if (size == 0)
+        return;
 
     float sum_sq = 0.0f;
     for (size_t i = 0; i < size; ++i) {
@@ -32,7 +33,8 @@ void l2norm_normalize(float* ptr, size_t size) {
 }
 
 void l2norm_normalize_batch(float* ptr, size_t rows, size_t cols) {
-    if (rows == 0 || cols == 0) return;
+    if (rows == 0 || cols == 0)
+        return;
 
 #if defined(HAS_PAR_EXECUTION)
     std::vector<size_t> indices(rows);
@@ -74,22 +76,22 @@ void l2norm_normalize_batch(float* ptr, size_t rows, size_t cols) {
 #ifndef XF_BENCH_MODE
 void normalize_l2(py::array_t<float, py::array::c_style | py::array::forcecast> input) {
     auto buf = input.request();
-    if (buf.size == 0) return;
+    if (buf.size == 0)
+        return;
     l2norm_normalize(static_cast<float*>(buf.ptr), static_cast<size_t>(buf.size));
 }
 
 void normalize_l2_batch(py::array_t<float, py::array::c_style | py::array::forcecast> input) {
     auto buf = input.request();
-    if (buf.ndim != 2) throw std::runtime_error("Input must be 2D");
-    l2norm_normalize_batch(
-        static_cast<float*>(buf.ptr),
-        static_cast<size_t>(buf.shape[0]),
-        static_cast<size_t>(buf.shape[1])
-    );
+    if (buf.ndim != 2)
+        throw std::runtime_error("Input must be 2D");
+    l2norm_normalize_batch(static_cast<float*>(buf.ptr), static_cast<size_t>(buf.shape[0]),
+                           static_cast<size_t>(buf.shape[1]));
 }
 
 PYBIND11_MODULE(l2norm, m) {
     m.def("normalize_l2", &normalize_l2, "In-place L2 normalization for 1D array");
-    m.def("normalize_l2_batch", &normalize_l2_batch, "In-place row-wise L2 normalization for 2D array");
+    m.def("normalize_l2_batch", &normalize_l2_batch,
+          "In-place row-wise L2 normalization for 2D array");
 }
 #endif

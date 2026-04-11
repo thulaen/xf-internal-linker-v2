@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+
 #include "bench_common.h"
 #include "phrasematch_core.h"
 
@@ -17,8 +18,7 @@ void BM_LongestContiguousOverlap(benchmark::State& state) {
         int result = longest_contiguous_overlap(left, right);
         benchmark::DoNotOptimize(result);
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(n * n));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n * n));
 }
 BENCHMARK(BM_LongestContiguousOverlap)->Arg(5)->Arg(20)->Arg(100);
 

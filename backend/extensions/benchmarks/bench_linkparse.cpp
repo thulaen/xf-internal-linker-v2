@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+
 #include "bench_common.h"
 #include "linkparse_core.h"
 
@@ -13,8 +14,7 @@ void BM_FindUrls(benchmark::State& state) {
         benchmark::DoNotOptimize(results);
     }
     state.SetItemsProcessed(state.iterations());
-    state.SetBytesProcessed(
-        state.iterations() * static_cast<int64_t>(bbcode.size()));
+    state.SetBytesProcessed(state.iterations() * static_cast<int64_t>(bbcode.size()));
 }
 BENCHMARK(BM_FindUrls)->Arg(500)->Arg(10000)->Arg(100000);
 

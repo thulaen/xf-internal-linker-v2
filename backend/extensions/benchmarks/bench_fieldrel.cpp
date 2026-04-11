@@ -1,8 +1,10 @@
 #include <benchmark/benchmark.h>
+
+#include <string>
+#include <vector>
+
 #include "bench_common.h"
 #include "fieldrel_core.h"
-#include <vector>
-#include <string>
 
 namespace {
 
@@ -14,14 +16,11 @@ void BM_ScoreFieldTokens(benchmark::State& state) {
     auto field_presence = std::vector<int>(n, 50);
 
     for (auto _ : state) {
-        double result = score_field_tokens(
-            tokens, host_tfs, field_tfs, field_presence,
-            100, 80.0, 0.75, 500, 1.5, 10
-        );
+        double result = score_field_tokens(tokens, host_tfs, field_tfs, field_presence, 100, 80.0,
+                                           0.75, 500, 1.5, 10);
         benchmark::DoNotOptimize(result);
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(n));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n));
 }
 BENCHMARK(BM_ScoreFieldTokens)->Arg(5)->Arg(20)->Arg(100);
 

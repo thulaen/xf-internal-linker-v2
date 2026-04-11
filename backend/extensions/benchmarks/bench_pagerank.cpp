@@ -1,7 +1,9 @@
 #include <benchmark/benchmark.h>
+
+#include <vector>
+
 #include "bench_common.h"
 #include "pagerank_core.h"
-#include <vector>
 
 namespace {
 
@@ -17,17 +19,13 @@ void BM_PagerankStep(benchmark::State& state) {
     }
 
     for (auto _ : state) {
-        double delta = pagerank_step_core(
-            graph.indptr.data(), graph.indices.data(), graph.data.data(),
-            graph.ranks.data(),
-            reinterpret_cast<const bool*>(dangling_raw.data()),
-            0.85, graph.node_count,
-            next_ranks.data()
-        );
+        double delta = pagerank_step_core(graph.indptr.data(), graph.indices.data(),
+                                          graph.data.data(), graph.ranks.data(),
+                                          reinterpret_cast<const bool*>(dangling_raw.data()), 0.85,
+                                          graph.node_count, next_ranks.data());
         benchmark::DoNotOptimize(delta);
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(nodes));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(nodes));
 }
 BENCHMARK(BM_PagerankStep)->Arg(100)->Arg(10000)->Arg(100000);
 

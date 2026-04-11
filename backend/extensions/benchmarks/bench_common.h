@@ -13,7 +13,8 @@ inline std::vector<float> random_floats(std::size_t n, unsigned seed = 42) {
     std::mt19937 gen(seed);
     std::uniform_real_distribution<float> dist(-1.0f, 1.0f);
     std::vector<float> v(n);
-    for (auto& x : v) x = dist(gen);
+    for (auto& x : v)
+        x = dist(gen);
     return v;
 }
 
@@ -21,33 +22,33 @@ inline std::vector<double> random_doubles(std::size_t n, unsigned seed = 42) {
     std::mt19937 gen(seed);
     std::uniform_real_distribution<double> dist(-1.0, 1.0);
     std::vector<double> v(n);
-    for (auto& x : v) x = dist(gen);
+    for (auto& x : v)
+        x = dist(gen);
     return v;
 }
 
-inline std::vector<int32_t> random_int32s(
-    std::size_t n, int32_t lo, int32_t hi, unsigned seed = 42
-) {
+inline std::vector<int32_t> random_int32s(std::size_t n, int32_t lo, int32_t hi,
+                                          unsigned seed = 42) {
     std::mt19937 gen(seed);
     std::uniform_int_distribution<int32_t> dist(lo, hi);
     std::vector<int32_t> v(n);
-    for (auto& x : v) x = dist(gen);
+    for (auto& x : v)
+        x = dist(gen);
     return v;
 }
 
-inline std::vector<uint32_t> random_uint32s(
-    std::size_t n, uint32_t lo, uint32_t hi, unsigned seed = 42
-) {
+inline std::vector<uint32_t> random_uint32s(std::size_t n, uint32_t lo, uint32_t hi,
+                                            unsigned seed = 42) {
     std::mt19937 gen(seed);
     std::uniform_int_distribution<uint32_t> dist(lo, hi);
     std::vector<uint32_t> v(n);
-    for (auto& x : v) x = dist(gen);
+    for (auto& x : v)
+        x = dist(gen);
     return v;
 }
 
-inline std::vector<std::string> random_tokens(
-    std::size_t n, std::size_t max_len = 8, unsigned seed = 42
-) {
+inline std::vector<std::string> random_tokens(std::size_t n, std::size_t max_len = 8,
+                                              unsigned seed = 42) {
     std::mt19937 gen(seed);
     std::uniform_int_distribution<int> char_dist('a', 'z');
     std::uniform_int_distribution<std::size_t> len_dist(2, max_len);
@@ -55,14 +56,14 @@ inline std::vector<std::string> random_tokens(
     for (auto& t : tokens) {
         auto len = len_dist(gen);
         t.resize(len);
-        for (auto& c : t) c = static_cast<char>(char_dist(gen));
+        for (auto& c : t)
+            c = static_cast<char>(char_dist(gen));
     }
     return tokens;
 }
 
-inline std::unordered_set<std::string> random_token_set(
-    std::size_t n, std::size_t max_len = 8, unsigned seed = 42
-) {
+inline std::unordered_set<std::string> random_token_set(std::size_t n, std::size_t max_len = 8,
+                                                        unsigned seed = 42) {
     auto v = random_tokens(n, max_len, seed);
     return {v.begin(), v.end()};
 }
@@ -78,10 +79,12 @@ inline std::string random_bbcode(std::size_t approx_len, unsigned seed = 42) {
     while (result.size() < approx_len) {
         int link_type = type_dist(gen);
         std::string url = "https://example.com/";
-        for (int i = 0; i < 10; ++i) url.push_back(static_cast<char>(char_dist(gen)));
+        for (int i = 0; i < 10; ++i)
+            url.push_back(static_cast<char>(char_dist(gen)));
 
         std::string anchor;
-        for (int i = 0; i < 6; ++i) anchor.push_back(static_cast<char>(char_dist(gen)));
+        for (int i = 0; i < 6; ++i)
+            anchor.push_back(static_cast<char>(char_dist(gen)));
 
         if (link_type == 0) {
             result += "[url=" + url + "]" + anchor + "[/url] ";
@@ -92,7 +95,8 @@ inline std::string random_bbcode(std::size_t approx_len, unsigned seed = 42) {
         }
 
         /* Add some plain text between links */
-        for (int i = 0; i < 20; ++i) result.push_back(static_cast<char>(char_dist(gen)));
+        for (int i = 0; i < 20; ++i)
+            result.push_back(static_cast<char>(char_dist(gen)));
         result.push_back(' ');
     }
     return result;
@@ -102,9 +106,9 @@ inline std::string random_bbcode(std::size_t approx_len, unsigned seed = 42) {
 struct CsrGraph {
     std::vector<int32_t> indptr;
     std::vector<int32_t> indices;
-    std::vector<double>  data;
-    std::vector<double>  ranks;
-    std::vector<bool>    dangling;
+    std::vector<double> data;
+    std::vector<double> ranks;
+    std::vector<bool> dangling;
     int node_count;
 };
 

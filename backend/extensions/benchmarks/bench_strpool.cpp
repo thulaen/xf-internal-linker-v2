@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+
 #include "bench_common.h"
 #include "strpool_core.h"
 
@@ -15,8 +16,7 @@ void BM_StringPoolIntern(benchmark::State& state) {
             benchmark::DoNotOptimize(id);
         }
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(n));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n));
 }
 BENCHMARK(BM_StringPoolIntern)->Arg(1000)->Arg(100000)->Arg(1000000);
 
@@ -34,8 +34,7 @@ void BM_StringPoolLookup(benchmark::State& state) {
             benchmark::DoNotOptimize(s);
         }
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(pool.size()));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(pool.size()));
 }
 BENCHMARK(BM_StringPoolLookup)->Arg(1000)->Arg(100000)->Arg(1000000);
 

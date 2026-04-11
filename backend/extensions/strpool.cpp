@@ -3,17 +3,17 @@
 #include <pybind11/stl.h>
 namespace py = pybind11;
 #endif
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <mutex>
 
 /**
  * A thread-safe string pool for token interning.
  * Reduces memory overhead when dealing with millions of tokens.
  */
 class StringPool {
-public:
+   public:
     uint32_t intern(const std::string& str) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = string_to_id_.find(str);
@@ -45,7 +45,7 @@ public:
         string_to_id_.clear();
     }
 
-private:
+   private:
     mutable std::mutex mutex_;
     std::vector<std::string> id_to_string_;
     std::unordered_map<std::string, uint32_t> string_to_id_;

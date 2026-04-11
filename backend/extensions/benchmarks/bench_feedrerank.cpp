@@ -1,7 +1,9 @@
 #include <benchmark/benchmark.h>
+
+#include <vector>
+
 #include "bench_common.h"
 #include "feedrerank_core.h"
-#include <vector>
 
 namespace {
 
@@ -17,17 +19,11 @@ void BM_RerankFactors(benchmark::State& state) {
     std::vector<double> out(count);
 
     for (auto _ : state) {
-        rerank_factors_core(
-            successes.data(), totals.data(),
-            exposure_probs.data(),
-            count,
-            10000, 1.0, 1.0, 0.3, 0.1,
-            out.data()
-        );
+        rerank_factors_core(successes.data(), totals.data(), exposure_probs.data(), count, 10000,
+                            1.0, 1.0, 0.3, 0.1, out.data());
         benchmark::DoNotOptimize(out.data());
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(count));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(count));
 }
 BENCHMARK(BM_RerankFactors)->Arg(100)->Arg(5000)->Arg(50000);
 
@@ -42,16 +38,11 @@ void BM_MmrScores(benchmark::State& state) {
     std::vector<double> out_sim(n_candidates);
 
     for (auto _ : state) {
-        mmr_scores_core(
-            relevance.data(), n_candidates,
-            candidates.data(), selected.data(),
-            n_selected, dim, 0.7,
-            out_mmr.data(), out_sim.data()
-        );
+        mmr_scores_core(relevance.data(), n_candidates, candidates.data(), selected.data(),
+                        n_selected, dim, 0.7, out_mmr.data(), out_sim.data());
         benchmark::DoNotOptimize(out_mmr.data());
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(n_candidates));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n_candidates));
 }
 BENCHMARK(BM_MmrScores)->Arg(50)->Arg(500)->Arg(5000);
 

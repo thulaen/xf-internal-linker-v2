@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+
 #include "bench_common.h"
 #include "pulse_metrics_core.h"
 
@@ -23,7 +24,7 @@ void BM_PulseRingSummary(benchmark::State& state) {
     double ts = 1000000.0;
     for (size_t i = 0; i < n_events; ++i) {
         ring.push(ts, static_cast<int>(i % 4), 10.0 + static_cast<double>(i), i);
-        ts += 3.6;  /* fill the hour window */
+        ts += 3.6; /* fill the hour window */
     }
 
     for (auto _ : state) {

@@ -1,7 +1,9 @@
 #include <benchmark/benchmark.h>
+
+#include <vector>
+
 #include "bench_common.h"
 #include "inv_index_core.h"
-#include <vector>
 
 namespace {
 
@@ -12,8 +14,7 @@ void BM_InvIndexBuild(benchmark::State& state) {
     all_tokens.reserve(static_cast<size_t>(n_docs));
     for (int d = 0; d < n_docs; ++d) {
         all_tokens.push_back(
-            xf_bench::random_uint32s(tokens_per_doc, 0, 10000,
-                                     static_cast<unsigned>(42 + d)));
+            xf_bench::random_uint32s(tokens_per_doc, 0, 10000, static_cast<unsigned>(42 + d)));
     }
 
     for (auto _ : state) {
@@ -23,8 +24,7 @@ void BM_InvIndexBuild(benchmark::State& state) {
         }
         benchmark::DoNotOptimize(idx);
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(n_docs));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(n_docs));
 }
 BENCHMARK(BM_InvIndexBuild)->Arg(100)->Arg(10000)->Arg(100000);
 
@@ -33,8 +33,8 @@ void BM_InvIndexSearch(benchmark::State& state) {
     const size_t tokens_per_doc = 50;
     InvertedIndex idx;
     for (int d = 0; d < n_docs; ++d) {
-        auto tokens = xf_bench::random_uint32s(tokens_per_doc, 0, 10000,
-                                                static_cast<unsigned>(42 + d));
+        auto tokens =
+            xf_bench::random_uint32s(tokens_per_doc, 0, 10000, static_cast<unsigned>(42 + d));
         idx.add_document(d, tokens);
     }
     auto query = xf_bench::random_uint32s(10, 0, 10000, 99);

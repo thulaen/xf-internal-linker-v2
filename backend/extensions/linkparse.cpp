@@ -195,17 +195,20 @@ std::vector<RawMatch> find_urls_impl(const std::string& raw_bbcode) {
                 continue;
             }
             size_t cursor = tag_index + 4;
-            while (cursor < open_tag.size() && std::isspace(static_cast<unsigned char>(open_tag[cursor]))) {
+            while (cursor < open_tag.size() &&
+                   std::isspace(static_cast<unsigned char>(open_tag[cursor]))) {
                 ++cursor;
             }
             if (cursor >= open_tag.size() || open_tag[cursor] != '=') {
                 continue;
             }
             ++cursor;
-            while (cursor < open_tag.size() && std::isspace(static_cast<unsigned char>(open_tag[cursor]))) {
+            while (cursor < open_tag.size() &&
+                   std::isspace(static_cast<unsigned char>(open_tag[cursor]))) {
                 ++cursor;
             }
-            if (cursor >= open_tag.size() || (open_tag[cursor] != '"' && open_tag[cursor] != '\'')) {
+            if (cursor >= open_tag.size() ||
+                (open_tag[cursor] != '"' && open_tag[cursor] != '\'')) {
                 continue;
             }
             const char quote = open_tag[cursor];
@@ -264,19 +267,16 @@ std::vector<RawMatch> find_urls_impl(const std::string& raw_bbcode) {
         index = end;
     }
 
-    std::sort(
-        found_links.begin(),
-        found_links.end(),
-        [](const RawMatch& left, const RawMatch& right) {
-            if (std::get<3>(left) != std::get<3>(right)) {
-                return std::get<3>(left) < std::get<3>(right);
-            }
-            if (std::get<4>(left) != std::get<4>(right)) {
-                return std::get<4>(left) < std::get<4>(right);
-            }
-            return std::get<2>(left) < std::get<2>(right);
-        }
-    );
+    std::sort(found_links.begin(), found_links.end(),
+              [](const RawMatch& left, const RawMatch& right) {
+                  if (std::get<3>(left) != std::get<3>(right)) {
+                      return std::get<3>(left) < std::get<3>(right);
+                  }
+                  if (std::get<4>(left) != std::get<4>(right)) {
+                      return std::get<4>(left) < std::get<4>(right);
+                  }
+                  return std::get<2>(left) < std::get<2>(right);
+              });
 
     return found_links;
 }
@@ -292,10 +292,7 @@ std::vector<RawMatch> find_urls(const std::string& raw_bbcode) {
 
 #ifndef XF_BENCH_MODE
 PYBIND11_MODULE(linkparse, m) {
-    m.def(
-        "find_urls",
-        &find_urls,
-        "Find BBCode anchors, HTML anchors, and bare URLs with overlap handling"
-    );
+    m.def("find_urls", &find_urls,
+          "Find BBCode anchors, HTML anchors, and bare URLs with overlap handling");
 }
 #endif

@@ -1,25 +1,22 @@
 #ifndef XF_BENCH_MODE
-#include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #endif
 #ifdef _WIN32
-#include <execution>
 #include <algorithm>
+#include <execution>
 #define HAS_PAR_EXECUTION 1
 #elif !defined(XF_BENCH_MODE) || defined(HAS_TBB)
-#include <tbb/parallel_for.h>
 #include <tbb/blocked_range.h>
+#include <tbb/parallel_for.h>
 #ifndef HAS_TBB
 #define HAS_TBB 1
 #endif
 #endif
 #include <numeric>
-#include <vector>
 #include <stdexcept>
-
 #include <vector>
-#include <stdexcept>
 
 #ifndef XF_BENCH_MODE
 namespace py = pybind11;
@@ -39,21 +36,20 @@ struct Candidate {
     float score_ga4;
 
     Candidate(float s, float k, float n, float q, float p, float f, float g)
-        : score_semantic(s), score_keyword(k), score_node(n), score_quality(q), 
-          score_pr(p), score_freshness(f), score_ga4(g) {}
+        : score_semantic(s),
+          score_keyword(k),
+          score_node(n),
+          score_quality(q),
+          score_pr(p),
+          score_freshness(f),
+          score_ga4(g) {}
 };
 
 #ifndef XF_BENCH_MODE
-std::vector<float> calculate_composite_scores(
-    const std::vector<Candidate>& candidates,
-    float w_semantic,
-    float w_keyword,
-    float w_node,
-    float w_quality,
-    float w_pr,
-    float w_freshness,
-    float w_ga4
-) {
+std::vector<float> calculate_composite_scores(const std::vector<Candidate>& candidates,
+                                              float w_semantic, float w_keyword, float w_node,
+                                              float w_quality, float w_pr, float w_freshness,
+                                              float w_ga4) {
     std::vector<float> results(candidates.size());
 
     py::gil_scoped_release release;
@@ -62,38 +58,27 @@ std::vector<float> calculate_composite_scores(
     std::iota(indices.begin(), indices.end(), 0);
     std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t i) {
         const auto& c = candidates[i];
-        results[i] = (c.score_semantic * w_semantic) +
-                     (c.score_keyword * w_keyword) +
-                     (c.score_node * w_node) +
-                     (c.score_quality * w_quality) +
-                     (c.score_pr * w_pr) +
-                     (c.score_freshness * w_freshness) +
-                     (c.score_ga4 * w_ga4);
+        results[i] = (c.score_semantic * w_semantic) + (c.score_keyword * w_keyword) +
+                     (c.score_node * w_node) + (c.score_quality * w_quality) + (c.score_pr * w_pr) +
+                     (c.score_freshness * w_freshness) + (c.score_ga4 * w_ga4);
     });
 #elif defined(HAS_TBB)
-    tbb::parallel_for(tbb::blocked_range<size_t>(0, candidates.size()),
-        [&](const tbb::blocked_range<size_t>& r) {
+    tbb::parallel_for(
+        tbb::blocked_range<size_t>(0, candidates.size()), [&](const tbb::blocked_range<size_t>& r) {
             for (size_t i = r.begin(); i < r.end(); ++i) {
                 const auto& c = candidates[i];
-                results[i] = (c.score_semantic * w_semantic) +
-                             (c.score_keyword * w_keyword) +
-                             (c.score_node * w_node) +
-                             (c.score_quality * w_quality) +
-                             (c.score_pr * w_pr) +
-                             (c.score_freshness * w_freshness) +
+                results[i] = (c.score_semantic * w_semantic) + (c.score_keyword * w_keyword) +
+                             (c.score_node * w_node) + (c.score_quality * w_quality) +
+                             (c.score_pr * w_pr) + (c.score_freshness * w_freshness) +
                              (c.score_ga4 * w_ga4);
             }
         });
 #else
     for (size_t i = 0; i < candidates.size(); ++i) {
         const auto& c = candidates[i];
-        results[i] = (c.score_semantic * w_semantic) +
-                     (c.score_keyword * w_keyword) +
-                     (c.score_node * w_node) +
-                     (c.score_quality * w_quality) +
-                     (c.score_pr * w_pr) +
-                     (c.score_freshness * w_freshness) +
-                     (c.score_ga4 * w_ga4);
+        results[i] = (c.score_semantic * w_semantic) + (c.score_keyword * w_keyword) +
+                     (c.score_node * w_node) + (c.score_quality * w_quality) + (c.score_pr * w_pr) +
+                     (c.score_freshness * w_freshness) + (c.score_ga4 * w_ga4);
     }
 #endif
 
@@ -103,8 +88,7 @@ std::vector<float> calculate_composite_scores(
 py::array_t<float> calculate_composite_scores_full_batch(
     py::array_t<float, py::array::c_style | py::array::forcecast> component_scores,
     py::array_t<float, py::array::c_style | py::array::forcecast> weights,
-    py::array_t<float, py::array::c_style | py::array::forcecast> silo
-) {
+    py::array_t<float, py::array::c_style | py::array::forcecast> silo) {
     auto component_buf = component_scores.request();
     auto weight_buf = weights.request();
     auto silo_buf = silo.request();
@@ -152,16 +136,16 @@ py::array_t<float> calculate_composite_scores_full_batch(
         });
 #elif defined(HAS_TBB)
         tbb::parallel_for(tbb::blocked_range<size_t>(0, n_rows),
-            [&](const tbb::blocked_range<size_t>& r) {
-                for (size_t row = r.begin(); row < r.end(); ++row) {
-                    const size_t offset = row * k_components;
-                    float total = silo_ptr[row];
-                    for (size_t col = 0; col < k_components; ++col) {
-                        total += component_ptr[offset + col] * weight_ptr[col];
-                    }
-                    result_ptr[row] = total;
-                }
-            });
+                          [&](const tbb::blocked_range<size_t>& r) {
+                              for (size_t row = r.begin(); row < r.end(); ++row) {
+                                  const size_t offset = row * k_components;
+                                  float total = silo_ptr[row];
+                                  for (size_t col = 0; col < k_components; ++col) {
+                                      total += component_ptr[offset + col] * weight_ptr[col];
+                                  }
+                                  result_ptr[row] = total;
+                              }
+                          });
 #else
         for (size_t row = 0; row < n_rows; ++row) {
             const size_t offset = row * k_components;
@@ -188,65 +172,58 @@ PYBIND11_MODULE(scoring, m) {
         .def_readwrite("score_freshness", &Candidate::score_freshness)
         .def_readwrite("score_ga4", &Candidate::score_ga4);
 
-    m.def("calculate_composite_scores", &calculate_composite_scores, "Calculate composite scores in parallel");
-    m.def(
-        "calculate_composite_scores_full_batch",
-        &calculate_composite_scores_full_batch,
-        "Calculate batch composite scores from per-row components plus silo adjustments"
-    );
+    m.def("calculate_composite_scores", &calculate_composite_scores,
+          "Calculate composite scores in parallel");
+    m.def("calculate_composite_scores_full_batch", &calculate_composite_scores_full_batch,
+          "Calculate batch composite scores from per-row components plus silo adjustments");
 }
 #endif /* XF_BENCH_MODE */
 
 extern "C" {
 #ifdef _WIN32
-    __declspec(dllexport)
+__declspec(dllexport)
 #else
-    __attribute__((visibility("default")))
+__attribute__((visibility("default")))
 #endif
-    void cscore_full_batch(
-        const float* component_scores, size_t num_rows, size_t num_components,
-        const float* weights, size_t num_weights,
-        const float* silo_scores, size_t num_silo,
-        float* out_scores
-    ) {
-        if (num_components != num_weights || num_rows != num_silo) {
-            return;
-        }
+void cscore_full_batch(const float* component_scores, size_t num_rows, size_t num_components,
+                       const float* weights, size_t num_weights, const float* silo_scores,
+                       size_t num_silo, float* out_scores) {
+    if (num_components != num_weights || num_rows != num_silo) {
+        return;
+    }
 
 #if defined(HAS_PAR_EXECUTION)
-        std::vector<size_t> indices(num_rows);
-        std::iota(indices.begin(), indices.end(), 0);
-        std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t row) {
-            size_t offset = row * num_components;
-            float total = silo_scores[row];
-            for (size_t col = 0; col < num_components; ++col) {
-                total += component_scores[offset + col] * weights[col];
-            }
-            out_scores[row] = total;
-        });
-#elif defined(HAS_TBB)
-        tbb::parallel_for(
-            tbb::blocked_range<size_t>(0, num_rows),
-            [&](const tbb::blocked_range<size_t>& range) {
-                for (size_t row = range.begin(); row < range.end(); ++row) {
-                    size_t offset = row * num_components;
-                    float total = silo_scores[row];
-                    for (size_t col = 0; col < num_components; ++col) {
-                        total += component_scores[offset + col] * weights[col];
-                    }
-                    out_scores[row] = total;
-                }
-            }
-        );
-#else
-        for (size_t row = 0; row < num_rows; ++row) {
-            size_t offset = row * num_components;
-            float total = silo_scores[row];
-            for (size_t col = 0; col < num_components; ++col) {
-                total += component_scores[offset + col] * weights[col];
-            }
-            out_scores[row] = total;
+    std::vector<size_t> indices(num_rows);
+    std::iota(indices.begin(), indices.end(), 0);
+    std::for_each(std::execution::par, indices.begin(), indices.end(), [&](size_t row) {
+        size_t offset = row * num_components;
+        float total = silo_scores[row];
+        for (size_t col = 0; col < num_components; ++col) {
+            total += component_scores[offset + col] * weights[col];
         }
-#endif
+        out_scores[row] = total;
+    });
+#elif defined(HAS_TBB)
+    tbb::parallel_for(tbb::blocked_range<size_t>(0, num_rows),
+                      [&](const tbb::blocked_range<size_t>& range) {
+                          for (size_t row = range.begin(); row < range.end(); ++row) {
+                              size_t offset = row * num_components;
+                              float total = silo_scores[row];
+                              for (size_t col = 0; col < num_components; ++col) {
+                                  total += component_scores[offset + col] * weights[col];
+                              }
+                              out_scores[row] = total;
+                          }
+                      });
+#else
+    for (size_t row = 0; row < num_rows; ++row) {
+        size_t offset = row * num_components;
+        float total = silo_scores[row];
+        for (size_t col = 0; col < num_components; ++col) {
+            total += component_scores[offset + col] * weights[col];
+        }
+        out_scores[row] = total;
     }
+#endif
+}
 }

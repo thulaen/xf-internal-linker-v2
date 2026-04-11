@@ -1,4 +1,5 @@
 #include <benchmark/benchmark.h>
+
 #include "bench_common.h"
 #include "l2norm_core.h"
 
@@ -13,8 +14,7 @@ void BM_L2Norm1D(benchmark::State& state) {
         l2norm_normalize(copy.data(), copy.size());
         benchmark::DoNotOptimize(copy.data());
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(size));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(size));
 }
 BENCHMARK(BM_L2Norm1D)->Arg(128)->Arg(384)->Arg(1536);
 
@@ -28,8 +28,7 @@ void BM_L2NormBatch(benchmark::State& state) {
         l2norm_normalize_batch(copy.data(), rows, cols);
         benchmark::DoNotOptimize(copy.data());
     }
-    state.SetItemsProcessed(
-        state.iterations() * static_cast<int64_t>(rows));
+    state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(rows));
 }
 BENCHMARK(BM_L2NormBatch)->Arg(100)->Arg(10000)->Arg(100000);
 

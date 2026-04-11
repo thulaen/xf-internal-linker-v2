@@ -12,9 +12,7 @@ namespace py = pybind11;
 namespace {
 
 bool is_ascii_alnum(char ch) {
-    return (ch >= '0' && ch <= '9') ||
-           (ch >= 'A' && ch <= 'Z') ||
-           (ch >= 'a' && ch <= 'z');
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z');
 }
 
 char ascii_lower(char ch) {
@@ -27,9 +25,7 @@ char ascii_lower(char ch) {
 }  // namespace
 
 std::unordered_set<std::string> tokenize_one_core(
-    const std::string& text,
-    const std::unordered_set<std::string>& stopwords
-) {
+    const std::string& text, const std::unordered_set<std::string>& stopwords) {
     std::unordered_set<std::string> unique_tokens;
     const size_t text_size = text.size();
     size_t index = 0;
@@ -46,11 +42,7 @@ std::unordered_set<std::string> tokenize_one_core(
             ++index;
         }
 
-        if (
-            index + 1 < text_size &&
-            text[index] == '\'' &&
-            is_ascii_alnum(text[index + 1])
-        ) {
+        if (index + 1 < text_size && text[index] == '\'' && is_ascii_alnum(text[index + 1])) {
             token.push_back('\'');
             ++index;
             while (index < text_size && is_ascii_alnum(text[index])) {
@@ -68,9 +60,7 @@ std::unordered_set<std::string> tokenize_one_core(
 }
 
 std::vector<std::unordered_set<std::string>> tokenize_text_batch_core(
-    const std::vector<std::string>& texts,
-    const std::unordered_set<std::string>& stopwords
-) {
+    const std::vector<std::string>& texts, const std::unordered_set<std::string>& stopwords) {
     std::vector<std::unordered_set<std::string>> results;
     results.reserve(texts.size());
     for (const auto& text : texts) {
@@ -80,10 +70,7 @@ std::vector<std::unordered_set<std::string>> tokenize_text_batch_core(
 }
 
 #ifndef XF_BENCH_MODE
-py::list tokenize_text_batch(
-    const std::vector<std::string>& texts,
-    const py::iterable& stopwords
-) {
+py::list tokenize_text_batch(const std::vector<std::string>& texts, const py::iterable& stopwords) {
     std::unordered_set<std::string> stopword_lookup;
     stopword_lookup.reserve(py::len(stopwords));
     for (const auto& item : stopwords) {
@@ -103,10 +90,7 @@ py::list tokenize_text_batch(
 }
 
 PYBIND11_MODULE(texttok, m) {
-    m.def(
-        "tokenize_text_batch",
-        &tokenize_text_batch,
-        "Tokenize texts into lowercase frozensets with stopword filtering"
-    );
+    m.def("tokenize_text_batch", &tokenize_text_batch,
+          "Tokenize texts into lowercase frozensets with stopword filtering");
 }
 #endif

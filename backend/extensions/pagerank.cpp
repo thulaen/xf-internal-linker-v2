@@ -1,6 +1,6 @@
 #ifndef XF_BENCH_MODE
-#include <pybind11/pybind11.h>
 #include <pybind11/numpy.h>
+#include <pybind11/pybind11.h>
 namespace py = pybind11;
 #endif
 #include <cmath>
@@ -11,12 +11,9 @@ namespace py = pybind11;
 
 #include "include/pagerank_core.h"
 
-double pagerank_step_core(
-    const int32_t* indptr_ptr, const int32_t* indices_ptr, const double* data_ptr,
-    const double* ranks_ptr, const bool* dangling_ptr,
-    double damping, int node_count,
-    double* next_ptr
-) {
+double pagerank_step_core(const int32_t* indptr_ptr, const int32_t* indices_ptr,
+                          const double* data_ptr, const double* ranks_ptr, const bool* dangling_ptr,
+                          double damping, int node_count, double* next_ptr) {
     double dangling_mass = 0.0;
 
     for (int row = 0; row < node_count; ++row) {
@@ -56,10 +53,8 @@ std::tuple<py::array_t<double>, double> pagerank_step(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> indices,
     py::array_t<double, py::array::c_style | py::array::forcecast> data,
     py::array_t<double, py::array::c_style | py::array::forcecast> ranks,
-    py::array_t<bool, py::array::c_style | py::array::forcecast> dangling_mask,
-    double damping,
-    int node_count
-) {
+    py::array_t<bool, py::array::c_style | py::array::forcecast> dangling_mask, double damping,
+    int node_count) {
     auto indptr_buf = indptr.request();
     auto indices_buf = indices.request();
     auto data_buf = data.request();
@@ -94,23 +89,16 @@ std::tuple<py::array_t<double>, double> pagerank_step(
         py::gil_scoped_release release;
         delta = pagerank_step_core(
             static_cast<const int32_t*>(indptr_buf.ptr),
-            static_cast<const int32_t*>(indices_buf.ptr),
-            static_cast<const double*>(data_buf.ptr),
-            static_cast<const double*>(ranks_buf.ptr),
-            static_cast<const bool*>(dangling_buf.ptr),
-            damping, node_count,
-            static_cast<double*>(next_buf.ptr)
-        );
+            static_cast<const int32_t*>(indices_buf.ptr), static_cast<const double*>(data_buf.ptr),
+            static_cast<const double*>(ranks_buf.ptr), static_cast<const bool*>(dangling_buf.ptr),
+            damping, node_count, static_cast<double*>(next_buf.ptr));
     }
 
     return std::make_tuple(next_ranks, delta);
 }
 
 PYBIND11_MODULE(pagerank, m) {
-    m.def(
-        "pagerank_step",
-        &pagerank_step,
-        "Run one weighted PageRank iteration step from CSR inputs"
-    );
+    m.def("pagerank_step", &pagerank_step,
+          "Run one weighted PageRank iteration step from CSR inputs");
 }
 #endif

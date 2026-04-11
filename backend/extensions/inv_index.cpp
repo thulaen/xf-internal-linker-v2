@@ -3,15 +3,15 @@
 #include <pybind11/stl.h>
 namespace py = pybind11;
 #endif
-#include <vector>
-#include <unordered_map>
 #include <cmath>
+#include <unordered_map>
+#include <vector>
 
 /**
  * Fast C++ Inverted Index for BM25-style keyword matching.
  */
 class InvertedIndex {
-public:
+   public:
     void add_document(int doc_id, const std::vector<uint32_t>& tokens) {
         doc_lengths_[doc_id] = static_cast<float>(tokens.size());
         for (auto token : tokens) {
@@ -21,15 +21,18 @@ public:
         total_doc_length_ += tokens.size();
     }
 
-    std::unordered_map<int, float> search(const std::vector<uint32_t>& query_tokens, float k1 = 1.5f, float b = 0.75f) {
+    std::unordered_map<int, float> search(const std::vector<uint32_t>& query_tokens,
+                                          float k1 = 1.5f, float b = 0.75f) {
         std::unordered_map<int, float> scores;
-        if (total_docs_ == 0) return scores;
+        if (total_docs_ == 0)
+            return scores;
 
         float avg_dl = total_doc_length_ / total_docs_;
 
         for (auto token : query_tokens) {
             auto it = index_.find(token);
-            if (it == index_.end()) continue;
+            if (it == index_.end())
+                continue;
 
             const auto& postings = it->second;
             float n_q = static_cast<float>(postings.size());
@@ -52,7 +55,7 @@ public:
         return scores;
     }
 
-private:
+   private:
     std::unordered_map<uint32_t, std::vector<int>> index_;
     std::unordered_map<int, float> doc_lengths_;
     float total_doc_length_ = 0.0f;

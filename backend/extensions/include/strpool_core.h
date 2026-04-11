@@ -8,7 +8,7 @@
 #ifdef XF_BENCH_MODE
 /* Full class definition so benchmarks can link against inline methods */
 class StringPool {
-public:
+   public:
     uint32_t intern(const std::string& str) {
         std::lock_guard<std::mutex> lock(mutex_);
         auto it = string_to_id_.find(str);
@@ -40,7 +40,7 @@ public:
         string_to_id_.clear();
     }
 
-private:
+   private:
     mutable std::mutex mutex_;
     std::vector<std::string> id_to_string_;
     std::unordered_map<std::string, uint32_t> string_to_id_;
