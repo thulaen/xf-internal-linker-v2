@@ -141,7 +141,7 @@ def run_pipeline(
         feedback_rerank_service.load_historical_stats()
 
     _progress(0.05, "Loading pipeline data...")
-    data = _load_pipeline_resources(
+    resource_kwargs = dict(
         destination_scope_ids=destination_scope_ids,
         destination_content_item_ids=destination_content_item_ids,
         host_scope_ids=host_scope_ids,
@@ -149,10 +149,11 @@ def run_pipeline(
         rare_term_settings=settings["rare_term"],
         progress_fn=_progress,
     )
+    data = _load_pipeline_resources(**resource_kwargs)
     if isinstance(data, PipelineResult):
         return data
 
-    return _execute_pipeline_stages(
+    stages_kwargs = dict(
         run_id=run_id,
         rerun_mode=rerun_mode,
         data=data,
@@ -160,6 +161,7 @@ def run_pipeline(
         feedback_rerank_service=feedback_rerank_service,
         progress_fn=_progress,
     )
+    return _execute_pipeline_stages(**stages_kwargs)
 
 
 def _execute_pipeline_stages(
@@ -193,7 +195,7 @@ def _execute_pipeline_stages(
     ) = data
 
     progress_fn(0.25, "Stage 1: coarse content-level candidate retrieval...")
-    stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(
+    stage1_kwargs = dict(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
         content_records=content_records,
@@ -201,6 +203,7 @@ def _execute_pipeline_stages(
         top_k=STAGE1_TOP_K,
         block_size=BLOCK_SIZE,
     )
+    stage1_candidates: dict[ContentKey, list[int]] = _stage1_candidates(**stage1_kwargs)
 
     progress_fn(0.50, "Stage 2+3: sentence scoring and ranking...")
     settings["max_existing_links_per_host"] = max_existing_links_per_host
@@ -208,7 +211,7 @@ def _execute_pipeline_stages(
     settings["learned_anchor_rows"] = learned_anchor_rows_by_destination
     settings["rare_term_profiles"] = rare_term_profiles
     settings["pagerank_bounds"] = march_2026_pagerank_bounds
-    candidates_by_destination, diagnostics = _score_all_destinations(
+    scoring_kwargs = dict(
         destination_keys=destination_keys,
         dest_embeddings=dest_embeddings,
         stage1_candidates=stage1_candidates,
@@ -224,8 +227,9 @@ def _execute_pipeline_stages(
         progress_fn=progress_fn,
         items_in_scope=items_in_scope,
     )
+    candidates_by_destination, diagnostics = _score_all_destinations(**scoring_kwargs)
 
-    return _finalize_pipeline(
+    finalize_kwargs = dict(
         run_id=run_id,
         rerun_mode=rerun_mode,
         settings=settings,
@@ -240,6 +244,7 @@ def _execute_pipeline_stages(
         items_in_scope=items_in_scope,
         progress_fn=progress_fn,
     )
+    return _finalize_pipeline(**finalize_kwargs)
 
 
 def _finalize_pipeline(
