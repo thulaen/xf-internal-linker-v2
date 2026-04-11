@@ -1222,7 +1222,7 @@ def get_resource_usage():
         metrics["ram_usage_mb"] = psutil.virtual_memory().used / (1024 * 1024)
         metrics["disk_usage_percent"] = psutil.disk_usage("/").percent
     except ImportError:
-        pass
+        pass  # psutil is optional; defaults above are returned
     return metrics
 
 
