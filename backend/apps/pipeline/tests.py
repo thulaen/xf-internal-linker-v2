@@ -22,7 +22,10 @@ from apps.pipeline.services.click_distance import (
     ClickDistanceSettings,
 )
 from apps.pipeline import tasks as pipeline_tasks
+from apps.pipeline import tasks_broken_links as broken_links_module
 from apps.pipeline.services import pipeline as pipeline_service
+from apps.pipeline.services import pipeline_loaders as pipeline_loaders_service
+from apps.pipeline.services import pipeline_stages as pipeline_stages_service
 from apps.pipeline.services import ranker as ranker_service
 from apps.pipeline.services import text_tokens as text_tokens_service
 from apps.pipeline.services import field_aware_relevance as field_aware_service
@@ -875,7 +878,12 @@ class FeedRerankExtensionTests(TestCase):
         for successes, total in zip(
             n_successes.tolist(), n_totals.tolist(), strict=True
         ):
-            service._pair_stats[(1, 1)] = {"total": total, "successes": successes}
+            service._pair_stats[(1, 1)] = {
+                "total": total,
+                "successes": successes,
+                "generated": total,
+                "exposure_prob": 1.0,
+            }
             service._global_total_samples = n_global
             factor, _ = service.calculate_rerank_factor(1, 1)
             expected.append(factor)
@@ -2931,18 +2939,29 @@ class FeedbackRerankServiceTests(TestCase):
         self.service = FeedbackRerankService(self.settings)
 
     def test_bayesian_smoothing_exploit_score(self):
-        # 0/0 -> (0+1)/(0+1+1) = 0.5
+        # 0/0 with no exposure -> score_exploit blends to neutral 0.5
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertEqual(diags["score_exploit"], 0.5)
 
-        # 10/10 -> (10+1)/(10+2) = 11/12 = 0.9167
-        self.service._pair_stats[(1, 1)] = {"total": 10, "successes": 10}
+        # 10/10 with full exposure -> exploit_raw = (10+1)/(10+2) = 0.9167
+        # exposure_prob=1.0 means full exploit signal, no blending toward 0.5
+        self.service._pair_stats[(1, 1)] = {
+            "total": 10,
+            "successes": 10,
+            "generated": 10,
+            "exposure_prob": 1.0,
+        }
         self.service._global_total_samples = 10
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.9167, places=4)
 
-        # 0/10 -> (0+1)/(10+2) = 1/12 = 0.0833
-        self.service._pair_stats[(1, 1)] = {"total": 10, "successes": 0}
+        # 0/10 with full exposure -> exploit_raw = (0+1)/(10+2) = 0.0833
+        self.service._pair_stats[(1, 1)] = {
+            "total": 10,
+            "successes": 0,
+            "generated": 10,
+            "exposure_prob": 1.0,
+        }
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.0833, places=4)
 
@@ -2953,7 +2972,12 @@ class FeedbackRerankServiceTests(TestCase):
         self.assertGreater(diags["score_explore"], 2.0)
 
         # Global=100, Pair=100 -> sqrt(ln(101)/101) = 0.21k
-        self.service._pair_stats[(1, 1)] = {"total": 100, "successes": 50}
+        self.service._pair_stats[(1, 1)] = {
+            "total": 100,
+            "successes": 50,
+            "generated": 100,
+            "exposure_prob": 1.0,
+        }
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertLess(diags["score_explore"], 0.3)
 
@@ -2961,7 +2985,12 @@ class FeedbackRerankServiceTests(TestCase):
         from apps.pipeline.services.ranker import ScoredCandidate
 
         # Mock global stats: a lot of data for (1,1) with 100% success
-        self.service._pair_stats[(1, 1)] = {"total": 100, "successes": 100}
+        self.service._pair_stats[(1, 1)] = {
+            "total": 100,
+            "successes": 100,
+            "generated": 100,
+            "exposure_prob": 1.0,
+        }
         self.service._global_total_samples = 100
 
         candidates = [
@@ -3262,100 +3291,53 @@ class PipelineServiceRegressionTests(TestCase):
         feedback_service.load_historical_stats.return_value = None
         feedback_service.rerank_candidates.return_value = [candidate]
 
+        dest_embeddings = np.array([[1.0, 0.0]], dtype=np.float32)
+        sent_embeddings = np.array([[1.0, 0.0]], dtype=np.float32)
+        pipeline_data = {
+            "content_records": content_records,
+            "sentence_records": sentence_records,
+            "content_to_sentence_ids": {},
+            "existing_links": set(),
+            "existing_outgoing_counts": {},
+            "max_existing_links_per_host": 10,
+            "max_anchor_words": 4,
+            "paragraph_window": 3,
+            "learned_anchor_rows_by_destination": {},
+            "rare_term_profiles": {},
+            "destination_keys": ((101, "thread"),),
+            "dest_embeddings": dest_embeddings,
+            "items_in_scope": 1,
+            "sentence_ids_ordered": [501],
+            "sentence_embeddings": sent_embeddings,
+            "sentence_id_to_row": {501: 0},
+            "march_2026_pagerank_bounds": (0.0, 1.0),
+        }
+        settings = {
+            "weights": dict(DEFAULT_WEIGHTS),
+            "silo": SiloSettings(),
+            "weighted_authority": {"ranking_weight": 0.0},
+            "link_freshness": {"ranking_weight": 0.0},
+            "phrase_matching": PhraseMatchingSettings(),
+            "learned_anchor": LearnedAnchorSettings(),
+            "rare_term": RareTermPropagationSettings(enabled=False),
+            "field_aware": FieldAwareRelevanceSettings(),
+            "ga4_gsc": {"ranking_weight": 0.0},
+            "click_distance": {"ranking_weight": 0.0},
+            "feedback_rerank": FeedbackRerankSettings(
+                enabled=True, ranking_weight=0.2, exploration_rate=1.0
+            ),
+            "clustering": ClusteringSettings(),
+            "slate_diversity": SlateDiversitySettings(enabled=False),
+            "max_host_reuse": 3,
+        }
+
         with ExitStack() as stack:
             stack.enter_context(
                 patch.object(
                     pipeline_service,
-                    "_load_weights",
-                    return_value=dict(DEFAULT_WEIGHTS),
+                    "_load_all_pipeline_settings",
+                    return_value=settings,
                 )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service, "_load_silo_settings", return_value=SiloSettings()
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_weighted_authority_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_link_freshness_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_phrase_matching_settings",
-                    return_value=PhraseMatchingSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_learned_anchor_settings",
-                    return_value=LearnedAnchorSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_rare_term_propagation_settings",
-                    return_value=RareTermPropagationSettings(enabled=False),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_field_aware_relevance_settings",
-                    return_value=FieldAwareRelevanceSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_ga4_gsc_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_click_distance_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_feedback_rerank_settings",
-                    return_value=FeedbackRerankSettings(
-                        enabled=True, ranking_weight=0.2, exploration_rate=1.0
-                    ),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_clustering_settings",
-                    return_value=ClusteringSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_slate_diversity_settings",
-                    return_value=SlateDiversitySettings(enabled=False),
-                )
-            )
-            stack.enter_context(
-                patch.object(pipeline_service, "_get_max_host_reuse", return_value=3)
             )
             stack.enter_context(
                 patch.object(
@@ -3367,44 +3349,8 @@ class PipelineServiceRegressionTests(TestCase):
             stack.enter_context(
                 patch.object(
                     pipeline_service,
-                    "_load_content_records",
-                    return_value=content_records,
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_sentence_records",
-                    return_value=(sentence_records, {}),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service, "_load_existing_links", return_value=set()
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_learned_anchor_rows_by_destination",
-                    return_value={},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_destination_embeddings",
-                    return_value=(
-                        ((101, "thread"),),
-                        np.array([[1.0, 0.0]], dtype=np.float32),
-                    ),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_sentence_embeddings",
-                    return_value=([501], np.array([[1.0, 0.0]], dtype=np.float32)),
+                    "_load_pipeline_resources",
+                    return_value=pipeline_data,
                 )
             )
             stack.enter_context(
@@ -3416,14 +3362,14 @@ class PipelineServiceRegressionTests(TestCase):
             )
             stack.enter_context(
                 patch.object(
-                    pipeline_service,
+                    pipeline_stages_service,
                     "_score_sentences_stage2",
                     return_value=[SentenceSemanticMatch(201, "thread", 501, 0.9)],
                 )
             )
             stack.enter_context(
                 patch.object(
-                    pipeline_service,
+                    pipeline_stages_service,
                     "score_destination_matches",
                     return_value=[candidate],
                 )
@@ -3453,143 +3399,57 @@ class PipelineServiceRegressionTests(TestCase):
     def test_run_pipeline_returns_correct_processed_and_skipped_counts(self):
         content_records, sentence_records, candidate = self._build_run_fixtures()
 
+        dest_embeddings = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+        sent_embeddings = np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32)
+        pipeline_data = {
+            "content_records": content_records,
+            "sentence_records": sentence_records,
+            "content_to_sentence_ids": {},
+            "existing_links": set(),
+            "existing_outgoing_counts": {},
+            "max_existing_links_per_host": 10,
+            "max_anchor_words": 4,
+            "paragraph_window": 3,
+            "learned_anchor_rows_by_destination": {},
+            "rare_term_profiles": {},
+            "destination_keys": ((101, "thread"), (102, "thread")),
+            "dest_embeddings": dest_embeddings,
+            "items_in_scope": 2,
+            "sentence_ids_ordered": [501, 502],
+            "sentence_embeddings": sent_embeddings,
+            "sentence_id_to_row": {501: 0, 502: 1},
+            "march_2026_pagerank_bounds": (0.0, 1.0),
+        }
+        settings = {
+            "weights": dict(DEFAULT_WEIGHTS),
+            "silo": SiloSettings(),
+            "weighted_authority": {"ranking_weight": 0.0},
+            "link_freshness": {"ranking_weight": 0.0},
+            "phrase_matching": PhraseMatchingSettings(),
+            "learned_anchor": LearnedAnchorSettings(),
+            "rare_term": RareTermPropagationSettings(enabled=False),
+            "field_aware": FieldAwareRelevanceSettings(),
+            "ga4_gsc": {"ranking_weight": 0.0},
+            "click_distance": {"ranking_weight": 0.0},
+            "feedback_rerank": FeedbackRerankSettings(enabled=False),
+            "clustering": ClusteringSettings(),
+            "slate_diversity": SlateDiversitySettings(enabled=False),
+            "max_host_reuse": 3,
+        }
+
         with ExitStack() as stack:
             stack.enter_context(
                 patch.object(
                     pipeline_service,
-                    "_load_weights",
-                    return_value=dict(DEFAULT_WEIGHTS),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service, "_load_silo_settings", return_value=SiloSettings()
+                    "_load_all_pipeline_settings",
+                    return_value=settings,
                 )
             )
             stack.enter_context(
                 patch.object(
                     pipeline_service,
-                    "_load_weighted_authority_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_link_freshness_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_phrase_matching_settings",
-                    return_value=PhraseMatchingSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_learned_anchor_settings",
-                    return_value=LearnedAnchorSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_rare_term_propagation_settings",
-                    return_value=RareTermPropagationSettings(enabled=False),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_field_aware_relevance_settings",
-                    return_value=FieldAwareRelevanceSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_ga4_gsc_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_click_distance_settings",
-                    return_value={"ranking_weight": 0.0},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_feedback_rerank_settings",
-                    return_value=FeedbackRerankSettings(enabled=False),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_clustering_settings",
-                    return_value=ClusteringSettings(),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_slate_diversity_settings",
-                    return_value=SlateDiversitySettings(enabled=False),
-                )
-            )
-            stack.enter_context(
-                patch.object(pipeline_service, "_get_max_host_reuse", return_value=3)
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_content_records",
-                    return_value=content_records,
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_sentence_records",
-                    return_value=(sentence_records, {}),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service, "_load_existing_links", return_value=set()
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_learned_anchor_rows_by_destination",
-                    return_value={},
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_destination_embeddings",
-                    return_value=(
-                        ((101, "thread"), (102, "thread")),
-                        np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
-                    ),
-                )
-            )
-            stack.enter_context(
-                patch.object(
-                    pipeline_service,
-                    "_load_sentence_embeddings",
-                    return_value=(
-                        [501, 502],
-                        np.array([[1.0, 0.0], [0.0, 1.0]], dtype=np.float32),
-                    ),
+                    "_load_pipeline_resources",
+                    return_value=pipeline_data,
                 )
             )
             stack.enter_context(
@@ -3601,7 +3461,7 @@ class PipelineServiceRegressionTests(TestCase):
             )
             stack.enter_context(
                 patch.object(
-                    pipeline_service,
+                    pipeline_stages_service,
                     "_score_sentences_stage2",
                     side_effect=[
                         [SentenceSemanticMatch(201, "thread", 501, 0.9)],
@@ -3611,7 +3471,7 @@ class PipelineServiceRegressionTests(TestCase):
             )
             stack.enter_context(
                 patch.object(
-                    pipeline_service,
+                    pipeline_stages_service,
                     "score_destination_matches",
                     return_value=[candidate],
                 )
@@ -3902,12 +3762,13 @@ class BrokenLinkScanBenchmarkTests(TestCase):
         started_at = perf_counter()
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
                 side_effect=_benchmark_probe,
             ),
-            patch("apps.pipeline.tasks.time.sleep"),
+            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(
                 job_id="benchmark-python-broken-links"
@@ -3974,12 +3835,13 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
 
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
                 return_value=(404, ""),
             ),
-            patch("apps.pipeline.tasks.time.sleep"),
+            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-open")
 
@@ -4001,12 +3863,13 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
 
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
                 return_value=(200, ""),
             ),
-            patch("apps.pipeline.tasks.time.sleep"),
+            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-fixed")
 
@@ -4028,12 +3891,13 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
 
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
                 return_value=(301, "https://example.com/new-home"),
             ),
-            patch("apps.pipeline.tasks.time.sleep"),
+            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-ignored")
 
@@ -4047,7 +3911,7 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
             ) as probe_health,
         ):
@@ -4068,6 +3932,7 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
 
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch(
                 "apps.graph.services.http_worker_client.check_broken_links",
                 return_value=[
@@ -4079,7 +3944,7 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
                     }
                 ],
             ) as check_broken_links,
-            patch.object(pipeline_tasks, "_probe_link_health") as probe_health,
+            patch.object(broken_links_module, "_probe_link_health") as probe_health,
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker")
 
@@ -4102,16 +3967,17 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
 
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
+            patch.object(broken_links_module, "_publish_progress"),
             patch(
                 "apps.graph.services.http_worker_client.check_broken_links",
                 side_effect=RuntimeError("worker offline"),
             ),
             patch.object(
-                pipeline_tasks,
+                broken_links_module,
                 "_probe_link_health",
                 return_value=(404, ""),
             ) as probe_health,
-            patch("apps.pipeline.tasks.time.sleep"),
+            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(
                 job_id="scan-http-worker-fallback"
@@ -4218,18 +4084,9 @@ class HeavyRuntimeDispatchTests(TestCase):
                 content_item_ids=[1, 2, 3], job_id=ANY, force_reembed=False
             )
 
-    @override_settings(
-        HEAVY_RUNTIME_OWNER="celery",
-        RUNTIME_OWNER_PIPELINE="csharp",
-    )
-    def test_dispatch_pipeline_run_queues_csharp_job(self):
-        with (
-            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
-            patch(
-                "apps.suggestions.recommended_weights.RECOMMENDED_PRESET_WEIGHTS",
-                {"w_semantic": "0.4"},
-            ),
-        ):
+    def test_dispatch_pipeline_run_always_uses_celery(self):
+        """Pipeline dispatch always routes through Celery (Python owns ranking)."""
+        with patch.object(pipeline_tasks.run_pipeline, "delay") as delay_task:
             result = pipeline_tasks.dispatch_pipeline_run(
                 run_id="11111111-1111-1111-1111-111111111111",
                 host_scope={},
@@ -4237,11 +4094,12 @@ class HeavyRuntimeDispatchTests(TestCase):
                 rerun_mode="skip_pending",
             )
 
-        self.assertEqual(result["runtime_owner"], "csharp")
-        queue_job.assert_called_once_with(
-            job_id="11111111-1111-1111-1111-111111111111",
-            job_type="run_pipeline",
-            payload=ANY,
+        self.assertEqual(result["runtime_owner"], "celery")
+        delay_task.assert_called_once_with(
+            run_id="11111111-1111-1111-1111-111111111111",
+            host_scope={},
+            destination_scope={},
+            rerun_mode="skip_pending",
         )
 
     @override_settings(
@@ -4264,7 +4122,7 @@ class PipelineSettingsFallbackLoggingTests(TestCase):
                 side_effect=RuntimeError("boom"),
             ),
             patch.object(
-                pipeline_service.logger,
+                pipeline_loaders_service.logger,
                 "exception",
             ) as log_exception,
         ):
