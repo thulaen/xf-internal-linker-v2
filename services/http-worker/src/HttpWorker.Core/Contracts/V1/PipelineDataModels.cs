@@ -17,7 +17,6 @@ public class ImportContentMutation
     public DateTimeOffset? PostDate { get; set; }
     public DateTimeOffset? LastPostDate { get; set; }
     public int? XfPostId { get; set; }
-    public float[] Embedding { get; set; } = [];
     public List<SentenceMutation> Sentences { get; set; } = new();
 }
 

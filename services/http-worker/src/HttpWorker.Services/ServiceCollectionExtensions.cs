@@ -43,7 +43,6 @@ public static class ServiceCollectionExtensions
         services.AddSingleton<GSCAttributionService>();
         services.AddSingleton<WeightTunerDataCollector>();
         services.AddSingleton<WeightTunerService>();
-        services.AddSingleton<HttpWorker.Services.External.CeleryTaskEnqueuer>();
         services.AddSingleton<HttpWorker.Core.Interfaces.IXenForoClient, HttpWorker.Services.External.XenForoClient>();
         services.AddSingleton<HttpWorker.Core.Interfaces.IWordPressClient, HttpWorker.Services.External.WordPressClient>();
         services.AddSingleton<HttpWorker.Core.Interfaces.ITextDistiller, HttpWorker.Services.Distillation.TextDistiller>();

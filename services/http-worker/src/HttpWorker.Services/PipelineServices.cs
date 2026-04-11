@@ -2,7 +2,6 @@ using HttpWorker.Core.Contracts.V1;
 using HttpWorker.Core.Interfaces;
 using HttpWorker.Core.Text;
 using HttpWorker.Services.External;
-using HttpWorker.Services.Native;
 using Microsoft.Extensions.Logging;
 
 namespace HttpWorker.Services;
@@ -82,7 +81,6 @@ public class ImportContentService(
                                 XfPostId = firstPostId,
                                 ContentHash = GenerateHash(rawBody),
                                 Sentences = ExtractSentences(cleanText),
-                                Embedding = [] // Handled by Python layer post-persistence
                             };
                             batch.Add(mutation);
                         }
@@ -138,7 +136,6 @@ public class ImportContentService(
                                 DownloadCount = downloadCount,
                                 ContentHash = GenerateHash(rawBody),
                                 Sentences = ExtractSentences(cleanText),
-                                Embedding = [] // Handled by Python layer
                             };
                             batch.Add(mutation);
                         }
@@ -185,7 +182,6 @@ public class ImportContentService(
                                 DownloadCount = 0,
                                 ContentHash = GenerateHash(rawBody),
                                 Sentences = ExtractSentences(cleanText),
-                                Embedding = [] // Handled by Python layer
                             };
                             
                             // Revert accidental title modification
