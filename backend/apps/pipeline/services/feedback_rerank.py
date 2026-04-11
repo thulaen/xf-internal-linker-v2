@@ -197,10 +197,11 @@ class FeedbackRerankService:
         candidates: list[ScoredCandidate],
         host_scope_id_map: dict[int, int],
         destination_scope_id_map: dict[int, int],
-    ) -> tuple[list[int], list[int]]:
-        """Build per-candidate success/total arrays from pair stats."""
+    ) -> tuple[list[int], list[int], list[float]]:
+        """Build per-candidate success/total/exposure_prob arrays from pair stats."""
         n_successes: list[int] = []
         n_totals: list[int] = []
+        exposure_probs: list[float] = []
         for c in candidates:
             host_scope = host_scope_id_map.get(c.host_content_id, 0)
             dest_scope = destination_scope_id_map.get(c.destination_content_id, 0)
@@ -209,13 +210,15 @@ class FeedbackRerankService:
             )
             n_successes.append(int(stats["successes"]))
             n_totals.append(int(stats["total"]))
-        return n_successes, n_totals
+            exposure_probs.append(float(stats.get("exposure_prob", 1.0)))
+        return n_successes, n_totals, exposure_probs
 
     def _rerank_cpp_batch(
         self,
         candidates: list[ScoredCandidate],
         n_successes: list[int],
         n_totals: list[int],
+        exposure_probs: list[float],
     ) -> list[ScoredCandidate]:
         """C++ accelerated batch reranking with per-candidate diagnostics."""
         from dataclasses import replace
@@ -223,6 +226,7 @@ class FeedbackRerankService:
         factors = feedrerank.calculate_rerank_factors_batch(
             np.asarray(n_successes, dtype=np.int32),
             np.asarray(n_totals, dtype=np.int32),
+            np.asarray(exposure_probs, dtype=np.float64),
             max(1, self._global_total_samples),
             float(self.settings.alpha_prior),
             float(self.settings.beta_prior),
@@ -230,13 +234,15 @@ class FeedbackRerankService:
             float(self.settings.exploration_rate),
         )
         reranked = []
-        for c, factor, n_success, n_total in zip(
-            candidates, factors, n_successes, n_totals, strict=True
+        for c, factor, n_success, n_total, ep in zip(
+            candidates, factors, n_successes, n_totals, exposure_probs, strict=True
         ):
             n_global = max(1, self._global_total_samples)
-            score_exploit = (n_success + self.settings.alpha_prior) / (
+            score_exploit_raw = (n_success + self.settings.alpha_prior) / (
                 n_total + self.settings.alpha_prior + self.settings.beta_prior
             )
+            # Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4)
+            score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5
             score_explore = self.settings.exploration_rate * math.sqrt(
                 math.log(n_global + 1.0) / (n_total + 1.0)
             )
@@ -245,6 +251,8 @@ class FeedbackRerankService:
                 "n_pair": n_total,
                 "n_success": n_success,
                 "n_global": n_global,
+                "exposure_prob": round(ep, 4),
+                "score_exploit_raw": round(score_exploit_raw, 4),
                 "score_exploit": round(score_exploit, 4),
                 "score_explore": round(score_explore, 4),
                 "raw_modifier": round(raw_modifier, 4),
@@ -270,10 +278,10 @@ class FeedbackRerankService:
             return candidates
 
         if HAS_CPP_EXT:
-            n_successes, n_totals = self._collect_pair_arrays(
+            n_successes, n_totals, exposure_probs = self._collect_pair_arrays(
                 candidates, host_scope_id_map, destination_scope_id_map
             )
-            return self._rerank_cpp_batch(candidates, n_successes, n_totals)
+            return self._rerank_cpp_batch(candidates, n_successes, n_totals, exposure_probs)
 
         from dataclasses import replace
 

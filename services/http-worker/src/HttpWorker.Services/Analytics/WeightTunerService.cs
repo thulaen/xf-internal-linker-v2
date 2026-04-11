@@ -87,6 +87,12 @@ public sealed class WeightTunerService
             "[WeightTuner] Candidate found for run {RunId}: score {C:F4} vs champion {Ch:F4}",
             request.RunId, optResult.CandidateScore, optResult.BaselineScore);
 
+        _logger.LogWarning(
+            "FR-018: weight optimiser covers {Covered} of {Total} live ranker weights. Uncovered: {Keys}",
+            WeightObjectiveFunction.Keys.Length,
+            WeightObjectiveFunction.AllLiveRankerWeightKeys.Length,
+            string.Join(", ", WeightObjectiveFunction.UncoveredWeightKeys));
+
         // 4. POST candidate to Django.
         var posted = await PostChallengerAsync(request.RunId, optResult, cancellationToken);
         if (!posted)

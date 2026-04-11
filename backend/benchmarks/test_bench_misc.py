@@ -56,8 +56,9 @@ def test_bench_rerank_factors_small(benchmark):
     n = 100
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
+    exposure_probs = np.ones(n, dtype=np.float64)
     benchmark(
-        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+        fr.calculate_rerank_factors_batch, successes, totals, exposure_probs, 10000, 1.0, 1.0, 0.3, 0.1
     )
 
 
@@ -66,8 +67,9 @@ def test_bench_rerank_factors_medium(benchmark):
     n = 5_000
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
+    exposure_probs = np.ones(n, dtype=np.float64)
     benchmark(
-        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+        fr.calculate_rerank_factors_batch, successes, totals, exposure_probs, 10000, 1.0, 1.0, 0.3, 0.1
     )
 
 
@@ -76,8 +78,9 @@ def test_bench_rerank_factors_large(benchmark):
     n = 50_000
     successes = np.random.default_rng(42).integers(0, 100, size=n).astype(np.int32)
     totals = np.random.default_rng(43).integers(1, 200, size=n).astype(np.int32)
+    exposure_probs = np.ones(n, dtype=np.float64)
     benchmark(
-        fr.calculate_rerank_factors_batch, successes, totals, 10000, 1.0, 1.0, 0.3, 0.1
+        fr.calculate_rerank_factors_batch, successes, totals, exposure_probs, 10000, 1.0, 1.0, 0.3, 0.1
     )
 
 

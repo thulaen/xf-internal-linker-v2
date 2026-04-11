@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import GSCImpactSnapshot, GSCKeywordImpact
+from .models import GSCImpactSnapshot, GSCKeywordImpact, ImpactReport
 
 
 class GSCImpactSnapshotSerializer(serializers.ModelSerializer):
@@ -94,4 +94,29 @@ class GSCKeywordImpactSerializer(serializers.ModelSerializer):
             "impressions_post",
             "lift_percent",
             "is_anchor_match",
+        ]
+
+
+class ImpactReportSerializer(serializers.ModelSerializer):
+    """Serializer for before/after matched-control impact reports (FR-017).
+
+    Exposes the control group confidence fields (control_match_count,
+    control_match_quality, is_conclusive) that were previously computed by
+    impact_engine.py but never surfaced to operators.
+    """
+
+    class Meta:
+        model = ImpactReport
+        fields = [
+            "metric_type",
+            "before_value",
+            "after_value",
+            "before_date_range",
+            "after_date_range",
+            "delta_percent",
+            "control_pool_size",
+            "control_match_count",
+            "control_match_quality",
+            "is_conclusive",
+            "created_at",
         ]

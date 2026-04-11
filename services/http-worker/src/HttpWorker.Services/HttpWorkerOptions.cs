@@ -24,6 +24,7 @@ public sealed class HttpOptions
     public int MaxConcurrency { get; set; } = 100;
     public int MaxBodyBytes { get; set; } = 5242880;
     public int MaxRedirectHops { get; set; } = 3;
+    public int ImportMaxPages { get; set; } = 100;
 }
 
 public sealed class PostgresOptions

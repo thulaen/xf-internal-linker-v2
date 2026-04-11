@@ -2008,7 +2008,17 @@ def evaluate_weight_challenger(self, *, run_id: str):
                 cand_score,
                 champ_score,
             )
-            return {"status": "rejected", "run_id": run_id, "decision": sprt_decision}
+            return {
+                "status": "rejected",
+                "run_id": run_id,
+                "decision": sprt_decision,
+                "coverage_note": (
+                    "Optimiser covers 4 of 12 live ranker weights. "
+                    "Uncovered: weighted_authority, link_freshness, phrase_matching, "
+                    "learned_anchor, rare_term_propagation, field_aware_relevance, "
+                    "ga4_gsc, click_distance."
+                ),
+            }
 
         # Promote: apply the four tunable weights; leave all other weights untouched.
         previous_weights = get_current_weights()
@@ -2041,7 +2051,16 @@ def evaluate_weight_challenger(self, *, run_id: str):
             run_id,
             {k: promoted_weights[k] for k in challenger.candidate_weights},
         )
-        return {"status": "promoted", "run_id": run_id}
+        return {
+            "status": "promoted",
+            "run_id": run_id,
+            "coverage_note": (
+                "Optimiser covers 4 of 12 live ranker weights. "
+                "Uncovered: weighted_authority, link_freshness, phrase_matching, "
+                "learned_anchor, rare_term_propagation, field_aware_relevance, "
+                "ga4_gsc, click_distance."
+            ),
+        }
 
     except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()

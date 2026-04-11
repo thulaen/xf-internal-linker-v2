@@ -3,17 +3,20 @@ using HttpWorker.Core.Interfaces;
 using HttpWorker.Core.Text;
 using HttpWorker.Services.External;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 
 namespace HttpWorker.Services;
 
 public class ImportContentService(
-    IPostgresRuntimeStore runtimeStore, 
+    IPostgresRuntimeStore runtimeStore,
     IXenForoClient xenForoClient,
     IWordPressClient wordPressClient,
     ITextDistiller textDistiller,
     IGraphSyncService graphSyncService,
+    IOptions<HttpWorkerOptions> options,
     ILogger<ImportContentService> logger) : IImportContentService
 {
+    private readonly int _importMaxPages = options.Value.Http.ImportMaxPages;
     public async Task<ImportContentResult> ExecuteAsync(string jobId, ImportContentRequest request, CancellationToken cancellationToken)
     {
         logger.LogInformation("Starting Content Import Job {JobId}", jobId);
@@ -30,9 +33,10 @@ public class ImportContentService(
             {
                 if (scopeType == "node")
                 {
-                    // Sequential paging simulation
-                    for (int page = 1; page <= 5; page++) 
+                    // Sequential paging — cap controlled by HttpWorker:Http:ImportMaxPages
+                    for (int page = 1; page <= _importMaxPages; page++)
                     {
+                        logger.LogInformation("Importing page {Page}/{Max} for scope {ScopePk}", page, _importMaxPages, scopePk);
                         var response = await xenForoClient.GetThreadsAsync(externalScopeId, page, cancellationToken);
                         if (response == null || !response.ContainsKey("threads")) break;
 
@@ -88,9 +92,10 @@ public class ImportContentService(
                 }
                 else if (scopeType == "resource_category")
                 {
-                    // Sequential paging for resources
-                    for (int page = 1; page <= 5; page++) 
+                    // Sequential paging — cap controlled by HttpWorker:Http:ImportMaxPages
+                    for (int page = 1; page <= _importMaxPages; page++)
                     {
+                        logger.LogInformation("Importing page {Page}/{Max} for scope {ScopePk}", page, _importMaxPages, scopePk);
                         var response = await xenForoClient.GetResourcesAsync(externalScopeId, page, cancellationToken);
                         if (response == null || !response.ContainsKey("resources")) break;
 
@@ -144,10 +149,11 @@ public class ImportContentService(
                 else if (scopeType == "wp_posts" || scopeType == "wp_pages")
                 {
                     bool isPage = scopeType == "wp_pages";
-                    // Sequential paging for WordPress
-                    for (int page = 1; page <= 5; page++) 
+                    // Sequential paging — cap controlled by HttpWorker:Http:ImportMaxPages
+                    for (int page = 1; page <= _importMaxPages; page++)
                     {
-                        var (items, totalPages) = isPage 
+                        logger.LogInformation("Importing page {Page}/{Max} for scope {ScopePk}", page, _importMaxPages, scopePk);
+                        var (items, totalPages) = isPage
                             ? await wordPressClient.GetPagesAsync(page, "publish", cancellationToken)
                             : await wordPressClient.GetPostsAsync(page, "publish", cancellationToken);
 

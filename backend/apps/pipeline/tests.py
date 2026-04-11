@@ -859,6 +859,8 @@ class FeedRerankExtensionTests(TestCase):
             [np.random.randint(0, int(total) + 1) for total in n_totals],
             dtype=np.int32,
         )
+        # Use random exposure_prob values in [0.1, 1.0] to cover the partial-exposure path.
+        exposure_prob_vals = np.random.uniform(0.1, 1.0, size=100)
         n_global = 250
         alpha = 1.0
         beta = 1.0
@@ -875,14 +877,14 @@ class FeedRerankExtensionTests(TestCase):
             )
         )
         expected = []
-        for successes, total in zip(
-            n_successes.tolist(), n_totals.tolist(), strict=True
+        for i, (successes, total) in enumerate(
+            zip(n_successes.tolist(), n_totals.tolist(), strict=True)
         ):
             service._pair_stats[(1, 1)] = {
                 "total": total,
                 "successes": successes,
                 "generated": total,
-                "exposure_prob": 1.0,
+                "exposure_prob": float(exposure_prob_vals[i]),
             }
             service._global_total_samples = n_global
             factor, _ = service.calculate_rerank_factor(1, 1)
@@ -891,6 +893,7 @@ class FeedRerankExtensionTests(TestCase):
         cpp_result = feedrerank_ext.calculate_rerank_factors_batch(
             n_successes,
             n_totals,
+            np.asarray(exposure_prob_vals, dtype=np.float64),
             n_global,
             alpha,
             beta,
@@ -2964,6 +2967,27 @@ class FeedbackRerankServiceTests(TestCase):
         }
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.0833, places=4)
+
+        # 10/10 with exposure_prob=0.5 -> 0.5*0.9167 + 0.5*0.5 = 0.7083
+        self.service._pair_stats[(1, 1)] = {
+            "total": 10,
+            "successes": 10,
+            "generated": 10,
+            "exposure_prob": 0.5,
+        }
+        self.service._global_total_samples = 10
+        _, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertAlmostEqual(diags["score_exploit"], 0.7083, places=4)
+
+        # 10/10 with exposure_prob=0.2 -> 0.2*0.9167 + 0.8*0.5 = 0.5833
+        self.service._pair_stats[(1, 1)] = {
+            "total": 10,
+            "successes": 10,
+            "generated": 10,
+            "exposure_prob": 0.2,
+        }
+        _, diags = self.service.calculate_rerank_factor(1, 1)
+        self.assertAlmostEqual(diags["score_exploit"], 0.5833, places=4)
 
     def test_ucb1_explore_boost(self):
         # Global=100, Pair=0 -> sqrt(ln(101)/1) = 2.14k

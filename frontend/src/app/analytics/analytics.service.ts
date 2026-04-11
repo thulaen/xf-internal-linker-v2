@@ -215,6 +215,20 @@ export interface GSCKeywordImpact {
   is_anchor_match: boolean;
 }
 
+export interface ImpactReport {
+  metric_type: string;
+  before_value: number;
+  after_value: number;
+  before_date_range: { start: string; end: string };
+  after_date_range: { start: string; end: string };
+  delta_percent: number;
+  control_pool_size: number;
+  control_match_count: number;
+  control_match_quality: number | null;
+  is_conclusive: boolean;
+  created_at: string;
+}
+
 export interface SearchImpactDetailResponse {
   suggestion_id: string;
   anchor_phrase: string;
@@ -222,6 +236,7 @@ export interface SearchImpactDetailResponse {
   applied_at: string;
   impact: GSCImpactSnapshot | null;
   keywords: GSCKeywordImpact[];
+  impact_reports: ImpactReport[];
 }
 
 @Injectable({ providedIn: 'root' })

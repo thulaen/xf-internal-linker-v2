@@ -583,6 +583,32 @@
                                   <span>No specific search queries have shown significant attribution signals for this link yet.</span>
                                 </div>
                               }
+
+                              @if (detail.impact_reports.length) {
+                                <div class="detail-section">
+                                  <h5 class="detail-section-title">Matched Control</h5>
+                                  @for (report of detail.impact_reports; track report.metric_type) {
+                                    <div class="control-report-row">
+                                      <span class="control-metric-label">{{ report.metric_type }}</span>
+                                      <span class="metric-transition">
+                                        {{ report.before_value | number:'1.0-2' }}
+                                        <mat-icon class="icon-2xs">arrow_forward</mat-icon>
+                                        <strong>{{ report.after_value | number:'1.0-2' }}</strong>
+                                      </span>
+                                      <span class="uplift-badge" [class.uplift-badge--negative]="report.delta_percent < 0">
+                                        {{ report.delta_percent > 0 ? '+' : '' }}{{ report.delta_percent | number:'1.0-1' }}%
+                                      </span>
+                                      <span class="text-subtle">
+                                        {{ report.control_match_count }}&thinsp;/&thinsp;{{ report.control_pool_size }} controls
+                                      </span>
+                                      <span
+                                        class="anchor-match-chip"
+                                        [class.anchor-match-chip--muted]="!report.is_conclusive"
+                                      >{{ report.is_conclusive ? 'Conclusive' : 'Inconclusive' }}</span>
+                                    </div>
+                                  }
+                                </div>
+                              }
                             </div>
                           }
                         </div>

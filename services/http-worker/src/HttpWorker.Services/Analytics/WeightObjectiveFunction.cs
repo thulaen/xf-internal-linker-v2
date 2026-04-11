@@ -23,6 +23,21 @@ public sealed class WeightObjectiveFunction
     // The four keys in a stable order.
     public static readonly string[] Keys = ["w_semantic", "w_keyword", "w_node", "w_quality"];
 
+    // All weight keys active in the live ranker (backend/apps/pipeline/services/ranker.py).
+    // The optimiser currently covers only the 4 core weights in Keys[].
+    // FR-018 diagnostic: the uncovered keys are tracked here for coverage reporting.
+    public static readonly string[] AllLiveRankerWeightKeys =
+    [
+        "w_semantic", "w_keyword", "w_node", "w_quality",
+        "weighted_authority.ranking_weight", "link_freshness.ranking_weight",
+        "phrase_matching.ranking_weight", "learned_anchor.ranking_weight",
+        "rare_term_propagation.ranking_weight", "field_aware_relevance.ranking_weight",
+        "ga4_gsc.ranking_weight", "click_distance.ranking_weight",
+    ];
+
+    public static readonly string[] UncoveredWeightKeys =
+        AllLiveRankerWeightKeys.Except(Keys).ToArray();
+
     // Recommended (research) baseline — matches recommended_weights.py.
     public static readonly Dictionary<string, double> RecommendedBaseline = new()
     {
@@ -188,4 +203,5 @@ public sealed class OptimisationResult
     public Dictionary<string, double> BaselineWeights { get; set; } = new();
     public double CandidateScore { get; set; }
     public double BaselineScore { get; set; }
+    public string[] UncoveredWeightKeys { get; set; } = WeightObjectiveFunction.UncoveredWeightKeys;
 }

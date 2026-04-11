@@ -1967,8 +1967,8 @@ class AnalyticsSearchImpactDetailView(APIView):
     def get(self, request, suggestion_id):
         from django.shortcuts import get_object_or_404
         from apps.suggestions.models import Suggestion
-        from .models import GSCImpactSnapshot
-        from .serializers import GSCImpactSnapshotSerializer, GSCKeywordImpactSerializer
+        from .models import GSCImpactSnapshot, ImpactReport
+        from .serializers import GSCImpactSnapshotSerializer, GSCKeywordImpactSerializer, ImpactReportSerializer
 
         window = request.query_params.get("window", "28d")
         sug = get_object_or_404(Suggestion, pk=suggestion_id)
@@ -1978,6 +1978,7 @@ class AnalyticsSearchImpactDetailView(APIView):
             suggestion=sug, window_type=window
         ).first()
         keywords = sug.keyword_impacts.all().order_by("-lift_percent")[:50]
+        impact_reports = sug.impact_reports.all().order_by("-created_at")
 
         return Response(
             {
@@ -1989,6 +1990,7 @@ class AnalyticsSearchImpactDetailView(APIView):
                 if snapshot
                 else None,
                 "keywords": GSCKeywordImpactSerializer(keywords, many=True).data,
+                "impact_reports": ImpactReportSerializer(impact_reports, many=True).data,
             }
         )
 

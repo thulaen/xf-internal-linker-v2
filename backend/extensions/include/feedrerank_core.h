@@ -3,7 +3,9 @@
 #include <cstdint>
 
 void rerank_factors_core(
-    const int32_t* successes, const int32_t* totals, size_t count,
+    const int32_t* successes, const int32_t* totals,
+    const double* exposure_probs,  // per-item exposure probability; nullptr = treat all as 1.0
+    size_t count,
     int n_global, double alpha, double beta, double weight,
     double exploration_rate, double* out_factors
 );

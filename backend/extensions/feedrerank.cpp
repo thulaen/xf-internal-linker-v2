@@ -24,14 +24,20 @@ namespace py = pybind11;
 #include "include/feedrerank_core.h"
 
 void rerank_factors_core(
-    const int32_t* successes, const int32_t* totals, size_t count,
+    const int32_t* successes, const int32_t* totals,
+    const double* exposure_probs,
+    size_t count,
     int n_global, double alpha, double beta, double weight,
     double exploration_rate, double* out_factors
 ) {
     auto compute_one = [&](size_t index) {
-        const double score_exploit =
+        const double score_exploit_raw =
             (static_cast<double>(successes[index]) + alpha) /
             (static_cast<double>(totals[index]) + alpha + beta);
+        // Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4):
+        // blend toward neutral 0.5 for under-exposed pairs (low exposure_prob).
+        const double ep = exposure_probs ? exposure_probs[index] : 1.0;
+        const double score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5;
         const double score_explore =
             exploration_rate *
             std::sqrt(std::log(static_cast<double>(n_global) + 1.0) /
@@ -118,6 +124,7 @@ void mmr_scores_core(
 py::array_t<double> calculate_rerank_factors_batch(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_successes,
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_totals,
+    py::array_t<double, py::array::c_style | py::array::forcecast> exposure_probs,
     int n_global,
     double alpha,
     double beta,
@@ -126,12 +133,16 @@ py::array_t<double> calculate_rerank_factors_batch(
 ) {
     auto successes_buf = n_successes.request();
     auto totals_buf = n_totals.request();
+    auto exposure_probs_buf = exposure_probs.request();
 
     if (successes_buf.ndim != 1 || totals_buf.ndim != 1) {
         throw std::runtime_error("n_successes and n_totals must be 1D int32 arrays");
     }
     if (successes_buf.shape[0] != totals_buf.shape[0]) {
         throw std::runtime_error("n_successes and n_totals must have the same length");
+    }
+    if (exposure_probs_buf.ndim != 1 || exposure_probs_buf.shape[0] != successes_buf.shape[0]) {
+        throw std::runtime_error("exposure_probs must be a 1D float64 array with the same length as n_successes");
     }
 
     const size_t count = static_cast<size_t>(successes_buf.shape[0]);
@@ -143,6 +154,7 @@ py::array_t<double> calculate_rerank_factors_batch(
         rerank_factors_core(
             static_cast<const int32_t*>(successes_buf.ptr),
             static_cast<const int32_t*>(totals_buf.ptr),
+            static_cast<const double*>(exposure_probs_buf.ptr),
             count, n_global, alpha, beta, weight, exploration_rate,
             static_cast<double*>(factors_buf.ptr)
         );
@@ -203,7 +215,9 @@ PYBIND11_MODULE(feedrerank, m) {
     m.def(
         "calculate_rerank_factors_batch",
         &calculate_rerank_factors_batch,
-        "Calculate rerank factors for aligned success and total count arrays"
+        "Calculate rerank factors for aligned success/total/exposure_prob arrays. "
+        "exposure_probs must be float64 in [0,1]; 1.0=full signal, 0.0=blend to neutral 0.5 "
+        "(Joachims, Swaminathan & Schnabel 2017, DOI 10.1145/3077136.3080756)"
     );
     m.def(
         "calculate_mmr_scores_batch",
