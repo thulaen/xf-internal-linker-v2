@@ -121,6 +121,9 @@ Do not leave mystery changes behind.
 - Do not claim a session is complete if the intended files are still uncommitted without explanation.
 - Never use `git add -A` in a dirty tree.
 - Stage only the intended files for the current slice.
+- Branch transparency rule: never create, switch to, or push a new branch without telling the user in chat first, in plain English.
+- When a branch is proposed, explain that work on that branch does not appear on `master` until it is merged.
+- If the user did not explicitly ask for a branch and has not been clearly informed, stay on the current branch instead of silently making a new one.
 - If verification passes and the slice is safe, commit and push it in the same session so the next AI starts from a cleaner base. **This is mandatory: every session MUST automatically clean the tree (stage and commit) and push changes without rollbacks or regressions. No rollbacks unless sanity checks pass. Session-type gate: if backend or frontend application code changed, `docker-compose build` must succeed before any commit is allowed; if only documentation or configuration files changed, skip the build step and state that plainly in the commit message. If `docker-compose build` fails on a code-change session, do not commit — leave a Current Session Note in AI-CONTEXT.md describing the failure and stop.**
 - If verification cannot run, say that plainly in the handoff note and do not pretend the tree is safe.
 - All backend sessions must follow the migration/prune policy in `AGENTS.md`.
@@ -430,6 +433,23 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-11 - Merge branch into master and require branch disclosure
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `AI-CONTEXT.md`
+- What changed:
+  - Fast-forwarded local `master` to `origin/codex/report-registry-chat-notices` so the committed work from that branch is now also on `master`.
+  - Added a strict branch-transparency rule: an AI must tell the user in chat before creating, switching to, or pushing a separate branch.
+  - Added a plain-English disclosure requirement that branch work stays separate from `master` until it is merged.
+- Verification that passed:
+  - `git fetch origin`
+  - `git merge --ff-only origin/codex/report-registry-chat-notices`
+  - Documentation review only for the new branch-disclosure rule.
+- Commit/push state:
+  - Pending commit on `master` for `AI-CONTEXT.md` only.
+  - Left the unrelated dirty file untouched: `docs/reports/repo-business-logic-audit-2026-04-11.md`
 
 ### 2026-04-11 - Chat notification rule for report-registry overlaps
 
