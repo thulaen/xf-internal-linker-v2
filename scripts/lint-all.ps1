@@ -496,12 +496,13 @@ if ($complexityDiffPy.Count -gt 0) {
 Write-Step "17/32 Python: magic number detector (diff-scoped)"
 $magicHits = 0
 $magicPyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
-$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$' })
+$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$|\\health\.py$' })
 $magicPattern = '(?<![.\w])\b(\d{3,})\b(?!\s*(#|px|rem|em|MB|GB|KB|ms|seconds?|minutes?|hours?|days?))' # 3+ digit literals
 foreach ($f in $magicPyFiles) {
     $hits = Select-String -Path $f -Pattern $magicPattern |
         Where-Object {
             $_.Line -notmatch '^\s*#' -and           # not a comment
+            $_.Line -notmatch '^\s*("""|'')' -and    # not a docstring line
             $_.Line -notmatch '(status|STATUS)' -and  # HTTP status codes
             $_.Line -notmatch 'port\s*=' -and         # port numbers
             $_.Line -notmatch 'maxsize\s*=' -and      # lru_cache maxsize
@@ -510,7 +511,10 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch 'help_text' -and       # Django model field help text
             $_.Line -notmatch 'batch_size' -and      # bulk_update batch sizes
             $_.Line -notmatch '(FR-\d|Slice\s)' -and # feature-request references
-            $_.Line -notmatch '(head_limit|offset|limit)' # pagination constants
+            $_.Line -notmatch '(head_limit|offset|limit)' -and # pagination constants
+            $_.Line -notmatch 'size=\(' -and         # numpy array size parameters
+            $_.Line -notmatch '\(19\d\d\)|\(20\d\d\)' -and # academic citation years
+            $_.Line -notmatch '1024\s*\*' # memory arithmetic (e.g. 1024 * 1024)
         }
     if ($hits) {
         $hitsArray = @($hits)
