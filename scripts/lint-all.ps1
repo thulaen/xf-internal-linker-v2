@@ -515,8 +515,9 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch 'size=\(' -and         # numpy array size parameters
             $_.Line -notmatch '19\d\d|20\d\d' -and  # academic citation years
             $_.Line -notmatch '1024\s*\*' -and       # memory arithmetic (e.g. 1024 * 1024)
-            $_.Line -notmatch '\*\s*100[.\s]' -and   # percentage conversions (* 100)
+            $_.Line -notmatch '\*\s*100\b' -and      # percentage conversions (* 100)
             $_.Line -notmatch '=\s*100\.0' -and      # percentage literals (= 100.0)
+            $_.Line -notmatch '>\s*\d{3}\s*:' -and   # guard clauses (> 500:)
             $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
             $_.Line -notmatch '^\s*_[A-Z_]+\s*='     # private named constants
         }

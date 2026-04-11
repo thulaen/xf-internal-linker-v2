@@ -979,6 +979,9 @@ def _refresh_content_value_scores(
     return len(updates)
 
 
+_ENGAGEMENT_TIME_CAP_SECONDS = 180.0  # cap for avg engagement time normalization
+
+
 def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     """Compute raw engagement quality from a single telemetry aggregate row.
 
@@ -995,7 +998,7 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
 
     engagement_rate = engaged / max(dest_views, 1)
     avg_time = total_time / max(sessions, 1)
-    normalized_time = min(avg_time / 180.0, 1.0)
+    normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
     bounce_rate = bounced / max(sessions, 1)
     inverse_bounce = 1.0 - min(bounce_rate, 1.0)
 
