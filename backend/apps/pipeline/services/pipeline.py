@@ -1327,11 +1327,8 @@ def _stage1_candidates(
     )
 
     host_pk_set = {pk for pk, _ in host_keys}
-
     use_faiss = is_faiss_gpu_active()
-
     if not use_faiss and HAS_FAISS:
-        # JIT build: FAISS is installed but index not yet populated in this process.
         logger.info("FAISS index not active — building just-in-time for Stage 1")
         build_faiss_index()
         use_faiss = is_faiss_gpu_active()
