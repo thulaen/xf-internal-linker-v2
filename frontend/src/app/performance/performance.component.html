@@ -3,7 +3,7 @@
   <div class="page-header">
     <div class="page-title">
       <h1>Performance</h1>
-      <p class="page-subtitle">Benchmark results across C++, Python, and C#</p>
+      <p class="page-subtitle">Benchmark results across C++ and Python</p>
     </div>
     <div class="page-actions">
       <button mat-stroked-button
@@ -67,7 +67,6 @@
         <mat-chip [highlighted]="selectedLanguage === 'all'" (click)="filterByLanguage('all')">All</mat-chip>
         <mat-chip [highlighted]="selectedLanguage === 'cpp'" (click)="filterByLanguage('cpp')">C++</mat-chip>
         <mat-chip [highlighted]="selectedLanguage === 'python'" (click)="filterByLanguage('python')">Python</mat-chip>
-        <mat-chip [highlighted]="selectedLanguage === 'csharp'" (click)="filterByLanguage('csharp')">C#</mat-chip>
       </mat-chip-set>
     </div>
 
@@ -114,7 +113,7 @@
               </td>
               <td class="col-lang">
                 <span class="lang-badge" [class]="'lang-' + func.language">
-                  {{ func.language === 'cpp' ? 'C++' : func.language === 'csharp' ? 'C#' : 'Python' }}
+                  {{ func.language === 'cpp' ? 'C++' : 'Python' }}
                 </span>
               </td>
               <td class="col-func">{{ func.extension }}.{{ func.function_name }}</td>

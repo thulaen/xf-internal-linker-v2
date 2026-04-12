@@ -37,12 +37,9 @@ class BenchmarkViewSet(GenericViewSet):
     @action(detail=False, methods=["get"])
     def latest(self, request):
         """GET /api/benchmarks/latest/ — most recent completed run."""
-        run = BenchmarkRun.objects.filter(status="completed").first()
+        run = BenchmarkRun.objects.filter(status="completed").order_by("-started_at").first()
         if not run:
-            return Response(
-                {"detail": "No completed benchmark runs found."},
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response(None, status=status.HTTP_200_OK)
         serializer = BenchmarkRunSerializer(run)
         return Response(serializer.data)
 

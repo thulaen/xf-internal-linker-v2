@@ -427,6 +427,24 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-12 — QA sweep (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Full QA pass of the running app. No code was changed. 8 new issues logged in REPORT-REGISTRY.md (ISS-004 through ISS-011).
+- **Intentional files changed:** `docs/reports/REPORT-REGISTRY.md` (new issues logged), `AI-CONTEXT.md` (this note)
+- **Changes committed:** No — documentation only, pending user review.
+- **Key findings:**
+  - **ISS-005 (High):** Nginx on port 80 is completely broken — redirect loop because Angular build files are never placed into the `frontend_dist` volume. App only reachable on port 4200.
+  - **ISS-006 (High):** `GET /api/system/status/weights/` → 500 every time. `WeightDiagnosticsView` calls `check_native_scoring()` and does `.get()` on its return value, but `check_native_scoring()` returns a tuple, not a dict. Fix: unpack the 4-tuple.
+  - **ISS-010 (High):** Disk at **93.2% full** — real infrastructure risk before next build or pipeline run.
+  - **ISS-011 (Medium):** 101 unread alerts, all duplicates of "api sync appears stuck" — stalled jobs never cleaned up, no dedup in alert generation.
+  - **ISS-009 (Medium):** C# health check still shows as red error in System Health despite C# being decommissioned.
+  - **ISS-007 (Medium):** `/api/benchmarks/latest/` returns 404 instead of empty response — "Resource not found" toast on every Performance page load.
+  - **ISS-004 (Low):** `celery-beat` shows unhealthy in Docker but is working fine — false positive in health check script.
+  - **ISS-008 (Low):** Performance page subtitle still says "C#" — stale copy after decommission.
+- **Test results:** 189 Django tests pass (AI-CONTEXT.md says 195 — 6 fewer, worth checking). Angular test output was truncated before final count.
+- **Skipped fixes:** All issues documented only — not fixed in this session per QA-only scope.
+
 ### 2026-04-12 - Backend startup hardening for drf-spectacular and local SQLite test state
 
 - AI/tool: Codex
@@ -462,6 +480,35 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - Commit/push state:
   - Changes are currently uncommitted.
   - Left unrelated dirty deletions untouched: `docs/reports/2026-04-11-fix-cs-import-page-cap.md`, `docs/reports/2026-04-11-fix-feedrerank-exposure-parity.md`, and `docs/reports/repo-business-logic-audit-2026-04-11.md`
+
+### 2026-04-12 - Python-only import noise stripping for non-content chrome
+
+### 2026-04-12 - Automatic safe Docker cleanup plus idle-only disk compaction
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `docker_cleanup.ps1`
+  - `docker_compact_vhd.ps1`
+  - `register_cleanup_task.ps1`
+  - `%USERPROFILE%\.wslconfig` (local machine setting, outside repo)
+- What changed:
+  - Tightened the repo's Docker cleanup script so it now waits for Docker Desktop to become ready instead of failing early at login.
+  - Changed cleanup to prune all unused Docker build cache plus dangling images only, keeping volumes and persisted app data untouched.
+  - Added a separate `docker_compact_vhd.ps1` helper that only attempts Docker VHD compaction when no containers are running, so automatic disk reclaim stays on the safe side.
+  - Added a second scheduled cleanup path on the local machine: the pre-existing startup cleanup task still exists, and a new every-2-days cleanup task plus a new every-2-days idle-only compaction task were registered locally.
+  - Enabled WSL `autoMemoryReclaim=gradual` in `%USERPROFILE%\.wslconfig` while leaving Docker's current VHD in non-sparse mode.
+- Verification that passed:
+  - PowerShell parser validation for `docker_cleanup.ps1`, `docker_compact_vhd.ps1`, and `register_cleanup_task.ps1`
+  - Manual safe cleanup run via `powershell -ExecutionPolicy Bypass -File .\docker_cleanup.ps1`
+  - `docker system df` after cleanup: build cache reduced from `15.58GB` to `0B`; Docker image usage reduced to `17.79GB`
+  - Task registration confirmed for:
+    - `XF Linker V2 - Docker Cleanup Every 2 Days`
+    - `XF Linker V2 - Docker Disk Compaction`
+- Verification blockers / notes:
+  - The old task `XF Linker V2 - Docker Cleanup on Startup` could be read but not overwritten due Windows scheduled-task permissions, so it was left in place as an extra safe cleanup pass.
+  - Docker's VHD remains non-sparse (`fsutil sparse queryflag ...docker_data.vhdx` reports `NOT set as sparse`), so disk-file shrink depends on the new idle-only compaction task getting a window where no containers are running.
+- Commit/push state:
+  - Changes are currently uncommitted.
 
 ### 2026-04-12 - Python-only import noise stripping for non-content chrome
 

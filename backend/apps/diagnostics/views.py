@@ -215,9 +215,9 @@ class WeightDiagnosticsView(views.APIView):
         settings = {s.key: s.value for s in AppSetting.objects.all()}
 
         # 2. Get C++ status
-        native_status = check_native_scoring()
+        _state, _expl, _step, native_metadata = check_native_scoring()
         cpp_module_map = {
-            m["module"]: m for m in native_status.get("module_statuses", [])
+            m["module"]: m for m in native_metadata.get("module_statuses", [])
         }
 
         # 3. Get recent error counts per area (last 24h)

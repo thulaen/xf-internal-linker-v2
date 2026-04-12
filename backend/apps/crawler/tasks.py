@@ -156,11 +156,19 @@ def watchdog_check():
 
     now = timezone.now()
     stale_threshold = now - timedelta(minutes=30)
+    auto_fail_threshold = now - timedelta(hours=24)
 
-    # Check stuck sync jobs.
+    # Auto-fail sync jobs stuck for more than 24 hours.
+    SyncJob.objects.filter(
+        status="running",
+        updated_at__lt=auto_fail_threshold,
+    ).update(status="failed")
+
+    # Warn about sync jobs stuck 30 min – 24 h (not yet auto-failed).
     stuck_syncs = SyncJob.objects.filter(
         status="running",
         updated_at__lt=stale_threshold,
+        updated_at__gte=auto_fail_threshold,
     )
     for job in stuck_syncs:
         emit_operator_alert(
@@ -174,6 +182,7 @@ def watchdog_check():
                 f"with no progress since {job.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_sync_{job.job_id}",
+            cooldown_seconds=86400,
         )
         SystemEvent.objects.create(
             severity="warning",
@@ -181,10 +190,17 @@ def watchdog_check():
             title=f"{job.source} sync appears stuck ({job.items_synced} items done)",
         )
 
-    # Check stuck crawler sessions.
+    # Auto-fail crawl sessions stuck for more than 24 hours.
+    CrawlSession.objects.filter(
+        status="running",
+        updated_at__lt=auto_fail_threshold,
+    ).update(status="failed")
+
+    # Warn about crawl sessions stuck 30 min – 24 h.
     stuck_crawls = CrawlSession.objects.filter(
         status="running",
         updated_at__lt=stale_threshold,
+        updated_at__gte=auto_fail_threshold,
     )
     for session in stuck_crawls:
         emit_operator_alert(
@@ -198,6 +214,7 @@ def watchdog_check():
                 f"with no progress since {session.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_crawl_{session.session_id}",
+            cooldown_seconds=86400,
         )
 
 

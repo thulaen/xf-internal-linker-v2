@@ -17,7 +17,7 @@ export interface ChecklistGroup {
 }
 
 const SERVICE_GROUPS: { label: string; keys: string[] }[] = [
-  { label: 'Infrastructure', keys: ['database', 'redis', 'celery', 'celery_queues', 'celery_beat', 'disk_space', 'http_worker'] },
+  { label: 'Infrastructure', keys: ['database', 'redis', 'celery', 'celery_queues', 'celery_beat', 'disk_space'] },
   { label: 'AI & Models', keys: ['ml_models', 'native_scoring', 'gpu_faiss'] },
   { label: 'Analytics Credentials', keys: ['ga4', 'gsc', 'matomo'] },
   { label: 'Content Sources', keys: ['xenforo', 'wordpress', 'sitemaps'] },
@@ -291,7 +291,6 @@ export class HealthComponent implements OnInit, OnDestroy {
       'celery_queues': 'If queues are backed up, restart workers: docker compose restart celery-worker',
       'celery_beat': 'Restart the scheduler: docker compose restart celery-beat',
       'disk_space': 'Free up disk space by pruning Docker images: docker image prune -f',
-      'http_worker': 'Restart the HTTP worker: docker compose restart http-worker-api',
       'gpu_faiss': 'Ensure FAISS is installed. CPU fallback is used automatically if no GPU is available.',
     };
     return hints[serviceKey];

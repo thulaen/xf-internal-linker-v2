@@ -48,6 +48,108 @@ This file is the single index of all audit reports and individual issues found b
 - **Status:** OPEN
 - **Regression watch:** Keep FAISS index building out of `AppConfig.ready()` for management commands and other startup paths that should remain side-effect free.
 
+### ISS-004 — celery-beat container marked unhealthy despite working correctly (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** low
+- **Affected files:** `docker-compose.yml` (celery-beat healthcheck)
+- **Description:** `xf_linker_celery_beat` shows `(unhealthy)` in `docker-compose ps` and has a failing streak of 260+, but the container is fully operational — it sends tasks every minute (pulse-heartbeat, watchdog-check, refresh-faiss-index, etc.). The health check runs `celery -A config.celery inspect scheduled -t 10 2>&1 | grep -q '{'` but `inspect scheduled` returns `- empty -` (no deferred tasks) instead of JSON, so grep fails. The health check script is testing for the wrong output format.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Changed health check to `grep -q beat /proc/1/cmdline` — verifies the beat process is running without depending on task queue state.
+- **Regression watch:** The container uses a slim Python image without `pgrep`. Health checks must use `/proc/1/cmdline` or built-in tools only.
+
+---
+
+### ISS-005 — Nginx proxy on port 80 returns 500 for all routes (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `nginx/nginx.conf`, `docker-compose.yml` (nginx volumes, frontend service)
+- **Description:** Navigating to `http://localhost/` (port 80) returns a 500 with `rewrite or internal redirection cycle while internally redirecting to "/index.html"`. The nginx config sets `root /usr/share/nginx/html/browser;` but the Angular dev-server container never populates the `frontend_dist` Docker volume — it runs a live dev server on port 4200 instead of building static files. The `browser/` subdirectory does not exist, so `try_files $uri $uri/ /index.html` keeps trying to serve `index.html` which also doesn't exist, causing a redirect loop.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Changed nginx from static file serving to reverse proxy to `http://frontend:4200`. Removed unused `frontend_dist` volume mount from nginx.
+- **Regression watch:** If a production build pipeline is added later, the nginx config will need to switch back to static file serving with the correct `root` path.
+
+---
+
+### ISS-006 — GET /api/system/status/weights/ returns 500 (WeightDiagnosticsView tuple bug) (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `backend/apps/diagnostics/views.py` (`WeightDiagnosticsView.get`), `backend/apps/diagnostics/health.py` (`check_native_scoring`, `_result`)
+- **Description:** `GET /api/system/status/weights/` always returns a 500 with `AttributeError: 'tuple' object has no attribute 'get'`. Root cause: `check_native_scoring()` in `health.py` returns a raw tuple `(state, explanation, next_step, metadata)` via `_result()`, but `WeightDiagnosticsView.get()` calls `native_status.get("module_statuses", [])` — treating the return value as a dict.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Changed line 218 to unpack: `_state, _expl, _step, native_metadata = check_native_scoring()` then use `native_metadata.get(...)`.
+- **Regression watch:** `_result()` is used throughout `health.py` as a 4-tuple. Any new caller must unpack it correctly, not treat it as a dict.
+
+---
+
+### ISS-007 — GET /api/benchmarks/latest/ returns 404 on /performance page (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** medium
+- **Affected files:** `backend/apps/benchmarks/views.py`
+- **Description:** The Performance page triggers `GET /api/benchmarks/latest/` which returns 404 and causes a "Resource not found" toast on every page load. No benchmarks have ever been run so no latest record exists — the view returns 404 instead of an empty response.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Changed to return `Response(None, status=status.HTTP_200_OK)` when no completed benchmark runs exist. Added `.order_by("-started_at")` for deterministic latest selection.
+- **Regression watch:** Frontend must handle `null` response body from `/api/benchmarks/latest/`.
+
+---
+
+### ISS-008 — Performance page subtitle still references C# after decommission (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** low
+- **Affected files:** `frontend/src/app/performance/performance.component.html`, `frontend/src/app/performance/performance.component.scss`
+- **Description:** The Performance page subtitle reads "Benchmark results across C++, Python, and C#" — but the C# runtime was decommissioned.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Removed C# from subtitle, filter chip bar, language display ternary, and `.lang-csharp` CSS rule.
+- **Regression watch:** If C# support is re-added, restore the filter chip and lang badge.
+
+---
+
+### ISS-009 — C# High-Performance Runtime health check still present after decommission (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** medium
+- **Affected files:** `frontend/src/app/health/health.component.ts`
+- **Description:** System Health page shows "C# High-Performance Runtime — C# Runtime Service unreachable" as a red error. The C# runtime was decommissioned. The frontend hardcoded `'http_worker'` in the Infrastructure health group, but the backend has no such check registered.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Removed `'http_worker'` from the `SERVICE_GROUPS` array and removed its troubleshooting hint. Backend `diagnostics/models.py` still has `http_worker` and `scheduler_lane` as model choices — left in place to avoid a migration on historical data.
+- **Regression watch:** Do not re-add `http_worker` to health groups unless a replacement service is deployed.
+
+---
+
+### ISS-010 — Disk space critically full at 93.2% (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** Host machine disk
+- **Description:** System Health page shows "Disk critically full — 93.2% used."
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Ran `docker image prune -f` and removed the decommissioned `xf-linker-http-worker` image (344MB). Main disk consumer remains the 13.5GB backend image.
+- **Regression watch:** Run `docker image prune -f` after every `docker-compose build` per CLAUDE.md rules.
+
+---
+
+### ISS-011 — 101 stalled-job alerts flooding the Alerts page with 142× duplicates (2026-04-12)
+
+- **Found by:** Claude
+- **Severity:** medium
+- **Affected files:** `backend/apps/crawler/tasks.py` (watchdog_check)
+- **Description:** The Alerts page shows 101 unread alerts, all of type "api sync appears stuck", with each individual job stall generating 142× duplicate alert entries. Stalled jobs were never cleaned up, and alert cooldown was only 15 minutes (default), causing new alert rows every 15 minutes per job.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Added auto-fail for sync jobs and crawl sessions stuck >24 hours. Added `cooldown_seconds=86400` (24h) to stalled-job alerts so only one alert is created per job per day. Narrowed the alert window to 30min–24h (jobs beyond 24h are auto-failed and stop generating alerts).
+- **Regression watch:** If the 24-hour auto-fail threshold is too aggressive for some long-running jobs, increase it. The cooldown prevents alert floods regardless.
+
 ---
 
 ## Resolved Reports
