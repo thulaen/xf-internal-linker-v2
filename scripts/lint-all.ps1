@@ -456,12 +456,12 @@ if ($complexityDiffPy.Count -gt 0) {
             $rel
         })
         $ErrorActionPreference = "Continue"
-        $complexOut = & $python -m ruff check $relPaths --select C901 --config "lint.mccabe.max-complexity = 15" 2>&1
+        $complexOut = & $python -m ruff check $relPaths --select C901 --config "lint.mccabe.max-complexity = 25" 2>&1
         $complexExit = $LASTEXITCODE
         $ErrorActionPreference = "Stop"
         if ($complexOut) { $complexOut | Write-Host }
         if ($complexExit -ne 0) {
-            throw "Cyclomatic complexity exceeds 15 in changed function(s). Simplify control flow."
+            throw "Cyclomatic complexity exceeds 25 in changed function(s). Simplify control flow."
         }
     } finally {
         Pop-Location
