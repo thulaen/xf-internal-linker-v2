@@ -7,7 +7,7 @@ $python = Get-VenvPython
 
 try {
     # Lint ALL languages first — fail fast before wasting time on tests.
-    Write-Host "Running all linters (ruff, mypy, bandit, ESLint, cppcheck, C# strict)..."
+    Write-Host "Running all linters (ruff, mypy, bandit, ESLint, cppcheck)..."
     & (Join-Path $PSScriptRoot "lint-all.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Linting failed. Fix the errors above before pushing."

@@ -39,7 +39,7 @@ if [ $? -ne 0 ]; then
 fi
 cd "$REPO_ROOT"
 
-# 2. Full local verification (C++, backend, frontend, HttpWorker, plus artifact prune)
+# 2. Full local verification (C++, backend, frontend, plus artifact prune)
 echo "=> Running full local verification..."
 powershell.exe -ExecutionPolicy Bypass -File "$REPO_ROOT/scripts/verify.ps1"
 if [ $? -ne 0 ]; then

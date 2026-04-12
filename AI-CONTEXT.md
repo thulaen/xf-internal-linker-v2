@@ -445,6 +445,26 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - **Test results:** 189 Django tests pass (AI-CONTEXT.md says 195 — 6 fewer, worth checking). Angular test output was truncated before final count.
 - **Skipped fixes:** All issues documented only — not fixed in this session per QA-only scope.
 
+### 2026-04-13 - Remove stale C# mentions from local verification checks
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `.githooks/pre-push`
+  - `scripts/lint-all.ps1`
+  - `scripts/setup-dev.ps1`
+  - `scripts/verify.ps1`
+  - `AI-CONTEXT.md`
+- What changed:
+  - Confirmed `.github/workflows/ci.yml` is already C#-free, so no GitHub Actions job needed removal.
+  - Removed stale C# wording from the local verification banner and pre-push hook comment so local checks match the current Python/C++ runtime stack.
+  - Removed dead `.cs` handling from the generic lint helper paths now that no tracked C# files remain.
+  - Removed the stale `scripts\test-http-worker.ps1` tip from setup instructions and dropped the obsolete `.NET` sandbox note.
+- Verification that passed:
+  - `rg` search across `.github`, `.githooks`, and `scripts` for `C#`, `HttpWorker`, `test-http-worker`, `.cs`, and related stale runtime terms
+  - PowerShell parser validation for `scripts/verify.ps1`, `scripts/lint-all.ps1`, and `scripts/setup-dev.ps1`
+- Commit/push state:
+  - Changes are currently uncommitted.
+
 ### 2026-04-12 - Backend startup hardening for drf-spectacular and local SQLite test state
 
 - AI/tool: Codex

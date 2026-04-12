@@ -237,13 +237,13 @@ if ($cppHits) {
 
 
 if ($debugHits -gt 0) {
-    throw "Found $debugHits debug artifact(s). Remove all console.log/cout/Console.Write before pushing."
+    throw "Found $debugHits debug artifact(s). Remove all console.log/cout before pushing."
 }
 
 # ── 9.  Placeholder / stub logic blocker ─────────────────────────────
 Write-Step "9/32 Cross-language: placeholder / stub blocker (diff-scoped)"
 $diffFiles = @(Get-PushDiffFiles)
-$stubFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp", ".cs", ".html"))
+$stubFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp", ".html"))
 $stubHits = 0
 if ($stubFiles.Count -gt 0) {
     $stubPattern = '(?i)\b(TODO|FIXME|HACK|XXX)\b|NotImplementedError|NotImplementedException|throw\s+new\s+Error\s*\(\s*[''"]not\s+implemented'
@@ -291,7 +291,7 @@ if ($diffFiles.Count -gt 0) {
 # ── 11. Merge conflict marker detector ───────────────────────────────
 Write-Step "11/32 Repo: merge conflict marker detector"
 $ErrorActionPreference = "Continue"
-$markerHits = git -C $repoRoot grep -n -E "^<{7} |^>{7} " -- "*.py" "*.ts" "*.cs" "*.cpp" "*.html" "*.scss" "*.yml" "*.yaml" 2>$null
+$markerHits = git -C $repoRoot grep -n -E "^<{7} |^>{7} " -- "*.py" "*.ts" "*.cpp" "*.html" "*.scss" "*.yml" "*.yaml" 2>$null
 $global:LASTEXITCODE = 0  # git grep returns 1 when no matches — not an error
 $ErrorActionPreference = "Stop"
 if ($markerHits) {
@@ -304,9 +304,9 @@ Write-Step "12/32 Cross-language: empty catch / error swallowing (diff-scoped)"
 $emptyCatchHits = 0
 $pyAppsPath = Join-Path (Join-Path $repoRoot "backend") "apps"
 
-# TS/C#: catch (...) { }  — only in changed files
-$catchDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts", ".cs"))
-$catchDiffFiles = @($catchDiffFiles | Where-Object { $_ -notmatch '\.spec\.ts$|Tests\.cs$|\\node_modules\\' })
+# TypeScript: catch (...) { }  — only in changed files
+$catchDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts"))
+$catchDiffFiles = @($catchDiffFiles | Where-Object { $_ -notmatch '\.spec\.ts$|\\node_modules\\' })
 foreach ($f in $catchDiffFiles) {
     $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
     if ($content -match 'catch\s*(\([^)]*\))?\s*\{\s*\}') {
@@ -429,7 +429,7 @@ foreach ($spec in $fileLimits) {
     foreach ($f in $files) {
         $name = Split-Path $f -Leaf
         if ($baselineLongFiles -contains $name) { continue }
-        if ($f -match '\\migrations\\|\\tests|\.spec\.ts$|Tests\.cs$|\.d\.ts$') { continue }
+        if ($f -match '\\migrations\\|\\tests|\.spec\.ts$|\.d\.ts$') { continue }
         $lineCount = (Get-Content $f -ErrorAction SilentlyContinue | Measure-Object -Line).Lines
         if ($lineCount -gt $spec.Max) {
             $fileViolations += "$name = $lineCount lines (max $($spec.Max))"
@@ -510,7 +510,7 @@ Write-Step "18/32 Cross-language: duplicate code block detector (diff-scoped)"
 $dupeWindow = 6
 $dupeHashes = @{}  # hash -> @(filepath:line)
 $dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp"))
-$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|Tests\.cs$|\\benchmarks\\' })
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|\\benchmarks\\' })
 # Exclude C++ extensions — each is a standalone pybind11 module with inherently repeated TBB/SIMD boilerplate
 $dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\extensions\\.*\.cpp$' })
 foreach ($f in $dupeSourceFiles) {
@@ -663,7 +663,7 @@ if ($redosHits -gt 0) {
 }
 
 # ── 26. Resource leak pattern detector (diff-scoped) ─────────────────
-Write-Step "25/32 Python/C#: resource leak pattern detector (diff-scoped)"
+Write-Step "25/32 Python: resource leak pattern detector (diff-scoped)"
 $leakHits = 0
 
 # Python: open() without with — only in changed files
