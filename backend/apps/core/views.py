@@ -12,6 +12,7 @@ GET    /api/dashboard/           → aggregated stats for the dashboard
 """
 
 import json
+import logging
 import math
 import uuid
 from urllib.parse import urlparse
@@ -22,6 +23,9 @@ from django.views import View
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+import uuid
+
+logger = logging.getLogger(__name__)
 
 from apps.api.throttles import (
     GraphRebuildThrottle as _GraphRebuildThrottle,
@@ -3894,5 +3898,5 @@ class UserLogoutView(APIView):
         try:
             request.user.auth_token.delete()
         except Exception:
-            pass
+            logger.debug("Auth token delete failed or already gone", exc_info=True)
         return Response({"status": "success"})

@@ -26,7 +26,7 @@ def run_crawl_session_sync(session_id) -> None:
             session.error_message = str(exc)
             session.save(update_fields=["status", "error_message", "updated_at"])
         except CrawlSession.DoesNotExist:
-            pass
+            logger.debug("CrawlSession %s not found during error update", session_id)
 
 
 async def _execute_crawl_session(session_id) -> None:
@@ -228,7 +228,7 @@ def _parse_html(html: str, meta: CrawledPageMeta, base_url: str):
                     if isinstance(item, dict) and "@type" in item:
                         schema_types.append(item["@type"])
         except Exception:
-            pass
+            logger.debug("Failed to parse or process JSON-LD script tag", exc_info=True)
     meta.structured_data_types = schema_types
 
     # Link aggregation is bypassed for brevity but we count them.
