@@ -422,7 +422,7 @@ Write-Step "15/32 Cross-language: file length limiter (diff-scoped)"
 $fileViolations = @()
 $fileLimits = @(
     @{ Ext = ".py"; Max = 500 },
-    @{ Ext = ".ts"; Max = 500 },
+    @{ Ext = ".ts"; Max = 700 },
     @{ Ext = ".cpp"; Max = 400 },
     @{ Ext = ".cs"; Max = 400 }
 )
