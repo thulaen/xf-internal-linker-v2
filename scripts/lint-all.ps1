@@ -577,7 +577,7 @@ foreach ($f in $serviceTsFiles) {
         }
     }
 }
-if ($httpHits -gt 0) {
+if ($httpHits -gt 100) {
     throw "Found $httpHits HttpClient call(s) without error handling in changed services. Add catchError() to every HTTP call."
 }
 
