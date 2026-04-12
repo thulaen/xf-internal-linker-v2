@@ -433,6 +433,63 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-12 - Backend startup hardening for drf-spectacular and local SQLite test state
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `backend/config/settings/base.py`
+  - `backend/config/urls.py`
+  - `backend/Dockerfile`
+  - `backend/apps/plugins/apps.py`
+  - `backend/apps/plugins/tests.py` (new)
+  - `docker-compose.yml`
+  - `scripts/setup-dev.ps1`
+- What changed:
+  - Reverted the temporary optional-schema fallback. `drf_spectacular` is required again in Django settings, and the schema routes are always registered.
+  - Added fail-fast dependency verification to the backend Docker image build, backend container startup, celery worker startup, and local `scripts/setup-dev.ps1` so a missing `drf_spectacular` install fails immediately and clearly.
+  - Plugin autoload now skips all `.test` settings sessions plus migration-oriented commands like `showmigrations`, preventing plugin DB queries from firing during local SQLite maintenance commands.
+  - `scripts/setup-dev.ps1` now migrates the local SQLite test database automatically after dependency installation so future local verification starts from a fully migrated `backend/test.sqlite3`.
+  - Ran the SQLite test-settings migration locally so `showmigrations --settings=config.settings.test` now reports a fully applied local schema instead of an incomplete state.
+- Verification that passed:
+  - `.venv\Scripts\python.exe manage.py test apps.plugins.tests apps.pipeline.tests.TextCleanerServiceTests --settings=config.settings.test`
+  - `.venv\Scripts\python.exe -m ruff check backend/config/settings/base.py backend/config/urls.py backend/apps/plugins/apps.py backend/apps/plugins/tests.py backend/apps/pipeline/services/text_cleaner.py backend/apps/pipeline/tests.py`
+  - PowerShell parser check for `scripts/setup-dev.ps1`
+  - `.venv\Scripts\python.exe manage.py migrate --settings=config.settings.test --noinput`
+  - `.venv\Scripts\python.exe manage.py showmigrations --settings=config.settings.test`
+  - `.venv\Scripts\python.exe manage.py makemigrations --check --dry-run --settings=config.settings.test`
+  - `docker compose up -d --build backend celery-worker`
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker image prune -f`
+  - `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1`
+- Verification blockers / notes:
+  - The first Docker migration check reproduced the real failure: the running backend container was missing `drf_spectacular`. Rebuilding and recreating `backend` plus `celery-worker` fixed that environment, and the required Docker-side migration checks passed afterward.
+  - Docker-side migration commands still emit Django's app-startup database warning because `PipelineConfig.ready()` builds the FAISS index at startup. Logged as open issue `ISS-003` in `docs/reports/REPORT-REGISTRY.md`.
+- Commit/push state:
+  - Changes are currently uncommitted.
+  - Left unrelated dirty deletions untouched: `docs/reports/2026-04-11-fix-cs-import-page-cap.md`, `docs/reports/2026-04-11-fix-feedrerank-exposure-parity.md`, and `docs/reports/repo-business-logic-audit-2026-04-11.md`
+
+### 2026-04-12 - Python-only import noise stripping for non-content chrome
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `backend/apps/pipeline/services/text_cleaner.py`
+  - `backend/apps/pipeline/tests.py`
+- What changed:
+  - Expanded the Python import cleaner so imported text now strips more non-content noise before hashing and distillation.
+  - Added removal for signature-style BBCode blocks (`[SIGPIC]...[/SIGPIC]`), generic HTML chrome blocks identified by class/id keywords, semantic HTML chrome sections (`nav`, `header`, `footer`, `aside`, `form`), and short leftover boilerplate lines like `Read next`, `Table of Contents`, `Subscribe`, `Share this`, `Last edited by`, and login-wall prompts.
+  - Added focused backend tests covering HTML noise blocks, signature/quote/edit noise, and leftover label-style junk.
+- Verification that passed:
+  - `.venv\Scripts\python.exe manage.py test apps.pipeline.tests.TextCleanerServiceTests --settings=config.settings.test`
+  - `.venv\Scripts\python.exe manage.py makemigrations --check --dry-run --settings=config.settings.test`
+  - `.venv\Scripts\python.exe -m ruff check backend/apps/pipeline/services/text_cleaner.py backend/apps/pipeline/tests.py`
+- Verification blockers / notes:
+  - `.venv\Scripts\python.exe manage.py showmigrations --settings=config.settings.test` reported many unapplied migrations in the local SQLite test database and plugin-startup warnings because that local DB is not a full migrated app state.
+  - `docker compose exec backend python manage.py showmigrations` and `... makemigrations --check --dry-run` were attempted but the backend container environment failed startup with `ModuleNotFoundError: No module named 'drf_spectacular'`, so the repo-mandated container migration check could not be completed in this session.
+- Commit/push state:
+  - Changes are currently uncommitted.
+  - Left unrelated dirty deletions untouched: `docs/reports/2026-04-11-fix-cs-import-page-cap.md`, `docs/reports/2026-04-11-fix-feedrerank-exposure-parity.md`, and `docs/reports/repo-business-logic-audit-2026-04-11.md`
+
 ### 2026-04-11 - Merge branch into master and require branch disclosure
 
 - AI/tool: Codex

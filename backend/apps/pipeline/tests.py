@@ -31,6 +31,7 @@ from apps.pipeline.services import text_tokens as text_tokens_service
 from apps.pipeline.services import field_aware_relevance as field_aware_service
 from apps.pipeline.services import link_parser as link_parser_service
 from apps.pipeline.services import rare_term_propagation as rare_term_service
+from apps.pipeline.services import text_cleaner as text_cleaner_service
 from apps.pipeline.services import weighted_pagerank as weighted_pagerank_service
 from apps.pipeline.services.feedback_rerank import (
     FeedbackRerankService,
@@ -403,6 +404,60 @@ class TextTokenizerServiceTests(TestCase):
             result,
             frozenset({"stop", "internal", "linking", "guide"}),
         )
+
+
+class TextCleanerServiceTests(TestCase):
+    def test_clean_import_text_strips_rendered_html_noise_blocks(self):
+        raw_text = """
+        <article>
+          <p>Core article content starts here.</p>
+          <div class="author-box">Author bio we do not want.</div>
+          <div class="related-posts">
+            <p>Read next</p>
+            <p>Another page</p>
+          </div>
+          <div id="sticky-notice">Sign in to continue</div>
+          <div class="share-buttons">Share this everywhere</div>
+          <p>Core article content ends here.</p>
+        </article>
+        """
+
+        clean_text = text_cleaner_service.clean_import_text(raw_text)
+
+        self.assertEqual(
+            clean_text,
+            "Core article content starts here. Core article content ends here.",
+        )
+
+    def test_clean_import_text_strips_signature_quote_and_edit_noise(self):
+        raw_text = """
+        Helpful first paragraph.
+        [QUOTE=Someone, post: 1]Quoted reply chain[/QUOTE]
+        [SIGPIC]Forum signature block[/SIGPIC]
+        Last edited by Admin yesterday
+        Helpful last paragraph.
+        """
+
+        clean_text = text_cleaner_service.clean_import_text(raw_text)
+
+        self.assertEqual(
+            clean_text,
+            "Helpful first paragraph. Helpful last paragraph.",
+        )
+
+    def test_clean_import_text_strips_toc_newsletter_and_related_labels(self):
+        raw_text = """
+        <div>
+          <p>Table of Contents</p>
+          <p>Subscribe to our newsletter</p>
+          <p>You may also like</p>
+          <p>Main imported content stays.</p>
+        </div>
+        """
+
+        clean_text = text_cleaner_service.clean_import_text(raw_text)
+
+        self.assertEqual(clean_text, "Main imported content stays.")
 
 
 class PipelineLoaderTests(TestCase):

@@ -25,7 +25,8 @@ WORKDIR /app
 # Install Python dependencies first (better layer caching)
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir -r requirements.txt && \
+    python -c "import drf_spectacular"
 
 # Download spaCy language model
 RUN python -m spacy download en_core_web_sm

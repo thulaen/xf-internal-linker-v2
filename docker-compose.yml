@@ -96,6 +96,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "pip install --no-cache-dir -r requirements.txt &&
+             python -c 'import drf_spectacular' &&
              (cd extensions && python setup.py build_ext --inplace) &&
              until python manage.py migrate --noinput; do
                echo 'Postgres is not ready yet. Waiting 5 seconds...';
@@ -148,7 +149,9 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --prefetch-multiplier 1 -Q default,pipeline,embeddings
+    command: >
+      sh -c "python -c 'import drf_spectacular' &&
+             celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --prefetch-multiplier 1 -Q default,pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)

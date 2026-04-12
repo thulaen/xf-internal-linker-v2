@@ -93,6 +93,24 @@ foreach ($requirement in $requirements) {
     & $venvPython -m pip install -r $requirement
 }
 
+Write-Host "Verifying required backend dependencies..."
+& $venvPython -c "import drf_spectacular"
+
+Write-Host "Preparing local SQLite test database..."
+$previousDjangoSettings = $env:DJANGO_SETTINGS_MODULE
+Push-Location (Join-Path $repoRoot "backend")
+try {
+    $env:DJANGO_SETTINGS_MODULE = "config.settings.test"
+    & $venvPython manage.py migrate --settings=config.settings.test --noinput
+} finally {
+    if ($null -eq $previousDjangoSettings) {
+        Remove-Item Env:DJANGO_SETTINGS_MODULE -ErrorAction SilentlyContinue
+    } else {
+        $env:DJANGO_SETTINGS_MODULE = $previousDjangoSettings
+    }
+    Pop-Location
+}
+
 Write-Host "Backend environment is ready."
 Write-Host "Interpreter: $venvPython"
 Write-Host "Tip: repo-local wrappers mirror the main local verification flow:"

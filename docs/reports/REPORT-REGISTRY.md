@@ -39,7 +39,14 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Individual Issues
 
-_(None logged yet. Use the template below to add issues found during AI sessions.)_
+### ISS-003 â€” FAISS startup index build hits the database during app initialization (2026-04-12)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/pipeline/apps.py`, `backend/apps/pipeline/services/faiss_index.py`
+- **Description:** Docker-side `showmigrations` and `makemigrations --check` emit Django's `APPS_NOT_READY_WARNING_MSG` because `PipelineConfig.ready()` calls `build_faiss_index()` during startup, which touches the database before app initialization is complete. This makes management-command startup noisy and risks future initialization fragility.
+- **Status:** OPEN
+- **Regression watch:** Keep FAISS index building out of `AppConfig.ready()` for management commands and other startup paths that should remain side-effect free.
 
 ---
 
@@ -51,7 +58,27 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 
 ## Resolved Individual Issues
 
-_(None yet. Resolved issues stay here permanently to prevent regressions and duplication.)_
+### ISS-001 â€” Backend container could miss required `drf_spectacular` dependency and fail at startup (2026-04-12)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/config/settings/base.py`, `backend/config/urls.py`, `backend/Dockerfile`, `docker-compose.yml`, `scripts/setup-dev.ps1`
+- **Description:** The backend relied on `drf_spectacular` at runtime, but the running Docker container and some local setups could still start from a partially provisioned environment where that package was absent. This produced a confusing late failure during Django startup instead of a clear dependency-install failure.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-12
+- **Regression watch:** Keep `drf_spectacular` required in Django settings and preserve the explicit import checks in Docker build/startup and local setup flows.
+
+### ISS-002 â€” Local SQLite test database could drift behind migrations (2026-04-12)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/plugins/apps.py`, `backend/apps/plugins/tests.py`, `scripts/setup-dev.ps1`
+- **Description:** Local verification under `config.settings.test` could start against an incomplete `backend/test.sqlite3`, which made migration checks noisy and fragile. Plugin startup also needed to stay out of the way for test-settings and migration-oriented management commands.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-12
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-12
+- **Regression watch:** Keep the plugin autoload skip for `.test` settings plus migration commands, and keep `scripts/setup-dev.ps1` running `migrate --settings=config.settings.test --noinput`.
 
 ---
 
