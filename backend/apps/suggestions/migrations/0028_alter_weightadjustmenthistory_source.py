@@ -4,15 +4,23 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0027_add_suggestion_presentation'),
+        ("suggestions", "0027_add_suggestion_presentation"),
     ]
 
     operations = [
         migrations.AlterField(
-            model_name='weightadjustmenthistory',
-            name='source',
-            field=models.CharField(choices=[('auto_tune', 'Auto-tune (Poisson-Gamma)'), ('manual', 'Manual save'), ('preset_applied', 'Preset applied')], db_index=True, help_text='What triggered this weight change.', max_length=20),
+            model_name="weightadjustmenthistory",
+            name="source",
+            field=models.CharField(
+                choices=[
+                    ("auto_tune", "Auto-tune (Poisson-Gamma)"),
+                    ("manual", "Manual save"),
+                    ("preset_applied", "Preset applied"),
+                ],
+                db_index=True,
+                help_text="What triggered this weight change.",
+                max_length=20,
+            ),
         ),
     ]
