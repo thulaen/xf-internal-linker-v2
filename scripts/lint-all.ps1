@@ -8,11 +8,10 @@
 # Required tools (must be installed):
 #   - Python: ruff, mypy, bandit  (pip install -r requirements-dev.txt)
 #   - Node:   Angular CLI + ESLint (npm ci in frontend/)
-#   - .NET:   dotnet 8.0+
 #   - C++:    cppcheck             (choco install cppcheck)
 #
 # Checks (in order):
-#   1–7.   Existing tool-based linters (ruff, mypy, bandit, ESLint, cppcheck, C#)
+#   1–6.   Existing tool-based linters (ruff, mypy, bandit, ESLint, cppcheck)
 #   8–32.  Vibe-coding pre-push rules (grep-based, zero disk footprint)
 #          See plan: .claude/plans/groovy-wibbling-robin.md for full spec.
 #          All 26 rules self-prune — run in memory, leave no artifacts.
@@ -51,7 +50,6 @@ function Get-Cppcheck {
 }
 
 # ── Pre-flight: verify all tools are available ────────────────────
-Assert-ToolExists "dotnet" "https://dotnet.microsoft.com/download"
 Assert-ToolExists "npx"    "Install Node.js 22 LTS"
 $cppcheckExe = Get-Cppcheck
 
@@ -150,21 +148,6 @@ if ($cppExitCode -ne 0) {
     throw "cppcheck found issues. Fix the C++ warnings above."
 }
 
-# ── 7. C# strict build (TreatWarningsAsErrors) ───────────────────
-Write-Step "7/32C#: dotnet build with TreatWarningsAsErrors"
-$httpWorkerDir = Join-Path (Join-Path $repoRoot "services") "http-worker"
-Push-Location $httpWorkerDir
-try {
-    $ErrorActionPreference = "Continue"
-    & dotnet build HttpWorker.sln -p:TreatWarningsAsErrors=true --nologo --verbosity quiet
-    $csExitCode = $LASTEXITCODE
-    $ErrorActionPreference = "Stop"
-    if ($csExitCode -ne 0) {
-        throw "C# build with strict warnings failed. Fix the warnings above."
-    }
-} finally {
-    Pop-Location
-}
 
 ##############################################################################
 # VIBE-CODING PRE-PUSH RULES (steps 8–32)
@@ -252,14 +235,6 @@ if ($cppHits) {
     $debugHits += $cppHits.Count
 }
 
-# C#: Console.Write/Error, Debug.Log/Write
-$csPath = Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"
-$csHits = Get-ChildItem -Path $csPath -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
-    Select-String -Pattern '(Console\.(Write|Error)|Debug\.(Log|Write|Print))' -CaseSensitive
-if ($csHits) {
-    $csHits | ForEach-Object { Write-Host "  [C#] $_" -ForegroundColor Yellow }
-    $debugHits += $csHits.Count
-}
 
 if ($debugHits -gt 0) {
     throw "Found $debugHits debug artifact(s). Remove all console.log/cout/Console.Write before pushing."
@@ -447,8 +422,7 @@ $fileViolations = @()
 $fileLimits = @(
     @{ Ext = ".py"; Max = 500 },
     @{ Ext = ".ts"; Max = 500 },
-    @{ Ext = ".cpp"; Max = 400 },
-    @{ Ext = ".cs"; Max = 400 }
+    @{ Ext = ".cpp"; Max = 400 }
 )
 foreach ($spec in $fileLimits) {
     $files = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @($spec.Ext))
@@ -535,7 +509,7 @@ if ($magicHits -gt 0) {
 Write-Step "18/32 Cross-language: duplicate code block detector (diff-scoped)"
 $dupeWindow = 6
 $dupeHashes = @{}  # hash -> @(filepath:line)
-$dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cs", ".cpp"))
+$dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp"))
 $dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|Tests\.cs$|\\benchmarks\\' })
 # Exclude C++ extensions — each is a standalone pybind11 module with inherently repeated TBB/SIMD boilerplate
 $dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\extensions\\.*\.cpp$' })
@@ -625,7 +599,6 @@ Write-Step "21/32 Cross-language: hardcoded config / secret detector"
 $secretHits = 0
 $secretDirs = @(
     (Join-Path (Join-Path $repoRoot "frontend") "src\app"),
-    (Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"),
     (Join-Path (Join-Path $repoRoot "backend") "extensions")
 )
 $secretPatterns = @(
@@ -635,8 +608,8 @@ $secretPatterns = @(
 )
 foreach ($dir in $secretDirs) {
     if (-not (Test-Path $dir)) { continue }
-    $files = Get-ChildItem -Path $dir -Include "*.ts","*.cs","*.cpp" -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch '\.spec\.ts$|Tests\.cs$|test_' }
+    $files = Get-ChildItem -Path $dir -Include "*.ts","*.cpp" -Recurse -ErrorAction SilentlyContinue |
+        Where-Object { $_.FullName -notmatch '\.spec\.ts$|test_' }
     foreach ($pat in $secretPatterns) {
         $hits = $files | Select-String -Pattern $pat
         if ($hits) {
@@ -672,33 +645,11 @@ if ($xssHits -gt 0) {
     throw "Found $xssHits XSS-risk pattern(s). Use Angular DomSanitizer pipe, never bypassSecurityTrust* in components."
 }
 
-# ── 24. SQL string concatenation detector — C# ──────────────────────
-Write-Step "23/32 C#: SQL string concatenation detector"
-$sqlHits = 0
-$sqlDir = Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "src"
-if (Test-Path $sqlDir) {
-    $sqlPatterns = @(
-        '\$"[^"]*\b(SELECT|INSERT|UPDATE|DELETE|WHERE)\b[^"]*\{',
-        '"[^"]*\b(SELECT|INSERT|UPDATE|DELETE)\b[^"]*"\s*\+'
-    )
-    $sqlFiles = Get-ChildItem -Path $sqlDir -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch 'Tests\.cs$' }
-    foreach ($pat in $sqlPatterns) {
-        $hits = $sqlFiles | Select-String -Pattern $pat
-        if ($hits) {
-            $hits | ForEach-Object { Write-Host "  [SQL concat] $_" -ForegroundColor Yellow }
-            $sqlHits += $hits.Count
-        }
-    }
-}
-if ($sqlHits -gt 0) {
-    throw "Found $sqlHits SQL string concatenation(s). Use NpgsqlParameter for all query values."
-}
 
 # ── 25. Regex safety / ReDoS detector (diff-scoped) ──────────────────
 Write-Step "24/32 Cross-language: regex safety / ReDoS detector (diff-scoped)"
 $redosHits = 0
-$redosDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cs", ".cpp"))
+$redosDiffFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp"))
 if ($redosDiffFiles.Count -gt 0) {
     # Flag capturing groups with nested quantifiers: (something+)+ or (something*)*
     $hits = @($redosDiffFiles | Select-String -Pattern '\((?!\?)[^)]*[+*][^)]*\)[+*]')
@@ -735,22 +686,13 @@ if ($leakDiffPy.Count -gt 0) {
     }
 }
 
-# C#: new HttpClient() — only in changed files
-$leakDiffCs = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".cs"))
-if ($leakDiffCs.Count -gt 0) {
-    $csClientHits = @($leakDiffCs | Select-String -Pattern 'new\s+HttpClient\s*\(' -CaseSensitive)
-    if ($csClientHits.Count -gt 0) {
-        $csClientHits | ForEach-Object { Write-Host "  [new HttpClient] $_" -ForegroundColor Yellow }
-        $leakHits += $csClientHits.Count
-    }
-}
 
 if ($leakHits -gt 0) {
-    throw "Found $leakHits resource leak pattern(s). Use 'with' for open(), add timeout= to requests, use IHttpClientFactory."
+    throw "Found $leakHits resource leak pattern(s). Use 'with' for open(), add timeout= to requests."
 }
 
 # ── 27. N+1 query pattern detector ──────────────────────────────────
-Write-Step "26/32 Python/C#: N+1 query pattern detector (diff-scoped)"
+Write-Step "26/32 Python: N+1 query pattern detector (diff-scoped)"
 $n1Hits = 0
 $n1PyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
 # Exclude: tests, migrations, and files with known pre-existing N+1 patterns
@@ -777,29 +719,6 @@ if ($n1Hits -gt 0) {
     throw "Found $n1Hits potential N+1 query pattern(s). Use select_related/prefetch_related or bulk operations."
 }
 
-# ── 28. C# async anti-pattern detector ──────────────────────────────
-Write-Step "27/32 C#: async anti-pattern detector"
-$asyncHits = 0
-if (Test-Path $csPath) {
-    $csFiles = Get-ChildItem -Path $csPath -Filter "*.cs" -Recurse -ErrorAction SilentlyContinue |
-        Where-Object { $_.FullName -notmatch 'Tests\.cs$' }
-    # async void
-    $hits = @($csFiles | Select-String -Pattern 'async\s+void\s+' -CaseSensitive |
-        Where-Object { $_.Line -notmatch '// event handler' })
-    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [async void] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
-
-    # .Result / .Wait() — word boundary to avoid matching ResultTtl etc.
-    $hits = @($csFiles | Select-String -Pattern '\.(Result\b|Wait\s*\(\s*\))' -CaseSensitive |
-        Where-Object { $_.Line -notmatch '^\s*//' -and $_.Line -notmatch 'ResultTtl|ResultKey|ResultSet' })
-    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [.Result/.Wait()] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
-
-    # Thread.Sleep
-    $hits = @($csFiles | Select-String -Pattern 'Thread\.Sleep' -CaseSensitive)
-    if ($hits.Count -gt 0) { $hits | ForEach-Object { Write-Host "  [Thread.Sleep] $_" -ForegroundColor Yellow }; $asyncHits += $hits.Count }
-}
-if ($asyncHits -gt 0) {
-    throw "Found $asyncHits C# async anti-pattern(s). No async void, no .Result/.Wait(), no Thread.Sleep."
-}
 
 # ── 29. Dangerous import / forbidden pattern — Python ────────────────
 Write-Step "28/32 Python: dangerous import / forbidden pattern (diff-scoped)"
@@ -835,8 +754,7 @@ Write-Step "29/32 Docker: layer order regression check"
 $dockerViolations = @()
 $dockerfiles = @(
     (Join-Path (Join-Path $repoRoot "backend") "Dockerfile"),
-    (Join-Path (Join-Path $repoRoot "frontend") "Dockerfile"),
-    (Join-Path (Join-Path (Join-Path $repoRoot "services") "http-worker") "Dockerfile")
+    (Join-Path (Join-Path $repoRoot "frontend") "Dockerfile")
 )
 foreach ($df in $dockerfiles) {
     if (-not (Test-Path $df)) { continue }
@@ -844,7 +762,7 @@ foreach ($df in $dockerfiles) {
     $sawFullCopy = $false; $sawDepsInstall = $false
     foreach ($line in $lines) {
         if ($line -match '^\s*COPY\s+\.\s+\.') { $sawFullCopy = $true }
-        if ($line -match '^\s*RUN\s+.*(pip install|npm (ci|install)|dotnet restore)') {
+        if ($line -match '^\s*RUN\s+.*(pip install|npm (ci|install))') {
             if ($sawFullCopy) {
                 $dockerViolations += "$(Split-Path $df -Leaf): COPY . . appears BEFORE dependency install (breaks layer caching)"
             }
