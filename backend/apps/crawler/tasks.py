@@ -100,7 +100,7 @@ def pulse_heartbeat():
         if pulse is not None:
             pulse.push_event(ts, severity, avg_ms, 0)
     except Exception:
-        pass
+        logger.debug("Failed to push pulse to C++ ring buffer", exc_info=True)
 
     # Emit SystemEvent for the Dashboard Activity Feed.
     service_summary = ", ".join(
@@ -131,7 +131,7 @@ def pulse_heartbeat():
                 },
             )
     except Exception:
-        pass
+        logger.debug("Failed to broadcast pulse to WebSocket", exc_info=True)
 
     return {"ok": overall_ok, "checks": checks}
 
@@ -256,7 +256,7 @@ def auto_prune():
         if archived:
             logger.info("Auto-prune: archived %d fixed broken links.", archived)
     except Exception:
-        pass
+        logger.debug("Failed to auto-archive broken links during prune", exc_info=True)
 
     # Emit summary event.
     SystemEvent.objects.create(
