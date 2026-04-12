@@ -36,7 +36,6 @@ Language-specific rules files:
 - `frontend/FRONTEND-RULES.md` — before any frontend work
 - `backend/PYTHON-RULES.md` — before any Python backend work
 - `backend/extensions/CPP-RULES.md` — before any C++ work
-- `services/http-worker/CSHARP-RULES.md` — before any C# work
 
 ### MUST UPDATE after work is done
 
@@ -88,16 +87,17 @@ If you decide not to fix that finding in the current session, you must do both:
 - SCSS with theme tokens in `frontend/src/styles/default-theme.scss`
 - Roadmap libraries: `ngx-monaco-editor-v2`, `three`, `ngx-charts`
 
-### Services
-- **C# HTTP Worker** (`services/http-worker/`): .NET 9 worker for distributed link scanning, URL fetching, and sitemap processing.
-- **C# Analytics Worker** (`services/http-worker/src/HttpWorker.Analytics/`): C# service for content value scoring, log-score computation, and auto-weight tuning. Uses LINQ for data aggregation and MathNet.Numerics for statistical functions (Wilson score, confidence bounds, L-BFGS optimization). Replaces the former R analytics service. Visualization is handled by D3.js in the Angular frontend.
+### Engine
+- **Hybrid Engine**: Python (Django/Celery) orchestration with hot-path C++ (pybind11) acceleration.
+
 
 
 - Status: Phase 36 / FR-035 (Link Freshness & Churn Velocity Timeline) is the latest completed phase.
 - Active target for the next session: Phase 37 / FR-020 (Zero-Downtime Model Switching)
 - Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. See Project Status Dashboard below for the full breakdown.
-- Verification completed (2026-04-08):
-  - `python backend/manage.py test` — 192 tests pass
+- Verification completed (2026-04-12):
+  - `python backend/manage.py test` — 195 tests pass
+  - C# runtime decommissioned; all services migrated to native Python/C++.
   - `ng test` — 22 frontend tests pass
   - `ng build --configuration=production` — clean build
   - Pre-push CI: all gates passed
@@ -224,8 +224,7 @@ Phase 12 shipped:
 - Phase 34 / `FR-032`: Automated Orphan & Low-Authority Page Identification — orphan audit endpoints, CSV export, D3 red nodes
 - Phase 35 / `FR-033`: Internal PageRank Heatmap — weighted_pagerank.py, heatmapMode toggle, pagerank endpoint
 - Phase 36 / `FR-035`: Link Freshness & Churn Velocity Timeline — link_freshness.py, velocity.py, LinkFreshnessEdge model
-- **Analytics Groundwork**: R analytics service removed. Content value scoring and FR-018 auto-weight tuning implemented in C# (LINQ + MathNet.Numerics) inside `services/http-worker`. Charts replaced by D3.js in Angular (FR-016). FR-027 (R Tidyverse Upgrade) is cancelled — its goals are fully covered by C# + D3.js.
-- **C# Worker Infrastructure**: Deployed `services/http-worker` for high-performance distributed link health scanning.
+- **Analytics Groundwork**: R analytics service and C# analytics worker removed. Content value scoring and FR-018 auto-weight tuning now implemented as native Python/Numpy tasks. Charts powered by D3.js in Angular (FR-016).
 
 ## Execution Ledger
 
@@ -318,12 +317,12 @@ meta-04 through meta-39. Full specs in `docs/specs/meta-*.md`.
 opt-01 through opt-92. Full specs in `docs/specs/opt-*.md`.
 OPT-73 to OPT-84: Google C++ library integrations (Abseil, Highway, FarmHash, Google Benchmark).
 OPT-85 to OPT-89: New Python C++ extensions (bbcclean, cooccur_matrix, link_reconcile, phrase_inventory, pipeline_accel).
-OPT-90 to OPT-92: New C# native interop extensions (pixie_walk, dom_extract, bayes_attrib).
+OPT-90 to OPT-92: New native interop extensions (pixie_walk, dom_extract, bayes_attrib).
 
 **Known gaps in completed work:**
 - FR-032: deep-linked discovery (click depth > 5) deferred to Phase 2
 
-**Cancelled:** FR-027 (R Tidyverse Upgrade — replaced by C# + D3.js)
+**Cancelled:** FR-027 (R Tidyverse Upgrade); C# runtime decommissioned 2026-04-12.
 
 ## Spec Standards for All Feature Phases
 
@@ -723,7 +722,7 @@ context.
 - pgvector is the embeddings source of truth
 
 ### Docker / Disk Hygiene
-- Build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. `xf-linker-http-worker:latest` is shared by http-worker-api and http-worker-queue. Never give those services their own `build:` block.
+- Build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. Never give those services their own `build:` block.
 - After every `docker-compose build`, run `docker image prune -f` to remove dangling images immediately.
 - Never run `docker-compose down -v` — the `-v` flag deletes the PostgreSQL volume and all embeddings. Use `docker-compose down` only (no `-v`).
 

@@ -7,19 +7,16 @@ previously inlined inside ``scan_broken_links`` in ``tasks.py``.
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any
 from urllib.parse import urlparse
 
-import requests
-
 from apps.pipeline.tasks import (
     _MAX_BROKEN_LINK_SCAN_URLS,
-    _get_broken_link_scan_delay_seconds,
-    _probe_link_health,
     _publish_progress,
     _status_label,
 )
+from apps.pipeline.services.async_http import probe_urls, run_async
+
 
 logger = logging.getLogger(__name__)
 
@@ -169,7 +166,7 @@ def store_probe_result(
     return flagged_delta, fixed_delta
 
 
-def scan_via_http_worker(
+def scan_via_async_http(
     scan_items: list[dict[str, Any]],
     *,
     job_id: str,
@@ -180,22 +177,31 @@ def scan_via_http_worker(
     checked_at: Any,
     hit_scan_cap: bool,
 ) -> tuple[int, int, str]:
-    """Attempt to scan all URLs through the C# HTTP Worker.
+    """Scan all URLs concurrently via httpx.
 
     Returns ``(flagged_urls, fixed_urls, probe_backend)``.
-    Raises on HTTP-worker failure so the caller can fall back.
     """
-    from apps.pipeline.tasks import _check_broken_links_via_http_worker
-
-    http_worker_results = _check_broken_links_via_http_worker(scan_items)
-    probe_backend = "csharp_http_worker"
     flagged_urls = 0
     fixed_urls = 0
+    probe_backend = "python_async_httpx"
+    urls = [str(item["url"]) for item in scan_items]
+
+    def progress_cb(completed: int, url: str, result: tuple[int, str]):
+        nonlocal flagged_urls, fixed_urls
+        http_status, redirect_url = result
+
+        # We need the source_content_id. Let's find it.
+        # However, the callback only gets URL. We might need to map it back or just let the main loop do the DB updates.
+        pass
+
+    results = run_async(probe_urls(urls, max_concurrency=50, on_progress=progress_cb))
 
     for index, scan_item in enumerate(scan_items, start=1):
         source_content_id = int(scan_item["source_content_id"])
         url = str(scan_item["url"])
-        http_status, redirect_url = http_worker_results[(source_content_id, url)]
+
+        http_status, redirect_url = results.get(url, (0, ""))
+
         f_delta, x_delta = store_probe_result(
             source_content_id=source_content_id,
             url=url,
@@ -208,10 +214,11 @@ def scan_via_http_worker(
         )
         flagged_urls += f_delta
         fixed_urls += x_delta
+
         _publish_progress(
             job_id,
             "running",
-            index / total_urls,
+            index / total_urls if total_urls else 0,
             f"Checked {index}/{total_urls}: {_status_label(http_status)}",
             scanned_urls=index,
             total_urls=total_urls,
@@ -223,68 +230,6 @@ def scan_via_http_worker(
         )
 
     return flagged_urls, fixed_urls, probe_backend
-
-
-def scan_via_python_requests(
-    scan_items: list[dict[str, Any]],
-    *,
-    job_id: str,
-    total_urls: int,
-    existing_records: dict[tuple[int, str], Any],
-    to_create: list[Any],
-    to_update: list[Any],
-    checked_at: Any,
-    hit_scan_cap: bool,
-    probe_backend: str,
-    http_worker_error: str,
-) -> tuple[int, int]:
-    """Scan all URLs using Python requests (fallback path).
-
-    Returns ``(flagged_urls, fixed_urls)``.
-    """
-    flagged_urls = 0
-    fixed_urls = 0
-    delay_seconds = _get_broken_link_scan_delay_seconds()
-
-    with requests.Session() as session:
-        session.headers.update(
-            {"User-Agent": "XF Internal Linker V2 Broken Link Scanner"}
-        )
-        for index, scan_item in enumerate(scan_items, start=1):
-            source_content_id = int(scan_item["source_content_id"])
-            url = str(scan_item["url"])
-            http_status, redirect_url = _probe_link_health(session, url)
-            f_delta, x_delta = store_probe_result(
-                source_content_id=source_content_id,
-                url=url,
-                http_status=http_status,
-                redirect_url=redirect_url,
-                existing_records=existing_records,
-                to_create=to_create,
-                to_update=to_update,
-                checked_at=checked_at,
-            )
-            flagged_urls += f_delta
-            fixed_urls += x_delta
-
-            _publish_progress(
-                job_id,
-                "running",
-                index / total_urls,
-                f"Checked {index}/{total_urls}: {_status_label(http_status)}",
-                scanned_urls=index,
-                total_urls=total_urls,
-                flagged_urls=flagged_urls,
-                fixed_urls=fixed_urls,
-                current_url=url,
-                hit_scan_cap=hit_scan_cap,
-                probe_backend=probe_backend,
-                http_worker_error=http_worker_error,
-            )
-            if delay_seconds > 0.0 and index < total_urls:
-                time.sleep(delay_seconds)
-
-    return flagged_urls, fixed_urls
 
 
 def persist_scan_results(

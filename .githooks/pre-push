@@ -61,8 +61,6 @@ BUSINESS_LOGIC_DIRS=(
   "backend/apps/pipeline"
   "backend/apps/analytics"
   "backend/apps/cooccurrence"
-  "services/http-worker/src/HttpWorker.Services/Analytics"
-  "services/http-worker/src/HttpWorker.Services/PipelineServices"
 )
 STAGED_FILES=$(git diff --cached --name-only 2>/dev/null)
 for DIR in "${BUSINESS_LOGIC_DIRS[@]}"; do

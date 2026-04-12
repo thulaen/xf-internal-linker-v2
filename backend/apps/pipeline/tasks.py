@@ -21,16 +21,12 @@ from urllib.error import URLError
 logger = logging.getLogger(__name__)
 
 _MAX_BROKEN_LINK_SCAN_URLS = 10_000  # maxsize for broken-link scan
-_BROKEN_LINK_SCAN_DELAY_SECONDS = 0.1
 _BROKEN_LINK_SCAN_TIMEOUT_SECONDS = 10
 
 # Batch sizes for bulk DB writes
 _SENTENCE_BULK_CREATE_BATCH = 500  # maxsize for sentence bulk_create
 _DISTILLED_TEXT_BULK_UPDATE_BATCH = 200  # maxsize for distilled-text bulk_update
 
-# HTTP-Worker broken-link defaults
-_HTTP_WORKER_BATCH_SIZE_DEFAULT = 250  # maxsize for HTTP-Worker batches
-_HTTP_WORKER_BATCH_SIZE_UPPER = 1000  # maxsize upper cap
 
 # Data-retention cutoffs
 _RETENTION_12_MONTHS = 365  # days
@@ -51,13 +47,6 @@ _SCORING_PROGRESS_INTERVAL = 100  # maxsize for scoring loop progress reporting
 
 # Branded feature-name VERSION label used in user-facing messages
 _PAGERANK_VERSION_LABEL = "Weighted PageRank"
-
-_RUNTIME_OWNER_OVERRIDE_BY_LANE = {
-    "broken_link_scan": "RUNTIME_OWNER_BROKEN_LINK_SCAN",
-    "graph_sync": "RUNTIME_OWNER_GRAPH_SYNC",
-    "import": "RUNTIME_OWNER_IMPORT",
-    "pipeline": "RUNTIME_OWNER_PIPELINE",
-}
 
 
 def _publish_progress(
@@ -121,20 +110,6 @@ def _emit_job_alert(
         )
 
 
-def _runtime_owner_for_lane(lane: str) -> str:
-    from django.conf import settings
-
-    owner = getattr(
-        settings, _RUNTIME_OWNER_OVERRIDE_BY_LANE.get(lane, ""), ""
-    ) or getattr(
-        settings,
-        "HEAVY_RUNTIME_OWNER",
-        "celery",
-    )
-    owner = str(owner).strip().lower()
-    return owner if owner in {"celery", "csharp"} else "celery"
-
-
 def _broken_link_allowed_domains() -> list[str]:
     from django.conf import settings
 
@@ -174,241 +149,14 @@ def _save_checkpoint(
         )
 
 
-def _broken_link_scan_queue_payload() -> dict[str, Any]:
-    from django.conf import settings
-
-    return {
-        "allowed_domains": _broken_link_allowed_domains(),
-        "scan_cap": _MAX_BROKEN_LINK_SCAN_URLS,
-        "batch_size": int(
-            getattr(
-                settings,
-                "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE",
-                _HTTP_WORKER_BATCH_SIZE_DEFAULT,
-            )
-        ),
-        "timeout_seconds": _BROKEN_LINK_SCAN_TIMEOUT_SECONDS,
-        "max_concurrency": int(
-            getattr(settings, "HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", 50)
-        ),
-        "user_agent": "XF Internal Linker V2 Broken Link Scanner",
-    }
-
-
 def dispatch_broken_link_scan(job_id: str | None = None) -> dict[str, Any]:
-    from apps.graph.services.http_worker_client import queue_job
-
-    owner = _runtime_owner_for_lane("broken_link_scan")
     job_id = job_id or str(uuid.uuid4())
-    if owner == "csharp":
-        queue_job(
-            job_id=job_id,
-            job_type="broken_link_scan",
-            payload=_broken_link_scan_queue_payload(),
-        )
-        return {
-            "job_id": job_id,
-            "message": "Broken link scan started.",
-            "runtime_owner": "csharp",
-        }
-
     scan_broken_links.delay(job_id=job_id)
     return {
         "job_id": job_id,
         "message": "Broken link scan started.",
         "runtime_owner": "celery",
     }
-
-
-@shared_task(
-    bind=True,
-    name="pipeline.orchestrate_csharp_import",
-    time_limit=7200,
-    soft_time_limit=7140,
-)
-def orchestrate_csharp_import(
-    self,
-    scope_ids: list[int] | None = None,
-    mode: str = "full",
-    source: str = "api",
-    file_path: str | None = None,
-    job_id: str | None = None,
-    force_reembed: bool = False,
-) -> dict[str, Any]:
-    """
-    Orchestrator that runs the C# content import synchronously and then
-    automatically triggers the Python ML enrichment (BGE-M3 and spaCy).
-    """
-    from apps.core.views import (
-        get_graph_candidate_settings,
-        get_silo_settings,
-        get_wordpress_settings,
-    )
-    from apps.graph.services.http_worker_client import run_job
-    from apps.sync.models import SyncJob
-
-    job_id = job_id or str(uuid.uuid4())
-    _publish_progress(
-        job_id, "running", 0.0, f"Starting orchestrated C# {mode} import..."
-    )
-
-    payload = {
-        "scope_ids": scope_ids or [],
-        "mode": mode,
-        "source": source,
-        "file_path": file_path,
-        "settings": {
-            "silo": get_silo_settings(),
-            "wordpress": get_wordpress_settings(),
-            "graph_candidate": get_graph_candidate_settings(),
-        },
-    }
-
-    try:
-        # 1. Run C# Initial Ingest (Fast Path)
-        results = run_job(
-            job_id=job_id,
-            job_type="import_content",
-            payload=payload,
-        )
-
-        updated_pks = results.get("updated_pks", [])
-        items_synced = results.get("items_synced", 0)
-
-        # 1.5 Update SyncJob with ML info
-        job = SyncJob.objects.filter(job_id=job_id).first()
-        if job:
-            job.ml_items_queued = len(updated_pks)
-            job.items_synced = items_synced
-            job.save(update_fields=["ml_items_queued", "items_synced", "updated_at"])
-
-        # 2. spaCy NLP re-split + distillation (replaces C#'s regex sentences)
-        if updated_pks:
-            _publish_progress(
-                job_id,
-                "running",
-                0.5,
-                f"Running spaCy NLP enrichment for {len(updated_pks)} items...",
-                ingest_progress=1.0,
-                ml_progress=0.0,
-                ml_items_queued=len(updated_pks),
-                ml_items_completed=0,
-            )
-            from apps.content.models import ContentItem, Post, Sentence
-            from apps.pipeline.services.distiller import distill_body
-            from apps.pipeline.services.sentence_splitter import split_sentence_spans
-
-            posts = (
-                Post.objects.filter(content_item_id__in=updated_pks)
-                .select_related("content_item")
-                .only("id", "content_item_id", "clean_text")
-            )
-            new_sentences: list[Sentence] = []
-            distilled: dict[int, str] = {}  # content_item_id → distilled_text
-
-            total_spacy = posts.count()
-            for index, post in enumerate(posts):
-                clean = (post.clean_text or "").strip()
-                if not clean:
-                    continue
-                spans = split_sentence_spans(clean)
-                word_offset = 0
-                for span in spans:
-                    new_sentences.append(
-                        Sentence(
-                            content_item_id=post.content_item_id,
-                            post_id=post.id,
-                            text=span.text,
-                            position=span.position,
-                            start_char=span.start_char,
-                            end_char=span.end_char,
-                            char_count=len(span.text),
-                            word_position=word_offset,
-                        )
-                    )
-                    word_offset += len(span.text.split())
-                distilled[post.content_item_id] = distill_body([s.text for s in spans])
-
-                # Granular progress update
-                if index % 20 == 0 or index == total_spacy - 1:
-                    sp_pct = (index + 1) / total_spacy
-                    if job:
-                        job.spacy_items_completed = index + 1
-                        job.save(update_fields=["spacy_items_completed", "updated_at"])
-                    # FR-97: checkpoint during spaCy stage (every 20 items)
-                    _save_checkpoint(
-                        str(job_id), "spacy", post.content_item_id, index + 1
-                    )
-                    _publish_progress(
-                        job_id,
-                        "running",
-                        0.5 + (sp_pct * 0.2),
-                        f"SpaCy processing: {index + 1}/{total_spacy} items...",
-                        spacy_progress=sp_pct,
-                        ml_progress=sp_pct * 0.5,
-                        ml_items_queued=total_spacy,
-                        ml_items_completed=index + 1,
-                    )
-
-            # Atomically swap sentences: delete C# regex rows, insert spaCy rows.
-            # The atomic block guarantees that if bulk_create fails mid-way, the
-            # delete is rolled back and items are never left sentence-less.
-            from django.db import transaction
-
-            with transaction.atomic():
-                Sentence.objects.filter(content_item_id__in=updated_pks).delete()
-                Sentence.objects.bulk_create(
-                    new_sentences, batch_size=_SENTENCE_BULK_CREATE_BATCH
-                )
-
-            # Persist spaCy-quality distilled text on each ContentItem
-            if distilled:
-                ci_objs = ContentItem.objects.filter(id__in=list(distilled.keys()))
-                for ci in ci_objs:
-                    ci.distilled_text = distilled[ci.id]
-                ContentItem.objects.bulk_update(
-                    ci_objs,
-                    ["distilled_text"],
-                    batch_size=_DISTILLED_TEXT_BULK_UPDATE_BATCH,
-                )
-
-        # 3. Trigger Python ML Enrichment (BGE-M3 embeddings)
-        if updated_pks:
-            _publish_progress(
-                job_id,
-                "running",
-                0.9,
-                f"spaCy done; triggering BGE-M3 embeddings for {len(updated_pks)} items...",
-                ingest_progress=1.0,
-                ml_progress=0.0,
-                ml_items_queued=len(updated_pks),
-                ml_items_completed=0,
-            )
-            generate_embeddings.delay(
-                content_item_ids=updated_pks, job_id=job_id, force_reembed=force_reembed
-            )
-
-        _publish_progress(
-            job_id,
-            "completed" if not updated_pks else "running",
-            1.0 if not updated_pks else 0.9,
-            f"Sync complete: {items_synced} items imported and queued for ML.",
-            ingest_progress=1.0,
-            ml_progress=1.0 if not updated_pks else 0.0,
-        )
-
-        return {
-            "job_id": job_id,
-            "items_synced": items_synced,
-            "ml_enrichment_queued": len(updated_pks),
-            "runtime_owner": "csharp",
-        }
-    except (DatabaseError, TimeoutError, MemoryError, ValueError) as exc:
-        logger.exception("Orchestrated C# import %s failed", job_id)
-        _publish_progress(
-            job_id, "failed", 0.0, f"Orchestration failed: {exc}", error=str(exc)
-        )
-        raise
 
 
 def dispatch_import_content(
@@ -420,23 +168,7 @@ def dispatch_import_content(
     job_id: str | None = None,
     force_reembed: bool = False,
 ) -> dict[str, Any]:
-    owner = _runtime_owner_for_lane("import")
     job_id = job_id or str(uuid.uuid4())
-
-    if owner == "csharp":
-        orchestrate_csharp_import.delay(
-            scope_ids=scope_ids,
-            mode=mode,
-            source=source,
-            file_path=file_path,
-            job_id=job_id,
-            force_reembed=force_reembed,
-        )
-        return {
-            "job_id": job_id,
-            "runtime_owner": "csharp",
-            "message": f"{source} import orchestrated (Fast Ingest -> ML Enrichment).",
-        }
 
     import_content.delay(
         scope_ids=scope_ids,
@@ -775,29 +507,13 @@ def recalculate_link_freshness(self, job_id: str | None = None) -> dict:
 
 
 def dispatch_graph_rebuild(job_id: str | None = None) -> dict[str, Any]:
-    from apps.graph.services.http_worker_client import queue_job
-
-    owner = _runtime_owner_for_lane("graph_sync")
     job_id = job_id or str(uuid.uuid4())
-    if owner == "csharp":
-        from apps.core.views import get_graph_candidate_settings
-
-        queue_job(
-            job_id=job_id,
-            job_type="graph_sync_refresh",
-            payload={
-                "settings": {
-                    "graph_candidate": get_graph_candidate_settings(),
-                }
-            },
-        )
-        return {
-            "job_id": job_id,
-            "message": "Knowledge graph rebuild started.",
-            "runtime_owner": "csharp",
-        }
-
     build_knowledge_graph.delay(job_id=job_id)
+    return {
+        "job_id": job_id,
+        "message": "Knowledge graph rebuild started.",
+        "runtime_owner": "celery",
+    }
     return {
         "job_id": job_id,
         "message": "Knowledge graph rebuild started.",
@@ -1015,86 +731,6 @@ def import_content(
         raise
 
 
-def _get_broken_link_scan_http_worker_batch_size() -> int:
-    from django.conf import settings
-
-    raw_value = getattr(
-        settings, "HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", _HTTP_WORKER_BATCH_SIZE_DEFAULT
-    )
-    try:
-        return min(max(int(raw_value), 1), _HTTP_WORKER_BATCH_SIZE_UPPER)
-    except (TypeError, ValueError):
-        logger.warning(
-            "Invalid HTTP_WORKER_BROKEN_LINK_BATCH_SIZE value %r; using %d.",
-            raw_value,
-            _HTTP_WORKER_BATCH_SIZE_DEFAULT,
-        )
-        return _HTTP_WORKER_BATCH_SIZE_DEFAULT
-
-
-def _iter_broken_link_scan_batches(
-    scan_items: list[dict[str, Any]],
-    batch_size: int,
-):
-    for start in range(0, len(scan_items), batch_size):
-        yield scan_items[start : start + batch_size]
-
-
-def _check_broken_links_via_http_worker(
-    scan_items: list[dict[str, Any]],
-) -> dict[tuple[int, str], tuple[int, str]]:
-    from apps.graph.services.http_worker_client import (
-        HttpWorkerError,
-        check_broken_links,
-    )
-
-    batch_size = _get_broken_link_scan_http_worker_batch_size()
-    checked_results: dict[tuple[int, str], tuple[int, str]] = {}
-
-    for batch in _iter_broken_link_scan_batches(scan_items, batch_size):
-        request_items = [
-            {
-                "source_content_id": int(item["source_content_id"]),
-                "url": str(item["url"]),
-            }
-            for item in batch
-        ]
-        expected_keys = {
-            (item["source_content_id"], item["url"]) for item in request_items
-        }
-        batch_results = check_broken_links(request_items)
-        batch_map: dict[tuple[int, str], tuple[int, str]] = {}
-
-        for row in batch_results:
-            source_content_id = int(row.get("source_content_id") or 0)
-            url = str(row.get("url") or "").strip()
-            if source_content_id <= 0 or not url:
-                raise HttpWorkerError(
-                    "HttpWorker returned an invalid broken-link result row."
-                )
-
-            key = (source_content_id, url)
-            if key not in expected_keys:
-                raise HttpWorkerError(
-                    "HttpWorker returned an unexpected broken-link result row."
-                )
-
-            batch_map[key] = (
-                int(row.get("http_status") or 0),
-                str(row.get("redirect_url") or ""),
-            )
-
-        missing_keys = expected_keys.difference(batch_map)
-        if missing_keys:
-            raise HttpWorkerError(
-                "HttpWorker returned an incomplete broken-link result batch."
-            )
-
-        checked_results.update(batch_map)
-
-    return checked_results
-
-
 @shared_task(
     bind=True,
     name="pipeline.scan_broken_links",
@@ -1104,16 +740,13 @@ def _check_broken_links_via_http_worker(
 )
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
-    from django.conf import settings
     from django.utils import timezone
 
-    from apps.graph.services.http_worker_client import HttpWorkerError
     from apps.pipeline.tasks_broken_links import (
         build_existing_records_map,
         collect_urls_to_scan,
         persist_scan_results,
-        scan_via_http_worker,
-        scan_via_python_requests,
+        scan_via_async_http,
     )
 
     job_id = job_id or str(uuid.uuid4())
@@ -1139,47 +772,16 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
     existing_records = build_existing_records_map(urls_to_scan)
     to_create: list = []
     to_update: list = []
-    probe_backend = "python_requests"
-    http_worker_error = ""
-    flagged_urls = 0
-    fixed_urls = 0
-
-    if getattr(settings, "HTTP_WORKER_ENABLED", False):
-        try:
-            flagged_urls, fixed_urls, probe_backend = scan_via_http_worker(
-                scan_items,
-                job_id=job_id,
-                total_urls=total_urls,
-                existing_records=existing_records,
-                to_create=to_create,
-                to_update=to_update,
-                checked_at=checked_at,
-                hit_scan_cap=hit_scan_cap,
-            )
-        except (
-            TimeoutError,
-            RequestException,
-            URLError,
-            RuntimeError,
-            HttpWorkerError,
-        ) as exc:
-            http_worker_error = str(exc)
-            probe_backend = "python_requests_fallback"
-            logger.warning("HttpWorker broken-link scan fallback engaged: %s", exc)
-
-    if probe_backend != "csharp_http_worker":
-        flagged_urls, fixed_urls = scan_via_python_requests(
-            scan_items,
-            job_id=job_id,
-            total_urls=total_urls,
-            existing_records=existing_records,
-            to_create=to_create,
-            to_update=to_update,
-            checked_at=checked_at,
-            hit_scan_cap=hit_scan_cap,
-            probe_backend=probe_backend,
-            http_worker_error=http_worker_error,
-        )
+    flagged_urls, fixed_urls, probe_backend = scan_via_async_http(
+        scan_items,
+        job_id=job_id,
+        total_urls=total_urls,
+        existing_records=existing_records,
+        to_create=to_create,
+        to_update=to_update,
+        checked_at=checked_at,
+        hit_scan_cap=hit_scan_cap,
+    )
 
     persist_scan_results(to_create, to_update)
 
@@ -1202,7 +804,6 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         fixed_urls=fixed_urls,
         hit_scan_cap=hit_scan_cap,
         probe_backend=probe_backend,
-        http_worker_error=http_worker_error,
     )
     return {
         "job_id": job_id,
@@ -1211,7 +812,6 @@ def scan_broken_links(self, job_id: str | None = None) -> dict:
         "fixed_urls": fixed_urls,
         "hit_scan_cap": hit_scan_cap,
         "probe_backend": probe_backend,
-        "http_worker_error": http_worker_error or None,
     }
 
 
@@ -1371,23 +971,6 @@ def _status_label(http_status: int) -> str:
     return str(http_status) if http_status else "connection error"
 
 
-def _get_broken_link_scan_delay_seconds() -> float:
-    from django.conf import settings
-
-    raw_value = getattr(
-        settings, "BROKEN_LINK_SCAN_DELAY_SECONDS", _BROKEN_LINK_SCAN_DELAY_SECONDS
-    )
-    try:
-        return max(0.0, float(raw_value))
-    except (TypeError, ValueError):
-        logger.warning(
-            "Invalid BROKEN_LINK_SCAN_DELAY_SECONDS value %r; using %.2f seconds.",
-            raw_value,
-            _BROKEN_LINK_SCAN_DELAY_SECONDS,
-        )
-        return _BROKEN_LINK_SCAN_DELAY_SECONDS
-
-
 @shared_task(name="pipeline.run_clustering_pass", time_limit=1800, soft_time_limit=1740)
 def run_clustering_pass(job_id: str | None = None) -> dict:
     """Run a batch clustering pass over all ContentItems with embeddings."""
@@ -1430,99 +1013,6 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
     )
 
     return {"status": "completed", "processed": processed}
-
-
-# ---------------------------------------------------------------------------
-# Part 6 — Monthly R auto-tune task
-# ---------------------------------------------------------------------------
-
-
-@shared_task(bind=True, name="pipeline.monthly_r_auto_tune")
-def monthly_r_auto_tune(self):
-    """Monthly auto-tune of ranking weights from R analytics.
-
-    Scheduled at 02:00 on the first Sunday of every month
-    (crontab(hour=2, minute=0, day_of_week=0, day_of_month='1-7')).
-
-    Phase 21 stub: step 1 (call R analytics to get candidate weights) is a
-    no-op until the R analytics service returns candidate weights.  Only step 1
-    needs to be filled in for FR-18 — everything else (threshold comparison,
-    atomic write, history row, error logging) is already wired.
-    """
-    import traceback
-
-    from apps.audit.models import ErrorLog
-    from apps.suggestions.weight_preset_service import (
-        apply_weights,
-        get_current_weights,
-        write_history,
-    )
-
-    CHANGE_THRESHOLD = 0.02  # Will be superseded by FR-18 spec value.
-
-    try:
-        # ── Step 1: call R analytics for candidate weights ─────────────────
-        # STUB: R analytics service not yet available (FR-18).
-        # Replace this block with the real R API call in Phase 21.
-        # The return format must be dict[str, str] matching PRESET_DEFAULTS keys.
-        candidate_weights: dict[str, str] | None = None  # noqa: F841
-
-        if candidate_weights is None:
-            logger.info("[monthly_r_auto_tune] R analytics not available yet — no-op.")
-            return {
-                "status": "skipped",
-                "reason": "R analytics stub — no candidate weights returned.",
-            }
-
-        # ── Step 2: compare candidate to current weights ───────────────────
-        current_weights = get_current_weights()
-        changed_keys = {
-            k
-            for k, v in candidate_weights.items()
-            if abs(float(v) - float(current_weights.get(k, v))) > CHANGE_THRESHOLD
-        }
-        if not changed_keys:
-            logger.info(
-                "[monthly_r_auto_tune] Candidate weights within threshold — no change applied."
-            )
-            return {"status": "no_change"}
-
-        # ── Step 3: apply new weights atomically ───────────────────────────
-        from django.db import transaction
-
-        previous_weights = get_current_weights()
-        with transaction.atomic():
-            apply_weights(candidate_weights)
-        new_weights = get_current_weights()
-
-        # ── Step 4: write history row ──────────────────────────────────────
-        r_run_id = str(getattr(self.request, "id", "") or "")
-        write_history(
-            source="r_auto",
-            previous_weights=previous_weights,
-            new_weights=new_weights,
-            reason="Monthly R auto-tune",
-            r_run_id=r_run_id,
-        )
-
-        logger.info(
-            "[monthly_r_auto_tune] Applied new weights for %d key(s): %s",
-            len(changed_keys),
-            ", ".join(sorted(changed_keys)),
-        )
-        return {"status": "applied", "changed_keys": sorted(changed_keys)}
-
-    except (DatabaseError, TimeoutError, MemoryError, ValueError):
-        raw = traceback.format_exc()
-        logger.exception("[monthly_r_auto_tune] Failed: %s", raw)
-        ErrorLog.objects.create(
-            job_type="auto_tune_weights",
-            step="monthly_r_auto_tune",
-            error_message="R auto-tune task failed — see raw_exception for details.",
-            raw_exception=raw,
-            why="The monthly R analytics auto-tune task raised an unexpected exception. Check the R analytics service.",
-        )
-        return {"status": "error"}
 
 
 # ---------------------------------------------------------------------------
@@ -1866,63 +1356,52 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 
 @shared_task(
     bind=True,
-    name="pipeline.monthly_cs_weight_tune",
+    name="pipeline.monthly_weight_tune",
     time_limit=600,
     soft_time_limit=540,
 )
-def monthly_cs_weight_tune(self):
-    """Trigger a FR-18 weight-tune run via the C# HTTP-worker, then evaluate the result.
+def monthly_weight_tune(self):
+    """Trigger a FR-18 weight-tune run via the native WeightTuner, then evaluate.
 
-    Scheduled at 02:30 on the first Sunday of every month (offset from the R
-    auto-tune so both do not run at the same second).
-
-    Flow:
-        1. Ask C# to collect signals + optimise → C# POSTs a RankingChallenger
-           to /api/internal/weight-challenger/ if it finds an improvement.
-        2. Chain evaluate_weight_challenger to score and optionally promote it.
+    Scheduled at 02:30 on the first Sunday of every month.
     """
     import traceback
     import uuid as _uuid
 
     from apps.audit.models import ErrorLog
+    from apps.suggestions.services.weight_tuner import WeightTuner
 
     run_id = str(_uuid.uuid4())
 
     try:
-        from apps.graph.services.http_worker_client import HttpWorkerError, run_job
+        tuner = WeightTuner(lookback_days=90)
+        challenger = tuner.run(run_id=run_id)
 
-        result = run_job(
-            "weight_tune",
-            {"run_id": run_id, "lookback_days": 90},
-            job_id=run_id,
-        )
-
-        status = result.get("status", "unknown")
-        logger.info(
-            "[monthly_cs_weight_tune] C# run finished: status=%s run_id=%s",
-            status,
-            run_id,
-        )
-
-        if status == "submitted":
-            # C# already POSTed the challenger; evaluate it now.
+        if challenger:
+            logger.info(
+                "[monthly_weight_tune] Native tuner found improvement. run_id=%s",
+                run_id,
+            )
+            # Chain evaluate_weight_challenger to score and optionally promote it.
             evaluate_weight_challenger.delay(run_id=run_id)
-
-        return {"status": status, "run_id": run_id}
-
-    except HttpWorkerError as exc:
-        logger.warning("[monthly_cs_weight_tune] HTTP-worker unavailable: %s", exc)
-        return {"status": "skipped", "reason": str(exc)}
+            return {
+                "status": "submitted",
+                "run_id": run_id,
+                "challenger_id": str(challenger.pk),
+            }
+        else:
+            logger.info("[monthly_weight_tune] No improvement found by native tuner.")
+            return {"status": "skipped", "run_id": run_id}
 
     except (DatabaseError, TimeoutError, MemoryError, ValueError):
         raw = traceback.format_exc()
-        logger.exception("[monthly_cs_weight_tune] Failed: %s", raw)
+        logger.exception("[monthly_weight_tune] Failed: %s", raw)
         ErrorLog.objects.create(
             job_type="auto_tune_weights",
-            step="monthly_cs_weight_tune",
-            error_message="C# weight-tune task failed.",
+            step="monthly_weight_tune",
+            error_message="Weight-tune task failed.",
             raw_exception=raw,
-            why="The monthly C# auto-tune task raised an unexpected exception.",
+            why="The monthly auto-tune task raised an unexpected exception.",
         )
         return {"status": "error"}
 
@@ -1935,10 +1414,10 @@ def evaluate_weight_challenger(self, *, run_id: str):
         challenger.predicted_quality_score > champion_quality_score * 1.05
 
     If the challenger qualifies, its weights are written to AppSetting and a
-    WeightAdjustmentHistory row is created with source='cs_auto_tune'.
+    WeightAdjustmentHistory row is created with source='auto_tune'.
     If it does not qualify, the challenger is marked 'rejected'.
 
-    Called automatically after monthly_cs_weight_tune, or manually via
+    Called automatically after monthly_weight_tune, or manually via
     POST /api/settings/cs-tune/trigger/.
     """
     import traceback

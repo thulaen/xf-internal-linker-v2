@@ -453,22 +453,10 @@ WORDPRESS_BASE_URL = env("WORDPRESS_BASE_URL", default="")
 WORDPRESS_USERNAME = env("WORDPRESS_USERNAME", default="")
 WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 
-HTTP_WORKER_ENABLED = env.bool("HTTP_WORKER_ENABLED", default=False)
-HTTP_WORKER_URL = env("HTTP_WORKER_URL", default="http://http-worker-api:8080").rstrip(
-    "/"
-)
-HTTP_WORKER_INTERNAL_TOKEN = env("HTTP_WORKER_INTERNAL_TOKEN", default="")
-HTTP_WORKER_SCHEMA_VERSION = (
-    env("HTTP_WORKER_SCHEMA_VERSION", default="v1").strip() or "v1"
-)
-HTTP_WORKER_BROKEN_LINK_BATCH_SIZE = min(
-    max(env.int("HTTP_WORKER_BROKEN_LINK_BATCH_SIZE", default=250), 1),
-    1000,
-)
-HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY = min(
-    max(env.int("HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY", default=50), 1),
-    200,
-)
+
+# All heavy I/O and CPU tasks are now owned by Celery (Python/C++).
+# The legacy C# HttpWorker has been decommissioned.
+
 RUNTIME_PROGRESS_STREAM_PREFIX = (
     env("RUNTIME_PROGRESS_STREAM_PREFIX", default="runtime:progress").strip()
     or "runtime:progress"
@@ -478,47 +466,6 @@ RUNTIME_PROGRESS_STREAM_BLOCK_MS = max(
 )
 SCHEDULER_CONTROL_TOKEN = env("SCHEDULER_CONTROL_TOKEN", default="").strip()
 CELERY_BEAT_RUNTIME_ENABLED = env.bool("CELERY_BEAT_RUNTIME_ENABLED", default=True)
-
-HEAVY_RUNTIME_OWNER = env("HEAVY_RUNTIME_OWNER", default="celery").strip().lower()
-if HEAVY_RUNTIME_OWNER not in {"celery", "csharp"}:
-    HEAVY_RUNTIME_OWNER = "celery"
-
-RUNTIME_OWNER_BROKEN_LINK_SCAN = (
-    env(
-        "RUNTIME_OWNER_BROKEN_LINK_SCAN",
-        default=HEAVY_RUNTIME_OWNER,
-    )
-    .strip()
-    .lower()
-)
-if RUNTIME_OWNER_BROKEN_LINK_SCAN not in {"celery", "csharp"}:
-    RUNTIME_OWNER_BROKEN_LINK_SCAN = HEAVY_RUNTIME_OWNER
-
-RUNTIME_OWNER_GRAPH_SYNC = (
-    env(
-        "RUNTIME_OWNER_GRAPH_SYNC",
-        default=HEAVY_RUNTIME_OWNER,
-    )
-    .strip()
-    .lower()
-)
-if RUNTIME_OWNER_GRAPH_SYNC not in {"celery", "csharp"}:
-    RUNTIME_OWNER_GRAPH_SYNC = HEAVY_RUNTIME_OWNER
-
-RUNTIME_OWNER_IMPORT = (
-    env(
-        "RUNTIME_OWNER_IMPORT",
-        default=HEAVY_RUNTIME_OWNER,
-    )
-    .strip()
-    .lower()
-)
-if RUNTIME_OWNER_IMPORT not in {"celery", "csharp"}:
-    RUNTIME_OWNER_IMPORT = HEAVY_RUNTIME_OWNER
-
-# Pipeline ranking is permanently owned by Python (celery).
-# C# handles I/O tasks only (crawling, graph sync, broken links, analytics).
-RUNTIME_OWNER_PIPELINE = "celery"
 
 
 # ── ML / AI Settings ─────────────────────────────────────────────

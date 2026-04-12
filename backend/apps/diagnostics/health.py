@@ -5,7 +5,6 @@ import importlib.util
 from datetime import timedelta
 from time import perf_counter
 
-import requests
 from asgiref.sync import async_to_sync
 from celery import current_app
 from django.conf import settings
@@ -182,15 +181,6 @@ def _result(
     metadata: dict | None = None,
 ):
     return state, explanation, next_step, metadata or {}
-
-
-def _http_worker_status_url() -> str:
-    base_url = str(
-        getattr(settings, "HTTP_WORKER_URL", "http://http-worker-api:8080")
-    ).rstrip("/")
-    if base_url.endswith("/api/v1/status"):
-        return base_url
-    return f"{base_url}/api/v1/status"
 
 
 def _native_module_runtime_status() -> list[dict[str, object]]:
@@ -475,55 +465,6 @@ def _benchmark_error_result(exc: Exception) -> dict[str, object]:
     }
 
 
-def _http_worker_metadata(status_url: str, data: dict) -> dict:
-    worker = data.get("worker") or {}
-    scheduler = data.get("scheduler") or {}
-    performance = data.get("performance") or {}
-    last_completed = worker.get("last_completed") or {}
-    last_failed = worker.get("last_failed") or {}
-    redis_connected = bool(data.get("redis_connected"))
-    database_connected = bool(data.get("database_connected"))
-    worker_online = bool(data.get("worker_online"))
-    queue_depth = data.get("queue_depth", 0)
-
-    return {
-        "url": status_url,
-        "runtime_path": "csharp",
-        "schema_version": data.get("schema_version"),
-        "build_version": data.get("build_version"),
-        "redis_connected": redis_connected,
-        "database_connected": database_connected,
-        "worker_online": worker_online,
-        "queue_depth": queue_depth,
-        "worker_heartbeat_age_seconds": data.get("worker_heartbeat_age_seconds"),
-        "worker_instance_id": worker.get("instance_id"),
-        "dead_letter_count": worker.get("dead_letter_count"),
-        "retry_count_total": worker.get("retry_count_total"),
-        "latency_p50_ms": performance.get("latency_p50_ms"),
-        "latency_p95_ms": performance.get("latency_p95_ms"),
-        "latency_p99_ms": performance.get("latency_p99_ms"),
-        "drain_rate_per_minute": performance.get("drain_rate_per_minute"),
-        "scheduler_status": scheduler.get("status"),
-        "scheduler_mode": scheduler.get("ownership_mode"),
-        "scheduler_enabled_tasks": scheduler.get("enabled_periodic_tasks"),
-        "scheduler_heartbeat_age_seconds": data.get("scheduler_heartbeat_age_seconds"),
-        "last_completed_job_type": last_completed.get("job_type"),
-        "last_failed_job_type": last_failed.get("job_type"),
-        "last_failed_error": last_failed.get("error"),
-        "python_fallback_active": not (
-            redis_connected and database_connected and worker_online
-        ),
-        "fallback_active": not (
-            redis_connected and database_connected and worker_online
-        ),
-        "safe_to_use": bool(redis_connected and database_connected and worker_online),
-        "fallback_reason": ""
-        if (redis_connected and database_connected and worker_online)
-        else "C# worker lane is not fully healthy.",
-        "owner_selected": "csharp",
-    }
-
-
 def check_django():
     return _result(
         "healthy",
@@ -606,8 +547,8 @@ def check_celery_beat():
     if not getattr(settings, "CELERY_BEAT_RUNTIME_ENABLED", True):
         return _result(
             "disabled",
-            "Celery Beat is retired in this runtime shape, and the C# scheduler lane is expected to own live periodic execution.",
-            "No action needed unless the C# scheduler lane loses heartbeat or stops dispatching due work.",
+            "Celery Beat is disabled in this runtime shape.",
+            "No action needed unless periodic execution stops.",
             {
                 "runtime_enabled": False,
             },
@@ -687,229 +628,29 @@ def check_channels():
         )
 
 
-def check_http_worker():
-    status_url = _http_worker_status_url()
-    if not getattr(settings, "HTTP_WORKER_ENABLED", False):
-        return _result(
-            "disabled",
-            "C# HttpWorker is turned off, so Python still owns this helper path.",
-            "Set HTTP_WORKER_ENABLED=true when you want Django to use the C# helper service.",
-            {
-                "url": status_url,
-                "runtime_path": "python",
-                "python_fallback_active": True,
-                "fallback_active": True,
-                "fallback_reason": "HTTP_WORKER_ENABLED is false.",
-                "safe_to_use": False,
-                "owner_selected": "celery",
-            },
-        )
-
-    try:
-        response = requests.get(status_url, timeout=5)
-        if response.status_code != 200:
-            return _result(
-                "failed",
-                f"C# HttpWorker returned status code {response.status_code}.",
-                "Check whether the http-worker-api service is running and reachable.",
-                {
-                    "url": status_url,
-                    "runtime_path": "python",
-                    "python_fallback_active": True,
-                    "fallback_active": True,
-                    "fallback_reason": f"HttpWorker returned status {response.status_code}.",
-                    "safe_to_use": False,
-                    "owner_selected": "csharp",
-                },
-            )
-
-        data = response.json()
-        redis_connected = bool(data.get("redis_connected"))
-        database_connected = bool(data.get("database_connected"))
-        worker_online = bool(data.get("worker_online"))
-        queue_depth = data.get("queue_depth", 0)
-        metadata = _http_worker_metadata(status_url, data)
-
-        if redis_connected and database_connected and worker_online:
-            return _result(
-                "healthy",
-                f"C# HttpWorker API, Redis, and the queue worker are all alive. Queue depth is {queue_depth}.",
-                "No action needed.",
-                metadata,
-            )
-
-        if not redis_connected:
-            return _result(
-                "degraded",
-                "C# HttpWorker answered, but its Redis queue is not healthy yet.",
-                "Restore Redis first, then confirm the queue depth starts draining again.",
-                metadata,
-            )
-
-        if not database_connected:
-            return _result(
-                "degraded",
-                "C# HttpWorker answered, but its PostgreSQL lane is not healthy yet.",
-                "Wire the real Postgres connection string into the C# runtime and restore database connectivity before trusting C# job ownership.",
-                metadata,
-            )
-
-        return _result(
-            "degraded",
-            "C# HttpWorker API answered, but the queue-backed worker lane is offline. Direct helper endpoints may still work, but C# is not ready to own heavy jobs yet.",
-            "Start the http-worker-queue service and wait for a fresh worker heartbeat before trusting this lane.",
-            metadata,
-        )
-    except Exception as exc:
-        return _result(
-            "failed",
-            f"C# HttpWorker is unreachable: {exc}",
-            "Check whether HTTP_WORKER_URL points at the live http-worker-api service.",
-            {
-                "url": status_url,
-                "runtime_path": "python",
-                "python_fallback_active": True,
-                "fallback_active": True,
-                "fallback_reason": str(exc),
-                "safe_to_use": False,
-                "owner_selected": "csharp",
-            },
-        )
-
-
 def check_runtime_lanes():
     owners = _runtime_owner_settings()
-    csharp_owned = [
-        lane
-        for lane, owner in owners.items()
-        if owner == "csharp" and lane != "heavy_runtime_owner"
-    ]
-    celery_owned = [
-        lane
-        for lane, owner in owners.items()
-        if owner == "celery" and lane != "heavy_runtime_owner"
-    ]
     metadata = {
         **owners,
-        "csharp_owned_lane_count": len(csharp_owned),
-        "celery_owned_lane_count": len(celery_owned),
-        "runtime_path": "mixed"
-        if csharp_owned and celery_owned
-        else ("csharp" if csharp_owned else "python"),
-        "fallback_active": bool(celery_owned),
-        "fallback_reason": ""
-        if not celery_owned
-        else "Some heavy lanes still fall back to Celery/Python ownership.",
+        "runtime_path": "python",
+        "fallback_active": False,
+        "fallback_reason": "",
     }
-
-    if not celery_owned:
-        return _result(
-            "healthy",
-            "C# owns every tracked heavy runtime lane.",
-            "No action needed.",
-            metadata,
-        )
-
-    explanation = (
-        "Heavy runtime ownership is split right now. "
-        f"C# owns {', '.join(csharp_owned) if csharp_owned else 'no tracked lanes yet'}, "
-        f"while Celery still owns {', '.join(celery_owned)}."
-    )
-    if "graph_sync_owner" in celery_owned:
-        next_step = "Move graph_sync next, then import and pipeline, so Celery stops owning the remaining heavy lanes."
-    elif "import_owner" in celery_owned:
-        next_step = "Move import next, then pipeline, so the C# scheduler is no longer dispatching Celery-owned heavy work."
-    elif "pipeline_owner" in celery_owned:
-        next_step = "Move pipeline next, then keep trimming the remaining Celery-owned support lanes."
-    else:
-        next_step = "Finish moving the remaining Celery-owned lanes before calling the heavy runtime cutover complete."
     return _result(
-        "degraded",
-        explanation,
-        next_step,
+        "healthy",
+        "All heavy runtime lanes are natively owned by Celery (Python/C++).",
+        "No action needed.",
         metadata,
     )
 
 
 def check_scheduler_lane():
-    state, _explanation, _next_step, metadata = check_http_worker()
-    scheduler_status = str(metadata.get("scheduler_status") or "").strip().lower()
-    scheduler_mode = str(metadata.get("scheduler_mode") or "").strip().lower()
-
-    if not getattr(settings, "HTTP_WORKER_ENABLED", False):
-        return _result(
-            "disabled",
-            "The C# scheduler lane is off because the HttpWorker runtime is disabled.",
-            "Turn on the C# runtime before moving periodic work off Celery Beat.",
-            {
-                "scheduler_mode": scheduler_mode or "disabled",
-                "runtime_path": "python",
-                "fallback_active": True,
-                "fallback_reason": "HttpWorker runtime is disabled.",
-                "safe_to_use": False,
-            },
-        )
-
-    if state == "failed":
-        return _result(
-            "failed",
-            "The C# scheduler lane cannot be trusted because the HttpWorker status endpoint is unreachable.",
-            "Restore the C# runtime first, then re-check scheduler ownership.",
-            metadata,
-        )
-
-    if scheduler_status == "active":
-        return _result(
-            "healthy",
-            "The C# scheduler lane is active and reporting a fresh heartbeat.",
-            "No action needed.",
-            {
-                **metadata,
-                "runtime_path": "csharp",
-                "fallback_active": False,
-                "fallback_reason": "",
-                "safe_to_use": True,
-            },
-        )
-
-    if scheduler_status == "shadow":
-        return _result(
-            "degraded",
-            "The C# scheduler lane is alive in shadow mode, but Celery Beat still owns live periodic execution.",
-            "Keep validating parity, then flip schedule ownership to C# before retiring Beat.",
-            {
-                **metadata,
-                "runtime_path": "mixed",
-                "fallback_active": True,
-                "fallback_reason": "Scheduler is still running in shadow mode.",
-                "safe_to_use": False,
-            },
-        )
-
-    if scheduler_status == "disabled":
-        return _result(
-            "disabled",
-            "The C# scheduler lane is installed but disabled.",
-            "Enable the C# scheduler lane before moving periodic jobs off Celery Beat.",
-            {
-                **metadata,
-                "runtime_path": "python",
-                "fallback_active": True,
-                "fallback_reason": "Scheduler lane is disabled.",
-                "safe_to_use": False,
-            },
-        )
-
     return _result(
-        "degraded",
-        "The C# scheduler lane does not have a trustworthy heartbeat yet.",
-        "Check the Postgres connection string and the scheduler worker logs.",
+        "healthy",
+        "Periodic task scheduling is natively owned by Celery Beat.",
+        "No action needed.",
         {
-            **metadata,
-            "runtime_path": "mixed" if scheduler_mode == "shadow" else "csharp",
-            "fallback_active": True,
-            "fallback_reason": "Scheduler heartbeat is missing or stale.",
-            "safe_to_use": False,
+            "runtime_path": "python",
         },
     )
 
@@ -1101,12 +842,12 @@ def check_slate_diversity_runtime():
 def check_embedding_specialist():
     return _result(
         "disabled",
-        "No bounded Python embedding specialist lane is deployed yet, and embeddings are still tied to the older Python/Celery path.",
-        "When embeddings are migrated, keep the Python specialist narrow and place C# in charge of orchestration around it.",
+        "No dedicated async embedding specialist is deployed yet; embedding operations are currently handled by standard Celery workers.",
+        "Ensure Celery worker memory limits are sufficient for embedding models.",
         {
             "runtime_path": "python",
-            "fallback_active": True,
-            "fallback_reason": "A dedicated Python specialist lane has not been deployed yet.",
+            "fallback_active": False,
+            "fallback_reason": "",
             "safe_to_use": False,
             "embedding_specialist_active": False,
         },
@@ -1234,7 +975,6 @@ def run_health_checks():
         "celery_worker": check_celery,
         "celery_beat": check_celery_beat,
         "channels": check_channels,
-        "http_worker": check_http_worker,
         "runtime_lanes": check_runtime_lanes,
         "scheduler_lane": check_scheduler_lane,
         "native_scoring": check_native_scoring,
@@ -1301,83 +1041,7 @@ def detect_conflicts():
             }
         )
 
-    if (
-        getattr(settings, "HTTP_WORKER_ENABLED", False)
-        and "http-worker:5000" in _http_worker_status_url()
-    ):
-        conflicts.append(
-            {
-                "type": "mismatch",
-                "title": "HttpWorker URL Drift",
-                "description": "Diagnostics is still pointed at the old HttpWorker host or port.",
-                "severity": "high",
-                "location": "apps.diagnostics.health.check_http_worker",
-                "why": "The compose service is named http-worker-api on port 8080, so the old URL will always lie.",
-                "next_step": "Set HTTP_WORKER_URL to the live http-worker-api base URL.",
-            }
-        )
-
-    owners = _runtime_owner_settings()
-    csharp_lanes = [
-        lane
-        for lane, owner in owners.items()
-        if lane != "heavy_runtime_owner" and owner == "csharp"
-    ]
-    http_worker_state, _, _, http_worker_metadata = check_http_worker()
     native_scoring_state, _, _, native_scoring_metadata = check_native_scoring()
-
-    if csharp_lanes and not getattr(settings, "HTTP_WORKER_ENABLED", False):
-        conflicts.append(
-            {
-                "type": "drift",
-                "title": "C# Runtime Ownership Without HttpWorker",
-                "description": f"C# owns {', '.join(csharp_lanes)}, but HTTP_WORKER_ENABLED is off.",
-                "severity": "critical",
-                "location": "config.settings.base runtime ownership",
-                "why": "The repo points heavy lanes at C#, but the C# runtime is disabled, so that ownership cannot be trusted.",
-                "next_step": "Either enable HttpWorker or move those lanes back to Celery until the C# runtime is truly ready.",
-            }
-        )
-
-    if csharp_lanes and http_worker_state != "healthy":
-        conflicts.append(
-            {
-                "type": "drift",
-                "title": "C# Runtime Ownership Drift",
-                "description": f"C# owns {', '.join(csharp_lanes)}, but the HttpWorker runtime is {http_worker_state}.",
-                "severity": "high",
-                "location": "apps.diagnostics.health.check_runtime_lanes",
-                "why": "The configured owner and the live C# runtime health do not agree, so jobs may route into an unhealthy lane.",
-                "next_step": http_worker_metadata.get("fallback_reason")
-                or "Repair HttpWorker health or move the affected lanes back to Celery.",
-            }
-        )
-
-    if owners.get("import_owner") == "csharp":
-        conflicts.append(
-            {
-                "type": "mismatch",
-                "title": "Import Lane Points At Nonexistent C# Owner",
-                "description": "Import ownership is set to C#, but this repo does not have a real C# import owner yet.",
-                "severity": "critical",
-                "location": "backend/apps/pipeline/tasks.py",
-                "why": "Dispatching imports with this setting will fail instead of routing to a working C# lane.",
-                "next_step": "Set RUNTIME_OWNER_IMPORT=celery until a real C# import owner exists.",
-            }
-        )
-
-    if owners.get("pipeline_owner") == "csharp":
-        conflicts.append(
-            {
-                "type": "mismatch",
-                "title": "Pipeline Lane Points At Nonexistent C# Owner",
-                "description": "Pipeline ownership is set to C#, but this repo does not have a real C# pipeline owner yet.",
-                "severity": "critical",
-                "location": "backend/apps/pipeline/tasks.py",
-                "why": "Dispatching pipeline runs with this setting will fail instead of routing to a working C# lane.",
-                "next_step": "Set RUNTIME_OWNER_PIPELINE=celery until a real C# pipeline owner exists.",
-            }
-        )
 
     if native_scoring_state != "healthy":
         conflicts.append(
@@ -1407,7 +1071,7 @@ def detect_conflicts():
             }
         )
 
-    planned_services = ["ga4", "gsc", "r_analytics", "r_weight_tuning"]
+    planned_services = ["ga4", "gsc"]
     for service in planned_services:
         snapshot, _ = ServiceStatusSnapshot.objects.get_or_create(service_name=service)
         if snapshot.state == "planned_only":

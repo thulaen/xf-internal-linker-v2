@@ -1,19 +1,17 @@
 # Native Runtime Policy
 
-This file defines the repo policy for C++, Python, and C# runtime work.
+This file defines the repo policy for C++ and Python runtime work.
 
 Use this file for:
 - native C++ extensions
 - Python fallback paths
-- C# worker/runtime ownership
 - diagnostics and operator-visible runtime issues
 - future feature requests that add hot loops or heavy runtime lanes
 
 ## Simple Rule
 
 - C++ is the default speed path for hot ranking and pipeline loops.
-- Python is the safety net and behavior reference path.
-- C# is the preferred service/runtime lane for orchestration, worker ownership, and external I/O.
+- Python is the safety net and behavior reference path for both orchestration and business logic.
 - No runtime path is trusted unless it is visible in diagnostics and covered by tests.
 
 ## Do Not Duplicate Existing Systems
@@ -28,7 +26,7 @@ Reuse these instead of inventing a second dashboard:
 
 Important existing signals:
 - `native_scoring` already exists as a service snapshot.
-- `http_worker`, `scheduler_lane`, `runtime_lanes`, and `embedding_specialist` already exist as service snapshots.
+- `scheduler_lane`, `runtime_lanes`, and `embedding_specialist` already exist as service snapshots (all owned by Celery/Python).
 - `SystemConflict` already exists for duplication, drift, and mismatch reporting.
 - `ErrorLog` already exists for operator-visible failures.
 
@@ -58,16 +56,7 @@ Python must exist for:
 
 Python is not the preferred speed path for hot loops.
 
-### C#
 
-Use C# by default for:
-- worker ownership
-- scheduled/runtime lanes
-- external I/O helpers
-- direct Postgres/Redis helper services
-- orchestration around heavy jobs
-
-C# is not automatically the replacement for every C++ kernel. Keep C++ where it is the best in-process speed tool.
 
 ## Required Guardrails For Every New C++ Path
 
@@ -138,7 +127,7 @@ Recommended extra checks:
 
 ## GUI Issue Visibility Policy
 
-Runtime issues for C++, Python, and C# must be visible on the operator-facing diagnostics UI.
+Runtime issues for C++ and Python must be visible on the operator-facing diagnostics UI.
 
 The dedicated place is the existing System Health / Diagnostics surface:
 - route: `frontend/src/app/diagnostics/`
@@ -147,7 +136,7 @@ The dedicated place is the existing System Health / Diagnostics surface:
 ### What must be visible
 
 For every important runtime lane or native speed path, show:
-- active runtime owner: C++, Python fallback, C#, Celery, or unknown
+- active runtime owner: C++, Python fallback, Celery, or unknown
 - current state: healthy, degraded, failed, disabled, or not installed
 - short plain-English explanation
 - next action step
@@ -156,7 +145,7 @@ For every important runtime lane or native speed path, show:
 ### Minimum metadata for native paths
 
 When relevant, include:
-- `runtime_path`: `cpp`, `python`, `csharp`, or mixed
+- `runtime_path`: `cpp`, `python`, or mixed
 - `fallback_active`: true or false
 - `fallback_reason`
 - `compiled`: true or false
@@ -171,7 +160,7 @@ When relevant, include:
 
 - Use `ServiceStatusSnapshot` for current runtime/service health.
 - Use `ErrorLog` for concrete failures and stack traces.
-- Use `SystemConflict` for duplication, drift, spec/code mismatch, or conflicting runtime ownership.
+- Use `SystemConflict` for duplication, drift, spec/code mismatch, or conflicting runtime states.
 
 Do not hide runtime trouble only in logs.
 

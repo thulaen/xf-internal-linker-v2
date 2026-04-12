@@ -82,9 +82,9 @@ class CrawlSessionViewSet(ModelViewSet):
             },
         )
 
-        # TODO Phase 2: Enqueue crawl_session job to C# HTTP Worker via Redis
-        # from apps.graph.services.http_worker_client import queue_job
-        # queue_job(str(session.session_id), "crawl_session", {...})
+        from apps.crawler.tasks import run_crawl_session
+
+        run_crawl_session.delay(str(session.session_id))
 
         _emit_event(
             "info",
@@ -111,7 +111,9 @@ class CrawlSessionViewSet(ModelViewSet):
         session.message = "Resuming from checkpoint..."
         session.save(update_fields=["status", "message", "updated_at"])
 
-        # TODO Phase 2: Enqueue resume job to C# HTTP Worker
+        from apps.crawler.tasks import run_crawl_session
+
+        run_crawl_session.delay(str(session.session_id))
 
         _emit_event(
             "info",
@@ -240,13 +242,37 @@ class SitemapConfigViewSet(ModelViewSet):
         ser = SitemapAutoDiscoverSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
 
-        # TODO Phase 2: Call C# HTTP Worker to check:
-        # /sitemap.xml, /sitemap_index.xml, /sitemap.php, robots.txt Sitemap:
-        # For now return a placeholder.
+        from apps.pipeline.services.async_http import fetch_urls
+        import asyncio
+
+        # Common locations to check
+        candidate_urls = [
+            f"https://{ser.validated_data['domain']}/sitemap.xml",
+            f"https://{ser.validated_data['domain']}/sitemap_index.xml",
+        ]
+
+        # Execute async fetch directly (simplified for auto-discover)
+        responses = asyncio.run(fetch_urls(candidate_urls))
+        discovered = []
+
+        for res in responses:
+            if res["status_code"] == 200:
+                url = res["url"]
+                normalized = _normalize_sitemap_url(url)
+                if not SitemapConfig.objects.filter(normalized_url=normalized).exists():
+                    SitemapConfig.objects.create(
+                        domain=ser.validated_data["domain"],
+                        sitemap_url=url,
+                        normalized_url=normalized,
+                        discovery_method="auto",
+                    )
+                    discovered.append(url)
+
         return Response(
             {
-                "message": "Auto-discovery will be implemented in Phase 2.",
+                "message": f"Auto-discovered {len(discovered)} sitemaps.",
                 "domain": ser.validated_data["domain"],
+                "discovered": discovered,
             }
         )
 
@@ -255,11 +281,24 @@ class SitemapConfigViewSet(ModelViewSet):
         """Test-fetch a sitemap and report URL count."""
         config = self.get_object()
 
-        # TODO Phase 2: Call crawl_sitemap() and update last_fetch_at
+        from apps.pipeline.services.async_http import crawl_sitemap
+        import asyncio
+
+        urls, err = asyncio.run(crawl_sitemap(config.sitemap_url))
+
+        config.last_fetch_at = timezone.now()
+        config.last_url_count = len(urls)
+        if err:
+            config.last_error = err
+        config.save()
+
         return Response(
             {
-                "message": "Sitemap test will be implemented in Phase 2.",
+                "message": "Sitemap fetch completed successfully."
+                if not err
+                else f"Failed: {err}",
                 "sitemap_url": config.sitemap_url,
+                "url_count": len(urls),
             }
         )
 

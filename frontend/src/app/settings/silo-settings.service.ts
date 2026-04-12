@@ -351,7 +351,7 @@ export interface WeightDeltaEntry {
 
 export interface WeightAdjustmentHistory {
   id: number;
-  source: 'r_auto' | 'cs_auto_tune' | 'manual' | 'preset_applied';
+  source: 'auto_tune' | 'manual' | 'preset_applied';
   preset: number | null;
   preset_name: string | null;
   previous_weights: Record<string, string>;
@@ -673,12 +673,8 @@ export class SiloSettingsService {
     return this.http.get<Record<string, string>>('/api/weight-presets/current/');
   }
 
-  triggerRTune(): Observable<{ detail: string; task_id: string }> {
-    return this.http.post<{ detail: string; task_id: string }>('/api/settings/r-tune/trigger/', {});
-  }
-
-  triggerCsTune(): Observable<{ detail: string; task_id: string }> {
-    return this.http.post<{ detail: string; task_id: string }>('/api/settings/cs-tune/trigger/', {});
+  triggerWeightTune(): Observable<{ detail: string; task_id: string }> {
+    return this.http.post<{ detail: string; task_id: string }>('/api/settings/weight-tune/trigger/', {});
   }
 
   listChallengers(): Observable<RankingChallenger[]> {
@@ -690,7 +686,7 @@ export class SiloSettingsService {
   }
 
   evaluateChallenger(runId: string): Observable<{ detail: string; task_id: string }> {
-    return this.http.post<{ detail: string; task_id: string }>(`/api/settings/cs-tune/evaluate/${runId}/`, {});
+    return this.http.post<{ detail: string; task_id: string }>(`/api/settings/weight-tune/evaluate/${runId}/`, {});
   }
 
   rejectChallenger(id: number): Observable<{ detail: string }> {

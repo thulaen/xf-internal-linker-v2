@@ -3207,34 +3207,22 @@ class SlateDiversitySettingsView(APIView):
         return Response(validated)
 
 
-class RTuneTriggerView(APIView):
-    """POST /api/settings/r-tune/trigger/ — manually queue the monthly R auto-tune task."""
-
-    def post(self, request):
-        from apps.pipeline.tasks import monthly_r_auto_tune
-
-        task = monthly_r_auto_tune.delay()
-        return Response(
-            {"detail": "R auto-tune task queued.", "task_id": task.id}, status=202
-        )
-
-
-class CSTuneTriggerView(APIView):
-    """POST /api/settings/cs-tune/trigger/ — manually trigger a FR-018 C# weight-tune run."""
+class WeightTuneTriggerView(APIView):
+    """POST /api/settings/weight-tune/trigger/ — manually trigger a FR-018 weight-tune run."""
 
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from apps.pipeline.tasks import monthly_cs_weight_tune
+        from apps.pipeline.tasks import monthly_weight_tune
 
-        task = monthly_cs_weight_tune.delay()
+        task = monthly_weight_tune.delay()
         return Response(
-            {"detail": "C# weight-tune task queued.", "task_id": task.id}, status=202
+            {"detail": "Weight-tune task queued.", "task_id": task.id}, status=202
         )
 
 
 class ChallengerEvaluateView(APIView):
-    """POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate a pending challenger."""
+    """POST /api/settings/weight-tune/evaluate/<run_id>/ — manually evaluate a pending challenger."""
 
     permission_classes = [IsAuthenticated]
     throttle_classes = [_ChallengerEvalThrottle]

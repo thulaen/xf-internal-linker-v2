@@ -37,13 +37,6 @@ def sync_existing_links_for_content_item(
     tracked_at=None,
 ) -> int:
     tracked_at = tracked_at or timezone.now()
-    if _runtime_owner_for_graph_sync() == "csharp":
-        return _sync_existing_links_via_http_worker(
-            content_item,
-            raw_bbcode,
-            allow_disappearance=allow_disappearance,
-            tracked_at=tracked_at,
-        )
 
     edges = extract_internal_links(
         raw_bbcode,
@@ -194,8 +187,6 @@ def _sync_existing_links_py(
 
 def refresh_existing_links(*, tracked_at=None) -> int:
     tracked_at = tracked_at or timezone.now()
-    if _runtime_owner_for_graph_sync() == "csharp":
-        return _refresh_existing_links_via_http_worker(tracked_at=tracked_at)
     return _refresh_existing_links_py(tracked_at=tracked_at)
 
 
@@ -335,40 +326,3 @@ def _internal_domains() -> list[str]:
         if host and host not in domains:
             domains.append(host)
     return domains
-
-
-def _runtime_owner_for_graph_sync() -> str:
-    from apps.pipeline.tasks import _runtime_owner_for_lane
-
-    return _runtime_owner_for_lane("graph_sync")
-
-
-def _sync_existing_links_via_http_worker(
-    content_item: ContentItem,
-    raw_bbcode: str,
-    *,
-    allow_disappearance: bool,
-    tracked_at,
-) -> int:
-    from apps.graph.services.http_worker_client import sync_graph_content
-
-    result = sync_graph_content(
-        content_item_pk=content_item.pk,
-        content_id=content_item.content_id,
-        content_type=content_item.content_type,
-        raw_bbcode=raw_bbcode,
-        forum_domains=_internal_domains(),
-        allow_disappearance=allow_disappearance,
-        tracked_at=tracked_at,
-    )
-    return int(result.get("active_links") or 0)
-
-
-def _refresh_existing_links_via_http_worker(*, tracked_at) -> int:
-    from apps.graph.services.http_worker_client import refresh_graph_links
-
-    result = refresh_graph_links(
-        forum_domains=_internal_domains(),
-        tracked_at=tracked_at,
-    )
-    return int(result.get("refreshed_items") or 0)

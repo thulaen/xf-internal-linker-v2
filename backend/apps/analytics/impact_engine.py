@@ -13,10 +13,12 @@ import math
 from datetime import timedelta, date
 
 from django.db.models import Avg, Sum
+from scipy.stats import gamma
+import numpy as np
 
 from apps.suggestions.models import Suggestion
 from apps.content.models import ContentItem
-from .models import SearchMetric, ImpactReport
+from .models import SearchMetric, ImpactReport, GSCImpactSnapshot
 
 logger = logging.getLogger(__name__)
 
@@ -26,6 +28,89 @@ _MIN_CONTROLS = 3
 _POOL_MAX = 100
 # Default number of matched controls to select
 _CONTROL_K = 5
+
+
+class BayesianTrendAttributor:
+    """FR-017: Poisson-Gamma Bayesian Attribution for GSC Clicks.
+
+    Models the click-through rate (CTR) of a target page against the global
+    sitewide trend to compute the probability of uplift.
+    """
+
+    def __init__(self, property_url: str):
+        self.property_url = property_url
+
+    def compute_uplift(
+        self,
+        target_clicks_base: int,
+        target_imps_base: int,
+        target_clicks_post: int,
+        target_imps_post: int,
+        baseline_start: date,
+        baseline_end: date,
+        post_start: date,
+        post_end: date,
+    ) -> dict:
+        """Calculate uplift probability and rewards vs global site trend."""
+        # 1. Get Site-wide aggregates
+        site_base = SearchMetric.objects.filter(
+            property_url=self.property_url,
+            source="gsc",
+            date__range=[baseline_start, baseline_end],
+        ).aggregate(clicks=Sum("clicks"), imps=Sum("impressions"))
+
+        site_post = SearchMetric.objects.filter(
+            property_url=self.property_url,
+            source="gsc",
+            date__range=[post_start, post_end],
+        ).aggregate(clicks=Sum("clicks"), imps=Sum("impressions"))
+
+        s_c_base = int(site_base["clicks"] or 0)
+        s_i_base = int(site_base["imps"] or 0)
+        s_c_post = int(site_post["clicks"] or 0)
+        s_i_post = int(site_post["imps"] or 0)
+
+        # 2. Compute Site-wide Trend (Control Factor)
+        # Using laplace smoothing to avoid division by zero
+        site_ctr_base = (1 + s_c_base) / (1 + s_i_base)
+        site_ctr_post = (1 + s_c_post) / (1 + s_i_post)
+        trend = site_ctr_post / site_ctr_base if site_ctr_base > 0 else 1.0
+
+        # 3. Bayesian Posterior Simulation (Monte Carlo)
+        # Target Prior: Gamma(1, 1). Posterior: Gamma(1+k, 1+I)
+        samples = 10000
+        # scipy.stats.gamma uses (a, scale=1/b) for the (alpha, beta) parameterization
+        dist_base = gamma(1 + target_clicks_base, scale=1 / (1 + target_imps_base))
+        dist_post = gamma(1 + target_clicks_post, scale=1 / (1 + target_imps_post))
+
+        # Vectorized sampling
+        base_samples = dist_base.rvs(size=samples)
+        post_samples = dist_post.rvs(size=samples)
+
+        # Probability that post-CTR > (base-CTR * site-trend)
+        prob_uplift = float(np.mean(post_samples > (base_samples * trend)))
+
+        # 4. Labeling Logic (Parity with legacy C#)
+        lift_pct = 0.0
+        if target_clicks_base > 0:
+            # Expected lift normalized by trend
+            expected_base = target_clicks_base * trend
+            lift_pct = ((target_clicks_post - expected_base) / expected_base) * 100
+
+        reward = "neutral"
+        if prob_uplift > 0.90:
+            reward = "positive"
+        elif prob_uplift < 0.10:
+            reward = "negative"
+        elif target_clicks_base + target_clicks_post < 5:
+            reward = "inconclusive"
+
+        return {
+            "probability_of_uplift": round(prob_uplift, 4),
+            "lift_clicks_pct": round(lift_pct, 2),
+            "reward_label": reward,
+            "site_trend": round(trend, 4),
+        }
 
 
 def _build_control_pool(
@@ -177,69 +262,12 @@ def compute_search_impact(
     baseline_end = post_start - timedelta(days=1)
     baseline_start = baseline_end - timedelta(days=actual_days - 1)
 
-    # 2. Trigger Bayesian Attribution (C# Worker / Slice 4)
-    from apps.graph.services.http_worker_client import run_job
-    from .views import get_gsc_settings
-    from .models import GSCImpactSnapshot
-
-    gsc_settings = get_gsc_settings()
-    property_url = gsc_settings.get("property_url")
-
-    if property_url:
-        payload = {
-            "SuggestionId": str(suggestion.suggestion_id),
-            "PageUrl": suggestion.destination.url,
-            "PropertyUrl": property_url,
-            "ApplyDate": suggestion.applied_at.isoformat(),
-            "WindowDays": actual_days,
-        }
-        try:
-            # Synchronous call to the refined C# worker
-            result = run_job("gsc_attribution", payload)
-
-            if result and result.get("RewardLabel") != "inconclusive":
-                # Fetch impressions locally since C# only returns clicks
-                baseline_imps = _get_aggregated_metric(
-                    suggestion.destination, "impressions", baseline_start, baseline_end
-                )
-                post_imps = _get_aggregated_metric(
-                    suggestion.destination, "impressions", post_start, actual_post_end
-                )
-
-                GSCImpactSnapshot.objects.update_or_create(
-                    suggestion=suggestion,
-                    window_type=f"{window_days}d",
-                    defaults={
-                        "apply_date": suggestion.applied_at,
-                        "baseline_clicks": result.get("BaselineClicks", 0),
-                        "post_clicks": result.get("PostClicks", 0),
-                        "baseline_impressions": int(baseline_imps),
-                        "post_impressions": int(post_imps),
-                        "lift_clicks_pct": result.get("LiftClicksPct", 0.0),
-                        "lift_clicks_absolute": result.get("PostClicks", 0)
-                        - result.get("BaselineClicks", 0),
-                        "probability_of_uplift": result.get("ProbabilityOfUplift", 0.0),
-                        "reward_label": result.get("RewardLabel", "inconclusive"),
-                    },
-                )
-                logger.info(
-                    f"Bayesian attribution complete for {suggestion.suggestion_id}: {result.get('RewardLabel')}"
-                )
-        except Exception as exc:
-            logger.error(
-                f"Failed to run C# Bayesian attribution for {suggestion.suggestion_id}: {exc}"
-            )
-
-    # 3. Matched Control Group Normalization
+    # 2. Matched Control Group Normalization
     # Select similar items matched on pre-period metrics (Abadie et al. 2010)
     control_item_ids, match_quality, pool_size = _select_matched_controls(
         suggestion, baseline_start, baseline_end
     )
     is_conclusive = len(control_item_ids) >= _MIN_CONTROLS
-
-    metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
-    click_control_multiplier = 1.0
-    reports = []
 
     # Batch-fetch target item metrics in 2 queries
     target_baseline_qs = SearchMetric.objects.filter(
@@ -264,6 +292,62 @@ def compute_search_impact(
         ctr=Avg("ctr"),
         average_position=Avg("average_position"),
     )
+
+    # Resolve property_url for attribution
+    property_url = latest_metric.property_url if latest_metric else ""
+
+    if property_url:
+        try:
+            # Native Python implementation of the Poisson-Gamma model
+            attributor = BayesianTrendAttributor(property_url)
+
+            # Get target aggregates for the attributor
+            t_c_base = int(target_baseline_agg.get("clicks") or 0)
+            t_i_base = int(target_baseline_agg.get("impressions") or 0)
+            t_c_post = int(target_post_agg.get("clicks") or 0)
+            t_i_post = int(target_post_agg.get("impressions") or 0)
+
+            result = attributor.compute_uplift(
+                target_clicks_base=t_c_base,
+                target_imps_base=t_i_base,
+                target_clicks_post=t_c_post,
+                target_imps_post=t_i_post,
+                baseline_start=baseline_start,
+                baseline_end=baseline_end,
+                post_start=post_start,
+                post_end=actual_post_end,
+            )
+
+            if result and result.get("reward_label") != "inconclusive":
+                GSCImpactSnapshot.objects.update_or_create(
+                    suggestion=suggestion,
+                    window_type=f"{window_days}d",
+                    defaults={
+                        "apply_date": suggestion.applied_at,
+                        "baseline_clicks": t_c_base,
+                        "post_clicks": t_c_post,
+                        "baseline_impressions": t_i_base,
+                        "post_impressions": t_i_post,
+                        "lift_clicks_pct": result.get("lift_clicks_pct", 0.0),
+                        "lift_clicks_absolute": t_c_post - t_c_base,
+                        "probability_of_uplift": result.get(
+                            "probability_of_uplift", 0.0
+                        ),
+                        "reward_label": result.get("reward_label", "inconclusive"),
+                    },
+                )
+                logger.info(
+                    f"Bayesian attribution complete for {suggestion.suggestion_id}: {result.get('reward_label')}"
+                )
+        except Exception as exc:
+            logger.error(
+                f"Failed to run native Bayesian attribution for {suggestion.suggestion_id}: {exc}"
+            )
+
+    # 3. Matched Control Group Normalization (already computed above)
+    metrics_to_calc = ["impressions", "clicks", "ctr", "average_position"]
+    click_control_multiplier = 1.0
+    reports = []
 
     # Batch-fetch control group metrics
     control_baseline_agg: dict = {}

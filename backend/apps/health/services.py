@@ -1,5 +1,4 @@
 import logging
-import requests
 from datetime import timedelta
 from typing import Dict, Any, Optional, Callable
 from dataclasses import dataclass, asdict
@@ -183,49 +182,6 @@ def check_celery_health() -> ServiceHealthResult:
 
 
 # ── Runtime & AI Checkers ─────────────────────────────────────────
-
-
-@HealthCheckRegistry.register(
-    "http_worker",
-    name="C# High-Performance Runtime",
-    description="External helper service for heavy I/O and orchestration.",
-)
-def check_http_worker_health() -> ServiceHealthResult:
-    url = settings.HTTP_WORKER_URL
-    try:
-        if not url:
-            return ServiceHealthResult(
-                service_key="http_worker",
-                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
-                status_label="HttpWorker URL missing.",
-                issue_description="The C# helper service URL is not defined in settings.",
-                suggested_fix="Configure HTTP_WORKER_URL in your environment files.",
-            )
-
-        status_url = f"{url}/api/v1/status"
-        response = requests.get(status_url, timeout=5)
-        response.raise_for_status()
-        data = response.json()
-
-        return ServiceHealthResult(
-            service_key="http_worker",
-            status=ServiceHealthRecord.STATUS_HEALTHY,
-            status_label="C# Runtime Service is running.",
-            issue_description="The high-performance C# runtime is healthy and responsive.",
-            suggested_fix="No action needed.",
-            last_success_at=timezone.now(),
-            metadata={"version": data.get("build_version", "unknown"), "url": url},
-        )
-    except Exception as e:
-        return ServiceHealthResult(
-            service_key="http_worker",
-            status=ServiceHealthRecord.STATUS_DOWN,
-            status_label="C# Runtime Service unreachable.",
-            issue_description=f"High-performance worker service at {url} is not responding: {str(e)}",
-            suggested_fix="Check if the 'http-worker-api' container is running and healthy.",
-            last_error_at=timezone.now(),
-            last_error_message=str(e),
-        )
 
 
 @HealthCheckRegistry.register(

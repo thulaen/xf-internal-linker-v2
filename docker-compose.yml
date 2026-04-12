@@ -67,14 +67,6 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
-      HTTP_WORKER_ENABLED: "true"
-      HTTP_WORKER_URL: http://http-worker-api:8080
-      HTTP_WORKER_SCHEMA_VERSION: v1
-      SCHEDULER_CONTROL_TOKEN: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
-      CELERY_BEAT_RUNTIME_ENABLED: "false"
-      HEAVY_RUNTIME_OWNER: celery
-      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
-      RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
     volumes:
@@ -126,14 +118,6 @@ services:
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.development
       HOME: /tmp
-      HTTP_WORKER_ENABLED: "true"
-      HTTP_WORKER_URL: http://http-worker-api:8080
-      HTTP_WORKER_SCHEMA_VERSION: v1
-      SCHEDULER_CONTROL_TOKEN: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
-      CELERY_BEAT_RUNTIME_ENABLED: "false"
-      HEAVY_RUNTIME_OWNER: celery
-      RUNTIME_OWNER_BROKEN_LINK_SCAN: csharp
-      RUNTIME_OWNER_GRAPH_SYNC: csharp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
     volumes:
@@ -157,6 +141,35 @@ services:
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
   # ─────────────────────────────────────────────
+  celery-beat:
+    image: xf-linker-backend:latest
+    container_name: xf_linker_celery_beat
+    restart: always
+    mem_limit: 128m
+    env_file: .env
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+    volumes:
+      - ./backend:/app
+      - .:/repo:ro
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config.celery inspect scheduled -t 10 2>&1 | grep -q '{' || exit 1"]
+      interval: 60s
+      timeout: 20s
+      retries: 3
+      start_period: 60s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "celery -A config.celery beat --loglevel=info
+             --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+
   # ─────────────────────────────────────────────
   # Nginx — serves Angular production build
   # Proxies /api/ and /ws/ to Django backend
@@ -211,90 +224,13 @@ services:
       backend:
         condition: service_healthy
 
-  http-worker-api:
-    build:
-      context: ./services/http-worker
-      dockerfile: Dockerfile
-    image: xf-linker-http-worker:latest
-    container_name: xf_linker_http_worker_api
-    restart: always
-    mem_limit: 384m
-    environment:
-      SERVICE_MODE: api
-      HttpWorker__Redis__ConnectionString: redis:6379
-      HttpWorker__Redis__JobQueueKey: http_worker:jobs
-      HttpWorker__Redis__ResultTtlSeconds: 3600
-      HttpWorker__Redis__DeadLetterTtlSeconds: 86400
-      HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 25
-      HttpWorker__Http__MaxBodyBytes: 5242880
-      HttpWorker__Http__MaxRedirectHops: 3
-      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
-      HttpWorker__Scheduler__Enabled: "true"
-      HttpWorker__Scheduler__OwnershipMode: active
-      HttpWorker__Scheduler__PollSeconds: 30
-      HttpWorker__Scheduler__ControlPlaneBaseUrl: http://backend:8000
-      HttpWorker__Scheduler__ControlPlaneToken: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
-      HttpWorker__Progress__StreamPrefix: runtime:progress
-      HttpWorker__Progress__StreamTtlSeconds: 3600
-      HttpWorker__Progress__MaxLen: 512
-      HttpWorker__SchemaVersion: v1
-      HttpWorker__Auth__InternalToken: ${HTTP_WORKER_INTERNAL_TOKEN:-changeme-generate-a-real-token}
-    ports:
-      - "127.0.0.1:8081:8080"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/api/v1/status"]
-      interval: 30s
-      timeout: 15s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      redis:
-        condition: service_healthy
-
-  http-worker-queue:
-    image: xf-linker-http-worker:latest
-    container_name: xf_linker_http_worker_queue
-    restart: always
-    mem_limit: 768m
-    environment:
-      SERVICE_MODE: worker
-      HttpWorker__Redis__ConnectionString: redis:6379
-      HttpWorker__Redis__JobQueueKey: http_worker:jobs
-      HttpWorker__Redis__ResultTtlSeconds: 3600
-      HttpWorker__Redis__DeadLetterTtlSeconds: 86400
-      HttpWorker__Http__DefaultTimeoutSeconds: 30
-      HttpWorker__Http__MaxConcurrency: 25
-      HttpWorker__Http__MaxBodyBytes: 5242880
-      HttpWorker__Http__MaxRedirectHops: 3
-      HttpWorker__Postgres__ConnectionString: Host=postgres;Port=5432;Database=${POSTGRES_DB:-xf_linker};Username=${POSTGRES_USER:-xf_linker_user};Password=${POSTGRES_PASSWORD:-changeme};Pooling=true;Maximum Pool Size=30
-      HttpWorker__Scheduler__Enabled: "true"
-      HttpWorker__Scheduler__OwnershipMode: active
-      HttpWorker__Scheduler__PollSeconds: 30
-      HttpWorker__Scheduler__ControlPlaneBaseUrl: http://backend:8000
-      HttpWorker__Scheduler__ControlPlaneToken: ${SCHEDULER_CONTROL_TOKEN:-scheduler-control-token}
-      HttpWorker__Progress__StreamPrefix: runtime:progress
-      HttpWorker__Progress__StreamTtlSeconds: 3600
-      HttpWorker__Progress__MaxLen: 512
-      HttpWorker__SchemaVersion: v1
-      HttpWorker__Auth__InternalToken: ${HTTP_WORKER_INTERNAL_TOKEN:-changeme-generate-a-real-token}
-    healthcheck:
-      test: ["CMD-SHELL", "grep -ql dotnet /proc/*/comm 2>/dev/null || exit 1"]
-      interval: 30s
-      timeout: 15s
-      retries: 3
-      start_period: 30s
-    depends_on:
-      redis:
-        condition: service_healthy
-
   # ─────────────────────────────────────────────
   # GlitchTip — self-hosted error tracking
   # Sentry-compatible. Reuses existing postgres + redis.
   # Access the dashboard at http://localhost:1337
   # ─────────────────────────────────────────────
   glitchtip:
-    image: glitchtip/glitchtip:v4
+    image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip
     restart: always
     mem_limit: 256m
@@ -309,6 +245,31 @@ services:
       CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
     ports:
       - "127.0.0.1:1337:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ─────────────────────────────────────────────
+  # GlitchTip Worker — processes error events
+  # Required for GlitchTip to handle captured errors
+  # ─────────────────────────────────────────────
+  glitchtip-worker:
+    image: glitchtip/glitchtip:latest
+    container_name: xf_linker_glitchtip_worker
+    restart: always
+    mem_limit: 256m
+    command: ./bin/run-celery-with-beat.sh
+    environment:
+      DATABASE_URL: postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-xf_linker}
+      REDIS_URL: redis://redis:6379/4
+      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}
+      EMAIL_URL: consolemail://
+      GLITCHTIP_DOMAIN: http://localhost:1337
+      DEFAULT_FROM_EMAIL: glitchtip@localhost
+      CELERY_WORKER_AUTOSCALE: "1,3"
+      CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
     depends_on:
       postgres:
         condition: service_healthy

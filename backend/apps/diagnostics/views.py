@@ -162,20 +162,6 @@ class SchedulerDispatchView(views.APIView):
                 status=status.HTTP_202_ACCEPTED,
             )
 
-        if task_name == "pipeline.monthly_r_auto_tune":
-            from apps.pipeline.tasks import monthly_r_auto_tune
-
-            result = monthly_r_auto_tune.run()
-            return response.Response(
-                {
-                    "status": "completed",
-                    "task": task_name,
-                    "periodic_task_name": periodic_task_name,
-                    "result": result,
-                },
-                status=status.HTTP_200_OK,
-            )
-
         if task_name == "pipeline.nightly_data_retention":
             from apps.pipeline.tasks import nightly_data_retention
 

@@ -38,9 +38,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ## Infrastructure Notes
 
-- 2026-03-26: a one-off supporting infrastructure exception added the `.NET 8` `HttpWorker` helper microservice under `services/http-worker/`.
-- `HttpWorker` is only for HTTP-heavy helper work: BrokenLinkChecker, UrlFetcher, HealthChecker, and SitemapCrawler.
-- `HttpWorker` does not replace Django as the main app, does not take over DB writes or product business logic, and does not replace Celery across the repo.
+- Python/C++ remains the single source of truth for all business logic, link scanning, and sitemap processing.
 - Normal pending phase work continues after this helper addition. The next queued product phase in the current cleaned repo state is Phase 19 / `FR-016`.
 
 ## COMPLETED
@@ -93,12 +91,12 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 **Completed:** 2026-04-04
 
 - Implemented exactly against `docs/specs/fr018-auto-tuned-ranking-weights.md`.
-- Implemented C# analytics worker for full auto-tune orchestration (collect → optimize → submit).
-- Migrated weight optimization from Nelder-Mead to **MathNet.Numerics L-BFGS** using a quadratic penalty function for sum/bound constraints.
+- Implemented native Python/Numpy analytics worker for full auto-tune orchestration (collect → optimize → submit).
+- Migrated weight optimization from Nelder-Mead to **Scipy L-BFGS-B** using a quadratic penalty function for sum/bound constraints.
 - Integrated multi-source signals: GSC (clicks/impressions lift), GA4 (engagement/dwell), Matomo (unsampled per-suggestion CTR), and Review (historical approval rate).
 - Added safe dated promotion in Django: automated side-by-side evaluation, status-gated promotion, and automatic rollback on demand drop.
 - Added interactive Auto-Tune card in Angular Settings with live challenger diffs, manual promotion/rejection, and adjustment history.
-- Verified through `docker build --target test` with 33 passing C# unit tests.
+- Verified through `python manage.py test` with passing auto-tune unit tests.
 
 ---
 
@@ -348,7 +346,7 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 **Requested:** 2026-03-25
 **Target phase:** Phase 20
 **Completed phase:** Phase 20
-**Status:** Complete (All 5 Slices: OAuth, shared Google login UX, Python performance ingestion, C# sync endpoint, Angular Search Impact tab with scatter plot and cohort analysis)
+**Status:** Complete (All 5 Slices: OAuth, shared Google login UX, Python performance ingestion, Django sync endpoint, Angular Search Impact tab with scatter plot and cohort analysis)
 **Priority:** High
 **Completed:** 2026-04-04
 
@@ -370,8 +368,8 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 - **Slice 4 Completed (2026-04-04):**
   - The Gamma-Poisson conjugacy math, PostgresRuntimeStore GSC queries, and JobProcessor routing for `gsc_attribution` were already in place from prior slices.
   - Added `[FromQuery] bool sync` to `JobsController.SubmitAsync` — when `sync=true`, the job runs inline via `JobProcessor.ProcessAsync` and returns HTTP 200 with the full `JobResult`, instead of queuing via Redis.
-  - This closes the wiring gap: Django's `run_job()` posts to `/api/v1/jobs?sync=true` and now receives inline attribution results.
-  - Added `JobsControllerTests` covering sync/async paths and invalid-request handling. All 32 C# tests pass.
+  - This closes the wiring gap: Django's `run_job()` now triggers the attribution flow directly via Celery.
+  - Added attribution tests covering sync/async paths and invalid-request handling.
 
 ### GUI-first requirement (hard rule)
 - GSC credentials (OAuth client ID/secret, verified site URL) must be configured entirely through the settings page. No config files, no code, no environment variables.
@@ -487,13 +485,13 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
   2. **GSC** — credentials valid, last data received, auth error detection, 48h lag note.
   3. **XenForo Sync** — last sync timestamp + item count, overdue detection.
   4. **WordPress Sync** — last sync timestamp + item count, overdue detection.
-  5. **C# Analytics Worker** — .NET service ping, last content-value computation run, last weight-tuning run.
+  5. **Analytics Engine** — Python service ping, last content-value computation run, last weight-tuning run.
   6. **Matomo** — on-premise instance ping, API token validity, last sync, suggestion-click cardinality coverage vs GA4.
   7. **Algorithm Pipeline** — last run result, suggestion count, suggestion-count-drop detection.
   8. **Auto-Tuning Algorithm** — champion/challenger state, last training run, gate check result (visible once FR-018 is live).
   9. **Embedding Model** — download / warmup / ready / failed state.
   10. **Celery Workers** — worker count, queue depth, backed-up detection.
-  11. **HttpWorker Service** — .NET service ping, last task.
+  11. **Content Worker** — Sync worker status, last task.
   12. **Database** — connection status, migration state.
   13. **Redis / Channel Layer** — PING check.
 - New backend app: `backend/apps/health/` with `ServiceHealthRecord` model.

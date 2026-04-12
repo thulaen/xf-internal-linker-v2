@@ -6,12 +6,12 @@ info:
 paths:
   /api/analytics/oauth/authorize/:
     get:
-      operationId: api_analytics_oauth_authorize_retrieve
+      operationId: analytics_oauth_authorize_retrieve
       description: |-
         Generate the Google OAuth authorization URL.
         Requires analytics.google_oauth_client_id and analytics.google_oauth_client_secret to be set.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -20,12 +20,12 @@ paths:
           description: No response body
   /api/analytics/oauth/callback/:
     get:
-      operationId: api_analytics_oauth_callback_retrieve
+      operationId: analytics_oauth_callback_retrieve
       description: |-
         Handle the callback from Google OAuth.
         Exchange the code for a refresh token and save it.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -34,10 +34,10 @@ paths:
           description: No response body
   /api/analytics/oauth/unlink/:
     post:
-      operationId: api_analytics_oauth_unlink_create
+      operationId: analytics_oauth_unlink_create
       description: Remove the saved Google OAuth refresh token.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -46,10 +46,10 @@ paths:
           description: No response body
   /api/analytics/search-impact/:
     get:
-      operationId: api_analytics_search_impact_retrieve
+      operationId: analytics_search_impact_retrieve
       description: List applied suggestions with GSC impact results.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -58,7 +58,7 @@ paths:
           description: No response body
   /api/analytics/search-impact/{suggestion_id}/:
     get:
-      operationId: api_analytics_search_impact_retrieve_2
+      operationId: analytics_search_impact_retrieve_2
       description: Detailed keyword lift for one suggestion.
       parameters:
       - in: path
@@ -68,7 +68,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -77,10 +77,10 @@ paths:
           description: No response body
   /api/analytics/settings/ga4/:
     get:
-      operationId: api_analytics_settings_ga4_retrieve
+      operationId: analytics_settings_ga4_retrieve
       description: Get and save GA4 telemetry settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -88,10 +88,10 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_analytics_settings_ga4_update
+      operationId: analytics_settings_ga4_update
       description: Get and save GA4 telemetry settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -100,10 +100,10 @@ paths:
           description: No response body
   /api/analytics/settings/ga4/test-connection/:
     post:
-      operationId: api_analytics_settings_ga4_test_connection_create
+      operationId: analytics_settings_ga4_test_connection_create
       description: Run a lightweight GA4 Measurement Protocol test.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -112,10 +112,10 @@ paths:
           description: No response body
   /api/analytics/settings/ga4/test-read-connection/:
     post:
-      operationId: api_analytics_settings_ga4_test_read_connection_create
+      operationId: analytics_settings_ga4_test_read_connection_create
       description: Run a lightweight GA4 Data API read test.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -124,10 +124,10 @@ paths:
           description: No response body
   /api/analytics/settings/google-oauth/:
     get:
-      operationId: api_analytics_settings_google_oauth_retrieve
+      operationId: analytics_settings_google_oauth_retrieve
       description: Get and save the shared Google OAuth app credentials.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -135,10 +135,10 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_analytics_settings_google_oauth_update
+      operationId: analytics_settings_google_oauth_update
       description: Get and save the shared Google OAuth app credentials.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -147,10 +147,10 @@ paths:
           description: No response body
   /api/analytics/settings/gsc/:
     get:
-      operationId: api_analytics_settings_gsc_retrieve
+      operationId: analytics_settings_gsc_retrieve
       description: Get and save GSC settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -158,10 +158,10 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_analytics_settings_gsc_update
+      operationId: analytics_settings_gsc_update
       description: Get and save GSC settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -170,10 +170,10 @@ paths:
           description: No response body
   /api/analytics/settings/gsc/test-connection/:
     post:
-      operationId: api_analytics_settings_gsc_test_connection_create
+      operationId: analytics_settings_gsc_test_connection_create
       description: Test GSC service account access.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -182,10 +182,10 @@ paths:
           description: No response body
   /api/analytics/settings/matomo/:
     get:
-      operationId: api_analytics_settings_matomo_retrieve
+      operationId: analytics_settings_matomo_retrieve
       description: Get and save Matomo telemetry settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -193,10 +193,10 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_analytics_settings_matomo_update
+      operationId: analytics_settings_matomo_update
       description: Get and save Matomo telemetry settings.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -205,10 +205,10 @@ paths:
           description: No response body
   /api/analytics/settings/matomo/test-connection/:
     post:
-      operationId: api_analytics_settings_matomo_test_connection_create
+      operationId: analytics_settings_matomo_test_connection_create
       description: Run a lightweight Matomo API test.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -217,11 +217,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/breakdowns/:
     get:
-      operationId: api_analytics_telemetry_breakdowns_retrieve
+      operationId: analytics_telemetry_breakdowns_retrieve
       description: Return simple device and channel breakdowns for the selected telemetry
         window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -230,10 +230,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/by-version/:
     get:
-      operationId: api_analytics_telemetry_by_version_retrieve
+      operationId: analytics_telemetry_by_version_retrieve
       description: Compare performance metrics group by algorithm version.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -242,11 +242,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/funnel/:
     get:
-      operationId: api_analytics_telemetry_funnel_retrieve
+      operationId: analytics_telemetry_funnel_retrieve
       description: Return the simple FR-016 funnel for the selected source and time
         window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -255,10 +255,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/ga4-sync/:
     post:
-      operationId: api_analytics_telemetry_ga4_sync_create
+      operationId: analytics_telemetry_ga4_sync_create
       description: Queue a GA4 telemetry sync run.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -267,11 +267,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/geo-detail/:
     get:
-      operationId: api_analytics_telemetry_geo_detail_retrieve
+      operationId: analytics_telemetry_geo_detail_retrieve
       description: Return a detailed country+region breakdown for the selected telemetry
         window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -280,10 +280,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/gsc-sync/:
     post:
-      operationId: api_analytics_telemetry_gsc_sync_create
+      operationId: analytics_telemetry_gsc_sync_create
       description: Queue a GSC performance sync run.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -292,10 +292,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/health/:
     get:
-      operationId: api_analytics_telemetry_health_retrieve
+      operationId: analytics_telemetry_health_retrieve
       description: Return simple telemetry-health rollups for the selected time window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -304,11 +304,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/integration/:
     get:
-      operationId: api_analytics_telemetry_integration_retrieve
+      operationId: analytics_telemetry_integration_retrieve
       description: Return copy-ready browser bridge instructions for FR-016 Slice
         2.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -317,10 +317,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/matomo-sync/:
     post:
-      operationId: api_analytics_telemetry_matomo_sync_create
+      operationId: analytics_telemetry_matomo_sync_create
       description: Queue a Matomo telemetry sync run.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -329,10 +329,10 @@ paths:
           description: No response body
   /api/analytics/telemetry/overview/:
     get:
-      operationId: api_analytics_telemetry_overview_retrieve
+      operationId: analytics_telemetry_overview_retrieve
       description: Small overview payload for the analytics page.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -341,11 +341,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/top-suggestions/:
     get:
-      operationId: api_analytics_telemetry_top_suggestions_retrieve
+      operationId: analytics_telemetry_top_suggestions_retrieve
       description: Return the strongest suggestion rows in the selected telemetry
         window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -354,11 +354,11 @@ paths:
           description: No response body
   /api/analytics/telemetry/trend/:
     get:
-      operationId: api_analytics_telemetry_trend_retrieve
+      operationId: analytics_telemetry_trend_retrieve
       description: Return a day-by-day telemetry trend for the selected source and
         time window.
       tags:
-      - api
+      - analytics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -367,7 +367,7 @@ paths:
           description: No response body
   /api/audit-entries/:
     get:
-      operationId: api_audit_entries_list
+      operationId: audit_entries_list
       description: |-
         GET /api/audit-entries/          — paginated audit trail
         GET /api/audit-entries/{id}/     — full entry with detail JSON
@@ -432,7 +432,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - audit-entries
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -445,7 +445,7 @@ paths:
           description: ''
   /api/audit-entries/{id}/:
     get:
-      operationId: api_audit_entries_retrieve
+      operationId: audit_entries_retrieve
       description: |-
         GET /api/audit-entries/          — paginated audit trail
         GET /api/audit-entries/{id}/     — full entry with detail JSON
@@ -458,7 +458,7 @@ paths:
         description: A unique integer value identifying this Audit Entry.
         required: true
       tags:
-      - api
+      - audit-entries
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -471,10 +471,10 @@ paths:
           description: ''
   /api/audit-entries/summary/:
     get:
-      operationId: api_audit_entries_summary_retrieve
+      operationId: audit_entries_summary_retrieve
       description: Action counts grouped by day (last 30 days by default).
       tags:
-      - api
+      - audit-entries
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -487,11 +487,11 @@ paths:
           description: ''
   /api/auth/logout/:
     post:
-      operationId: api_auth_logout_create
+      operationId: auth_logout_create
       description: Deletes the user's auth token, invalidating all future requests
         with it.
       tags:
-      - api
+      - auth
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -500,12 +500,12 @@ paths:
           description: No response body
   /api/auth/me/:
     get:
-      operationId: api_auth_me_retrieve
+      operationId: auth_me_retrieve
       description: |-
         Returns the currently authenticated user's profile.
         Returns 401 when no valid token is provided.
       tags:
-      - api
+      - auth
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -514,10 +514,10 @@ paths:
           description: No response body
   /api/auth/token/:
     post:
-      operationId: api_auth_token_create
+      operationId: auth_token_create
       description: Token login endpoint — no session auth so CSRF is never checked.
       tags:
-      - api
+      - auth
       requestBody:
         content:
           application/x-www-form-urlencoded:
@@ -539,10 +539,10 @@ paths:
           description: ''
   /api/behavioral-hubs/:
     get:
-      operationId: api_behavioral_hubs_retrieve
+      operationId: behavioral_hubs_retrieve
       description: GET /api/behavioral-hubs/ — list all hubs.
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -551,7 +551,7 @@ paths:
           description: No response body
   /api/behavioral-hubs/{hub_id}/:
     get:
-      operationId: api_behavioral_hubs_retrieve_2
+      operationId: behavioral_hubs_retrieve_2
       description: GET/PATCH /api/behavioral-hubs/<hub_id>/
       parameters:
       - in: path
@@ -561,7 +561,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -569,7 +569,7 @@ paths:
         '200':
           description: No response body
     patch:
-      operationId: api_behavioral_hubs_partial_update
+      operationId: behavioral_hubs_partial_update
       description: GET/PATCH /api/behavioral-hubs/<hub_id>/
       parameters:
       - in: path
@@ -579,7 +579,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -588,7 +588,7 @@ paths:
           description: No response body
   /api/behavioral-hubs/{hub_id}/members/:
     post:
-      operationId: api_behavioral_hubs_members_create
+      operationId: behavioral_hubs_members_create
       description: POST /api/behavioral-hubs/<hub_id>/members/ — manually add a member.
       parameters:
       - in: path
@@ -598,7 +598,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -607,7 +607,7 @@ paths:
           description: No response body
   /api/behavioral-hubs/{hub_id}/members/{content_item_id}/:
     delete:
-      operationId: api_behavioral_hubs_members_destroy
+      operationId: behavioral_hubs_members_destroy
       description: DELETE /api/behavioral-hubs/<hub_id>/members/<content_item_id>/
         — remove a member.
       parameters:
@@ -623,7 +623,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -632,10 +632,10 @@ paths:
           description: No response body
   /api/behavioral-hubs/detect/:
     post:
-      operationId: api_behavioral_hubs_detect_create
+      operationId: behavioral_hubs_detect_create
       description: POST /api/behavioral-hubs/detect/ — trigger hub detection on-demand.
       tags:
-      - api
+      - behavioral-hubs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -644,10 +644,10 @@ paths:
           description: No response body
   /api/benchmarks/:
     get:
-      operationId: api_benchmarks_retrieve
+      operationId: benchmarks_retrieve
       description: GET /api/benchmarks/ — list all runs.
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -656,7 +656,7 @@ paths:
           description: No response body
   /api/benchmarks/{id}/:
     get:
-      operationId: api_benchmarks_retrieve_2
+      operationId: benchmarks_retrieve_2
       description: GET /api/benchmarks/{id}/ — single run with all results.
       parameters:
       - in: path
@@ -666,7 +666,7 @@ paths:
         description: A unique integer value identifying this benchmark run.
         required: true
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -675,7 +675,7 @@ paths:
           description: No response body
   /api/benchmarks/{id}/report/:
     get:
-      operationId: api_benchmarks_report_retrieve
+      operationId: benchmarks_report_retrieve
       description: GET /api/benchmarks/{id}/report/ — AI-readable text report.
       parameters:
       - in: path
@@ -685,7 +685,7 @@ paths:
         description: A unique integer value identifying this benchmark run.
         required: true
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -694,10 +694,10 @@ paths:
           description: No response body
   /api/benchmarks/latest/:
     get:
-      operationId: api_benchmarks_latest_retrieve
+      operationId: benchmarks_latest_retrieve
       description: GET /api/benchmarks/latest/ — most recent completed run.
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -706,10 +706,10 @@ paths:
           description: No response body
   /api/benchmarks/trends/:
     get:
-      operationId: api_benchmarks_trends_retrieve
+      operationId: benchmarks_trends_retrieve
       description: GET /api/benchmarks/trends/ — last 30 days of results (medium size).
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -718,10 +718,10 @@ paths:
           description: No response body
   /api/benchmarks/trigger/:
     post:
-      operationId: api_benchmarks_trigger_create
+      operationId: benchmarks_trigger_create
       description: POST /api/benchmarks/trigger/ — start a manual benchmark run.
       tags:
-      - api
+      - benchmarks
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -730,7 +730,7 @@ paths:
           description: No response body
   /api/broken-links/:
     get:
-      operationId: api_broken_links_list
+      operationId: broken_links_list
       description: |-
         Link-health endpoints.
 
@@ -764,7 +764,7 @@ paths:
           * `ignored` - Ignored
           * `fixed` - Fixed
       tags:
-      - api
+      - broken-links
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -776,7 +776,7 @@ paths:
                 $ref: '#/components/schemas/PaginatedBrokenLinkList'
           description: ''
     post:
-      operationId: api_broken_links_create
+      operationId: broken_links_create
       description: |-
         Link-health endpoints.
 
@@ -785,7 +785,7 @@ paths:
         POST  /api/broken-links/scan/
         GET   /api/broken-links/export-csv/
       tags:
-      - api
+      - broken-links
       requestBody:
         content:
           application/json:
@@ -809,7 +809,7 @@ paths:
           description: ''
   /api/broken-links/{broken_link_id}/:
     get:
-      operationId: api_broken_links_retrieve
+      operationId: broken_links_retrieve
       description: |-
         Link-health endpoints.
 
@@ -826,7 +826,7 @@ paths:
           description: Stable UUID used by the API and Angular frontend.
         required: true
       tags:
-      - api
+      - broken-links
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -838,7 +838,7 @@ paths:
                 $ref: '#/components/schemas/BrokenLink'
           description: ''
     patch:
-      operationId: api_broken_links_partial_update
+      operationId: broken_links_partial_update
       description: |-
         Link-health endpoints.
 
@@ -855,7 +855,7 @@ paths:
           description: Stable UUID used by the API and Angular frontend.
         required: true
       tags:
-      - api
+      - broken-links
       requestBody:
         content:
           application/json:
@@ -879,7 +879,7 @@ paths:
           description: ''
   /api/broken-links/export-csv/:
     get:
-      operationId: api_broken_links_export_csv_retrieve
+      operationId: broken_links_export_csv_retrieve
       description: |-
         Link-health endpoints.
 
@@ -888,7 +888,7 @@ paths:
         POST  /api/broken-links/scan/
         GET   /api/broken-links/export-csv/
       tags:
-      - api
+      - broken-links
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -901,7 +901,7 @@ paths:
           description: ''
   /api/broken-links/scan/:
     post:
-      operationId: api_broken_links_scan_create
+      operationId: broken_links_scan_create
       description: |-
         Link-health endpoints.
 
@@ -910,7 +910,7 @@ paths:
         POST  /api/broken-links/scan/
         GET   /api/broken-links/export-csv/
       tags:
-      - api
+      - broken-links
       requestBody:
         content:
           application/json:
@@ -934,7 +934,7 @@ paths:
           description: ''
   /api/content/:
     get:
-      operationId: api_content_list
+      operationId: content_list
       description: |-
         List and retrieve content items (threads, resources, WordPress posts).
 
@@ -987,7 +987,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - content
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1000,7 +1000,7 @@ paths:
           description: ''
   /api/content/{id}/:
     get:
-      operationId: api_content_retrieve
+      operationId: content_retrieve
       description: |-
         List and retrieve content items (threads, resources, WordPress posts).
 
@@ -1015,7 +1015,7 @@ paths:
         description: A unique integer value identifying this Content Item.
         required: true
       tags:
-      - api
+      - content
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1028,7 +1028,7 @@ paths:
           description: ''
   /api/content/{id}/sentences/:
     get:
-      operationId: api_content_sentences_retrieve
+      operationId: content_sentences_retrieve
       description: Return all sentences extracted from this content item's post.
       parameters:
       - in: path
@@ -1038,7 +1038,7 @@ paths:
         description: A unique integer value identifying this Content Item.
         required: true
       tags:
-      - api
+      - content
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1051,10 +1051,10 @@ paths:
           description: ''
   /api/cooccurrence/compute/:
     post:
-      operationId: api_cooccurrence_compute_create
+      operationId: cooccurrence_compute_create
       description: POST /api/cooccurrence/compute/ — trigger on-demand run.
       tags:
-      - api
+      - cooccurrence
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1063,10 +1063,10 @@ paths:
           description: No response body
   /api/cooccurrence/pairs/:
     get:
-      operationId: api_cooccurrence_pairs_retrieve
+      operationId: cooccurrence_pairs_retrieve
       description: GET /api/cooccurrence/pairs/ — list pairs with optional filters.
       tags:
-      - api
+      - cooccurrence
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1075,7 +1075,7 @@ paths:
           description: No response body
   /api/cooccurrence/pairs/{source_id}/:
     get:
-      operationId: api_cooccurrence_pairs_retrieve_2
+      operationId: cooccurrence_pairs_retrieve_2
       description: GET /api/cooccurrence/pairs/<source_id>/ — all pairs for a source
         content item.
       parameters:
@@ -1085,7 +1085,7 @@ paths:
           type: integer
         required: true
       tags:
-      - api
+      - cooccurrence
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1094,10 +1094,10 @@ paths:
           description: No response body
   /api/cooccurrence/runs/:
     get:
-      operationId: api_cooccurrence_runs_retrieve
+      operationId: cooccurrence_runs_retrieve
       description: GET /api/cooccurrence/runs/ — list computation run records.
       tags:
-      - api
+      - cooccurrence
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1106,10 +1106,10 @@ paths:
           description: No response body
   /api/crawler/context/:
     get:
-      operationId: api_crawler_context_retrieve
+      operationId: crawler_context_retrieve
       description: Lightweight data for the crawler page context header bar.
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1118,7 +1118,7 @@ paths:
           description: No response body
   /api/crawler/events/:
     get:
-      operationId: api_crawler_events_list
+      operationId: crawler_events_list
       description: Activity feed for the Dashboard. Most recent 50 events.
       parameters:
       - name: ordering
@@ -1134,7 +1134,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1149,7 +1149,7 @@ paths:
           description: ''
   /api/crawler/events/{id}/:
     get:
-      operationId: api_crawler_events_retrieve
+      operationId: crawler_events_retrieve
       description: Activity feed for the Dashboard. Most recent 50 events.
       parameters:
       - in: path
@@ -1158,7 +1158,7 @@ paths:
           type: string
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1171,7 +1171,7 @@ paths:
           description: ''
   /api/crawler/links/:
     get:
-      operationId: api_crawler_links_list
+      operationId: crawler_links_list
       description: List internal links discovered during crawl.
       parameters:
       - name: ordering
@@ -1187,7 +1187,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1202,7 +1202,7 @@ paths:
           description: ''
   /api/crawler/links/{id}/:
     get:
-      operationId: api_crawler_links_retrieve
+      operationId: crawler_links_retrieve
       description: List internal links discovered during crawl.
       parameters:
       - in: path
@@ -1212,7 +1212,7 @@ paths:
         description: A unique integer value identifying this Crawled Link.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1225,7 +1225,7 @@ paths:
           description: ''
   /api/crawler/pages/:
     get:
-      operationId: api_crawler_pages_list
+      operationId: crawler_pages_list
       description: List and detail view for crawled page metadata.
       parameters:
       - name: ordering
@@ -1241,7 +1241,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1256,7 +1256,7 @@ paths:
           description: ''
   /api/crawler/pages/{id}/:
     get:
-      operationId: api_crawler_pages_retrieve
+      operationId: crawler_pages_retrieve
       description: List and detail view for crawled page metadata.
       parameters:
       - in: path
@@ -1266,7 +1266,7 @@ paths:
         description: A unique integer value identifying this Crawled Page Metadata.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1279,10 +1279,10 @@ paths:
           description: ''
   /api/crawler/seo-audit/:
     get:
-      operationId: api_crawler_seo_audit_retrieve
+      operationId: crawler_seo_audit_retrieve
       description: Aggregated SEO audit summary for the latest completed crawl session.
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1291,7 +1291,7 @@ paths:
           description: No response body
   /api/crawler/sessions/:
     get:
-      operationId: api_crawler_sessions_list
+      operationId: crawler_sessions_list
       description: 'Manage crawl sessions: list, start, pause, resume.'
       parameters:
       - name: ordering
@@ -1307,7 +1307,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1321,10 +1321,10 @@ paths:
                   $ref: '#/components/schemas/CrawlSession'
           description: ''
     post:
-      operationId: api_crawler_sessions_create
+      operationId: crawler_sessions_create
       description: Start a new crawl session or resume a paused one.
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1348,7 +1348,7 @@ paths:
           description: ''
   /api/crawler/sessions/{session_id}/:
     get:
-      operationId: api_crawler_sessions_retrieve
+      operationId: crawler_sessions_retrieve
       description: 'Manage crawl sessions: list, start, pause, resume.'
       parameters:
       - in: path
@@ -1359,7 +1359,7 @@ paths:
         description: A UUID string identifying this Crawl Session.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1371,7 +1371,7 @@ paths:
                 $ref: '#/components/schemas/CrawlSession'
           description: ''
     put:
-      operationId: api_crawler_sessions_update
+      operationId: crawler_sessions_update
       description: 'Manage crawl sessions: list, start, pause, resume.'
       parameters:
       - in: path
@@ -1382,7 +1382,7 @@ paths:
         description: A UUID string identifying this Crawl Session.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1405,7 +1405,7 @@ paths:
                 $ref: '#/components/schemas/CrawlSession'
           description: ''
     patch:
-      operationId: api_crawler_sessions_partial_update
+      operationId: crawler_sessions_partial_update
       description: 'Manage crawl sessions: list, start, pause, resume.'
       parameters:
       - in: path
@@ -1416,7 +1416,7 @@ paths:
         description: A UUID string identifying this Crawl Session.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1439,7 +1439,7 @@ paths:
                 $ref: '#/components/schemas/CrawlSession'
           description: ''
     delete:
-      operationId: api_crawler_sessions_destroy
+      operationId: crawler_sessions_destroy
       description: 'Manage crawl sessions: list, start, pause, resume.'
       parameters:
       - in: path
@@ -1450,7 +1450,7 @@ paths:
         description: A UUID string identifying this Crawl Session.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1459,7 +1459,7 @@ paths:
           description: No response body
   /api/crawler/sessions/{session_id}/pause/:
     post:
-      operationId: api_crawler_sessions_pause_create
+      operationId: crawler_sessions_pause_create
       description: Pause a running crawl session.
       parameters:
       - in: path
@@ -1470,7 +1470,7 @@ paths:
         description: A UUID string identifying this Crawl Session.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1494,7 +1494,7 @@ paths:
           description: ''
   /api/crawler/sitemaps/:
     get:
-      operationId: api_crawler_sitemaps_list
+      operationId: crawler_sitemaps_list
       description: Manage sitemap URL configuration per domain.
       parameters:
       - name: ordering
@@ -1510,7 +1510,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1524,10 +1524,10 @@ paths:
                   $ref: '#/components/schemas/SitemapConfig'
           description: ''
     post:
-      operationId: api_crawler_sitemaps_create
+      operationId: crawler_sitemaps_create
       description: Manage sitemap URL configuration per domain.
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1552,7 +1552,7 @@ paths:
           description: ''
   /api/crawler/sitemaps/{id}/:
     get:
-      operationId: api_crawler_sitemaps_retrieve
+      operationId: crawler_sitemaps_retrieve
       description: Manage sitemap URL configuration per domain.
       parameters:
       - in: path
@@ -1562,7 +1562,7 @@ paths:
         description: A unique integer value identifying this Sitemap Configuration.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1574,7 +1574,7 @@ paths:
                 $ref: '#/components/schemas/SitemapConfig'
           description: ''
     put:
-      operationId: api_crawler_sitemaps_update
+      operationId: crawler_sitemaps_update
       description: Manage sitemap URL configuration per domain.
       parameters:
       - in: path
@@ -1584,7 +1584,7 @@ paths:
         description: A unique integer value identifying this Sitemap Configuration.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1608,7 +1608,7 @@ paths:
                 $ref: '#/components/schemas/SitemapConfig'
           description: ''
     patch:
-      operationId: api_crawler_sitemaps_partial_update
+      operationId: crawler_sitemaps_partial_update
       description: Manage sitemap URL configuration per domain.
       parameters:
       - in: path
@@ -1618,7 +1618,7 @@ paths:
         description: A unique integer value identifying this Sitemap Configuration.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1641,7 +1641,7 @@ paths:
                 $ref: '#/components/schemas/SitemapConfig'
           description: ''
     delete:
-      operationId: api_crawler_sitemaps_destroy
+      operationId: crawler_sitemaps_destroy
       description: Manage sitemap URL configuration per domain.
       parameters:
       - in: path
@@ -1651,7 +1651,7 @@ paths:
         description: A unique integer value identifying this Sitemap Configuration.
         required: true
       tags:
-      - api
+      - crawler
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1660,7 +1660,7 @@ paths:
           description: No response body
   /api/crawler/sitemaps/{id}/test/:
     post:
-      operationId: api_crawler_sitemaps_test_create
+      operationId: crawler_sitemaps_test_create
       description: Test-fetch a sitemap and report URL count.
       parameters:
       - in: path
@@ -1670,7 +1670,7 @@ paths:
         description: A unique integer value identifying this Sitemap Configuration.
         required: true
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1695,10 +1695,10 @@ paths:
           description: ''
   /api/crawler/sitemaps/auto_discover/:
     post:
-      operationId: api_crawler_sitemaps_auto_discover_create
+      operationId: crawler_sitemaps_auto_discover_create
       description: Auto-discover sitemaps for a domain by checking common locations.
       tags:
-      - api
+      - crawler
       requestBody:
         content:
           application/json:
@@ -1723,7 +1723,7 @@ paths:
           description: ''
   /api/dashboard/:
     get:
-      operationId: api_dashboard_retrieve
+      operationId: dashboard_retrieve
       description: |-
         GET /api/dashboard/
 
@@ -1734,7 +1734,7 @@ paths:
         - recent pipeline runs (last 5)
         - recent import jobs (last 5)
       tags:
-      - api
+      - dashboard
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1743,7 +1743,7 @@ paths:
           description: No response body
   /api/diagnostics/:
     get:
-      operationId: api_diagnostics_list
+      operationId: diagnostics_list
       description: List pipeline skip diagnostics for the 'why no suggestion?' explorer.
       parameters:
       - name: page
@@ -1797,7 +1797,7 @@ paths:
           * `paragraph_cluster` - Host paragraph already has a suggestion
           * `other` - Other
       tags:
-      - api
+      - diagnostics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1810,7 +1810,7 @@ paths:
           description: ''
   /api/diagnostics/{id}/:
     get:
-      operationId: api_diagnostics_retrieve
+      operationId: diagnostics_retrieve
       description: List pipeline skip diagnostics for the 'why no suggestion?' explorer.
       parameters:
       - in: path
@@ -1820,7 +1820,7 @@ paths:
         description: A unique integer value identifying this Pipeline Diagnostic.
         required: true
       tags:
-      - api
+      - diagnostics
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1833,7 +1833,7 @@ paths:
           description: ''
   /api/graph/entities/:
     get:
-      operationId: api_graph_entities_list
+      operationId: graph_entities_list
       description: |-
         GET /api/graph/entities/
 
@@ -1869,7 +1869,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1882,7 +1882,7 @@ paths:
           description: ''
   /api/graph/gap-analysis/:
     get:
-      operationId: api_graph_gap_analysis_retrieve
+      operationId: graph_gap_analysis_retrieve
       description: |-
         GET /api/graph/gap-analysis/
 
@@ -1901,7 +1901,7 @@ paths:
             "total_ghost_edges": N,
           }
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1910,7 +1910,7 @@ paths:
           description: No response body
   /api/graph/orphans/:
     get:
-      operationId: api_graph_orphans_list
+      operationId: graph_orphans_list
       description: |-
         GET /api/graph/orphans/?mode=orphan|low_authority
 
@@ -1943,7 +1943,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1956,7 +1956,7 @@ paths:
           description: ''
   /api/graph/orphans/{id}/suggest/:
     post:
-      operationId: api_graph_orphans_suggest_create
+      operationId: graph_orphans_suggest_create
       description: |-
         POST /api/graph/orphans/<pk>/suggest/
 
@@ -1969,7 +1969,7 @@ paths:
           type: integer
         required: true
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1978,13 +1978,13 @@ paths:
           description: No response body
   /api/graph/orphans/export-csv/:
     get:
-      operationId: api_graph_orphans_export_csv_retrieve
+      operationId: graph_orphans_export_csv_retrieve
       description: |-
         GET /api/graph/orphans/export-csv/?mode=orphan|low_authority
 
         Streams the audit list as a CSV download.
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -1993,7 +1993,7 @@ paths:
           description: No response body
   /api/graph/pagerank-equity/:
     get:
-      operationId: api_graph_pagerank_equity_retrieve
+      operationId: graph_pagerank_equity_retrieve
       description: |-
         GET /api/graph/pagerank-equity/
 
@@ -2001,7 +2001,7 @@ paths:
           pr_min, pr_max, total_nodes, concentration_warning, concentration_ratio,
           top_authorities (top 20 pages by PageRank with silo name and degree counts).
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2010,7 +2010,7 @@ paths:
           description: No response body
   /api/graph/path/:
     get:
-      operationId: api_graph_path_retrieve
+      operationId: graph_path_retrieve
       description: |-
         GET /api/graph/path/?from_id=<int>&to_id=<int>
 
@@ -2021,7 +2021,7 @@ paths:
           { found: true,  path: [{id, title, url}, ...], hops: N }
           { found: false, path: [],                       hops: 0 }
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2030,13 +2030,13 @@ paths:
           description: No response body
   /api/graph/silo-leakage/:
     get:
-      operationId: api_graph_silo_leakage_retrieve
+      operationId: graph_silo_leakage_retrieve
       description: |-
         GET /api/graph/silo-leakage/ — cross-silo link statistics.
 
         Returns total suggestions, cross-silo count, percentage, and per-pair breakdown.
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2045,7 +2045,7 @@ paths:
           description: No response body
   /api/graph/stats/:
     get:
-      operationId: api_graph_stats_retrieve
+      operationId: graph_stats_retrieve
       description: |-
         GET /api/graph/stats/
 
@@ -2053,7 +2053,7 @@ paths:
           total_nodes, total_edges, entity_count, orphan_count,
           connected_pct, topic_count
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2062,7 +2062,7 @@ paths:
           description: No response body
   /api/graph/topology/:
     get:
-      operationId: api_graph_topology_retrieve
+      operationId: graph_topology_retrieve
       description: |-
         GET /api/graph/topology/
 
@@ -2076,7 +2076,7 @@ paths:
                               sourced from LinkFreshnessEdge instead of ExistingLink.
                               When omitted the current live edges are returned.
       tags:
-      - api
+      - graph
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2085,7 +2085,7 @@ paths:
           description: No response body
   /api/health/:
     get:
-      operationId: api_health_list
+      operationId: health_list
       description: |-
         Return all health records, auto-seeding any registered checker that
         has no DB row yet.  This makes the /health page show every service on
@@ -2107,7 +2107,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - health
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2122,7 +2122,7 @@ paths:
           description: ''
   /api/health/{service_key}/:
     get:
-      operationId: api_health_retrieve
+      operationId: health_retrieve
       description: API endpoint for viewing and triggering system health checks.
       parameters:
       - in: path
@@ -2132,7 +2132,7 @@ paths:
           description: Unique stable key for the monitored service.
         required: true
       tags:
-      - api
+      - health
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2145,7 +2145,7 @@ paths:
           description: ''
   /api/health/{service_key}/check/:
     post:
-      operationId: api_health_check_create
+      operationId: health_check_create
       description: Trigger a health check for a specific service.
       parameters:
       - in: path
@@ -2155,7 +2155,7 @@ paths:
           description: Unique stable key for the monitored service.
         required: true
       tags:
-      - api
+      - health
       requestBody:
         content:
           application/json:
@@ -2179,10 +2179,10 @@ paths:
           description: ''
   /api/health/check-all/:
     post:
-      operationId: api_health_check_all_create
+      operationId: health_check_all_create
       description: Immediately trigger a system-wide health check.
       tags:
-      - api
+      - health
       requestBody:
         content:
           application/json:
@@ -2206,10 +2206,10 @@ paths:
           description: ''
   /api/health/summary/:
     get:
-      operationId: api_health_summary_retrieve
+      operationId: health_summary_retrieve
       description: Return a high-level aggregate health status.
       tags:
-      - api
+      - health
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2222,44 +2222,11 @@ paths:
           description: ''
   /api/import/upload/:
     post:
-      operationId: api_import_upload_create
+      operationId: import_upload_create
       description: Accept a JSONL export file from the user's browser and start an
         import job.
       tags:
-      - api
-      security:
-      - cookieAuth: []
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/internal/weight-challenger/:
-    post:
-      operationId: api_internal_weight_challenger_create
-      description: |-
-        POST /api/internal/weight-challenger/
-
-        Called exclusively by the C# HTTP-worker after an L-BFGS tune run.
-        Creates a RankingChallenger record with status='pending'.
-
-        Expected JSON body:
-            {
-                "run_id": "<guid>",
-                "candidate_weights": {
-                    "w_semantic": 0.42,
-                    "w_keyword": 0.23,
-                    "w_node": 0.20,
-                    "w_quality": 0.15
-                },
-                "baseline_weights": {
-                    "w_semantic": 0.40,
-                    ...
-                },
-                "predicted_quality_score": 0.812,    # optional
-                "champion_quality_score": 0.771       # optional
-            }
-      tags:
-      - api
+      - import
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2268,13 +2235,13 @@ paths:
           description: No response body
   /api/ml/distill/:
     post:
-      operationId: api_ml_distill_create
+      operationId: ml_distill_create
       description: |-
         POST /api/ml/distill/
         Accepts: { "sentences": ["...", "..."], "max_sentences": int (optional) }
         Returns: { "distilled": "..." }
       tags:
-      - api
+      - ml
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2283,13 +2250,13 @@ paths:
           description: No response body
   /api/ml/embed/:
     post:
-      operationId: api_ml_embed_create
+      operationId: ml_embed_create
       description: |-
         POST /api/ml/embed/
         Accepts: { "texts": ["...", "..."] }
         Returns: { "embeddings": [[0.1, ...], ...] }
       tags:
-      - api
+      - ml
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2298,10 +2265,10 @@ paths:
           description: No response body
   /api/notifications/alerts/:
     get:
-      operationId: api_notifications_alerts_retrieve
+      operationId: notifications_alerts_retrieve
       description: List operator alerts with optional filters.
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2310,7 +2277,7 @@ paths:
           description: No response body
   /api/notifications/alerts/{alert_id}/acknowledge/:
     post:
-      operationId: api_notifications_alerts_acknowledge_create
+      operationId: notifications_alerts_acknowledge_create
       description: Acknowledge (dismiss) a single alert.
       parameters:
       - in: path
@@ -2320,7 +2287,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2329,7 +2296,7 @@ paths:
           description: No response body
   /api/notifications/alerts/{alert_id}/read/:
     post:
-      operationId: api_notifications_alerts_read_create
+      operationId: notifications_alerts_read_create
       description: Mark a single alert as read.
       parameters:
       - in: path
@@ -2339,7 +2306,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2348,7 +2315,7 @@ paths:
           description: No response body
   /api/notifications/alerts/{alert_id}/resolve/:
     post:
-      operationId: api_notifications_alerts_resolve_create
+      operationId: notifications_alerts_resolve_create
       description: Mark a single alert as resolved (condition cleared).
       parameters:
       - in: path
@@ -2358,7 +2325,7 @@ paths:
           format: uuid
         required: true
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2367,10 +2334,10 @@ paths:
           description: No response body
   /api/notifications/alerts/acknowledge-all/:
     post:
-      operationId: api_notifications_alerts_acknowledge_all_create
+      operationId: notifications_alerts_acknowledge_all_create
       description: Acknowledge all unread and read alerts at once.
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2379,10 +2346,10 @@ paths:
           description: No response body
   /api/notifications/alerts/summary/:
     get:
-      operationId: api_notifications_alerts_summary_retrieve
+      operationId: notifications_alerts_summary_retrieve
       description: Return unread counts by severity plus the latest alert timestamp.
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2391,11 +2358,11 @@ paths:
           description: No response body
   /api/notifications/test/:
     post:
-      operationId: api_notifications_test_create
+      operationId: notifications_test_create
       description: Fire a synthetic alert so the operator can test bell, toast, and
         sound.
       tags:
-      - api
+      - notifications
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2404,7 +2371,7 @@ paths:
           description: No response body
   /api/pipeline-runs/:
     get:
-      operationId: api_pipeline_runs_list
+      operationId: pipeline_runs_list
       description: |-
         List and retrieve pipeline run history. Also provides a start action.
 
@@ -2457,7 +2424,7 @@ paths:
           * `failed` - Failed
           * `cancelled` - Cancelled
       tags:
-      - api
+      - pipeline-runs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2470,7 +2437,7 @@ paths:
           description: ''
   /api/pipeline-runs/{run_id}/:
     get:
-      operationId: api_pipeline_runs_retrieve
+      operationId: pipeline_runs_retrieve
       description: |-
         List and retrieve pipeline run history. Also provides a start action.
 
@@ -2486,7 +2453,7 @@ paths:
           description: Unique identifier for this pipeline run.
         required: true
       tags:
-      - api
+      - pipeline-runs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2499,10 +2466,10 @@ paths:
           description: ''
   /api/pipeline-runs/start/:
     post:
-      operationId: api_pipeline_runs_start_create
+      operationId: pipeline_runs_start_create
       description: Create a new PipelineRun and dispatch it to Celery.
       tags:
-      - api
+      - pipeline-runs
       requestBody:
         content:
           application/json:
@@ -2526,7 +2493,7 @@ paths:
           description: ''
   /api/plugins/:
     get:
-      operationId: api_plugins_list
+      operationId: plugins_list
       description: |-
         GET    /api/plugins/              — list all plugins
         GET    /api/plugins/{slug}/       — retrieve plugin + settings
@@ -2553,7 +2520,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - plugins
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2566,7 +2533,7 @@ paths:
           description: ''
   /api/plugins/{slug}/:
     get:
-      operationId: api_plugins_retrieve
+      operationId: plugins_retrieve
       description: |-
         GET    /api/plugins/              — list all plugins
         GET    /api/plugins/{slug}/       — retrieve plugin + settings
@@ -2582,7 +2549,7 @@ paths:
             from name.
         required: true
       tags:
-      - api
+      - plugins
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2594,7 +2561,7 @@ paths:
                 $ref: '#/components/schemas/Plugin'
           description: ''
     patch:
-      operationId: api_plugins_partial_update
+      operationId: plugins_partial_update
       description: |-
         GET    /api/plugins/              — list all plugins
         GET    /api/plugins/{slug}/       — retrieve plugin + settings
@@ -2610,7 +2577,7 @@ paths:
             from name.
         required: true
       tags:
-      - api
+      - plugins
       requestBody:
         content:
           application/json:
@@ -2634,7 +2601,7 @@ paths:
           description: ''
   /api/plugins/{slug}/settings/:
     get:
-      operationId: api_plugins_settings_retrieve
+      operationId: plugins_settings_retrieve
       description: |-
         A settings object that allows REST Framework settings to be accessed as
         properties. For example:
@@ -2658,7 +2625,7 @@ paths:
             from name.
         required: true
       tags:
-      - api
+      - plugins
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2670,7 +2637,7 @@ paths:
                 $ref: '#/components/schemas/Plugin'
           description: ''
     patch:
-      operationId: api_plugins_settings_partial_update
+      operationId: plugins_settings_partial_update
       description: |-
         A settings object that allows REST Framework settings to be accessed as
         properties. For example:
@@ -2694,7 +2661,7 @@ paths:
             from name.
         required: true
       tags:
-      - api
+      - plugins
       requestBody:
         content:
           application/json:
@@ -2718,7 +2685,7 @@ paths:
           description: ''
   /api/reviewer-scorecards/:
     get:
-      operationId: api_reviewer_scorecards_list
+      operationId: reviewer_scorecards_list
       description: |-
         GET /api/reviewer-scorecards/       — paginated scorecard list
         GET /api/reviewer-scorecards/{id}/  — single scorecard
@@ -2742,7 +2709,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - reviewer-scorecards
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2755,7 +2722,7 @@ paths:
           description: ''
   /api/reviewer-scorecards/{id}/:
     get:
-      operationId: api_reviewer_scorecards_retrieve
+      operationId: reviewer_scorecards_retrieve
       description: |-
         GET /api/reviewer-scorecards/       — paginated scorecard list
         GET /api/reviewer-scorecards/{id}/  — single scorecard
@@ -2767,7 +2734,7 @@ paths:
         description: A unique integer value identifying this Reviewer Scorecard.
         required: true
       tags:
-      - api
+      - reviewer-scorecards
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2780,7 +2747,7 @@ paths:
           description: ''
   /api/scopes/:
     get:
-      operationId: api_scopes_list
+      operationId: scopes_list
       parameters:
       - in: query
         name: is_enabled
@@ -2813,7 +2780,7 @@ paths:
         schema:
           type: integer
       tags:
-      - api
+      - scopes
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2828,7 +2795,7 @@ paths:
           description: ''
   /api/scopes/{id}/:
     get:
-      operationId: api_scopes_retrieve
+      operationId: scopes_retrieve
       parameters:
       - in: path
         name: id
@@ -2837,7 +2804,7 @@ paths:
         description: A unique integer value identifying this Scope Item.
         required: true
       tags:
-      - api
+      - scopes
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2849,7 +2816,7 @@ paths:
                 $ref: '#/components/schemas/ScopeItem'
           description: ''
     patch:
-      operationId: api_scopes_partial_update
+      operationId: scopes_partial_update
       parameters:
       - in: path
         name: id
@@ -2858,7 +2825,7 @@ paths:
         description: A unique integer value identifying this Scope Item.
         required: true
       tags:
-      - api
+      - scopes
       requestBody:
         content:
           application/json:
@@ -2882,10 +2849,10 @@ paths:
           description: ''
   /api/scopes/enabled/:
     get:
-      operationId: api_scopes_enabled_retrieve
+      operationId: scopes_enabled_retrieve
       description: Return only enabled scope items.
       tags:
-      - api
+      - scopes
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2898,12 +2865,12 @@ paths:
           description: ''
   /api/settings/appearance/:
     get:
-      operationId: api_settings_appearance_retrieve
+      operationId: settings_appearance_retrieve
       description: |-
         GET  /api/settings/appearance/ — returns current appearance config (or defaults)
         PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2911,12 +2878,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_appearance_update
+      operationId: settings_appearance_update
       description: |-
         GET  /api/settings/appearance/ — returns current appearance config (or defaults)
         PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2925,12 +2892,12 @@ paths:
           description: No response body
   /api/settings/click-distance/:
     get:
-      operationId: api_settings_click_distance_retrieve
+      operationId: settings_click_distance_retrieve
       description: |-
         GET /api/settings/click-distance/
         PUT /api/settings/click-distance/
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2938,12 +2905,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_click_distance_update
+      operationId: settings_click_distance_update
       description: |-
         GET /api/settings/click-distance/
         PUT /api/settings/click-distance/
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2952,10 +2919,10 @@ paths:
           description: No response body
   /api/settings/click-distance/recalculate/:
     post:
-      operationId: api_settings_click_distance_recalculate_create
+      operationId: settings_click_distance_recalculate_create
       description: Trigger bulk recalculation of click distance scores.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2964,12 +2931,12 @@ paths:
           description: No response body
   /api/settings/clustering/:
     get:
-      operationId: api_settings_clustering_retrieve
+      operationId: settings_clustering_retrieve
       description: |-
         GET  /api/settings/clustering/ - returns FR-014 clustering configuration
         PUT  /api/settings/clustering/ - validates and persists clustering configuration
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2977,12 +2944,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_clustering_update
+      operationId: settings_clustering_update
       description: |-
         GET  /api/settings/clustering/ - returns FR-014 clustering configuration
         PUT  /api/settings/clustering/ - validates and persists clustering configuration
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2991,11 +2958,11 @@ paths:
           description: No response body
   /api/settings/clustering/recalculate/:
     post:
-      operationId: api_settings_clustering_recalculate_create
+      operationId: settings_clustering_recalculate_create
       description: POST /api/settings/clustering/recalculate/ - run batch clustering
         pass.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3004,12 +2971,12 @@ paths:
           description: No response body
   /api/settings/cooccurrence/:
     get:
-      operationId: api_settings_cooccurrence_retrieve
+      operationId: settings_cooccurrence_retrieve
       description: |-
         GET  /api/settings/cooccurrence/ — return operational co-occurrence settings
         PUT  /api/settings/cooccurrence/ — persist settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3017,44 +2984,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_cooccurrence_update
+      operationId: settings_cooccurrence_update
       description: |-
         GET  /api/settings/cooccurrence/ — return operational co-occurrence settings
         PUT  /api/settings/cooccurrence/ — persist settings
       tags:
-      - api
-      security:
-      - cookieAuth: []
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/settings/cs-tune/evaluate/{run_id}/:
-    post:
-      operationId: api_settings_cs_tune_evaluate_create
-      description: POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate
-        a pending challenger.
-      parameters:
-      - in: path
-        name: run_id
-        schema:
-          type: string
-        required: true
-      tags:
-      - api
-      security:
-      - cookieAuth: []
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/settings/cs-tune/trigger/:
-    post:
-      operationId: api_settings_cs_tune_trigger_create
-      description: POST /api/settings/cs-tune/trigger/ — manually trigger a FR-018
-        C# weight-tune run.
-      tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3063,12 +2998,12 @@ paths:
           description: No response body
   /api/settings/explore-exploit/:
     get:
-      operationId: api_settings_explore_exploit_retrieve
+      operationId: settings_explore_exploit_retrieve
       description: |-
         GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
         PUT  /api/settings/explore-exploit/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3076,12 +3011,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_explore_exploit_update
+      operationId: settings_explore_exploit_update
       description: |-
         GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
         PUT  /api/settings/explore-exploit/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3090,11 +3025,11 @@ paths:
           description: No response body
   /api/settings/favicon/:
     post:
-      operationId: api_settings_favicon_create
+      operationId: settings_favicon_create
       description: POST /api/settings/favicon/ — upload site favicon (PNG, SVG, ICO
         ≤ 2 MB).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3102,11 +3037,11 @@ paths:
         '200':
           description: No response body
     delete:
-      operationId: api_settings_favicon_destroy
+      operationId: settings_favicon_destroy
       description: POST /api/settings/favicon/ — upload site favicon (PNG, SVG, ICO
         ≤ 2 MB).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3115,12 +3050,12 @@ paths:
           description: No response body
   /api/settings/field-aware-relevance/:
     get:
-      operationId: api_settings_field_aware_relevance_retrieve
+      operationId: settings_field_aware_relevance_retrieve
       description: |-
         GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
         PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3128,12 +3063,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_field_aware_relevance_update
+      operationId: settings_field_aware_relevance_update
       description: |-
         GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
         PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3142,12 +3077,12 @@ paths:
           description: No response body
   /api/settings/ga4-gsc/:
     get:
-      operationId: api_settings_ga4_gsc_retrieve
+      operationId: settings_ga4_gsc_retrieve
       description: |-
         GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
         PUT  /api/settings/ga4-gsc/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3155,12 +3090,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_ga4_gsc_update
+      operationId: settings_ga4_gsc_update
       description: |-
         GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
         PUT  /api/settings/ga4-gsc/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3169,11 +3104,11 @@ paths:
           description: No response body
   /api/settings/ga4-gsc/test-connection/:
     post:
-      operationId: api_settings_ga4_gsc_test_connection_create
+      operationId: settings_ga4_gsc_test_connection_create
       description: POST /api/settings/ga4-gsc/test-connection/ - validate Search Console
         credentials.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3182,12 +3117,12 @@ paths:
           description: No response body
   /api/settings/graph-candidate/:
     get:
-      operationId: api_settings_graph_candidate_retrieve
+      operationId: settings_graph_candidate_retrieve
       description: |-
         GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
         PUT  /api/settings/graph-candidate/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3195,12 +3130,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_graph_candidate_update
+      operationId: settings_graph_candidate_update
       description: |-
         GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
         PUT  /api/settings/graph-candidate/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3209,11 +3144,11 @@ paths:
           description: No response body
   /api/settings/graph/rebuild/:
     post:
-      operationId: api_settings_graph_rebuild_create
+      operationId: settings_graph_rebuild_create
       description: POST /api/settings/graph/rebuild/ - manual trigger for bipartite
         graph refresh.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3222,12 +3157,12 @@ paths:
           description: No response body
   /api/settings/learned-anchor/:
     get:
-      operationId: api_settings_learned_anchor_retrieve
+      operationId: settings_learned_anchor_retrieve
       description: |-
         GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
         PUT  /api/settings/learned-anchor/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3235,12 +3170,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_learned_anchor_update
+      operationId: settings_learned_anchor_update
       description: |-
         GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
         PUT  /api/settings/learned-anchor/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3249,12 +3184,12 @@ paths:
           description: No response body
   /api/settings/link-freshness/:
     get:
-      operationId: api_settings_link_freshness_retrieve
+      operationId: settings_link_freshness_retrieve
       description: |-
         GET  /api/settings/link-freshness/ - returns Link Freshness settings
         PUT  /api/settings/link-freshness/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3262,12 +3197,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_link_freshness_update
+      operationId: settings_link_freshness_update
       description: |-
         GET  /api/settings/link-freshness/ - returns Link Freshness settings
         PUT  /api/settings/link-freshness/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3276,11 +3211,11 @@ paths:
           description: No response body
   /api/settings/link-freshness/recalculate/:
     post:
-      operationId: api_settings_link_freshness_recalculate_create
+      operationId: settings_link_freshness_recalculate_create
       description: POST /api/settings/link-freshness/recalculate/ - recalculate Link
         Freshness.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3289,11 +3224,11 @@ paths:
           description: No response body
   /api/settings/logo/:
     post:
-      operationId: api_settings_logo_create
+      operationId: settings_logo_create
       description: POST /api/settings/logo/ — upload site logo (PNG, SVG, WEBP, JPEG
         ≤ 2 MB).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3301,11 +3236,11 @@ paths:
         '200':
           description: No response body
     delete:
-      operationId: api_settings_logo_destroy
+      operationId: settings_logo_destroy
       description: POST /api/settings/logo/ — upload site logo (PNG, SVG, WEBP, JPEG
         ≤ 2 MB).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3314,10 +3249,10 @@ paths:
           description: No response body
   /api/settings/notifications/:
     get:
-      operationId: api_settings_notifications_retrieve
+      operationId: settings_notifications_retrieve
       description: Read and update notification delivery preferences.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3325,10 +3260,10 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_notifications_update
+      operationId: settings_notifications_update
       description: Read and update notification delivery preferences.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3337,12 +3272,12 @@ paths:
           description: No response body
   /api/settings/phrase-matching/:
     get:
-      operationId: api_settings_phrase_matching_retrieve
+      operationId: settings_phrase_matching_retrieve
       description: |-
         GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
         PUT  /api/settings/phrase-matching/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3350,25 +3285,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_phrase_matching_update
+      operationId: settings_phrase_matching_update
       description: |-
         GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
         PUT  /api/settings/phrase-matching/ - validates and persists those settings
       tags:
-      - api
-      security:
-      - cookieAuth: []
-      - tokenAuth: []
-      responses:
-        '200':
-          description: No response body
-  /api/settings/r-tune/trigger/:
-    post:
-      operationId: api_settings_r_tune_trigger_create
-      description: POST /api/settings/r-tune/trigger/ — manually queue the monthly
-        R auto-tune task.
-      tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3377,12 +3299,12 @@ paths:
           description: No response body
   /api/settings/rare-term-propagation/:
     get:
-      operationId: api_settings_rare_term_propagation_retrieve
+      operationId: settings_rare_term_propagation_retrieve
       description: |-
         GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
         PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3390,12 +3312,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_rare_term_propagation_update
+      operationId: settings_rare_term_propagation_update
       description: |-
         GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
         PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3404,12 +3326,12 @@ paths:
           description: No response body
   /api/settings/silos/:
     get:
-      operationId: api_settings_silos_retrieve
+      operationId: settings_silos_retrieve
       description: |-
         GET  /api/settings/silos/ - returns persisted silo-ranking configuration
         PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3417,12 +3339,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_silos_update
+      operationId: settings_silos_update
       description: |-
         GET  /api/settings/silos/ - returns persisted silo-ranking configuration
         PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3431,12 +3353,12 @@ paths:
           description: No response body
   /api/settings/slate-diversity/:
     get:
-      operationId: api_settings_slate_diversity_retrieve
+      operationId: settings_slate_diversity_retrieve
       description: |-
         GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
         PUT  /api/settings/slate-diversity/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3444,12 +3366,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_slate_diversity_update
+      operationId: settings_slate_diversity_update
       description: |-
         GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
         PUT  /api/settings/slate-diversity/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3458,7 +3380,7 @@ paths:
           description: No response body
   /api/settings/spam-guards/:
     get:
-      operationId: api_settings_spam_guards_retrieve
+      operationId: settings_spam_guards_retrieve
       description: |-
         GET  /api/settings/spam-guards/  — returns current spam-guard limits
         PUT  /api/settings/spam-guards/  — validates and persists new limits
@@ -3474,7 +3396,7 @@ paths:
         * paragraph_window — block a second suggestion within this many sentence
           positions of an already-selected one on the same host (default 3).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3482,7 +3404,7 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_spam_guards_update
+      operationId: settings_spam_guards_update
       description: |-
         GET  /api/settings/spam-guards/  — returns current spam-guard limits
         PUT  /api/settings/spam-guards/  — validates and persists new limits
@@ -3498,7 +3420,7 @@ paths:
         * paragraph_window — block a second suggestion within this many sentence
           positions of an already-selected one on the same host (default 3).
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3507,12 +3429,12 @@ paths:
           description: No response body
   /api/settings/value-model/:
     get:
-      operationId: api_settings_value_model_retrieve
+      operationId: settings_value_model_retrieve
       description: |-
         GET  /api/settings/value-model/ - returns FR-021 value model settings
         PUT  /api/settings/value-model/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3520,12 +3442,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_value_model_update
+      operationId: settings_value_model_update
       description: |-
         GET  /api/settings/value-model/ - returns FR-021 value model settings
         PUT  /api/settings/value-model/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3534,12 +3456,12 @@ paths:
           description: No response body
   /api/settings/webhooks/:
     get:
-      operationId: api_settings_webhooks_retrieve
+      operationId: settings_webhooks_retrieve
       description: |-
         GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
         PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3547,12 +3469,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_webhooks_update
+      operationId: settings_webhooks_update
       description: |-
         GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
         PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3561,11 +3483,43 @@ paths:
           description: No response body
   /api/settings/webhooks/test/:
     post:
-      operationId: api_settings_webhooks_test_create
+      operationId: settings_webhooks_test_create
       description: POST /api/settings/webhooks/test/ — verify internal webhook receiver
         endpoints are alive.
       tags:
-      - api
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/weight-tune/evaluate/{run_id}/:
+    post:
+      operationId: settings_weight_tune_evaluate_create
+      description: POST /api/settings/weight-tune/evaluate/<run_id>/ — manually evaluate
+        a pending challenger.
+      parameters:
+      - in: path
+        name: run_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/weight-tune/trigger/:
+    post:
+      operationId: settings_weight_tune_trigger_create
+      description: POST /api/settings/weight-tune/trigger/ — manually trigger a FR-018
+        weight-tune run.
+      tags:
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3574,12 +3528,12 @@ paths:
           description: No response body
   /api/settings/weighted-authority/:
     get:
-      operationId: api_settings_weighted_authority_retrieve
+      operationId: settings_weighted_authority_retrieve
       description: |-
         GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
         PUT  /api/settings/weighted-authority/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3587,12 +3541,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_weighted_authority_update
+      operationId: settings_weighted_authority_update
       description: |-
         GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
         PUT  /api/settings/weighted-authority/ - validates and persists those settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3601,11 +3555,11 @@ paths:
           description: No response body
   /api/settings/weighted-authority/recalculate/:
     post:
-      operationId: api_settings_weighted_authority_recalculate_create
+      operationId: settings_weighted_authority_recalculate_create
       description: POST /api/settings/weighted-authority/recalculate/ - recalculate
         March 2026 PageRank.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3614,12 +3568,12 @@ paths:
           description: No response body
   /api/settings/wordpress/:
     get:
-      operationId: api_settings_wordpress_retrieve
+      operationId: settings_wordpress_retrieve
       description: |-
         GET  /api/settings/wordpress/ - returns saved WordPress sync settings
         PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3627,12 +3581,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_wordpress_update
+      operationId: settings_wordpress_update
       description: |-
         GET  /api/settings/wordpress/ - returns saved WordPress sync settings
         PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3641,11 +3595,11 @@ paths:
           description: No response body
   /api/settings/wordpress/test-connection/:
     post:
-      operationId: api_settings_wordpress_test_connection_create
+      operationId: settings_wordpress_test_connection_create
       description: POST /api/settings/wordpress/test-connection/ — verify WordPress
         REST API credentials.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3654,12 +3608,12 @@ paths:
           description: No response body
   /api/settings/xenforo/:
     get:
-      operationId: api_settings_xenforo_retrieve
+      operationId: settings_xenforo_retrieve
       description: |-
         GET  /api/settings/xenforo/ - returns saved XenForo connection settings
         PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3667,12 +3621,12 @@ paths:
         '200':
           description: No response body
     put:
-      operationId: api_settings_xenforo_update
+      operationId: settings_xenforo_update
       description: |-
         GET  /api/settings/xenforo/ - returns saved XenForo connection settings
         PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3681,11 +3635,11 @@ paths:
           description: No response body
   /api/settings/xenforo/test-connection/:
     post:
-      operationId: api_settings_xenforo_test_connection_create
+      operationId: settings_xenforo_test_connection_create
       description: POST /api/settings/xenforo/test-connection/ — verify XenForo API
         credentials.
       tags:
-      - api
+      - settings
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3694,7 +3648,7 @@ paths:
           description: No response body
   /api/silo-groups/:
     get:
-      operationId: api_silo_groups_list
+      operationId: silo_groups_list
       description: CRUD API for topical silo groups.
       parameters:
       - name: ordering
@@ -3710,7 +3664,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - silo-groups
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3724,10 +3678,10 @@ paths:
                   $ref: '#/components/schemas/SiloGroup'
           description: ''
     post:
-      operationId: api_silo_groups_create
+      operationId: silo_groups_create
       description: CRUD API for topical silo groups.
       tags:
-      - api
+      - silo-groups
       requestBody:
         content:
           application/json:
@@ -3752,7 +3706,7 @@ paths:
           description: ''
   /api/silo-groups/{id}/:
     get:
-      operationId: api_silo_groups_retrieve
+      operationId: silo_groups_retrieve
       description: CRUD API for topical silo groups.
       parameters:
       - in: path
@@ -3762,7 +3716,7 @@ paths:
         description: A unique integer value identifying this Silo Group.
         required: true
       tags:
-      - api
+      - silo-groups
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3774,7 +3728,7 @@ paths:
                 $ref: '#/components/schemas/SiloGroup'
           description: ''
     patch:
-      operationId: api_silo_groups_partial_update
+      operationId: silo_groups_partial_update
       description: CRUD API for topical silo groups.
       parameters:
       - in: path
@@ -3784,7 +3738,7 @@ paths:
         description: A unique integer value identifying this Silo Group.
         required: true
       tags:
-      - api
+      - silo-groups
       requestBody:
         content:
           application/json:
@@ -3807,7 +3761,7 @@ paths:
                 $ref: '#/components/schemas/SiloGroup'
           description: ''
     delete:
-      operationId: api_silo_groups_destroy
+      operationId: silo_groups_destroy
       description: CRUD API for topical silo groups.
       parameters:
       - in: path
@@ -3817,7 +3771,7 @@ paths:
         description: A unique integer value identifying this Silo Group.
         required: true
       tags:
-      - api
+      - silo-groups
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3826,7 +3780,7 @@ paths:
           description: No response body
   /api/suggestions/:
     get:
-      operationId: api_suggestions_list
+      operationId: suggestions_list
       description: |-
         Override list to log suggestion presentations for exposure tracking.
 
@@ -3897,7 +3851,7 @@ paths:
           * `stale` - Stale
           * `superseded` - Superseded
       tags:
-      - api
+      - suggestions
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3909,10 +3863,10 @@ paths:
                 $ref: '#/components/schemas/PaginatedSuggestionListList'
           description: ''
     post:
-      operationId: api_suggestions_create
+      operationId: suggestions_create
       description: List, retrieve, and review link suggestions.
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -3936,7 +3890,7 @@ paths:
           description: ''
   /api/suggestions/{suggestion_id}/:
     get:
-      operationId: api_suggestions_retrieve
+      operationId: suggestions_retrieve
       description: List, retrieve, and review link suggestions.
       parameters:
       - in: path
@@ -3947,7 +3901,7 @@ paths:
           description: Unique identifier for this suggestion.
         required: true
       tags:
-      - api
+      - suggestions
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -3959,7 +3913,7 @@ paths:
                 $ref: '#/components/schemas/SuggestionDetail'
           description: ''
     patch:
-      operationId: api_suggestions_partial_update
+      operationId: suggestions_partial_update
       description: List, retrieve, and review link suggestions.
       parameters:
       - in: path
@@ -3970,7 +3924,7 @@ paths:
           description: Unique identifier for this suggestion.
         required: true
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -3994,7 +3948,7 @@ paths:
           description: ''
   /api/suggestions/{suggestion_id}/apply/:
     post:
-      operationId: api_suggestions_apply_create
+      operationId: suggestions_apply_create
       description: Mark an approved suggestion as manually applied on the live forum.
       parameters:
       - in: path
@@ -4005,7 +3959,7 @@ paths:
           description: Unique identifier for this suggestion.
         required: true
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -4029,7 +3983,7 @@ paths:
           description: ''
   /api/suggestions/{suggestion_id}/approve/:
     post:
-      operationId: api_suggestions_approve_create
+      operationId: suggestions_approve_create
       description: Approve a pending suggestion. Optionally accepts anchor_edited.
       parameters:
       - in: path
@@ -4040,7 +3994,7 @@ paths:
           description: Unique identifier for this suggestion.
         required: true
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -4064,7 +4018,7 @@ paths:
           description: ''
   /api/suggestions/{suggestion_id}/reject/:
     post:
-      operationId: api_suggestions_reject_create
+      operationId: suggestions_reject_create
       description: Reject a pending suggestion with an optional reason.
       parameters:
       - in: path
@@ -4075,7 +4029,7 @@ paths:
           description: Unique identifier for this suggestion.
         required: true
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -4099,13 +4053,13 @@ paths:
           description: ''
   /api/suggestions/batch_action/:
     post:
-      operationId: api_suggestions_batch_action_create
+      operationId: suggestions_batch_action_create
       description: |-
         Apply an action to multiple suggestions at once.
 
         Request body: {"action": "approve|reject|skip", "ids": ["uuid1", "uuid2", ...]}
       tags:
-      - api
+      - suggestions
       requestBody:
         content:
           application/json:
@@ -4129,7 +4083,7 @@ paths:
           description: ''
   /api/sync-jobs/:
     get:
-      operationId: api_sync_jobs_list
+      operationId: sync_jobs_list
       description: API endpoint for viewing synchronization jobs (imports).
       parameters:
       - name: ordering
@@ -4145,7 +4099,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - sync-jobs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4160,7 +4114,7 @@ paths:
           description: ''
   /api/sync-jobs/{job_id}/:
     get:
-      operationId: api_sync_jobs_retrieve
+      operationId: sync_jobs_retrieve
       description: API endpoint for viewing synchronization jobs (imports).
       parameters:
       - in: path
@@ -4171,7 +4125,7 @@ paths:
         description: A UUID string identifying this sync job.
         required: true
       tags:
-      - api
+      - sync-jobs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4184,13 +4138,13 @@ paths:
           description: ''
   /api/sync-jobs/source_status/:
     get:
-      operationId: api_sync_jobs_source_status_retrieve
+      operationId: sync_jobs_source_status_retrieve
       description: |-
         GET /api/sync-jobs/source_status/
 
         Returns unified health status for XF and WP sources.
       tags:
-      - api
+      - sync-jobs
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4203,10 +4157,10 @@ paths:
           description: ''
   /api/sync-jobs/trigger_api_sync/:
     post:
-      operationId: api_sync_jobs_trigger_api_sync_create
+      operationId: sync_jobs_trigger_api_sync_create
       description: Trigger a direct API sync for a specific source (api|wp).
       tags:
-      - api
+      - sync-jobs
       requestBody:
         content:
           application/json:
@@ -4230,12 +4184,12 @@ paths:
           description: ''
   /api/sync-jobs/trigger_full_run/:
     post:
-      operationId: api_sync_jobs_trigger_full_run_create
+      operationId: sync_jobs_trigger_full_run_create
       description: |-
         One-button workflow: Sync all sources + crawl + pipeline.
         Dispatches the orchestrator Celery task.
       tags:
-      - api
+      - sync-jobs
       requestBody:
         content:
           application/json:
@@ -4259,32 +4213,32 @@ paths:
           description: ''
   /api/sync/webhooks/wordpress/:
     post:
-      operationId: api_sync_webhooks_wordpress_create
+      operationId: sync_webhooks_wordpress_create
       description: |-
         Real-time webhook receiver for WordPress post updates.
 
         POST /api/v1/sync/webhooks/wordpress/
       tags:
-      - api
+      - sync
       responses:
         '200':
           description: No response body
   /api/sync/webhooks/xenforo/:
     post:
-      operationId: api_sync_webhooks_xenforo_create
+      operationId: sync_webhooks_xenforo_create
       description: Real-time webhook receiver for XenForo forum events.
       tags:
-      - api
+      - sync
       responses:
         '200':
           description: No response body
   /api/sync/wordpress/run/:
     post:
-      operationId: api_sync_wordpress_run_create
+      operationId: sync_wordpress_run_create
       description: POST /api/sync/wordpress/run/ - enqueue a manual WordPress sync
         job.
       tags:
-      - api
+      - sync
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4293,7 +4247,7 @@ paths:
           description: No response body
   /api/system/status/conflicts/:
     get:
-      operationId: api_system_status_conflicts_list
+      operationId: system_status_conflicts_list
       parameters:
       - name: ordering
         required: false
@@ -4308,7 +4262,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4322,9 +4276,9 @@ paths:
                   $ref: '#/components/schemas/SystemConflict'
           description: ''
     post:
-      operationId: api_system_status_conflicts_create
+      operationId: system_status_conflicts_create
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4349,7 +4303,7 @@ paths:
           description: ''
   /api/system/status/conflicts/{id}/:
     get:
-      operationId: api_system_status_conflicts_retrieve
+      operationId: system_status_conflicts_retrieve
       parameters:
       - in: path
         name: id
@@ -4358,7 +4312,7 @@ paths:
         description: A unique integer value identifying this System Conflict.
         required: true
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4370,7 +4324,7 @@ paths:
                 $ref: '#/components/schemas/SystemConflict'
           description: ''
     put:
-      operationId: api_system_status_conflicts_update
+      operationId: system_status_conflicts_update
       parameters:
       - in: path
         name: id
@@ -4379,7 +4333,7 @@ paths:
         description: A unique integer value identifying this System Conflict.
         required: true
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4403,7 +4357,7 @@ paths:
                 $ref: '#/components/schemas/SystemConflict'
           description: ''
     patch:
-      operationId: api_system_status_conflicts_partial_update
+      operationId: system_status_conflicts_partial_update
       parameters:
       - in: path
         name: id
@@ -4412,7 +4366,7 @@ paths:
         description: A unique integer value identifying this System Conflict.
         required: true
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4435,7 +4389,7 @@ paths:
                 $ref: '#/components/schemas/SystemConflict'
           description: ''
     delete:
-      operationId: api_system_status_conflicts_destroy
+      operationId: system_status_conflicts_destroy
       parameters:
       - in: path
         name: id
@@ -4444,7 +4398,7 @@ paths:
         description: A unique integer value identifying this System Conflict.
         required: true
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4453,9 +4407,9 @@ paths:
           description: No response body
   /api/system/status/conflicts/detect/:
     post:
-      operationId: api_system_status_conflicts_detect_create
+      operationId: system_status_conflicts_detect_create
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4480,7 +4434,7 @@ paths:
           description: ''
   /api/system/status/errors/:
     get:
-      operationId: api_system_status_errors_list
+      operationId: system_status_errors_list
       parameters:
       - name: ordering
         required: false
@@ -4495,7 +4449,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4510,7 +4464,7 @@ paths:
           description: ''
   /api/system/status/errors/{id}/:
     get:
-      operationId: api_system_status_errors_retrieve
+      operationId: system_status_errors_retrieve
       parameters:
       - in: path
         name: id
@@ -4519,7 +4473,7 @@ paths:
         description: A unique integer value identifying this Error Log Entry.
         required: true
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4532,7 +4486,7 @@ paths:
           description: ''
   /api/system/status/errors/{id}/acknowledge/:
     post:
-      operationId: api_system_status_errors_acknowledge_create
+      operationId: system_status_errors_acknowledge_create
       parameters:
       - in: path
         name: id
@@ -4541,7 +4495,7 @@ paths:
         description: A unique integer value identifying this Error Log Entry.
         required: true
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4566,9 +4520,9 @@ paths:
           description: ''
   /api/system/status/features/:
     get:
-      operationId: api_system_status_features_retrieve
+      operationId: system_status_features_retrieve
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4577,17 +4531,17 @@ paths:
           description: No response body
   /api/system/status/internal/scheduler/dispatch/:
     post:
-      operationId: api_system_status_internal_scheduler_dispatch_create
+      operationId: system_status_internal_scheduler_dispatch_create
       tags:
-      - api
+      - system
       responses:
         '200':
           description: No response body
   /api/system/status/overview/:
     get:
-      operationId: api_system_status_overview_retrieve
+      operationId: system_status_overview_retrieve
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4596,9 +4550,9 @@ paths:
           description: No response body
   /api/system/status/resources/:
     get:
-      operationId: api_system_status_resources_retrieve
+      operationId: system_status_resources_retrieve
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4607,7 +4561,7 @@ paths:
           description: No response body
   /api/system/status/services/:
     get:
-      operationId: api_system_status_services_list
+      operationId: system_status_services_list
       parameters:
       - name: ordering
         required: false
@@ -4622,7 +4576,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4637,7 +4591,7 @@ paths:
           description: ''
   /api/system/status/services/{id}/:
     get:
-      operationId: api_system_status_services_retrieve
+      operationId: system_status_services_retrieve
       parameters:
       - in: path
         name: id
@@ -4646,7 +4600,7 @@ paths:
         description: A unique integer value identifying this Service Status Snapshot.
         required: true
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4659,9 +4613,9 @@ paths:
           description: ''
   /api/system/status/services/refresh/:
     post:
-      operationId: api_system_status_services_refresh_create
+      operationId: system_status_services_refresh_create
       tags:
-      - api
+      - system
       requestBody:
         content:
           application/json:
@@ -4686,13 +4640,13 @@ paths:
           description: ''
   /api/system/status/weights/:
     get:
-      operationId: api_system_status_weights_retrieve
+      operationId: system_status_weights_retrieve
       description: |-
         FR-028: Algorithm Weight Diagnostics.
         Provides a read-only view of all 23 ranking and value model signals,
         their current weights, storage usage, and C++ acceleration status.
       tags:
-      - api
+      - system
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4701,7 +4655,7 @@ paths:
           description: No response body
   /api/webhook-receipts/:
     get:
-      operationId: api_webhook_receipts_list
+      operationId: webhook_receipts_list
       description: API endpoint for viewing webhook audit logs.
       parameters:
       - name: ordering
@@ -4717,7 +4671,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - webhook-receipts
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4732,7 +4686,7 @@ paths:
           description: ''
   /api/webhook-receipts/{receipt_id}/:
     get:
-      operationId: api_webhook_receipts_retrieve
+      operationId: webhook_receipts_retrieve
       description: API endpoint for viewing webhook audit logs.
       parameters:
       - in: path
@@ -4743,7 +4697,7 @@ paths:
         description: A UUID string identifying this webhook receipt.
         required: true
       tags:
-      - api
+      - webhook-receipts
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4756,7 +4710,7 @@ paths:
           description: ''
   /api/weight-challengers/:
     get:
-      operationId: api_weight_challengers_list
+      operationId: weight_challengers_list
       description: |-
         Read-only list of all RankingChallenger records.
         Also provides a POST /reject/ action for human override.
@@ -4780,7 +4734,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - weight-challengers
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4793,7 +4747,7 @@ paths:
           description: ''
   /api/weight-challengers/{id}/:
     get:
-      operationId: api_weight_challengers_retrieve
+      operationId: weight_challengers_retrieve
       description: |-
         Read-only list of all RankingChallenger records.
         Also provides a POST /reject/ action for human override.
@@ -4805,7 +4759,7 @@ paths:
         description: A unique integer value identifying this Ranking Challenger.
         required: true
       tags:
-      - api
+      - weight-challengers
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4818,7 +4772,7 @@ paths:
           description: ''
   /api/weight-challengers/{id}/reject/:
     post:
-      operationId: api_weight_challengers_reject_create
+      operationId: weight_challengers_reject_create
       description: |-
         Read-only list of all RankingChallenger records.
         Also provides a POST /reject/ action for human override.
@@ -4830,7 +4784,7 @@ paths:
         description: A unique integer value identifying this Ranking Challenger.
         required: true
       tags:
-      - api
+      - weight-challengers
       requestBody:
         content:
           application/json:
@@ -4854,7 +4808,7 @@ paths:
           description: ''
   /api/weight-history/:
     get:
-      operationId: api_weight_history_list
+      operationId: weight_history_list
       description: Read-only list of all weight adjustment events.
       parameters:
       - name: ordering
@@ -4876,7 +4830,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - weight-history
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4889,7 +4843,7 @@ paths:
           description: ''
   /api/weight-history/{id}/:
     get:
-      operationId: api_weight_history_retrieve
+      operationId: weight_history_retrieve
       description: Read-only list of all weight adjustment events.
       parameters:
       - in: path
@@ -4899,7 +4853,7 @@ paths:
         description: A unique integer value identifying this Weight Adjustment.
         required: true
       tags:
-      - api
+      - weight-history
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4912,7 +4866,7 @@ paths:
           description: ''
   /api/weight-history/{id}/rollback/:
     post:
-      operationId: api_weight_history_rollback_create
+      operationId: weight_history_rollback_create
       description: Roll back weights to the previous_weights snapshot of this history
         row.
       parameters:
@@ -4923,7 +4877,7 @@ paths:
         description: A unique integer value identifying this Weight Adjustment.
         required: true
       tags:
-      - api
+      - weight-history
       requestBody:
         content:
           application/json:
@@ -4947,7 +4901,7 @@ paths:
           description: ''
   /api/weight-presets/:
     get:
-      operationId: api_weight_presets_list
+      operationId: weight_presets_list
       description: CRUD for weight presets + apply action.
       parameters:
       - name: ordering
@@ -4969,7 +4923,7 @@ paths:
         schema:
           type: string
       tags:
-      - api
+      - weight-presets
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4981,10 +4935,10 @@ paths:
                 $ref: '#/components/schemas/PaginatedWeightPresetList'
           description: ''
     post:
-      operationId: api_weight_presets_create
+      operationId: weight_presets_create
       description: CRUD for weight presets + apply action.
       tags:
-      - api
+      - weight-presets
       requestBody:
         content:
           application/json:
@@ -5009,7 +4963,7 @@ paths:
           description: ''
   /api/weight-presets/{id}/:
     get:
-      operationId: api_weight_presets_retrieve
+      operationId: weight_presets_retrieve
       description: CRUD for weight presets + apply action.
       parameters:
       - in: path
@@ -5019,7 +4973,7 @@ paths:
         description: A unique integer value identifying this Weight Preset.
         required: true
       tags:
-      - api
+      - weight-presets
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -5031,7 +4985,7 @@ paths:
                 $ref: '#/components/schemas/WeightPreset'
           description: ''
     patch:
-      operationId: api_weight_presets_partial_update
+      operationId: weight_presets_partial_update
       description: CRUD for weight presets + apply action.
       parameters:
       - in: path
@@ -5041,7 +4995,7 @@ paths:
         description: A unique integer value identifying this Weight Preset.
         required: true
       tags:
-      - api
+      - weight-presets
       requestBody:
         content:
           application/json:
@@ -5064,7 +5018,7 @@ paths:
                 $ref: '#/components/schemas/WeightPreset'
           description: ''
     delete:
-      operationId: api_weight_presets_destroy
+      operationId: weight_presets_destroy
       description: CRUD for weight presets + apply action.
       parameters:
       - in: path
@@ -5074,7 +5028,7 @@ paths:
         description: A unique integer value identifying this Weight Preset.
         required: true
       tags:
-      - api
+      - weight-presets
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -5083,7 +5037,7 @@ paths:
           description: No response body
   /api/weight-presets/{id}/apply/:
     post:
-      operationId: api_weight_presets_apply_create
+      operationId: weight_presets_apply_create
       description: Apply this preset's weights atomically to AppSetting and record
         history.
       parameters:
@@ -5094,7 +5048,7 @@ paths:
         description: A unique integer value identifying this Weight Preset.
         required: true
       tags:
-      - api
+      - weight-presets
       requestBody:
         content:
           application/json:
@@ -5119,10 +5073,10 @@ paths:
           description: ''
   /api/weight-presets/current/:
     get:
-      operationId: api_weight_presets_current_retrieve
+      operationId: weight_presets_current_retrieve
       description: Return the current in-scope AppSetting values as a weights dict.
       tags:
-      - api
+      - weight-presets
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -8820,8 +8774,7 @@ components:
           description: |-
             What triggered this weight change.
 
-            * `r_auto` - Monthly R auto-tune
-            * `cs_auto_tune` - C# L-BFGS auto-tune (FR-018)
+            * `auto_tune` - Auto-tune (Poisson-Gamma)
             * `manual` - Manual save
             * `preset_applied` - Preset applied
         preset:
@@ -8870,14 +8823,12 @@ components:
       - source
     WeightAdjustmentHistorySourceEnum:
       enum:
-      - r_auto
-      - cs_auto_tune
+      - auto_tune
       - manual
       - preset_applied
       type: string
       description: |-
-        * `r_auto` - Monthly R auto-tune
-        * `cs_auto_tune` - C# L-BFGS auto-tune (FR-018)
+        * `auto_tune` - Auto-tune (Poisson-Gamma)
         * `manual` - Manual save
         * `preset_applied` - Preset applied
     WeightPreset:

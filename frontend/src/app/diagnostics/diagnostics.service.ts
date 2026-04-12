@@ -35,7 +35,7 @@ export interface NativeModuleStatus {
 }
 
 export interface ServiceMetadata {
-  runtime_path?: 'cpp' | 'python' | 'csharp' | 'mixed' | string;
+  runtime_path?: 'cpp' | 'python' | 'mixed' | string;
   fallback_active?: boolean;
   fallback_reason?: string;
   python_fallback_active?: boolean;

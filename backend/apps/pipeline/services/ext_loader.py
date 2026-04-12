@@ -106,32 +106,3 @@ def _log_to_errorlog(
     except Exception:
         # ErrorLog itself may not be available during early startup or tests.
         pass
-
-
-def log_csharp_error(
-    service_name: str,
-    step: str,
-    message: str,
-    exc: BaseException | None = None,
-) -> None:
-    """Write a C# HttpWorker failure to the ErrorLog table.
-
-    Call this from any task that communicates with the C# HttpWorker
-    microservice and gets an error response or connection failure.
-    """
-    try:
-        from apps.audit.models import ErrorLog
-
-        ErrorLog.objects.create(
-            job_type="csharp_http_worker",
-            step=f"{step}_{service_name}",
-            error_message=message,
-            raw_exception=traceback.format_exc() if exc else "",
-            why=(
-                f"The C# HttpWorker service '{service_name}' returned an error or "
-                f"could not be reached. Check that the http-worker-api container is "
-                f"running and healthy via 'docker-compose ps http-worker-api'."
-            ),
-        )
-    except Exception:
-        pass

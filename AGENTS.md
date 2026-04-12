@@ -6,7 +6,6 @@
 **Before any ranking, scoring, attribution, import, or reranking work, read `docs/BUSINESS-LOGIC-CHECKLIST.md` in full and complete every applicable checkbox.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
-**Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 
 This file applies to every AI agent that works on this repository.
 Read all sections before making any changes to frontend styles.
@@ -225,8 +224,6 @@ Act as a strict frontend architect. To maintain absolute design uniformity, we f
 
 - Never add a `build:` block to a service that can reuse an existing image.
 - `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat.
-- `xf-linker-http-worker:latest` is shared by http-worker-api and http-worker-queue.
-- After `docker-compose build`, run `docker image prune -f`.
 - Never run `docker-compose down -v` - it deletes the database.
 
 ---
@@ -234,8 +231,8 @@ Act as a strict frontend architect. To maintain absolute design uniformity, we f
 ## Native Runtime Policy
 
 - Before changing native C++, Python fallback, runtime ownership, or operator-facing runtime diagnostics, read `docs/NATIVE_RUNTIME_POLICY.md`.
-- Treat C++ as the default speed path for hot ranking and pipeline loops, Python as the safety fallback/reference path, and C# as the preferred worker/orchestration runtime.
-- Do not create a second native-runtime issue surface. Reuse the existing diagnostics system for C++, Python, and C# runtime visibility.
+- Treat C++ as the default speed path for hot ranking and pipeline loops, and Python as the safety fallback/reference path.
+- Do not create a second native-runtime issue surface. Reuse the existing diagnostics system for C++ and Python runtime visibility.
 
 ---
 
@@ -291,14 +288,14 @@ Reuse the existing repo cleanup script and Docker prune policy above. Do not inv
 
 ---
 
-## Vibe-Coding Pre-Push Rules — 26 Automated Checks
+## Vibe-Coding Pre-Push Rules — 28 Automated Checks
 
 These rules run automatically via `scripts/lint-all.ps1` (steps 8-32) and `scripts/verify.ps1` (rule 26). They catch bugs AI agents commonly introduce. **Zero disk footprint, zero installs, self-pruning.** All agents (Claude, Gemini, Codex) must follow them.
 
 ### AI Agent Behavior
 | # | Rule | Scope | What it catches |
 |---|------|-------|-----------------|
-| 1 | Debug artifact purge | TS, C++, C# | `console.log`, `std::cout`, `Console.Write`, `debugger;` |
+| 1 | Debug artifact purge | TS, C++ | `console.log`, `std::cout`, `debugger;` |
 | 2 | Placeholder/stub blocker | All (diff) | `TODO`, `FIXME`, `HACK`, `NotImplementedError` |
 | 3 | Diff-scope enforcement | Repo | >8 files outside primary directory = blocked |
 
@@ -322,17 +319,15 @@ These rules run automatically via `scripts/lint-all.ps1` (steps 8-32) and `scrip
 ### Security
 | # | Rule | Scope | What it catches |
 |---|------|-------|-----------------|
-| 13 | Hardcoded secrets | TS, C++, C# | API keys, passwords, connection strings |
+| 13 | Hardcoded secrets | TS, C++ | API keys, passwords, connection strings |
 | 14 | Angular XSS safety | HTML/TS | `bypassSecurityTrust*` in components |
-| 15 | SQL concatenation | C# | `$"SELECT...{var}"` — injection risk |
 | 16 | ReDoS detector | All | Nested regex quantifiers `(a+)+` |
 
 ### Performance
 | # | Rule | Scope | What it catches |
 |---|------|-------|-----------------|
-| 17 | Resource leak detector | Python, C# | `open()` without `with`, `requests.get` without timeout, `new HttpClient()` |
-| 18 | N+1 query detector | Python, C# (diff) | ORM queries inside `for` loops |
-| 19 | Async anti-patterns | C# | `async void`, `.Result`, `.Wait()`, `Thread.Sleep` |
+| 17 | Resource leak detector | Python | `open()` without `with`, `requests.get` without timeout |
+| 18 | N+1 query detector | Python (diff) | ORM queries inside `for` loops |
 | 20 | Dangerous imports | Python (diff) | `from X import *`, `datetime.now()`, unbounded `@cache`, `eval()` |
 
 ### Repo Hygiene
@@ -351,7 +346,7 @@ These rules run automatically via `scripts/lint-all.ps1` (steps 8-32) and `scrip
 ### Test Coverage
 | # | Rule | Scope | What it catches |
 |---|------|-------|-----------------|
-| 26 | Test existence check | Python, C# | New source files without corresponding test files |
+| 26 | Test existence check | Python | New source files without corresponding test files |
 
 **"(diff)" = only checks files changed in this push.** Existing violations in untouched files are not flagged, but as files are modified they must be cleaned up.
 

@@ -6,7 +6,6 @@
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
-**Before any C# work, read `services/http-worker/CSHARP-RULES.md` first.**
 **Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**
 
 # Mandatory Benchmark Rule — All Languages
@@ -15,7 +14,6 @@ Every hot-path function must have a benchmark before merge. No exceptions.
 
 - **C++**: `backend/extensions/benchmarks/bench_*.cpp` using Google Benchmark. 3 input sizes.
 - **Python**: `backend/benchmarks/test_bench_*.py` using pytest-benchmark. 3 input sizes.
-- **C#**: `services/http-worker/benchmarks/*Benchmarks.cs` using BenchmarkDotNet. `[Params]` for 3 sizes.
 
 This applies to past, present, and future code. The Performance Dashboard at `/performance` shows results.
 
@@ -27,7 +25,7 @@ Before implementing any new feature or idea:
 1. **Patent/technical doc research** — Find at least one patent, RFC, or peer-reviewed paper that supports the approach. Document the reference in the feature spec.
 2. **Duplicate/overlap check** — Search the codebase for existing implementations that overlap. If overlap exists, extend the existing code rather than creating new code.
 3. **Regression check** — Identify any existing behavior that could break. Document what needs testing.
-4. **Architecture alignment** — Verify the approach fits the existing architecture (C# for I/O, C++ for CPU, Python for ML, Angular for UI).
+4. **Architecture alignment** — Verify the approach fits the existing architecture (C++ for CPU, Python for ML/Orchestration, Angular for UI).
 5. **Flag conflicts** — If the idea conflicts with an existing feature, flag it for review before proceeding.
 
 When responding to the user in this repository:
@@ -198,7 +196,7 @@ Never render validation errors with a custom `<div class="error">` or inline sty
 Every AI session must follow these rules to prevent Docker disk bloat:
 
 - Never add a `build:` block to a service that can reuse an existing image. Use `image:` instead.
-- The build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. `xf-linker-http-worker:latest` is shared by http-worker-api and http-worker-queue. Do not break this.
+- The build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. Do not break this.
 - After any `docker-compose build`, immediately run `docker image prune -f` to remove dangling images (old leftover copies).
 - Never run `docker-compose down -v` — the `-v` flag deletes the database and all embeddings. Use `docker-compose down` only (no `-v`).
 - For backend sessions, follow the canonical migration and safe-prune policy in `AGENTS.md`.

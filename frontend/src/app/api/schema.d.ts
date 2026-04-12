@@ -15,7 +15,7 @@ export interface paths {
          * @description Generate the Google OAuth authorization URL.
          *     Requires analytics.google_oauth_client_id and analytics.google_oauth_client_secret to be set.
          */
-        get: operations["api_analytics_oauth_authorize_retrieve"];
+        get: operations["analytics_oauth_authorize_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -35,7 +35,7 @@ export interface paths {
          * @description Handle the callback from Google OAuth.
          *     Exchange the code for a refresh token and save it.
          */
-        get: operations["api_analytics_oauth_callback_retrieve"];
+        get: operations["analytics_oauth_callback_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -54,7 +54,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Remove the saved Google OAuth refresh token. */
-        post: operations["api_analytics_oauth_unlink_create"];
+        post: operations["analytics_oauth_unlink_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -69,7 +69,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List applied suggestions with GSC impact results. */
-        get: operations["api_analytics_search_impact_retrieve"];
+        get: operations["analytics_search_impact_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -86,7 +86,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Detailed keyword lift for one suggestion. */
-        get: operations["api_analytics_search_impact_retrieve_2"];
+        get: operations["analytics_search_impact_retrieve_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -103,9 +103,9 @@ export interface paths {
             cookie?: never;
         };
         /** @description Get and save GA4 telemetry settings. */
-        get: operations["api_analytics_settings_ga4_retrieve"];
+        get: operations["analytics_settings_ga4_retrieve"];
         /** @description Get and save GA4 telemetry settings. */
-        put: operations["api_analytics_settings_ga4_update"];
+        put: operations["analytics_settings_ga4_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -123,7 +123,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Run a lightweight GA4 Measurement Protocol test. */
-        post: operations["api_analytics_settings_ga4_test_connection_create"];
+        post: operations["analytics_settings_ga4_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -140,7 +140,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Run a lightweight GA4 Data API read test. */
-        post: operations["api_analytics_settings_ga4_test_read_connection_create"];
+        post: operations["analytics_settings_ga4_test_read_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -155,9 +155,9 @@ export interface paths {
             cookie?: never;
         };
         /** @description Get and save the shared Google OAuth app credentials. */
-        get: operations["api_analytics_settings_google_oauth_retrieve"];
+        get: operations["analytics_settings_google_oauth_retrieve"];
         /** @description Get and save the shared Google OAuth app credentials. */
-        put: operations["api_analytics_settings_google_oauth_update"];
+        put: operations["analytics_settings_google_oauth_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -173,9 +173,9 @@ export interface paths {
             cookie?: never;
         };
         /** @description Get and save GSC settings. */
-        get: operations["api_analytics_settings_gsc_retrieve"];
+        get: operations["analytics_settings_gsc_retrieve"];
         /** @description Get and save GSC settings. */
-        put: operations["api_analytics_settings_gsc_update"];
+        put: operations["analytics_settings_gsc_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -193,7 +193,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Test GSC service account access. */
-        post: operations["api_analytics_settings_gsc_test_connection_create"];
+        post: operations["analytics_settings_gsc_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -208,9 +208,9 @@ export interface paths {
             cookie?: never;
         };
         /** @description Get and save Matomo telemetry settings. */
-        get: operations["api_analytics_settings_matomo_retrieve"];
+        get: operations["analytics_settings_matomo_retrieve"];
         /** @description Get and save Matomo telemetry settings. */
-        put: operations["api_analytics_settings_matomo_update"];
+        put: operations["analytics_settings_matomo_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -228,7 +228,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Run a lightweight Matomo API test. */
-        post: operations["api_analytics_settings_matomo_test_connection_create"];
+        post: operations["analytics_settings_matomo_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -243,7 +243,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return simple device and channel breakdowns for the selected telemetry window. */
-        get: operations["api_analytics_telemetry_breakdowns_retrieve"];
+        get: operations["analytics_telemetry_breakdowns_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -260,7 +260,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Compare performance metrics group by algorithm version. */
-        get: operations["api_analytics_telemetry_by_version_retrieve"];
+        get: operations["analytics_telemetry_by_version_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -277,7 +277,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return the simple FR-016 funnel for the selected source and time window. */
-        get: operations["api_analytics_telemetry_funnel_retrieve"];
+        get: operations["analytics_telemetry_funnel_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -296,7 +296,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Queue a GA4 telemetry sync run. */
-        post: operations["api_analytics_telemetry_ga4_sync_create"];
+        post: operations["analytics_telemetry_ga4_sync_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -311,7 +311,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return a detailed country+region breakdown for the selected telemetry window. */
-        get: operations["api_analytics_telemetry_geo_detail_retrieve"];
+        get: operations["analytics_telemetry_geo_detail_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -330,7 +330,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Queue a GSC performance sync run. */
-        post: operations["api_analytics_telemetry_gsc_sync_create"];
+        post: operations["analytics_telemetry_gsc_sync_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -345,7 +345,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return simple telemetry-health rollups for the selected time window. */
-        get: operations["api_analytics_telemetry_health_retrieve"];
+        get: operations["analytics_telemetry_health_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -362,7 +362,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return copy-ready browser bridge instructions for FR-016 Slice 2. */
-        get: operations["api_analytics_telemetry_integration_retrieve"];
+        get: operations["analytics_telemetry_integration_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -381,7 +381,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Queue a Matomo telemetry sync run. */
-        post: operations["api_analytics_telemetry_matomo_sync_create"];
+        post: operations["analytics_telemetry_matomo_sync_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -396,7 +396,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Small overview payload for the analytics page. */
-        get: operations["api_analytics_telemetry_overview_retrieve"];
+        get: operations["analytics_telemetry_overview_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -413,7 +413,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return the strongest suggestion rows in the selected telemetry window. */
-        get: operations["api_analytics_telemetry_top_suggestions_retrieve"];
+        get: operations["analytics_telemetry_top_suggestions_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -430,7 +430,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return a day-by-day telemetry trend for the selected source and time window. */
-        get: operations["api_analytics_telemetry_trend_retrieve"];
+        get: operations["analytics_telemetry_trend_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -451,7 +451,7 @@ export interface paths {
          *     GET /api/audit-entries/{id}/     — full entry with detail JSON
          *     GET /api/audit-entries/summary/  — action counts grouped by day
          */
-        get: operations["api_audit_entries_list"];
+        get: operations["audit_entries_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -472,7 +472,7 @@ export interface paths {
          *     GET /api/audit-entries/{id}/     — full entry with detail JSON
          *     GET /api/audit-entries/summary/  — action counts grouped by day
          */
-        get: operations["api_audit_entries_retrieve"];
+        get: operations["audit_entries_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -489,7 +489,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Action counts grouped by day (last 30 days by default). */
-        get: operations["api_audit_entries_summary_retrieve"];
+        get: operations["audit_entries_summary_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -508,7 +508,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Deletes the user's auth token, invalidating all future requests with it. */
-        post: operations["api_auth_logout_create"];
+        post: operations["auth_logout_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -526,7 +526,7 @@ export interface paths {
          * @description Returns the currently authenticated user's profile.
          *     Returns 401 when no valid token is provided.
          */
-        get: operations["api_auth_me_retrieve"];
+        get: operations["auth_me_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -545,7 +545,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Token login endpoint — no session auth so CSRF is never checked. */
-        post: operations["api_auth_token_create"];
+        post: operations["auth_token_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -560,7 +560,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/behavioral-hubs/ — list all hubs. */
-        get: operations["api_behavioral_hubs_retrieve"];
+        get: operations["behavioral_hubs_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -577,14 +577,14 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET/PATCH /api/behavioral-hubs/<hub_id>/ */
-        get: operations["api_behavioral_hubs_retrieve_2"];
+        get: operations["behavioral_hubs_retrieve_2"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /** @description GET/PATCH /api/behavioral-hubs/<hub_id>/ */
-        patch: operations["api_behavioral_hubs_partial_update"];
+        patch: operations["behavioral_hubs_partial_update"];
         trace?: never;
     };
     "/api/behavioral-hubs/{hub_id}/members/": {
@@ -597,7 +597,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/behavioral-hubs/<hub_id>/members/ — manually add a member. */
-        post: operations["api_behavioral_hubs_members_create"];
+        post: operations["behavioral_hubs_members_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -615,7 +615,7 @@ export interface paths {
         put?: never;
         post?: never;
         /** @description DELETE /api/behavioral-hubs/<hub_id>/members/<content_item_id>/ — remove a member. */
-        delete: operations["api_behavioral_hubs_members_destroy"];
+        delete: operations["behavioral_hubs_members_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -631,7 +631,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/behavioral-hubs/detect/ — trigger hub detection on-demand. */
-        post: operations["api_behavioral_hubs_detect_create"];
+        post: operations["behavioral_hubs_detect_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -646,7 +646,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/benchmarks/ — list all runs. */
-        get: operations["api_benchmarks_retrieve"];
+        get: operations["benchmarks_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -663,7 +663,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/benchmarks/{id}/ — single run with all results. */
-        get: operations["api_benchmarks_retrieve_2"];
+        get: operations["benchmarks_retrieve_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -680,7 +680,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/benchmarks/{id}/report/ — AI-readable text report. */
-        get: operations["api_benchmarks_report_retrieve"];
+        get: operations["benchmarks_report_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -697,7 +697,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/benchmarks/latest/ — most recent completed run. */
-        get: operations["api_benchmarks_latest_retrieve"];
+        get: operations["benchmarks_latest_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -714,7 +714,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/benchmarks/trends/ — last 30 days of results (medium size). */
-        get: operations["api_benchmarks_trends_retrieve"];
+        get: operations["benchmarks_trends_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -733,7 +733,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/benchmarks/trigger/ — start a manual benchmark run. */
-        post: operations["api_benchmarks_trigger_create"];
+        post: operations["benchmarks_trigger_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -755,7 +755,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        get: operations["api_broken_links_list"];
+        get: operations["broken_links_list"];
         put?: never;
         /**
          * @description Link-health endpoints.
@@ -765,7 +765,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        post: operations["api_broken_links_create"];
+        post: operations["broken_links_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -787,7 +787,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        get: operations["api_broken_links_retrieve"];
+        get: operations["broken_links_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -801,7 +801,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        patch: operations["api_broken_links_partial_update"];
+        patch: operations["broken_links_partial_update"];
         trace?: never;
     };
     "/api/broken-links/export-csv/": {
@@ -819,7 +819,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        get: operations["api_broken_links_export_csv_retrieve"];
+        get: operations["broken_links_export_csv_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -845,7 +845,7 @@ export interface paths {
          *     POST  /api/broken-links/scan/
          *     GET   /api/broken-links/export-csv/
          */
-        post: operations["api_broken_links_scan_create"];
+        post: operations["broken_links_scan_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -866,7 +866,7 @@ export interface paths {
          *     GET /api/content/{id}/         — full detail with distilled_text
          *     GET /api/content/{id}/sentences/ — list sentences for this content item
          */
-        get: operations["api_content_list"];
+        get: operations["content_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -889,7 +889,7 @@ export interface paths {
          *     GET /api/content/{id}/         — full detail with distilled_text
          *     GET /api/content/{id}/sentences/ — list sentences for this content item
          */
-        get: operations["api_content_retrieve"];
+        get: operations["content_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -906,7 +906,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return all sentences extracted from this content item's post. */
-        get: operations["api_content_sentences_retrieve"];
+        get: operations["content_sentences_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -925,7 +925,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/cooccurrence/compute/ — trigger on-demand run. */
-        post: operations["api_cooccurrence_compute_create"];
+        post: operations["cooccurrence_compute_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -940,7 +940,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/cooccurrence/pairs/ — list pairs with optional filters. */
-        get: operations["api_cooccurrence_pairs_retrieve"];
+        get: operations["cooccurrence_pairs_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -957,7 +957,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/cooccurrence/pairs/<source_id>/ — all pairs for a source content item. */
-        get: operations["api_cooccurrence_pairs_retrieve_2"];
+        get: operations["cooccurrence_pairs_retrieve_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -974,7 +974,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description GET /api/cooccurrence/runs/ — list computation run records. */
-        get: operations["api_cooccurrence_runs_retrieve"];
+        get: operations["cooccurrence_runs_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -991,7 +991,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Lightweight data for the crawler page context header bar. */
-        get: operations["api_crawler_context_retrieve"];
+        get: operations["crawler_context_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1008,7 +1008,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Activity feed for the Dashboard. Most recent 50 events. */
-        get: operations["api_crawler_events_list"];
+        get: operations["crawler_events_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1025,7 +1025,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Activity feed for the Dashboard. Most recent 50 events. */
-        get: operations["api_crawler_events_retrieve"];
+        get: operations["crawler_events_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1042,7 +1042,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List internal links discovered during crawl. */
-        get: operations["api_crawler_links_list"];
+        get: operations["crawler_links_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1059,7 +1059,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List internal links discovered during crawl. */
-        get: operations["api_crawler_links_retrieve"];
+        get: operations["crawler_links_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1076,7 +1076,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List and detail view for crawled page metadata. */
-        get: operations["api_crawler_pages_list"];
+        get: operations["crawler_pages_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1093,7 +1093,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List and detail view for crawled page metadata. */
-        get: operations["api_crawler_pages_retrieve"];
+        get: operations["crawler_pages_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1110,7 +1110,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Aggregated SEO audit summary for the latest completed crawl session. */
-        get: operations["api_crawler_seo_audit_retrieve"];
+        get: operations["crawler_seo_audit_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1127,10 +1127,10 @@ export interface paths {
             cookie?: never;
         };
         /** @description Manage crawl sessions: list, start, pause, resume. */
-        get: operations["api_crawler_sessions_list"];
+        get: operations["crawler_sessions_list"];
         put?: never;
         /** @description Start a new crawl session or resume a paused one. */
-        post: operations["api_crawler_sessions_create"];
+        post: operations["crawler_sessions_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1145,16 +1145,16 @@ export interface paths {
             cookie?: never;
         };
         /** @description Manage crawl sessions: list, start, pause, resume. */
-        get: operations["api_crawler_sessions_retrieve"];
+        get: operations["crawler_sessions_retrieve"];
         /** @description Manage crawl sessions: list, start, pause, resume. */
-        put: operations["api_crawler_sessions_update"];
+        put: operations["crawler_sessions_update"];
         post?: never;
         /** @description Manage crawl sessions: list, start, pause, resume. */
-        delete: operations["api_crawler_sessions_destroy"];
+        delete: operations["crawler_sessions_destroy"];
         options?: never;
         head?: never;
         /** @description Manage crawl sessions: list, start, pause, resume. */
-        patch: operations["api_crawler_sessions_partial_update"];
+        patch: operations["crawler_sessions_partial_update"];
         trace?: never;
     };
     "/api/crawler/sessions/{session_id}/pause/": {
@@ -1167,7 +1167,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Pause a running crawl session. */
-        post: operations["api_crawler_sessions_pause_create"];
+        post: operations["crawler_sessions_pause_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1182,10 +1182,10 @@ export interface paths {
             cookie?: never;
         };
         /** @description Manage sitemap URL configuration per domain. */
-        get: operations["api_crawler_sitemaps_list"];
+        get: operations["crawler_sitemaps_list"];
         put?: never;
         /** @description Manage sitemap URL configuration per domain. */
-        post: operations["api_crawler_sitemaps_create"];
+        post: operations["crawler_sitemaps_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1200,16 +1200,16 @@ export interface paths {
             cookie?: never;
         };
         /** @description Manage sitemap URL configuration per domain. */
-        get: operations["api_crawler_sitemaps_retrieve"];
+        get: operations["crawler_sitemaps_retrieve"];
         /** @description Manage sitemap URL configuration per domain. */
-        put: operations["api_crawler_sitemaps_update"];
+        put: operations["crawler_sitemaps_update"];
         post?: never;
         /** @description Manage sitemap URL configuration per domain. */
-        delete: operations["api_crawler_sitemaps_destroy"];
+        delete: operations["crawler_sitemaps_destroy"];
         options?: never;
         head?: never;
         /** @description Manage sitemap URL configuration per domain. */
-        patch: operations["api_crawler_sitemaps_partial_update"];
+        patch: operations["crawler_sitemaps_partial_update"];
         trace?: never;
     };
     "/api/crawler/sitemaps/{id}/test/": {
@@ -1222,7 +1222,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Test-fetch a sitemap and report URL count. */
-        post: operations["api_crawler_sitemaps_test_create"];
+        post: operations["crawler_sitemaps_test_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1239,7 +1239,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Auto-discover sitemaps for a domain by checking common locations. */
-        post: operations["api_crawler_sitemaps_auto_discover_create"];
+        post: operations["crawler_sitemaps_auto_discover_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1263,7 +1263,7 @@ export interface paths {
          *     - recent pipeline runs (last 5)
          *     - recent import jobs (last 5)
          */
-        get: operations["api_dashboard_retrieve"];
+        get: operations["dashboard_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1280,7 +1280,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List pipeline skip diagnostics for the 'why no suggestion?' explorer. */
-        get: operations["api_diagnostics_list"];
+        get: operations["diagnostics_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1297,7 +1297,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List pipeline skip diagnostics for the 'why no suggestion?' explorer. */
-        get: operations["api_diagnostics_retrieve"];
+        get: operations["diagnostics_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1323,7 +1323,7 @@ export interface paths {
          *       ?search=<text>                                — icontains on canonical_form
          *       ?page=<n>                                     — pagination
          */
-        get: operations["api_graph_entities_list"];
+        get: operations["graph_entities_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1357,7 +1357,7 @@ export interface paths {
          *         "total_ghost_edges": N,
          *       }
          */
-        get: operations["api_graph_gap_analysis_retrieve"];
+        get: operations["graph_gap_analysis_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1380,7 +1380,7 @@ export interface paths {
          *       - ``orphan`` (default): pages with zero inbound internal links.
          *       - ``low_authority``: pages below the 5th percentile PageRank.
          */
-        get: operations["api_graph_orphans_list"];
+        get: operations["graph_orphans_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1404,7 +1404,7 @@ export interface paths {
          *     Triggers a pipeline run scoped to a single content item as the destination,
          *     generating inbound link suggestions for it.
          */
-        post: operations["api_graph_orphans_suggest_create"];
+        post: operations["graph_orphans_suggest_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1423,7 +1423,7 @@ export interface paths {
          *
          *     Streams the audit list as a CSV download.
          */
-        get: operations["api_graph_orphans_export_csv_retrieve"];
+        get: operations["graph_orphans_export_csv_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1446,7 +1446,7 @@ export interface paths {
          *       pr_min, pr_max, total_nodes, concentration_warning, concentration_ratio,
          *       top_authorities (top 20 pages by PageRank with silo name and degree counts).
          */
-        get: operations["api_graph_pagerank_equity_retrieve"];
+        get: operations["graph_pagerank_equity_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1472,7 +1472,7 @@ export interface paths {
          *       { found: true,  path: [{id, title, url}, ...], hops: N }
          *       { found: false, path: [],                       hops: 0 }
          */
-        get: operations["api_graph_path_retrieve"];
+        get: operations["graph_path_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1493,7 +1493,7 @@ export interface paths {
          *
          *     Returns total suggestions, cross-silo count, percentage, and per-pair breakdown.
          */
-        get: operations["api_graph_silo_leakage_retrieve"];
+        get: operations["graph_silo_leakage_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1516,7 +1516,7 @@ export interface paths {
          *       total_nodes, total_edges, entity_count, orphan_count,
          *       connected_pct, topic_count
          */
-        get: operations["api_graph_stats_retrieve"];
+        get: operations["graph_stats_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1545,7 +1545,7 @@ export interface paths {
          *                           sourced from LinkFreshnessEdge instead of ExistingLink.
          *                           When omitted the current live edges are returned.
          */
-        get: operations["api_graph_topology_retrieve"];
+        get: operations["graph_topology_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1569,7 +1569,7 @@ export interface paths {
          *     The seeding step is best-effort: a checker that crashes during seeding
          *     is logged but never allowed to break the list response.
          */
-        get: operations["api_health_list"];
+        get: operations["health_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1586,7 +1586,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description API endpoint for viewing and triggering system health checks. */
-        get: operations["api_health_retrieve"];
+        get: operations["health_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1605,7 +1605,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Trigger a health check for a specific service. */
-        post: operations["api_health_check_create"];
+        post: operations["health_check_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1622,7 +1622,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Immediately trigger a system-wide health check. */
-        post: operations["api_health_check_all_create"];
+        post: operations["health_check_all_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1637,7 +1637,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return a high-level aggregate health status. */
-        get: operations["api_health_summary_retrieve"];
+        get: operations["health_summary_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1656,46 +1656,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Accept a JSONL export file from the user's browser and start an import job. */
-        post: operations["api_import_upload_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/internal/weight-challenger/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * @description POST /api/internal/weight-challenger/
-         *
-         *     Called exclusively by the C# HTTP-worker after an L-BFGS tune run.
-         *     Creates a RankingChallenger record with status='pending'.
-         *
-         *     Expected JSON body:
-         *         {
-         *             "run_id": "<guid>",
-         *             "candidate_weights": {
-         *                 "w_semantic": 0.42,
-         *                 "w_keyword": 0.23,
-         *                 "w_node": 0.20,
-         *                 "w_quality": 0.15
-         *             },
-         *             "baseline_weights": {
-         *                 "w_semantic": 0.40,
-         *                 ...
-         *             },
-         *             "predicted_quality_score": 0.812,    # optional
-         *             "champion_quality_score": 0.771       # optional
-         *         }
-         */
-        post: operations["api_internal_weight_challenger_create"];
+        post: operations["import_upload_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1716,7 +1677,7 @@ export interface paths {
          *     Accepts: { "sentences": ["...", "..."], "max_sentences": int (optional) }
          *     Returns: { "distilled": "..." }
          */
-        post: operations["api_ml_distill_create"];
+        post: operations["ml_distill_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1737,7 +1698,7 @@ export interface paths {
          *     Accepts: { "texts": ["...", "..."] }
          *     Returns: { "embeddings": [[0.1, ...], ...] }
          */
-        post: operations["api_ml_embed_create"];
+        post: operations["ml_embed_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1752,7 +1713,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description List operator alerts with optional filters. */
-        get: operations["api_notifications_alerts_retrieve"];
+        get: operations["notifications_alerts_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1771,7 +1732,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Acknowledge (dismiss) a single alert. */
-        post: operations["api_notifications_alerts_acknowledge_create"];
+        post: operations["notifications_alerts_acknowledge_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1788,7 +1749,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Mark a single alert as read. */
-        post: operations["api_notifications_alerts_read_create"];
+        post: operations["notifications_alerts_read_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1805,7 +1766,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Mark a single alert as resolved (condition cleared). */
-        post: operations["api_notifications_alerts_resolve_create"];
+        post: operations["notifications_alerts_resolve_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1822,7 +1783,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Acknowledge all unread and read alerts at once. */
-        post: operations["api_notifications_alerts_acknowledge_all_create"];
+        post: operations["notifications_alerts_acknowledge_all_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1837,7 +1798,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return unread counts by severity plus the latest alert timestamp. */
-        get: operations["api_notifications_alerts_summary_retrieve"];
+        get: operations["notifications_alerts_summary_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1856,7 +1817,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Fire a synthetic alert so the operator can test bell, toast, and sound. */
-        post: operations["api_notifications_test_create"];
+        post: operations["notifications_test_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1877,7 +1838,7 @@ export interface paths {
          *     GET  /api/pipeline-runs/{id}/    — full detail with progress
          *     POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
          */
-        get: operations["api_pipeline_runs_list"];
+        get: operations["pipeline_runs_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1900,7 +1861,7 @@ export interface paths {
          *     GET  /api/pipeline-runs/{id}/    — full detail with progress
          *     POST /api/pipeline-runs/start/   — create and dispatch a new pipeline run
          */
-        get: operations["api_pipeline_runs_retrieve"];
+        get: operations["pipeline_runs_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1919,7 +1880,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Create a new PipelineRun and dispatch it to Celery. */
-        post: operations["api_pipeline_runs_start_create"];
+        post: operations["pipeline_runs_start_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1940,7 +1901,7 @@ export interface paths {
          *     GET    /api/plugins/{slug}/settings/ — list plugin-specific settings
          *     PATCH  /api/plugins/{slug}/settings/ — bulk-update settings
          */
-        get: operations["api_plugins_list"];
+        get: operations["plugins_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1963,7 +1924,7 @@ export interface paths {
          *     GET    /api/plugins/{slug}/settings/ — list plugin-specific settings
          *     PATCH  /api/plugins/{slug}/settings/ — bulk-update settings
          */
-        get: operations["api_plugins_retrieve"];
+        get: operations["plugins_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1976,7 +1937,7 @@ export interface paths {
          *     GET    /api/plugins/{slug}/settings/ — list plugin-specific settings
          *     PATCH  /api/plugins/{slug}/settings/ — bulk-update settings
          */
-        patch: operations["api_plugins_partial_update"];
+        patch: operations["plugins_partial_update"];
         trace?: never;
     };
     "/api/plugins/{slug}/settings/": {
@@ -2001,7 +1962,7 @@ export interface paths {
          *     under the REST_FRAMEWORK name. It is not intended to be used by 3rd-party
          *     apps, and test helpers like `override_settings` may not work as expected.
          */
-        get: operations["api_plugins_settings_retrieve"];
+        get: operations["plugins_settings_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2022,7 +1983,7 @@ export interface paths {
          *     under the REST_FRAMEWORK name. It is not intended to be used by 3rd-party
          *     apps, and test helpers like `override_settings` may not work as expected.
          */
-        patch: operations["api_plugins_settings_partial_update"];
+        patch: operations["plugins_settings_partial_update"];
         trace?: never;
     };
     "/api/reviewer-scorecards/": {
@@ -2036,7 +1997,7 @@ export interface paths {
          * @description GET /api/reviewer-scorecards/       — paginated scorecard list
          *     GET /api/reviewer-scorecards/{id}/  — single scorecard
          */
-        get: operations["api_reviewer_scorecards_list"];
+        get: operations["reviewer_scorecards_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2056,7 +2017,7 @@ export interface paths {
          * @description GET /api/reviewer-scorecards/       — paginated scorecard list
          *     GET /api/reviewer-scorecards/{id}/  — single scorecard
          */
-        get: operations["api_reviewer_scorecards_retrieve"];
+        get: operations["reviewer_scorecards_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2072,7 +2033,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_scopes_list"];
+        get: operations["scopes_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2088,13 +2049,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_scopes_retrieve"];
+        get: operations["scopes_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
-        patch: operations["api_scopes_partial_update"];
+        patch: operations["scopes_partial_update"];
         trace?: never;
     };
     "/api/scopes/enabled/": {
@@ -2105,7 +2066,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return only enabled scope items. */
-        get: operations["api_scopes_enabled_retrieve"];
+        get: operations["scopes_enabled_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2125,12 +2086,12 @@ export interface paths {
          * @description GET  /api/settings/appearance/ — returns current appearance config (or defaults)
          *     PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
          */
-        get: operations["api_settings_appearance_retrieve"];
+        get: operations["settings_appearance_retrieve"];
         /**
          * @description GET  /api/settings/appearance/ — returns current appearance config (or defaults)
          *     PUT  /api/settings/appearance/ — merge-updates the config, returns updated config
          */
-        put: operations["api_settings_appearance_update"];
+        put: operations["settings_appearance_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2149,12 +2110,12 @@ export interface paths {
          * @description GET /api/settings/click-distance/
          *     PUT /api/settings/click-distance/
          */
-        get: operations["api_settings_click_distance_retrieve"];
+        get: operations["settings_click_distance_retrieve"];
         /**
          * @description GET /api/settings/click-distance/
          *     PUT /api/settings/click-distance/
          */
-        put: operations["api_settings_click_distance_update"];
+        put: operations["settings_click_distance_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2172,7 +2133,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Trigger bulk recalculation of click distance scores. */
-        post: operations["api_settings_click_distance_recalculate_create"];
+        post: operations["settings_click_distance_recalculate_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2190,12 +2151,12 @@ export interface paths {
          * @description GET  /api/settings/clustering/ - returns FR-014 clustering configuration
          *     PUT  /api/settings/clustering/ - validates and persists clustering configuration
          */
-        get: operations["api_settings_clustering_retrieve"];
+        get: operations["settings_clustering_retrieve"];
         /**
          * @description GET  /api/settings/clustering/ - returns FR-014 clustering configuration
          *     PUT  /api/settings/clustering/ - validates and persists clustering configuration
          */
-        put: operations["api_settings_clustering_update"];
+        put: operations["settings_clustering_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2213,7 +2174,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/clustering/recalculate/ - run batch clustering pass. */
-        post: operations["api_settings_clustering_recalculate_create"];
+        post: operations["settings_clustering_recalculate_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2231,47 +2192,13 @@ export interface paths {
          * @description GET  /api/settings/cooccurrence/ — return operational co-occurrence settings
          *     PUT  /api/settings/cooccurrence/ — persist settings
          */
-        get: operations["api_settings_cooccurrence_retrieve"];
+        get: operations["settings_cooccurrence_retrieve"];
         /**
          * @description GET  /api/settings/cooccurrence/ — return operational co-occurrence settings
          *     PUT  /api/settings/cooccurrence/ — persist settings
          */
-        put: operations["api_settings_cooccurrence_update"];
+        put: operations["settings_cooccurrence_update"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/cs-tune/evaluate/{run_id}/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description POST /api/settings/cs-tune/evaluate/<run_id>/ — manually evaluate a pending challenger. */
-        post: operations["api_settings_cs_tune_evaluate_create"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/cs-tune/trigger/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description POST /api/settings/cs-tune/trigger/ — manually trigger a FR-018 C# weight-tune run. */
-        post: operations["api_settings_cs_tune_trigger_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2289,12 +2216,12 @@ export interface paths {
          * @description GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
          *     PUT  /api/settings/explore-exploit/ - validates and persists those settings
          */
-        get: operations["api_settings_explore_exploit_retrieve"];
+        get: operations["settings_explore_exploit_retrieve"];
         /**
          * @description GET  /api/settings/explore-exploit/ - returns FR-013 explore/exploit settings
          *     PUT  /api/settings/explore-exploit/ - validates and persists those settings
          */
-        put: operations["api_settings_explore_exploit_update"];
+        put: operations["settings_explore_exploit_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2312,9 +2239,9 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/favicon/ — upload site favicon (PNG, SVG, ICO ≤ 2 MB). */
-        post: operations["api_settings_favicon_create"];
+        post: operations["settings_favicon_create"];
         /** @description POST /api/settings/favicon/ — upload site favicon (PNG, SVG, ICO ≤ 2 MB). */
-        delete: operations["api_settings_favicon_destroy"];
+        delete: operations["settings_favicon_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2331,12 +2258,12 @@ export interface paths {
          * @description GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
          *     PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
          */
-        get: operations["api_settings_field_aware_relevance_retrieve"];
+        get: operations["settings_field_aware_relevance_retrieve"];
         /**
          * @description GET  /api/settings/field-aware-relevance/ - returns FR-011 field-aware settings
          *     PUT  /api/settings/field-aware-relevance/ - validates and persists those settings
          */
-        put: operations["api_settings_field_aware_relevance_update"];
+        put: operations["settings_field_aware_relevance_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2355,12 +2282,12 @@ export interface paths {
          * @description GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
          *     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
          */
-        get: operations["api_settings_ga4_gsc_retrieve"];
+        get: operations["settings_ga4_gsc_retrieve"];
         /**
          * @description GET  /api/settings/ga4-gsc/ - returns GA4/GSC settings including GSC credentials
          *     PUT  /api/settings/ga4-gsc/ - validates and persists those settings
          */
-        put: operations["api_settings_ga4_gsc_update"];
+        put: operations["settings_ga4_gsc_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2378,7 +2305,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/ga4-gsc/test-connection/ - validate Search Console credentials. */
-        post: operations["api_settings_ga4_gsc_test_connection_create"];
+        post: operations["settings_ga4_gsc_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2396,12 +2323,12 @@ export interface paths {
          * @description GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
          *     PUT  /api/settings/graph-candidate/ - validates and persists those settings
          */
-        get: operations["api_settings_graph_candidate_retrieve"];
+        get: operations["settings_graph_candidate_retrieve"];
         /**
          * @description GET  /api/settings/graph-candidate/ - returns FR-021 graph-walk settings
          *     PUT  /api/settings/graph-candidate/ - validates and persists those settings
          */
-        put: operations["api_settings_graph_candidate_update"];
+        put: operations["settings_graph_candidate_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2419,7 +2346,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/graph/rebuild/ - manual trigger for bipartite graph refresh. */
-        post: operations["api_settings_graph_rebuild_create"];
+        post: operations["settings_graph_rebuild_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2437,12 +2364,12 @@ export interface paths {
          * @description GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
          *     PUT  /api/settings/learned-anchor/ - validates and persists those settings
          */
-        get: operations["api_settings_learned_anchor_retrieve"];
+        get: operations["settings_learned_anchor_retrieve"];
         /**
          * @description GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
          *     PUT  /api/settings/learned-anchor/ - validates and persists those settings
          */
-        put: operations["api_settings_learned_anchor_update"];
+        put: operations["settings_learned_anchor_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2461,12 +2388,12 @@ export interface paths {
          * @description GET  /api/settings/link-freshness/ - returns Link Freshness settings
          *     PUT  /api/settings/link-freshness/ - validates and persists those settings
          */
-        get: operations["api_settings_link_freshness_retrieve"];
+        get: operations["settings_link_freshness_retrieve"];
         /**
          * @description GET  /api/settings/link-freshness/ - returns Link Freshness settings
          *     PUT  /api/settings/link-freshness/ - validates and persists those settings
          */
-        put: operations["api_settings_link_freshness_update"];
+        put: operations["settings_link_freshness_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2484,7 +2411,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/link-freshness/recalculate/ - recalculate Link Freshness. */
-        post: operations["api_settings_link_freshness_recalculate_create"];
+        post: operations["settings_link_freshness_recalculate_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2501,9 +2428,9 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/logo/ — upload site logo (PNG, SVG, WEBP, JPEG ≤ 2 MB). */
-        post: operations["api_settings_logo_create"];
+        post: operations["settings_logo_create"];
         /** @description POST /api/settings/logo/ — upload site logo (PNG, SVG, WEBP, JPEG ≤ 2 MB). */
-        delete: operations["api_settings_logo_destroy"];
+        delete: operations["settings_logo_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2517,9 +2444,9 @@ export interface paths {
             cookie?: never;
         };
         /** @description Read and update notification delivery preferences. */
-        get: operations["api_settings_notifications_retrieve"];
+        get: operations["settings_notifications_retrieve"];
         /** @description Read and update notification delivery preferences. */
-        put: operations["api_settings_notifications_update"];
+        put: operations["settings_notifications_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2538,30 +2465,13 @@ export interface paths {
          * @description GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
          *     PUT  /api/settings/phrase-matching/ - validates and persists those settings
          */
-        get: operations["api_settings_phrase_matching_retrieve"];
+        get: operations["settings_phrase_matching_retrieve"];
         /**
          * @description GET  /api/settings/phrase-matching/ - returns FR-008 phrase-matching settings
          *     PUT  /api/settings/phrase-matching/ - validates and persists those settings
          */
-        put: operations["api_settings_phrase_matching_update"];
+        put: operations["settings_phrase_matching_update"];
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/settings/r-tune/trigger/": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** @description POST /api/settings/r-tune/trigger/ — manually queue the monthly R auto-tune task. */
-        post: operations["api_settings_r_tune_trigger_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2579,12 +2489,12 @@ export interface paths {
          * @description GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
          *     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
          */
-        get: operations["api_settings_rare_term_propagation_retrieve"];
+        get: operations["settings_rare_term_propagation_retrieve"];
         /**
          * @description GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
          *     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
          */
-        put: operations["api_settings_rare_term_propagation_update"];
+        put: operations["settings_rare_term_propagation_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2603,12 +2513,12 @@ export interface paths {
          * @description GET  /api/settings/silos/ - returns persisted silo-ranking configuration
          *     PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
          */
-        get: operations["api_settings_silos_retrieve"];
+        get: operations["settings_silos_retrieve"];
         /**
          * @description GET  /api/settings/silos/ - returns persisted silo-ranking configuration
          *     PUT  /api/settings/silos/ - validates and persists silo-ranking configuration
          */
-        put: operations["api_settings_silos_update"];
+        put: operations["settings_silos_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2627,12 +2537,12 @@ export interface paths {
          * @description GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
          *     PUT  /api/settings/slate-diversity/ - validates and persists those settings
          */
-        get: operations["api_settings_slate_diversity_retrieve"];
+        get: operations["settings_slate_diversity_retrieve"];
         /**
          * @description GET  /api/settings/slate-diversity/ - returns FR-015 slate diversity settings
          *     PUT  /api/settings/slate-diversity/ - validates and persists those settings
          */
-        put: operations["api_settings_slate_diversity_update"];
+        put: operations["settings_slate_diversity_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2662,7 +2572,7 @@ export interface paths {
          *     * paragraph_window — block a second suggestion within this many sentence
          *       positions of an already-selected one on the same host (default 3).
          */
-        get: operations["api_settings_spam_guards_retrieve"];
+        get: operations["settings_spam_guards_retrieve"];
         /**
          * @description GET  /api/settings/spam-guards/  — returns current spam-guard limits
          *     PUT  /api/settings/spam-guards/  — validates and persists new limits
@@ -2678,7 +2588,7 @@ export interface paths {
          *     * paragraph_window — block a second suggestion within this many sentence
          *       positions of an already-selected one on the same host (default 3).
          */
-        put: operations["api_settings_spam_guards_update"];
+        put: operations["settings_spam_guards_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2697,12 +2607,12 @@ export interface paths {
          * @description GET  /api/settings/value-model/ - returns FR-021 value model settings
          *     PUT  /api/settings/value-model/ - validates and persists those settings
          */
-        get: operations["api_settings_value_model_retrieve"];
+        get: operations["settings_value_model_retrieve"];
         /**
          * @description GET  /api/settings/value-model/ - returns FR-021 value model settings
          *     PUT  /api/settings/value-model/ - validates and persists those settings
          */
-        put: operations["api_settings_value_model_update"];
+        put: operations["settings_value_model_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2721,12 +2631,12 @@ export interface paths {
          * @description GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
          *     PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
          */
-        get: operations["api_settings_webhooks_retrieve"];
+        get: operations["settings_webhooks_retrieve"];
         /**
          * @description GET  /api/settings/webhooks/ — returns whether each webhook secret is configured
          *     PUT  /api/settings/webhooks/ — saves webhook secrets to AppSetting
          */
-        put: operations["api_settings_webhooks_update"];
+        put: operations["settings_webhooks_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2744,7 +2654,41 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/webhooks/test/ — verify internal webhook receiver endpoints are alive. */
-        post: operations["api_settings_webhooks_test_create"];
+        post: operations["settings_webhooks_test_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/weight-tune/evaluate/{run_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/settings/weight-tune/evaluate/<run_id>/ — manually evaluate a pending challenger. */
+        post: operations["settings_weight_tune_evaluate_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/weight-tune/trigger/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/settings/weight-tune/trigger/ — manually trigger a FR-018 weight-tune run. */
+        post: operations["settings_weight_tune_trigger_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2762,12 +2706,12 @@ export interface paths {
          * @description GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
          *     PUT  /api/settings/weighted-authority/ - validates and persists those settings
          */
-        get: operations["api_settings_weighted_authority_retrieve"];
+        get: operations["settings_weighted_authority_retrieve"];
         /**
          * @description GET  /api/settings/weighted-authority/ - returns March 2026 PageRank settings
          *     PUT  /api/settings/weighted-authority/ - validates and persists those settings
          */
-        put: operations["api_settings_weighted_authority_update"];
+        put: operations["settings_weighted_authority_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2785,7 +2729,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/weighted-authority/recalculate/ - recalculate March 2026 PageRank. */
-        post: operations["api_settings_weighted_authority_recalculate_create"];
+        post: operations["settings_weighted_authority_recalculate_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2803,12 +2747,12 @@ export interface paths {
          * @description GET  /api/settings/wordpress/ - returns saved WordPress sync settings
          *     PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
          */
-        get: operations["api_settings_wordpress_retrieve"];
+        get: operations["settings_wordpress_retrieve"];
         /**
          * @description GET  /api/settings/wordpress/ - returns saved WordPress sync settings
          *     PUT  /api/settings/wordpress/ - validates and persists WordPress sync settings
          */
-        put: operations["api_settings_wordpress_update"];
+        put: operations["settings_wordpress_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2826,7 +2770,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/wordpress/test-connection/ — verify WordPress REST API credentials. */
-        post: operations["api_settings_wordpress_test_connection_create"];
+        post: operations["settings_wordpress_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2844,12 +2788,12 @@ export interface paths {
          * @description GET  /api/settings/xenforo/ - returns saved XenForo connection settings
          *     PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
          */
-        get: operations["api_settings_xenforo_retrieve"];
+        get: operations["settings_xenforo_retrieve"];
         /**
          * @description GET  /api/settings/xenforo/ - returns saved XenForo connection settings
          *     PUT  /api/settings/xenforo/ - validates and persists XenForo credentials
          */
-        put: operations["api_settings_xenforo_update"];
+        put: operations["settings_xenforo_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2867,7 +2811,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/settings/xenforo/test-connection/ — verify XenForo API credentials. */
-        post: operations["api_settings_xenforo_test_connection_create"];
+        post: operations["settings_xenforo_test_connection_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2882,10 +2826,10 @@ export interface paths {
             cookie?: never;
         };
         /** @description CRUD API for topical silo groups. */
-        get: operations["api_silo_groups_list"];
+        get: operations["silo_groups_list"];
         put?: never;
         /** @description CRUD API for topical silo groups. */
-        post: operations["api_silo_groups_create"];
+        post: operations["silo_groups_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2900,15 +2844,15 @@ export interface paths {
             cookie?: never;
         };
         /** @description CRUD API for topical silo groups. */
-        get: operations["api_silo_groups_retrieve"];
+        get: operations["silo_groups_retrieve"];
         put?: never;
         post?: never;
         /** @description CRUD API for topical silo groups. */
-        delete: operations["api_silo_groups_destroy"];
+        delete: operations["silo_groups_destroy"];
         options?: never;
         head?: never;
         /** @description CRUD API for topical silo groups. */
-        patch: operations["api_silo_groups_partial_update"];
+        patch: operations["silo_groups_partial_update"];
         trace?: never;
     };
     "/api/suggestions/": {
@@ -2925,10 +2869,10 @@ export interface paths {
          *     "presented" to the requesting user. Deduplicated per user per day
          *     via a unique constraint on SuggestionPresentation.
          */
-        get: operations["api_suggestions_list"];
+        get: operations["suggestions_list"];
         put?: never;
         /** @description List, retrieve, and review link suggestions. */
-        post: operations["api_suggestions_create"];
+        post: operations["suggestions_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2943,14 +2887,14 @@ export interface paths {
             cookie?: never;
         };
         /** @description List, retrieve, and review link suggestions. */
-        get: operations["api_suggestions_retrieve"];
+        get: operations["suggestions_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
         options?: never;
         head?: never;
         /** @description List, retrieve, and review link suggestions. */
-        patch: operations["api_suggestions_partial_update"];
+        patch: operations["suggestions_partial_update"];
         trace?: never;
     };
     "/api/suggestions/{suggestion_id}/apply/": {
@@ -2963,7 +2907,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Mark an approved suggestion as manually applied on the live forum. */
-        post: operations["api_suggestions_apply_create"];
+        post: operations["suggestions_apply_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2980,7 +2924,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Approve a pending suggestion. Optionally accepts anchor_edited. */
-        post: operations["api_suggestions_approve_create"];
+        post: operations["suggestions_approve_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2997,7 +2941,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Reject a pending suggestion with an optional reason. */
-        post: operations["api_suggestions_reject_create"];
+        post: operations["suggestions_reject_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3018,7 +2962,7 @@ export interface paths {
          *
          *     Request body: {"action": "approve|reject|skip", "ids": ["uuid1", "uuid2", ...]}
          */
-        post: operations["api_suggestions_batch_action_create"];
+        post: operations["suggestions_batch_action_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3033,7 +2977,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description API endpoint for viewing synchronization jobs (imports). */
-        get: operations["api_sync_jobs_list"];
+        get: operations["sync_jobs_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3050,7 +2994,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description API endpoint for viewing synchronization jobs (imports). */
-        get: operations["api_sync_jobs_retrieve"];
+        get: operations["sync_jobs_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3071,7 +3015,7 @@ export interface paths {
          *
          *     Returns unified health status for XF and WP sources.
          */
-        get: operations["api_sync_jobs_source_status_retrieve"];
+        get: operations["sync_jobs_source_status_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3090,7 +3034,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Trigger a direct API sync for a specific source (api|wp). */
-        post: operations["api_sync_jobs_trigger_api_sync_create"];
+        post: operations["sync_jobs_trigger_api_sync_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3110,7 +3054,7 @@ export interface paths {
          * @description One-button workflow: Sync all sources + crawl + pipeline.
          *     Dispatches the orchestrator Celery task.
          */
-        post: operations["api_sync_jobs_trigger_full_run_create"];
+        post: operations["sync_jobs_trigger_full_run_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3131,7 +3075,7 @@ export interface paths {
          *
          *     POST /api/v1/sync/webhooks/wordpress/
          */
-        post: operations["api_sync_webhooks_wordpress_create"];
+        post: operations["sync_webhooks_wordpress_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3148,7 +3092,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Real-time webhook receiver for XenForo forum events. */
-        post: operations["api_sync_webhooks_xenforo_create"];
+        post: operations["sync_webhooks_xenforo_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3165,7 +3109,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description POST /api/sync/wordpress/run/ - enqueue a manual WordPress sync job. */
-        post: operations["api_sync_wordpress_run_create"];
+        post: operations["sync_wordpress_run_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3179,9 +3123,9 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_conflicts_list"];
+        get: operations["system_status_conflicts_list"];
         put?: never;
-        post: operations["api_system_status_conflicts_create"];
+        post: operations["system_status_conflicts_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3195,13 +3139,13 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_conflicts_retrieve"];
-        put: operations["api_system_status_conflicts_update"];
+        get: operations["system_status_conflicts_retrieve"];
+        put: operations["system_status_conflicts_update"];
         post?: never;
-        delete: operations["api_system_status_conflicts_destroy"];
+        delete: operations["system_status_conflicts_destroy"];
         options?: never;
         head?: never;
-        patch: operations["api_system_status_conflicts_partial_update"];
+        patch: operations["system_status_conflicts_partial_update"];
         trace?: never;
     };
     "/api/system/status/conflicts/detect/": {
@@ -3213,7 +3157,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["api_system_status_conflicts_detect_create"];
+        post: operations["system_status_conflicts_detect_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3227,7 +3171,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_errors_list"];
+        get: operations["system_status_errors_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3243,7 +3187,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_errors_retrieve"];
+        get: operations["system_status_errors_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3261,7 +3205,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["api_system_status_errors_acknowledge_create"];
+        post: operations["system_status_errors_acknowledge_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3275,7 +3219,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_features_retrieve"];
+        get: operations["system_status_features_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3293,7 +3237,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["api_system_status_internal_scheduler_dispatch_create"];
+        post: operations["system_status_internal_scheduler_dispatch_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3307,7 +3251,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_overview_retrieve"];
+        get: operations["system_status_overview_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3323,7 +3267,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_resources_retrieve"];
+        get: operations["system_status_resources_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3339,7 +3283,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_services_list"];
+        get: operations["system_status_services_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3355,7 +3299,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get: operations["api_system_status_services_retrieve"];
+        get: operations["system_status_services_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3373,7 +3317,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        post: operations["api_system_status_services_refresh_create"];
+        post: operations["system_status_services_refresh_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3392,7 +3336,7 @@ export interface paths {
          *     Provides a read-only view of all 23 ranking and value model signals,
          *     their current weights, storage usage, and C++ acceleration status.
          */
-        get: operations["api_system_status_weights_retrieve"];
+        get: operations["system_status_weights_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3409,7 +3353,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description API endpoint for viewing webhook audit logs. */
-        get: operations["api_webhook_receipts_list"];
+        get: operations["webhook_receipts_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3426,7 +3370,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description API endpoint for viewing webhook audit logs. */
-        get: operations["api_webhook_receipts_retrieve"];
+        get: operations["webhook_receipts_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3446,7 +3390,7 @@ export interface paths {
          * @description Read-only list of all RankingChallenger records.
          *     Also provides a POST /reject/ action for human override.
          */
-        get: operations["api_weight_challengers_list"];
+        get: operations["weight_challengers_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3466,7 +3410,7 @@ export interface paths {
          * @description Read-only list of all RankingChallenger records.
          *     Also provides a POST /reject/ action for human override.
          */
-        get: operations["api_weight_challengers_retrieve"];
+        get: operations["weight_challengers_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3488,7 +3432,7 @@ export interface paths {
          * @description Read-only list of all RankingChallenger records.
          *     Also provides a POST /reject/ action for human override.
          */
-        post: operations["api_weight_challengers_reject_create"];
+        post: operations["weight_challengers_reject_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3503,7 +3447,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Read-only list of all weight adjustment events. */
-        get: operations["api_weight_history_list"];
+        get: operations["weight_history_list"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3520,7 +3464,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Read-only list of all weight adjustment events. */
-        get: operations["api_weight_history_retrieve"];
+        get: operations["weight_history_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3539,7 +3483,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Roll back weights to the previous_weights snapshot of this history row. */
-        post: operations["api_weight_history_rollback_create"];
+        post: operations["weight_history_rollback_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3554,10 +3498,10 @@ export interface paths {
             cookie?: never;
         };
         /** @description CRUD for weight presets + apply action. */
-        get: operations["api_weight_presets_list"];
+        get: operations["weight_presets_list"];
         put?: never;
         /** @description CRUD for weight presets + apply action. */
-        post: operations["api_weight_presets_create"];
+        post: operations["weight_presets_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3572,15 +3516,15 @@ export interface paths {
             cookie?: never;
         };
         /** @description CRUD for weight presets + apply action. */
-        get: operations["api_weight_presets_retrieve"];
+        get: operations["weight_presets_retrieve"];
         put?: never;
         post?: never;
         /** @description CRUD for weight presets + apply action. */
-        delete: operations["api_weight_presets_destroy"];
+        delete: operations["weight_presets_destroy"];
         options?: never;
         head?: never;
         /** @description CRUD for weight presets + apply action. */
-        patch: operations["api_weight_presets_partial_update"];
+        patch: operations["weight_presets_partial_update"];
         trace?: never;
     };
     "/api/weight-presets/{id}/apply/": {
@@ -3593,7 +3537,7 @@ export interface paths {
         get?: never;
         put?: never;
         /** @description Apply this preset's weights atomically to AppSetting and record history. */
-        post: operations["api_weight_presets_apply_create"];
+        post: operations["weight_presets_apply_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3608,7 +3552,7 @@ export interface paths {
             cookie?: never;
         };
         /** @description Return the current in-scope AppSetting values as a weights dict. */
-        get: operations["api_weight_presets_current_retrieve"];
+        get: operations["weight_presets_current_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5725,8 +5669,7 @@ export interface components {
             /**
              * @description What triggered this weight change.
              *
-             *     * `r_auto` - Monthly R auto-tune
-             *     * `cs_auto_tune` - C# L-BFGS auto-tune (FR-018)
+             *     * `auto_tune` - Auto-tune (Poisson-Gamma)
              *     * `manual` - Manual save
              *     * `preset_applied` - Preset applied
              */
@@ -5751,13 +5694,12 @@ export interface components {
             readonly created_at: string;
         };
         /**
-         * @description * `r_auto` - Monthly R auto-tune
-         *     * `cs_auto_tune` - C# L-BFGS auto-tune (FR-018)
+         * @description * `auto_tune` - Auto-tune (Poisson-Gamma)
          *     * `manual` - Manual save
          *     * `preset_applied` - Preset applied
          * @enum {string}
          */
-        WeightAdjustmentHistorySourceEnum: "r_auto" | "cs_auto_tune" | "manual" | "preset_applied";
+        WeightAdjustmentHistorySourceEnum: "auto_tune" | "manual" | "preset_applied";
         WeightPreset: {
             readonly id: number;
             /** @description Friendly name for this preset, e.g. 'Recommended' or 'Authority-heavy'. */
@@ -5786,7 +5728,7 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    api_analytics_oauth_authorize_retrieve: {
+    analytics_oauth_authorize_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -5804,7 +5746,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_oauth_callback_retrieve: {
+    analytics_oauth_callback_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -5822,7 +5764,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_oauth_unlink_create: {
+    analytics_oauth_unlink_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -5840,7 +5782,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_search_impact_retrieve: {
+    analytics_search_impact_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -5858,7 +5800,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_search_impact_retrieve_2: {
+    analytics_search_impact_retrieve_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -5878,7 +5820,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_ga4_retrieve: {
+    analytics_settings_ga4_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -5896,7 +5838,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_ga4_update: {
+    analytics_settings_ga4_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -5914,7 +5856,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_ga4_test_connection_create: {
+    analytics_settings_ga4_test_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -5932,7 +5874,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_ga4_test_read_connection_create: {
+    analytics_settings_ga4_test_read_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -5950,7 +5892,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_google_oauth_retrieve: {
+    analytics_settings_google_oauth_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -5968,7 +5910,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_google_oauth_update: {
+    analytics_settings_google_oauth_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -5986,7 +5928,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_gsc_retrieve: {
+    analytics_settings_gsc_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6004,7 +5946,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_gsc_update: {
+    analytics_settings_gsc_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -6022,7 +5964,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_gsc_test_connection_create: {
+    analytics_settings_gsc_test_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6040,7 +5982,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_matomo_retrieve: {
+    analytics_settings_matomo_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6058,7 +6000,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_matomo_update: {
+    analytics_settings_matomo_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -6076,7 +6018,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_settings_matomo_test_connection_create: {
+    analytics_settings_matomo_test_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6094,7 +6036,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_breakdowns_retrieve: {
+    analytics_telemetry_breakdowns_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6112,7 +6054,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_by_version_retrieve: {
+    analytics_telemetry_by_version_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6130,7 +6072,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_funnel_retrieve: {
+    analytics_telemetry_funnel_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6148,7 +6090,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_ga4_sync_create: {
+    analytics_telemetry_ga4_sync_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6166,7 +6108,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_geo_detail_retrieve: {
+    analytics_telemetry_geo_detail_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6184,7 +6126,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_gsc_sync_create: {
+    analytics_telemetry_gsc_sync_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6202,7 +6144,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_health_retrieve: {
+    analytics_telemetry_health_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6220,7 +6162,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_integration_retrieve: {
+    analytics_telemetry_integration_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6238,7 +6180,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_matomo_sync_create: {
+    analytics_telemetry_matomo_sync_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6256,7 +6198,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_overview_retrieve: {
+    analytics_telemetry_overview_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6274,7 +6216,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_top_suggestions_retrieve: {
+    analytics_telemetry_top_suggestions_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6292,7 +6234,7 @@ export interface operations {
             };
         };
     };
-    api_analytics_telemetry_trend_retrieve: {
+    analytics_telemetry_trend_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6310,7 +6252,7 @@ export interface operations {
             };
         };
     };
-    api_audit_entries_list: {
+    audit_entries_list: {
         parameters: {
             query?: {
                 /**
@@ -6356,7 +6298,7 @@ export interface operations {
             };
         };
     };
-    api_audit_entries_retrieve: {
+    audit_entries_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6378,7 +6320,7 @@ export interface operations {
             };
         };
     };
-    api_audit_entries_summary_retrieve: {
+    audit_entries_summary_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6397,7 +6339,7 @@ export interface operations {
             };
         };
     };
-    api_auth_logout_create: {
+    auth_logout_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6415,7 +6357,7 @@ export interface operations {
             };
         };
     };
-    api_auth_me_retrieve: {
+    auth_me_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6433,7 +6375,7 @@ export interface operations {
             };
         };
     };
-    api_auth_token_create: {
+    auth_token_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6458,7 +6400,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_retrieve: {
+    behavioral_hubs_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6476,7 +6418,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_retrieve_2: {
+    behavioral_hubs_retrieve_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -6496,7 +6438,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_partial_update: {
+    behavioral_hubs_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -6516,7 +6458,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_members_create: {
+    behavioral_hubs_members_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6536,7 +6478,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_members_destroy: {
+    behavioral_hubs_members_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -6557,7 +6499,7 @@ export interface operations {
             };
         };
     };
-    api_behavioral_hubs_detect_create: {
+    behavioral_hubs_detect_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6575,7 +6517,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_retrieve: {
+    benchmarks_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6593,7 +6535,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_retrieve_2: {
+    benchmarks_retrieve_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -6614,7 +6556,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_report_retrieve: {
+    benchmarks_report_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6635,7 +6577,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_latest_retrieve: {
+    benchmarks_latest_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6653,7 +6595,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_trends_retrieve: {
+    benchmarks_trends_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6671,7 +6613,7 @@ export interface operations {
             };
         };
     };
-    api_benchmarks_trigger_create: {
+    benchmarks_trigger_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6689,7 +6631,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_list: {
+    broken_links_list: {
         parameters: {
             query?: {
                 http_status?: number;
@@ -6720,7 +6662,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_create: {
+    broken_links_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6745,7 +6687,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_retrieve: {
+    broken_links_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6766,7 +6708,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_partial_update: {
+    broken_links_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -6793,7 +6735,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_export_csv_retrieve: {
+    broken_links_export_csv_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6812,7 +6754,7 @@ export interface operations {
             };
         };
     };
-    api_broken_links_scan_create: {
+    broken_links_scan_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6837,7 +6779,7 @@ export interface operations {
             };
         };
     };
-    api_content_list: {
+    content_list: {
         parameters: {
             query?: {
                 /**
@@ -6875,7 +6817,7 @@ export interface operations {
             };
         };
     };
-    api_content_retrieve: {
+    content_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6897,7 +6839,7 @@ export interface operations {
             };
         };
     };
-    api_content_sentences_retrieve: {
+    content_sentences_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6919,7 +6861,7 @@ export interface operations {
             };
         };
     };
-    api_cooccurrence_compute_create: {
+    cooccurrence_compute_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -6937,7 +6879,7 @@ export interface operations {
             };
         };
     };
-    api_cooccurrence_pairs_retrieve: {
+    cooccurrence_pairs_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6955,7 +6897,7 @@ export interface operations {
             };
         };
     };
-    api_cooccurrence_pairs_retrieve_2: {
+    cooccurrence_pairs_retrieve_2: {
         parameters: {
             query?: never;
             header?: never;
@@ -6975,7 +6917,7 @@ export interface operations {
             };
         };
     };
-    api_cooccurrence_runs_retrieve: {
+    cooccurrence_runs_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6993,7 +6935,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_context_retrieve: {
+    crawler_context_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7011,7 +6953,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_events_list: {
+    crawler_events_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7035,7 +6977,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_events_retrieve: {
+    crawler_events_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7056,7 +6998,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_links_list: {
+    crawler_links_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7080,7 +7022,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_links_retrieve: {
+    crawler_links_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7102,7 +7044,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_pages_list: {
+    crawler_pages_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7126,7 +7068,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_pages_retrieve: {
+    crawler_pages_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7148,7 +7090,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_seo_audit_retrieve: {
+    crawler_seo_audit_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7166,7 +7108,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_list: {
+    crawler_sessions_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7190,7 +7132,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_create: {
+    crawler_sessions_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7215,7 +7157,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_retrieve: {
+    crawler_sessions_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7237,7 +7179,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_update: {
+    crawler_sessions_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -7265,7 +7207,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_destroy: {
+    crawler_sessions_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -7286,7 +7228,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_partial_update: {
+    crawler_sessions_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -7314,7 +7256,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sessions_pause_create: {
+    crawler_sessions_pause_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7342,7 +7284,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_list: {
+    crawler_sitemaps_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7366,7 +7308,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_create: {
+    crawler_sitemaps_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7391,7 +7333,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_retrieve: {
+    crawler_sitemaps_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7413,7 +7355,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_update: {
+    crawler_sitemaps_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -7441,7 +7383,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_destroy: {
+    crawler_sitemaps_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -7462,7 +7404,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_partial_update: {
+    crawler_sitemaps_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -7490,7 +7432,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_test_create: {
+    crawler_sitemaps_test_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7518,7 +7460,7 @@ export interface operations {
             };
         };
     };
-    api_crawler_sitemaps_auto_discover_create: {
+    crawler_sitemaps_auto_discover_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7543,7 +7485,7 @@ export interface operations {
             };
         };
     };
-    api_dashboard_retrieve: {
+    dashboard_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7561,7 +7503,7 @@ export interface operations {
             };
         };
     };
-    api_diagnostics_list: {
+    diagnostics_list: {
         parameters: {
             query?: {
                 /** @description A page number within the paginated result set. */
@@ -7605,7 +7547,7 @@ export interface operations {
             };
         };
     };
-    api_diagnostics_retrieve: {
+    diagnostics_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7627,7 +7569,7 @@ export interface operations {
             };
         };
     };
-    api_graph_entities_list: {
+    graph_entities_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7655,7 +7597,7 @@ export interface operations {
             };
         };
     };
-    api_graph_gap_analysis_retrieve: {
+    graph_gap_analysis_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7673,7 +7615,7 @@ export interface operations {
             };
         };
     };
-    api_graph_orphans_list: {
+    graph_orphans_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7701,7 +7643,7 @@ export interface operations {
             };
         };
     };
-    api_graph_orphans_suggest_create: {
+    graph_orphans_suggest_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7721,7 +7663,7 @@ export interface operations {
             };
         };
     };
-    api_graph_orphans_export_csv_retrieve: {
+    graph_orphans_export_csv_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7739,7 +7681,7 @@ export interface operations {
             };
         };
     };
-    api_graph_pagerank_equity_retrieve: {
+    graph_pagerank_equity_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7757,7 +7699,7 @@ export interface operations {
             };
         };
     };
-    api_graph_path_retrieve: {
+    graph_path_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7775,7 +7717,7 @@ export interface operations {
             };
         };
     };
-    api_graph_silo_leakage_retrieve: {
+    graph_silo_leakage_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7793,7 +7735,7 @@ export interface operations {
             };
         };
     };
-    api_graph_stats_retrieve: {
+    graph_stats_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7811,7 +7753,7 @@ export interface operations {
             };
         };
     };
-    api_graph_topology_retrieve: {
+    graph_topology_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7829,7 +7771,7 @@ export interface operations {
             };
         };
     };
-    api_health_list: {
+    health_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -7853,7 +7795,7 @@ export interface operations {
             };
         };
     };
-    api_health_retrieve: {
+    health_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7874,7 +7816,7 @@ export interface operations {
             };
         };
     };
-    api_health_check_create: {
+    health_check_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7901,7 +7843,7 @@ export interface operations {
             };
         };
     };
-    api_health_check_all_create: {
+    health_check_all_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7926,7 +7868,7 @@ export interface operations {
             };
         };
     };
-    api_health_summary_retrieve: {
+    health_summary_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -7945,7 +7887,7 @@ export interface operations {
             };
         };
     };
-    api_import_upload_create: {
+    import_upload_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7963,7 +7905,7 @@ export interface operations {
             };
         };
     };
-    api_internal_weight_challenger_create: {
+    ml_distill_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7981,7 +7923,7 @@ export interface operations {
             };
         };
     };
-    api_ml_distill_create: {
+    ml_embed_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7999,7 +7941,7 @@ export interface operations {
             };
         };
     };
-    api_ml_embed_create: {
+    notifications_alerts_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8017,25 +7959,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_alerts_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_notifications_alerts_acknowledge_create: {
+    notifications_alerts_acknowledge_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8055,7 +7979,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_alerts_read_create: {
+    notifications_alerts_read_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8075,7 +7999,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_alerts_resolve_create: {
+    notifications_alerts_resolve_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8095,7 +8019,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_alerts_acknowledge_all_create: {
+    notifications_alerts_acknowledge_all_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8113,7 +8037,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_alerts_summary_retrieve: {
+    notifications_alerts_summary_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8131,7 +8055,7 @@ export interface operations {
             };
         };
     };
-    api_notifications_test_create: {
+    notifications_test_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8149,7 +8073,7 @@ export interface operations {
             };
         };
     };
-    api_pipeline_runs_list: {
+    pipeline_runs_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -8191,7 +8115,7 @@ export interface operations {
             };
         };
     };
-    api_pipeline_runs_retrieve: {
+    pipeline_runs_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8212,7 +8136,7 @@ export interface operations {
             };
         };
     };
-    api_pipeline_runs_start_create: {
+    pipeline_runs_start_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8237,7 +8161,7 @@ export interface operations {
             };
         };
     };
-    api_plugins_list: {
+    plugins_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -8263,7 +8187,7 @@ export interface operations {
             };
         };
     };
-    api_plugins_retrieve: {
+    plugins_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8284,7 +8208,7 @@ export interface operations {
             };
         };
     };
-    api_plugins_partial_update: {
+    plugins_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8311,7 +8235,7 @@ export interface operations {
             };
         };
     };
-    api_plugins_settings_retrieve: {
+    plugins_settings_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8332,7 +8256,7 @@ export interface operations {
             };
         };
     };
-    api_plugins_settings_partial_update: {
+    plugins_settings_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8359,7 +8283,7 @@ export interface operations {
             };
         };
     };
-    api_reviewer_scorecards_list: {
+    reviewer_scorecards_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -8385,7 +8309,7 @@ export interface operations {
             };
         };
     };
-    api_reviewer_scorecards_retrieve: {
+    reviewer_scorecards_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8407,7 +8331,7 @@ export interface operations {
             };
         };
     };
-    api_scopes_list: {
+    scopes_list: {
         parameters: {
             query?: {
                 is_enabled?: boolean;
@@ -8440,7 +8364,7 @@ export interface operations {
             };
         };
     };
-    api_scopes_retrieve: {
+    scopes_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8462,7 +8386,7 @@ export interface operations {
             };
         };
     };
-    api_scopes_partial_update: {
+    scopes_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8490,7 +8414,7 @@ export interface operations {
             };
         };
     };
-    api_scopes_enabled_retrieve: {
+    scopes_enabled_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8509,7 +8433,7 @@ export interface operations {
             };
         };
     };
-    api_settings_appearance_retrieve: {
+    settings_appearance_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8527,7 +8451,7 @@ export interface operations {
             };
         };
     };
-    api_settings_appearance_update: {
+    settings_appearance_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8545,7 +8469,7 @@ export interface operations {
             };
         };
     };
-    api_settings_click_distance_retrieve: {
+    settings_click_distance_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8563,7 +8487,7 @@ export interface operations {
             };
         };
     };
-    api_settings_click_distance_update: {
+    settings_click_distance_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8581,7 +8505,7 @@ export interface operations {
             };
         };
     };
-    api_settings_click_distance_recalculate_create: {
+    settings_click_distance_recalculate_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8599,7 +8523,7 @@ export interface operations {
             };
         };
     };
-    api_settings_clustering_retrieve: {
+    settings_clustering_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8617,7 +8541,7 @@ export interface operations {
             };
         };
     };
-    api_settings_clustering_update: {
+    settings_clustering_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8635,7 +8559,7 @@ export interface operations {
             };
         };
     };
-    api_settings_clustering_recalculate_create: {
+    settings_clustering_recalculate_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8653,7 +8577,7 @@ export interface operations {
             };
         };
     };
-    api_settings_cooccurrence_retrieve: {
+    settings_cooccurrence_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8671,7 +8595,7 @@ export interface operations {
             };
         };
     };
-    api_settings_cooccurrence_update: {
+    settings_cooccurrence_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8689,7 +8613,655 @@ export interface operations {
             };
         };
     };
-    api_settings_cs_tune_evaluate_create: {
+    settings_explore_exploit_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_explore_exploit_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_favicon_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_favicon_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_field_aware_relevance_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_field_aware_relevance_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_ga4_gsc_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_ga4_gsc_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_ga4_gsc_test_connection_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_graph_candidate_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_graph_candidate_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_graph_rebuild_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_learned_anchor_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_learned_anchor_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_link_freshness_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_link_freshness_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_link_freshness_recalculate_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_logo_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_logo_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_notifications_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_notifications_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_phrase_matching_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_phrase_matching_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_rare_term_propagation_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_rare_term_propagation_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_silos_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_silos_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_slate_diversity_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_slate_diversity_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_spam_guards_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_spam_guards_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_value_model_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_value_model_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_webhooks_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_webhooks_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_webhooks_test_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_weight_tune_evaluate_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8709,7 +9281,7 @@ export interface operations {
             };
         };
     };
-    api_settings_cs_tune_trigger_create: {
+    settings_weight_tune_trigger_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8727,7 +9299,7 @@ export interface operations {
             };
         };
     };
-    api_settings_explore_exploit_retrieve: {
+    settings_weighted_authority_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8745,7 +9317,7 @@ export interface operations {
             };
         };
     };
-    api_settings_explore_exploit_update: {
+    settings_weighted_authority_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8763,7 +9335,7 @@ export interface operations {
             };
         };
     };
-    api_settings_favicon_create: {
+    settings_weighted_authority_recalculate_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8781,25 +9353,7 @@ export interface operations {
             };
         };
     };
-    api_settings_favicon_destroy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_field_aware_relevance_retrieve: {
+    settings_wordpress_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8817,7 +9371,7 @@ export interface operations {
             };
         };
     };
-    api_settings_field_aware_relevance_update: {
+    settings_wordpress_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8835,7 +9389,7 @@ export interface operations {
             };
         };
     };
-    api_settings_ga4_gsc_retrieve: {
+    settings_wordpress_test_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8853,7 +9407,7 @@ export interface operations {
             };
         };
     };
-    api_settings_ga4_gsc_update: {
+    settings_xenforo_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -8871,7 +9425,7 @@ export interface operations {
             };
         };
     };
-    api_settings_ga4_gsc_test_connection_create: {
+    settings_xenforo_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8889,7 +9443,7 @@ export interface operations {
             };
         };
     };
-    api_settings_graph_candidate_retrieve: {
+    settings_xenforo_test_connection_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -8907,655 +9461,7 @@ export interface operations {
             };
         };
     };
-    api_settings_graph_candidate_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_graph_rebuild_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_learned_anchor_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_learned_anchor_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_link_freshness_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_link_freshness_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_link_freshness_recalculate_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_logo_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_logo_destroy: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_notifications_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_notifications_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_phrase_matching_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_phrase_matching_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_r_tune_trigger_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_rare_term_propagation_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_rare_term_propagation_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_silos_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_silos_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_slate_diversity_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_slate_diversity_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_spam_guards_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_spam_guards_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_value_model_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_value_model_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_webhooks_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_webhooks_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_webhooks_test_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_weighted_authority_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_weighted_authority_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_weighted_authority_recalculate_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_wordpress_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_wordpress_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_wordpress_test_connection_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_xenforo_retrieve: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_xenforo_update: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_settings_xenforo_test_connection_create: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description No response body */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    api_silo_groups_list: {
+    silo_groups_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -9579,7 +9485,7 @@ export interface operations {
             };
         };
     };
-    api_silo_groups_create: {
+    silo_groups_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9604,7 +9510,7 @@ export interface operations {
             };
         };
     };
-    api_silo_groups_retrieve: {
+    silo_groups_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -9626,7 +9532,7 @@ export interface operations {
             };
         };
     };
-    api_silo_groups_destroy: {
+    silo_groups_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -9647,7 +9553,7 @@ export interface operations {
             };
         };
     };
-    api_silo_groups_partial_update: {
+    silo_groups_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -9675,7 +9581,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_list: {
+    suggestions_list: {
         parameters: {
             query?: {
                 /**
@@ -9723,7 +9629,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_create: {
+    suggestions_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9748,7 +9654,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_retrieve: {
+    suggestions_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -9769,7 +9675,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_partial_update: {
+    suggestions_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -9796,7 +9702,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_apply_create: {
+    suggestions_apply_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9823,7 +9729,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_approve_create: {
+    suggestions_approve_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9850,7 +9756,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_reject_create: {
+    suggestions_reject_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9877,7 +9783,7 @@ export interface operations {
             };
         };
     };
-    api_suggestions_batch_action_create: {
+    suggestions_batch_action_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9902,7 +9808,7 @@ export interface operations {
             };
         };
     };
-    api_sync_jobs_list: {
+    sync_jobs_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -9926,7 +9832,7 @@ export interface operations {
             };
         };
     };
-    api_sync_jobs_retrieve: {
+    sync_jobs_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -9948,7 +9854,7 @@ export interface operations {
             };
         };
     };
-    api_sync_jobs_source_status_retrieve: {
+    sync_jobs_source_status_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -9967,7 +9873,7 @@ export interface operations {
             };
         };
     };
-    api_sync_jobs_trigger_api_sync_create: {
+    sync_jobs_trigger_api_sync_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -9992,7 +9898,7 @@ export interface operations {
             };
         };
     };
-    api_sync_jobs_trigger_full_run_create: {
+    sync_jobs_trigger_full_run_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10017,7 +9923,7 @@ export interface operations {
             };
         };
     };
-    api_sync_webhooks_wordpress_create: {
+    sync_webhooks_wordpress_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10035,7 +9941,7 @@ export interface operations {
             };
         };
     };
-    api_sync_webhooks_xenforo_create: {
+    sync_webhooks_xenforo_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10053,7 +9959,7 @@ export interface operations {
             };
         };
     };
-    api_sync_wordpress_run_create: {
+    sync_wordpress_run_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10071,7 +9977,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_list: {
+    system_status_conflicts_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10095,7 +10001,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_create: {
+    system_status_conflicts_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10120,7 +10026,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_retrieve: {
+    system_status_conflicts_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10142,7 +10048,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_update: {
+    system_status_conflicts_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -10170,7 +10076,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_destroy: {
+    system_status_conflicts_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -10191,7 +10097,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_partial_update: {
+    system_status_conflicts_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -10219,7 +10125,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_conflicts_detect_create: {
+    system_status_conflicts_detect_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10244,7 +10150,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_errors_list: {
+    system_status_errors_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10268,7 +10174,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_errors_retrieve: {
+    system_status_errors_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10290,7 +10196,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_errors_acknowledge_create: {
+    system_status_errors_acknowledge_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10318,7 +10224,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_features_retrieve: {
+    system_status_features_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10336,7 +10242,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_internal_scheduler_dispatch_create: {
+    system_status_internal_scheduler_dispatch_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10354,7 +10260,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_overview_retrieve: {
+    system_status_overview_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10372,7 +10278,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_resources_retrieve: {
+    system_status_resources_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10390,7 +10296,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_services_list: {
+    system_status_services_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10414,7 +10320,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_services_retrieve: {
+    system_status_services_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10436,7 +10342,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_services_refresh_create: {
+    system_status_services_refresh_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10461,7 +10367,7 @@ export interface operations {
             };
         };
     };
-    api_system_status_weights_retrieve: {
+    system_status_weights_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10479,7 +10385,7 @@ export interface operations {
             };
         };
     };
-    api_webhook_receipts_list: {
+    webhook_receipts_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10503,7 +10409,7 @@ export interface operations {
             };
         };
     };
-    api_webhook_receipts_retrieve: {
+    webhook_receipts_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10525,7 +10431,7 @@ export interface operations {
             };
         };
     };
-    api_weight_challengers_list: {
+    weight_challengers_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10551,7 +10457,7 @@ export interface operations {
             };
         };
     };
-    api_weight_challengers_retrieve: {
+    weight_challengers_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10573,7 +10479,7 @@ export interface operations {
             };
         };
     };
-    api_weight_challengers_reject_create: {
+    weight_challengers_reject_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10601,7 +10507,7 @@ export interface operations {
             };
         };
     };
-    api_weight_history_list: {
+    weight_history_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10627,7 +10533,7 @@ export interface operations {
             };
         };
     };
-    api_weight_history_retrieve: {
+    weight_history_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10649,7 +10555,7 @@ export interface operations {
             };
         };
     };
-    api_weight_history_rollback_create: {
+    weight_history_rollback_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10677,7 +10583,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_list: {
+    weight_presets_list: {
         parameters: {
             query?: {
                 /** @description Which field to use when ordering the results. */
@@ -10703,7 +10609,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_create: {
+    weight_presets_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10728,7 +10634,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_retrieve: {
+    weight_presets_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10750,7 +10656,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_destroy: {
+    weight_presets_destroy: {
         parameters: {
             query?: never;
             header?: never;
@@ -10771,7 +10677,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_partial_update: {
+    weight_presets_partial_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -10799,7 +10705,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_apply_create: {
+    weight_presets_apply_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -10827,7 +10733,7 @@ export interface operations {
             };
         };
     };
-    api_weight_presets_current_retrieve: {
+    weight_presets_current_retrieve: {
         parameters: {
             query?: never;
             header?: never;

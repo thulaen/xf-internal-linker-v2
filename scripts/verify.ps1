@@ -36,18 +36,6 @@ try {
                 }
             }
         }
-        # C#: new .cs file (not interfaces, DTOs, Program, Startup)
-        if ($f -match '^services/http-worker/src/(.+)\.cs$' -and $f -notmatch '(Tests|\.Designer|Program|Startup|I[A-Z]\w+)\.cs$') {
-            $className = [System.IO.Path]::GetFileNameWithoutExtension($f)
-            $testPattern = "${className}Tests.cs"
-            $hasTest = ($newFiles | Where-Object { $_ -match $testPattern }).Count -gt 0
-            if (-not $hasTest) {
-                $testExists = Get-ChildItem -Path (Join-Path $repoRoot "services\http-worker\tests") -Filter $testPattern -Recurse -ErrorAction SilentlyContinue
-                if (-not $testExists) {
-                    $missingTests += $f
-                }
-            }
-        }
     }
     if ($missingTests.Count -gt 0) {
         $missingTests | ForEach-Object { Write-Host "  No test coverage: $_" -ForegroundColor Yellow }
@@ -95,12 +83,6 @@ try {
     & (Join-Path $PSScriptRoot "test-frontend.ps1")
     if ($LASTEXITCODE -ne 0) {
         throw "Frontend unit tests failed."
-    }
-
-    Write-Host "Running HttpWorker build + tests..."
-    & (Join-Path $PSScriptRoot "test-http-worker.ps1") -Configuration Release
-    if ($LASTEXITCODE -ne 0) {
-        throw "HttpWorker verification failed."
     }
 
     Write-Host "Verification completed."

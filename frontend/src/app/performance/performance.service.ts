@@ -27,7 +27,7 @@ export interface BenchmarkRun {
     fast: number;
     ok: number;
     slow: number;
-    languages: { cpp: number; python: number; csharp: number };
+    languages: { cpp: number; python: number };
   } | null;
   results: BenchmarkResult[];
 }

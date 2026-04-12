@@ -1739,15 +1739,15 @@
           <!-- FR-018 Weight Auto-Tuner -->
           <mat-card class="settings-card settings-card--wide" id="ranking-challengers">
             <mat-card-header>
-              <mat-card-title>Auto-Tune (FR-018)</mat-card-title>
-              <mat-card-subtitle>C# L-BFGS optimiser proposes weight updates based on GSC, GA4, Matomo, and review signals.</mat-card-subtitle>
+              <mat-card-title>Ranking Auto-Tune (Poisson-Gamma)</mat-card-title>
+              <mat-card-subtitle>Optimiser proposes weight updates based on GSC, GA4, Matomo, and human review signals.</mat-card-subtitle>
             </mat-card-header>
             <mat-card-content class="card-content">
 
               <!-- Run button -->
               <div class="tune-trigger-row">
-                <button mat-stroked-button color="primary" [disabled]="triggeringCsTune" (click)="triggerCsTune()">
-                  @if (triggeringCsTune) {
+                <button mat-stroked-button color="primary" [disabled]="triggeringWeightTune" (click)="triggerWeightTune()">
+                  @if (triggeringWeightTune) {
                     <mat-spinner diameter="18" style="display:inline-block;margin-right:8px;vertical-align:middle;"></mat-spinner>
                   }
                   Run Auto-Tune Now

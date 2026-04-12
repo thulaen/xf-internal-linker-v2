@@ -3,127 +3,15 @@ import json
 import os
 from statistics import median
 from time import perf_counter
-from unittest.mock import MagicMock, patch
 
 from django.contrib.auth import get_user_model
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from apps.content.models import ContentItem, Post, Sentence, ScopeItem
 from apps.graph.models import ExistingLink, LinkFreshnessEdge
 from apps.graph.services import graph_sync
-from apps.graph.services import http_worker_client
 from apps.suggestions.models import PipelineRun, Suggestion
-
-
-class HttpWorkerClientTests(SimpleTestCase):
-    @override_settings(
-        HTTP_WORKER_ENABLED=True,
-        HTTP_WORKER_URL="http://http-worker-api:8080/api/v1/status",
-    )
-    @patch("apps.graph.services.http_worker_client.request.urlopen")
-    def test_client_strips_status_suffix_from_base_url(self, mock_urlopen):
-        response = MagicMock()
-        response.getcode.return_value = 200
-        response.read.return_value = b'{"checked": []}'
-        mock_urlopen.return_value.__enter__.return_value = response
-
-        http_worker_client.check_health(["https://example.com/health"])
-
-        outgoing_request = mock_urlopen.call_args.args[0]
-        self.assertEqual(
-            outgoing_request.full_url,
-            "http://http-worker-api:8080/api/v1/health/check",
-        )
-
-    @override_settings(
-        HTTP_WORKER_ENABLED=True,
-        HTTP_WORKER_URL="http://http-worker-api:8080/api/v1/status",
-    )
-    @patch("apps.graph.services.http_worker_client.request.urlopen")
-    def test_graph_sync_client_uses_graph_sync_endpoint(self, mock_urlopen):
-        response = MagicMock()
-        response.getcode.return_value = 200
-        response.read.return_value = b'{"active_links": 3}'
-        mock_urlopen.return_value.__enter__.return_value = response
-
-        http_worker_client.sync_graph_content(
-            content_item_pk=11,
-            content_id=77,
-            content_type="thread",
-            raw_bbcode="[URL=https://example.com/threads/demo.2/]demo[/URL]",
-            forum_domains=["example.com"],
-        )
-
-        outgoing_request = mock_urlopen.call_args.args[0]
-        self.assertEqual(
-            outgoing_request.full_url,
-            "http://http-worker-api:8080/api/v1/graph-sync/content",
-        )
-
-
-class GraphSyncDispatchTests(TestCase):
-    def setUp(self):
-        self.scope = ScopeItem.objects.create(
-            scope_id=1, scope_type="node", title="Scope"
-        )
-        self.content = ContentItem.objects.create(
-            content_id=10,
-            content_type="thread",
-            title="Host",
-            scope=self.scope,
-            url="https://forum.example.com/threads/host.10",
-        )
-
-    @override_settings(HEAVY_RUNTIME_OWNER="celery", RUNTIME_OWNER_GRAPH_SYNC="csharp")
-    @patch(
-        "apps.graph.services.graph_sync._sync_existing_links_via_http_worker",
-        return_value=4,
-    )
-    @patch("apps.graph.services.graph_sync._sync_existing_links_py")
-    def test_sync_existing_links_for_content_item_routes_to_csharp_owner(
-        self,
-        py_mock,
-        csharp_mock,
-    ):
-        result = graph_sync.sync_existing_links_for_content_item(
-            self.content,
-            "[URL=https://forum.example.com/threads/target.2/]Target[/URL]",
-        )
-
-        self.assertEqual(result, 4)
-        csharp_mock.assert_called_once()
-        py_mock.assert_not_called()
-
-    @override_settings(HEAVY_RUNTIME_OWNER="celery", RUNTIME_OWNER_GRAPH_SYNC="celery")
-    @patch("apps.graph.services.graph_sync._sync_existing_links_py", return_value=2)
-    @patch("apps.graph.services.graph_sync._sync_existing_links_via_http_worker")
-    def test_sync_existing_links_for_content_item_keeps_python_reference_when_owner_is_celery(
-        self,
-        csharp_mock,
-        py_mock,
-    ):
-        result = graph_sync.sync_existing_links_for_content_item(
-            self.content,
-            "[URL=https://forum.example.com/threads/target.2/]Target[/URL]",
-        )
-
-        self.assertEqual(result, 2)
-        py_mock.assert_called_once()
-        csharp_mock.assert_not_called()
-
-    @override_settings(HEAVY_RUNTIME_OWNER="celery", RUNTIME_OWNER_GRAPH_SYNC="csharp")
-    @patch(
-        "apps.graph.services.graph_sync._refresh_existing_links_via_http_worker",
-        return_value=9,
-    )
-    @patch("apps.graph.services.graph_sync._refresh_existing_links_py")
-    def test_refresh_existing_links_routes_to_csharp_owner(self, py_mock, csharp_mock):
-        result = graph_sync.refresh_existing_links()
-
-        self.assertEqual(result, 9)
-        csharp_mock.assert_called_once()
-        py_mock.assert_not_called()
 
 
 class GraphSyncPythonBenchmarkTests(TestCase):

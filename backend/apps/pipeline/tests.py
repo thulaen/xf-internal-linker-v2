@@ -7,7 +7,7 @@ from contextlib import ExitStack
 from dataclasses import replace
 from datetime import timedelta
 from time import perf_counter
-from unittest.mock import ANY, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 from scipy.sparse import csr_matrix
@@ -3831,23 +3831,25 @@ class BrokenLinkScanBenchmarkTests(TestCase):
             )
         BrokenLink.objects.bulk_create(existing_issues)
 
-        def _benchmark_probe(_session, url: str) -> tuple[int, str]:
-            if "/broken/" in url:
-                return 404, ""
-            if "/redirect/" in url:
-                return 301, url.replace("/redirect/", "/redirected/")
-            return 200, ""
+        def _mock_run_async(coro, *args, **kwargs):
+            results = {}
+            for d in destinations:
+                if "/broken/" in d.url:
+                    results[d.url] = (404, "")
+                elif "/redirect/" in d.url:
+                    results[d.url] = (301, d.url.replace("/redirect/", "/redirected/"))
+                else:
+                    results[d.url] = (200, "")
+            return results
 
         started_at = perf_counter()
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
             patch.object(broken_links_module, "_publish_progress"),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-                side_effect=_benchmark_probe,
+            patch(
+                "apps.pipeline.tasks_broken_links.run_async",
+                side_effect=_mock_run_async,
             ),
-            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(
                 job_id="benchmark-python-broken-links"
@@ -3912,15 +3914,17 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
     def test_scan_marks_new_issue_as_open(self):
         destination = self._existing_link(url="https://example.com/broken")
 
+        def _mock_run_async(coro, *args, **kwargs):
+            coro.close()
+            return {destination.url: (404, "")}
+
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
             patch.object(broken_links_module, "_publish_progress"),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-                return_value=(404, ""),
+            patch(
+                "apps.pipeline.tasks_broken_links.run_async",
+                side_effect=_mock_run_async,
             ),
-            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-open")
 
@@ -3940,15 +3944,17 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
             notes="keep me",
         )
 
+        def _mock_run_async(coro, *args, **kwargs):
+            coro.close()
+            return {destination.url: (200, "")}
+
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
             patch.object(broken_links_module, "_publish_progress"),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-                return_value=(200, ""),
+            patch(
+                "apps.pipeline.tasks_broken_links.run_async",
+                side_effect=_mock_run_async,
             ),
-            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-fixed")
 
@@ -3968,15 +3974,17 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
             notes="reviewer kept this ignored",
         )
 
+        def _mock_run_async(coro, *args, **kwargs):
+            coro.close()
+            return {destination.url: (301, "https://example.com/new-home")}
+
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
             patch.object(broken_links_module, "_publish_progress"),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-                return_value=(301, "https://example.com/new-home"),
+            patch(
+                "apps.pipeline.tasks_broken_links.run_async",
+                side_effect=_mock_run_async,
             ),
-            patch("apps.pipeline.tasks_broken_links.time.sleep"),
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-ignored")
 
@@ -3987,182 +3995,39 @@ class BrokenLinkScanTaskRegressionTests(TestCase):
         self.assertEqual(record.notes, "reviewer kept this ignored")
 
     def test_scan_returns_cleanly_when_no_urls_exist(self):
+        def _mock_run_async(coro, *args, **kwargs):
+            coro.close()
+            return {}
+
         with (
             patch.object(pipeline_tasks, "_publish_progress"),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-            ) as probe_health,
+            patch(
+                "apps.pipeline.tasks_broken_links.run_async",
+                side_effect=_mock_run_async,
+            ) as mock_run_async,
         ):
             result = pipeline_tasks.scan_broken_links.run(job_id="scan-empty")
 
         self.assertEqual(result["scanned_urls"], 0)
         self.assertEqual(result["flagged_urls"], 0)
         self.assertEqual(result["fixed_urls"], 0)
-        probe_health.assert_not_called()
-
-    @override_settings(
-        HTTP_WORKER_ENABLED=True,
-        HTTP_WORKER_URL="http://http-worker-api:8080",
-        HTTP_WORKER_BROKEN_LINK_BATCH_SIZE=100,
-    )
-    def test_scan_uses_http_worker_when_enabled(self):
-        destination = self._existing_link(url="https://example.com/http-worker")
-
-        with (
-            patch.object(pipeline_tasks, "_publish_progress"),
-            patch.object(broken_links_module, "_publish_progress"),
-            patch(
-                "apps.graph.services.http_worker_client.check_broken_links",
-                return_value=[
-                    {
-                        "source_content_id": self.source.pk,
-                        "url": destination.url,
-                        "http_status": 404,
-                        "redirect_url": "",
-                    }
-                ],
-            ) as check_broken_links,
-            patch.object(broken_links_module, "_probe_link_health") as probe_health,
-        ):
-            result = pipeline_tasks.scan_broken_links.run(job_id="scan-http-worker")
-
-        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
-        self.assertEqual(result["probe_backend"], "csharp_http_worker")
-        self.assertIsNone(result["http_worker_error"])
-        self.assertEqual(result["flagged_urls"], 1)
-        self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
-        check_broken_links.assert_called_once()
-        probe_health.assert_not_called()
-
-    @override_settings(
-        HTTP_WORKER_ENABLED=True,
-        HTTP_WORKER_URL="http://http-worker-api:8080",
-    )
-    def test_scan_falls_back_to_python_when_http_worker_fails(self):
-        destination = self._existing_link(
-            url="https://example.com/http-worker-fallback"
-        )
-
-        with (
-            patch.object(pipeline_tasks, "_publish_progress"),
-            patch.object(broken_links_module, "_publish_progress"),
-            patch(
-                "apps.graph.services.http_worker_client.check_broken_links",
-                side_effect=RuntimeError("worker offline"),
-            ),
-            patch.object(
-                broken_links_module,
-                "_probe_link_health",
-                return_value=(404, ""),
-            ) as probe_health,
-            patch("apps.pipeline.tasks_broken_links.time.sleep"),
-        ):
-            result = pipeline_tasks.scan_broken_links.run(
-                job_id="scan-http-worker-fallback"
-            )
-
-        record = BrokenLink.objects.get(source_content=self.source, url=destination.url)
-        self.assertEqual(result["probe_backend"], "python_requests_fallback")
-        self.assertEqual(result["http_worker_error"], "worker offline")
-        self.assertEqual(result["flagged_urls"], 1)
-        self.assertEqual(record.status, BrokenLink.STATUS_OPEN)
-        probe_health.assert_called_once_with(ANY, destination.url)
+        mock_run_async.assert_not_called()
 
 
 class BrokenLinkScanDispatchTests(TestCase):
     @override_settings(
         HEAVY_RUNTIME_OWNER="celery",
-        RUNTIME_OWNER_BROKEN_LINK_SCAN="csharp",
-        HTTP_WORKER_ENABLED=True,
-        XENFORO_BASE_URL="https://forum.example.com",
-        WORDPRESS_BASE_URL="https://content.example.com",
-        HTTP_WORKER_BROKEN_LINK_BATCH_SIZE=200,
-        HTTP_WORKER_BROKEN_LINK_MAX_CONCURRENCY=40,
-    )
-    def test_dispatch_broken_link_scan_queues_csharp_job_when_owner_is_csharp(self):
-        with (
-            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
-            patch.object(
-                pipeline_tasks.scan_broken_links,
-                "delay",
-            ) as delay_task,
-        ):
-            result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-123")
-
-        self.assertEqual(result["runtime_owner"], "csharp")
-        queue_job.assert_called_once_with(
-            job_id="job-123",
-            job_type="broken_link_scan",
-            payload={
-                "allowed_domains": ["forum.example.com", "content.example.com"],
-                "scan_cap": 10_000,
-                "batch_size": 200,
-                "timeout_seconds": 10,
-                "max_concurrency": 40,
-                "user_agent": "XF Internal Linker V2 Broken Link Scanner",
-            },
-        )
-        delay_task.assert_not_called()
-
-    @override_settings(
-        HEAVY_RUNTIME_OWNER="celery",
         RUNTIME_OWNER_BROKEN_LINK_SCAN="celery",
     )
     def test_dispatch_broken_link_scan_queues_celery_task_when_owner_is_celery(self):
-        with (
-            patch("apps.graph.services.http_worker_client.queue_job") as queue_job,
-            patch.object(
-                pipeline_tasks.scan_broken_links,
-                "delay",
-            ) as delay_task,
-        ):
+        with patch.object(pipeline_tasks.scan_broken_links, "delay") as delay_task:
             result = pipeline_tasks.dispatch_broken_link_scan(job_id="job-456")
 
         self.assertEqual(result["runtime_owner"], "celery")
         delay_task.assert_called_once_with(job_id="job-456")
-        queue_job.assert_not_called()
 
 
-class HeavyRuntimeDispatchTests(TestCase):
-    @override_settings(
-        HEAVY_RUNTIME_OWNER="celery",
-        RUNTIME_OWNER_IMPORT="csharp",
-        XENFORO_BASE_URL="https://forum.example.com",
-        WORDPRESS_BASE_URL="https://content.example.com",
-    )
-    def test_dispatch_import_content_orchestrates_csharp_import(self):
-        with patch("apps.pipeline.tasks.orchestrate_csharp_import.delay") as delay_mock:
-            result = pipeline_tasks.dispatch_import_content(
-                mode="full", source="api", job_id="11111111-1111-1111-1111-111111111111"
-            )
-
-        self.assertEqual(result["runtime_owner"], "csharp")
-        delay_mock.assert_called_once_with(
-            scope_ids=None,
-            mode="full",
-            source="api",
-            file_path=None,
-            job_id="11111111-1111-1111-1111-111111111111",
-            force_reembed=False,
-        )
-
-    def test_orchestrate_csharp_import_chains_ml_on_success(self):
-        # Verify the orchestrator itself triggers ML
-        with (
-            patch("apps.graph.services.http_worker_client.run_job") as run_job,
-            patch("apps.pipeline.tasks.generate_embeddings.delay") as generate_delay,
-            patch("apps.pipeline.tasks._publish_progress"),
-        ):
-            run_job.return_value = {"updated_pks": [1, 2, 3], "items_synced": 3}
-
-            pipeline_tasks.orchestrate_csharp_import(mode="full", source="api")
-
-            run_job.assert_called_once()
-            generate_delay.assert_called_once_with(
-                content_item_ids=[1, 2, 3], job_id=ANY, force_reembed=False
-            )
-
+class PipelineDispatchTests(TestCase):
     def test_dispatch_pipeline_run_always_uses_celery(self):
         """Pipeline dispatch always routes through Celery (Python owns ranking)."""
         with patch.object(pipeline_tasks.run_pipeline, "delay") as delay_task:

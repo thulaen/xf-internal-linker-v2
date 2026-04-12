@@ -2055,11 +2055,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   weightHistory: WeightAdjustmentHistory[] = [];
   challengers: RankingChallenger[] = [];
   loadingChallengers = false;
-  triggeringCsTune = false;
+  triggeringWeightTune = false;
   evaluatingChallenger = false;
   loadingHistory = false;
   rollingBack = false;
-  triggeringRTune = false;
   currentWeights: Record<string, string> = {};
 
   siloGroups: SiloGroup[] = [];
@@ -2650,27 +2649,29 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  triggerRTune(): void {
-    if (!confirm('Queue the R auto-tune task now? This will run in the background and may update your weights.')) return;
-    this.triggeringRTune = true;
-    this.siloSvc.triggerRTune().pipe(takeUntil(this.destroy$)).subscribe({
+  triggerWeightTune(): void {
+    if (!confirm('Run the auto-tune now? This will analyse recent data and may propose new weights.')) return;
+    this.triggeringWeightTune = true;
+    this.siloSvc.triggerWeightTune().pipe(takeUntil(this.destroy$)).subscribe({
       next: () => {
-        this.triggeringRTune = false;
-        this.snack.open('R auto-tune task queued.', undefined, { duration: 2500 });
+        this.triggeringWeightTune = false;
+        this.snack.open('Weight-tune task queued. Check back in a moment.', undefined, { duration: 3000 });
+        setTimeout(() => this.loadChallengers(), 5000);
       },
-      error: () => {
-        this.triggeringRTune = false;
-        this.snack.open('Failed to queue R auto-tune task.', 'Dismiss', { duration: 4000 });
+      error: (err) => {
+        this.triggeringWeightTune = false;
+        this.snack.open(err?.error?.detail || 'Failed to queue the tune task.', 'Dismiss', { duration: 4000 });
       },
     });
   }
 
   historySourceLabel(source: string): string {
     return {
-      r_auto: 'R auto-tune',
-      cs_auto_tune: 'C# auto-tune',
+      auto_tune: 'Auto-tune',
       manual: 'Manual',
       preset_applied: 'Preset applied',
+      r_auto: 'Legacy R tune',
+      cs_auto_tune: 'Legacy C# tune',
     }[source] ?? source;
   }
 
@@ -2688,21 +2689,6 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
-  triggerCsTune(): void {
-    if (!confirm('Run the C# auto-tune now? This will analyse recent data and may propose new weights.')) return;
-    this.triggeringCsTune = true;
-    this.siloSvc.triggerCsTune().pipe(takeUntil(this.destroy$)).subscribe({
-      next: () => {
-        this.triggeringCsTune = false;
-        this.snack.open('C# weight-tune task queued. Check back in a moment.', undefined, { duration: 3000 });
-        setTimeout(() => this.loadChallengers(), 5000);
-      },
-      error: () => {
-        this.triggeringCsTune = false;
-        this.snack.open('Failed to queue the C# tune task.', 'Dismiss', { duration: 4000 });
-      },
-    });
-  }
 
   promoteChallenger(challenger: RankingChallenger): void {
     if (!confirm('Promote this challenger? Its weights will become active immediately.')) return;

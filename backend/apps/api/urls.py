@@ -29,8 +29,7 @@ from apps.core.views import (
     PhraseMatchingSettingsView,
     RareTermPropagationSettingsView,
     ChallengerEvaluateView,
-    CSTuneTriggerView,
-    RTuneTriggerView,
+    WeightTuneTriggerView,
     SiloSettingsView,
     SlateDiversitySettingsView,
     WeightedAuthorityRecalculateView,
@@ -79,7 +78,6 @@ from apps.suggestions.views import (
     RankingChallengerViewSet,
     SuggestionViewSet,
     WeightAdjustmentHistoryViewSet,
-    WeightChallengerInternalView,
     WeightPresetViewSet,
 )
 from apps.sync.views import (
@@ -235,19 +233,15 @@ urlpatterns = [
         SlateDiversitySettingsView.as_view(),
         name="slate-diversity-settings",
     ),
-    path("settings/r-tune/trigger/", RTuneTriggerView.as_view(), name="r-tune-trigger"),
     path(
-        "settings/cs-tune/trigger/", CSTuneTriggerView.as_view(), name="cs-tune-trigger"
+        "settings/weight-tune/trigger/",
+        WeightTuneTriggerView.as_view(),
+        name="weight-tune-trigger",
     ),
     path(
-        "settings/cs-tune/evaluate/<str:run_id>/",
+        "settings/weight-tune/evaluate/<str:run_id>/",
         ChallengerEvaluateView.as_view(),
-        name="cs-tune-evaluate",
-    ),
-    path(
-        "internal/weight-challenger/",
-        WeightChallengerInternalView.as_view(),
-        name="internal-weight-challenger",
+        name="weight-tune-evaluate",
     ),
     path(
         "settings/wordpress/",

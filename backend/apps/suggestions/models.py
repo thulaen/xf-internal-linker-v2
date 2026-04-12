@@ -70,8 +70,7 @@ class WeightAdjustmentHistory(models.Model):
     """
 
     SOURCE_CHOICES = [
-        ("r_auto", "Monthly R auto-tune"),
-        ("cs_auto_tune", "C# L-BFGS auto-tune (FR-018)"),
+        ("auto_tune", "Auto-tune (Poisson-Gamma)"),
         ("manual", "Manual save"),
         ("preset_applied", "Preset applied"),
     ]
@@ -128,15 +127,15 @@ class WeightAdjustmentHistory(models.Model):
 
 class RankingChallenger(TimestampedModel):
     """
-    A candidate weight set produced by the C# L-BFGS auto-tuner (FR-018).
+    A candidate weight set produced by the automated auto-tuner (FR-018).
 
-    C# POSTs one RankingChallenger row per tune run via the internal write
-    endpoint.  Django's evaluate_weight_challenger Celery task then scores it
+    The auto-tuner runs via Celery, produces a candidate weight set, and
+    Django's evaluate_weight_challenger task then scores it
     against the current champion (active AppSetting values) and either promotes
     it, rejects it, or leaves it pending for human review.
 
-    Only the four core blend weights (w_semantic, w_keyword, w_node, w_quality)
-    are tuned by the optimizer.  All other weights remain at their current values.
+    Only the core blend weights are tuned by the optimizer.
+    All other weights remain at their current values.
     """
 
     STATUS_CHOICES = [

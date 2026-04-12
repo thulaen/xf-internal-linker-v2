@@ -28,15 +28,9 @@ CELERY_BEAT_SCHEDULE = {
         "kwargs": {"source": "wp", "mode": "full", "force_reembed": True},
         "options": {"queue": "pipeline"},
     },
-    # Part 6 — monthly R auto-tune: 02:00 on the first Sunday of every month.
-    "monthly-r-auto-tune": {
-        "task": "pipeline.monthly_r_auto_tune",
-        "schedule": crontab(hour=2, minute=0, day_of_week=0, day_of_month="1-7"),
-        "options": {"queue": "pipeline"},
-    },
     # FR-018 — monthly C# weight-tune: 02:30 on the first Sunday of every month.
     "monthly-cs-weight-tune": {
-        "task": "pipeline.monthly_cs_weight_tune",
+        "task": "pipeline.monthly_weight_tune",
         "schedule": crontab(hour=2, minute=30, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },

@@ -79,24 +79,7 @@ def pulse_heartbeat():
         checks["celery"] = {"ok": False, "error": str(exc)[:200]}
         overall_ok = False
 
-    # 4. HTTP Worker (C# service)
-    try:
-        from apps.graph.services.http_worker_client import _base_url
-        import requests as req_lib
-
-        t0 = time.perf_counter()
-        resp = req_lib.get(f"{_base_url()}/api/v1/status", timeout=5)
-        checks["http_worker"] = {
-            "ok": resp.status_code == 200,
-            "ms": _elapsed_ms(t0),
-        }
-        if resp.status_code != 200:
-            overall_ok = False
-    except Exception as exc:
-        checks["http_worker"] = {"ok": False, "error": str(exc)[:200]}
-        overall_ok = False
-
-    # 5. C++ extensions
+    # 4. C++ extensions
     try:
         from apps.pipeline.services.ext_loader import load_extension
 
@@ -314,8 +297,6 @@ def orchestrate_full_run():
     Progress streamed via WebSocket for real-time frontend updates.
     """
     from apps.crawler.models import SystemEvent, SitemapConfig, CrawlSession
-    from apps.graph.services.http_worker_client import queue_job
-    import uuid
 
     SystemEvent.objects.create(
         severity="info",
@@ -357,9 +338,6 @@ def orchestrate_full_run():
     domains = sitemaps.values_list("domain", flat=True).distinct()
 
     for domain in domains:
-        domain_sitemaps = list(
-            sitemaps.filter(domain=domain).values_list("sitemap_url", flat=True)
-        )
         session = CrawlSession.objects.create(
             site_domain=domain,
             status="pending",
@@ -379,22 +357,8 @@ def orchestrate_full_run():
             },
         )
 
-        job_id = str(uuid.uuid4())
         try:
-            queue_job(
-                job_id,
-                "crawl_session",
-                {
-                    "session_id": str(session.session_id),
-                    "site_domain": domain,
-                    "sitemap_urls": domain_sitemaps,
-                    "base_url": f"https://{domain}/",
-                    "rate_limit": 4,
-                    "max_depth": 5,
-                    "timeout_hours": 2,
-                    "excluded_paths": session.config.get("excluded_paths", []),
-                },
-            )
+            run_crawl_session.delay(session_id=str(session.session_id))
         except Exception as exc:
             logger.warning("Crawl job for %s failed to queue: %s", domain, exc)
             session.status = "failed"
@@ -423,6 +387,19 @@ def orchestrate_full_run():
     )
 
     return {"status": "completed"}
+
+
+@shared_task(
+    name="crawler.run_crawl_session",
+    time_limit=14400,
+    soft_time_limit=14000,
+    ignore_result=True,
+)
+def run_crawl_session(session_id: str):
+    from apps.crawler.services.site_crawler import run_crawl_session_sync
+    import uuid
+
+    run_crawl_session_sync(uuid.UUID(session_id))
 
 
 # ---------------------------------------------------------------------------
