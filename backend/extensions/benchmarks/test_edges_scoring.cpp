@@ -114,7 +114,7 @@ void test_large_n() {
 
     std::vector<float> components(n * k, 1.0f);
     std::vector<float> weights(k, 0.25f); /* weighted sum = k * 1.0 * 0.25 = 1.0 */
-    std::vector<float> silo(n, 0.5f);    /* each out[i] = 0.5 + 1.0 = 1.5 */
+    std::vector<float> silo(n, 0.5f);     /* each out[i] = 0.5 + 1.0 = 1.5 */
     std::vector<float> out(n, 0.0f);
 
     cscore_full_batch(components.data(), n, k, weights.data(), k, silo.data(), n, out.data());

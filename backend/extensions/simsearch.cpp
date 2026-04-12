@@ -14,6 +14,7 @@
 #define HAS_TBB 1
 #endif
 #endif
+#include <algorithm>
 #include <cmath>
 #include <numeric>
 #include <stdexcept>
