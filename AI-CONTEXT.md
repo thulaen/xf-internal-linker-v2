@@ -76,8 +76,8 @@ If you decide not to fix that finding in the current session, you must do both:
 - Redis 7.4
 - Celery 5.4 + Celery Beat
 - Django Channels 4.2 + Daphne
-- Embedding fallback/default code target: `nomic-ai/nomic-embed-text-v1.5` with 768 dimensions
-- Existing `ML_PERFORMANCE_MODE` behavior still supports CPU-safe and GPU-capable execution
+- nomic-ai/nomic-embed-text-v1.5 with 768 dimensions
+- Existing ML_PERFORMANCE_MODE behavior still supports CPU-safe and GPU-capable execution
 - Roadmap libraries: `google-api-python-client`, `pandas`, `statsmodels`, `networkx`
 
 ### Frontend
@@ -210,7 +210,7 @@ Phase 12 shipped:
 - Phase 16 / `FR-013`: post-ranking Explore/Exploit reranker with Bayesian smoothing and UCB1 exploration.
 - Phase 17 / `FR-014`: near-duplicate destination clustering with soft suppression and manual recalculation.
 - Phase 20 / `FR-017`: GSC Search Outcome Attribution — OAuth, impact engine, sync, Search Impact tab with scatter plot and cohort analysis
-- Phase 21 / `FR-018`: Auto-Tuned Ranking Weights — C# L-BFGS optimization, RankingChallenger champion/challenger model
+- Phase 21 / `FR-018`: Auto-Tuned Ranking Weights — native Python L-BFGS optimization, RankingChallenger champion/challenger model
 - Phase 22 / `FR-019`: Operator Alerts, Notification Center & Desktop Attention Signals
 - Phase 24 / `FR-021`: Graph-Based Link Candidate Generation (Pixie Random Walk) — GraphCandidateService.cs, graph walk diagnostics
 - Phase 25 / `FR-022`: Data Source & System Health Check Dashboard — health component, health services, health models
@@ -224,7 +224,7 @@ Phase 12 shipped:
 - Phase 34 / `FR-032`: Automated Orphan & Low-Authority Page Identification — orphan audit endpoints, CSV export, D3 red nodes
 - Phase 35 / `FR-033`: Internal PageRank Heatmap — weighted_pagerank.py, heatmapMode toggle, pagerank endpoint
 - Phase 36 / `FR-035`: Link Freshness & Churn Velocity Timeline — link_freshness.py, velocity.py, LinkFreshnessEdge model
-- **Analytics Groundwork**: R analytics service and C# analytics worker removed. Content value scoring and FR-018 auto-weight tuning now implemented as native Python/Numpy tasks. Charts powered by D3.js in Angular (FR-016).
+- **Analytics Groundwork**: Content value scoring and FR-018 auto-weight tuning now implemented as native Python tasks. Charts powered by D3.js in Angular (FR-016).
 
 ## Execution Ledger
 
@@ -403,11 +403,6 @@ Do not just write code and stop.
 This repo expects the docs, checks, and git workflow to move together.
 
 - Before starting any code for a feature request, check whether `docs/specs/fr0XX-<slug>.md` already exists.
-### Phase 4: FR-018 Auto-Tuning (Completed April 2026)
-- **Status**: Completed
-- **Technical Summary**: Implemented C# analytics worker for weight auto-tuning. Replaced Nelder-Mead with MathNet.Numerics L-BFGS optimization using a quadratic penalty approach for sum and bound constraints. Integrated signals from GSC (lift), GA4 (dwell), Matomo (click rate), and Review decisions.
-- If the spec file is missing, add the spec file first and ensure it is based on online research of the actual math or source of truth.
-- When implementing an FR that already has a spec, implement against that spec and keep the code boundary aligned with it.
 - For future ranking-affecting work, treat C++ as the default execution path for the hot loop, keep Python only as the safety net, and add visible diagnostics that explain why the fast path is unavailable, skipped, or not materially faster.
 - For future ranking-affecting work, those diagnostics should be visible on the dashboard or diagnostics UI and should say whether fallback was used and whether the C++ path is helping.
 - Before claiming a phase is done, make sure the matching spec doc exists and that `AI-CONTEXT.md` and `FEATURE-REQUESTS.md` still point at the right next phase.
@@ -489,6 +484,22 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Changes are currently uncommitted.
   - Left unrelated dirty deletions untouched: `docs/reports/2026-04-11-fix-cs-import-page-cap.md`, `docs/reports/2026-04-11-fix-feedrerank-exposure-parity.md`, and `docs/reports/repo-business-logic-audit-2026-04-11.md`
 
+### 2026-04-12 - Remove stale C# test references after runtime decommission
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `AI-CONTEXT.md`
+- What changed:
+  - Removed stale references to the deleted `services/http-worker/tests/HttpWorker.Tests/EngagementSignalTests.cs` file.
+  - Removed the obsolete note telling future sessions to run `dotnet build` and `dotnet test` for that C# slice.
+  - Confirmed the old GitHub Actions `csharp-test` job is already absent in the current working tree, and no tracked `.csproj` or C# test files remain in the repo.
+- Verification that passed:
+  - `git ls-files` search for tracked `.csproj`, `.sln`, and `.cs` files
+  - `rg` search for `HttpWorker.Tests`, `EngagementSignalTests.cs`, `dotnet build`, and `dotnet test`
+- Commit/push state:
+  - Changes are currently uncommitted.
+  - Left unrelated dirty files untouched: `.github/workflows/ci.yml`, `scripts/dev-tools.ps1`, and `scripts/prune-verification-artifacts.ps1`
+
 ### 2026-04-11 - Merge branch into master and require branch disclosure
 
 - AI/tool: Codex
@@ -534,7 +545,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `services/http-worker/src/HttpWorker.Core/Interfaces/IGraphCandidateService.cs`
   - `services/http-worker/src/HttpWorker.Services/GraphCandidateService.cs`
   - `services/http-worker/src/HttpWorker.Services/PipelineServices.cs`
-  - `services/http-worker/tests/HttpWorker.Tests/EngagementSignalTests.cs` (new)
   - `backend/apps/suggestions/recommended_weights.py`
   - `backend/apps/core/views.py`
   - `backend/apps/suggestions/migrations/0024_upsert_engagement_signal_preset_keys.py` (new)
@@ -552,7 +562,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `python backend/manage.py test apps.core.tests.ValueModelEngagementSettingsTests --settings=config.settings.test` — 5 tests, OK
   - `scripts/build-frontend.ps1` — build succeeded, no warnings
   - `scripts/test-frontend.ps1` — 18 tests, all SUCCESS
-  - Note: `dotnet build` / `dotnet test` could not run in this shell environment (dotnet not on PATH). C# changes should be verified on first `docker-compose build` or direct `dotnet build` run.
 - Commit/push state: Changes are currently uncommitted.
 
 ### 2026-04-04 - FR-017 Slice 5: Search Impact Reporting UI
@@ -654,17 +663,6 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 - AI/tool: Antigravity
 - Intentional files changed:
-  - `services/http-worker/src/HttpWorker.Services/PostgresRuntimeStore.cs`
-  - `services/http-worker/src/HttpWorker.Services/Distillation/TextDistiller.cs`
-  - `AI-CONTEXT.md`
-- What changed:
-  - Conducted a strict code review on recent commits `d68848a` and `ef8ce8e` affecting `services/http-worker`.
-  - Addressed a **Severity 1 Data Integrity Risk** in `PostgresRuntimeStore.PersistImportNodesAsync` where mapping `ContentId -> DB id` could lead to overlaps across content types (`thread` vs `post`), writing relational objects to the wrong parent DB ID. Changed dictionary map to leverage a tuple `(int ContentId, string ContentType)`.
-  - Fixed a **Severity 2 Concurrency & Race Condition** in `TextDistiller.IsFallbackActive` by removing its `static` modifier. As a Singleton service, a static fallback boolean produces an unstable state under concurrent API usage.
-  - Removed an unused dead `0` column mapping in `PostgresRuntimeStore.GetDestinationNodesAsync` `SELECT` statement mapping `march_2026_pagerank_score`.
-  - Identified **Severity 3 Memory Regression** in `PipelineServices.cs`: `ArrayPool.Shared.Rent(destinations.Count * 768)` will exceed the maximum pooling threshold (usually ~1M floating-point items) if `destinations.Count` > 1365. This negates the memory pool benefits and results in LOH memory allocations. This was documented but not auto-fixed since it requires domain knowledge on typical batch sizes for destinations.
-- Verification that passed:
-  - Code changes visually inspected for syntax and compatibility since they fall within C# domains.
 - Commit/push state:
   - Changes will be committed and pushed during this session.
 
@@ -684,8 +682,6 @@ are scoped accordingly:
   backend image layer (among others) (build context: `./backend`)
 - `frontend/.dockerignore` — already present; excludes node_modules, dist, .angular,
   .git, .gitignore, README.md, Dockerfile (among others) (build context: `./frontend`)
-- `services/http-worker/.dockerignore` — already present; excludes bin/, obj/, .vs/,
-  TestResults/ (among others) (build context: `./services/http-worker`)
 A root-level .dockerignore is not needed because no service uses the repo root as its build
 context.
 

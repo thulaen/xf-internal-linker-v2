@@ -83,24 +83,6 @@ jobs:
       - name: Ruff lint
         run: ruff check backend/
 
-  # ── 4. C# build + xUnit tests ─────────────────────────────────
-  csharp-test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - name: Set up .NET 8.0
-        uses: actions/setup-dotnet@v5
-        with:
-          dotnet-version: "8.0"
-
-      - name: Build solution
-        working-directory: services/http-worker
-        run: dotnet build HttpWorker.sln --configuration Release
-
-      - name: Run tests
-        working-directory: services/http-worker
-        run: dotnet test HttpWorker.sln --no-build --configuration Release --verbosity normal
 
   # ── 5. C++ static analysis ─────────────────────────────────────
   cpp-check:

@@ -40,14 +40,6 @@ Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.ruff_cache") -Labe
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\.pytest_cache") -Label "pytest cache"
 Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\htmlcov") -Label "pytest-cov HTML output"
 
-$httpWorkerRoot = Join-Path $repoRoot "services\http-worker"
-$dotnetArtifactDirs = Get-ChildItem -Path $httpWorkerRoot -Directory -Recurse |
-    Where-Object { $_.Name -in @("bin", "obj") } |
-    Sort-Object -Property FullName -Descending
-
-foreach ($dir in $dotnetArtifactDirs) {
-    Remove-DirectoryIfExists -Path $dir.FullName -Label "HttpWorker $($dir.Name) folder at $($dir.FullName)"
-}
 
 $dockerAvailability = Get-DockerAvailability
 if ($dockerAvailability.Status -eq "ok") {
