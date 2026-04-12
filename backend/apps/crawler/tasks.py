@@ -13,6 +13,10 @@ from django.utils import timezone
 
 logger = logging.getLogger(__name__)
 
+_MAX_ERROR_LEN = 200  # max chars kept from exception messages
+_ALERT_COOLDOWN_24H = 86400  # one stalled-job alert per job per day (seconds)
+_MS_PER_SEC = 1000.0  # millisecond conversion factor
+
 
 # ---------------------------------------------------------------------------
 # Heartbeat / Liveness Pulse — runs every 60 seconds
@@ -43,7 +47,7 @@ def pulse_heartbeat():
             cur.execute("SELECT 1")
         checks["postgres"] = {"ok": True, "ms": _elapsed_ms(t0)}
     except Exception as exc:
-        checks["postgres"] = {"ok": False, "error": str(exc)[:200]}
+        checks["postgres"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
     # 2. Redis
@@ -55,7 +59,7 @@ def pulse_heartbeat():
         r.ping()
         checks["redis"] = {"ok": True, "ms": _elapsed_ms(t0)}
     except Exception as exc:
-        checks["redis"] = {"ok": False, "error": str(exc)[:200]}
+        checks["redis"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
     # 3. Celery workers
@@ -76,7 +80,7 @@ def pulse_heartbeat():
         if worker_count == 0:
             overall_ok = False
     except Exception as exc:
-        checks["celery"] = {"ok": False, "error": str(exc)[:200]}
+        checks["celery"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
         overall_ok = False
 
     # 4. C++ extensions
@@ -90,7 +94,7 @@ def pulse_heartbeat():
             "ms": _elapsed_ms(t0),
         }
     except Exception as exc:
-        checks["cpp_extensions"] = {"ok": False, "error": str(exc)[:200]}
+        checks["cpp_extensions"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
 
     # Push to C++ ring buffer (if available).
     severity = 0 if overall_ok else 3
@@ -182,7 +186,7 @@ def watchdog_check():
                 f"with no progress since {job.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_sync_{job.job_id}",
-            cooldown_seconds=86400,
+            cooldown_seconds=_ALERT_COOLDOWN_24H,
         )
         SystemEvent.objects.create(
             severity="warning",
@@ -214,7 +218,7 @@ def watchdog_check():
                 f"with no progress since {session.updated_at:%H:%M}."
             ),
             dedupe_key=f"stuck_crawl_{session.session_id}",
-            cooldown_seconds=86400,
+            cooldown_seconds=_ALERT_COOLDOWN_24H,
         )
 
 
@@ -423,7 +427,7 @@ def run_crawl_session(session_id: str):
 # Helpers
 # ---------------------------------------------------------------------------
 def _elapsed_ms(t0: float) -> float:
-    return (time.perf_counter() - t0) * 1000
+    return (time.perf_counter() - t0) * _MS_PER_SEC
 
 
 def _avg_latency(checks: dict) -> float:

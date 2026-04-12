@@ -1,6 +1,8 @@
 import hmac
 
 from django.conf import settings
+
+_BYTES_PER_KIB = 1024.0  # bytes per kibibyte
 from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
@@ -351,7 +353,7 @@ class WeightDiagnosticsView(views.APIView):
 
     def _human_size(self, bytes_val):
         for unit in ["B", "KB", "MB", "GB", "TB"]:
-            if bytes_val < 1024.0:
+            if bytes_val < _BYTES_PER_KIB:
                 return f"{bytes_val:.1f} {unit}"
-            bytes_val /= 1024.0
+            bytes_val /= _BYTES_PER_KIB
         return f"{bytes_val:.1f} PB"
