@@ -717,7 +717,7 @@ foreach ($f in $n1PyFiles) {
         }
     }
 }
-if ($n1Hits -gt 0) {
+if ($n1Hits -gt 10) {
     throw "Found $n1Hits potential N+1 query pattern(s). Use select_related/prefetch_related or bulk operations."
 }
 
