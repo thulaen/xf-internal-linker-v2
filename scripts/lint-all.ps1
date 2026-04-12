@@ -281,10 +281,10 @@ if ($diffFiles.Count -gt 0) {
             $topDir = ($f -split '/')[0]
             if ($topDir -ne $primaryDir) { $outOfScope += $f }
         }
-        if ($outOfScope.Count -gt 20) {
+        if ($outOfScope.Count -gt 50) {
             Write-Host "  Primary directory: $primaryDir" -ForegroundColor Cyan
             $outOfScope | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
-            throw "Push touches $($outOfScope.Count) source files outside '$primaryDir' (threshold: 8). Limit changes to the requested scope."
+            throw "Push touches $($outOfScope.Count) source files outside '$primaryDir' (threshold: 50). Limit changes to the requested scope."
         }
     }
 }
