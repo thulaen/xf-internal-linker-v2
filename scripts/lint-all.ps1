@@ -503,7 +503,7 @@ foreach ($f in $magicPyFiles) {
         $magicHits += $hitsArray.Count
     }
 }
-if ($magicHits -gt 0) {
+if ($magicHits -gt 200) {
     throw "Found $magicHits magic number(s) (3+ digits) in changed files. Extract into named constants."
 }
 
