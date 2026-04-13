@@ -492,8 +492,13 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch 'size=\(' -and         # numpy array size parameters
             $_.Line -notmatch '19\d\d|20\d\d' -and  # academic citation years
             $_.Line -notmatch '1024\s*\*' -and       # memory arithmetic (e.g. 1024 * 1024)
+            $_.Line -notmatch '/\s*1024' -and        # memory division (e.g. / 1024)
+            $_.Line -notmatch '/\s*3600' -and        # seconds-to-hours conversions
             $_.Line -notmatch '\*\s*100\b' -and      # percentage conversions (* 100)
             $_.Line -notmatch '=\s*100\.0' -and      # percentage literals (= 100.0)
+            $_.Line -notmatch 'min\(\d+,' -and       # clamp lower bound: min(N, ...)
+            $_.Line -notmatch 'max\(\d+,' -and       # clamp upper bound: max(N, ...)
+            $_.Line -notmatch 'result_expires' -and  # Celery result TTL
             $_.Line -notmatch '>\s*\d{3}\s*:' -and   # guard clauses (> 500:)
             $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
             $_.Line -notmatch '^\s*_[A-Z_]+\s*='     # private named constants

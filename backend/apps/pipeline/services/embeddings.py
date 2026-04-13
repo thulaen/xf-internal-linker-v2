@@ -263,9 +263,13 @@ def _get_model_name() -> str:
     return DEFAULT_MODEL_NAME
 
 
+_BATCH_SIZE_HIGH = 128
+_BATCH_SIZE_DEFAULT = 32
+
+
 def _get_batch_size() -> int:
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
-    return 128 if mode == "HIGH_PERFORMANCE" else 32
+    return _BATCH_SIZE_HIGH if mode == "HIGH_PERFORMANCE" else _BATCH_SIZE_DEFAULT
 
 
 # ---------------------------------------------------------------------------

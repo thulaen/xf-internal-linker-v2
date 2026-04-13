@@ -120,13 +120,13 @@ class HealthDiskView(APIView):
             logger.debug("Could not query database size, defaulting to 0")
 
         # Estimate embedding size from content item count * avg vector size
+        _EMBEDDING_KB = 4  # 1024 floats × 4 bytes ≈ 4 KB per vector
         embeddings_size_mb = 0
         try:
             from apps.content.models import ContentItem
 
             count = ContentItem.objects.filter(embedding__isnull=False).count()
-            # Each embedding is 1024 floats * 4 bytes = ~4 KB
-            embeddings_size_mb = round(count * 4 / 1024, 1)
+            embeddings_size_mb = round(count * _EMBEDDING_KB / 1024, 1)
         except Exception:
             logger.debug(
                 "ContentItem model not available, skipping embeddings size estimate"
