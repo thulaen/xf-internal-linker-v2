@@ -3284,7 +3284,8 @@ class PipelinePersistenceRegressionTests(TestCase):
             )
 
         self.assertEqual(created, 2)
-        self.assertLessEqual(len(queries), 4)
+        # 4 base queries + 2 for transaction.atomic() SAVEPOINT/RELEASE
+        self.assertLessEqual(len(queries), 6)
 
         suggestion_a = Suggestion.objects.get(destination=self.destination_a)
         suggestion_b = Suggestion.objects.get(destination=self.destination_b)

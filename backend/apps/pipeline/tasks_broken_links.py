@@ -15,7 +15,11 @@ from apps.pipeline.tasks import (
     _publish_progress,
     _status_label,
 )
-from apps.pipeline.services.async_http import probe_urls, run_async
+try:
+    from apps.pipeline.services.async_http import probe_urls, run_async
+except ImportError:
+    probe_urls = None  # type: ignore[assignment]  # httpx only in Docker
+    run_async = None  # type: ignore[assignment]
 
 
 logger = logging.getLogger(__name__)

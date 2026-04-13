@@ -1,8 +1,13 @@
+from __future__ import annotations
+
 import asyncio
 import xml.etree.ElementTree as ET  # nosec B405
 from typing import Any
 
-import httpx
+try:
+    import httpx
+except ImportError:
+    httpx = None  # type: ignore[assignment]  # Docker-only dependency
 
 
 def run_async(coro):

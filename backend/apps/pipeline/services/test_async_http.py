@@ -2,11 +2,15 @@ import asyncio
 import time
 import unittest
 
-import httpx
+try:
+    import httpx
+    from apps.pipeline.services.async_http import probe_urls
+except ImportError:
+    httpx = None  # type: ignore[assignment]
+    probe_urls = None  # type: ignore[assignment]
 
-from apps.pipeline.services.async_http import probe_urls
 
-
+@unittest.skipUnless(httpx, "httpx not installed")
 class AsyncHttpTests(unittest.IsolatedAsyncioTestCase):
     async def test_probe_urls_head_fallback_and_redirects(self):
         def handler(request: httpx.Request):
