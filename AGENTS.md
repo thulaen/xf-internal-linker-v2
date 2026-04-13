@@ -30,6 +30,13 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - **Risky logic** — if a change could affect data integrity, scoring, ranking, attribution, or imports, flag it explicitly and wait for confirmation.
 - **A clearly better approach exists** — if you see a significantly better way to build what was asked, describe it and ask whether to proceed with the original plan or the better one.
 
+### Performance is correctness
+- **Slow hot-path code is a bug.** Treat it with the same urgency as incorrect output.
+- **C++ extensions are the first-choice compute path.** If a C++ extension exists for the operation, call it. Python is fallback and reference only. See `backend/PYTHON-RULES.md` §19 and `backend/extensions/CPP-RULES.md` §25.
+- **File performance findings in the Report Registry** (`docs/reports/REPORT-REGISTRY.md`). If you discover a hot-path function running >2× slower than expected, file it as MEDIUM. >5× is HIGH. Incorrect results from an optimisation is CRITICAL.
+- **No feature is "done" if its hot path has no benchmark coverage.** Every hot-path function needs benchmarks at 3 input sizes before merge.
+- **Poor performance in the Report Registry must be resolved** before the affected area is declared Phase-complete.
+
 ### Never do
 - Do not refactor code outside the scope of the current task without explicit approval.
 - Do not silently change behaviour while "cleaning up" — correctness always comes first.

@@ -6,9 +6,12 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
-import { HealthService, ServiceHealth, HealthSummary } from './health.service';
+import { MatTabsModule } from '@angular/material/tabs';
+import { HealthService, ServiceHealth, HealthSummary, ConfigTier, DiskHealth, GpuHealth } from './health.service';
 import { SyncService, SyncJob } from '../jobs/sync.service';
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
+import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
+import { DeepLinkSpotlightDirective } from '../shared/directives/deep-link-spotlight.directive';
 import { finalize } from 'rxjs';
 
 export interface ChecklistGroup {
@@ -64,7 +67,10 @@ const STATUS_SORT_ORDER: Record<string, number> = {
     MatIconModule,
     MatTooltipModule,
     MatProgressBarModule,
+    MatTabsModule,
     ScrollHighlightDirective,
+    HealthBannerComponent,
+    DeepLinkSpotlightDirective,
   ],
   templateUrl: './health.component.html',
   styleUrls: ['./health.component.scss'],
@@ -91,9 +97,30 @@ export class HealthComponent implements OnInit, OnDestroy {
   // Checklist groups derived from services
   checklistGroups: ChecklistGroup[] = [];
 
+  // Config-tier grouping (Stage 4)
+  tierGroups: Record<ConfigTier, ServiceHealth[]> = {
+    required_to_run: [],
+    required_for_sync: [],
+    required_for_analytics: [],
+    optional: [],
+  };
+  readonly tierLabels: Record<ConfigTier, string> = {
+    required_to_run: 'Required to Run',
+    required_for_sync: 'Required for Sync',
+    required_for_analytics: 'Required for Analytics',
+    optional: 'Optional',
+  };
+  readonly tiers: ConfigTier[] = ['required_to_run', 'required_for_sync', 'required_for_analytics', 'optional'];
+
+  // Disk + GPU (Stage 4)
+  diskHealth: DiskHealth | null = null;
+  gpuHealth: GpuHealth | null = null;
+
   ngOnInit(): void {
     this.loadData();
     this.loadActiveJobs();
+    this.healthService.getDiskHealth().subscribe(d => this.diskHealth = d);
+    this.healthService.getGpuHealth().subscribe(g => this.gpuHealth = g);
   }
 
   ngOnDestroy(): void {
@@ -111,6 +138,7 @@ export class HealthComponent implements OnInit, OnDestroy {
           );
           this.computeCounts();
           this.buildChecklistGroups();
+          this.buildTierGroups();
           this.updateSummary();
         },
         error: (err) => console.error('Error loading health status', err)
@@ -199,6 +227,23 @@ export class HealthComponent implements OnInit, OnDestroy {
       label: g.label,
       services: g.keys.map(k => byKey.get(k)).filter((s): s is ServiceHealth => !!s),
     })).filter(g => g.services.length > 0);
+  }
+
+  private buildTierGroups(): void {
+    this.tierGroups = {
+      required_to_run: [],
+      required_for_sync: [],
+      required_for_analytics: [],
+      optional: [],
+    };
+    for (const svc of this.services) {
+      const tier = (svc.config_tier ?? 'optional') as ConfigTier;
+      if (this.tierGroups[tier]) {
+        this.tierGroups[tier].push(svc);
+      } else {
+        this.tierGroups.optional.push(svc);
+      }
+    }
   }
 
   // ── Template helpers ─────────────────────────────────────────────

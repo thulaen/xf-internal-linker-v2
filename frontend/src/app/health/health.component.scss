@@ -1,5 +1,53 @@
 @use 'sass:color';
 
+// ── Config Tier Tabs (Stage 4) ──────────────────────────────────
+.tier-section {
+  margin-bottom: var(--space-lg);
+}
+.tier-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+.tier-card {
+  border: var(--card-border);
+  box-shadow: none;
+  border-radius: var(--card-border-radius);
+  padding: var(--space-md);
+}
+.tier-card-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-xs);
+}
+.tier-card-name { font-weight: 500; font-size: 13px; }
+.tier-card-label { font-size: 12px; color: var(--color-text-secondary); }
+.tier-empty { padding: var(--space-lg); color: var(--color-text-muted); text-align: center; }
+
+// ── Disk & GPU Section ──────────────────────────────────────────
+.disk-gpu-section { margin-bottom: var(--space-lg); }
+.disk-gpu-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+.info-card {
+  border: var(--card-border);
+  box-shadow: none;
+  border-radius: var(--card-border-radius);
+}
+.metric-row {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-xs) 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border-faint);
+  &:last-child { border-bottom: none; }
+}
+.metric-row .warn { color: var(--color-error); font-weight: 600; }
+
 .health-container {
   padding: 24px;
   background-color: var(--color-bg-faint);

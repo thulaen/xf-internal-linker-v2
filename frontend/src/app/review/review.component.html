@@ -167,7 +167,16 @@
           @if (s.repeated_anchor) {
             <mat-icon class="warn-icon" matTooltip="Repeated anchor in another suggestion">warning</mat-icon>
           }
+          @if (needsHumanJudgment(s)) {
+            <app-confidence-badge level="low" label="Needs review" />
+          }
           <span class="spacer"></span>
+          <!-- Aging indicator -->
+          @if (s.status === 'pending' && daysWaiting(s.created_at) > 0) {
+            <span class="aging-chip aging-{{ agingLevel(s.created_at) }}" [matTooltip]="'Waiting ' + daysWaiting(s.created_at) + ' days'">
+              {{ daysWaiting(s.created_at) }}d
+            </span>
+          }
           <span class="card-date">{{ s.created_at | date:'MMM d' }}</span>
         </div>
 
@@ -214,10 +223,22 @@
         <div class="card-anchor-row">
           <mat-icon class="anchor-icon">link</mat-icon>
           <span class="anchor-text">{{ s.anchor_edited || s.anchor_phrase }}</span>
-          <span class="confidence-chip confidence-{{ s.anchor_confidence }}">
-            {{ s.anchor_confidence }}
-          </span>
+          <app-confidence-badge [level]="confidenceLevel(s)" />
         </div>
+
+        <!-- SEO Risk indicators -->
+        @if (s.same_silo) {
+          <div class="seo-risk-row">
+            <mat-icon class="icon-sm">info</mat-icon>
+            <span>Same silo link — both pages are in the same topic group</span>
+          </div>
+        }
+        @if (s.repeated_anchor) {
+          <div class="seo-risk-row seo-risk-warn">
+            <mat-icon class="icon-sm">warning</mat-icon>
+            <span>Repeated anchor — this text is used in another suggestion</span>
+          </div>
+        }
 
         @if (s.rejection_reason) {
           <div class="rejection-reason">

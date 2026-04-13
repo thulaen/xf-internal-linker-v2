@@ -6,9 +6,6 @@ import { TOKEN_KEY } from '../services/auth.service';
 
 const TOKEN_ENDPOINT = '/api/auth/token/';
 
-/** Guard against multiple 401 redirects firing in parallel. */
-let isRedirecting = false;
-
 export const authInterceptor: HttpInterceptorFn = (req, next) => {
   const router = inject(Router);
 
@@ -24,12 +21,17 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
   return next(authReq).pipe(
     catchError((error: HttpErrorResponse) => {
-      if (error.status === 401 && !isRedirecting) {
-        isRedirecting = true;
-        localStorage.removeItem(TOKEN_KEY);
-        router.navigate(['/login']).finally(() => {
-          isRedirecting = false;
-        });
+      if (error.status === 401) {
+        // Only redirect if we're not already on the login page.
+        // This avoids the fragile static-flag approach and naturally
+        // handles parallel 401 responses without race conditions.
+        const onLoginPage = router.url.startsWith('/login');
+        if (!onLoginPage) {
+          localStorage.removeItem(TOKEN_KEY);
+          router.navigate(['/login'], {
+            queryParams: { returnUrl: router.url },
+          });
+        }
       }
       return throwError(() => error);
     })

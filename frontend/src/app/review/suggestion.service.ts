@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, of } from 'rxjs';
+import { catchError, map } from 'rxjs/operators';
 
 export type SuggestionStatus =
   | 'pending' | 'approved' | 'rejected'
@@ -381,6 +382,14 @@ export class SuggestionService {
   private http = inject(HttpClient);
   private base = '/api/suggestions/';
   private runsBase = '/api/pipeline-runs/';
+
+  getPendingCount(): Observable<number> {
+    const params = new HttpParams().set('status', 'pending').set('page_size', '1');
+    return this.http.get<PaginatedResult<Suggestion>>(this.base, { params }).pipe(
+      map(res => res.count ?? 0),
+      catchError(() => of(0)),
+    );
+  }
 
   list(filters: SuggestionFilters = {}): Observable<PaginatedResult<Suggestion>> {
     let params = new HttpParams();

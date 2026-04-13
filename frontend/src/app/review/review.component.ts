@@ -30,6 +30,8 @@ import {
   DialogData,
   DialogResult,
 } from './suggestion-detail-dialog.component';
+import { ConfidenceBadgeComponent } from '../shared/confidence-badge/confidence-badge.component';
+import { SuggestionExplainerPipe } from './pipes/suggestion-explainer.pipe';
 
 interface StatusTab {
   value: string;
@@ -60,6 +62,8 @@ interface StatusTab {
     MatSnackBarModule,
     MatTooltipModule,
     HighlightPipe,
+    ConfidenceBadgeComponent,
+    SuggestionExplainerPipe,
   ],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
@@ -315,6 +319,35 @@ export class ReviewComponent implements OnInit {
     if (score >= 0.75) return 'high';
     if (score >= 0.5)  return 'medium';
     return 'low';
+  }
+
+  /** Days since suggestion was created — for aging indicator. */
+  daysWaiting(createdAt: string): number {
+    const diff = Date.now() - new Date(createdAt).getTime();
+    return Math.floor(diff / 86_400_000);
+  }
+
+  /** Aging severity for visual indicator. */
+  agingLevel(createdAt: string): 'neutral' | 'amber' | 'red' {
+    const days = this.daysWaiting(createdAt);
+    if (days >= 30) return 'red';
+    if (days >= 7) return 'amber';
+    return 'neutral';
+  }
+
+  /** Map anchor_confidence to ConfidenceBadge level. */
+  confidenceLevel(s: Suggestion): 'high' | 'medium' | 'low' | 'thin' {
+    if (s.score_final < 0.5) return 'thin';
+    if (s.anchor_confidence === 'strong') return 'high';
+    if (s.anchor_confidence === 'weak') return 'medium';
+    return 'low';
+  }
+
+  /** Whether this suggestion needs human judgment. */
+  needsHumanJudgment(s: Suggestion): boolean {
+    return (s.score_final >= 0.5 && s.score_final <= 0.65) ||
+           s.anchor_confidence === 'none' ||
+           (s.anchor_confidence === 'weak' && s.score_final < 0.55);
   }
 
   siloLabel(name: string): string {

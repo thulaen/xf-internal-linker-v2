@@ -1,3 +1,23 @@
+// ── Stage 7: SEO Proof section ──────────────────────────────────
+.stage7-section {
+  margin-top: var(--space-xl);
+  padding-top: var(--space-lg);
+  border-top: var(--card-border);
+}
+.stage7-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  font-size: 16px;
+  font-weight: 500;
+  margin-bottom: var(--space-lg);
+}
+.stage7-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--space-md);
+}
+
 .inline-page-header {
   margin-bottom: 28px;
   padding-bottom: 24px;

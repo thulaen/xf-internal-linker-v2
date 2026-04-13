@@ -29,6 +29,11 @@ import {
   GSCImpactSnapshot,
   SearchImpactDetailResponse,
 } from './analytics.service';
+import { ImpactDiaryComponent } from './impact-diary/impact-diary.component';
+import { UnderLinkedComponent } from './under-linked/under-linked.component';
+import { QueryMismatchComponent } from './query-mismatch/query-mismatch.component';
+import { WatchedPagesComponent } from './watched-pages/watched-pages.component';
+import { TrafficWorkbenchComponent } from './traffic-workbench/traffic-workbench.component';
 
 @Component({
   selector: 'app-analytics',
@@ -43,7 +48,12 @@ import {
     MatProgressSpinnerModule,
     MatTooltipModule,
     BaseChartDirective,
-    RouterLink
+    RouterLink,
+    ImpactDiaryComponent,
+    UnderLinkedComponent,
+    QueryMismatchComponent,
+    WatchedPagesComponent,
+    TrafficWorkbenchComponent,
   ],
   templateUrl: './analytics.component.html',
   styleUrls: ['./analytics.component.scss'],

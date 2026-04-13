@@ -12,10 +12,17 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatDividerModule } from '@angular/material/divider';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { MatTabsModule } from '@angular/material/tabs';
+import { MatStepperModule } from '@angular/material/stepper';
+import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { HttpClient } from '@angular/common/http';
+import { catchError, of } from 'rxjs';
 import { SyncService, SyncJob } from './sync.service';
 import { JobDetailDialogComponent, JobDetailDialogResult } from './job-detail-dialog.component';
+import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
+import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 
 type ImportState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
 
@@ -51,6 +58,11 @@ interface SourceJobState {
     MatTooltipModule,
     MatDialogModule,
     MatSnackBarModule,
+    MatTabsModule,
+    MatStepperModule,
+    MatChipsModule,
+    HealthBannerComponent,
+    EmptyStateComponent,
   ],
   templateUrl: './jobs.component.html',
   styleUrls: ['./jobs.component.scss'],
@@ -74,8 +86,15 @@ export class JobsComponent implements OnInit, OnDestroy {
   };
 
   private syncService = inject(SyncService);
+  private http = inject(HttpClient);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
+
+  // Queue + Quarantine (Stage 5)
+  queueItems: any[] = [];
+  quarantineItems: any[] = [];
+  activeLocks: Record<string, string | null> = {};
+  selectedTab = 0;
 
   readonly modes = [
     { value: 'full',   label: 'Full import',  hint: 'Downloads everything needed for accurate suggestions (recommended first time)' },
@@ -182,8 +201,25 @@ export class JobsComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadHistory();
     this.loadSourceStatus();
+    this.loadQueue();
+    this.loadQuarantine();
     // Refresh the history table every 30 seconds so status changes are visible.
     this.historyInterval = setInterval(() => this.loadHistory(), 30_000);
+  }
+
+  loadQueue(): void {
+    this.http.get<{ items: any[]; locks: Record<string, string | null> }>('/api/jobs/queue/')
+      .pipe(catchError(() => of({ items: [], locks: {} })))
+      .subscribe(data => {
+        this.queueItems = data.items;
+        this.activeLocks = data.locks;
+      });
+  }
+
+  loadQuarantine(): void {
+    this.http.get<any[]>('/api/jobs/quarantine/')
+      .pipe(catchError(() => of([])))
+      .subscribe(items => this.quarantineItems = items);
   }
 
   loadSourceStatus(): void {

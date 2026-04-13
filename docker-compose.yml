@@ -136,7 +136,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-4} --prefetch-multiplier 1 -Q default,pipeline,embeddings"
+             celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default,pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)

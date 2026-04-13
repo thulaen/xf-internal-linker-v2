@@ -53,6 +53,38 @@
   </div>
 }
 
+<!-- ── Operating Desk: Row 1 ──────────────────────────────────── -->
+@if (!loading && data) {
+  <div class="desk-row desk-row-top">
+    <app-ready-to-run
+      [health]="data.system_health"
+      [lastRunDaysAgo]="daysSinceLastRun"
+    />
+    <app-performance-mode
+      [currentMode]="performanceMode"
+      (modeChange)="onPerformanceModeChange($event)"
+    />
+    <app-runtime-mode [mode]="runtimeMode" />
+    @if (whatChanged) {
+      <app-what-changed [changes]="whatChanged" />
+    }
+  </div>
+
+  <!-- ── Operating Desk: Row 2 ──────────────────────────────────── -->
+  <div class="desk-row">
+    <app-today-focus [actions]="todayActions" />
+    @if (resumeState) {
+      <app-pick-up [resumeState]="resumeState" />
+    }
+  </div>
+
+  <!-- ── Operating Desk: Row 3 ──────────────────────────────────── -->
+  <div class="desk-row">
+    <app-running-now [activeTasks]="[]" (runPipeline)="runPipeline()" />
+    <app-ranking-strategy-card [challengers]="[]" />
+  </div>
+}
+
 @if (!loading && data && showSetupChecklist) {
   <section class="setup-checklist" data-ga4-panel>
     <div class="checklist-header">

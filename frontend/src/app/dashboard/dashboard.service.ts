@@ -49,6 +49,11 @@ export interface DashboardData {
     summary: { [key: string]: number };
     total_monitored: number;
   };
+  // Freshness ribbon fields (nullable until backend endpoints exist)
+  last_sync_at?: string | null;
+  last_analytics_at?: string | null;
+  last_pipeline_at?: string | null;
+  runtime_mode?: string;
 }
 
 /** Cache lives for 60 seconds before a fresh fetch is required. */

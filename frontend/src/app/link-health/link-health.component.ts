@@ -100,7 +100,7 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   ];
 
   private ws: WebSocket | null = null;
-  private pollingInterval: any;
+  private pollingInterval: ReturnType<typeof setInterval> | null = null;
 
   ngOnInit(): void {
     this.load();
@@ -263,21 +263,26 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     this.ws = new WebSocket(`${protocol}://${location.host}/ws/jobs/${jobId}/`);
 
     this.ws.onmessage = (event) => {
-      const data = JSON.parse(event.data);
+      let data: Record<string, unknown>;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return; // Ignore malformed WebSocket messages
+      }
 
-      if (data.type === 'connection.established') {
+      if (data['type'] === 'connection.established') {
         this.progressMessage = 'Connected. Waiting for scan progress...';
         return;
       }
 
-      if (data.type !== 'job.progress') {
+      if (data['type'] !== 'job.progress') {
         return;
       }
 
-      this.progress = Math.round((data.progress ?? 0) * 100);
-      this.progressMessage = data.message ?? '';
+      this.progress = Math.round(((data['progress'] as number) ?? 0) * 100);
+      this.progressMessage = (data['message'] as string) ?? '';
 
-      if (data.state === 'completed') {
+      if (data['state'] === 'completed') {
         this.scanning = false;
         this.progress = 100;
         this.ws?.close();
@@ -285,9 +290,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
         this.load();
         this.loadSummary();
         this.snack.open('Broken-link scan complete', undefined, { duration: 3000 });
-      } else if (data.state === 'failed') {
+      } else if (data['state'] === 'failed') {
         this.scanning = false;
-        this.errorMessage = data.error ?? 'Broken-link scan failed.';
+        this.errorMessage = (data['error'] as string) ?? 'Broken-link scan failed.';
         this.ws?.close();
         this.stopPolling();
         this.snack.open(this.errorMessage, 'Dismiss', { duration: 5000 });

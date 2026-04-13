@@ -1,3 +1,37 @@
+// ── Aging chips (Stage 6) ────────────────────────────────────────
+.aging-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  line-height: 1;
+}
+.aging-neutral {
+  background: var(--color-bg-faint);
+  color: var(--color-text-muted);
+}
+.aging-amber {
+  background: var(--color-warning-light);
+  color: var(--color-warning-dark);
+}
+.aging-red {
+  background: var(--color-error-50);
+  color: var(--color-error-dark);
+}
+
+// ── SEO Risk rows (Stage 6) ─────────────────────────────────────
+.seo-risk-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  padding: var(--space-xs) 0;
+}
+.seo-risk-warn {
+  color: var(--color-warning-dark);
+}
+
 .review-shell {
   display: flex;
   flex-direction: column;

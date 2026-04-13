@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -11,6 +12,7 @@ import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTableModule } from '@angular/material/table';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { catchError, of } from 'rxjs';
 import {
   DashboardService,
   DashboardData,
@@ -24,6 +26,16 @@ import { WebhookLogComponent } from './components/webhook-log/webhook-log.compon
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 import { SetupWizardDialogComponent } from './components/setup-wizard/setup-wizard-dialog.component';
 import { PulseService, SystemEvent } from '../core/services/pulse.service';
+import { TodayFocusComponent, TodayAction } from './today-focus/today-focus.component';
+import { PickUpComponent, ResumeState } from './pick-up/pick-up.component';
+import { RunningNowComponent } from './running-now/running-now.component';
+import { WhatChangedComponent, WhatChangedData } from './what-changed/what-changed.component';
+import { ReadyToRunComponent } from './ready-to-run/ready-to-run.component';
+import { PerformanceModeComponent } from './performance-mode/performance-mode.component';
+import { RuntimeModeComponent } from './runtime-mode/runtime-mode.component';
+import { RankingStrategyCardComponent } from './ranking-strategy-card/ranking-strategy-card.component';
+import { SuggestionFunnelComponent } from './suggestion-funnel/suggestion-funnel.component';
+import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opportunity-pages.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -43,6 +55,16 @@ import { PulseService, SystemEvent } from '../core/services/pulse.service';
     SystemSummaryComponent,
     WebhookLogComponent,
     ScrollHighlightDirective,
+    TodayFocusComponent,
+    PickUpComponent,
+    RunningNowComponent,
+    WhatChangedComponent,
+    ReadyToRunComponent,
+    PerformanceModeComponent,
+    RuntimeModeComponent,
+    RankingStrategyCardComponent,
+    SuggestionFunnelComponent,
+    TopOpportunityPagesComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
@@ -52,6 +74,7 @@ export class DashboardComponent implements OnInit {
   private suggSvc = inject(SuggestionService);
   private syncSvc = inject(SyncService);
   private pulseService = inject(PulseService);
+  private http = inject(HttpClient);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
@@ -63,6 +86,13 @@ export class DashboardComponent implements OnInit {
   syncing = false;
   daysSinceLastRun: number | null = null;
 
+  // Stage 3 operating desk data
+  todayActions: TodayAction[] = [];
+  whatChanged: WhatChangedData | null = null;
+  resumeState: ResumeState | null = null;
+  runtimeMode = 'cpu';
+  performanceMode = 'balanced';
+
   showSetupChecklist = false;
   setupSteps = { connected: false, imported: false, pipelineRan: false, reviewed: false };
 
@@ -73,11 +103,37 @@ export class DashboardComponent implements OnInit {
 
   ngOnInit(): void {
     this.load();
+    this.loadOperatingDesk();
 
     // Subscribe to live activity feed.
     this.pulseService.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((events) => (this.activityEvents = events));
+  }
+
+  private loadOperatingDesk(): void {
+    this.http.get<TodayAction[]>('/api/dashboard/today-actions/')
+      .pipe(catchError(() => of([])))
+      .subscribe(actions => this.todayActions = actions);
+
+    this.http.get<WhatChangedData>('/api/dashboard/what-changed/')
+      .pipe(catchError(() => of(null)))
+      .subscribe(data => this.whatChanged = data);
+
+    this.http.get<ResumeState>('/api/dashboard/resume-state/')
+      .pipe(catchError(() => of(null)))
+      .subscribe(state => this.resumeState = state);
+
+    this.http.get<{ runtime_mode: string; performance_mode: string }>('/api/settings/runtime/')
+      .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced' })))
+      .subscribe(rt => {
+        this.runtimeMode = rt.runtime_mode;
+        this.performanceMode = rt.performance_mode;
+      });
+  }
+
+  onPerformanceModeChange(mode: string): void {
+    this.performanceMode = mode;
   }
 
   load(): void {

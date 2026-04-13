@@ -359,3 +359,98 @@
   </div>
 
 </div>
+
+<!-- ── Queue + Quarantine Tabs (Stage 5) ──────────────────────── -->
+<mat-tab-group [(selectedIndex)]="selectedTab" animationDuration="200ms" class="jobs-tabs">
+
+  <!-- Queue Tab -->
+  <mat-tab label="Queue">
+    <div class="tab-content">
+      @if (queueItems.length === 0) {
+        <app-empty-state
+          icon="hourglass_empty"
+          heading="Queue is empty"
+          body="No tasks are currently queued or running."
+        />
+      } @else {
+        <div class="queue-list">
+          @for (item of queueItems; track item.run_id || item.job_id) {
+            <mat-card class="queue-card" data-ga4-panel>
+              <div class="queue-card-header">
+                <mat-icon>{{ item.type === 'pipeline' ? 'auto_fix_high' : 'sync' }}</mat-icon>
+                <span class="queue-card-name">{{ item.type === 'pipeline' ? 'Pipeline Run' : 'Content Sync' }}</span>
+                <mat-chip [class]="'status-chip status-' + (item.run_state || item.status)" disableRipple>
+                  {{ item.run_state || item.status }}
+                </mat-chip>
+              </div>
+              @if (item.estimated_remaining_seconds) {
+                <span class="queue-eta">
+                  ETA: {{ item.estimated_remaining_seconds > 60
+                    ? (item.estimated_remaining_seconds / 60 | number:'1.0-0') + ' min'
+                    : 'finishing soon' }}
+                </span>
+              }
+              @if (item.phase_log && item.phase_log.length > 0) {
+                <mat-stepper class="phase-stepper" [linear]="false" labelPosition="bottom">
+                  @for (phase of item.phase_log; track phase.phase) {
+                    <mat-step [completed]="phase.status === 'completed'" [label]="phase.phase">
+                      <ng-template matStepLabel>{{ phase.phase }}</ng-template>
+                    </mat-step>
+                  }
+                </mat-stepper>
+              }
+            </mat-card>
+          }
+        </div>
+      }
+
+      @if (activeLocks['heavy']) {
+        <app-health-banner
+          severity="info"
+          [message]="'Heavy task lock held by: ' + activeLocks['heavy']"
+        />
+      }
+    </div>
+  </mat-tab>
+
+  <!-- Quarantine Tab -->
+  <mat-tab>
+    <ng-template mat-tab-label>
+      Quarantine
+      @if (quarantineItems.length > 0) {
+        <span class="tab-badge">{{ quarantineItems.length }}</span>
+      }
+    </ng-template>
+    <div class="tab-content">
+      @if (quarantineItems.length === 0) {
+        <app-empty-state
+          icon="verified_user"
+          heading="No quarantined jobs"
+          body="All jobs are healthy. Quarantined jobs appear here after 3+ consecutive failures."
+        />
+      } @else {
+        <div class="quarantine-list">
+          @for (item of quarantineItems; track item.run_id) {
+            <mat-card class="quarantine-card" data-ga4-panel>
+              <div class="quarantine-header">
+                <mat-icon class="quarantine-icon">warning</mat-icon>
+                <span>Run {{ item.run_id.substring(0, 8) }}</span>
+                <mat-chip class="quarantine-chip" disableRipple>Quarantined</mat-chip>
+              </div>
+              <p class="quarantine-error">{{ item.error_message || 'No error details available.' }}</p>
+              <div class="quarantine-actions">
+                <button mat-stroked-button>
+                  <mat-icon>replay</mat-icon> Retest
+                </button>
+                <button mat-stroked-button>
+                  <mat-icon>restore</mat-icon> Restore to Queue
+                </button>
+              </div>
+            </mat-card>
+          }
+        </div>
+      }
+    </div>
+  </mat-tab>
+
+</mat-tab-group>

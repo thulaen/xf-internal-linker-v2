@@ -1,6 +1,6 @@
 import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd } from '@angular/router';
+import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { filter, map, startWith, timer, switchMap } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -10,17 +10,22 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatMenuModule } from '@angular/material/menu';
+import { MatBadgeModule } from '@angular/material/badge';
+import { MatChipsModule } from '@angular/material/chips';
 import { AlertDeliveryService } from './core/services/alert-delivery.service';
 import { AppearanceService } from './core/services/appearance.service';
 import { AuthService } from './core/services/auth.service';
 import { GlobalLinkInterceptorService } from './core/services/global-link-interceptor.service';
-import { HealthService } from './health/health.service';
-import { DashboardService } from './dashboard/dashboard.service';
+import { HealthService, HealthSummary } from './health/health.service';
+import { DashboardService, DashboardData } from './dashboard/dashboard.service';
 import { PulseService, PulseState } from './core/services/pulse.service';
+import { SuggestionService } from './review/suggestion.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
 import { ScrollHighlightDirective } from './core/directives/scroll-highlight.directive';
+import { FreshnessBadgeComponent } from './shared/freshness-badge/freshness-badge.component';
+import { routeTransitionAnimation } from './shared/animations/route-transition.animation';
 import { environment } from '../environments/environment';
 
 interface NavItem {
@@ -54,9 +59,13 @@ interface NavSection {
     ThemeCustomizerComponent,
     ScrollToTopComponent,
     ScrollHighlightDirective,
+    FreshnessBadgeComponent,
+    MatBadgeModule,
+    MatChipsModule,
   ],
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
+  animations: [routeTransitionAnimation],
 })
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
@@ -68,9 +77,20 @@ export class AppComponent implements OnInit {
   private destroyRef = inject(DestroyRef);
   private router = inject(Router);
   private pulseService = inject(PulseService);
+  private suggestionSvc = inject(SuggestionService);
+  private contexts = inject(ChildrenOutletContexts);
 
   currentUser$ = this.auth.currentUser$;
   pulse: PulseState = { ok: false, status: 'unknown', lastBeatAt: 0, checks: {}, taskCount: 0 };
+
+  // Freshness ribbon data
+  lastSyncAt: string | null = null;
+  lastAnalyticsAt: string | null = null;
+  lastPipelineAt: string | null = null;
+  runtimeMode = 'CPU';
+
+  // Nav badge: pending suggestion count
+  pendingSuggestionCount = 0;
 
   // Hide the app shell on the login page so it gets its own minimal layout
   isLoginPage$ = this.router.events.pipe(
@@ -174,7 +194,7 @@ export class AppComponent implements OnInit {
           label: 'Performance',
           icon: 'speed',
           route: '/performance',
-          tooltip: 'Benchmark results for C++, Python, and C# hot paths',
+          tooltip: 'Benchmark results for C++ and Python hot paths',
         },
       ],
     },
@@ -188,7 +208,7 @@ export class AppComponent implements OnInit {
     // Fetch broken links count for badge
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((data: any) => {
+      .subscribe((data: DashboardData | null) => {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
       });
     
@@ -207,7 +227,7 @@ export class AppComponent implements OnInit {
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: (summary: any) => this.systemStatus = summary.system_status,
+        next: (summary: HealthSummary) => this.systemStatus = summary.system_status,
         error: () => this.systemStatus = 'unknown'
       });
 
@@ -216,6 +236,36 @@ export class AppComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((p) => (this.pulse = p));
 
+    // Freshness ribbon: refresh every 15 minutes
+    timer(0, 15 * 60 * 1000)
+      .pipe(
+        switchMap(() => this.dashboardSvc.refresh()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (d: DashboardData) => {
+          this.lastSyncAt = d.last_sync_at ?? null;
+          this.lastPipelineAt = d.last_pipeline_at ?? null;
+          this.lastAnalyticsAt = d.last_analytics_at ?? null;
+          this.runtimeMode = d.runtime_mode ?? 'CPU';
+        },
+      });
+
+    // Nav badge: pending suggestions count, refreshed every 5 minutes
+    timer(0, 5 * 60 * 1000)
+      .pipe(
+        switchMap(() => this.suggestionSvc.getPendingCount()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (count: number) => this.pendingSuggestionCount = count,
+        error: () => this.pendingSuggestionCount = 0,
+      });
+
+  }
+
+  getRouteAnimationData(): string {
+    return this.contexts.getContext('primary')?.route?.snapshot?.url?.toString() ?? '';
   }
 
   get config() {

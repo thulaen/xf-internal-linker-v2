@@ -14,23 +14,34 @@
   z-index: 999;
 }
 
-// ── Panel ─────────────────────────────────────────────────────────
+// ── Panel (Windows 11 Notification Center style) ─────────────────
 .notif-panel {
   position: fixed;
-  top: 56px; // below the toolbar
-  right: 0;
+  top: 56px;
+  right: 8px;
   z-index: 1000;
-  width: 380px;
+  width: 360px;
   max-height: calc(100vh - 72px);
   overflow-y: auto;
-  background: var(--color-bg-white);
+  // Windows 11 Acrylic material: frosted glass.
+  // backdrop-filter is a CSS filter, not a gradient — does not violate the no-gradient rule.
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   border-left: var(--card-border);
-  border-bottom: var(--card-border);
-  box-shadow: 0 4px 12px rgba(60, 64, 67, 0.15);
+  border-radius: 8px 0 0 8px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
   display: flex;
   flex-direction: column;
   font-family: var(--font-family);
   font-size: 13px;
+  // Slide-in animation
+  animation: notif-slide-in 200ms ease forwards;
+}
+
+@keyframes notif-slide-in {
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
 }
 
 // ── Panel header ──────────────────────────────────────────────────
@@ -93,9 +104,14 @@
   align-items: flex-start;
   gap: var(--space-sm);
   padding: var(--space-sm) var(--space-sm) var(--space-sm) var(--space-md);
+  margin: var(--space-xs) var(--space-sm);
   min-height: 56px;
   transition: background 0.15s ease;
   border-left: 3px solid transparent;
+  // Windows 11 notification card style
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
 
   &--clickable {
     cursor: pointer;

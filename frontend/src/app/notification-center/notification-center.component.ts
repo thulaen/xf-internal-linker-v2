@@ -95,7 +95,7 @@ export class NotificationCenterComponent implements OnInit {
   onAcknowledgeAll(): void {
     this.notifSvc.acknowledgeAll().subscribe({
       next: () => { this.alerts = []; },
-      error: (err) => { console.error('Failed to acknowledge all alerts', err); this.loadAlerts(); },
+      error: () => { this.loadAlerts(); },
     });
   }
 
@@ -103,13 +103,13 @@ export class NotificationCenterComponent implements OnInit {
     event.stopPropagation();
     this.notifSvc.acknowledge(alert.alert_id).subscribe({
       next: () => { this.alerts = this.alerts.filter((a) => a.alert_id !== alert.alert_id); },
-      error: (err) => { console.error('Failed to acknowledge alert', err); this.loadAlerts(); },
+      error: () => { this.loadAlerts(); },
     });
   }
 
   onOpenRelated(alert: OperatorAlert): void {
     this.notifSvc.markRead(alert.alert_id).subscribe({
-      error: (err) => console.error('Failed to mark alert as read', err),
+      error: () => { /* error interceptor handles display */ },
     });
     if (alert.related_route) {
       this.router.navigateByUrl(alert.related_route);

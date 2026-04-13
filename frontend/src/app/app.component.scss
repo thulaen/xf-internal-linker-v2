@@ -5,6 +5,29 @@
   background-color: var(--color-bg-page);
 }
 
+// ── Freshness Ribbon ──────────────────────────────────────────────
+.freshness-ribbon {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-xs) var(--space-md);
+  height: 40px;
+  background: var(--color-bg-faint);
+  border-bottom: var(--card-border);
+  position: sticky;
+  top: 0;
+  z-index: 99;
+}
+.runtime-chip {
+  font-size: 11px;
+  height: 24px;
+}
+.runtime-icon {
+  font-size: 14px;
+  width: 14px;
+  height: 14px;
+}
+
 .app-sidenav {
   width: var(--sidenav-width, 256px);
   background-color: var(--color-bg-white) !important;

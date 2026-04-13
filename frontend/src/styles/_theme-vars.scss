@@ -121,6 +121,47 @@
   --graph-tooltip-bg:     rgba(32, 33, 36, 0.9);
   --graph-tooltip-text:   #ffffff;
   --graph-selection-ring: rgba(26, 115, 232, 0.4);
+
+  // ── Shared directive tokens ─────────────────────────────────────
+  --spotlight-ring-color: rgba(26, 115, 232, 0.5);
+  --drag-over-border-color: var(--color-primary);
+  --drag-over-bg: rgba(26, 115, 232, 0.04);
+}
+
+// ── Deep-link spotlight animation (used by DeepLinkSpotlightDirective) ──
+.deep-link-spotlight {
+  animation: spotlight-ring 2s ease-out forwards;
+}
+@keyframes spotlight-ring {
+  0% { box-shadow: 0 0 0 4px var(--spotlight-ring-color); }
+  100% { box-shadow: 0 0 0 0 transparent; }
+}
+
+// ── Drag-over state (used by DragOverDirective) ─────────────────
+.drag-over-active {
+  border: 2px dashed var(--drag-over-border-color) !important;
+  background: var(--drag-over-bg) !important;
+}
+
+// ── Card spotlight cursor glow (used by CardSpotlightDirective) ──
+[appCardSpotlight] {
+  position: relative;
+  overflow: hidden;
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(
+      250px circle at var(--mouse-x, -999px) var(--mouse-y, -999px),
+      rgba(26, 115, 232, 0.08),
+      transparent 80%
+    );
+    pointer-events: none;
+    z-index: 0;
+  }
 }
 
 // ── Shared UI Tokens (Mixins for modular import) ──────────────────

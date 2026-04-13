@@ -60,6 +60,58 @@
     </div>
   </mat-card>
 
+  <!-- ── Config Tier Tabs (Stage 4) ─────────────────────────────── -->
+  <section class="tier-section" *ngIf="services.length > 0">
+    <h2 class="section-title">
+      <mat-icon class="icon-base">category</mat-icon>
+      Services by Requirement
+    </h2>
+    <mat-tab-group animationDuration="200ms">
+      <mat-tab *ngFor="let tier of tiers" [label]="tierLabels[tier]">
+        <div class="tier-grid">
+          <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]" [ngClass]="'tier-status-' + s.status">
+            <div class="tier-card-header">
+              <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
+              <span class="tier-card-name">{{ getServiceName(s) }}</span>
+            </div>
+            <span class="tier-card-label">{{ s.status_label }}</span>
+          </mat-card>
+          <div class="tier-empty" *ngIf="tierGroups[tier].length === 0">
+            No services in this tier.
+          </div>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  </section>
+
+  <!-- ── Disk & GPU (Stage 4) ─────────────────────────────────── -->
+  <section class="disk-gpu-section" *ngIf="diskHealth || gpuHealth">
+    <div class="disk-gpu-grid">
+      <mat-card class="info-card" *ngIf="diskHealth">
+        <mat-card-header>
+          <mat-icon mat-card-avatar>storage</mat-icon>
+          <mat-card-title>Disk Usage</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="metric-row"><span>Database</span><span>{{ diskHealth.db_size_mb }} MB</span></div>
+          <div class="metric-row"><span>Embeddings</span><span>{{ diskHealth.embeddings_size_mb }} MB</span></div>
+        </mat-card-content>
+      </mat-card>
+      <mat-card class="info-card" *ngIf="gpuHealth?.available" id="runtime-panel" appDeepLinkSpotlight="runtime-panel">
+        <mat-card-header>
+          <mat-icon mat-card-avatar>memory</mat-icon>
+          <mat-card-title>GPU Status</mat-card-title>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="metric-row"><span>Temperature</span><span [class.warn]="gpuHealth!.temp_c! >= 76">{{ gpuHealth!.temp_c }}°C</span></div>
+          <div class="metric-row"><span>VRAM Used</span><span>{{ gpuHealth!.vram_used_mb }} / {{ gpuHealth!.vram_total_mb }} MB</span></div>
+          <div class="metric-row"><span>Utilization</span><span>{{ gpuHealth!.utilization_pct }}%</span></div>
+          <app-health-banner *ngIf="gpuHealth!.temp_c! >= 76" severity="error" message="GPU temperature at or above 76°C ceiling — GPU work is paused." />
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </section>
+
   <!-- ── Setup Checklist ───────────────────────────────────────── -->
   <section class="checklist-section" id="checklist-section" *ngIf="checklistGroups.length > 0">
     <h2 class="section-title">

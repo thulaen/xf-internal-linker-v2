@@ -35,11 +35,12 @@
   <button
     mat-icon-button
     matTooltip="Customize appearance"
+    aria-label="Customize appearance"
     (click)="customizerOpen = !customizerOpen"
   >
     <mat-icon>palette</mat-icon>
   </button>
-  <button mat-icon-button matTooltip="Open Django Admin" (click)="goToAdmin($event)">
+  <button mat-icon-button matTooltip="Open Django Admin" aria-label="Open Django Admin" (click)="goToAdmin($event)">
     <mat-icon>admin_panel_settings</mat-icon>
   </button>
 
@@ -109,6 +110,9 @@
               @if (item.route === '/link-health' && openBrokenLinks > 0) {
                 <span class="nav-badge">{{ openBrokenLinks }}</span>
               }
+              @if (item.route === '/review' && pendingSuggestionCount > 0) {
+                <span class="nav-badge">{{ pendingSuggestionCount }}</span>
+              }
             </div>
           </a>
         }
@@ -130,8 +134,19 @@
   <!-- ── Main Content Area ──────────────────────────────────────── -->
   <mat-sidenav-content class="app-content">
 
-    <!-- Page Content (routed) -->
-    <main class="page-content">
+    <!-- Freshness Ribbon -->
+    <div class="freshness-ribbon">
+      <app-freshness-badge [updatedAt]="lastSyncAt" [staleAfterHours]="48" />
+      <app-freshness-badge [updatedAt]="lastAnalyticsAt" [staleAfterHours]="72" />
+      <app-freshness-badge [updatedAt]="lastPipelineAt" [staleAfterHours]="336" />
+      <mat-chip class="runtime-chip" disableRipple>
+        <mat-icon matChipAvatar class="runtime-icon">{{ runtimeMode === 'GPU' ? 'memory' : 'computer' }}</mat-icon>
+        {{ runtimeMode }}
+      </mat-chip>
+    </div>
+
+    <!-- Page Content (routed with transition animation) -->
+    <main class="page-content" [@routeAnimation]="getRouteAnimationData()">
       <router-outlet />
     </main>
 

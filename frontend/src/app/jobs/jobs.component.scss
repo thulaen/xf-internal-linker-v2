@@ -1,5 +1,76 @@
 @use '../../styles/theme-vars' as vars;
 
+// ── Jobs Tabs (Stage 5) ───────────────────────────────────────────
+.jobs-tabs {
+  margin-top: var(--space-lg);
+}
+.tab-content {
+  padding: var(--space-md);
+}
+.queue-list, .quarantine-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+}
+.queue-card, .quarantine-card {
+  border: var(--card-border);
+  box-shadow: none;
+  border-radius: var(--card-border-radius);
+  padding: var(--space-md);
+}
+.queue-card-header, .quarantine-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+}
+.queue-card-name { font-weight: 500; font-size: 14px; flex: 1; }
+.queue-eta {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-sm);
+  display: block;
+}
+.phase-stepper {
+  margin-top: var(--space-sm);
+}
+.status-chip {
+  font-size: 11px;
+  height: 24px;
+}
+.status-running {
+  --mdc-chip-elevated-container-color: var(--color-blue-50);
+  --mdc-chip-label-text-color: var(--color-primary);
+}
+.status-queued {
+  --mdc-chip-elevated-container-color: var(--color-bg-faint);
+  --mdc-chip-label-text-color: var(--color-text-muted);
+}
+.quarantine-icon { color: var(--color-warning); }
+.quarantine-chip {
+  --mdc-chip-elevated-container-color: var(--color-error-50);
+  --mdc-chip-label-text-color: var(--color-error-dark);
+  font-size: 11px;
+  height: 24px;
+}
+.quarantine-error {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-sm);
+}
+.quarantine-actions {
+  display: flex;
+  gap: var(--space-sm);
+}
+.tab-badge {
+  background: var(--color-error);
+  color: white;
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 10px;
+  margin-left: var(--space-xs);
+}
+
 // ── Layout ─────────────────────────────────────────────────────────
 
 .page-header {

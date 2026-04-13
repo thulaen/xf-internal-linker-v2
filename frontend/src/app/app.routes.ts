@@ -96,6 +96,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'alerts/:id',
+    loadComponent: () =>
+      import('./alerts/alert-detail/alert-detail.component').then((m) => m.AlertDetailComponent),
+    title: 'Alert Detail — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: 'behavioral-hubs',
     loadComponent: () =>
       import('./behavioral-hubs/behavioral-hubs.component').then((m) => m.BehavioralHubsComponent),
@@ -126,6 +133,8 @@ export const routes: Routes = [
   },
   {
     path: '**',
-    redirectTo: '/dashboard',
+    loadComponent: () =>
+      import('./not-found/not-found.component').then((m) => m.NotFoundComponent),
+    title: 'Page Not Found — XF Internal Linker',
   },
 ];

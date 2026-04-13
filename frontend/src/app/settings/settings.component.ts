@@ -2671,7 +2671,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       manual: 'Manual',
       preset_applied: 'Preset applied',
       r_auto: 'Legacy R tune',
-      cs_auto_tune: 'Legacy C# tune',
+      cs_auto_tune: 'Auto-tuner (Python L-BFGS)',
     }[source] ?? source;
   }
 
