@@ -2992,7 +2992,7 @@ class DashboardView(APIView):
                 .first()
             )
         except Exception:
-            pass
+            logger.debug("GSCSyncRun model not available, skipping analytics freshness")
 
         # Runtime mode from AppSetting
         runtime_mode = "CPU"
@@ -3007,7 +3007,7 @@ class DashboardView(APIView):
             if mode_setting:
                 runtime_mode = mode_setting
         except Exception:
-            pass
+            logger.debug("AppSetting table not available, using default runtime_mode")
 
         return Response(
             {
@@ -3200,7 +3200,7 @@ class WhatChangedView(APIView):
                     "updated_at": recent_challenger.updated_at.isoformat(),
                 }
         except Exception:
-            pass
+            logger.debug("RankingChallenger model not available, skipping autotuner outcome")
 
         return Response(
             {
@@ -3292,7 +3292,7 @@ class ResumeStateView(APIView):
                             }
                         )
         except Exception:
-            pass
+            logger.debug("Catch-up registry unavailable, skipping missed tasks check")
 
         return Response(
             {
@@ -3329,7 +3329,7 @@ class RuntimeSettingsView(APIView):
             if perf_val:
                 perf_mode = perf_val
         except Exception:
-            pass
+            logger.debug("AppSetting table not available, using default runtime and performance modes")
 
         return Response(
             {

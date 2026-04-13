@@ -117,7 +117,7 @@ class HealthDiskView(APIView):
                 if row:
                     db_size_mb = row[0]
         except Exception:
-            pass
+            logger.debug("Could not query database size, defaulting to 0")
 
         # Estimate embedding size from content item count * avg vector size
         embeddings_size_mb = 0
@@ -128,7 +128,7 @@ class HealthDiskView(APIView):
             # Each embedding is 1024 floats * 4 bytes = ~4 KB
             embeddings_size_mb = round(count * 4 / 1024, 1)
         except Exception:
-            pass
+            logger.debug("ContentItem model not available, skipping embeddings size estimate")
 
         return Response(
             {
@@ -165,6 +165,7 @@ class HealthGpuView(APIView):
                 }
             )
         except Exception:
+            logger.debug("pynvml not available or GPU not detected, returning unavailable status")
             return Response(
                 {
                     "temp_c": None,

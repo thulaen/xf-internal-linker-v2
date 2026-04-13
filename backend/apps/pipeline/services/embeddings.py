@@ -56,7 +56,7 @@ def _resolve_device() -> str:
                 _apply_vram_fraction()
                 return "cuda"
         except ImportError:
-            pass
+            logger.debug("torch not installed, falling back to CPU")
     return "cpu"
 
 
@@ -86,7 +86,7 @@ def _apply_vram_fraction() -> None:
                 or "balanced"
             )
         except Exception:
-            pass
+            logger.debug("AppSetting table not available, using default performance mode for VRAM fraction")
 
         if perf_mode.lower() in ("high", "high_performance"):
             fraction = getattr(django_settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
@@ -225,7 +225,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
             model.half()
             logger.info("fp16 inference enabled for model '%s'.", model_name)
         except Exception:
-            pass
+            logger.debug("fp16 conversion not supported for model '%s', using fp32", model_name)
     _model_cache[model_name] = model
     _emit_model_alert(
         "model.ready",
@@ -240,7 +240,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
 
             torch.set_num_threads(4)
         except Exception:
-            pass
+            logger.debug("torch not available, skipping CPU thread limit")
     return model
 
 
@@ -253,7 +253,7 @@ def _get_model_name() -> str:
         if setting:
             return str(setting.value)
     except Exception:
-        pass
+        logger.debug("AppSetting table not available, using default embedding model name")
     return DEFAULT_MODEL_NAME
 
 
