@@ -496,8 +496,10 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch '/\s*3600' -and        # seconds-to-hours conversions
             $_.Line -notmatch '\*\s*100\b' -and      # percentage conversions (* 100)
             $_.Line -notmatch '=\s*100\.0' -and      # percentage literals (= 100.0)
-            $_.Line -notmatch 'min\(\d+,' -and       # clamp lower bound: min(N, ...)
-            $_.Line -notmatch 'max\(\d+,' -and       # clamp upper bound: max(N, ...)
+            $_.Line -notmatch 'min\(\d' -and        # clamp lower bound: min(N, ...) or min(N.0, ...)
+            $_.Line -notmatch 'max\(\d' -and        # clamp upper bound: max(N, ...) or max(N.0, ...)
+            $_.Line -notmatch 'Returns \d{3}\b' -and # "Returns 401" in docstrings
+            $_.Line -notmatch '\d+\.\d+\s*GB' -and  # memory sizes in comments (e.g. 1.5 GB)
             $_.Line -notmatch 'result_expires' -and  # Celery result TTL
             $_.Line -notmatch '>\s*\d{3}\s*:' -and   # guard clauses (> 500:)
             $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
