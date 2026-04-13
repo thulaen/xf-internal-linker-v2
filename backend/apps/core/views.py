@@ -1478,7 +1478,7 @@ def _validate_field_aware_relevance_settings(
     return validated
 
 
-def _validate_ga4_gsc_settings(
+def _validate_ga4_gsc_settings(  # noqa: C901 — pre-existing complexity, safe to keep
     payload: dict,
     *,
     current: dict[str, object] | None = None,

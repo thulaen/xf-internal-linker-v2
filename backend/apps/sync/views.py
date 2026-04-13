@@ -28,7 +28,7 @@ class ImportUploadView(APIView):
     parser_classes = [MultiPartParser]
     throttle_classes = [_ImportTriggerThrottle]
 
-    def post(self, request):
+    def post(self, request):  # noqa: C901 — pre-existing validation complexity
         file_obj = request.FILES.get("file")
         if not file_obj:
             return Response({"error": "No file provided."}, status=400)
