@@ -209,7 +209,10 @@ $baselineLongFiles = @(
     'base.py',                  # Django settings — many small config blocks, hard to split further
     'health.py',                # diagnostics/health.py — pre-existing long health-check functions
     'sync.py',                  # analytics/sync.py — pre-existing long GA4/GSC/Matomo sync functions
-    'impact_engine.py'          # analytics/impact_engine.py — compute_search_impact ~200 lines
+    'impact_engine.py',         # analytics/impact_engine.py — compute_search_impact ~200 lines
+    'embeddings.py',            # pipeline/services/embeddings.py — generate_*_embeddings ~120 lines each
+    'serializers.py',           # suggestions/serializers.py — get_host_source_label ~235 lines
+    'test_parity_feedrerank.py' # RPT-001 parity test — reference implementation is intentionally verbose
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
