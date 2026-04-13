@@ -1,8 +1,11 @@
 import logging
 
+from django.db import connection
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from .models import ServiceHealthRecord
 from .serializers import ServiceHealthRecordSerializer
 from .services import HealthCheckRegistry, perform_health_check
@@ -96,3 +99,78 @@ class HealthStatusViewSet(viewsets.ReadOnlyModelViewSet):
                 else None,
             }
         )
+
+
+class HealthDiskView(APIView):
+    """GET /api/health/disk/ — database and embedding size estimates."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        db_size_mb = 0
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT pg_database_size(current_database()) / (1024 * 1024)"
+                )
+                row = cursor.fetchone()
+                if row:
+                    db_size_mb = row[0]
+        except Exception:
+            pass
+
+        # Estimate embedding size from content item count * avg vector size
+        embeddings_size_mb = 0
+        try:
+            from apps.content.models import ContentItem
+
+            count = ContentItem.objects.filter(embedding__isnull=False).count()
+            # Each embedding is 1024 floats * 4 bytes = ~4 KB
+            embeddings_size_mb = round(count * 4 / 1024, 1)
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "db_size_mb": round(db_size_mb, 1),
+                "embeddings_size_mb": embeddings_size_mb,
+                "items_count": count if "count" in dir() else 0,
+            }
+        )
+
+
+class HealthGpuView(APIView):
+    """GET /api/health/gpu/ — GPU temperature, VRAM usage, utilization."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            pynvml.nvmlShutdown()
+
+            return Response(
+                {
+                    "temp_c": temp,
+                    "vram_total_mb": round(mem_info.total / (1024 * 1024)),
+                    "vram_used_mb": round(mem_info.used / (1024 * 1024)),
+                    "utilization_pct": util.gpu,
+                    "available": True,
+                }
+            )
+        except Exception:
+            return Response(
+                {
+                    "temp_c": None,
+                    "vram_total_mb": None,
+                    "vram_used_mb": None,
+                    "utilization_pct": None,
+                    "available": False,
+                }
+            )

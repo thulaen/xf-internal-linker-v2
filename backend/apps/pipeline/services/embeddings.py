@@ -42,17 +42,126 @@ _model_cache: dict[str, Any] = {}
 
 
 def _resolve_device() -> str:
-    """Return 'cuda' or 'cpu' based on ML_PERFORMANCE_MODE."""
+    """Return 'cuda' or 'cpu' based on ML_PERFORMANCE_MODE.
+
+    When CUDA is selected, applies mode-dependent VRAM fraction limits
+    as documented in docs/PERFORMANCE.md §6 (GPU Self-Limiting).
+    """
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
     if mode == "HIGH_PERFORMANCE":
         try:
             import torch
 
             if torch.cuda.is_available():
+                _apply_vram_fraction()
                 return "cuda"
         except ImportError:
             pass
     return "cpu"
+
+
+def _apply_vram_fraction() -> None:
+    """Set per-process VRAM cap based on current performance mode.
+
+    Safe/Balanced = 25% (1.5 GB on RTX 3050 6 GB).
+    High Performance = 60% (3.6 GB on RTX 3050 6 GB).
+
+    These percentages are relative to detected VRAM — they scale
+    automatically with GPU upgrades.  See docs/PERFORMANCE.md §6.
+    """
+    try:
+        import torch
+        from django.conf import settings as django_settings
+
+        # Read current performance mode from AppSetting if available,
+        # fall back to env var.
+        perf_mode = "balanced"
+        try:
+            from apps.core.models import AppSetting
+
+            perf_mode = (
+                AppSetting.objects.filter(key="system.performance_mode")
+                .values_list("value", flat=True)
+                .first()
+                or "balanced"
+            )
+        except Exception:
+            pass
+
+        if perf_mode.lower() in ("high", "high_performance"):
+            fraction = getattr(django_settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
+        else:
+            fraction = getattr(django_settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
+
+        torch.cuda.set_per_process_memory_fraction(fraction)
+        logger.info(
+            "GPU VRAM fraction set to %.0f%% (mode=%s)", fraction * 100, perf_mode
+        )
+    except Exception:
+        logger.warning("Failed to set VRAM fraction", exc_info=True)
+
+
+def _check_gpu_temperature() -> bool:
+    """Check GPU temperature against the hard ceiling.
+
+    Returns True if safe to proceed, False if too hot.
+    76°C ceiling is NON-NEGOTIABLE.  See docs/PERFORMANCE.md §6.
+    """
+    try:
+        import pynvml
+
+        pynvml.nvmlInit()
+        handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+        temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+        pynvml.nvmlShutdown()
+
+        from django.conf import settings as django_settings
+
+        ceiling = getattr(django_settings, "GPU_TEMP_CEILING_C", 76)
+
+        if temp >= ceiling:
+            logger.warning(
+                "GPU temperature %d°C >= %d°C ceiling — pausing GPU work",
+                temp,
+                ceiling,
+            )
+            return False
+        return True
+    except Exception:
+        # If pynvml is not available, assume safe (CPU fallback handles it).
+        return True
+
+
+def _wait_for_gpu_cooldown() -> None:
+    """Block until GPU temperature drops below the resume threshold.
+
+    Resume threshold: 68°C (configurable via GPU_TEMP_RESUME_C).
+    """
+    import time
+
+    from django.conf import settings as django_settings
+
+    resume_temp = getattr(django_settings, "GPU_TEMP_RESUME_C", 68)
+    max_wait = 300  # 5 minutes max wait
+
+    for _ in range(max_wait // 5):
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            pynvml.nvmlShutdown()
+
+            if temp <= resume_temp:
+                logger.info("GPU cooled to %d°C — resuming", temp)
+                return
+        except Exception:
+            return  # pynvml unavailable — skip waiting
+
+        time.sleep(5)
+
+    logger.warning("GPU did not cool below %d°C within %ds", resume_temp, max_wait)
 
 
 def _emit_model_alert(

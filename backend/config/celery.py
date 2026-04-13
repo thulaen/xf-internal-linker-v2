@@ -38,3 +38,21 @@ app.conf.result_expires = 3600
 def debug_task(self):
     """Debug task to verify Celery is working."""
     print(f"Request: {self.request!r}")
+
+
+# ── Startup catch-up ────────────────────────────────────────────────
+# On worker boot, dispatch any overdue scheduled tasks that were missed
+# while the laptop was off.  See docs/PERFORMANCE.md §5.
+
+from celery.signals import worker_ready  # noqa: E402
+
+
+@worker_ready.connect
+def _on_worker_ready(sender=None, **kwargs):
+    """Run startup catch-up when the Celery worker is fully initialised."""
+    import django
+
+    django.setup()
+    from config.catchup import run_startup_catchup
+
+    run_startup_catchup()

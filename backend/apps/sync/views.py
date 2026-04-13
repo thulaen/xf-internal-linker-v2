@@ -139,6 +139,52 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
     pagination_class = None
     lookup_field = "job_id"
 
+    @action(detail=True, methods=["post"])
+    def cancel(self, request, job_id=None):
+        """Cancel a running sync job.
+
+        POST /api/sync-jobs/{job_id}/cancel/
+
+        Sets status to 'cancelled' and revokes the Celery task with SIGTERM.
+        The job remains resumable if it had a checkpoint.
+        """
+        job = self.get_object()
+
+        if job.status not in ("pending", "running"):
+            return Response(
+                {"error": f"Cannot cancel a job with status '{job.status}'."},
+                status=400,
+            )
+
+        # Revoke the Celery task if it has one.
+        if job.status == "running":
+            from config.celery import app as celery_app
+
+            # Find the Celery task ID from the pipeline dispatch.
+            # SyncJobs are dispatched via dispatch_import_content which
+            # stores the task result under the job_id.
+            try:
+                celery_app.control.revoke(
+                    str(job.job_id), terminate=True, signal="SIGTERM"
+                )
+            except Exception:
+                # Revoke is best-effort — the task may have already finished.
+                pass
+
+        job.status = "cancelled"
+        # Preserve checkpoint for potential resume.
+        if job.checkpoint_stage:
+            job.is_resumable = True
+        job.save(update_fields=["status", "is_resumable", "updated_at"])
+
+        return Response(
+            {
+                "job_id": str(job.job_id),
+                "status": "cancelled",
+                "is_resumable": job.is_resumable,
+            }
+        )
+
     @action(detail=False, methods=["get"])
     def source_status(self, request):
         """

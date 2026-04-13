@@ -172,7 +172,7 @@ CELERY_TASK_SERIALIZER = "json"
 CELERY_RESULT_SERIALIZER = "json"
 CELERY_TIMEZONE = "UTC"
 CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
-CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=4)
+CELERY_WORKER_CONCURRENCY = env.int("CELERY_WORKER_CONCURRENCY", default=2)
 
 # Task routing to named queues
 CELERY_TASK_ROUTES = {
@@ -472,7 +472,16 @@ CELERY_BEAT_RUNTIME_ENABLED = env.bool("CELERY_BEAT_RUNTIME_ENABLED", default=Tr
 
 ML_PERFORMANCE_MODE = env("ML_PERFORMANCE_MODE", default="BALANCED")
 EMBEDDING_MODEL = env("EMBEDDING_MODEL", default="BAAI/bge-m3")
-EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=64)
+EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
+
+# ── GPU Self-Limiting ─────────────────────────────────────────────
+# Mode-dependent VRAM fractions.  Percentages are relative to detected
+# VRAM — they scale automatically with GPU upgrades.
+# See docs/PERFORMANCE.md §6 for the three-layer GPU protection scheme.
+CUDA_MEMORY_FRACTION_SAFE = env.float("CUDA_MEMORY_FRACTION_SAFE", default=0.25)
+CUDA_MEMORY_FRACTION_HIGH = env.float("CUDA_MEMORY_FRACTION_HIGH", default=0.60)
+GPU_TEMP_CEILING_C = env.int("GPU_TEMP_CEILING_C", default=76)
+GPU_TEMP_RESUME_C = env.int("GPU_TEMP_RESUME_C", default=68)
 SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 
 # Pipeline guardrails (non-negotiable product rules)

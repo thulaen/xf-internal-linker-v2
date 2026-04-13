@@ -2966,6 +2966,49 @@ class DashboardView(APIView):
         ):
             overall_status = ServiceHealthRecord.STATUS_WARNING
 
+        # Freshness ribbon timestamps
+        last_sync_at = (
+            SyncJob.objects.filter(status="completed")
+            .values_list("completed_at", flat=True)
+            .order_by("-completed_at")
+            .first()
+        )
+        last_pipeline_at = (
+            PipelineRun.objects.filter(run_state="completed")
+            .values_list("updated_at", flat=True)
+            .order_by("-updated_at")
+            .first()
+        )
+
+        # Analytics freshness — check for most recent GSC sync if model exists
+        last_analytics_at = None
+        try:
+            from apps.analytics.models import GSCSyncRun
+
+            last_analytics_at = (
+                GSCSyncRun.objects.filter(status="completed")
+                .values_list("completed_at", flat=True)
+                .order_by("-completed_at")
+                .first()
+            )
+        except Exception:
+            pass
+
+        # Runtime mode from AppSetting
+        runtime_mode = "CPU"
+        try:
+            from apps.core.models import AppSetting
+
+            mode_setting = (
+                AppSetting.objects.filter(key="system.runtime_mode")
+                .values_list("value", flat=True)
+                .first()
+            )
+            if mode_setting:
+                runtime_mode = mode_setting
+        except Exception:
+            pass
+
         return Response(
             {
                 "suggestion_counts": {
@@ -2985,8 +3028,547 @@ class DashboardView(APIView):
                     "summary": summary,
                     "total_monitored": health_records.count(),
                 },
+                # Freshness ribbon
+                "last_sync_at": last_sync_at.isoformat() if last_sync_at else None,
+                "last_analytics_at": last_analytics_at.isoformat()
+                if last_analytics_at
+                else None,
+                "last_pipeline_at": last_pipeline_at.isoformat()
+                if last_pipeline_at
+                else None,
+                "runtime_mode": runtime_mode,
             }
         )
+
+
+# ---------------------------------------------------------------------------
+# Dashboard operating desk endpoints (Stage 3)
+# ---------------------------------------------------------------------------
+
+
+class TodayActionsView(APIView):
+    """GET /api/dashboard/today-actions/
+
+    Returns up to 5 priority-ranked action items for the current day.
+    Priority waterfall: blocking alert > stale sync > pending review > idle.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.notifications.models import OperatorAlert
+        from apps.suggestions.models import PipelineRun, Suggestion
+        from apps.sync.models import SyncJob
+        from django.utils import timezone
+
+        actions: list[dict] = []
+        now = timezone.now()
+
+        # 1. Unacknowledged urgent/error alerts
+        urgent_alerts = OperatorAlert.objects.filter(
+            status="unread", severity__in=["urgent", "error"]
+        ).order_by("-first_seen_at")[:3]
+        for alert in urgent_alerts:
+            actions.append(
+                {
+                    "title": alert.title,
+                    "reason": f"Unresolved {alert.severity} alert since {alert.first_seen_at:%b %d}",
+                    "route": f"/alerts/{alert.alert_id}",
+                    "severity": alert.severity,
+                    "isBlocking": alert.severity == "urgent",
+                }
+            )
+
+        # 2. Stale sync (no sync in 48h)
+        last_sync = (
+            SyncJob.objects.filter(status="completed").order_by("-completed_at").first()
+        )
+        if last_sync and last_sync.completed_at:
+            hours_since = (now - last_sync.completed_at).total_seconds() / 3600
+            if hours_since > 48:
+                days = int(hours_since // 24)
+                actions.append(
+                    {
+                        "title": "Content is getting stale",
+                        "reason": f"Last sync was {days} days ago. Run a fresh sync to catch new content.",
+                        "route": "/jobs",
+                        "severity": "warning",
+                        "isBlocking": False,
+                    }
+                )
+        elif not last_sync:
+            actions.append(
+                {
+                    "title": "No content synced yet",
+                    "reason": "Run your first content sync to get started.",
+                    "route": "/jobs",
+                    "severity": "warning",
+                    "isBlocking": False,
+                }
+            )
+
+        # 3. Pending suggestions waiting for review
+        pending_count = Suggestion.objects.filter(status="pending").count()
+        if pending_count > 20:
+            actions.append(
+                {
+                    "title": f"{pending_count} suggestions waiting for review",
+                    "reason": "Review and approve link suggestions to improve your internal linking.",
+                    "route": "/review",
+                    "severity": "info",
+                    "isBlocking": False,
+                }
+            )
+
+        # 4. Pipeline stale (no run in 14 days)
+        last_run = (
+            PipelineRun.objects.filter(run_state="completed")
+            .order_by("-updated_at")
+            .first()
+        )
+        if last_run and last_run.updated_at:
+            days_since = (now - last_run.updated_at).days
+            if days_since > 14:
+                actions.append(
+                    {
+                        "title": "Pipeline hasn't run in a while",
+                        "reason": f"Last pipeline run was {days_since} days ago. Run it to generate fresh suggestions.",
+                        "route": "/jobs",
+                        "severity": "info",
+                        "isBlocking": False,
+                    }
+                )
+
+        # 5. Zero suggestions on last run
+        if last_run and last_run.suggestions_created == 0:
+            actions.append(
+                {
+                    "title": "Last pipeline produced no suggestions",
+                    "reason": "Check your settings — the pipeline may need tuning.",
+                    "route": "/settings",
+                    "deepLinkTarget": "ranking-weights",
+                    "severity": "warning",
+                    "isBlocking": False,
+                }
+            )
+
+        return Response(actions[:5])
+
+
+class WhatChangedView(APIView):
+    """GET /api/dashboard/what-changed/
+
+    Returns counts of changes in the last 24 hours plus autotuner outcomes.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import PipelineRun, Suggestion
+        from apps.sync.models import SyncJob
+        from django.utils import timezone
+        from datetime import timedelta
+
+        since = timezone.now() - timedelta(hours=24)
+
+        # Counts
+        new_suggestions = Suggestion.objects.filter(created_at__gte=since).count()
+        reviewed = Suggestion.objects.filter(reviewed_at__gte=since).count()
+        synced_items = SyncJob.objects.filter(
+            status="completed", completed_at__gte=since
+        ).values_list("items_synced", flat=True)
+        total_synced = sum(synced_items)
+        pipeline_runs = PipelineRun.objects.filter(created_at__gte=since).count()
+
+        # Autotuner outcomes (if any challenger was promoted/rolled back)
+        autotuner_outcome = None
+        try:
+            from apps.suggestions.models import RankingChallenger
+
+            recent_challenger = (
+                RankingChallenger.objects.filter(updated_at__gte=since)
+                .exclude(status="pending")
+                .order_by("-updated_at")
+                .first()
+            )
+            if recent_challenger:
+                autotuner_outcome = {
+                    "status": recent_challenger.status,
+                    "label": recent_challenger.label
+                    if hasattr(recent_challenger, "label")
+                    else str(recent_challenger.pk),
+                    "updated_at": recent_challenger.updated_at.isoformat(),
+                }
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "period_hours": 24,
+                "new_suggestions": new_suggestions,
+                "reviewed": reviewed,
+                "items_synced": total_synced,
+                "pipeline_runs": pipeline_runs,
+                "autotuner_outcome": autotuner_outcome,
+            }
+        )
+
+
+class ResumeStateView(APIView):
+    """GET /api/dashboard/resume-state/
+
+    Returns interrupted pipeline runs, last review position, and missed
+    tasks from the catch-up registry.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import PipelineRun
+        from apps.sync.models import SyncJob
+        from django.utils import timezone
+
+        # Interrupted pipeline runs
+        interrupted_runs = list(
+            PipelineRun.objects.filter(run_state="running")
+            .values("run_id", "run_state", "created_at", "updated_at")
+            .order_by("-created_at")[:3]
+        )
+        for run in interrupted_runs:
+            run["run_id"] = str(run["run_id"])
+            if run["created_at"]:
+                run["created_at"] = run["created_at"].isoformat()
+            if run["updated_at"]:
+                run["updated_at"] = run["updated_at"].isoformat()
+
+        # Resumable sync jobs
+        resumable_syncs = list(
+            SyncJob.objects.filter(is_resumable=True)
+            .exclude(status="completed")
+            .values(
+                "job_id",
+                "status",
+                "source",
+                "mode",
+                "checkpoint_stage",
+                "checkpoint_items_processed",
+            )
+            .order_by("-created_at")[:3]
+        )
+        for job in resumable_syncs:
+            job["job_id"] = str(job["job_id"])
+
+        # Missed tasks from catch-up registry
+        missed_tasks: list[dict] = []
+        try:
+            from config.catchup_registry import CATCHUP_REGISTRY
+            from django_celery_beat.models import PeriodicTask
+
+            now = timezone.now()
+            for task_name, entry in CATCHUP_REGISTRY.items():
+                periodic = PeriodicTask.objects.filter(name=task_name).first()
+                if periodic is None:
+                    continue
+                if periodic.last_run_at is None:
+                    missed_tasks.append(
+                        {
+                            "task_name": task_name,
+                            "weight_class": entry.weight_class,
+                            "hours_overdue": None,
+                            "reason": "Never ran",
+                        }
+                    )
+                else:
+                    hours_since = (now - periodic.last_run_at).total_seconds() / 3600
+                    if hours_since > entry.threshold_hours:
+                        missed_tasks.append(
+                            {
+                                "task_name": task_name,
+                                "weight_class": entry.weight_class,
+                                "hours_overdue": round(
+                                    hours_since - entry.threshold_hours, 1
+                                ),
+                                "reason": f"Last ran {int(hours_since)}h ago (threshold: {int(entry.threshold_hours)}h)",
+                            }
+                        )
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "interrupted_runs": interrupted_runs,
+                "resumable_syncs": resumable_syncs,
+                "missed_tasks": missed_tasks,
+            }
+        )
+
+
+class RuntimeSettingsView(APIView):
+    """GET /api/settings/runtime/ — current runtime mode and state."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import AppSetting
+
+        mode = "cpu"
+        perf_mode = "balanced"
+        try:
+            mode_val = (
+                AppSetting.objects.filter(key="system.runtime_mode")
+                .values_list("value", flat=True)
+                .first()
+            )
+            if mode_val:
+                mode = mode_val
+            perf_val = (
+                AppSetting.objects.filter(key="system.performance_mode")
+                .values_list("value", flat=True)
+                .first()
+            )
+            if perf_val:
+                perf_mode = perf_val
+        except Exception:
+            pass
+
+        return Response(
+            {
+                "runtime_mode": mode,
+                "performance_mode": perf_mode,
+            }
+        )
+
+
+class RuntimeSwitchView(APIView):
+    """POST /api/settings/runtime/switch/ — switch performance mode."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.models import AppSetting
+
+        new_mode = request.data.get("mode")
+        if new_mode not in ("safe", "balanced", "high"):
+            return Response(
+                {"error": "Invalid mode. Use 'safe', 'balanced', or 'high'."},
+                status=400,
+            )
+
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode",
+            defaults={
+                "value": new_mode,
+                "value_type": "str",
+                "category": "performance",
+            },
+        )
+        return Response({"performance_mode": new_mode})
+
+
+class JobQueueView(APIView):
+    """GET /api/jobs/queue/ — active and queued tasks with ETA and lock status."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import PipelineRun
+        from apps.sync.models import SyncJob
+        from apps.pipeline.services.task_lock import get_active_locks
+        from apps.pipeline.services.eta_estimator import estimate_eta
+
+        locks = get_active_locks()
+
+        # Active pipeline runs
+        active_runs = list(
+            PipelineRun.objects.filter(run_state__in=["queued", "running"])
+            .values(
+                "run_id",
+                "run_state",
+                "rerun_mode",
+                "suggestions_created",
+                "destinations_processed",
+                "phase_log",
+                "celery_task_id",
+                "created_at",
+                "updated_at",
+            )
+            .order_by("created_at")[:20]
+        )
+        for run in active_runs:
+            run["run_id"] = str(run["run_id"])
+            run["type"] = "pipeline"
+            if run["created_at"]:
+                run["created_at"] = run["created_at"].isoformat()
+            if run["updated_at"]:
+                run["updated_at"] = run["updated_at"].isoformat()
+            eta = estimate_eta("pipeline.run_pipeline")
+            run["estimated_remaining_seconds"] = eta.total_seconds() if eta else None
+
+        # Active sync jobs
+        active_syncs = list(
+            SyncJob.objects.filter(status__in=["pending", "running"])
+            .values(
+                "job_id",
+                "status",
+                "source",
+                "mode",
+                "progress",
+                "items_synced",
+                "checkpoint_stage",
+                "is_resumable",
+                "created_at",
+                "started_at",
+            )
+            .order_by("created_at")[:20]
+        )
+        for job in active_syncs:
+            job["job_id"] = str(job["job_id"])
+            job["type"] = "sync"
+            if job["created_at"]:
+                job["created_at"] = job["created_at"].isoformat()
+            if job["started_at"]:
+                job["started_at"] = job["started_at"].isoformat()
+            eta = estimate_eta("nightly-xenforo-sync", mode=job.get("mode"))
+            job["estimated_remaining_seconds"] = eta.total_seconds() if eta else None
+
+        return Response(
+            {
+                "items": active_runs + active_syncs,
+                "locks": locks,
+            }
+        )
+
+
+class JobQuarantineView(APIView):
+    """GET /api/jobs/quarantine/ — quarantined pipeline runs."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import PipelineRun
+
+        quarantined = list(
+            PipelineRun.objects.filter(is_quarantined=True)
+            .values(
+                "run_id",
+                "run_state",
+                "rerun_mode",
+                "error_message",
+                "phase_log",
+                "created_at",
+                "updated_at",
+            )
+            .order_by("-updated_at")[:50]
+        )
+        for run in quarantined:
+            run["run_id"] = str(run["run_id"])
+            if run["created_at"]:
+                run["created_at"] = run["created_at"].isoformat()
+            if run["updated_at"]:
+                run["updated_at"] = run["updated_at"].isoformat()
+
+        return Response(quarantined)
+
+
+class HelperNodeListView(APIView):
+    """GET/POST /api/settings/helpers/ — list and register helper nodes."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import HelperNode
+
+        nodes = HelperNode.objects.all()
+        data = [
+            {
+                "id": n.id,
+                "name": n.name,
+                "role": n.role,
+                "status": n.status,
+                "capabilities": n.capabilities,
+                "allowed_queues": n.allowed_queues,
+                "allowed_job_types": n.allowed_job_types,
+                "time_policy": n.time_policy,
+                "max_concurrency": n.max_concurrency,
+                "cpu_cap_pct": n.cpu_cap_pct,
+                "ram_cap_pct": n.ram_cap_pct,
+                "last_heartbeat": n.last_heartbeat.isoformat()
+                if n.last_heartbeat
+                else None,
+            }
+            for n in nodes
+        ]
+        return Response(data)
+
+    def post(self, request):
+        import hashlib
+
+        from apps.core.models import HelperNode
+
+        name = request.data.get("name")
+        token = request.data.get("token")
+        if not name or not token:
+            return Response({"error": "name and token are required"}, status=400)
+
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        node, created = HelperNode.objects.get_or_create(
+            name=name,
+            defaults={
+                "token_hash": token_hash,
+                "role": request.data.get("role", "worker"),
+                "capabilities": request.data.get("capabilities", {}),
+                "allowed_queues": request.data.get("allowed_queues", []),
+                "allowed_job_types": request.data.get("allowed_job_types", []),
+                "time_policy": request.data.get("time_policy", "anytime"),
+                "max_concurrency": request.data.get("max_concurrency", 2),
+                "cpu_cap_pct": request.data.get("cpu_cap_pct", 60),
+                "ram_cap_pct": request.data.get("ram_cap_pct", 60),
+            },
+        )
+        if not created:
+            return Response(
+                {"error": "A node with this name already exists"}, status=409
+            )
+
+        return Response({"id": node.id, "name": node.name}, status=201)
+
+
+class HelperNodeDetailView(APIView):
+    """PATCH/DELETE /api/settings/helpers/<id>/ — update or remove a helper node."""
+
+    permission_classes = [IsAuthenticated]
+
+    def patch(self, request, pk):
+        from apps.core.models import HelperNode
+
+        try:
+            node = HelperNode.objects.get(pk=pk)
+        except HelperNode.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        for field in (
+            "role",
+            "status",
+            "time_policy",
+            "max_concurrency",
+            "cpu_cap_pct",
+            "ram_cap_pct",
+        ):
+            if field in request.data:
+                setattr(node, field, request.data[field])
+        for json_field in ("capabilities", "allowed_queues", "allowed_job_types"):
+            if json_field in request.data:
+                setattr(node, json_field, request.data[json_field])
+        node.save()
+        return Response({"id": node.id, "name": node.name, "status": node.status})
+
+    def delete(self, request, pk):
+        from apps.core.models import HelperNode
+
+        deleted, _ = HelperNode.objects.filter(pk=pk).delete()
+        if not deleted:
+            return Response({"error": "Not found"}, status=404)
+        return Response(status=204)
 
 
 class ClickDistanceSettingsView(APIView):

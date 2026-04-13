@@ -208,6 +208,22 @@ class ContentItem(TimestampedModel):
         blank=True,
         help_text="SHA-256 hash of the raw post body, used to detect edits.",
     )
+    # Stage 10 — Content identity and deduplication
+    source_key = models.CharField(
+        max_length=200,
+        blank=True,
+        db_index=True,
+        help_text="Stable compound key: source:object_type:remote_id (e.g. xenforo:thread:123).",
+    )
+    content_version = models.IntegerField(
+        default=1,
+        help_text="Monotonically increasing version number. Bumped when content_hash changes.",
+    )
+    canonical_url_history = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="History of URL/slug changes: [{url, changed_at}]. Never creates a new record on URL change.",
+    )
 
     # ML scores
     march_2026_pagerank_score = models.FloatField(

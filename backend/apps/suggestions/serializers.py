@@ -72,6 +72,8 @@ class PipelineRunSerializer(serializers.ModelSerializer):
             "host_scope",
             "destination_scope",
             "config_snapshot",
+            "phase_log",
+            "is_quarantined",
             "created_at",
             "updated_at",
         ]

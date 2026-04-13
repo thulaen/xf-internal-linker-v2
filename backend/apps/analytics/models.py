@@ -468,3 +468,26 @@ class GSCImpactSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"GSC Impact: {self.suggestion_id} ({self.reward_label})"
+
+
+class WatchedPage(models.Model):
+    """A user-bookmarked page to track SEO metrics over time (Stage 7)."""
+
+    content_item = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="watchers",
+    )
+    added_at = models.DateTimeField(auto_now_add=True)
+    notes = models.TextField(
+        blank=True, help_text="User notes about why they're watching this page."
+    )
+
+    class Meta:
+        verbose_name = "Watched Page"
+        verbose_name_plural = "Watched Pages"
+        ordering = ["-added_at"]
+        unique_together = [["content_item"]]
+
+    def __str__(self) -> str:
+        return f"Watching: {self.content_item_id}"

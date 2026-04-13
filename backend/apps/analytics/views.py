@@ -2167,3 +2167,143 @@ class AnalyticsGoogleOAuthUnlinkView(APIView):
             ]
         ).delete()
         return Response({"status": "unlinked", "message": "Google account unlinked."})
+
+
+# ---------------------------------------------------------------------------
+# Stage 7 — SEO Proof endpoints
+# ---------------------------------------------------------------------------
+
+
+class ImpactDiaryView(APIView):
+    """GET /api/analytics/impacts/ — chronological impact narrative."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import ImpactReport
+
+        reports = ImpactReport.objects.select_related("suggestion").order_by(
+            "-created_at"
+        )[:50]
+        items = []
+        for r in reports:
+            # RPT-001 Finding 4: stratified attribution model label
+            if r.control_match_count >= 3:
+                attribution_model = "synthetic_control"
+                confidence = "high" if r.is_conclusive else "medium"
+            elif r.is_conclusive:
+                attribution_model = "site_trend"
+                confidence = "medium"
+            else:
+                attribution_model = "inconclusive"
+                confidence = "thin"
+
+            items.append(
+                {
+                    "suggestion_id": str(r.suggestion_id),
+                    "metric_type": r.metric_type,
+                    "before_value": r.before_value,
+                    "after_value": r.after_value,
+                    "delta_percent": round(r.delta_percent, 1),
+                    "attribution_model": attribution_model,
+                    "confidence": confidence,
+                    "is_conclusive": r.is_conclusive,
+                    "control_match_count": r.control_match_count,
+                    "created_at": r.created_at.isoformat(),
+                }
+            )
+        return Response(items)
+
+
+class QueryMismatchView(APIView):
+    """GET /api/analytics/query-mismatch/ — pages where search intent doesn't match landing page."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import SearchMetric
+        from django.db.models import Sum, Avg
+
+        # Find top queries with their landing pages
+        top_queries = (
+            SearchMetric.objects.filter(source="gsc")
+            .values("query", "content_item_id", "content_item__title")
+            .annotate(
+                total_clicks=Sum("clicks"),
+                total_impressions=Sum("impressions"),
+                avg_position=Avg("average_position"),
+            )
+            .order_by("-total_impressions")[:50]
+        )
+
+        results = []
+        for q in top_queries:
+            results.append(
+                {
+                    "query": q["query"],
+                    "landing_page_id": q["content_item_id"],
+                    "landing_page_title": q["content_item__title"],
+                    "clicks": q["total_clicks"],
+                    "impressions": q["total_impressions"],
+                    "avg_position": round(q["avg_position"] or 0, 1),
+                }
+            )
+
+        return Response(results)
+
+
+class WatchedPageListView(APIView):
+    """GET/POST /api/analytics/watched-pages/ — user's watched pages."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .models import WatchedPage
+
+        pages = WatchedPage.objects.select_related("content_item").all()
+        return Response(
+            [
+                {
+                    "id": p.id,
+                    "content_item_id": p.content_item_id,
+                    "title": p.content_item.title,
+                    "url": p.content_item.url,
+                    "notes": p.notes,
+                    "added_at": p.added_at.isoformat(),
+                }
+                for p in pages
+            ]
+        )
+
+    def post(self, request):
+        from .models import WatchedPage
+
+        content_item_id = request.data.get("content_item_id")
+        notes = request.data.get("notes", "")
+        if not content_item_id:
+            return Response({"error": "content_item_id is required"}, status=400)
+
+        wp, created = WatchedPage.objects.get_or_create(
+            content_item_id=content_item_id,
+            defaults={"notes": notes},
+        )
+        if not created:
+            return Response({"error": "Already watching this page"}, status=409)
+
+        return Response(
+            {"id": wp.id, "content_item_id": wp.content_item_id}, status=201
+        )
+
+
+class WatchedPageDeleteView(APIView):
+    """DELETE /api/analytics/watched-pages/<id>/ — remove a watched page."""
+
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        from .models import WatchedPage
+
+        deleted, _ = WatchedPage.objects.filter(pk=pk).delete()
+        if not deleted:
+            return Response({"error": "Not found"}, status=404)
+        return Response(status=204)

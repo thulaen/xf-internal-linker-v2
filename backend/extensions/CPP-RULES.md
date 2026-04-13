@@ -684,3 +684,51 @@ Every C++ extension PR must pass ALL of these before merge:
 
 ### LTO Bloat
 - Link-Time Optimisation (`-flto`) can increase compile time 5-10x. Use only for release builds, not during development.
+
+---
+
+## 25. Mission Critical Performance Mandate
+
+C++ is the primary compute path. Python is the fallback and reference implementation — never the first choice for hot paths.
+
+### Speed Target
+
+- **Gate 4 floor**: ≥3× faster than the equivalent Python implementation.
+- **Scoring hot paths** (feedrerank, embeddings, cosine batch): target ≥10×.
+- If a C++ extension does not meet the 3× floor, file a **HIGH** finding in `docs/reports/REPORT-REGISTRY.md`.
+
+### Parity Target
+
+- **Gate 2 floor**: ≤1e-4 maximum absolute difference from the Python reference.
+- **Scoring hot paths**: ≤1e-6.
+- If parity exceeds the threshold, file a **CRITICAL** finding in `docs/reports/REPORT-REGISTRY.md`.
+
+### Comment Every Formula
+
+Every formula line in a C++ extension must have a parity comment:
+
+```cpp
+// PARITY: matches feedback_rerank.py line 156 — Bayesian exploit numerator
+const double score_exploit_raw = (static_cast<double>(successes[index]) + alpha) /
+                                  (static_cast<double>(totals[index]) + alpha + beta);
+```
+
+This enables line-by-line verification during parity audits.
+
+### Debug-Build Assertions
+
+Use `#ifndef NDEBUG` blocks to add assertions that verify intermediate values against expected ranges. These compile away in release builds.
+
+```cpp
+#ifndef NDEBUG
+assert(factor >= 0.5 && factor <= 2.0 && "rerank factor out of clamp range");
+#endif
+```
+
+### Benchmark Coverage
+
+Every C++ extension must have a benchmark in `benchmarks/bench_<ext>.cpp` covering at least 3 input sizes. Missing coverage is a **MEDIUM** finding in the Report Registry.
+
+### No Lazy C++
+
+Half-implemented extensions that fall back to Python for most inputs are not acceptable. If a C++ extension exists for an operation, it must handle all valid inputs. Fallback to Python should only occur when the C++ extension is unavailable (build failure, missing dependency).

@@ -8,7 +8,7 @@ DRF routers wire viewsets from each app into clean URL patterns.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from apps.health.views import HealthStatusViewSet
+from apps.health.views import HealthStatusViewSet, HealthDiskView, HealthGpuView
 from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupViewSet
 from apps.core.views import (
     AppearanceSettingsView,
@@ -141,6 +141,8 @@ urlpatterns = [
     path("", include("apps.plugins.urls")),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+    path("health/disk/", HealthDiskView.as_view(), name="health-disk"),
+    path("health/gpu/", HealthGpuView.as_view(), name="health-gpu"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
     path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
     path(

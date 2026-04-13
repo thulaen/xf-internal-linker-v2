@@ -15,6 +15,7 @@ namespace py = pybind11;
 #define TBB_VERSION_MAJOR 0
 #endif
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
@@ -27,18 +28,27 @@ void rerank_factors_core(const int32_t* successes, const int32_t* totals,
                          const double* exposure_probs, size_t count, int n_global, double alpha,
                          double beta, double weight, double exploration_rate, double* out_factors) {
     auto compute_one = [&](size_t index) {
+        // PARITY: matches feedback_rerank.py line 156 — Bayesian exploit numerator
         const double score_exploit_raw = (static_cast<double>(successes[index]) + alpha) /
                                          (static_cast<double>(totals[index]) + alpha + beta);
+        // PARITY: matches feedback_rerank.py line 161 — exposure discount
         // Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4):
         // blend toward neutral 0.5 for under-exposed pairs (low exposure_prob).
         const double ep = exposure_probs ? exposure_probs[index] : 1.0;
         const double score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5;
+        // PARITY: matches feedback_rerank.py line 166 — UCB1 explore
         const double score_explore =
             exploration_rate * std::sqrt(std::log(static_cast<double>(n_global) + 1.0) /
                                          (static_cast<double>(totals[index]) + 1.0));
+        // PARITY: matches feedback_rerank.py line 173 — combined modifier
         const double raw_modifier = (score_exploit + score_explore) - 0.5;
+        // PARITY: matches feedback_rerank.py line 174 — weighted factor
         double factor = 1.0 + (weight * raw_modifier);
+        // PARITY: matches feedback_rerank.py line 177 — clamp to [0.5, 2.0]
         factor = std::max(0.5, std::min(2.0, factor));
+#ifndef NDEBUG
+        assert(factor >= 0.5 && factor <= 2.0 && "rerank factor out of clamp range");
+#endif
         out_factors[index] = factor;
     };
 

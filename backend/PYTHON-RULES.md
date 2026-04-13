@@ -1228,3 +1228,54 @@ Every Python backend PR must pass ALL of these before merge:
 | `CONN_MAX_AGE = None` | Leaks DB connections | Set a finite value (e.g., `600`) |
 | Module-level DB queries | Runs at import time | Wrap in a function |
 | `del obj` for cleanup | Does not guarantee freeing | Context managers |
+
+---
+
+## 19. Mission Critical Performance — Hot Path Rules
+
+Performance is correctness. A slow hot-path function is a bug.
+
+### 19.1 C++ First
+
+If a C++ extension exists for the operation, call it. Python is the fallback and reference implementation only — never the first choice for hot paths. See `backend/extensions/CPP-RULES.md` §25 for the C++ side of this mandate.
+
+### 19.2 Benchmark Before Merge
+
+Every hot-path function must have a benchmark at 3 input sizes (small, medium, large) before merge. Use `pytest-benchmark` in `backend/benchmarks/test_bench_*.py`. No exceptions.
+
+### 19.3 Vectorise NumPy — No Python Loops
+
+Never iterate over numpy arrays with Python `for` loops. Use vectorised operations (`np.where`, `np.clip`, broadcasting, fancy indexing). If the operation cannot be vectorised, delegate to a C++ extension.
+
+```python
+# WRONG — O(n) Python loop over numpy array
+for i in range(len(scores)):
+    scores[i] = max(0.5, min(2.0, scores[i]))
+
+# RIGHT — vectorised
+scores = np.clip(scores, 0.5, 2.0)
+```
+
+### 19.4 Complexity Targets
+
+- Sorting and ranking: ≤ O(n log n)
+- Lookups and filters: O(1) or O(k) where k is the result set size
+- Graph operations: document complexity in the function docstring
+
+### 19.5 Report Registry
+
+File slow hot-path code in `docs/reports/REPORT-REGISTRY.md`:
+- **MEDIUM**: 2–5× slower than expected
+- **HIGH**: >5× slower than expected
+- **CRITICAL**: incorrect results from an optimisation
+
+### 19.6 Forbidden Hot-Path Patterns
+
+| Pattern | Why | Fix |
+|---|---|---|
+| Python `for` loop over numpy array | 100–1000× slower than vectorised | `np.vectorize`, broadcasting, or C++ |
+| `list.index()` in scoring loop | O(n) per call → O(n²) total | Dict lookup or sorted search |
+| `json.loads()` per item | Parsing overhead per item | Batch deserialise or use `orjson` |
+| `re.compile()` inside loop | Recompiles regex every iteration | Compile once at module level |
+| `QuerySet.all()` inside task loop | N+1 query per batch | Prefetch or materialise before loop |
+| `sorted()` inside inner loop | O(n log n) per outer iteration | Sort once outside |

@@ -91,3 +91,64 @@ class AppSetting(TimestampedModel):
 
     def __str__(self) -> str:
         return f"{self.key} = {self.value if not self.is_secret else '••••••••'}"
+
+
+class HelperNode(TimestampedModel):
+    """A registered helper node for distributed workload execution (Stage 8/10).
+
+    See docs/PERFORMANCE.md §10 for the multi-node architecture.
+    """
+
+    TIME_POLICY_CHOICES = [
+        ("anytime", "Available anytime"),
+        ("nighttime", "Nighttime only (21:00–06:00 UTC)"),
+        ("maintenance", "Maintenance windows only"),
+    ]
+
+    name = models.CharField(max_length=100, unique=True)
+    token_hash = models.CharField(
+        max_length=128,
+        help_text="SHA-256 hash of the registration token. Never store the raw token.",
+    )
+    role = models.CharField(max_length=50, default="worker")
+    capabilities = models.JSONField(
+        default=dict,
+        help_text='{"cpu_cores": 8, "ram_gb": 16, "gpu_vram_gb": 6, "network_quality": "good"}',
+    )
+    allowed_queues = models.JSONField(
+        default=list,
+        help_text='["pipeline", "embeddings"]',
+    )
+    allowed_job_types = models.JSONField(
+        default=list,
+        help_text='["sync", "pipeline", "embeddings"]',
+    )
+    time_policy = models.CharField(
+        max_length=20,
+        choices=TIME_POLICY_CHOICES,
+        default="anytime",
+    )
+    max_concurrency = models.IntegerField(default=2)
+    cpu_cap_pct = models.IntegerField(
+        default=60,
+        help_text="Maximum CPU usage percentage (safety default: 60%).",
+    )
+    ram_cap_pct = models.IntegerField(
+        default=60,
+        help_text="Maximum RAM usage percentage (safety default: 60%).",
+    )
+    status = models.CharField(
+        max_length=20,
+        default="offline",
+        db_index=True,
+        help_text="Current state: online, busy, unhealthy, offline.",
+    )
+    last_heartbeat = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = "Helper Node"
+        verbose_name_plural = "Helper Nodes"
+        ordering = ["name"]
+
+    def __str__(self) -> str:
+        return f"{self.name} ({self.status})"

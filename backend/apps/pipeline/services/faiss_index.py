@@ -109,6 +109,9 @@ def build_faiss_index() -> None:
 
     if faiss.get_num_gpus() > 0 and performance_mode == "HIGH_PERFORMANCE":
         res = faiss.StandardGpuResources()
+        # Cap FAISS GPU temp memory to 512 MB to leave headroom for
+        # embedding model + Chrome.  See docs/PERFORMANCE.md §6.
+        res.setTempMemory(512 * 1024 * 1024)
         index = faiss.index_cpu_to_gpu(res, 0, index_cpu)
         device = "GPU"
     else:

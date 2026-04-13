@@ -207,7 +207,11 @@ def dispatch_pipeline_run(
 
 
 @shared_task(
-    bind=True, name="pipeline.run_pipeline", time_limit=7200, soft_time_limit=7140
+    bind=True,
+    name="pipeline.run_pipeline",
+    time_limit=7200,
+    soft_time_limit=7140,
+    acks_late=True,
 )
 def run_pipeline(
     self,
@@ -340,6 +344,7 @@ def run_pipeline(
     name="pipeline.generate_embeddings",
     time_limit=7200,
     soft_time_limit=7140,
+    acks_late=True,
 )
 def generate_embeddings(
     self,
@@ -555,7 +560,11 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
 
 
 @shared_task(
-    bind=True, name="pipeline.import_content", time_limit=7200, soft_time_limit=7140
+    bind=True,
+    name="pipeline.import_content",
+    time_limit=7200,
+    soft_time_limit=7140,
+    acks_late=True,
 )
 def import_content(
     self,
@@ -737,6 +746,7 @@ def import_content(
     queue="default",
     time_limit=7200,
     soft_time_limit=7140,
+    acks_late=True,
 )
 def scan_broken_links(self, job_id: str | None = None) -> dict:
     """Scan live URLs referenced in content and persist broken-link findings."""
@@ -1359,6 +1369,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     name="pipeline.monthly_weight_tune",
     time_limit=600,
     soft_time_limit=540,
+    acks_late=True,
 )
 def monthly_weight_tune(self):
     """Trigger a FR-18 weight-tune run via the native WeightTuner, then evaluate.

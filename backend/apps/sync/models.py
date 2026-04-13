@@ -12,6 +12,7 @@ class SyncJob(models.Model):
         ("running", "Running"),
         ("completed", "Completed"),
         ("failed", "Failed"),
+        ("cancelled", "Cancelled"),
     ]
 
     SOURCE_CHOICES = [

@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from typing import Any
 
+from django.db import transaction
+
 from .ranker import (
     ContentKey,
     ContentRecord,
@@ -67,12 +69,6 @@ def _persist_suggestions(
     content_items = ContentItem.objects.in_bulk(content_item_ids)
     sentences = Sentence.objects.in_bulk(sentence_ids)
 
-    if destination_ids_to_replace:
-        Suggestion.objects.filter(
-            destination_id__in=destination_ids_to_replace,
-            status__in=["pending", "superseded"],
-        ).delete()
-
     to_create = _build_suggestion_records(
         run=run,
         valid_candidates=valid_candidates,
@@ -80,8 +76,18 @@ def _persist_suggestions(
         sentences=sentences,
     )
 
-    if to_create:
-        Suggestion.objects.bulk_create(to_create)
+    # Wrap delete + bulk_create in a transaction so the database is never
+    # left in a state where old suggestions are deleted but new ones
+    # failed to insert.
+    with transaction.atomic():
+        if destination_ids_to_replace:
+            Suggestion.objects.filter(
+                destination_id__in=destination_ids_to_replace,
+                status__in=["pending", "superseded"],
+            ).delete()
+
+        if to_create:
+            Suggestion.objects.bulk_create(to_create)
 
     return len(to_create)
 

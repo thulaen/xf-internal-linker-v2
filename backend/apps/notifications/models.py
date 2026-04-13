@@ -162,6 +162,11 @@ class OperatorAlert(TimestampedModel):
     read_at = models.DateTimeField(null=True, blank=True)
     acknowledged_at = models.DateTimeField(null=True, blank=True)
     resolved_at = models.DateTimeField(null=True, blank=True)
+    suppressed_until = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="If set, this alert is muted until this timestamp. Used by the dedup UI.",
+    )
 
     class Meta:
         verbose_name = "Operator Alert"

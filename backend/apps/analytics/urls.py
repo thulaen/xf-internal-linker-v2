@@ -28,6 +28,11 @@ from .views import (
     AnalyticsGoogleOAuthSettingsView,
     AnalyticsGoogleOAuthCallbackView,
     AnalyticsGoogleOAuthUnlinkView,
+    # Stage 7
+    ImpactDiaryView,
+    QueryMismatchView,
+    WatchedPageListView,
+    WatchedPageDeleteView,
 )
 
 urlpatterns = [
@@ -151,5 +156,14 @@ urlpatterns = [
         "search-impact/<uuid:suggestion_id>/",
         AnalyticsSearchImpactDetailView.as_view(),
         name="search-impact-detail",
+    ),
+    # Stage 7 — SEO Proof
+    path("impacts/", ImpactDiaryView.as_view(), name="impact-diary"),
+    path("query-mismatch/", QueryMismatchView.as_view(), name="query-mismatch"),
+    path("watched-pages/", WatchedPageListView.as_view(), name="watched-pages-list"),
+    path(
+        "watched-pages/<int:pk>/",
+        WatchedPageDeleteView.as_view(),
+        name="watched-pages-delete",
     ),
 ]

@@ -305,6 +305,20 @@ class PipelineRun(TimestampedModel):
         blank=True,
         help_text="Celery task ID — used by the frontend to subscribe to WebSocket progress.",
     )
+    phase_log = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Ordered list of pipeline phase entries: "
+            '[{"phase": "fetch_content", "started_at": "...", "completed_at": "...", '
+            '"item_count": 0, "status": "completed"}]'
+        ),
+    )
+    is_quarantined = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="True if this run has been quarantined after repeated failures (>3 consecutive).",
+    )
 
     class Meta:
         verbose_name = "Pipeline Run"
