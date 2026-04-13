@@ -1,4 +1,6 @@
 import { TestBed } from '@angular/core/testing';
+import { provideHttpClient } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
@@ -245,6 +247,8 @@ describe('AnalyticsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AnalyticsComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
@@ -289,6 +293,8 @@ describe('AnalyticsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AnalyticsComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
@@ -323,6 +329,8 @@ describe('AnalyticsComponent', () => {
     await TestBed.configureTestingModule({
       imports: [AnalyticsComponent, NoopAnimationsModule],
       providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
         {
           provide: AnalyticsService,
           useValue: analyticsServiceStub,
