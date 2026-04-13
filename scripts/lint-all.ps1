@@ -213,7 +213,8 @@ $baselineLongFiles = @(
     'embeddings.py',            # pipeline/services/embeddings.py — generate_*_embeddings ~120 lines each
     'serializers.py',           # suggestions/serializers.py — get_host_source_label ~235 lines
     'test_parity_feedrerank.py', # RPT-001 parity test — reference implementation is intentionally verbose
-    'explainability-tooltip.component.ts' # two components in one file (tooltip + dialog)
+    'explainability-tooltip.component.ts', # two components in one file (tooltip + dialog)
+    'analytics.component.ts'    # pre-existing 670+ lines — 9 chart configs inline
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
