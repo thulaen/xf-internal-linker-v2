@@ -3200,7 +3200,9 @@ class WhatChangedView(APIView):
                     "updated_at": recent_challenger.updated_at.isoformat(),
                 }
         except Exception:
-            logger.debug("RankingChallenger model not available, skipping autotuner outcome")
+            logger.debug(
+                "RankingChallenger model not available, skipping autotuner outcome"
+            )
 
         return Response(
             {
@@ -3329,7 +3331,9 @@ class RuntimeSettingsView(APIView):
             if perf_val:
                 perf_mode = perf_val
         except Exception:
-            logger.debug("AppSetting table not available, using default runtime and performance modes")
+            logger.debug(
+                "AppSetting table not available, using default runtime and performance modes"
+            )
 
         return Response(
             {

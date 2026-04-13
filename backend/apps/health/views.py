@@ -128,7 +128,9 @@ class HealthDiskView(APIView):
             # Each embedding is 1024 floats * 4 bytes = ~4 KB
             embeddings_size_mb = round(count * 4 / 1024, 1)
         except Exception:
-            logger.debug("ContentItem model not available, skipping embeddings size estimate")
+            logger.debug(
+                "ContentItem model not available, skipping embeddings size estimate"
+            )
 
         return Response(
             {
@@ -165,7 +167,9 @@ class HealthGpuView(APIView):
                 }
             )
         except Exception:
-            logger.debug("pynvml not available or GPU not detected, returning unavailable status")
+            logger.debug(
+                "pynvml not available or GPU not detected, returning unavailable status"
+            )
             return Response(
                 {
                     "temp_c": None,
