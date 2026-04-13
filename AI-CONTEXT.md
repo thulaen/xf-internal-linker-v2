@@ -796,3 +796,22 @@ context.
 - If the tree stays dirty, leave a clear handoff note naming the AI/tool and the exact files changed
 - Commit/push only when verified as far as the environment allows
 - Never force-push, rewrite history, or commit secrets
+
+### 2026-04-13 - Safe host cleanup automation for Temp and WSL crash dumps
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `scripts/cleanup-host-safe.ps1`
+  - `AI-CONTEXT.md`
+- What changed:
+  - Added a new PowerShell helper that targets only user Temp cleanup and WSL crash dumps older than a configurable age threshold.
+  - Explicitly excluded Claude app data from the cleanup flow so the script cannot touch Claude caches or VM bundles.
+  - Tightened the Temp sweep to exclude Docker-related Temp folders by name so daily cleanup cannot interfere with Docker scratch space.
+  - Default behavior is preview-only; `-Apply` performs deletion and reports reclaimed space plus skipped locked files.
+  - Ran the script once with `-Apply` for the current machine state and reclaimed about `2.24 GB` from stale Temp items without touching Claude data.
+- Verification that passed:
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1 -Apply`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1` after tightening Docker exclusions
+- Commit/push state:
+  - Changes are currently uncommitted.
