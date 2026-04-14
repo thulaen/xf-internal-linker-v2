@@ -3462,9 +3462,7 @@ class RuntimeConfigView(APIView):
     def _read_int(self, key, default):
         from apps.core.models import AppSetting
 
-        val = (
-            AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
-        )
+        val = AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
         if val is None:
             return default
         try:
