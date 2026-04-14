@@ -282,11 +282,11 @@ Last verified against code: 2026-04-08
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
-| Feature Requests    |   31 |       5 |      60 |         1 |    97 |
+| Feature Requests    |   31 |       5 |      61 |         1 |    98 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
 | C++ META extensions |    0 |       0 |      36 |         0 |    36 |
 | C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
-| **All work items**  | **31** | **5** | **188** | **1** | **225** |
+| **All work items**  | **31** | **5** | **189** | **1** | **226** |
 
 **Completed FRs (31):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
@@ -308,7 +308,7 @@ FR-049, FR-050, FR-051, FR-052, FR-053, FR-054, FR-055, FR-056, FR-057, FR-058,
 FR-059, FR-060, FR-061, FR-062, FR-063, FR-064, FR-065, FR-066, FR-067, FR-068,
 FR-069, FR-070, FR-071, FR-072, FR-073, FR-074, FR-075, FR-076, FR-077, FR-078,
 FR-079, FR-080, FR-081, FR-082, FR-083, FR-084, FR-085, FR-086, FR-087, FR-088,
-FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097
+FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097, FR-098
 
 **C++ META extensions (36 — all pending):**
 meta-04 through meta-39. Full specs in `docs/specs/meta-*.md`.
@@ -426,6 +426,54 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-14 - Frontend server error sweep (Codex)
+
+- **AI/tool:** Codex
+- **What was done:** Investigated the frontend-reported server errors against the running stack, reproduced the failing API calls, and fixed the backend/frontend mismatches causing them. Also fixed a frontend Docker build failure uncovered during the repo-mandated `docker compose build`.
+- **Intentional files changed:**
+  - `backend/apps/api/urls.py`
+  - `backend/apps/health/tests.py`
+  - `backend/apps/notifications/tests.py`
+  - `backend/apps/notifications/urls.py`
+  - `backend/apps/notifications/views.py`
+  - `frontend/Dockerfile`
+  - `frontend/src/app/alerts/alert-detail/alert-detail.component.ts`
+  - `frontend/src/app/core/services/notification.service.ts`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md`
+- **Key fixes:**
+  - Moved the explicit `/api/health/disk/` and `/api/health/gpu/` routes ahead of the router include so Django no longer routes them into the generic health viewset detail path.
+  - Added `GET /api/notifications/alerts/<uuid>/` and updated the alert detail screen to load alerts through `NotificationService` instead of calling the nonexistent `/api/notifications/<uuid>/` endpoint.
+  - Added backend regression tests covering the health disk/gpu endpoints and the alert detail endpoint.
+  - Replaced the frontend Dockerfile `useradd -u 1000 appuser` step with the existing `node` user because the base `node:22-slim` image already reserves UID 1000 and the old build step could fail every required Docker build.
+- **Verification that passed:**
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\build-frontend.ps1`
+  - `docker compose exec backend python manage.py test apps.health.tests apps.notifications.tests`
+  - `docker compose build`
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker image prune -f`
+- **Remaining blocker / note:**
+  - `docker compose exec backend python -m ruff check ...` is still unavailable because `ruff` is not installed in the backend container. I did not change lint tooling in this session.
+  - The Docker-side migration checks still emit the pre-existing Django startup warning already logged as `ISS-003`; this session did not change that FAISS initialization path.
+- **Changes committed:** Yes - committed and pushed in this session. The worktree was already dirty before this session (`AI-CONTEXT.md`, `FEATURE-REQUESTS.md`, and `docs/specs/fr098-dominant-passage-centrality.md`), so the commit stages only this session's server-error fix slice and leaves the unrelated FR-098 docs uncommitted.
+
+### 2026-04-13 — FR-098 Dominant Passage Centrality spec (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Created full spec for FR-098 (Dominant Passage Centrality) and added it to FEATURE-REQUESTS.md. No implementation code written — spec and backlog registration only.
+- **Intentional files changed:**
+  - `docs/specs/fr098-dominant-passage-centrality.md` (new — full spec with Hearst 1997 TextTiling + Erkan & Radev 2004 LexRank + patent US7752534B2)
+  - `FEATURE-REQUESTS.md` (added FR-098 entry after FR-097)
+  - `AI-CONTEXT.md` (dashboard counts updated, this session note)
+- **Changes committed:** No — pending user review.
+- **Key decisions:**
+  - Input is `distilled_text` only (not title, not total page text) to stay distinct from FR-054.
+  - Signal is destination-intrinsic (host-independent) — computed once per destination at index time.
+  - Default `ranking_weight = 0.0` — diagnostics-only until operator validates.
+  - TextTiling for segmentation, LexRank (TF-IDF + PageRank) for sentence centrality — no ML model needed.
 
 ### 2026-04-12 — QA sweep (Claude)
 

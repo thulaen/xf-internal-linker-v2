@@ -2091,6 +2091,36 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ---
 
+### FR-098 — Dominant Passage Centrality
+**Requested:** 2026-04-13
+**Target phase:** TBD
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Hearst M. A. (1997), TextTiling, *Computational Linguistics* 23(1). Erkan G. & Radev D. R. (2004), LexRank, *JAIR* 22, DOI 10.1613/jair.1523. Patent US7752534B2.
+**Spec:** `docs/specs/fr098-dominant-passage-centrality.md`
+
+### What's wanted
+- Destination-intrinsic quality signal: does the page have a strong, coherent core passage where sentences reinforce each other?
+- Segment the cleaned body text (distilled_text only — not title, not page chrome) into passages using TextTiling boundaries.
+- Score sentences within each passage using LexRank (TF-IDF cosine similarity graph + PageRank centrality).
+- The dominant passage (highest mean sentence centrality) determines the score.
+- Complementary to FR-053 (passage relevance to host) and FR-043 (topic drift). Different axis: internal passage importance.
+
+### Specific controls / behaviour
+- Settings: `passage_centrality.enabled` (true), `passage_centrality.ranking_weight` (0.0), `passage_centrality.similarity_threshold` (0.10), `passage_centrality.damping_factor` (0.15), `passage_centrality.max_iterations` (100), `passage_centrality.min_sentences` (3), `passage_centrality.min_body_chars` (200), `passage_centrality.max_ratio` (3.0).
+- Neutral fallback: return 0.5 if body too short, fewer than 3 usable sentences, or feature disabled.
+- Computed once per destination at index time (destination-intrinsic, not host-dependent). Cached on ContentItem.
+- Diagnostics: dominant passage index, centrality ratio, per-passage centrality scores, convergence iterations.
+
+### Implementation notes for the AI
+- Python service in `backend/apps/pipeline/services/passage_centrality.py`. No ML model, no GPU, no external API.
+- TextTiling segmentation can share approach with FR-043 but must not modify FR-043's scorer or diagnostics.
+- LexRank uses TF-IDF + cosine similarity + PageRank power iteration. All parameters from published defaults.
+- Performance budget: < 15 ms per page in Python. C++ port unlikely to be needed (index-time, not suggestion-time).
+- Storage: ~5-10 MB total for 100K pages. Negligible.
+
+---
+
 ### FR-0XX - Add your next request here
 
 Template placeholder only. Not backlog scope.
@@ -2115,4 +2145,4 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-07 (FR-051 through FR-096 added: 9 patent-backed ranking signals, 6 statistical models, 3 C++ meta-algorithms, 22 social media patent signals, 6 operational features. All with full math specs, patent citations, and forward-declared settings in recommended_weights.py.)*
+*Last updated: 2026-04-13 (FR-098 added: Dominant Passage Centrality — TextTiling + LexRank sentence centrality for destination quality scoring. Full math spec with Hearst 1997, Erkan & Radev 2004, and patent US7752534B2.)*
