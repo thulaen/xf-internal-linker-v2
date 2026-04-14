@@ -51,7 +51,7 @@ interface SystemMetrics {
             <mat-icon class="meter-icon">memory</mat-icon>
             <span class="meter-label">CPU</span>
             <span class="meter-value" [class]="tintClass(metrics()?.cpu_percent)">
-              {{ metrics()?.cpu_percent == null ? '—' : (metrics()!.cpu_percent | number:'1.0-0') + '%' }}
+              {{ (metrics()?.cpu_percent ?? null) === null ? '—' : (metrics()!.cpu_percent | number:'1.0-0') + '%' }}
             </span>
           </div>
           <mat-progress-bar
@@ -66,7 +66,7 @@ interface SystemMetrics {
             <mat-icon class="meter-icon">memory_alt</mat-icon>
             <span class="meter-label">RAM</span>
             <span class="meter-value" [class]="tintClass(metrics()?.ram_percent)">
-              {{ metrics()?.ram_percent == null ? '—' : (metrics()!.ram_percent | number:'1.0-0') + '%' }}
+              {{ (metrics()?.ram_percent ?? null) === null ? '—' : (metrics()!.ram_percent | number:'1.0-0') + '%' }}
             </span>
           </div>
           <mat-progress-bar
@@ -86,7 +86,7 @@ interface SystemMetrics {
               <mat-icon class="meter-icon">bolt</mat-icon>
               <span class="meter-label">GPU memory (VRAM)</span>
               <span class="meter-value" [class]="tintClass(metrics()?.gpu?.vram_percent)">
-                {{ metrics()?.gpu?.vram_percent == null ? '—' : (metrics()!.gpu!.vram_percent! | number:'1.0-0') + '%' }}
+                {{ (metrics()?.gpu?.vram_percent ?? null) === null ? '—' : (metrics()!.gpu!.vram_percent! | number:'1.0-0') + '%' }}
               </span>
             </div>
             <mat-progress-bar
@@ -99,7 +99,7 @@ interface SystemMetrics {
               {{ metrics()?.gpu?.vram_total_mb ?? 0 | number:'1.0-0' }} MB
               · GPU temp
               <strong [class.temp-hot]="(metrics()?.gpu?.temp_c ?? 0) >= 76">
-                {{ metrics()?.gpu?.temp_c == null ? '—' : metrics()!.gpu!.temp_c + '°C' }}
+                {{ (metrics()?.gpu?.temp_c ?? null) === null ? '—' : metrics()!.gpu!.temp_c + '°C' }}
               </strong>
               @if ((metrics()?.gpu?.temp_c ?? 0) >= 76) {
                 <mat-icon class="warn-inline" matTooltip="GPU is at or above the 76°C ceiling — heavy tasks will pause automatically">warning</mat-icon>
@@ -181,7 +181,7 @@ export class SystemMetricsComponent implements OnInit {
 
   readonly ramTooltip = computed(() => {
     const m = this.metrics();
-    if (!m || m.ram_used_mb == null) return 'Main memory usage';
+    if (!m || m.ram_used_mb === null || m.ram_used_mb === undefined) return 'Main memory usage';
     return `Main memory: ${m.ram_used_mb} MB of ${m.ram_total_mb} MB in use`;
   });
 
@@ -228,14 +228,14 @@ export class SystemMetricsComponent implements OnInit {
   }
 
   tintClass(pct: number | null | undefined): string {
-    if (pct == null) return '';
+    if (pct === null || pct === undefined) return '';
     if (pct >= 85) return 'tint-hot';
     if (pct >= 65) return 'tint-warn';
     return 'tint-ok';
   }
 
   barColor(pct: number | null | undefined): 'primary' | 'accent' | 'warn' {
-    if (pct == null) return 'primary';
+    if (pct === null || pct === undefined) return 'primary';
     if (pct >= 85) return 'warn';
     if (pct >= 65) return 'accent';
     return 'primary';
