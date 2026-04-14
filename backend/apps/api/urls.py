@@ -139,10 +139,12 @@ urlpatterns = [
     path("analytics/", include("apps.analytics.urls")),
     path("", include("apps.audit.urls")),
     path("", include("apps.plugins.urls")),
-    path("", include(router.urls)),
-    path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
+    # Keep these ahead of the health viewset routes so "disk" and "gpu"
+    # are not mistaken for service-key detail lookups.
     path("health/disk/", HealthDiskView.as_view(), name="health-disk"),
     path("health/gpu/", HealthGpuView.as_view(), name="health-gpu"),
+    path("", include(router.urls)),
+    path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
     path("ml/embed/", MLEmbedView.as_view(), name="ml-embed"),
     path(

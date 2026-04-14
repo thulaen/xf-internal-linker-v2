@@ -39,6 +39,7 @@ export interface OperatorAlert {
   error_log_id: number | null;
   first_seen_at: string;
   last_seen_at: string;
+  suppressed_until: string | null;
   read_at: string | null;
   acknowledged_at: string | null;
   resolved_at: string | null;
@@ -104,6 +105,12 @@ export class NotificationService implements OnDestroy {
     return this.http.get<OperatorAlert[]>(url).pipe(
       catchError(() => of([] as OperatorAlert[])),
     );
+  }
+
+  getAlert(alertId: string): Observable<OperatorAlert | null> {
+    return this.http
+      .get<OperatorAlert>(`/api/notifications/alerts/${alertId}/`)
+      .pipe(catchError(() => of(null)));
   }
 
   loadSummary(): void {

@@ -182,6 +182,39 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-12
 - **Regression watch:** Keep the plugin autoload skip for `.test` settings plus migration commands, and keep `scripts/setup-dev.ps1` running `migrate --settings=config.settings.test --noinput`.
 
+### ISS-012 - `/api/health/disk/` and `/api/health/gpu/` returned 404 because router URLs shadowed explicit health routes (2026-04-14)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/api/urls.py`, `backend/apps/health/tests.py`
+- **Description:** The frontend health screen triggered server errors because Django matched `/api/health/disk/` and `/api/health/gpu/` against the generic health viewset detail route before it reached the dedicated disk and GPU views. Requests were interpreted as `service_key="disk"` and `service_key="gpu"` and came back 404 instead of returning the dedicated payloads.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-14
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-14
+- **Regression watch:** Keep specific utility routes ahead of `include(router.urls)` when their prefixes overlap with a viewset basename, or namespace them so the router cannot swallow them.
+
+### ISS-013 - Alert detail page called a nonexistent notifications detail endpoint (2026-04-14)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `backend/apps/notifications/views.py`, `backend/apps/notifications/urls.py`, `backend/apps/notifications/tests.py`, `frontend/src/app/core/services/notification.service.ts`, `frontend/src/app/alerts/alert-detail/alert-detail.component.ts`
+- **Description:** The alert detail screen requested `/api/notifications/<uuid>/`, but the backend exposed only the alerts list and test endpoints. Opening an alert always failed with a 404 and left the detail view unusable.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-14
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-14
+- **Regression watch:** Keep the frontend alert-detail path aligned with the backend notifications URL map and prefer routing these calls through `NotificationService` so list/detail endpoints stay centralized.
+
+### ISS-014 - Frontend Dockerfile recreated UID 1000 and could fail `docker compose build` (2026-04-14)
+
+- **Found by:** Codex
+- **Severity:** medium
+- **Affected files:** `frontend/Dockerfile`
+- **Description:** The frontend image build tried to run `useradd -m -u 1000 appuser` even though the upstream `node:22-slim` image already reserves UID 1000 for the built-in `node` user. On this base image the repo-mandated Docker build could fail before verification completed.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-14
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-14
+- **Regression watch:** Reuse the base image's non-root `node` user unless the Dockerfile first proves that the target UID/GID is free.
+
 ---
 
 ## Templates

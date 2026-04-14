@@ -6,24 +6,9 @@ import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
-import { HttpClient } from '@angular/common/http';
-import { catchError, of } from 'rxjs';
+import { NotificationService, OperatorAlert } from '../../core/services/notification.service';
 
-interface AlertDetail {
-  alert_id: string;
-  event_type: string;
-  severity: string;
-  status: string;
-  title: string;
-  message: string;
-  source_area: string;
-  dedupe_key: string;
-  occurrence_count: number;
-  related_route: string;
-  first_seen_at: string;
-  last_seen_at: string;
-  suppressed_until: string | null;
-}
+type AlertDetail = OperatorAlert;
 
 @Component({
   selector: 'app-alert-detail',
@@ -33,6 +18,15 @@ interface AlertDetail {
   template: `
     @if (loading) {
       <div class="center-spinner"><mat-spinner diameter="36" /></div>
+    } @else if (loadError) {
+      <mat-card class="detail-card" data-ga4-panel>
+        <mat-card-content>
+          <p class="alert-message">{{ loadError }}</p>
+        </mat-card-content>
+        <mat-card-actions align="end">
+          <a mat-button routerLink="/alerts">Back to alerts</a>
+        </mat-card-actions>
+      </mat-card>
     } @else if (alert) {
       <mat-card class="detail-card" data-ga4-panel>
         <mat-card-header>
@@ -79,18 +73,22 @@ interface AlertDetail {
 })
 export class AlertDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
-  private http = inject(HttpClient);
+  private notifSvc = inject(NotificationService);
 
   alert: AlertDetail | null = null;
   loading = true;
+  loadError: string | null = null;
 
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.http.get<AlertDetail>(`/api/notifications/${id}/`)
-        .pipe(catchError(() => of(null)))
-        .subscribe(a => { this.alert = a; this.loading = false; });
+      this.notifSvc.getAlert(id).subscribe((alert) => {
+        this.alert = alert;
+        this.loadError = alert ? null : 'This alert could not be loaded or no longer exists.';
+        this.loading = false;
+      });
     } else {
+      this.loadError = 'This alert link is missing its ID.';
       this.loading = false;
     }
   }

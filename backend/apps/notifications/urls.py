@@ -3,6 +3,7 @@
 from django.urls import path
 
 from .views import (
+    AlertDetailView,
     AlertAcknowledgeAllView,
     AlertAcknowledgeView,
     AlertListView,
@@ -15,6 +16,11 @@ from .views import (
 
 urlpatterns = [
     path("notifications/alerts/", AlertListView.as_view(), name="alert-list"),
+    path(
+        "notifications/alerts/<uuid:alert_id>/",
+        AlertDetailView.as_view(),
+        name="alert-detail",
+    ),
     path(
         "notifications/alerts/summary/",
         AlertSummaryView.as_view(),

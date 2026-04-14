@@ -7,8 +7,10 @@ They require a live PostgreSQL connection — run inside Docker or CI.
 
 from datetime import timedelta
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework.test import APIClient
 
 from .models import AlertDeliveryAttempt, OperatorAlert
 from .services import emit_operator_alert, get_unread_summary
@@ -131,3 +133,38 @@ class GetUnreadSummaryTest(TestCase):
         self.assertEqual(summary["total_unread"], 2)
         self.assertEqual(summary["by_severity"][OperatorAlert.SEVERITY_ERROR], 1)
         self.assertEqual(summary["by_severity"][OperatorAlert.SEVERITY_WARNING], 1)
+
+
+class NotificationApiTests(TestCase):
+    def setUp(self):
+        user_model = get_user_model()
+        self.user = user_model.objects.create_user(
+            username="notif-api-user",
+            email="notif-api@example.com",
+            password="notif-password-123",
+        )
+        self.client = APIClient()
+        self.client.force_authenticate(user=self.user)
+
+    def test_alert_detail_returns_matching_alert(self):
+        alert = emit_operator_alert(
+            event_type="system.test",
+            severity=OperatorAlert.SEVERITY_WARNING,
+            title="Needs attention",
+            message="A detail route should load this alert.",
+            source_area=OperatorAlert.AREA_SYSTEM,
+            dedupe_key="notification-api-test:detail",
+        )
+
+        response = self.client.get(f"/api/notifications/alerts/{alert.alert_id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["alert_id"], str(alert.alert_id))
+        self.assertEqual(response.data["title"], "Needs attention")
+
+    def test_alert_detail_returns_404_for_unknown_uuid(self):
+        response = self.client.get(
+            "/api/notifications/alerts/00000000-0000-0000-0000-000000000000/"
+        )
+
+        self.assertEqual(response.status_code, 404)

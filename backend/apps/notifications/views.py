@@ -2,6 +2,7 @@
 Notification REST API views.
 
 GET  /api/notifications/alerts/                 — list alerts (filterable)
+GET  /api/notifications/alerts/<uuid>/          — single alert detail
 GET  /api/notifications/alerts/summary/         — unread counts by severity
 POST /api/notifications/alerts/<uuid>/read/     — mark one alert read
 POST /api/notifications/alerts/<uuid>/acknowledge/  — acknowledge one alert
@@ -77,13 +78,19 @@ def _save_prefs(data: dict) -> dict:
     return merged
 
 
+def _alert_queryset():
+    return OperatorAlert.objects.select_related("error_log").prefetch_related(
+        "delivery_attempts"
+    )
+
+
 class AlertListView(APIView):
     """List operator alerts with optional filters."""
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        qs = OperatorAlert.objects.all()
+        qs = _alert_queryset()
 
         status_filter = request.query_params.get("status")
         if status_filter:
@@ -101,9 +108,21 @@ class AlertListView(APIView):
         if source_area_filter:
             qs = qs.filter(source_area=source_area_filter)
 
-        qs = qs.select_related("error_log").prefetch_related("delivery_attempts")
         serializer = OperatorAlertSerializer(qs[:200], many=True)
         return Response(serializer.data)
+
+
+class AlertDetailView(APIView):
+    """Return one operator alert by public UUID."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, alert_id):
+        try:
+            alert = _alert_queryset().get(alert_id=alert_id)
+        except OperatorAlert.DoesNotExist:
+            return Response({"detail": "Not found."}, status=status.HTTP_404_NOT_FOUND)
+        return Response(OperatorAlertSerializer(alert).data)
 
 
 class AlertSummaryView(APIView):

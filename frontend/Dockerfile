@@ -47,9 +47,9 @@ RUN npm install --legacy-peer-deps
 # Copy the rest of the code
 COPY . .
 
-# Create non-root user for security
-RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
-USER appuser
+# Reuse the non-root user that already exists in the official Node image.
+RUN chown -R node:node /app
+USER node
 
 # Angular default dev port
 EXPOSE 4200
