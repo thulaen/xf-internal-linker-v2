@@ -21,6 +21,19 @@
     }
   </div>
 
+  <!-- Performance Mode global chip — click jumps to the Performance Mode card on the dashboard -->
+  <a
+    class="perf-mode-chip"
+    [ngClass]="'perf-' + perfMode.mode()"
+    routerLink="/dashboard"
+    fragment="performance-mode"
+    [matTooltip]="'Performance Mode: ' + perfMode.label() + ' — click to change'"
+    aria-label="Performance Mode indicator"
+  >
+    <mat-icon class="perf-mode-icon">{{ perfMode.icon() }}</mat-icon>
+    <span class="perf-mode-label">{{ perfMode.label() }}</span>
+  </a>
+
   <app-notification-center
     [(open)]="notifPanelOpen"
   />

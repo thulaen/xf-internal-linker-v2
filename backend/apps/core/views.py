@@ -3369,6 +3369,227 @@ class RuntimeSwitchView(APIView):
         return Response({"performance_mode": new_mode})
 
 
+class SystemMetricsView(APIView):
+    """GET /api/system/metrics/ — live CPU, RAM, and GPU sampling for the dashboard.
+
+    Combines psutil (CPU + RAM) and pynvml (GPU) into one lightweight call so
+    the frontend can poll a single endpoint every 10 seconds. All fields are
+    fail-soft: if a sampler is unavailable, the field is null rather than
+    raising an error.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        cpu_percent = None
+        ram_used_mb = None
+        ram_total_mb = None
+        ram_percent = None
+        try:
+            import psutil
+
+            # Non-blocking CPU sample (0s interval avoids a 1s delay per request).
+            cpu_percent = psutil.cpu_percent(interval=None)
+            vm = psutil.virtual_memory()
+            ram_used_mb = round(vm.used / (1024 * 1024))
+            ram_total_mb = round(vm.total / (1024 * 1024))
+            ram_percent = vm.percent
+        except Exception:
+            logger.debug("psutil unavailable; CPU/RAM fields returned as null")
+
+        gpu = {
+            "available": False,
+            "temp_c": None,
+            "vram_used_mb": None,
+            "vram_total_mb": None,
+            "vram_percent": None,
+            "utilization_pct": None,
+        }
+        try:
+            import pynvml
+
+            pynvml.nvmlInit()
+            handle = pynvml.nvmlDeviceGetHandleByIndex(0)
+            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            mem_info = pynvml.nvmlDeviceGetMemoryInfo(handle)
+            util = pynvml.nvmlDeviceGetUtilizationRates(handle)
+            pynvml.nvmlShutdown()
+
+            vram_total_mb = round(mem_info.total / (1024 * 1024))
+            vram_used_mb = round(mem_info.used / (1024 * 1024))
+            gpu = {
+                "available": True,
+                "temp_c": temp,
+                "vram_used_mb": vram_used_mb,
+                "vram_total_mb": vram_total_mb,
+                "vram_percent": round(100.0 * vram_used_mb / vram_total_mb, 1)
+                if vram_total_mb
+                else None,
+                "utilization_pct": util.gpu,
+            }
+        except Exception:
+            logger.debug("pynvml unavailable or GPU missing; returning available=False")
+
+        return Response(
+            {
+                "cpu_percent": cpu_percent,
+                "ram_used_mb": ram_used_mb,
+                "ram_total_mb": ram_total_mb,
+                "ram_percent": ram_percent,
+                "gpu": gpu,
+            }
+        )
+
+
+class RuntimeConfigView(APIView):
+    """GET/POST /api/settings/runtime-config/ — runtime tunables that a noob user may safely adjust.
+
+    Currently exposes:
+      - system.embedding_batch_size  (int, 8..128)  — live; read at each pipeline run.
+      - system.celery_concurrency    (int, 1..8)    — stored; applies after container restart.
+
+    Stored in AppSetting (category="performance"). The performance-mode switch lives at
+    /api/settings/runtime/ — this endpoint is a separate namespace for tunables.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    BATCH_SIZE_MIN = 8
+    BATCH_SIZE_MAX = 128
+    CONCURRENCY_MIN = 1
+    CONCURRENCY_MAX = 8
+
+    def _read_int(self, key, default):
+        from apps.core.models import AppSetting
+
+        val = (
+            AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
+        )
+        if val is None:
+            return default
+        try:
+            return int(val)
+        except (TypeError, ValueError):
+            return default
+
+    def get(self, request):
+        from django.conf import settings as django_conf
+
+        default_batch = int(getattr(django_conf, "EMBEDDING_BATCH_SIZE", 32) or 32)
+        default_conc = int(getattr(django_conf, "CELERY_WORKER_CONCURRENCY", 2) or 2)
+        return Response(
+            {
+                "embedding_batch_size": self._read_int(
+                    "system.embedding_batch_size", default_batch
+                ),
+                "celery_concurrency": self._read_int(
+                    "system.celery_concurrency", default_conc
+                ),
+                "embedding_batch_size_range": [
+                    self.BATCH_SIZE_MIN,
+                    self.BATCH_SIZE_MAX,
+                ],
+                "celery_concurrency_range": [
+                    self.CONCURRENCY_MIN,
+                    self.CONCURRENCY_MAX,
+                ],
+                "celery_concurrency_requires_restart": True,
+            }
+        )
+
+    def post(self, request):
+        from apps.core.models import AppSetting
+
+        updated = {}
+        errors = {}
+        data = request.data or {}
+
+        if "embedding_batch_size" in data:
+            try:
+                bs = int(data["embedding_batch_size"])
+            except (TypeError, ValueError):
+                errors["embedding_batch_size"] = "Must be an integer."
+            else:
+                if not (self.BATCH_SIZE_MIN <= bs <= self.BATCH_SIZE_MAX):
+                    errors["embedding_batch_size"] = (
+                        f"Must be between {self.BATCH_SIZE_MIN} and {self.BATCH_SIZE_MAX}."
+                    )
+                else:
+                    AppSetting.objects.update_or_create(
+                        key="system.embedding_batch_size",
+                        defaults={
+                            "value": str(bs),
+                            "value_type": "int",
+                            "category": "performance",
+                        },
+                    )
+                    updated["embedding_batch_size"] = bs
+
+        if "celery_concurrency" in data:
+            try:
+                cc = int(data["celery_concurrency"])
+            except (TypeError, ValueError):
+                errors["celery_concurrency"] = "Must be an integer."
+            else:
+                if not (self.CONCURRENCY_MIN <= cc <= self.CONCURRENCY_MAX):
+                    errors["celery_concurrency"] = (
+                        f"Must be between {self.CONCURRENCY_MIN} and {self.CONCURRENCY_MAX}."
+                    )
+                else:
+                    AppSetting.objects.update_or_create(
+                        key="system.celery_concurrency",
+                        defaults={
+                            "value": str(cc),
+                            "value_type": "int",
+                            "category": "performance",
+                        },
+                    )
+                    updated["celery_concurrency"] = cc
+
+        if errors:
+            return Response({"errors": errors, "updated": updated}, status=400)
+        return Response({"updated": updated})
+
+
+class SafeModeBootView(APIView):
+    """POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+
+    Use case: the app is misbehaving under High Performance mode and the user wants a
+    one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key="system.boot_safe_once",
+            defaults={
+                "value": "true",
+                "value_type": "bool",
+                "category": "performance",
+            },
+        )
+        return Response({"armed": True, "applies_on": "next_backend_restart"})
+
+    def get(self, request):
+        from apps.core.models import AppSetting
+
+        val = (
+            AppSetting.objects.filter(key="system.boot_safe_once")
+            .values_list("value", flat=True)
+            .first()
+        )
+        return Response({"armed": str(val).lower() == "true"})
+
+    def delete(self, request):
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.filter(key="system.boot_safe_once").delete()
+        return Response({"armed": False})
+
+
 class JobQueueView(APIView):
     """GET /api/jobs/queue/ — active and queued tasks with ETA and lock status."""
 

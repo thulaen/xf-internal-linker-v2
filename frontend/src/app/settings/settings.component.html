@@ -2056,9 +2056,22 @@
         Diagnostics
         <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.diagnostics')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
-      
+
       <div class="tab-content" id="diagnostics-weights">
         <app-weight-diagnostics-card></app-weight-diagnostics-card>
+      </div>
+    </mat-tab>
+
+    <!-- TAB 6: PERFORMANCE — batch size + worker count -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon icon-md">speed</mat-icon>
+        Performance
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Adjust batch size and worker count. Batch size applies instantly; worker count applies after a Docker restart." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+      </ng-template>
+
+      <div class="tab-content" id="performance-tunables">
+        <app-performance-settings></app-performance-settings>
       </div>
     </mat-tab>
   </mat-tab-group>

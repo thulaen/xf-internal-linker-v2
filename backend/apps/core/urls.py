@@ -8,6 +8,9 @@ from .views import (
     ResumeStateView,
     RuntimeSettingsView,
     RuntimeSwitchView,
+    SystemMetricsView,
+    RuntimeConfigView,
+    SafeModeBootView,
     JobQueueView,
     JobQuarantineView,
     HelperNodeListView,
@@ -37,6 +40,19 @@ urlpatterns = [
         "settings/runtime/switch/",
         RuntimeSwitchView.as_view(),
         name="settings-runtime-switch",
+    ),
+    path(
+        "settings/runtime-config/",
+        RuntimeConfigView.as_view(),
+        name="settings-runtime-config",
+    ),
+    # Live system metrics for the noob-friendly dashboard meters
+    path("system/metrics/", SystemMetricsView.as_view(), name="system-metrics"),
+    # Safe-mode boot flag (arm now, consumed at next Django startup)
+    path(
+        "system/safe-mode-boot/",
+        SafeModeBootView.as_view(),
+        name="system-safe-mode-boot",
     ),
     # Jobs execution center (Stage 5)
     path("jobs/queue/", JobQueueView.as_view(), name="jobs-queue"),

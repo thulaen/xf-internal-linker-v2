@@ -61,6 +61,7 @@ import {
   WebhookSettingsUpdate,
 } from './silo-settings.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
+import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 
 interface SettingTooltip {
   definition: string;
@@ -1735,7 +1736,8 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     MatDividerModule,
     MatProgressSpinnerModule,
     DatePipe,
-    WeightDiagnosticsCardComponent
+    WeightDiagnosticsCardComponent,
+    PerformanceSettingsComponent,
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {

@@ -268,6 +268,27 @@ _BATCH_SIZE_DEFAULT = 32
 
 
 def _get_batch_size() -> int:
+    """Resolve the embedding batch size.
+
+    Priority: AppSetting override (key=system.embedding_batch_size, set by the
+    noob-friendly slider in Settings > Performance) → performance mode default.
+    Read on every pipeline run so the user does not need a restart.
+    """
+    try:
+        from apps.core.models import AppSetting
+
+        raw = (
+            AppSetting.objects.filter(key="system.embedding_batch_size")
+            .values_list("value", flat=True)
+            .first()
+        )
+        if raw is not None:
+            val = int(raw)
+            if 8 <= val <= 128:
+                return val
+    except Exception:
+        logger.debug("AppSetting unavailable; falling back to mode-based batch size")
+
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
     return _BATCH_SIZE_HIGH if mode == "HIGH_PERFORMANCE" else _BATCH_SIZE_DEFAULT
 

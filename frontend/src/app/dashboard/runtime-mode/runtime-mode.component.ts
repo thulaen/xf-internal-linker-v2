@@ -4,11 +4,12 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
+import { MatTooltipModule } from '@angular/material/tooltip';
 
 @Component({
   selector: 'app-runtime-mode',
   standalone: true,
-  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatChipsModule],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatChipsModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card id="runtime-mode">
@@ -28,8 +29,12 @@ import { MatChipsModule } from '@angular/material/chips';
         </div>
       </mat-card-content>
       <mat-card-actions align="end">
-        <a mat-stroked-button routerLink="/health" fragment="runtime-panel">
-          <mat-icon>swap_horiz</mat-icon> Switch Runtime
+        <a mat-stroked-button
+           routerLink="/dashboard"
+           fragment="performance-mode"
+           matTooltip="Jump to the Performance Mode card below"
+           aria-label="Change Performance Mode">
+          <mat-icon>tune</mat-icon> Change Performance Mode
         </a>
       </mat-card-actions>
     </mat-card>

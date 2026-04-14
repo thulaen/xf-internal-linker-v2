@@ -19,6 +19,7 @@ import { GlobalLinkInterceptorService } from './core/services/global-link-interc
 import { HealthService, HealthSummary } from './health/health.service';
 import { DashboardService, DashboardData } from './dashboard/dashboard.service';
 import { PulseService, PulseState } from './core/services/pulse.service';
+import { PerformanceModeService } from './core/services/performance-mode.service';
 import { SuggestionService } from './review/suggestion.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
@@ -78,6 +79,7 @@ export class AppComponent implements OnInit {
   private router = inject(Router);
   private pulseService = inject(PulseService);
   private suggestionSvc = inject(SuggestionService);
+  perfMode = inject(PerformanceModeService);
   private contexts = inject(ChildrenOutletContexts);
 
   currentUser$ = this.auth.currentUser$;
@@ -204,7 +206,16 @@ export class AppComponent implements OnInit {
     this.appearance.load();
     this.alertDelivery.start();
     this.linkInterceptor.init();
-    
+
+    // Performance Mode: prime the global chip on boot, and refresh every 2 minutes
+    // as a safety net in case the mode is changed in another tab or from the API.
+    timer(0, 2 * 60 * 1000)
+      .pipe(
+        switchMap(() => this.perfMode.refresh()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe();
+
     // Fetch broken links count for badge
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))

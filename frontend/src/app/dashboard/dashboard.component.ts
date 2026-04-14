@@ -26,6 +26,7 @@ import { WebhookLogComponent } from './components/webhook-log/webhook-log.compon
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 import { SetupWizardDialogComponent } from './components/setup-wizard/setup-wizard-dialog.component';
 import { PulseService, SystemEvent } from '../core/services/pulse.service';
+import { PerformanceModeService } from '../core/services/performance-mode.service';
 import { TodayFocusComponent, TodayAction } from './today-focus/today-focus.component';
 import { PickUpComponent, ResumeState } from './pick-up/pick-up.component';
 import { RunningNowComponent } from './running-now/running-now.component';
@@ -33,6 +34,7 @@ import { WhatChangedComponent, WhatChangedData } from './what-changed/what-chang
 import { ReadyToRunComponent } from './ready-to-run/ready-to-run.component';
 import { PerformanceModeComponent } from './performance-mode/performance-mode.component';
 import { RuntimeModeComponent } from './runtime-mode/runtime-mode.component';
+import { SystemMetricsComponent } from './system-metrics/system-metrics.component';
 import { RankingStrategyCardComponent } from './ranking-strategy-card/ranking-strategy-card.component';
 import { SuggestionFunnelComponent } from './suggestion-funnel/suggestion-funnel.component';
 import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opportunity-pages.component';
@@ -62,6 +64,7 @@ import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opport
     ReadyToRunComponent,
     PerformanceModeComponent,
     RuntimeModeComponent,
+    SystemMetricsComponent,
     RankingStrategyCardComponent,
     SuggestionFunnelComponent,
     TopOpportunityPagesComponent,
@@ -74,6 +77,7 @@ export class DashboardComponent implements OnInit {
   private suggSvc = inject(SuggestionService);
   private syncSvc = inject(SyncService);
   private pulseService = inject(PulseService);
+  private perfModeSvc = inject(PerformanceModeService);
   private http = inject(HttpClient);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
@@ -104,11 +108,40 @@ export class DashboardComponent implements OnInit {
   ngOnInit(): void {
     this.load();
     this.loadOperatingDesk();
+    this.maybeShowFirstRunHint();
 
     // Subscribe to live activity feed.
     this.pulseService.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((events) => (this.activityEvents = events));
+  }
+
+  /**
+   * One-time orientation toast for first-time users. Shows a friendly note
+   * pointing out the Performance Mode card. Persisted via localStorage so it
+   * never repeats.
+   */
+  private maybeShowFirstRunHint(): void {
+    const KEY = 'xf.perfMode.firstRunSeen';
+    try {
+      if (localStorage.getItem(KEY)) return;
+    } catch {
+      return; // no storage, skip silently
+    }
+    // Delay so the toast does not fight the setup wizard on brand-new installs.
+    setTimeout(() => {
+      const ref = this.snack.open(
+        'Tip: the card labelled "Performance Mode" lets you make the linker quieter or faster in one click.',
+        'Got it',
+        { duration: 8000 },
+      );
+      ref.onAction().subscribe(() => {
+        try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
+      });
+      ref.afterDismissed().subscribe(() => {
+        try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
+      });
+    }, 1500);
   }
 
   private loadOperatingDesk(): void {
@@ -129,11 +162,13 @@ export class DashboardComponent implements OnInit {
       .subscribe(rt => {
         this.runtimeMode = rt.runtime_mode;
         this.performanceMode = rt.performance_mode;
+        this.perfModeSvc.setMode(rt.performance_mode);
       });
   }
 
   onPerformanceModeChange(mode: string): void {
     this.performanceMode = mode;
+    this.perfModeSvc.setMode(mode);
   }
 
   load(): void {
