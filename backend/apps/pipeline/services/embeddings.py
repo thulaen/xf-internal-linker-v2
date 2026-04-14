@@ -263,7 +263,12 @@ def _get_model_name() -> str:
     return DEFAULT_MODEL_NAME
 
 
-_BATCH_SIZE_HIGH = 128
+# Bounds for the user-tunable batch size (mirrored in RuntimeConfigView).
+# Anything below the floor is too small to benefit from vectorisation;
+# anything above the ceiling risks GPU OOM on the RTX 3050 baseline.
+_BATCH_SIZE_MIN = 8
+_BATCH_SIZE_MAX = 128
+_BATCH_SIZE_HIGH = _BATCH_SIZE_MAX
 _BATCH_SIZE_DEFAULT = 32
 
 
@@ -284,7 +289,7 @@ def _get_batch_size() -> int:
         )
         if raw is not None:
             val = int(raw)
-            if 8 <= val <= 128:
+            if _BATCH_SIZE_MIN <= val <= _BATCH_SIZE_MAX:
                 return val
     except Exception:
         logger.debug("AppSetting unavailable; falling back to mode-based batch size")

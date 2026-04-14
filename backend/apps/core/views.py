@@ -3369,6 +3369,10 @@ class RuntimeSwitchView(APIView):
         return Response({"performance_mode": new_mode})
 
 
+_BYTES_PER_MEGABYTE = 1024 * 1024
+_FRACTION_TO_PERCENT = 100.0
+
+
 class SystemMetricsView(APIView):
     """GET /api/system/metrics/ — live CPU, RAM, and GPU sampling for the dashboard.
 
@@ -3391,8 +3395,8 @@ class SystemMetricsView(APIView):
             # Non-blocking CPU sample (0s interval avoids a 1s delay per request).
             cpu_percent = psutil.cpu_percent(interval=None)
             vm = psutil.virtual_memory()
-            ram_used_mb = round(vm.used / (1024 * 1024))
-            ram_total_mb = round(vm.total / (1024 * 1024))
+            ram_used_mb = round(vm.used / _BYTES_PER_MEGABYTE)
+            ram_total_mb = round(vm.total / _BYTES_PER_MEGABYTE)
             ram_percent = vm.percent
         except Exception:
             logger.debug("psutil unavailable; CPU/RAM fields returned as null")
@@ -3415,14 +3419,16 @@ class SystemMetricsView(APIView):
             util = pynvml.nvmlDeviceGetUtilizationRates(handle)
             pynvml.nvmlShutdown()
 
-            vram_total_mb = round(mem_info.total / (1024 * 1024))
-            vram_used_mb = round(mem_info.used / (1024 * 1024))
+            vram_total_mb = round(mem_info.total / _BYTES_PER_MEGABYTE)
+            vram_used_mb = round(mem_info.used / _BYTES_PER_MEGABYTE)
             gpu = {
                 "available": True,
                 "temp_c": temp,
                 "vram_used_mb": vram_used_mb,
                 "vram_total_mb": vram_total_mb,
-                "vram_percent": round(100.0 * vram_used_mb / vram_total_mb, 1)
+                "vram_percent": round(
+                    _FRACTION_TO_PERCENT * vram_used_mb / vram_total_mb, 1
+                )
                 if vram_total_mb
                 else None,
                 "utilization_pct": util.gpu,
