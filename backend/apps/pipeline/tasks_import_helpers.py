@@ -326,15 +326,31 @@ def _maybe_flush_and_checkpoint(
     state: Any,
     job: Any,
     interval: int = 25,
+    stage: str = "ingest",
 ) -> None:
-    """Flush job progress and save checkpoint when appropriate."""
+    """Flush job progress, save checkpoints, and honor safe pause requests."""
+    from apps.core.pause_contract import JobPaused, should_pause_now
     from apps.pipeline.tasks import _save_checkpoint
 
-    if state.items_synced % interval == 0 and state.items_synced > 0:
+    should_flush = state.items_synced % interval == 0 and state.items_synced > 0
+    should_pause, pause_reason = should_pause_now(
+        job_type="imports",
+        job_id=str(state.job_id),
+    )
+
+    if should_flush or should_pause:
         job.items_synced = state.items_synced
         job.items_updated = state.items_updated
         job.save(update_fields=["items_synced", "items_updated", "updated_at"])
         if state.updated_pks:
             _save_checkpoint(
-                state.job_id, "ingest", state.updated_pks[-1], state.items_synced
+                state.job_id, stage, state.updated_pks[-1], state.items_synced
             )
+
+    if should_pause:
+        has_checkpoint = bool(state.updated_pks or getattr(job, "checkpoint_stage", ""))
+        job.status = "paused"
+        job.is_resumable = has_checkpoint
+        job.message = f"Paused at safe checkpoint: {pause_reason}"
+        job.save(update_fields=["status", "is_resumable", "message", "updated_at"])
+        raise JobPaused(pause_reason)

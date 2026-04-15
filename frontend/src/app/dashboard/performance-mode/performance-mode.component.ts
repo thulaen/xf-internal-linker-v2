@@ -127,7 +127,7 @@ const MODES: PerformanceOption[] = [
             @if (expiry() !== 'none') {
               <span class="expiry-hint">
                 <mat-icon class="expiry-hint-icon">info</mat-icon>
-                Backend enforcement ships with the scheduler update. For now this preference is saved locally.
+                Saved on the backend as a performance preference. Active workers finish their current safe boundary.
               </span>
             }
           </div>

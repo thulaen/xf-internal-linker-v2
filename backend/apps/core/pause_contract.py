@@ -30,6 +30,11 @@ from typing import Literal, Optional
 
 logger = logging.getLogger(__name__)
 
+
+class JobPaused(RuntimeError):
+    """Raised when a worker reaches a safe boundary and must pause."""
+
+
 JobType = Literal[
     "imports",
     "crawls",
@@ -81,7 +86,13 @@ def should_pause_now(
         logger.debug("should_pause_now: AppSetting read failed", exc_info=True)
 
     # Per-job flag (only meaningful for SyncJob-backed work).
-    if job_id and job_type in ("imports", "crawls", "broken_link_scans"):
+    if job_id and job_type in (
+        "imports",
+        "crawls",
+        "embeddings",
+        "broken_link_scans",
+        "pipeline",
+    ):
         try:
             from apps.sync.models import SyncJob
 

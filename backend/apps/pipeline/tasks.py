@@ -15,6 +15,7 @@ from celery import shared_task
 from channels.layers import get_channel_layer
 
 from apps.pipeline.decorators import with_weight_lock
+from apps.core.pause_contract import JobPaused
 from json import JSONDecodeError
 from requests import RequestException
 from django.db import DatabaseError, IntegrityError
@@ -172,13 +173,16 @@ def dispatch_import_content(
 ) -> dict[str, Any]:
     job_id = job_id or str(uuid.uuid4())
 
-    import_content.delay(
-        scope_ids=scope_ids,
-        mode=mode,
-        source=source,
-        file_path=file_path,
-        job_id=job_id,
-        force_reembed=force_reembed,
+    import_content.apply_async(
+        kwargs={
+            "scope_ids": scope_ids,
+            "mode": mode,
+            "source": source,
+            "file_path": file_path,
+            "job_id": job_id,
+            "force_reembed": force_reembed,
+        },
+        task_id=job_id,
     )
     return {
         "job_id": job_id,
@@ -412,6 +416,25 @@ def generate_embeddings(
             job_type="embed",
         )
         return {"job_id": job_id, **stats}
+    except JobPaused as exc:
+        logger.info("Embedding job %s paused at safe boundary: %s", job_id, exc)
+        if job:
+            job.status = "paused"
+            job.is_resumable = True
+            job.message = f"Paused at embedding checkpoint: {exc}"
+            job.save(
+                update_fields=["status", "is_resumable", "message", "updated_at"]
+            )
+
+        _publish_progress(
+            job_id,
+            "paused",
+            job.progress if job else 0.0,
+            "Embeddings paused. Resume will continue from the saved checkpoint.",
+            ingest_progress=1.0,
+            ml_progress=0.7,
+        )
+        return {"job_id": job_id, "status": "paused", "reason": str(exc)}
     except (MemoryError, TimeoutError, RuntimeError) as exc:
         logger.exception("Embedding job %s failed", job_id)
         if job:
@@ -652,7 +675,7 @@ def import_content(
             raise ValueError(f"Unsupported import source '{source}'.")
 
         update_scope_counts(state.touched_scope_ids)
-        run_post_import_steps(state, job_id, _publish_progress)
+        run_post_import_steps(state, job, job_id, _publish_progress)
 
         # FR-97: Clear checkpoint on successful completion.
         SyncJob.objects.filter(job_id=job_id).update(
@@ -697,6 +720,35 @@ def import_content(
             "job_id": job_id,
             "items_synced": state.items_synced,
             "items_updated": state.items_updated,
+        }
+    except JobPaused as exc:
+        logger.info("Import job %s paused at safe boundary: %s", job_id, exc)
+        try:
+            checkpoint_stage = (
+                SyncJob.objects.filter(job_id=job_id)
+                .values_list("checkpoint_stage", flat=True)
+                .first()
+                or ""
+            )
+            SyncJob.objects.filter(job_id=job_id).update(
+                status="paused",
+                is_resumable=bool(checkpoint_stage),
+                message=f"Paused at safe checkpoint: {exc}",
+            )
+        except Exception:
+            logger.debug("Failed to mark job %s as paused", job_id, exc_info=True)
+        _publish_progress(
+            job_id,
+            "paused",
+            job.progress,
+            "Import paused. Resume will continue from the saved checkpoint.",
+            checkpoint_stage=getattr(job, "checkpoint_stage", ""),
+        )
+        return {
+            "mode": mode,
+            "job_id": job_id,
+            "status": "paused",
+            "reason": str(exc),
         }
     except SoftTimeLimitExceeded:
         logger.warning(
@@ -1236,7 +1288,7 @@ def cleanup_stuck_sync_jobs():
         # Jobs with a checkpoint can resume from where they left off — flag
         # is_resumable=True so the next import_content call (manual or scheduled)
         # picks up via the resume path at tasks.py ~line 615.
-        resumable_count = stuck.filter(checkpoint_stage__isnull=False).update(
+        resumable_count = stuck.exclude(checkpoint_stage="").update(
             status="failed",
             is_resumable=True,
             error_message=(
@@ -1246,8 +1298,9 @@ def cleanup_stuck_sync_jobs():
             completed_at=timezone.now(),
         )
         # Jobs with no checkpoint must restart from scratch.
-        no_checkpoint_count = stuck.filter(checkpoint_stage__isnull=True).update(
+        no_checkpoint_count = stuck.filter(checkpoint_stage="").update(
             status="failed",
+            is_resumable=False,
             error_message=(
                 "Job timed out before any checkpoint — server was likely "
                 "restarted mid-sync."

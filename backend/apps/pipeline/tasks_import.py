@@ -354,6 +354,7 @@ def update_scope_counts(touched_scope_ids: set[int]) -> None:
 
 def run_post_import_steps(
     state: ImportState,
+    job: Any,
     job_id: str,
     publish_progress: Any,
 ) -> None:
@@ -369,6 +370,7 @@ def run_post_import_steps(
             _save_checkpoint(
                 job_id, "graph_sync", state.updated_pks[-1], state.items_synced
             )
+        _maybe_flush_and_checkpoint(state, job, interval=1, stage="graph_sync")
         publish_progress(
             job_id,
             "running",
@@ -380,15 +382,21 @@ def run_post_import_steps(
     if state.updated_pks:
         unique_updated_pks = sorted(set(state.updated_pks))
         _save_checkpoint(job_id, "embed", unique_updated_pks[-1], state.items_synced)
+        _maybe_flush_and_checkpoint(state, job, interval=1, stage="embed")
         publish_progress(
             job_id,
             "running",
             0.87,
             f"Generating embeddings for {len(unique_updated_pks)} items...",
         )
-        generate_all_embeddings(unique_updated_pks)
+        generate_all_embeddings(
+            unique_updated_pks,
+            job_id=job_id,
+            force_reembed=state.force_reembed,
+        )
 
     if state.mode in {"titles", "full"}:
+        _maybe_flush_and_checkpoint(state, job, interval=1, stage="pipeline")
         publish_progress(
             job_id,
             "running",

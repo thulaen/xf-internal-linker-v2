@@ -148,7 +148,7 @@ All heavy and medium scheduled tasks are concentrated here. If the laptop was of
 
 ## 6. GPU Self-Limiting
 
-> **86 °C is the configurable ceiling.** The app pauses GPU work when the chip reaches it and resumes once it cools to 78 °C. This is enforced in software because the OEM locks nvidia-smi power management on this laptop. The ceiling is tunable via `GPU_TEMP_CEILING_C` / `GPU_TEMP_RESUME_C` environment variables — earlier project state had it at 76 °C / 68 °C, raised on 2026-04-15 (see Report Registry ISS-015).
+> **90 °C is the configurable ceiling.** The app pauses GPU work when the chip reaches it and resumes once it cools to 80 °C. This is enforced in software because the OEM locks nvidia-smi power management on this laptop. The ceiling is tunable via `GPU_TEMP_CEILING_C` / `GPU_TEMP_RESUME_C` environment variables. History: 76 °C / 68 °C → 86 °C / 78 °C (2026-04-15, ISS-015) → 90 °C / 80 °C (same day, operator preference; ISS-019). Note that 90 °C leaves only ~3 °C of headroom before NVIDIA's ~93 °C driver throttle, so transient throttling during sustained runs is possible by design.
 >
 > Application-level thermal management is effective when OS-level controls are unavailable. See [Park et al. 2018, "Reducing GPU Energy in HPC/DNN Training via Efficient Tensor-Core Usage", arXiv:1803.04014] for the principle of software-controlled GPU power management.
 
@@ -156,7 +156,7 @@ All heavy and medium scheduled tasks are concentrated here. If the laptop was of
 
 | Layer | Mechanism | Threshold |
 |-------|-----------|-----------|
-| 1. Temperature ceiling | `pynvml` temp check before each GPU batch | Pause at ≥86°C, resume at ≤78°C |
+| 1. Temperature ceiling | `pynvml` temp check before each GPU batch | Pause at ≥90°C, resume at ≤80°C |
 | 2. VRAM fraction | `torch.cuda.set_per_process_memory_fraction()` | Mode-dependent (see below) |
 | 3. Batch size cap | `EMBEDDING_BATCH_SIZE` setting | 32 (default) |
 
@@ -176,7 +176,7 @@ These percentages are **relative to detected VRAM** — they scale automatically
 
 ### Why Software Limits
 
-The NVIDIA driver on this MSI laptop does not expose power management controls via `nvidia-smi`. The `nvidia-smi -pl` command returns "N/A" for power limits. Software-based thermal management is the only available control surface. The three-layer protection above is equivalent to hardware throttling but triggered earlier (86°C vs NVIDIA's default ~93°C thermal throttle).
+The NVIDIA driver on this MSI laptop does not expose power management controls via `nvidia-smi`. The `nvidia-smi -pl` command returns "N/A" for power limits. Software-based thermal management is the only available control surface. The three-layer protection above is equivalent to hardware throttling but triggered earlier (90°C vs NVIDIA's default ~93°C thermal throttle).
 
 ---
 

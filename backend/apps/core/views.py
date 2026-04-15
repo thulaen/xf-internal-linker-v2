@@ -3819,7 +3819,7 @@ class JobQueueView(APIView):
 
         # Active sync jobs
         active_syncs = list(
-            SyncJob.objects.filter(status__in=["pending", "running"])
+            SyncJob.objects.filter(status__in=["pending", "running", "paused"])
             .values(
                 "job_id",
                 "status",

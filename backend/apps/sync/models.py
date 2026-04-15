@@ -28,6 +28,12 @@ class SyncJob(models.Model):
     mode = models.CharField(max_length=20)  # active-import mode (full, titles, quick)
 
     file_name = models.CharField(max_length=255, blank=True, null=True)
+    file_path = models.CharField(
+        max_length=1024,
+        blank=True,
+        default="",
+        help_text="Saved upload path for file-backed imports that can resume.",
+    )
     progress = models.FloatField(default=0.0)
     message = models.CharField(max_length=500, blank=True)
 

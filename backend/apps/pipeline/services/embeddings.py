@@ -151,7 +151,7 @@ def _check_gpu_temperature() -> bool:
 
     Returns True if safe to proceed, False if too hot.
     Temperature ceiling is configurable via GPU_TEMP_CEILING_C
-    (default 86°C).  See docs/PERFORMANCE.md §6.
+    (default 90°C).  See docs/PERFORMANCE.md §6.
     """
     try:
         import pynvml
@@ -163,7 +163,7 @@ def _check_gpu_temperature() -> bool:
 
         from django.conf import settings as django_settings
 
-        ceiling = getattr(django_settings, "GPU_TEMP_CEILING_C", 76)
+        ceiling = getattr(django_settings, "GPU_TEMP_CEILING_C", 90)
 
         if temp >= ceiling:
             logger.warning(
@@ -187,6 +187,26 @@ def _thermal_guard_before_gpu_batch() -> None:
     """
     if not _check_gpu_temperature():
         _wait_for_gpu_cooldown()
+
+
+def _pause_guard_before_embedding_batch(job_id: str | None) -> None:
+    """Stop at embedding batch boundaries when master or per-job pause is set."""
+    if not job_id:
+        return
+
+    from apps.core.pause_contract import JobPaused, should_pause_now
+    from apps.sync.models import SyncJob
+
+    should_pause, reason = should_pause_now(job_type="embeddings", job_id=job_id)
+    if not should_pause:
+        return
+
+    SyncJob.objects.filter(job_id=job_id).update(
+        status="paused",
+        is_resumable=True,
+        message=f"Paused at embedding checkpoint: {reason}",
+    )
+    raise JobPaused(reason)
 
 
 def _flush_embeddings_slice(
@@ -217,13 +237,13 @@ def _flush_embeddings_slice(
 def _wait_for_gpu_cooldown() -> None:
     """Block until GPU temperature drops below the resume threshold.
 
-    Resume threshold: 78°C (configurable via GPU_TEMP_RESUME_C).
+    Resume threshold: 80°C (configurable via GPU_TEMP_RESUME_C).
     """
     import time
 
     from django.conf import settings as django_settings
 
-    resume_temp = getattr(django_settings, "GPU_TEMP_RESUME_C", 68)
+    resume_temp = getattr(django_settings, "GPU_TEMP_RESUME_C", 80)
     max_wait = 300  # 5 minutes max wait
 
     for _ in range(max_wait // 5):
@@ -477,6 +497,7 @@ def generate_content_item_embeddings(
     for i in range(0, total_items, batch_size):
         batch_texts = texts[i : i + batch_size]
         _thermal_guard_before_gpu_batch()
+        _pause_guard_before_embedding_batch(job_id)
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,
@@ -596,6 +617,7 @@ def generate_sentence_embeddings(
     for i in range(0, total_sentences, batch_size):
         batch_texts = texts[i : i + batch_size]
         _thermal_guard_before_gpu_batch()
+        _pause_guard_before_embedding_batch(job_id)
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,

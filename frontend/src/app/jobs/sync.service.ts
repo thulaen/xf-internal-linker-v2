@@ -4,10 +4,11 @@ import { Observable } from 'rxjs';
 
 export interface SyncJob {
   job_id: string;
-  status: 'pending' | 'running' | 'completed' | 'failed';
+  status: 'pending' | 'running' | 'paused' | 'completed' | 'failed' | 'cancelled';
   source: 'api' | 'jsonl' | 'wp';
   mode: string;
   file_name?: string;
+  file_path?: string;
   progress: number; // Overall progress
   ingest_progress?: number;    // Phase 1
   ml_progress?: number;        // Total Phase 2
@@ -21,6 +22,10 @@ export interface SyncJob {
   spacy_items_completed: number;
   embedding_items_completed: number;
   error_message?: string;
+  checkpoint_stage: string;
+  checkpoint_last_item_id?: number | null;
+  checkpoint_items_processed: number;
+  is_resumable: boolean;
   started_at?: string;
   completed_at?: string;
   created_at: string;
@@ -55,6 +60,20 @@ export class SyncService {
     return this.http.post<{ job_id: string; source: string; mode: string }>(
       `${this.apiUrl}trigger_api_sync/`,
       { source, mode, scope_ids }
+    );
+  }
+
+  pauseJob(jobId: string): Observable<{ job_id: string; status: string; is_resumable: boolean; message?: string }> {
+    return this.http.post<{ job_id: string; status: string; is_resumable: boolean; message?: string }>(
+      `${this.apiUrl}${jobId}/pause/`,
+      {},
+    );
+  }
+
+  resumeJob(jobId: string): Observable<{ job_id: string; status: string; is_resumable: boolean; checkpoint_stage?: string; message?: string }> {
+    return this.http.post<{ job_id: string; status: string; is_resumable: boolean; checkpoint_stage?: string; message?: string }>(
+      `${this.apiUrl}${jobId}/resume/`,
+      {},
     );
   }
 

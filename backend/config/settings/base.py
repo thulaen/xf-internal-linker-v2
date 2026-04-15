@@ -480,8 +480,8 @@ EMBEDDING_BATCH_SIZE = env.int("EMBEDDING_BATCH_SIZE", default=32)
 # See docs/PERFORMANCE.md §6 for the three-layer GPU protection scheme.
 CUDA_MEMORY_FRACTION_SAFE = env.float("CUDA_MEMORY_FRACTION_SAFE", default=0.25)
 CUDA_MEMORY_FRACTION_HIGH = env.float("CUDA_MEMORY_FRACTION_HIGH", default=0.80)
-GPU_TEMP_CEILING_C = env.int("GPU_TEMP_CEILING_C", default=86)
-GPU_TEMP_RESUME_C = env.int("GPU_TEMP_RESUME_C", default=78)
+GPU_TEMP_CEILING_C = env.int("GPU_TEMP_CEILING_C", default=90)
+GPU_TEMP_RESUME_C = env.int("GPU_TEMP_RESUME_C", default=80)
 SPACY_MODEL = env("SPACY_MODEL", default="en_core_web_sm")
 
 # Pipeline guardrails (non-negotiable product rules)

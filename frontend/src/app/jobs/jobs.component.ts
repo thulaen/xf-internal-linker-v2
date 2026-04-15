@@ -26,7 +26,7 @@ import { EmptyStateComponent } from '../shared/empty-state/empty-state.component
 import { SystemMetricsComponent } from '../dashboard/system-metrics/system-metrics.component';
 import { SchedulingPolicyCardComponent } from './scheduling-policy-card/scheduling-policy-card.component';
 
-type ImportState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
+type ImportState = 'idle' | 'uploading' | 'running' | 'paused' | 'completed' | 'failed';
 
 interface SourceJobState {
   state: ImportState;
@@ -173,8 +173,17 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   getStatusTooltip(job: SyncJob): string {
     if (this.isStuck(job)) return 'Job appears stuck — will be cleaned up automatically overnight';
+    if (job.is_resumable && job.checkpoint_stage) {
+      return `Resumable from ${job.checkpoint_stage} checkpoint`;
+    }
     if (job.status === 'failed' && job.error_message) return job.error_message;
     return job.status;
+  }
+
+  canResumeJob(job: SyncJob): boolean {
+    return job.is_resumable
+      && !!job.checkpoint_stage
+      && ['paused', 'failed', 'cancelled'].includes(job.status);
   }
 
   showJobDetail(job: SyncJob): void {
@@ -188,7 +197,7 @@ export class JobsComponent implements OnInit, OnDestroy {
     });
 
     ref.afterClosed().subscribe((result) => {
-      if (result?.action === 'retry') {
+      if (result?.action === 'retry' && result.source && result.mode) {
         this.syncService.triggerApiSync(result.source, result.mode).subscribe({
           next: () => {
             this.snack.open('Retry started — check progress above', 'Dismiss', { duration: 5000 });
@@ -198,6 +207,8 @@ export class JobsComponent implements OnInit, OnDestroy {
             this.snack.open('Failed to retry job', 'Dismiss', { duration: 4000 });
           },
         });
+      } else if (result?.action === 'resume' && result.jobId) {
+        this.resumeSyncJob(result.jobId);
       }
     });
   }
@@ -236,7 +247,7 @@ export class JobsComponent implements OnInit, OnDestroy {
    * Worker will stop at the next safe checkpoint boundary.
    */
   pauseSyncJob(jobId: string): void {
-    this.http.post(`/api/sync-jobs/${jobId}/pause/`, {})
+    this.syncService.pauseJob(jobId)
       .pipe(catchError(() => of(null)))
       .subscribe((res: any) => {
         if (res && res.status === 'paused') {
@@ -246,6 +257,7 @@ export class JobsComponent implements OnInit, OnDestroy {
             { duration: 4000 },
           );
           this.loadQueue();
+          this.loadHistory();
         } else {
           this.snack.open('Could not pause this job.', 'OK', { duration: 4000 });
         }
@@ -256,7 +268,7 @@ export class JobsComponent implements OnInit, OnDestroy {
    * Resume a paused sync job from its saved checkpoint (plan item 27).
    */
   resumeSyncJob(jobId: string): void {
-    this.http.post(`/api/sync-jobs/${jobId}/resume/`, {})
+    this.syncService.resumeJob(jobId)
       .pipe(catchError(() => of(null)))
       .subscribe((res: any) => {
         if (res && res.status === 'pending') {
@@ -266,6 +278,7 @@ export class JobsComponent implements OnInit, OnDestroy {
             { duration: 4000 },
           );
           this.loadQueue();
+          this.loadHistory();
         } else {
           this.snack.open('Could not resume this job.', 'OK', { duration: 4000 });
         }
@@ -457,6 +470,11 @@ export class JobsComponent implements OnInit, OnDestroy {
           ws.close();
           this.clearPolling(job);
           this.loadHistory();
+        } else if (data.state === 'paused') {
+          job.state = 'paused';
+          ws.close();
+          this.clearPolling(job);
+          this.loadHistory();
         }
       }
     };
@@ -483,6 +501,10 @@ export class JobsComponent implements OnInit, OnDestroy {
           } else if (j.status === 'failed') {
             job.state = 'failed';
             job.errorMessage = j.error_message ?? 'Import failed.';
+            this.clearPolling(job);
+            this.loadHistory();
+          } else if (j.status === 'paused') {
+            job.state = 'paused';
             this.clearPolling(job);
             this.loadHistory();
           }
@@ -532,6 +554,8 @@ export class JobsComponent implements OnInit, OnDestroy {
       case 'failed':    return 'error';
       case 'running':   return 'sync';
       case 'pending':   return 'schedule';
+      case 'paused':    return 'pause_circle';
+      case 'cancelled': return 'cancel';
       default:          return 'help_outline';
     }
   }

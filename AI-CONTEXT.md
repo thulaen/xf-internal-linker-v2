@@ -476,6 +476,37 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Did not refactor `_check_gpu_temperature` to share a single `pynvml.nvmlInit()` lifecycle with `_wait_for_gpu_cooldown` — the per-call init/shutdown is microseconds and not worth the change here.
   - Did not change anything about Light tasks — they correctly skip locks per `task_lock.py:48`.
 
+### 2026-04-15 - GPU ceiling bumped again to 90°C / 80°C + fallback-default audit (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Follow-up to the earlier 2026-04-15 session. User asked two questions: (1) have pause/resume capabilities been wired up properly, and (2) is the rest of the GUI talking to the backend correctly. Launched two parallel Explore agents to trace pause/resume plumbing end-to-end and to validate frontend↔backend HTTP contracts across all currently-modified files. Verdict: **yes, wired up correctly** — every HTTP call the modified frontend makes maps to a real backend view with matching method and shape; the four ISS-015/-016/-017/-018 fixes are all live. Two loose ends surfaced: (a) the `getattr(django_settings, "GPU_TEMP_CEILING_C", 76)` / `..., 68)` fallback defaults in `embeddings.py` were 10°C below the actual settings.py values (86/78), contradicting their own docstrings — a dormant trap if the settings key ever went missing; (b) a stale "resume path at tasks.py ~line 615" comment in `cleanup_stuck_sync_jobs` — the real log line is now at line 646. User reviewed the audit and decided to raise the thermal ceiling further from 86°C/78°C → 90°C/80°C. Shipped the bump and the fallback alignment in the same pass. Logged the stale comment as deferred.
+
+- **Items shipped:**
+  - **Settings:** `GPU_TEMP_CEILING_C` 86 → 90 and `GPU_TEMP_RESUME_C` 78 → 80 in `backend/config/settings/base.py`.
+  - **Embeddings fallback defaults:** `embeddings.py:166` fallback 76 → 90; `embeddings.py:246` fallback 68 → 80. Docstrings at lines 154 and 240 updated to match.
+  - **Docs:** `docs/PERFORMANCE.md` §6 callout rewritten with 90°C / 80°C live numbers and full history chain (76/68 → 86/78 → 90/80), plus the ~3°C-headroom caveat vs NVIDIA's 93°C throttle. Three-layer table row updated. "Why Software Limits" paragraph updated.
+  - **Report Registry:** Logged **ISS-019** (RESOLVED same session) covering both the fallback-default drift and the ceiling bump, with regression-watch clause naming all four locations that must stay aligned.
+
+- **Intentional files changed:**
+  - `backend/config/settings/base.py` (2 numeric defaults)
+  - `backend/apps/pipeline/services/embeddings.py` (2 `getattr` fallbacks + 2 docstring lines)
+  - `docs/PERFORMANCE.md` (§6 callout, table row, closing paragraph)
+  - `docs/reports/REPORT-REGISTRY.md` (new ISS-019 entry)
+  - `AI-CONTEXT.md` (this note)
+
+- **Session Gate compliance:**
+  - Read `AI-CONTEXT.md` Session Gate, `docs/reports/REPORT-REGISTRY.md` (no overlapping OPEN findings — ISS-015 through ISS-018 are resolved), `CLAUDE.md`, plan file at `.claude/plans/gleaming-pondering-owl.md`.
+  - No new migrations, no new code paths, no test changes — constants-only plus doc alignment.
+  - Layout Precision Rules N/A (no frontend changes).
+
+- **Verification that passed:**
+  - `grep -rn "86°C\|78°C\|86 °C\|78 °C" backend/ docs/` — only remaining hits are historical entries in Report Registry and the deliberate history chain line in PERFORMANCE.md §6 callout. Full results recorded below.
+  - `python backend/manage.py check` — confirms settings.py still parses.
+
+- **What was deliberately NOT done:**
+  - Did not fix the stale "resume path at tasks.py ~line 615" comment in `cleanup_stuck_sync_jobs` at `tasks.py:1290` (real line 646). Scope was ceiling-bump-only per user's request. Flagged in plan file for a future session or drive-by cleanup.
+  - Did not update any frontend strings — this ceiling lives purely in backend config and documentation; the performance-mode panel does not display the raw ceiling values to the user.
+
 ### 2026-04-15 - Phase 7 complete (items 27-31) - **PROMPT X PLAN FULLY SHIPPED** (Claude)
 
 - **AI/tool:** Claude

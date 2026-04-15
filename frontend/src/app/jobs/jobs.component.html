@@ -360,6 +360,11 @@
             <ng-container matColumnDef="actions">
               <th mat-header-cell *matHeaderCellDef></th>
               <td mat-cell *matCellDef="let job">
+                @if (canResumeJob(job)) {
+                  <button mat-icon-button matTooltip="Resume from saved checkpoint" (click)="resumeSyncJob(job.job_id)">
+                    <mat-icon>play_arrow</mat-icon>
+                  </button>
+                }
                 <button mat-icon-button matTooltip="View details" (click)="showJobDetail(job)">
                   <mat-icon>info</mat-icon>
                 </button>

@@ -259,6 +259,17 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Fixed in:** Split the `stuck.update(...)` into two: jobs with `checkpoint_stage IS NOT NULL` are now marked failed *with* `is_resumable=True` and a "Resumable from last checkpoint." message; jobs without a checkpoint stay marked failed (no resumable infrastructure to use). Log message now reports both counts.
 - **Regression watch:** Any future change to `cleanup_stuck_sync_jobs` must keep the checkpoint-aware split. Any new "stuck job" cleanup paths added elsewhere must follow the same pattern.
 
+### ISS-019 — GPU thermal ceiling raised further to 90°C / 80°C at operator request, and the `getattr` fallbacks in `embeddings.py` were out of sync with the settings file (2026-04-15)
+
+- **Found by:** Claude (during follow-up wiring audit after ISS-015/-016/-017/-018)
+- **Severity:** medium
+- **Affected files:** `backend/config/settings/base.py`, `backend/apps/pipeline/services/embeddings.py`, `docs/PERFORMANCE.md`
+- **Description:** Two separate but related issues. (1) During the wiring audit it was found that `_check_gpu_temperature()` at `embeddings.py:166` used `getattr(django_settings, "GPU_TEMP_CEILING_C", 76)` and `_wait_for_gpu_cooldown()` at `embeddings.py:246` used a fallback of `68` — both defaults were 10°C below the actual settings.py values (86/78) and disagreed with their own docstrings ("default 86°C", "Resume threshold: 78°C"). Harmless in normal operation because Django settings are always loaded, but a silent trap if the setting key were ever removed. (2) Operator requested a further bump from 86°C/78°C → 90°C/80°C to trade ~3°C of thermal headroom (vs NVIDIA's ~93°C driver throttle) for more sustained throughput on overnight runs.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-15
+- **Fixed in:** `GPU_TEMP_CEILING_C` 86 → 90 and `GPU_TEMP_RESUME_C` 78 → 80 in `settings/base.py`. `getattr` fallbacks in `embeddings.py` aligned to the new 90 / 80. Docstrings updated. `docs/PERFORMANCE.md` §6 callout, three-layer table, and "Why Software Limits" paragraph all updated. History chain preserved in the §6 callout (76/68 → 86/78 → 90/80).
+- **Regression watch:** The four locations (`settings/base.py`, two `getattr` calls in `embeddings.py`, `docs/PERFORMANCE.md` §6) must stay aligned. Any future ceiling change must touch all four or the code will silently disagree with the docs. Operator noted awareness that 90°C leaves only ~3°C of margin before NVIDIA's hardware throttle — this is by design, not a bug.
+
 ---
 
 ## Templates

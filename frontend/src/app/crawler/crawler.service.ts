@@ -112,7 +112,6 @@ export class CrawlerService {
 
   resumeCrawl(sessionId: string): Observable<CrawlSession> {
     return this.http.post<CrawlSession>(`${BASE}/sessions/`, {
-      site_domain: '',
       resume_session_id: sessionId,
     });
   }

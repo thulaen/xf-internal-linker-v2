@@ -48,6 +48,8 @@ class CrawlSessionCreateSerializer(serializers.Serializer):
 
     site_domain = serializers.CharField(
         max_length=255,
+        required=False,
+        allow_blank=True,
         help_text="Domain to crawl (e.g. 'goldmidi.com').",
     )
     resume_session_id = serializers.UUIDField(
@@ -60,6 +62,15 @@ class CrawlSessionCreateSerializer(serializers.Serializer):
     max_depth = serializers.IntegerField(
         required=False, default=5, min_value=1, max_value=10
     )
+
+    def validate(self, attrs):
+        if attrs.get("resume_session_id"):
+            return attrs
+        if not str(attrs.get("site_domain") or "").strip():
+            raise serializers.ValidationError(
+                {"site_domain": "Enter a site domain or choose a session to resume."}
+            )
+        return attrs
 
 
 # ---------------------------------------------------------------------------

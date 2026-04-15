@@ -39,6 +39,7 @@ from apps.pipeline.services.feedback_rerank import (
 )
 from apps.core.models import AppSetting
 from apps.graph.models import BrokenLink, ExistingLink
+from apps.sync.models import SyncJob
 from apps.pipeline.services.field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
@@ -4052,11 +4053,75 @@ class PipelineDispatchTests(TestCase):
         RUNTIME_OWNER_IMPORT="celery",
     )
     def test_dispatch_import_content_falls_back_to_celery(self):
-        with patch.object(pipeline_tasks.import_content, "delay") as delay_task:
+        with patch.object(pipeline_tasks.import_content, "apply_async") as apply_async:
             result = pipeline_tasks.dispatch_import_content(mode="full", source="api")
 
         self.assertEqual(result["runtime_owner"], "celery")
-        delay_task.assert_called_once()
+        apply_async.assert_called_once()
+
+
+class SyncJobCleanupResumeTests(TestCase):
+    def test_blank_checkpoint_is_not_marked_resumable(self):
+        started_at = timezone.now() - timedelta(hours=3)
+        blank_job = SyncJob.objects.create(
+            source="api",
+            mode="full",
+            status="running",
+            started_at=started_at,
+            checkpoint_stage="",
+        )
+        checkpoint_job = SyncJob.objects.create(
+            source="api",
+            mode="full",
+            status="running",
+            started_at=started_at,
+            checkpoint_stage="ingest",
+            checkpoint_last_item_id=10,
+        )
+
+        result = pipeline_tasks.cleanup_stuck_sync_jobs.run()
+
+        self.assertEqual(result["jobs_cleaned"], 2)
+        blank_job.refresh_from_db()
+        checkpoint_job.refresh_from_db()
+        self.assertEqual(blank_job.status, "failed")
+        self.assertFalse(blank_job.is_resumable)
+        self.assertEqual(checkpoint_job.status, "failed")
+        self.assertTrue(checkpoint_job.is_resumable)
+
+    def test_import_boundary_honors_master_pause(self):
+        from apps.core.pause_contract import JobPaused
+        from apps.pipeline.tasks_import import ImportState
+        from apps.pipeline.tasks_import_helpers import _maybe_flush_and_checkpoint
+
+        AppSetting.objects.create(
+            key="system.master_pause",
+            value="true",
+            value_type="bool",
+            category="system",
+            description="Master pause",
+        )
+        job = SyncJob.objects.create(
+            source="api",
+            mode="full",
+            status="running",
+        )
+        state = ImportState(
+            job_id=str(job.job_id),
+            source="api",
+            mode="full",
+            items_synced=1,
+            items_updated=1,
+            updated_pks=[123],
+        )
+
+        with self.assertRaises(JobPaused):
+            _maybe_flush_and_checkpoint(state, job, interval=25, stage="ingest")
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, "paused")
+        self.assertTrue(job.is_resumable)
+        self.assertEqual(job.checkpoint_stage, "ingest")
 
 
 class PipelineSettingsFallbackLoggingTests(TestCase):

@@ -2,7 +2,7 @@ import { Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
-import { RouterModule } from '@angular/router';
+import { Router, RouterModule } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -83,6 +83,7 @@ export class DashboardComponent implements OnInit {
   private http = inject(HttpClient);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
+  private router = inject(Router);
   private destroyRef = inject(DestroyRef);
 
   data: DashboardData | null = null;
@@ -171,6 +172,41 @@ export class DashboardComponent implements OnInit {
   onPerformanceModeChange(mode: string): void {
     this.performanceMode = mode;
     this.perfModeSvc.setMode(mode);
+  }
+
+  resumeFromDashboard(id: string): void {
+    const syncJob = this.resumeState?.resumable_syncs.find(job => job.job_id === id);
+    if (syncJob) {
+      this.syncSvc.resumeJob(id).subscribe({
+        next: () => {
+          this.snack.open('Resume queued. Open Jobs to watch progress.', 'Jobs', { duration: 6000 })
+            .onAction()
+            .subscribe(() => this.router.navigate(['/jobs']));
+          this.loadOperatingDesk();
+        },
+        error: (err) => {
+          const message = err?.error?.error || 'Could not resume that sync job.';
+          this.snack.open(message, 'Dismiss', { duration: 5000 });
+        },
+      });
+      return;
+    }
+
+    this.snack.open('Pipeline resume is not automated yet. Opening Jobs so you can inspect the run.', 'OK', { duration: 5000 });
+    this.router.navigate(['/jobs']);
+  }
+
+  runMissedTask(taskName: string): void {
+    this.snack.open(
+      `${taskName} does not have a manual dashboard runbook yet. Opening Jobs for the available controls.`,
+      'OK',
+      { duration: 6000 },
+    );
+    this.router.navigate(['/jobs']);
+  }
+
+  deferMissedTask(taskName: string): void {
+    this.snack.open(`${taskName} will run on its normal schedule.`, 'OK', { duration: 4000 });
   }
 
   load(): void {

@@ -10,9 +10,10 @@ export interface JobDetailDialogData {
 }
 
 export interface JobDetailDialogResult {
-  action: 'retry';
-  source: 'api' | 'wp';
-  mode: string;
+  action: 'retry' | 'resume';
+  source?: 'api' | 'wp';
+  mode?: string;
+  jobId?: string;
 }
 
 @Component({
@@ -56,6 +57,10 @@ export interface JobDetailDialogResult {
           <span class="detail-label">Finished</span>
           <span class="detail-value">{{ job.completed_at | date:'MMM d, y HH:mm:ss' }}</span>
         </div>
+        <div class="detail-row" *ngIf="job.is_resumable && job.checkpoint_stage">
+          <span class="detail-label">Checkpoint</span>
+          <span class="detail-value">{{ job.checkpoint_stage }} after {{ job.checkpoint_items_processed | number }} items</span>
+        </div>
       </div>
 
       <div class="message-section" *ngIf="job.message">
@@ -71,6 +76,12 @@ export interface JobDetailDialogResult {
 
     <mat-dialog-actions align="end">
       <button mat-button mat-dialog-close>Close</button>
+      <button mat-flat-button color="primary"
+        *ngIf="canResume"
+        (click)="resume()">
+        <mat-icon>play_arrow</mat-icon>
+        Resume
+      </button>
       <button mat-flat-button color="primary"
         *ngIf="job.status === 'failed' && canRetry"
         (click)="retry()">
@@ -179,6 +190,12 @@ export class JobDetailDialogComponent {
     return this.job.source === 'api' || this.job.source === 'wp';
   }
 
+  get canResume(): boolean {
+    return this.job.is_resumable
+      && !!this.job.checkpoint_stage
+      && ['paused', 'failed', 'cancelled'].includes(this.job.status);
+  }
+
   retry(): void {
     const result: JobDetailDialogResult = {
       action: 'retry',
@@ -186,5 +203,12 @@ export class JobDetailDialogComponent {
       mode: this.job.mode,
     };
     this.dialogRef.close(result);
+  }
+
+  resume(): void {
+    this.dialogRef.close({
+      action: 'resume',
+      jobId: this.job.job_id,
+    });
   }
 }

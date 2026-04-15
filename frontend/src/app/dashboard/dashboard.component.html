@@ -87,7 +87,12 @@
   <div class="desk-row">
     <app-today-focus [actions]="todayActions" />
     @if (resumeState) {
-      <app-pick-up [resumeState]="resumeState" />
+      <app-pick-up
+        [resumeState]="resumeState"
+        (resumeRun)="resumeFromDashboard($event)"
+        (runNow)="runMissedTask($event)"
+        (defer)="deferMissedTask($event)"
+      />
     }
   </div>
 

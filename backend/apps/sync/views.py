@@ -105,7 +105,11 @@ class ImportUploadView(APIView):
                 fh.write(chunk)
 
         job = SyncJob.objects.create(
-            source="jsonl", mode=mode, file_name=file_obj.name, status="pending"
+            source="jsonl",
+            mode=mode,
+            file_name=file_obj.name,
+            file_path=str(dest_path),
+            status="pending",
         )
         job_id = str(job.job_id)
 
@@ -173,7 +177,7 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
 
         job.status = "cancelled"
         # Preserve checkpoint for potential resume.
-        if job.checkpoint_stage:
+        if job.checkpoint_stage.strip():
             job.is_resumable = True
         job.save(update_fields=["status", "is_resumable", "updated_at"])
 
@@ -204,7 +208,7 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
                 status=400,
             )
         job.status = "paused"
-        if job.checkpoint_stage:
+        if job.checkpoint_stage.strip():
             job.is_resumable = True
         job.save(update_fields=["status", "is_resumable", "updated_at"])
         return Response(
@@ -218,27 +222,47 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
 
     @action(detail=True, methods=["post"])
     def resume(self, request, job_id=None):
-        """Resume a paused job (plan item 27).
+        """Resume a paused or failed resumable job (plan item 27).
 
         POST /api/sync-jobs/{job_id}/resume/
 
-        Flips a paused job back to ``pending`` so the scheduler picks it up on
-        the next dispatch cycle. The resume reads the stored checkpoint so no
-        duplicate work is done.
+        Queues ``import_content`` with the original job id so the worker reads
+        the stored checkpoint and continues without duplicating completed work.
         """
         job = self.get_object()
-        if job.status != "paused":
+        if job.status not in ("paused", "failed", "cancelled"):
             return Response(
                 {"error": f"Cannot resume a job with status '{job.status}'."},
                 status=400,
             )
-        if not job.is_resumable or not job.checkpoint_stage:
+        if not job.is_resumable or not job.checkpoint_stage.strip():
             return Response(
                 {"error": "This job has no checkpoint to resume from."},
                 status=400,
             )
+        file_path = request.data.get("file_path") or job.file_path or None
+        if job.source == "jsonl" and not file_path:
+            return Response(
+                {
+                    "error": (
+                        "This JSONL job has a checkpoint but no saved upload path. "
+                        "Upload the file again to restart it."
+                    )
+                },
+                status=400,
+            )
+
+        from apps.pipeline.tasks import dispatch_import_content
+
         job.status = "pending"
-        job.save(update_fields=["status", "updated_at"])
+        job.error_message = ""
+        job.save(update_fields=["status", "error_message", "updated_at"])
+        dispatch_import_content(
+            mode=job.mode,
+            source=job.source,
+            file_path=file_path,
+            job_id=str(job.job_id),
+        )
         return Response(
             {
                 "job_id": str(job.job_id),
