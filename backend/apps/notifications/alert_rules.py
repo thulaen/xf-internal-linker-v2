@@ -26,6 +26,13 @@ from .services import emit_operator_alert
 
 logger = logging.getLogger(__name__)
 
+# Per-rule cooldowns in seconds. Named constants so the lint sees them as
+# intent, not magic numbers, and operators can find them in one place.
+COOLDOWN_PERF_MODE_REVERTED_S = 15 * 60  # 15 minutes
+COOLDOWN_HELPER_OFFLINE_S = 30 * 60  # 30 minutes per helper
+COOLDOWN_CHECKPOINT_CAP_HIT_S = 6 * 60 * 60  # 6 hours
+COOLDOWN_GPU_FALLBACK_S = 60 * 60  # 1 hour
+
 
 # --------------------------------------------------------------------------- #
 # (a) Performance mode reverted automatically
@@ -56,7 +63,7 @@ def alert_performance_mode_reverted(
             dedupe_key=f"perf_mode_reverted:{from_mode}:{to_mode}",
             related_route="/dashboard",
             payload={"from_mode": from_mode, "to_mode": to_mode, "reason": reason},
-            cooldown_seconds=900,  # 15 min
+            cooldown_seconds=COOLDOWN_PERF_MODE_REVERTED_S,
         )
     except Exception:
         logger.warning("Failed to emit perf-mode-reverted alert", exc_info=True)
@@ -95,7 +102,7 @@ def alert_helper_node_offline(
                 "helper_name": helper_name,
                 "last_seen_seconds_ago": last_seen_seconds_ago,
             },
-            cooldown_seconds=1800,  # 30 min — per-helper
+            cooldown_seconds=COOLDOWN_HELPER_OFFLINE_S,
         )
     except Exception:
         logger.warning("Failed to emit helper-offline alert", exc_info=True)
@@ -131,7 +138,7 @@ def alert_checkpoint_cap_hit(
             dedupe_key="checkpoint_cap_hit",
             related_route="/health",  # future: /health#disk
             payload={"used_mb": used_mb, "cap_mb": cap_mb, "pruned_mb": pruned_mb},
-            cooldown_seconds=21600,  # 6 hours
+            cooldown_seconds=COOLDOWN_CHECKPOINT_CAP_HIT_S,
         )
     except Exception:
         logger.warning("Failed to emit checkpoint-cap-hit alert", exc_info=True)
@@ -169,7 +176,7 @@ def alert_gpu_fallback_to_cpu(
             dedupe_key=f"gpu_fallback:{reason}",
             related_route="/health",  # future: /health#runtime
             payload={"reason": reason, "vram_required_mb": vram_required_mb},
-            cooldown_seconds=3600,  # 1 hour
+            cooldown_seconds=COOLDOWN_GPU_FALLBACK_S,
         )
     except Exception:
         logger.warning("Failed to emit gpu-fallback alert", exc_info=True)

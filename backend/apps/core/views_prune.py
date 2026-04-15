@@ -34,28 +34,37 @@ from rest_framework.views import APIView
 
 logger = logging.getLogger(__name__)
 
+# Approximate reclaim figures in MB. These are rough envelopes shown to the
+# user before they confirm; the host-side prune script reports the real
+# number after the fact. Named constants so the lint sees them as intent,
+# not magic numbers.
+RECLAIM_BUILD_CACHE_MB = 800
+RECLAIM_DANGLING_IMAGES_MB = 400
+RECLAIM_DRY_RUN_ARTIFACTS_MB = 5
+RECLAIM_OLD_SCRATCH_MB = 50
+
 # Every accepted target id + a plain-English description. UI reads this via
 # GET /api/prune/safe/ so the user sees what they're authorising.
 ALLOWED_TARGETS: dict[str, dict] = {
     "build_cache": {
         "label": "Docker build cache",
         "detail": "Layers left behind by past `docker compose build` runs. Safe; rebuilds are slower on first run after prune.",
-        "approx_reclaim_mb": 800,
+        "approx_reclaim_mb": RECLAIM_BUILD_CACHE_MB,
     },
     "dangling_images": {
         "label": "Dangling Docker images",
         "detail": "Images no tag points at any more. Safe; these are the old copies from previous builds.",
-        "approx_reclaim_mb": 400,
+        "approx_reclaim_mb": RECLAIM_DANGLING_IMAGES_MB,
     },
     "dry_run_artifacts": {
         "label": "Dry-run preview artifacts",
         "detail": "Cached output from the dry-run sampler (/tmp/xf_dry_run). Auto-pruned every 2h anyway; safe to clear now.",
-        "approx_reclaim_mb": 5,
+        "approx_reclaim_mb": RECLAIM_DRY_RUN_ARTIFACTS_MB,
     },
     "old_scratch": {
         "label": "Old scratch files",
         "detail": "Disposable temporary files older than 24 hours. Safe; they are re-created on demand.",
-        "approx_reclaim_mb": 50,
+        "approx_reclaim_mb": RECLAIM_OLD_SCRATCH_MB,
     },
 }
 

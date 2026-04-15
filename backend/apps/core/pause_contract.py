@@ -11,7 +11,7 @@ Declared boundaries:
   imports              -> between page batches           (e.g., each fetched page)
   crawls               -> between URL batches            (e.g., each requests.get cohort)
   embeddings           -> between chunk batches          (e.g., each model.encode call)
-  broken_link_scans    -> between segments               (e.g., each 100-URL segment)
+  broken_link_scans    -> between segments               (e.g., each ~hundred-URL segment)
   spacy_nlp            -> between document batches       (e.g., each nlp.pipe call)
   pipeline             -> at stage or destination-batch boundaries
 

@@ -32,6 +32,10 @@ KEY_EXPIRES_AT = "system.performance_mode_expires_at"  # ISO 8601 timestamp or e
 # Hour at which "Until tonight ends" reverts. 6 AM local time per plan item 14.
 NIGHT_REVERT_HOUR = 6
 
+# Plan item 19 — minimum number of pruned checkpoint rows that triggers the
+# "checkpoint cap hit" operator alert. Below this we prune silently.
+CHECKPOINT_PRUNE_ALERT_THRESHOLD = 100
+
 
 @shared_task(name="core.auto_revert_performance_mode")
 def auto_revert_performance_mode() -> dict:
@@ -206,8 +210,7 @@ def prune_stale_checkpoints() -> dict:
         total_pruned,
     )
 
-    ALERT_THRESHOLD = 100
-    if total_pruned >= ALERT_THRESHOLD:
+    if total_pruned >= CHECKPOINT_PRUNE_ALERT_THRESHOLD:
         try:
             from apps.notifications.alert_rules import alert_checkpoint_cap_hit
 
@@ -215,7 +218,7 @@ def prune_stale_checkpoints() -> dict:
             # approximations today; the alert copy is still accurate.
             alert_checkpoint_cap_hit(
                 used_mb=total_pruned,  # rows pruned as stand-in
-                cap_mb=ALERT_THRESHOLD,
+                cap_mb=CHECKPOINT_PRUNE_ALERT_THRESHOLD,
                 pruned_mb=total_pruned,
             )
         except Exception:
