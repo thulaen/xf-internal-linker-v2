@@ -85,46 +85,58 @@ def switch_runtime(
         "runtime_switcher: pausing workers for %s -> %s switch", previous, target
     )
 
-    drain_waited = 0
-    if wait_for_drain:
-        drain_waited = _wait_for_drain()
-
-    warmed = True
-    if target == "gpu":
-        warmup_fn = warmup or _default_gpu_warmup
-        try:
-            warmed = bool(warmup_fn())
-        except Exception:
-            logger.exception("runtime_switcher: warmup raised; treating as cold")
-            warmed = False
+    drain_waited = _wait_for_drain() if wait_for_drain else 0
+    warmed = _run_warmup(target, warmup)
 
     if target == "gpu" and not warmed:
-        # Warmup failed — keep the old mode, clear pending, unpause workers.
-        _write(AppSetting, KEY_SWITCH_PENDING, "")
-        _write(AppSetting, KEY_MASTER_PAUSE, "false")
-        _emit_fallback_alert("CUDA warmup failed during runtime switch")
-        return {
-            "ok": False,
-            "target": target,
-            "previous": previous,
-            "drain_waited_s": drain_waited,
-            "warmed": False,
-            "error": "warmup_failed",
-        }
+        return _rollback_failed_warmup(AppSetting, target, previous, drain_waited)
 
-    # Commit the switch. Order matters — set mode BEFORE clearing pause so
-    # workers that wake up immediately pick up the new mode.
+    return _commit_switch(AppSetting, target, previous, drain_waited, warmed)
+
+
+def _run_warmup(target: str, warmup: Callable | None) -> bool:
+    """Run the warmup callable for a GPU switch. Returns True on success."""
+    if target != "gpu":
+        return True
+    warmup_fn = warmup or _default_gpu_warmup
+    try:
+        return bool(warmup_fn())
+    except Exception:
+        logger.exception("runtime_switcher: warmup raised; treating as cold")
+        return False
+
+
+def _rollback_failed_warmup(
+    AppSetting, target: str, previous: str, drain_waited: int
+) -> dict:
+    """Failed warmup — keep the old mode, clear pending, unpause workers."""
+    _write(AppSetting, KEY_SWITCH_PENDING, "")
+    _write(AppSetting, KEY_MASTER_PAUSE, "false")
+    _emit_fallback_alert("CUDA warmup failed during runtime switch")
+    return {
+        "ok": False,
+        "target": target,
+        "previous": previous,
+        "drain_waited_s": drain_waited,
+        "warmed": False,
+        "error": "warmup_failed",
+    }
+
+
+def _commit_switch(
+    AppSetting, target: str, previous: str, drain_waited: int, warmed: bool
+) -> dict:
+    """Commit the switch. Set mode BEFORE clearing pause so workers wake up
+    on the new mode."""
     _write(AppSetting, KEY_RUNTIME_MODE, target)
     _write(AppSetting, KEY_SWITCH_PENDING, "")
     _write(AppSetting, KEY_MASTER_PAUSE, "false")
-
     logger.info(
         "runtime_switcher: switch complete %s -> %s (drain %ds)",
         previous,
         target,
         drain_waited,
     )
-
     return {
         "ok": True,
         "target": target,

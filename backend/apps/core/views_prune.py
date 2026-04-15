@@ -115,24 +115,10 @@ class SafePruneView(APIView):
         target = (request.data or {}).get("target", "")
         confirmed = bool((request.data or {}).get("confirmed"))
 
-        # Defense in depth: deny-list check first. Even if a mistake widens
-        # the allowlist in future, the deny-list will still block these.
-        lowered = str(target).lower()
-        for bad in DENY_LIST_SUBSTRINGS:
-            if bad in lowered:
-                logger.warning(
-                    "safe-prune denied: target=%s matched deny substring %s",
-                    target,
-                    bad,
-                )
-                return Response(
-                    {
-                        "ok": False,
-                        "error": "forbidden_target",
-                        "detail": f"Target '{target}' is on the hardcoded deny-list and cannot be pruned.",
-                    },
-                    status=403,
-                )
+        # Defense in depth: deny-list check first.
+        deny_response = _reject_if_denied(target)
+        if deny_response is not None:
+            return deny_response
 
         info = ALLOWED_TARGETS.get(target)
         if info is None:
@@ -146,21 +132,8 @@ class SafePruneView(APIView):
                 status=400,
             )
 
-        # Dry-run: no confirm -> return estimate, don't touch anything.
         if not confirmed:
-            return Response(
-                {
-                    "ok": True,
-                    "action": "dry_run",
-                    "target": target,
-                    "label": info["label"],
-                    "detail": info["detail"],
-                    "estimated_reclaim_mb": info["approx_reclaim_mb"],
-                    "notes": "Resend with 'confirmed: true' to actually prune.",
-                }
-            )
-
-        # Commit path — require idle.
+            return _dry_run_response(target, info)
         if not _is_system_idle():
             return Response(
                 {
@@ -170,25 +143,59 @@ class SafePruneView(APIView):
                 },
                 status=409,
             )
+        return _commit_response(target, info)
 
-        # Stub execution: today the real prune runs out-of-container via the
-        # ps1 script.  Return the estimated reclaim as the confirmed figure
-        # so the UI still reports a number.  Real Docker-client wiring is a
-        # follow-up.
-        logger.info(
-            "safe-prune committed: target=%s (stub — host script does the work)", target
-        )
-        return Response(
-            {
-                "ok": True,
-                "action": "pruned_stub",
-                "target": target,
-                "label": info["label"],
-                "reclaimed_mb": info["approx_reclaim_mb"],
-                "detail": (
-                    "Prune authorised. The host-side prune script "
-                    "(scripts/prune-verification-artifacts.ps1) will run it. "
-                    "Full in-container Docker-client integration lands in a follow-up."
-                ),
-            }
-        )
+
+def _reject_if_denied(target: str):
+    """Return a 403 Response if target hits the deny-list, else None."""
+    lowered = str(target).lower()
+    for bad in DENY_LIST_SUBSTRINGS:
+        if bad in lowered:
+            logger.warning(
+                "safe-prune denied: target=%s matched deny substring %s", target, bad
+            )
+            return Response(
+                {
+                    "ok": False,
+                    "error": "forbidden_target",
+                    "detail": f"Target '{target}' is on the hardcoded deny-list and cannot be pruned.",
+                },
+                status=403,
+            )
+    return None
+
+
+def _dry_run_response(target: str, info: dict):
+    """Estimate-only response when the caller did not include confirmed=true."""
+    return Response(
+        {
+            "ok": True,
+            "action": "dry_run",
+            "target": target,
+            "label": info["label"],
+            "detail": info["detail"],
+            "estimated_reclaim_mb": info["approx_reclaim_mb"],
+            "notes": "Resend with 'confirmed: true' to actually prune.",
+        }
+    )
+
+
+def _commit_response(target: str, info: dict):
+    """Stub commit — host-side prune script does the actual filesystem work."""
+    logger.info(
+        "safe-prune committed: target=%s (stub — host script does the work)", target
+    )
+    return Response(
+        {
+            "ok": True,
+            "action": "pruned_stub",
+            "target": target,
+            "label": info["label"],
+            "reclaimed_mb": info["approx_reclaim_mb"],
+            "detail": (
+                "Prune authorised. The host-side prune script "
+                "(scripts/prune-verification-artifacts.ps1) will run it. "
+                "Full in-container Docker-client integration lands in a follow-up."
+            ),
+        }
+    )

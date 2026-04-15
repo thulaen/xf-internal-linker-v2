@@ -83,11 +83,16 @@ def run_preview(
         "notes": [],
     }
 
-    notes = out["notes"]
+    _collect_history_notes(source, out["notes"])
+    _classify_sample(source, sample_size, start, now, out)
+    _write_artifact(source, mode, now, out)
 
-    # Inspect queue + recent sync history for a quick classification. We don't
-    # reach out to the remote site here — that's the "full sampling" extension
-    # the plan calls out for a future iteration.
+    out["elapsed_seconds"] = round(time.monotonic() - start, 2)
+    return out
+
+
+def _collect_history_notes(source: str, notes: list) -> None:
+    """Look at recent SyncJob rows and add plain-English notes to the preview."""
     try:
         from apps.sync.models import SyncJob
 
@@ -101,8 +106,6 @@ def run_preview(
                 f"Most recent completed {source} sync was {last_completed.mode}, "
                 f"{last_completed.checkpoint_items_processed or 0} items."
             )
-
-        # Any currently running job? Block the preview with a hint.
         running = SyncJob.objects.filter(source=source, status="running").count()
         if running:
             notes.append(
@@ -112,10 +115,17 @@ def run_preview(
     except Exception:
         logger.debug("dry_run_sampler: sync history lookup failed", exc_info=True)
 
-    # Sampling phase. For now we do a lightweight classification by picking
-    # at most ``sample_size`` recently-touched ContentItems and re-checking
-    # their hashes via ``mark_as_checked_if_unchanged`` dry-pattern (same logic,
-    # no write). Full remote fetch is the next iteration.
+
+def _classify_sample(
+    source: str, sample_size: int, start: float, now: datetime, out: dict
+) -> None:
+    """Sample ContentItems and tally would-import / would-update / would-skip.
+
+    Conservative heuristic: items whose ``last_checked_at`` is older than 7 days
+    are likely to need a re-check; younger items are likely-skip; missing
+    timestamp counts as would-import.
+    """
+    notes = out["notes"]
     try:
         from apps.content.models import ContentItem
 
@@ -125,13 +135,8 @@ def run_preview(
         elif source == "wp":
             qs = qs.filter(source_key__startswith="wordpress:")
 
-        sample = list(qs.order_by("-updated_at")[:sample_size])
-        for item in sample:
+        for item in list(qs.order_by("-updated_at")[:sample_size]):
             out["items_seen"] += 1
-            # We don't have a new hash to compare against without a remote
-            # fetch. Treat items whose last_checked_at is older than 7 days as
-            # "likely changed", younger as "likely skip" — good enough for a
-            # preview envelope.
             last_checked = getattr(item, "last_checked_at", None)
             if last_checked is None:
                 out["items_would_import"] += 1
@@ -141,9 +146,6 @@ def run_preview(
                     out["items_would_update"] += 1
                 else:
                     out["items_would_skip"] += 1
-
-            # Respect the hard cap defensively — sampling DB should be cheap
-            # but we must never exceed the contract.
             if time.monotonic() - start > HARD_CAP_SECONDS:
                 out["truncated_by_cap"] = True
                 notes.append("Stopped early — hit the 3-minute dry-run cap.")
@@ -153,7 +155,9 @@ def run_preview(
         out["ok"] = False
         notes.append("Sampling failed — backend logs have details.")
 
-    # Write the artifact. Tiny JSON file; auto-pruned in 2 hours.
+
+def _write_artifact(source: str, mode: str, now: datetime, out: dict) -> None:
+    """Persist the preview summary as a tiny JSON file under ARTIFACT_DIR."""
     try:
         ARTIFACT_DIR.mkdir(parents=True, exist_ok=True)
         stamp = now.strftime("%Y%m%dT%H%M%S")
@@ -162,9 +166,6 @@ def run_preview(
         out["artifact_path"] = str(path)
     except Exception:
         logger.debug("dry_run_sampler: artifact write failed", exc_info=True)
-
-    out["elapsed_seconds"] = round(time.monotonic() - start, 2)
-    return out
 
 
 def _prune_old_artifacts(*, now: datetime | None = None) -> int:
