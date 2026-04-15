@@ -2074,6 +2074,19 @@
         <app-performance-settings></app-performance-settings>
       </div>
     </mat-tab>
+
+    <!-- TAB 7: HELPERS — helper-node registry (plan item 22) -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <mat-icon class="tab-icon icon-md">device_hub</mat-icon>
+        Helpers
+        <mat-icon class="tab-label-info icon-sm" matTooltip="Register secondary helper machines to share heavy jobs. Each helper advertises its CPU, RAM and GPU and only takes work it is allowed to run." matTooltipClass="setting-tooltip">info_outline</mat-icon>
+      </ng-template>
+
+      <div class="tab-content" id="helpers">
+        <app-helpers-settings></app-helpers-settings>
+      </div>
+    </mat-tab>
   </mat-tab-group>
 
   <!-- Sticky Mobile/Global Save Trigger for UX -->

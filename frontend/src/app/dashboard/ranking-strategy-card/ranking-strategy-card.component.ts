@@ -38,7 +38,7 @@ import { MatChipsModule } from '@angular/material/chips';
           <p class="no-challengers">No challengers running. The current weights are stable.</p>
         }
       </mat-card-content>
-      <mat-card-actions align="end">
+      <mat-card-actions align="end" class="dashboard-action-row">
         <a mat-stroked-button routerLink="/settings" fragment="ranking-weights">
           <mat-icon>settings</mat-icon> Adjust Weights
         </a>

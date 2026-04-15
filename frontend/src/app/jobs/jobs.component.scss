@@ -1,5 +1,20 @@
 @use '../../styles/theme-vars' as vars;
 
+// ── Resource-Aware Scheduling banner (plan item 11) ──────────────
+// Lives above the jobs-layout: live system metrics on the left, scheduling
+// policy reference on the right. Collapses to a single column under 1080px so
+// the cards stay readable on smaller laptops.
+.jobs-scheduling-banner {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-lg);
+  margin-bottom: var(--space-lg);
+
+  @media (max-width: 1080px) {
+    grid-template-columns: 1fr;
+  }
+}
+
 // ── Jobs Tabs (Stage 5) ───────────────────────────────────────────
 .jobs-tabs {
   margin-top: var(--space-lg);

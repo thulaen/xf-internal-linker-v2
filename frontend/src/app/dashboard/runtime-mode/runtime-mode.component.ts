@@ -28,13 +28,15 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           }
         </div>
       </mat-card-content>
-      <mat-card-actions align="end">
+      <mat-card-actions align="end" class="dashboard-action-row">
         <a mat-stroked-button
+           class="runtime-adjust-btn"
            routerLink="/dashboard"
            fragment="performance-mode"
-           matTooltip="Jump to the Performance Mode card below"
-           aria-label="Change Performance Mode">
-          <mat-icon>tune</mat-icon> Change Performance Mode
+           matTooltip="Jump to the Performance Mode card to switch Safe / Balanced / High Performance"
+           aria-label="Adjust Performance Mode">
+          <mat-icon>tune</mat-icon>
+          <span>Adjust Mode</span>
         </a>
       </mat-card-actions>
     </mat-card>
@@ -62,6 +64,16 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     }
     .warming-hint { font-size: 12px; color: var(--color-text-muted); }
     mat-card-actions { padding: var(--space-md); }
+    /* Keep the action label on one line even in narrow cards — no awkward mid-word wrap. */
+    .runtime-adjust-btn {
+      white-space: nowrap;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
+    .runtime-adjust-btn span {
+      white-space: nowrap;
+    }
   `],
 })
 export class RuntimeModeComponent {

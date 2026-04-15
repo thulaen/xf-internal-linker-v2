@@ -1,4 +1,5 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
 import { CommonModule } from '@angular/common';
@@ -20,12 +21,15 @@ import { HealthService, HealthSummary } from './health/health.service';
 import { DashboardService, DashboardData } from './dashboard/dashboard.service';
 import { PulseService, PulseState } from './core/services/pulse.service';
 import { PerformanceModeService } from './core/services/performance-mode.service';
+import { UserActivityService } from './core/services/user-activity.service';
 import { SuggestionService } from './review/suggestion.service';
 import { NotificationCenterComponent } from './notification-center/notification-center.component';
 import { ThemeCustomizerComponent } from './theme-customizer/theme-customizer.component';
 import { ScrollToTopComponent } from './scroll-to-top/scroll-to-top.component';
 import { ScrollHighlightDirective } from './core/directives/scroll-highlight.directive';
 import { FreshnessBadgeComponent } from './shared/freshness-badge/freshness-badge.component';
+import { HealthBannerComponent } from './shared/health-banner/health-banner.component';
+import { CommandPaletteService } from './shared/services/command-palette.service';
 import { routeTransitionAnimation } from './shared/animations/route-transition.animation';
 import { environment } from '../environments/environment';
 
@@ -61,6 +65,7 @@ interface NavSection {
     ScrollToTopComponent,
     ScrollHighlightDirective,
     FreshnessBadgeComponent,
+    HealthBannerComponent,
     MatBadgeModule,
     MatChipsModule,
   ],
@@ -80,6 +85,9 @@ export class AppComponent implements OnInit {
   private pulseService = inject(PulseService);
   private suggestionSvc = inject(SuggestionService);
   perfMode = inject(PerformanceModeService);
+  private commandPalette = inject(CommandPaletteService);
+  private userActivity = inject(UserActivityService);
+  private http = inject(HttpClient);
   private contexts = inject(ChildrenOutletContexts);
 
   currentUser$ = this.auth.currentUser$;
@@ -105,6 +113,9 @@ export class AppComponent implements OnInit {
   notifPanelOpen = false;
   openBrokenLinks = 0;
   systemStatus: 'healthy' | 'degraded' | 'critical' | 'unknown' = 'unknown';
+  healthSummary: HealthSummary | null = null;
+  masterPause = false;
+  masterPauseBusy = false;
 
   navSections: NavSection[] = [
     {
@@ -206,6 +217,9 @@ export class AppComponent implements OnInit {
     this.appearance.load();
     this.alertDelivery.start();
     this.linkInterceptor.init();
+    // Item 13 — start listening for keyboard/mouse activity so "Until I come
+    // back" can trigger an auto-revert once the user returns from idle.
+    this.userActivity.start();
 
     // Performance Mode: prime the global chip on boot, and refresh every 2 minutes
     // as a safety net in case the mode is changed in another tab or from the API.
@@ -214,7 +228,13 @@ export class AppComponent implements OnInit {
         switchMap(() => this.perfMode.refresh()),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe();
+      .subscribe((rt) => {
+        // Plan item 28 — hydrate master_pause from the same endpoint every 2 min.
+        const anyRt = rt as any;
+        if (typeof anyRt?.master_pause === 'boolean') {
+          this.masterPause = anyRt.master_pause;
+        }
+      });
 
     // Fetch broken links count for badge
     this.dashboardSvc.data$
@@ -231,15 +251,22 @@ export class AppComponent implements OnInit {
         },
       });
 
-    // Fetch health summary for status dot plus 30-minute heart beat
+    // Fetch health summary for status dot plus 30-minute heart beat.
+    // Store the full summary so the click-to-expand popover can show stats.
     timer(0, 30 * 60 * 1000)
       .pipe(
         switchMap(() => this.healthService.getSummary()),
         takeUntilDestroyed(this.destroyRef)
       )
       .subscribe({
-        next: (summary: HealthSummary) => this.systemStatus = summary.system_status,
-        error: () => this.systemStatus = 'unknown'
+        next: (summary: HealthSummary) => {
+          this.systemStatus = summary.system_status;
+          this.healthSummary = summary;
+        },
+        error: () => {
+          this.systemStatus = 'unknown';
+          this.healthSummary = null;
+        },
       });
 
     // Subscribe to the real-time pulse for toolbar indicator.
@@ -277,6 +304,56 @@ export class AppComponent implements OnInit {
 
   getRouteAnimationData(): string {
     return this.contexts.getContext('primary')?.route?.snapshot?.url?.toString() ?? '';
+  }
+
+  /**
+   * Plan item 28 — "Pause Everything" master toggle.
+   * Reads on boot inside the existing health-summary refresh cycle, flips on click.
+   */
+  toggleMasterPause(): void {
+    if (this.masterPauseBusy) return;
+    this.masterPauseBusy = true;
+    this.http.post<{ master_pause: boolean }>('/api/settings/master-pause/', { paused: !this.masterPause })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (res) => {
+          this.masterPause = !!res?.master_pause;
+          this.masterPauseBusy = false;
+        },
+        error: () => {
+          this.masterPauseBusy = false;
+        },
+      });
+  }
+
+  /** Severity level for the HealthBanner inside the status-dot popover. */
+  get healthMenuSeverity(): 'info' | 'warning' | 'error' {
+    if (this.systemStatus === 'critical') return 'error';
+    if (this.systemStatus === 'degraded') return 'warning';
+    return 'info';
+  }
+
+  /** Plain-English one-liner for the HealthBanner inside the status-dot popover. */
+  get healthMenuMessage(): string {
+    const count = this.healthSummary?.degraded_count ?? 0;
+    switch (this.systemStatus) {
+      case 'healthy': return 'All services are healthy.';
+      case 'degraded': return `${count} service${count === 1 ? ' is' : 's are'} degraded.`;
+      case 'critical': return `${count} service${count === 1 ? ' is' : 's are'} down or in error.`;
+      default: return 'Health status unknown — click to run a full check.';
+    }
+  }
+
+  /**
+   * Open the Command Palette on Ctrl+K (Windows/Linux) or Cmd+K (Mac).
+   * Re-pressing the shortcut while the palette is open closes it.
+   */
+  @HostListener('window:keydown', ['$event'])
+  onGlobalKeydown(event: KeyboardEvent): void {
+    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+      event.preventDefault();
+      this.commandPalette.toggle();
+    }
   }
 
   get config() {

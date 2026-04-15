@@ -23,6 +23,8 @@ import { SyncService, SyncJob } from './sync.service';
 import { JobDetailDialogComponent, JobDetailDialogResult } from './job-detail-dialog.component';
 import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
+import { SystemMetricsComponent } from '../dashboard/system-metrics/system-metrics.component';
+import { SchedulingPolicyCardComponent } from './scheduling-policy-card/scheduling-policy-card.component';
 
 type ImportState = 'idle' | 'uploading' | 'running' | 'completed' | 'failed';
 
@@ -63,6 +65,8 @@ interface SourceJobState {
     MatChipsModule,
     HealthBannerComponent,
     EmptyStateComponent,
+    SystemMetricsComponent,
+    SchedulingPolicyCardComponent,
   ],
   templateUrl: './jobs.component.html',
   styleUrls: ['./jobs.component.scss'],
@@ -220,6 +224,100 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.http.get<any[]>('/api/jobs/quarantine/')
       .pipe(catchError(() => of([])))
       .subscribe(items => this.quarantineItems = items);
+  }
+
+  /**
+   * Open the RunbookDialog matching the quarantine record's fix_available id
+   * (plan item 16 / 17 integration). If the runbook isn't in the library we
+   * fall back to the generic reset-quarantined-job entry.
+   */
+  /**
+   * Graceful pause request for a running sync job (plan item 27).
+   * Worker will stop at the next safe checkpoint boundary.
+   */
+  pauseSyncJob(jobId: string): void {
+    this.http.post(`/api/sync-jobs/${jobId}/pause/`, {})
+      .pipe(catchError(() => of(null)))
+      .subscribe((res: any) => {
+        if (res && res.status === 'paused') {
+          this.snack.open(
+            res.message || 'Pause requested. Worker will stop at the next safe checkpoint.',
+            'OK',
+            { duration: 4000 },
+          );
+          this.loadQueue();
+        } else {
+          this.snack.open('Could not pause this job.', 'OK', { duration: 4000 });
+        }
+      });
+  }
+
+  /**
+   * Resume a paused sync job from its saved checkpoint (plan item 27).
+   */
+  resumeSyncJob(jobId: string): void {
+    this.http.post(`/api/sync-jobs/${jobId}/resume/`, {})
+      .pipe(catchError(() => of(null)))
+      .subscribe((res: any) => {
+        if (res && res.status === 'pending') {
+          this.snack.open(
+            res.message || 'Resume queued. The worker will pick up from the saved checkpoint.',
+            'OK',
+            { duration: 4000 },
+          );
+          this.loadQueue();
+        } else {
+          this.snack.open('Could not resume this job.', 'OK', { duration: 4000 });
+        }
+      });
+  }
+
+  /**
+   * Open the dry-run preview dialog for a source (plan item 25).
+   * Never starts the real sync itself; if the user picks "Run for real"
+   * in the dialog, we dispatch to startSourceSync on close.
+   */
+  async previewSync(source: 'api' | 'wp'): Promise<void> {
+    const { SyncPreviewDialogComponent } = await import(
+      './sync-preview-dialog/sync-preview-dialog.component'
+    );
+    const ref = this.dialog.open(SyncPreviewDialogComponent, {
+      data: { source, mode: this.importMode },
+      width: '560px',
+      maxWidth: '92vw',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+    });
+    ref.afterClosed().subscribe((decision) => {
+      if (decision === 'run') {
+        this.startSourceSync(source);
+      }
+    });
+  }
+
+  async launchQuarantineRunbook(item: any): Promise<void> {
+    const [{ RunbookDialogComponent }, { RUNBOOK_LIBRARY }] = await Promise.all([
+      import('../shared/runbooks/runbook-dialog/runbook-dialog.component'),
+      import('../shared/runbooks/runbook-library'),
+    ]);
+    const id = item?.fix_available || 'reset-quarantined-job';
+    const runbook = RUNBOOK_LIBRARY.find((r) => r.id === id) ?? RUNBOOK_LIBRARY.find((r) => r.id === 'reset-quarantined-job');
+    if (!runbook) return;
+    // Pass run_id (and related_object_type) as context so the backend runbook
+    // endpoint gets the args it needs (e.g. reset-quarantined-job requires run_id).
+    this.dialog.open(RunbookDialogComponent, {
+      data: {
+        runbook,
+        context: {
+          run_id: item?.run_id,
+          related_object_type: item?.related_object_type ?? 'pipeline_run',
+        },
+      },
+      width: '520px',
+      maxWidth: '92vw',
+      autoFocus: 'first-tabbable',
+      restoreFocus: true,
+    });
   }
 
   loadSourceStatus(): void {

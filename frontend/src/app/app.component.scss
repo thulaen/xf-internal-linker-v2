@@ -342,24 +342,64 @@
     50% { opacity: 0.5; }
   }
 
+  // Plan item 28 — Pause Everything master toggle. Uses warm amber when
+  // active so the operator instantly notices the whole app is paused.
+  .master-pause-btn {
+    margin: 0 4px;
+    transition: color 0.15s ease, background-color 0.15s ease;
+
+    mat-icon {
+      color: var(--color-text-muted);
+      transition: color 0.15s ease;
+    }
+    &:hover mat-icon { color: var(--color-primary); }
+
+    &.master-pause-on {
+      background: var(--color-warning-light);
+      mat-icon { color: var(--color-warning-dark); }
+
+      &:hover mat-icon { color: var(--color-warning-dark); }
+    }
+  }
+
+  // System status dot — wrapped in a button so it's a proper menu trigger
+  // (was a bare div; buttons give us keyboard + ARIA for free).
+  .system-status-dot-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin: 0 8px;
+    border: 0;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.15s ease;
+
+    &:hover { background: var(--color-bg-faint); }
+    &:focus-visible {
+      outline: 2px solid var(--color-primary);
+      outline-offset: 2px;
+    }
+  }
   .system-status-dot {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    margin: 0 16px;
-    cursor: pointer;
     background-color: var(--color-border);
     transition: background-color 0.3s ease, box-shadow 0.3s ease;
 
-    &.status-healthy { 
+    &.status-healthy {
       background-color: var(--color-success);
       box-shadow: 0 0 4px var(--color-success-light);
     }
-    &.status-degraded { 
+    &.status-degraded {
       background-color: var(--color-warning);
       box-shadow: 0 0 6px var(--color-warning-light);
     }
-    &.status-critical { 
+    &.status-critical {
       background-color: var(--color-error);
       box-shadow: 0 0 8px var(--color-error-light);
       animation: heartbeat 2s infinite ease-in-out;
@@ -470,13 +510,16 @@
     &:hover {
       background: var(--color-bg-faint);
       color: var(--color-text-primary);
-      
+
       mat-icon {
         color: var(--color-primary);
       }
     }
   }
 }
+
+// System Health popover styles moved to frontend/src/styles.scss so they apply
+// to CDK overlay content (which renders outside this component's scope).
 
 // ── Content + Footer ──────────────────────────────────────────────
 

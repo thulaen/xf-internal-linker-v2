@@ -3,12 +3,13 @@ import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { FreshnessBadgeComponent } from '../../shared/freshness-badge/freshness-badge.component';
 
 @Component({
   selector: 'app-ready-to-run',
   standalone: true,
-  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, FreshnessBadgeComponent],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatTooltipModule, FreshnessBadgeComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card id="ready-to-run">
@@ -28,7 +29,15 @@ import { FreshnessBadgeComponent } from '../../shared/freshness-badge/freshness-
                 <mat-icon class="blocker-icon">{{ b.icon }}</mat-icon>
                 <span class="blocker-label">{{ b.label }}</span>
                 @if (b.route) {
-                  <a mat-button [routerLink]="b.route" [fragment]="b.fragment">Fix</a>
+                  <a mat-stroked-button
+                     class="blocker-fix-btn"
+                     [routerLink]="b.route"
+                     [fragment]="b.fragment"
+                     matTooltip="Jump to the fix"
+                     matTooltipPosition="right">
+                    <mat-icon>build</mat-icon>
+                    <span>Fix</span>
+                  </a>
                 }
               </div>
             }
@@ -51,11 +60,42 @@ import { FreshnessBadgeComponent } from '../../shared/freshness-badge/freshness-
     .gate-amber { background: var(--color-warning-light); color: var(--color-warning-dark); }
     .gate-red { background: var(--color-error-50); color: var(--color-error-dark); }
     .blockers { display: flex; flex-direction: column; gap: var(--space-sm); }
+    /* Row layout: icon + label grow, Fix button pushes to the right edge so
+       every row aligns the way the user expects. */
     .blocker-row {
-      display: flex; align-items: center; gap: var(--space-sm);
-      font-size: 13px; color: var(--color-text-primary);
+      display: flex;
+      align-items: center;
+      gap: var(--space-sm);
+      font-size: 13px;
+      color: var(--color-text-primary);
     }
-    .blocker-icon { font-size: 18px; width: 18px; height: 18px; color: var(--color-warning); }
+    .blocker-icon {
+      font-size: 18px;
+      width: 18px;
+      height: 18px;
+      color: var(--color-warning);
+      flex-shrink: 0;
+    }
+    .blocker-label {
+      flex: 1;
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .blocker-fix-btn {
+      flex-shrink: 0;
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      height: 32px;
+      line-height: 1;
+    }
+    .blocker-fix-btn mat-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+    }
   `],
 })
 export class ReadyToRunComponent {

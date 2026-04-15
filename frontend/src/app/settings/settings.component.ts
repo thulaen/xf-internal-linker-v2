@@ -62,6 +62,7 @@ import {
 } from './silo-settings.service';
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
+import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
 
 interface SettingTooltip {
   definition: string;
@@ -1738,6 +1739,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     DatePipe,
     WeightDiagnosticsCardComponent,
     PerformanceSettingsComponent,
+    HelpersSettingsComponent,
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
@@ -2430,7 +2432,13 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
       // Tab 5: Diagnostics
       'diagnostics-weights': 5,
-      'algorithm-diagnostics': 5
+      'algorithm-diagnostics': 5,
+
+      // Tab 6: Performance
+      'performance-tunables': 6,
+
+      // Tab 7: Helpers (plan item 22)
+      'helpers': 7,
     };
 
     const targetIndex = tabMap[id];

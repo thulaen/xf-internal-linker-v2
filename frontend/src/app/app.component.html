@@ -34,17 +34,70 @@
     <span class="perf-mode-label">{{ perfMode.label() }}</span>
   </a>
 
+  <!-- Plan item 28 — Pause Everything master toggle. -->
+  <button
+    mat-icon-button
+    type="button"
+    class="master-pause-btn"
+    [class.master-pause-on]="masterPause"
+    [disabled]="masterPauseBusy"
+    (click)="toggleMasterPause()"
+    [attr.aria-pressed]="masterPause"
+    [matTooltip]="masterPause
+      ? 'All workers paused — click to resume.'
+      : 'Pause all workers at the next safe checkpoint. Click again to resume.'"
+    matTooltipPosition="below"
+  >
+    <mat-icon>{{ masterPause ? 'play_circle' : 'pause_circle' }}</mat-icon>
+  </button>
+
   <app-notification-center
     [(open)]="notifPanelOpen"
   />
-  <div
-    class="system-status-dot"
-    [ngClass]="'status-' + systemStatus"
-    [matTooltip]="'System status: ' + systemStatus"
-    routerLink="/health"
-    appScrollHighlight="services-section"
-    [scrollHighlightDelay]="200"
-  ></div>
+  <button
+    type="button"
+    class="system-status-dot-btn"
+    [matTooltip]="'System health: ' + systemStatus + ' — click for details'"
+    [attr.aria-label]="'System health ' + systemStatus"
+    [matMenuTriggerFor]="healthMenu"
+  >
+    <span class="system-status-dot" [ngClass]="'status-' + systemStatus"></span>
+  </button>
+  <mat-menu #healthMenu="matMenu" class="ga4-menu system-health-menu" xPosition="before">
+    <div class="system-health-menu-body" (click)="$event.stopPropagation()">
+      <app-health-banner
+        [severity]="healthMenuSeverity"
+        [message]="healthMenuMessage"
+      />
+      @if (healthSummary) {
+        <dl class="system-health-stats">
+          <div>
+            <dt>Total services</dt>
+            <dd>{{ healthSummary.total_services }}</dd>
+          </div>
+          <div>
+            <dt>Issues</dt>
+            <dd [class.dd-warn]="healthSummary.degraded_count > 0">{{ healthSummary.degraded_count }}</dd>
+          </div>
+          @if (healthSummary.last_check_at) {
+            <div>
+              <dt>Last check</dt>
+              <dd>{{ healthSummary.last_check_at | date:'short' }}</dd>
+            </div>
+          }
+        </dl>
+      }
+      <div class="system-health-menu-actions">
+        <a mat-stroked-button
+           routerLink="/health"
+           appScrollHighlight="services-section"
+           [scrollHighlightDelay]="200">
+          <mat-icon>open_in_new</mat-icon>
+          View full health dashboard
+        </a>
+      </div>
+    </div>
+  </mat-menu>
   <button
     mat-icon-button
     matTooltip="Customize appearance"

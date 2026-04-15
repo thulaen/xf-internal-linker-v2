@@ -18,6 +18,10 @@ export { MagneticButtonDirective } from './directives/magnetic-button.directive'
 // ── Services ───────────────────────────────────────────────────────
 export { NavigationCoordinatorService } from './services/navigation-coordinator.service';
 export type { DeepLinkTarget } from './services/navigation-coordinator.service';
+export { CommandPaletteService } from './services/command-palette.service';
+export { COMMANDS } from './services/command-palette.commands';
+export type { Command } from './services/command-palette.commands';
+export { CommandPaletteComponent } from './components/command-palette/command-palette.component';
 
 // ── Runbooks ───────────────────────────────────────────────────────
 export { RUNBOOK_LIBRARY } from './runbooks/runbook-library';

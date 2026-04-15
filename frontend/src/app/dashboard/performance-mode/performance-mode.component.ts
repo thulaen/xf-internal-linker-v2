@@ -1,5 +1,6 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { PerformanceModeService, PerformanceExpiry } from '../../core/services/performance-mode.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -73,7 +74,7 @@ const MODES: PerformanceOption[] = [
                     [class.pending]="pending() === opt.key"
                     [disabled]="pending() !== null"
                     [matTooltip]="opt.tooltip"
-                    matTooltipPosition="above"
+                    matTooltipPosition="right"
                     matTooltipShowDelay="250"
                     (click)="selectMode(opt.key)">
               @if (pending() === opt.key) {
@@ -86,6 +87,51 @@ const MODES: PerformanceOption[] = [
             </button>
           }
         </div>
+
+        <!-- Time-bound auto-revert chips — shown only for High Performance mode -->
+        @if (currentMode === 'high') {
+          <div class="expiry-row" role="radiogroup" aria-label="Auto-revert timer">
+            <span class="expiry-label">Auto-revert to Balanced:</span>
+            <div class="expiry-chips">
+              <button type="button"
+                      class="expiry-chip"
+                      role="radio"
+                      [attr.aria-checked]="expiry() === 'none'"
+                      [class.active]="expiry() === 'none'"
+                      (click)="setExpiry('none')"
+                      matTooltip="Stay in High Performance until you change it manually">
+                <mat-icon class="expiry-icon">all_inclusive</mat-icon>
+                Stay on
+              </button>
+              <button type="button"
+                      class="expiry-chip"
+                      role="radio"
+                      [attr.aria-checked]="expiry() === 'activity'"
+                      [class.active]="expiry() === 'activity'"
+                      (click)="setExpiry('activity')"
+                      matTooltip="Revert to Balanced the moment you start using keyboard or mouse again">
+                <mat-icon class="expiry-icon">directions_walk</mat-icon>
+                Until I come back
+              </button>
+              <button type="button"
+                      class="expiry-chip"
+                      role="radio"
+                      [attr.aria-checked]="expiry() === 'night'"
+                      [class.active]="expiry() === 'night'"
+                      (click)="setExpiry('night')"
+                      matTooltip="Revert to Balanced at 6:00 AM local time">
+                <mat-icon class="expiry-icon">bedtime</mat-icon>
+                Until tonight ends
+              </button>
+            </div>
+            @if (expiry() !== 'none') {
+              <span class="expiry-hint">
+                <mat-icon class="expiry-hint-icon">info</mat-icon>
+                Backend enforcement ships with the scheduler update. For now this preference is saved locally.
+              </span>
+            }
+          </div>
+        }
       </mat-card-content>
       <mat-accordion class="help-accordion">
         <mat-expansion-panel class="help-panel">
@@ -123,7 +169,7 @@ const MODES: PerformanceOption[] = [
         </mat-expansion-panel>
       </mat-accordion>
 
-      <mat-card-actions align="end" class="card-actions">
+      <mat-card-actions align="end" class="card-actions dashboard-action-row">
         <button mat-stroked-button
                 type="button"
                 [disabled]="pending() !== null || bootArmed() || currentMode === 'safe'"
@@ -208,12 +254,85 @@ const MODES: PerformanceOption[] = [
       gap: var(--space-xs);
       justify-content: flex-end;
     }
+    /* Time-bound auto-revert chip row — shown only for High Performance mode. */
+    .expiry-row {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+      margin-top: var(--space-md);
+      padding-top: var(--space-md);
+      border-top: var(--card-border);
+    }
+    .expiry-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-secondary);
+    }
+    .expiry-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+    .expiry-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      height: 32px;
+      padding: 0 12px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-pill);
+      background: var(--color-bg-white);
+      color: var(--color-text-secondary);
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .expiry-chip:hover {
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    .expiry-chip.active {
+      background: var(--color-blue-50);
+      border-color: var(--color-primary);
+      color: var(--color-primary);
+    }
+    .expiry-chip.active .expiry-icon {
+      color: var(--color-primary);
+    }
+    .expiry-icon {
+      font-size: 16px;
+      width: 16px;
+      height: 16px;
+      color: var(--color-text-muted);
+    }
+    .expiry-hint {
+      display: inline-flex;
+      align-items: flex-start;
+      gap: var(--space-xs);
+      padding: var(--space-xs) var(--space-sm);
+      background: var(--color-blue-50);
+      border-radius: var(--radius-sm);
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      line-height: 1.4;
+    }
+    .expiry-hint-icon {
+      font-size: 14px;
+      width: 14px;
+      height: 14px;
+      color: var(--color-primary);
+      margin-top: 2px;
+      flex-shrink: 0;
+    }
   `],
 })
 export class PerformanceModeComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
+  private perfMode = inject(PerformanceModeService);
 
   @Input() currentMode = 'balanced';
   @Output() modeChange = new EventEmitter<string>();
@@ -222,10 +341,44 @@ export class PerformanceModeComponent implements OnInit {
   readonly pending = signal<string | null>(null);
   readonly bootArmed = signal<boolean>(false);
 
+  /**
+   * Auto-revert expiry for High Performance mode. Sourced from the backend via
+   * PerformanceModeService so the selection is shared across tabs and survives
+   * restarts. Backend enforcement is plan items 12-14 (auto_revert_performance_mode).
+   */
+  readonly expiry = this.perfMode.expiry;
+
   ngOnInit(): void {
     this.http.get<{ armed: boolean }>('/api/system/safe-mode-boot/')
       .pipe(catchError(() => EMPTY))
       .subscribe((r) => this.bootArmed.set(!!r?.armed));
+
+    // Hydrate mode + expiry from the backend so the chip state is consistent
+    // across tabs.
+    this.perfMode.refresh().subscribe();
+  }
+
+  setExpiry(next: PerformanceExpiry): void {
+    // For 'night' we pass the next 6 AM local timestamp so the backend knows
+    // exactly when to trip the revert. 'activity' just persists the intent.
+    const expiresAt = next === 'night' ? this.next6AmLocalIso() : '';
+    this.perfMode.setExpiry(next, expiresAt).pipe(
+      catchError(() => {
+        this.snack.open('Could not save revert timer. Try again.', 'OK', { duration: 4000 });
+        return EMPTY;
+      }),
+    ).subscribe();
+  }
+
+  /** Returns the next 6:00 AM local time as an ISO 8601 string. */
+  private next6AmLocalIso(): string {
+    const d = new Date();
+    const target = new Date(d);
+    target.setHours(6, 0, 0, 0);
+    if (target.getTime() <= d.getTime()) {
+      target.setDate(target.getDate() + 1);
+    }
+    return target.toISOString();
   }
 
   armSafeModeBoot(): void {

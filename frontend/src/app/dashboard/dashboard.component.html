@@ -53,6 +53,14 @@
   </div>
 }
 
+<!-- ── Fix Runbooks Strip (hidden when healthy) ──────────────── -->
+@if (!loading && data) {
+  <app-fix-runbooks-strip
+    [healthStatus]="data.system_health?.status"
+    [openQuarantineCount]="0"
+  />
+}
+
 <!-- ── Operating Desk: Row 1 ──────────────────────────────────── -->
 @if (!loading && data) {
   <div class="desk-row desk-row-top">

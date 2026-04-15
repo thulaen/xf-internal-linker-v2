@@ -11,6 +11,7 @@ import { HealthService, ServiceHealth, HealthSummary, ConfigTier, DiskHealth, Gp
 import { SyncService, SyncJob } from '../jobs/sync.service';
 import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.directive';
 import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
+import { SafePruneCardComponent } from './safe-prune-card/safe-prune-card.component';
 import { DeepLinkSpotlightDirective } from '../shared/directives/deep-link-spotlight.directive';
 import { finalize } from 'rxjs';
 
@@ -70,6 +71,7 @@ const STATUS_SORT_ORDER: Record<string, number> = {
     MatTabsModule,
     ScrollHighlightDirective,
     HealthBannerComponent,
+    SafePruneCardComponent,
     DeepLinkSpotlightDirective,
   ],
   templateUrl: './health.component.html',

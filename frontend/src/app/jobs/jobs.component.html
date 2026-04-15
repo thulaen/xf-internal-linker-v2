@@ -33,6 +33,12 @@
   <p class="page-description">Background job queue and history</p>
 </div>
 
+<!-- ── Resource-Aware Scheduling Banner (plan item 11) ──────────── -->
+<section class="jobs-scheduling-banner" id="jobs-scheduling-banner">
+  <app-system-metrics />
+  <app-scheduling-policy-card />
+</section>
+
 <div class="jobs-layout">
 
   <!-- ── Left column: Data Sources ────────────────────────────── -->
@@ -84,7 +90,15 @@
               @if (!sourceStatus.api) {
                 <button mat-stroked-button [routerLink]="['/settings']" fragment="xenforo-settings">Configure</button>
               } @else if (getJob('api').state === 'idle') {
-                <button mat-button color="primary" (click)="startSourceSync('api')">Sync Now</button>
+                <button mat-stroked-button
+                        class="preview-btn"
+                        (click)="previewSync('api')"
+                        matTooltip="See what this sync would do, without running it. Capped at 3 minutes."
+                        matTooltipPosition="right">
+                  <mat-icon>visibility</mat-icon>
+                  Preview (3 min)
+                </button>
+                <button mat-flat-button color="primary" (click)="startSourceSync('api')">Sync Now</button>
               } @else if (getJob('api').state === 'running') {
                 <div class="status-running">
                   <mat-spinner diameter="16"></mat-spinner>
@@ -126,7 +140,15 @@
               @if (!sourceStatus.wp) {
                 <button mat-stroked-button [routerLink]="['/settings']" fragment="wordpress-settings">Configure</button>
               } @else if (getJob('wp').state === 'idle') {
-                <button mat-button color="primary" (click)="startSourceSync('wp')">Sync Now</button>
+                <button mat-stroked-button
+                        class="preview-btn"
+                        (click)="previewSync('wp')"
+                        matTooltip="See what this sync would do, without running it. Capped at 3 minutes."
+                        matTooltipPosition="right">
+                  <mat-icon>visibility</mat-icon>
+                  Preview (3 min)
+                </button>
+                <button mat-flat-button color="primary" (click)="startSourceSync('wp')">Sync Now</button>
               } @else if (getJob('wp').state === 'running') {
                 <div class="status-running">
                   <mat-spinner diameter="16"></mat-spinner>
@@ -399,6 +421,28 @@
                   }
                 </mat-stepper>
               }
+              <!-- Plan item 27 — graceful pause / resume buttons per job. -->
+              @if (item.type !== 'pipeline' && item.job_id) {
+                <div class="queue-card-actions">
+                  @if ((item.run_state || item.status) === 'running') {
+                    <button mat-stroked-button
+                            (click)="pauseSyncJob(item.job_id)"
+                            matTooltip="Stops at the next safe checkpoint. Work already done is kept."
+                            matTooltipPosition="left">
+                      <mat-icon>pause</mat-icon>
+                      Pause
+                    </button>
+                  } @else if ((item.run_state || item.status) === 'paused') {
+                    <button mat-flat-button color="primary"
+                            (click)="resumeSyncJob(item.job_id)"
+                            matTooltip="Picks up from the saved checkpoint. No duplicate work."
+                            matTooltipPosition="left">
+                      <mat-icon>play_arrow</mat-icon>
+                      Resume
+                    </button>
+                  }
+                </div>
+              }
             </mat-card>
           }
         </div>
@@ -434,11 +478,33 @@
             <mat-card class="quarantine-card" data-ga4-panel>
               <div class="quarantine-header">
                 <mat-icon class="quarantine-icon">warning</mat-icon>
-                <span>Run {{ item.run_id.substring(0, 8) }}</span>
-                <mat-chip class="quarantine-chip" disableRipple>Quarantined</mat-chip>
+                <span class="quarantine-run-id">
+                  {{ item.related_object_type || 'pipeline_run' }} · {{ item.run_id.substring(0, 8) }}
+                </span>
+                <mat-chip class="quarantine-chip" disableRipple>
+                  {{ item.reason_display || 'Quarantined' }}
+                </mat-chip>
+                @if (item.resume_from_checkpoint) {
+                  <mat-chip class="quarantine-resume-chip" disableRipple matTooltip="This job can pick up from a saved checkpoint">
+                    <mat-icon>bookmark</mat-icon> Resumable
+                  </mat-chip>
+                }
               </div>
-              <p class="quarantine-error">{{ item.error_message || 'No error details available.' }}</p>
+              <p class="quarantine-error">
+                {{ item.reason_detail || item.error_message || 'No error details available.' }}
+              </p>
+              @if (item.affected_items && item.affected_items.length > 0) {
+                <p class="quarantine-affected">
+                  <strong>Also affected:</strong>
+                  {{ item.affected_items.length }} item{{ item.affected_items.length === 1 ? '' : 's' }}
+                </p>
+              }
               <div class="quarantine-actions">
+                @if (item.fix_available) {
+                  <button mat-flat-button color="primary" (click)="launchQuarantineRunbook(item)">
+                    <mat-icon>build</mat-icon> Launch fix runbook
+                  </button>
+                }
                 <button mat-stroked-button>
                   <mat-icon>replay</mat-icon> Retest
                 </button>

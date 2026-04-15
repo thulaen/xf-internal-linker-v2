@@ -1,4 +1,5 @@
 import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
@@ -16,7 +17,7 @@ export interface RunningTask {
 @Component({
   selector: 'app-running-now',
   standalone: true,
-  imports: [MatCardModule, MatIconModule, MatButtonModule, MatProgressBarModule, EmptyStateComponent],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatProgressBarModule, EmptyStateComponent],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card id="running-now">
@@ -29,9 +30,7 @@ export interface RunningTask {
           <app-empty-state
             icon="pause_circle"
             heading="No tasks running"
-            body="Everything is idle."
-            ctaLabel="Run Pipeline"
-            ctaRoute="/dashboard" />
+            body="Everything is idle. Use the Run Pipeline button at the top of the page to start, or open Jobs to queue a sync." />
         } @else {
           @for (task of activeTasks; track task.name) {
             <div class="task-row">
@@ -48,10 +47,13 @@ export interface RunningTask {
         }
       </mat-card-content>
       @if (activeTasks.length === 0) {
-        <mat-card-actions align="end">
-          <button mat-raised-button color="primary" (click)="runPipeline.emit()">
-            <mat-icon>play_arrow</mat-icon> Run Pipeline
-          </button>
+        <!-- Secondary link only. The primary Run Pipeline CTA lives in the page
+             header; repeating it here creates a duplicate-buttons UI bug. -->
+        <mat-card-actions align="end" class="secondary-actions dashboard-action-row">
+          <a mat-stroked-button routerLink="/jobs">
+            <mat-icon>open_in_new</mat-icon>
+            Open Jobs
+          </a>
         </mat-card-actions>
       }
     </mat-card>
@@ -70,6 +72,11 @@ export interface RunningTask {
     .task-eta { font-size: 12px; color: var(--color-text-muted); }
     .task-message { font-size: 12px; color: var(--color-text-secondary); }
     mat-card-actions { padding: var(--space-md); }
+    .secondary-actions a[mat-stroked-button] {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+    }
   `],
 })
 export class RunningNowComponent {

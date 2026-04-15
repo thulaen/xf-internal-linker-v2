@@ -38,6 +38,7 @@ import { SystemMetricsComponent } from './system-metrics/system-metrics.componen
 import { RankingStrategyCardComponent } from './ranking-strategy-card/ranking-strategy-card.component';
 import { SuggestionFunnelComponent } from './suggestion-funnel/suggestion-funnel.component';
 import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opportunity-pages.component';
+import { FixRunbooksStripComponent } from './fix-runbooks-strip/fix-runbooks-strip.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -68,6 +69,7 @@ import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opport
     RankingStrategyCardComponent,
     SuggestionFunnelComponent,
     TopOpportunityPagesComponent,
+    FixRunbooksStripComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],

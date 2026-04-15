@@ -79,6 +79,120 @@ mat-sidenav.app-sidenav,
   background-color: transparent;
 }
 
+// ── Global tooltip width + contrast + readability ─────────────────
+// Angular Material's default tooltip can stretch arbitrarily wide AND its
+// default container is a translucent grey that becomes unreadable on top of
+// card text. We fix both: solid dark navy background, white text, subtle
+// shadow for depth, bounded width so long messages wrap cleanly.
+// Hits Material's MDC plain-tooltip custom properties so every tooltip in
+// the app inherits these without any component needing its own styles.
+.mat-mdc-tooltip {
+  // System tokens used by MDC's plain tooltip — target all of them.
+  --mdc-plain-tooltip-container-color: #202124 !important;      // near-black, same as --color-text-primary
+  --mdc-plain-tooltip-supporting-text-color: #ffffff !important; // pure white text
+  --mdc-plain-tooltip-supporting-text-font: var(--font-family) !important;
+  --mdc-plain-tooltip-supporting-text-size: 12px !important;
+  --mdc-plain-tooltip-supporting-text-weight: 500 !important;
+  --mdc-plain-tooltip-supporting-text-line-height: 1.45 !important;
+
+  max-width: 280px !important;
+  white-space: normal !important;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-sm) !important;
+  box-shadow: 0 4px 12px rgba(32, 33, 36, 0.28) !important;
+}
+
+// Fallback: for any stray tooltip that doesn't pick up the system tokens
+// (older Material, themed components, etc), force the surface directly.
+.mat-mdc-tooltip .mdc-tooltip__surface,
+.mat-mdc-tooltip-surface {
+  background-color: #202124 !important;
+  color: #ffffff !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: 1.45 !important;
+  padding: 8px 12px !important;
+  border-radius: var(--radius-sm) !important;
+}
+
+// ── Design-system utility: dashboard card action row ──────────────
+// Use on <mat-card-actions> inside dashboard cards to give every footer
+// button the same right-alignment, padding, and inter-button gap. Stops
+// cards from drifting out of visual rhythm with each other.
+.dashboard-action-row {
+  display: flex !important;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) !important;
+  margin-top: auto;  // pushes actions to the card bottom so every card of
+                      // equal height has buttons on the same baseline.
+}
+// Don't hard-constrain the button height — long labels like "Safe Boot on
+// Restart" in narrow cards need to wrap gracefully rather than clip. Let
+// Material pick its own height but keep the row itself aligned.
+.dashboard-action-row > a,
+.dashboard-action-row > button {
+  min-width: 0;
+  white-space: nowrap;     // prefer nowrap in narrow cards; the row will wrap
+                            // to a second line instead of the label clipping.
+}
+
+// ── System Health popover (click target: toolbar status dot) ──────
+// These live globally because mat-menu renders in a CDK overlay attached to
+// <body>, which is outside any component's view-encapsulation scope.
+.mat-mdc-menu-panel.system-health-menu {
+  min-width: 280px !important;
+  max-width: 320px !important;
+
+  .mat-mdc-menu-content {
+    padding: 0 !important;
+  }
+
+  .system-health-menu-body {
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .system-health-stats {
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+
+    > div {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+    }
+    dt {
+      color: var(--color-text-muted);
+      font-weight: 400;
+      margin: 0;
+    }
+    dd {
+      margin: 0;
+      color: var(--color-text-primary);
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+    }
+    dd.dd-warn {
+      color: var(--color-warning-dark);
+    }
+  }
+
+  .system-health-menu-actions a[mat-stroked-button] {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
 // ── GA4 Styled Buttons ──────────────────────────────────────────────
 // Primary Action: GA4 Blue
 .mat-mdc-flat-button.mat-primary,
