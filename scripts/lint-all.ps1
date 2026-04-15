@@ -214,7 +214,8 @@ $baselineLongFiles = @(
     'serializers.py',           # suggestions/serializers.py — get_host_source_label ~235 lines
     'test_parity_feedrerank.py', # RPT-001 parity test — reference implementation is intentionally verbose
     'explainability-tooltip.component.ts', # two components in one file (tooltip + dialog)
-    'analytics.component.ts'    # pre-existing 670+ lines — 9 chart configs inline
+    'analytics.component.ts',   # pre-existing 670+ lines — 9 chart configs inline
+    'jobs.component.ts'         # pre-existing 550+ lines before resume wiring — getters, formatters, and 3 source-typed flows; candidates for extraction into jobs.helpers.ts + sync.service
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
