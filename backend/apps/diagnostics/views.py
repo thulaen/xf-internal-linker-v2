@@ -59,7 +59,7 @@ class DiagnosticsOverviewView(views.APIView):
 
 
 class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = ServiceStatusSnapshot.objects.all()
+    queryset = ServiceStatusSnapshot.objects.exclude(service_name='http_worker')
     serializer_class = ServiceStatusSerializer
     pagination_class = None
 

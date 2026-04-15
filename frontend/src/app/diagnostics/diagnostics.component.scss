@@ -149,10 +149,6 @@
     border-left-color: var(--color-error);
   }
 
-  &.owner-csharp .owner-label {
-    color: var(--color-success);
-  }
-
   &.owner-celery .owner-label,
   &.owner-python .owner-label {
     color: var(--color-warning);

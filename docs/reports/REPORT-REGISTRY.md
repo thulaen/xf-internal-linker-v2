@@ -20,6 +20,18 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
+### RPT-002 — Phase 2 Forward-Declared Research Library (2026-04-15)
+
+- **Status:** OPEN — 336 forward-declared backlog items (0 of 336 implemented)
+- **Scope:** 126 new ranking signals (FR-099 … FR-224) + 210 new meta-algorithms (META-40 … META-249) filed as spec stubs at user request. Each has full academic math, paper/patent citation, C++ implementation notes, Python fallback placeholder, benchmark plan, budget, scope-boundary vs existing signals, and test-plan bullets.
+- **Summary:** Research-backed library covering classical IR (Block A), proximity/term-dependence (B), graph centrality (C), diversity rerankers (D), temporal dynamics (E), sketches (F), text structure (G), click models (H), query performance prediction (I), information-theoretic divergences (J), site/host authority (K), anti-spam (L), author reputation (M), structural page-quality/CWV (N), passage segmentation (O). Metas cover second-order optimisers (P1), advanced first-order (P2), Bayesian HPO (P3), multi-objective (P4), metaheuristics (P5), online learning (P6), listwise losses (P7), regularisation (P8), calibration (P9), LR schedules (P10), model averaging (P11), robustness/sampling (P12), MCMC (Q1), VI (Q2), evolutionary (Q3), advanced gradients (Q4), reg/noise (Q5), feature engineering (Q6), dim reduction (Q7), kernels (Q8), info-theoretic model selection (Q9), clustering (Q10), attribution (Q11), active learning (Q12), semi-supervised (Q13), causal (Q14), RL (Q15), contextual bandits (Q16), matrix factorisation (Q17), NN init/norm (Q18), calibration variants (Q19), feature selection (Q20), metric learning (Q21), anomaly detection (Q22), validation/PBT (Q23), streaming trees (Q24).
+- **Spec directory:** `docs/specs/fr099-*.md` … `docs/specs/fr224-*.md` and `docs/specs/meta-40-*.md` … `docs/specs/meta-249-*.md`.
+- **Forward weight keys:** `backend/apps/suggestions/recommended_weights_phase2_forward.py` (inert, disabled at 0.0).
+- **Budget discipline:** Each signal ≤ 32 MB disk, ≤ 512 MB RAM; each meta ≤ 15 MB disk; 66-meta batch (P1-P12) ≤ 128 MB peak RAM sequential; 144-meta batch (Q1-Q24) ≤ 256 MB peak RAM sequential.
+- **Regression watch:** No code changed — specs only. Future implementation sessions must verify no duplicate with existing FR-001..FR-098 or META-01..META-39 (already verified at filing). If overlap is discovered during implementation, supersede per the existing duplication rules in CLAUDE.md and `docs/BUSINESS-LOGIC-CHECKLIST.md`.
+
+---
+
 ### RPT-001 — Research-Backed Business Logic Audit (2026-04-11)
 
 - **Status:** OPEN (5 of 5 findings unresolved)
@@ -120,9 +132,9 @@ This file is the single index of all audit reports and individual issues found b
 - **Affected files:** `frontend/src/app/health/health.component.ts`
 - **Description:** System Health page shows "C# High-Performance Runtime — C# Runtime Service unreachable" as a red error. The C# runtime was decommissioned. The frontend hardcoded `'http_worker'` in the Infrastructure health group, but the backend has no such check registered.
 - **Status:** RESOLVED
-- **Resolved:** 2026-04-12
-- **Fixed in:** Removed `'http_worker'` from the `SERVICE_GROUPS` array and removed its troubleshooting hint. Backend `diagnostics/models.py` still has `http_worker` and `scheduler_lane` as model choices — left in place to avoid a migration on historical data.
-- **Regression watch:** Do not re-add `http_worker` to health groups unless a replacement service is deployed.
+- **Resolved:** 2026-04-12 (health component); 2026-04-15 (diagnostics component follow-up)
+- **Fixed in:** (1) Removed `'http_worker'` from the `SERVICE_GROUPS` array and removed its troubleshooting hint. (2) 2026-04-15 follow-up: `ServiceStatusViewSet` queryset now excludes `http_worker`; all C# references purged from `diagnostics.component.ts/.html/.scss` — removed `http_worker` execution card, renamed "C# Scheduler" → "Task Scheduler", removed `owner === 'csharp'` dead branch. Backend `diagnostics/models.py` still has `http_worker` and `scheduler_lane` as model choices — left in place to avoid a migration on historical data.
+- **Regression watch:** Do not re-add `http_worker` to the view queryset or to any frontend card-builder unless a replacement C# service is deployed. `scheduler_lane` remains valid and is now correctly labelled as a Python/Celery service.
 
 ---
 

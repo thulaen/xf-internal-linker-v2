@@ -269,12 +269,13 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 34 | FR-032 | Complete | Automated Orphan & Low-Authority Page Identification |
 | 35 | FR-033 | Complete | Internal PageRank (Structural Equity) Heatmap |
 | 36 | FR-035 | Complete | Link Freshness & Churn Velocity Timeline |
+| — | FR-099 … FR-224 + META-40 … META-249 | Forward-Declared | Phase 2 Research Library registered 2026-04-15: 126 new ranking signals (Blocks A–O) + 210 new meta-algorithms (Blocks P1–P12 and Q1–Q24). Each has a full spec with paper/patent math at `docs/specs/fr<NNN>-*.md` or `docs/specs/meta-<NN>-*.md`. No code implemented; specs only. Future phases draw from this library. Details in `docs/reports/REPORT-REGISTRY.md`. |
 
 - Next exact target: Phase 37 / `FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry`
-- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08.
+- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. 336 additional spec stubs (FR-099 … FR-224 + META-40 … META-249) added 2026-04-15 as a forward-declared research library — no implementation yet.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
-- Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`.
+- Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`. The Phase 2 forward-declared library entries sit at the bottom of `FEATURE-REQUESTS.md` in a compressed table.
 
 ## Project Status Dashboard
 
@@ -282,11 +283,13 @@ Last verified against code: 2026-04-08
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
-| Feature Requests    |   31 |       5 |      61 |         1 |    98 |
+| Feature Requests (FR-001..FR-098) |   31 |       5 |      61 |         1 |    98 |
+| Feature Requests (FR-099..FR-224 — Phase 2 forward-declared) |    0 |       0 |     126 |         0 |   126 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
-| C++ META extensions |    0 |       0 |      36 |         0 |    36 |
+| C++ META extensions (META-01..META-39) |    0 |       0 |      36 |         0 |    36 |
+| C++ META extensions (META-40..META-249 — Phase 2 forward-declared) |    0 |       0 |     210 |         0 |   210 |
 | C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
-| **All work items**  | **31** | **5** | **189** | **1** | **226** |
+| **All work items**  | **31** | **5** | **525** | **1** | **562** |
 
 **Completed FRs (31):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
@@ -638,6 +641,28 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Drain-and-resume switcher waits on `JobLease` but does not force-save checkpoints — it relies on in-flight batches completing the next natural checkpoint before returning them. Forced-checkpoint semantics land with Phase 7 pause/resume work.
 
 - **Changes committed:** No - pending user review and explicit approval. CLAUDE.md only-commit-when-asked rule applies.
+
+### 2026-04-15 - Removed stale C# references from diagnostics UI (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** User noticed "C# High-Performance Runtime" still showing in the diagnostics UI after C# was decommissioned. Traced root cause: `ServiceStatusViewSet` returned `ServiceStatusSnapshot.objects.all()` — including a stale `http_worker` DB row left over from before it was removed from `run_health_checks()`. Frontend built a "C# HttpWorker" card from it. Separately, `scheduler_lane` (active, Python/Celery Beat) was still labelled "C# Scheduler".
+
+- **Items shipped:**
+  - **Backend:** `views.py` — queryset now `.exclude(service_name='http_worker')`.
+  - **Frontend TS:** Removed `'csharp'` from type unions, removed `http_worker` from exclusion set and execution card block, removed `owner === 'csharp'` dead branch in `buildLaneCard`, simplified `buildBadges`, renamed "C# Scheduler" → "Task Scheduler", removed `'csharp'` from `asRuntime`.
+  - **Frontend HTML:** Removed two `[class.owner-csharp]` bindings.
+  - **Frontend SCSS:** Removed dead `.owner-csharp .owner-label` rule.
+
+- **Intentional files changed:**
+  - `backend/apps/diagnostics/views.py`
+  - `frontend/src/app/diagnostics/diagnostics.component.ts`
+  - `frontend/src/app/diagnostics/diagnostics.component.html`
+  - `frontend/src/app/diagnostics/diagnostics.component.scss`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md` (this note)
+
+- **Verification:** `ng build --configuration=production` — clean, no new errors.
+- **Changes committed:** No - pending user review and explicit approval.
 
 ### 2026-04-15 - Phase 5 complete (items 19-22) + UI polish pass 2 (Claude)
 

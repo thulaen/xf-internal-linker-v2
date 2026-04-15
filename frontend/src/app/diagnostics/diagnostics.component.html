@@ -56,7 +56,6 @@
           [class.state-healthy]="lane.state === 'healthy'"
           [class.state-degraded]="lane.state === 'degraded'"
           [class.state-failed]="lane.state === 'failed'"
-          [class.owner-csharp]="lane.owner === 'csharp'"
           [class.owner-celery]="lane.owner === 'celery'">
           <div class="lane-header">
             <div>
@@ -102,7 +101,6 @@
           [class.state-healthy]="card.state === 'healthy'"
           [class.state-degraded]="card.state === 'degraded'"
           [class.state-failed]="card.state === 'failed'"
-          [class.owner-csharp]="card.runtime === 'csharp'"
           [class.owner-python]="card.runtime === 'python'"
           [class.owner-cpp]="card.runtime === 'cpp'">
           <div class="lane-header">

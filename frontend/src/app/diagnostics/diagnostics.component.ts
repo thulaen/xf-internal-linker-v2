@@ -9,7 +9,7 @@ import { forkJoin, Subject, takeUntil } from 'rxjs';
 interface RuntimeLaneCard {
   id: 'broken_link_scan' | 'graph_sync' | 'import' | 'pipeline';
   title: string;
-  owner: 'csharp' | 'celery' | 'unknown';
+  owner: 'celery' | 'unknown';
   state: 'healthy' | 'degraded' | 'failed';
   statusLine: string;
   explanation: string;
@@ -24,9 +24,9 @@ interface RuntimeLaneBadge {
 }
 
 interface RuntimeExecutionCard {
-  id: 'native_scoring' | 'slate_diversity_runtime' | 'embedding_specialist' | 'http_worker' | 'scheduler_lane';
+  id: 'native_scoring' | 'slate_diversity_runtime' | 'embedding_specialist' | 'scheduler_lane';
   title: string;
-  runtime: 'cpp' | 'python' | 'csharp' | 'mixed' | 'unknown';
+  runtime: 'cpp' | 'python' | 'mixed' | 'unknown';
   state: 'healthy' | 'degraded' | 'failed';
   statusLine: string;
   explanation: string;
@@ -135,7 +135,6 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       'native_scoring',
       'slate_diversity_runtime',
       'embedding_specialist',
-      'http_worker',
       'scheduler_lane',
     ]);
     return this.services.filter(service => !runtimeSummaryServices.has(service.service_name));
@@ -147,40 +146,15 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
 
   private buildRuntimeLaneCards(services: ServiceStatus[]): RuntimeLaneCard[] {
     const runtimeService = services.find(service => service.service_name === 'runtime_lanes');
-    const httpWorkerService = services.find(service => service.service_name === 'http_worker');
     const celeryWorkerService = services.find(service => service.service_name === 'celery_worker');
 
     const metadata = runtimeService?.metadata ?? {};
 
     return [
-      this.buildLaneCard(
-        'broken_link_scan',
-        'Broken Link Scan',
-        metadata.broken_link_scan_owner,
-        httpWorkerService,
-        celeryWorkerService
-      ),
-      this.buildLaneCard(
-        'graph_sync',
-        'Graph Sync',
-        metadata.graph_sync_owner,
-        httpWorkerService,
-        celeryWorkerService
-      ),
-      this.buildLaneCard(
-        'import',
-        'Import',
-        metadata.import_owner,
-        httpWorkerService,
-        celeryWorkerService
-      ),
-      this.buildLaneCard(
-        'pipeline',
-        'Pipeline',
-        metadata.pipeline_owner,
-        httpWorkerService,
-        celeryWorkerService
-      ),
+      this.buildLaneCard('broken_link_scan', 'Broken Link Scan', metadata.broken_link_scan_owner, celeryWorkerService),
+      this.buildLaneCard('graph_sync', 'Graph Sync', metadata.graph_sync_owner, celeryWorkerService),
+      this.buildLaneCard('import', 'Import', metadata.import_owner, celeryWorkerService),
+      this.buildLaneCard('pipeline', 'Pipeline', metadata.pipeline_owner, celeryWorkerService),
     ];
   }
 
@@ -188,60 +162,21 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     id: RuntimeLaneCard['id'],
     title: string,
     rawOwner: unknown,
-    httpWorkerService?: ServiceStatus,
     celeryWorkerService?: ServiceStatus,
   ): RuntimeLaneCard {
-    const owner = rawOwner === 'csharp' || rawOwner === 'celery' ? rawOwner : 'unknown';
-
-    if (owner === 'csharp') {
-      if (httpWorkerService?.state === 'healthy') {
-        return {
-          id,
-          title,
-          owner,
-          state: 'healthy',
-          statusLine: 'C# owns this lane and the worker lane is healthy.',
-          explanation: 'This heavy path is routed to the C# runtime right now.',
-          nextStep: 'No action needed unless job results look wrong.',
-          badges: this.buildBadges(owner, true, false),
-        };
-      }
-
-      if (httpWorkerService?.state === 'failed') {
-        return {
-          id,
-          title,
-          owner,
-          state: 'failed',
-          statusLine: 'C# is selected, but the worker lane is down.',
-          explanation: 'The cutover setting points at C#, but the runtime cannot be trusted yet.',
-          nextStep: httpWorkerService.next_action_step || 'Restore the C# worker lane before trusting this path.',
-          badges: this.buildBadges(owner, false, true),
-        };
-      }
-
-      return {
-        id,
-        title,
-        owner,
-        state: 'degraded',
-        statusLine: 'C# is selected, but the worker lane is degraded.',
-        explanation: 'This lane is cut over, but the C# runtime still needs attention.',
-        nextStep: httpWorkerService?.next_action_step || 'Check the C# runtime health details below.',
-        badges: this.buildBadges(owner, false, true),
-      };
-    }
+    const owner = rawOwner === 'celery' ? 'celery' : 'unknown';
 
     if (owner === 'celery') {
+      const workerHealthy = celeryWorkerService?.state === 'healthy';
       return {
         id,
         title,
         owner,
-        state: celeryWorkerService?.state === 'failed' ? 'failed' : 'degraded',
-        statusLine: 'Celery still owns this lane.',
-        explanation: 'This path has not moved to C# yet, so the heavy runtime migration is not finished here.',
-        nextStep: 'Move this lane to C# and leave Celery only as rollback until parity is proven.',
-        badges: this.buildBadges(owner, celeryWorkerService?.state === 'healthy', true),
+        state: workerHealthy ? 'healthy' : celeryWorkerService?.state === 'failed' ? 'failed' : 'degraded',
+        statusLine: workerHealthy ? 'Celery owns this lane and the worker is healthy.' : 'Celery owns this lane but the worker needs attention.',
+        explanation: 'This heavy path is handled by the native Python/C++ runtime.',
+        nextStep: workerHealthy ? 'No action needed.' : (celeryWorkerService?.next_action_step || 'Check the Celery worker health.'),
+        badges: this.buildBadges(owner, workerHealthy),
       };
     }
 
@@ -253,14 +188,13 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       statusLine: 'The active owner for this lane is unknown.',
       explanation: 'Diagnostics did not return a trustworthy runtime owner for this path.',
       nextStep: 'Refresh diagnostics and check the backend runtime-lane snapshot.',
-      badges: this.buildBadges(owner, false, true),
+      badges: this.buildBadges(owner, false),
     };
   }
 
   private buildBadges(
     owner: RuntimeLaneCard['owner'],
     workerAlive: boolean,
-    cutoverIncomplete: boolean,
   ): RuntimeLaneBadge[] {
     return [
       {
@@ -269,14 +203,9 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         tone: workerAlive ? 'good' : 'bad',
       },
       {
-        label: 'Owner Selected',
+        label: 'Owner',
         value: owner === 'unknown' ? 'Unknown' : owner.toUpperCase(),
-        tone: owner === 'csharp' ? 'good' : owner === 'celery' ? 'warn' : 'bad',
-      },
-      {
-        label: 'Cutover Incomplete',
-        value: cutoverIncomplete ? 'Yes' : 'No',
-        tone: cutoverIncomplete ? 'warn' : 'good',
+        tone: owner === 'celery' ? 'good' : 'bad',
       },
     ];
   }
@@ -346,25 +275,11 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       ));
     }
 
-    const httpWorker = byName.get('http_worker');
-    if (httpWorker) {
-      cards.push(this.buildSimpleExecutionCard(
-        'http_worker',
-        'C# HttpWorker',
-        httpWorker,
-        [
-          this.booleanBadge('Worker Online', httpWorker.metadata.worker_online, true),
-          this.booleanBadge('Fallback Active', httpWorker.metadata.fallback_active, false),
-          this.booleanBadge('Safe To Use', httpWorker.metadata.safe_to_use, true),
-        ],
-      ));
-    }
-
     const schedulerLane = byName.get('scheduler_lane');
     if (schedulerLane) {
       cards.push(this.buildSimpleExecutionCard(
         'scheduler_lane',
-        'C# Scheduler',
+        'Task Scheduler',
         schedulerLane,
         [
           this.booleanBadge('Fallback Active', schedulerLane.metadata?.fallback_active, false),
@@ -410,7 +325,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private asRuntime(value: unknown): RuntimeExecutionCard['runtime'] {
-    return value === 'cpp' || value === 'python' || value === 'csharp' || value === 'mixed' ? value : 'unknown';
+    return value === 'cpp' || value === 'python' || value === 'mixed' ? value : 'unknown';
   }
 
   private asCardState(value: string): RuntimeExecutionCard['state'] {
