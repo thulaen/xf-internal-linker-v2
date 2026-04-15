@@ -27,7 +27,11 @@ if (-not (Test-Path $dockerVhdPath)) {
 
 $dockerIsReachable = $false
 if (Test-Path $dockerSafe) {
-    & $dockerSafe version *> $null
+    try {
+        & $dockerSafe version *> $null
+    } catch {
+        # Docker is offline — that is fine, proceed to compaction
+    }
     $dockerIsReachable = ($LASTEXITCODE -eq 0)
 }
 

@@ -427,6 +427,18 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-15 - Safe Docker build cache prune (Codex)
+
+- **AI/tool:** Codex
+- **What was done:** User asked to clean up Docker build caches. Followed the session gate, checked the Report Registry, and used the repository-approved safe prune script instead of ad hoc Docker cleanup.
+- **Verification / cleanup:**
+  - `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1` first ran in the sandbox and skipped Docker because Docker execution was blocked there.
+  - Re-ran the same script with approved elevated access. It ran `docker builder prune -f` and `docker image prune -f`.
+  - Docker reported `Total: 0B` for builder cache and `Total reclaimed space: 0B` for dangling images, so there was no stale Docker build cache left to reclaim.
+- **Intentional files changed:**
+  - `AI-CONTEXT.md` (this session note only)
+- **Commit/push state:** Changes are currently uncommitted; no application code changed.
+
 ### 2026-04-15 - GPU cap raised to 80% / 86°C, four silent resume gaps closed (Claude)
 
 - **AI/tool:** Claude
