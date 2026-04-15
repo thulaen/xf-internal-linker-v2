@@ -422,9 +422,7 @@ def generate_embeddings(
             job.status = "paused"
             job.is_resumable = True
             job.message = f"Paused at embedding checkpoint: {exc}"
-            job.save(
-                update_fields=["status", "is_resumable", "message", "updated_at"]
-            )
+            job.save(update_fields=["status", "is_resumable", "message", "updated_at"])
 
         _publish_progress(
             job_id,
