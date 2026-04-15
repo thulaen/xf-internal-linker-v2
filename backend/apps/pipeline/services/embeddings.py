@@ -178,6 +178,42 @@ def _check_gpu_temperature() -> bool:
         return True
 
 
+def _thermal_guard_before_gpu_batch() -> None:
+    """Pause GPU work if the chip is at or above the temperature ceiling.
+
+    No-op on CPU-only environments (pynvml ImportError is swallowed
+    by ``_check_gpu_temperature``). Extracted so the encode loops stay
+    under the McCabe complexity cap (see ``lint-all.ps1`` check 16).
+    """
+    if not _check_gpu_temperature():
+        _wait_for_gpu_cooldown()
+
+
+def _flush_embeddings_slice(
+    model_class: type,
+    pks_slice: list[int],
+    raw_vectors_list: list,
+) -> None:
+    """L2-normalise accumulated vectors and bulk_update the given PK slice.
+
+    Clears ``raw_vectors_list`` in place. No-op if the buffer is empty,
+    so call sites don't need their own ``if raw_vectors_list:`` guard.
+    Shared between the ContentItem and Sentence embedding paths.
+    """
+    if not raw_vectors_list:
+        return
+    normalised = _l2_normalize(np.vstack(raw_vectors_list))
+    model_class.objects.bulk_update(
+        [
+            model_class(pk=pk, embedding=vec.tolist())
+            for pk, vec in zip(pks_slice, normalised, strict=True)
+        ],
+        fields=["embedding"],
+        batch_size=500,
+    )
+    raw_vectors_list.clear()
+
+
 def _wait_for_gpu_cooldown() -> None:
     """Block until GPU temperature drops below the resume threshold.
 
@@ -440,10 +476,7 @@ def generate_content_item_embeddings(
     flushed_count = 0  # how many items already persisted to DB
     for i in range(0, total_items, batch_size):
         batch_texts = texts[i : i + batch_size]
-        # Thermal guard — pause if GPU temp >= GPU_TEMP_CEILING_C, resume at <= GPU_TEMP_RESUME_C.
-        # No-op on CPU-only environments (helpers swallow pynvml ImportError).
-        if not _check_gpu_temperature():
-            _wait_for_gpu_cooldown()
+        _thermal_guard_before_gpu_batch()
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,
@@ -479,35 +512,18 @@ def generate_content_item_embeddings(
         # If the worker dies mid-run, items already flushed have embeddings persisted
         # and the resume run skips them via the `embedding__isnull=True` filter above.
         if batch_num % 5 == 0:
-            slice_pks = pks[flushed_count:processed]
-            slice_vectors = _l2_normalize(np.vstack(raw_vectors_list))
-            ContentItem.objects.bulk_update(
-                [
-                    ContentItem(pk=pk, embedding=vec.tolist())
-                    for pk, vec in zip(slice_pks, slice_vectors, strict=True)
-                ],
-                fields=["embedding"],
-                batch_size=500,
+            _flush_embeddings_slice(
+                ContentItem, pks[flushed_count:processed], raw_vectors_list
             )
             flushed_count = processed
-            raw_vectors_list.clear()
 
     # Persist final count regardless of whether the last batch fell on a multiple-of-5 boundary.
     if job_id and job:
         job.save(update_fields=["embedding_items_completed", "updated_at"])
 
-    # Tail flush — any batches since the last checkpoint flush.
-    if raw_vectors_list:
-        tail_pks = pks[flushed_count:]
-        tail_vectors = _l2_normalize(np.vstack(raw_vectors_list))
-        ContentItem.objects.bulk_update(
-            [
-                ContentItem(pk=pk, embedding=vec.tolist())
-                for pk, vec in zip(tail_pks, tail_vectors, strict=True)
-            ],
-            fields=["embedding"],
-            batch_size=500,
-        )
+    # Tail flush — any batches since the last checkpoint flush. Helper no-ops
+    # if the buffer is empty, so no call-site guard needed.
+    _flush_embeddings_slice(ContentItem, pks[flushed_count:], raw_vectors_list)
 
     elapsed = time.monotonic() - start
     logger.info("Encoded %d items in %.2fs.", len(texts), elapsed)
@@ -579,10 +595,7 @@ def generate_sentence_embeddings(
     flushed_count = 0  # how many sentences already persisted to DB
     for i in range(0, total_sentences, batch_size):
         batch_texts = texts[i : i + batch_size]
-        # Thermal guard — pause if GPU temp >= GPU_TEMP_CEILING_C, resume at <= GPU_TEMP_RESUME_C.
-        # No-op on CPU-only environments (helpers swallow pynvml ImportError).
-        if not _check_gpu_temperature():
-            _wait_for_gpu_cooldown()
+        _thermal_guard_before_gpu_batch()
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,
@@ -612,31 +625,13 @@ def generate_sentence_embeddings(
         # already flushed have embeddings persisted and the resume run skips them
         # via the `embedding__isnull=True` filter above.
         if batch_num % 5 == 0:
-            slice_pks = pks[flushed_count:processed]
-            slice_vectors = _l2_normalize(np.vstack(raw_vectors_list))
-            SentenceModel.objects.bulk_update(
-                [
-                    SentenceModel(pk=pk, embedding=vec.tolist())
-                    for pk, vec in zip(slice_pks, slice_vectors, strict=True)
-                ],
-                fields=["embedding"],
-                batch_size=500,
+            _flush_embeddings_slice(
+                SentenceModel, pks[flushed_count:processed], raw_vectors_list
             )
             flushed_count = processed
-            raw_vectors_list.clear()
 
-    # Tail flush — any batches since the last checkpoint flush.
-    if raw_vectors_list:
-        tail_pks = pks[flushed_count:]
-        tail_vectors = _l2_normalize(np.vstack(raw_vectors_list))
-        SentenceModel.objects.bulk_update(
-            [
-                SentenceModel(pk=pk, embedding=vec.tolist())
-                for pk, vec in zip(tail_pks, tail_vectors, strict=True)
-            ],
-            fields=["embedding"],
-            batch_size=500,
-        )
+    # Tail flush — helper no-ops on empty buffer.
+    _flush_embeddings_slice(SentenceModel, pks[flushed_count:], raw_vectors_list)
 
     elapsed = time.monotonic() - start
     logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
