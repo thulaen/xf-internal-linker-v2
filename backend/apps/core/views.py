@@ -4042,6 +4042,46 @@ class HelperNodeDetailView(APIView):
         return Response(status=204)
 
 
+class HelperNodeHeartbeatView(APIView):
+    """POST /api/settings/helpers/<id>/heartbeat/
+
+    Stub endpoint for helper nodes to report liveness. Updates
+    ``last_heartbeat`` and optionally merges ``capabilities`` and updates
+    ``status``. Returns 204 on success.
+
+    The helper-client side that calls this endpoint is forward-looking
+    (Stage 8 / multi-node). The endpoint exists so docs/PERFORMANCE.md §2
+    is not lying about it and so the next session that wires up the helper
+    client has a real route to POST to.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from django.utils import timezone
+
+        from apps.core.models import HelperNode
+
+        try:
+            node = HelperNode.objects.get(pk=pk)
+        except HelperNode.DoesNotExist:
+            return Response({"error": "Not found"}, status=404)
+
+        node.last_heartbeat = timezone.now()
+        if "status" in request.data:
+            node.status = request.data["status"]
+        if "capabilities" in request.data and isinstance(
+            request.data["capabilities"], dict
+        ):
+            merged = dict(node.capabilities or {})
+            merged.update(request.data["capabilities"])
+            node.capabilities = merged
+        node.save(
+            update_fields=["last_heartbeat", "status", "capabilities", "updated_at"]
+        )
+        return Response(status=204)
+
+
 class ClickDistanceSettingsView(APIView):
     """
     GET /api/settings/click-distance/

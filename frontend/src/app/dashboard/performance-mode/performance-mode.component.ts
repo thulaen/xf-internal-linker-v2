@@ -40,7 +40,7 @@ const MODES: PerformanceOption[] = [
     label: 'High Performance Now',
     icon: 'speed',
     description: 'Fastest. Heavy GPU use.',
-    tooltip: 'Fastest mode. Uses up to 60% of GPU memory (~3.6 GB on your RTX 3050). Close Chrome tabs first or the browser may slow down.',
+    tooltip: 'Fastest mode. Uses up to 80% of GPU memory (~4.8 GB on your RTX 3050). Close Chrome tabs first or the browser may slow down.',
   },
 ];
 
@@ -149,7 +149,7 @@ const MODES: PerformanceOption[] = [
             <dd>Good speed without hogging your computer. Mostly uses the CPU; a smart choice most of the time.</dd>
 
             <dt>High Performance</dt>
-            <dd>Goes full throttle. Uses up to 60% of your graphics card memory (around 3.6 GB on your RTX 3050). Close Chrome tabs before switching.</dd>
+            <dd>Goes full throttle. Uses up to 80% of your graphics card memory (around 4.8 GB on your RTX 3050). Close Chrome tabs before switching.</dd>
 
             <dt>CPU vs GPU</dt>
             <dd>The CPU (processor) is the general-purpose brain; the GPU (graphics card) is a specialist that is much faster at the kind of number-crunching the linker does. GPU mode is faster, but needs memory.</dd>
@@ -161,7 +161,7 @@ const MODES: PerformanceOption[] = [
             <dd>How many paragraphs the linker processes at the same time. Bigger batch = faster, but uses more memory. Adjustable in Settings → Performance.</dd>
 
             <dt>GPU temperature</dt>
-            <dd>If your graphics card hits 76°C, the linker automatically pauses heavy work until it cools back down to 68°C. This protects the hardware.</dd>
+            <dd>If your graphics card hits 86°C, the linker automatically pauses heavy work until it cools back down to 78°C. This protects the hardware.</dd>
 
             <dt>Worker</dt>
             <dd>A helper process that runs background jobs (imports, scoring, etc). More workers = more things in parallel, but also more memory used. Changes need a restart to apply.</dd>
@@ -451,7 +451,7 @@ export class PerformanceModeComponent implements OnInit {
     </h2>
     <mat-dialog-content>
       <p>
-        This mode uses up to <strong>60% of GPU memory</strong> (about 3.6 GB on your RTX 3050).
+        This mode uses up to <strong>80% of GPU memory</strong> (about 4.8 GB on your RTX 3050).
       </p>
       <p>
         If your browser or other apps need the GPU at the same time, they may slow down or stutter.

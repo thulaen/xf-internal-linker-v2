@@ -107,7 +107,7 @@ def _apply_vram_fraction() -> None:
     """Set per-process VRAM cap based on current performance mode.
 
     Safe/Balanced = 25% (1.5 GB on RTX 3050 6 GB).
-    High Performance = 60% (3.6 GB on RTX 3050 6 GB).
+    High Performance = 80% (4.8 GB on RTX 3050 6 GB).
 
     These percentages are relative to detected VRAM — they scale
     automatically with GPU upgrades.  See docs/PERFORMANCE.md §6.
@@ -150,7 +150,8 @@ def _check_gpu_temperature() -> bool:
     """Check GPU temperature against the hard ceiling.
 
     Returns True if safe to proceed, False if too hot.
-    76°C ceiling is NON-NEGOTIABLE.  See docs/PERFORMANCE.md §6.
+    Temperature ceiling is configurable via GPU_TEMP_CEILING_C
+    (default 86°C).  See docs/PERFORMANCE.md §6.
     """
     try:
         import pynvml
@@ -180,7 +181,7 @@ def _check_gpu_temperature() -> bool:
 def _wait_for_gpu_cooldown() -> None:
     """Block until GPU temperature drops below the resume threshold.
 
-    Resume threshold: 68°C (configurable via GPU_TEMP_RESUME_C).
+    Resume threshold: 78°C (configurable via GPU_TEMP_RESUME_C).
     """
     import time
 
@@ -436,8 +437,13 @@ def generate_content_item_embeddings(
         job = None
 
     batch_num = 0
+    flushed_count = 0  # how many items already persisted to DB
     for i in range(0, total_items, batch_size):
         batch_texts = texts[i : i + batch_size]
+        # Thermal guard — pause if GPU temp >= GPU_TEMP_CEILING_C, resume at <= GPU_TEMP_RESUME_C.
+        # No-op on CPU-only environments (helpers swallow pynvml ImportError).
+        if not _check_gpu_temperature():
+            _wait_for_gpu_cooldown()
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,
@@ -445,11 +451,11 @@ def generate_content_item_embeddings(
             convert_to_numpy=True,
         )
         raw_vectors_list.append(batch_vectors)
+        batch_num += 1
+        processed = min(i + batch_size, total_items)
 
         # Report progress
         if job_id:
-            batch_num += 1
-            processed = min(i + batch_size, total_items)
             pct = processed / total_items
 
             if job:
@@ -469,21 +475,42 @@ def generate_content_item_embeddings(
                 ml_progress=0.7 + (pct * 0.15),
             )
 
+        # Checkpoint flush every 5 batches — same cadence as the progress save above.
+        # If the worker dies mid-run, items already flushed have embeddings persisted
+        # and the resume run skips them via the `embedding__isnull=True` filter above.
+        if batch_num % 5 == 0:
+            slice_pks = pks[flushed_count:processed]
+            slice_vectors = _l2_normalize(np.vstack(raw_vectors_list))
+            ContentItem.objects.bulk_update(
+                [
+                    ContentItem(pk=pk, embedding=vec.tolist())
+                    for pk, vec in zip(slice_pks, slice_vectors, strict=True)
+                ],
+                fields=["embedding"],
+                batch_size=500,
+            )
+            flushed_count = processed
+            raw_vectors_list.clear()
+
     # Persist final count regardless of whether the last batch fell on a multiple-of-5 boundary.
     if job_id and job:
         job.save(update_fields=["embedding_items_completed", "updated_at"])
 
-    raw_vectors = np.vstack(raw_vectors_list)
-    vectors = _l2_normalize(raw_vectors)
+    # Tail flush — any batches since the last checkpoint flush.
+    if raw_vectors_list:
+        tail_pks = pks[flushed_count:]
+        tail_vectors = _l2_normalize(np.vstack(raw_vectors_list))
+        ContentItem.objects.bulk_update(
+            [
+                ContentItem(pk=pk, embedding=vec.tolist())
+                for pk, vec in zip(tail_pks, tail_vectors, strict=True)
+            ],
+            fields=["embedding"],
+            batch_size=500,
+        )
+
     elapsed = time.monotonic() - start
     logger.info("Encoded %d items in %.2fs.", len(texts), elapsed)
-
-    # Bulk-update the embedding column
-    to_update = [
-        ContentItem(pk=pk, embedding=vec.tolist())
-        for pk, vec in zip(pks, vectors, strict=True)
-    ]
-    ContentItem.objects.bulk_update(to_update, fields=["embedding"], batch_size=500)
 
     return {"embedded": len(pks), "skipped": len(items) - len(pks)}
 
@@ -546,8 +573,16 @@ def generate_sentence_embeddings(
     raw_vectors_list = []
     total_sentences = len(texts)
 
+    from apps.content.models import Sentence as SentenceModel
+
+    batch_num = 0
+    flushed_count = 0  # how many sentences already persisted to DB
     for i in range(0, total_sentences, batch_size):
         batch_texts = texts[i : i + batch_size]
+        # Thermal guard — pause if GPU temp >= GPU_TEMP_CEILING_C, resume at <= GPU_TEMP_RESUME_C.
+        # No-op on CPU-only environments (helpers swallow pynvml ImportError).
+        if not _check_gpu_temperature():
+            _wait_for_gpu_cooldown()
         batch_vectors = model.encode(
             batch_texts,
             batch_size=batch_size,
@@ -555,12 +590,13 @@ def generate_sentence_embeddings(
             convert_to_numpy=True,
         )
         raw_vectors_list.append(batch_vectors)
+        batch_num += 1
+        processed = min(i + batch_size, total_sentences)
 
         # Report progress
         if job_id:
             from apps.pipeline.tasks import _publish_progress
 
-            processed = min(i + batch_size, total_sentences)
             pct = processed / total_sentences
 
             _publish_progress(
@@ -572,18 +608,38 @@ def generate_sentence_embeddings(
                 ml_progress=0.85 + (pct * 0.14),
             )
 
-    raw_vectors = np.vstack(raw_vectors_list)
-    vectors = _l2_normalize(raw_vectors)
+        # Checkpoint flush every 5 batches — if the worker dies mid-run, items
+        # already flushed have embeddings persisted and the resume run skips them
+        # via the `embedding__isnull=True` filter above.
+        if batch_num % 5 == 0:
+            slice_pks = pks[flushed_count:processed]
+            slice_vectors = _l2_normalize(np.vstack(raw_vectors_list))
+            SentenceModel.objects.bulk_update(
+                [
+                    SentenceModel(pk=pk, embedding=vec.tolist())
+                    for pk, vec in zip(slice_pks, slice_vectors, strict=True)
+                ],
+                fields=["embedding"],
+                batch_size=500,
+            )
+            flushed_count = processed
+            raw_vectors_list.clear()
+
+    # Tail flush — any batches since the last checkpoint flush.
+    if raw_vectors_list:
+        tail_pks = pks[flushed_count:]
+        tail_vectors = _l2_normalize(np.vstack(raw_vectors_list))
+        SentenceModel.objects.bulk_update(
+            [
+                SentenceModel(pk=pk, embedding=vec.tolist())
+                for pk, vec in zip(tail_pks, tail_vectors, strict=True)
+            ],
+            fields=["embedding"],
+            batch_size=500,
+        )
+
     elapsed = time.monotonic() - start
     logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
-
-    from apps.content.models import Sentence as SentenceModel
-
-    to_update = [
-        SentenceModel(pk=pk, embedding=vectors[idx].tolist())
-        for idx, pk in enumerate(pks)
-    ]
-    SentenceModel.objects.bulk_update(to_update, fields=["embedding"], batch_size=500)
 
     return {"embedded": len(pks), "skipped": len(sentences) - len(pks)}
 

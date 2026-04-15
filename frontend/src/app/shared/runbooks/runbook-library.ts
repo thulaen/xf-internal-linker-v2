@@ -91,6 +91,6 @@ export const RUNBOOK_LIBRARY: Runbook[] = [
     ],
     resourceLevel: 'high',
     whatItWillPause: 'GPU may be used. Other GPU work will queue behind this.',
-    stopCondition: 'Stop if GPU temperature exceeds 76°C (automatic).',
+    stopCondition: 'Stop if GPU temperature exceeds 86°C (automatic).',
   },
 ];

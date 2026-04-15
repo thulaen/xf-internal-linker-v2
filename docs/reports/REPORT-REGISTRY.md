@@ -215,6 +215,50 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 - **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-14
 - **Regression watch:** Reuse the base image's non-root `node` user unless the Dockerfile first proves that the target UID/GID is free.
 
+### ISS-015 — GPU thermal pause/resume helpers were defined but never called (2026-04-15)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `backend/apps/pipeline/services/embeddings.py`, `docs/PERFORMANCE.md`
+- **Description:** `_check_gpu_temperature()` and `_wait_for_gpu_cooldown()` were defined in `embeddings.py` but no production code ever called them. The two encode loops in `generate_content_embeddings` and `generate_sentence_embeddings` ran `model.encode(...)` directly with no thermal check. `docs/PERFORMANCE.md` §6 claimed a per-batch pynvml temperature check that was not actually happening, so the GPU was free to climb to NVIDIA's default ~93°C throttle on long overnight runs. Helper-node heartbeat endpoint promised in §2 (`POST /api/settings/helpers/{id}/heartbeat/`) was also missing — same disease, smaller blast radius.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-15
+- **Fixed in:** Same session as ISS-016/-017/-018 — wired both helpers into the encode loops, raised default ceiling to 86°C / resume 78°C, added the missing heartbeat stub endpoint.
+- **Regression watch:** Any future refactor of the encode loops in `embeddings.py` must keep the `if not _check_gpu_temperature(): _wait_for_gpu_cooldown()` guard before each `model.encode()` call. Any new "pause/resume" helper added anywhere must include a call site, not only a definition.
+
+### ISS-016 — Heavy/Medium task locks were defined but never acquired by any task (2026-04-15)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `backend/apps/pipeline/services/task_lock.py`, `backend/apps/pipeline/tasks.py`, `backend/apps/cooccurrence/tasks.py`, `backend/apps/pipeline/decorators.py` (new)
+- **Description:** `acquire_task_lock()`, `release_task_lock()` and `is_lock_held()` had been implemented as a Redis-backed locking service to enforce the docs/PERFORMANCE.md §4 golden rule "Never run two Heavy tasks simultaneously." The functions worked correctly in isolation and were exercised by unit tests, but no `@shared_task` ever called them. The 30-second stagger in `backend/config/catchup.py` spaced *dispatch* but did not prevent two Heavy tasks from running concurrently for hours. Catch-up dispatch also did not consult `is_lock_held` before sending tasks. Result: the golden rule was unenforced for the entire life of the lock service.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-15
+- **Fixed in:** Added `with_weight_lock(weight_class)` decorator at `backend/apps/pipeline/decorators.py` that wraps a `bind=True` Celery task, calls `acquire_task_lock` on entry, and on contention does `self.retry(countdown=60, max_retries=60)` for FIFO-style defer. Applied to `import_content` (heavy), `monthly_weight_tune` (medium), and `compute_session_cooccurrence` (medium, also added `bind=True`). Catch-up dispatch is automatically covered because it goes through the same `app.send_task()` path as Beat — the decorator runs at task entry regardless of dispatch source.
+- **Regression watch:** Any new Heavy/Medium `@shared_task` added to the codebase must apply `@with_weight_lock("heavy"|"medium")` directly under `@shared_task(bind=True, ...)`. Removing the decorator on any of the three current call sites would silently re-introduce the gap.
+
+### ISS-017 — Embedding bulk_update ran only at the end of each loop, losing all in-RAM work on crash (2026-04-15)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `backend/apps/pipeline/services/embeddings.py`
+- **Description:** `generate_content_embeddings` and `generate_sentence_embeddings` accumulated encoded vectors in a Python list and called `bulk_update(..., fields=["embedding"], batch_size=500)` once at the very end of the loop. If the worker was killed mid-run (`docker-compose stop`, OOM, hard crash), every embedding computed since the function started was lost — they never reached the database. On resume, the existing `embedding__isnull=True` filter at the top of the function had nothing to skip because no partial work had been persisted, so the entire job restarted from item 1. For a long embed (74k items, ~hours on RTX 3050), this could waste the equivalent of an entire overnight run.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-15
+- **Fixed in:** Extended the existing every-5-batch progress-throttle pattern (which already saved `embedding_items_completed` to the SyncJob row) to also flush partial embeddings via `bulk_update`. After the loop, a tail flush handles any remainder. The existence of an embedding on a row is now itself the checkpoint — no new column needed. On resume, the `embedding__isnull=True` filter naturally picks up where the killed run left off.
+- **Regression watch:** Any future refactor of the encode loops must preserve the `if batch_num % 5 == 0:` flush block and the post-loop tail flush. Removing them would silently restore the all-or-nothing behaviour.
+
+### ISS-018 — `cleanup-stuck-sync-jobs` never set `is_resumable=True`, leaving the resume path unreachable (2026-04-15)
+
+- **Found by:** Claude
+- **Severity:** high
+- **Affected files:** `backend/apps/pipeline/tasks.py`
+- **Description:** `cleanup_stuck_sync_jobs` (scheduled daily at 22:10 UTC) marked sync jobs stuck in `status="running"` for >2 hours as `status="failed"`. The `SyncJob` model has resume infrastructure (`is_resumable`, `checkpoint_stage`, `checkpoint_last_item_id`) and `import_content` honours it at line ~615 with a `Resuming import job ... from checkpoint` log line. But the cleanup task never set `is_resumable=True`, so jobs killed by `docker-compose down` or laptop shutdown were marked permanently failed even when a checkpoint existed and resume would have worked. The most common path that should have resumed never did.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-15
+- **Fixed in:** Split the `stuck.update(...)` into two: jobs with `checkpoint_stage IS NOT NULL` are now marked failed *with* `is_resumable=True` and a "Resumable from last checkpoint." message; jobs without a checkpoint stay marked failed (no resumable infrastructure to use). Log message now reports both counts.
+- **Regression watch:** Any future change to `cleanup_stuck_sync_jobs` must keep the checkpoint-aware split. Any new "stuck job" cleanup paths added elsewhere must follow the same pattern.
+
 ---
 
 ## Templates

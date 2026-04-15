@@ -98,11 +98,11 @@ interface SystemMetrics {
               {{ metrics()?.gpu?.vram_used_mb ?? 0 | number:'1.0-0' }} MB of
               {{ metrics()?.gpu?.vram_total_mb ?? 0 | number:'1.0-0' }} MB
               · GPU temp
-              <strong [class.temp-hot]="(metrics()?.gpu?.temp_c ?? 0) >= 76">
+              <strong [class.temp-hot]="(metrics()?.gpu?.temp_c ?? 0) >= 86">
                 {{ (metrics()?.gpu?.temp_c ?? null) === null ? '—' : metrics()!.gpu!.temp_c + '°C' }}
               </strong>
-              @if ((metrics()?.gpu?.temp_c ?? 0) >= 76) {
-                <mat-icon class="warn-inline" matTooltip="GPU is at or above the 76°C ceiling — heavy tasks will pause automatically">warning</mat-icon>
+              @if ((metrics()?.gpu?.temp_c ?? 0) >= 86) {
+                <mat-icon class="warn-inline" matTooltip="GPU is at or above the 86°C ceiling — heavy tasks will pause automatically">warning</mat-icon>
               }
             </span>
           </div>
@@ -194,7 +194,7 @@ export class SystemMetricsComponent implements OnInit {
   readonly tip = computed(() => {
     const m = this.metrics();
     if (!m) return '';
-    if ((m.gpu?.temp_c ?? 0) >= 76) {
+    if ((m.gpu?.temp_c ?? 0) >= 86) {
       return 'GPU is very hot. Heavy tasks will pause until it cools down. Switch to Safe Mode if you need the GPU for something else.';
     }
     if ((m.ram_percent ?? 0) >= 90) {

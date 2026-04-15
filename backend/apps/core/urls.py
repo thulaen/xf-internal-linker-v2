@@ -20,6 +20,7 @@ from .views import (
     JobQuarantineView,
     HelperNodeListView,
     HelperNodeDetailView,
+    HelperNodeHeartbeatView,
 )
 
 urlpatterns = [
@@ -85,6 +86,13 @@ urlpatterns = [
     path("jobs/quarantine/", JobQuarantineView.as_view(), name="jobs-quarantine"),
     # Helper nodes (Stage 8)
     path("settings/helpers/", HelperNodeListView.as_view(), name="helpers-list"),
+    # Heartbeat must come before the detail route so it isn't swallowed
+    # if a future router-style refactor lands here (cf. ISS-012).
+    path(
+        "settings/helpers/<int:pk>/heartbeat/",
+        HelperNodeHeartbeatView.as_view(),
+        name="helpers-heartbeat",
+    ),
     path(
         "settings/helpers/<int:pk>/",
         HelperNodeDetailView.as_view(),

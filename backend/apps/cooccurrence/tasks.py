@@ -6,15 +6,19 @@ import logging
 
 from celery import shared_task
 
+from apps.pipeline.decorators import with_weight_lock
+
 logger = logging.getLogger(__name__)
 
 
 @shared_task(
+    bind=True,
     name="cooccurrence.compute_session_cooccurrence",
     time_limit=3600,
     soft_time_limit=3540,
 )
-def compute_session_cooccurrence() -> dict:
+@with_weight_lock("medium")
+def compute_session_cooccurrence(self) -> dict:
     """Fetch GA4 session data and build the co-occurrence matrix.
 
     Runs weekly (scheduled via CELERY_BEAT_SCHEDULE).

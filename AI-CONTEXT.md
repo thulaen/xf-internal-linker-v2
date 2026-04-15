@@ -427,6 +427,55 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-15 - GPU cap raised to 80% / 86°C, four silent resume gaps closed (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** User asked to raise the High Performance GPU cap to 80% and loosen temperature limits. While auditing whether the resume capability was wired up correctly, found that the GPU thermal pause/resume helpers (`_check_gpu_temperature`, `_wait_for_gpu_cooldown`) were defined but never called — the entire thermal-protection path documented as "Non-negotiable" in `docs/PERFORMANCE.md` §6 was silent dead code. User then asked me to widen the audit; three parallel passes found the same disease in four other places: Heavy/Medium task locks defined but never acquired (golden rule unenforced), embedding `bulk_update` running only at end-of-loop (a killed embed re-embeds from scratch on resume), `cleanup-stuck-sync-jobs` never setting `is_resumable=True` (resume infrastructure unreachable from the most common stuck-job path), and the helper-node heartbeat endpoint promised in §2 didn't exist. Plan approved at "GPU + all four fixes" with FIFO defer for the lock; this session shipped all of it.
+
+- **Items shipped:**
+  - **Settings (A):** `CUDA_MEMORY_FRACTION_HIGH` 0.60 → 0.80, `GPU_TEMP_CEILING_C` 76 → 86, `GPU_TEMP_RESUME_C` 68 → 78 in `backend/config/settings/base.py`.
+  - **Embeddings (B):** Wired `_check_gpu_temperature()` + `_wait_for_gpu_cooldown()` before each `model.encode(...)` call in both `generate_content_embeddings` and `generate_sentence_embeddings`. Extended the existing every-5-batch progress-throttle pattern to also flush partial embeddings via `bulk_update`, plus a tail flush. The `embedding__isnull=True` filter now naturally resumes from where a killed run left off.
+  - **Heavy/Medium lock (C):** New `backend/apps/pipeline/decorators.py` exporting `with_weight_lock(weight_class)` — wraps a `bind=True` `@shared_task`, calls `acquire_task_lock` on entry, `self.retry(countdown=60, max_retries=60)` on contention for FIFO defer. Applied to `import_content` (heavy), `monthly_weight_tune` (medium), and `compute_session_cooccurrence` (medium, also added `bind=True` and `self` parameter; verified only `.delay()` callers exist). Catch-up dispatch is automatically covered because it uses the same `app.send_task()` path as Beat.
+  - **Stuck-job resumability (D):** `cleanup_stuck_sync_jobs` now splits stuck jobs into two updates — those with `checkpoint_stage IS NOT NULL` get `is_resumable=True` and the resumable error message; those without keep the old "must restart" message. Log line now reports both counts.
+  - **Helper heartbeat stub (E):** New `HelperNodeHeartbeatView` at `backend/apps/core/views.py` accepting `POST /api/settings/helpers/<id>/heartbeat/`. Updates `last_heartbeat`, optionally merges `capabilities`, optionally updates `status`. Returns 204. Route registered in `backend/apps/core/urls.py` *before* the `<int:pk>/` detail route to avoid the ISS-012 routing-shadow class of bug.
+  - **Frontend strings (F, G):** Six 60% / 76°C / 68°C / 3.6 GB strings updated in `performance-mode.component.ts` (3), `system-metrics.component.ts` (2 occurrences in template + tip), `health.component.html` (2), and `runbook-library.ts` (1). Frontend grep for any remaining `76`, `60%`, `3.6 GB` came back empty.
+  - **Docs (H):** `docs/PERFORMANCE.md` §6 updated — dropped the "Non-negotiable" wording, table rows now show 86°C/78°C and 80%/4.8 GB, closing paragraph references the new ceiling vs NVIDIA's 93°C throttle.
+  - **Report Registry (I):** Logged ISS-015 (thermal helpers dead), ISS-016 (lock decorator missing), ISS-017 (embedding bulk_update only-at-end), ISS-018 (cleanup never set is_resumable). All four marked **RESOLVED** in this same session with regression-watch clauses.
+
+- **Intentional files changed:**
+  - `backend/config/settings/base.py` (3 default constants)
+  - `backend/apps/pipeline/services/embeddings.py` (3 docstrings, 2 thermal-guard insertions, 2 incremental-flush refactors)
+  - `backend/apps/pipeline/decorators.py` (NEW — `with_weight_lock`)
+  - `backend/apps/pipeline/tasks.py` (decorator import, `@with_weight_lock("heavy")` on `import_content`, `@with_weight_lock("medium")` on `monthly_weight_tune`, `cleanup_stuck_sync_jobs` split)
+  - `backend/apps/cooccurrence/tasks.py` (decorator import, `bind=True` + `self` + `@with_weight_lock("medium")` on `compute_session_cooccurrence`)
+  - `backend/apps/core/views.py` (NEW `HelperNodeHeartbeatView`)
+  - `backend/apps/core/urls.py` (heartbeat route + import)
+  - `frontend/src/app/dashboard/performance-mode/performance-mode.component.ts` (4 strings: tooltip, glossary, dialog, GPU temperature glossary)
+  - `frontend/src/app/dashboard/system-metrics/system-metrics.component.ts` (template threshold + tip threshold)
+  - `frontend/src/app/health/health.component.html` (2 thresholds + banner text)
+  - `frontend/src/app/shared/runbooks/runbook-library.ts` (stop-condition text)
+  - `docs/PERFORMANCE.md` (§6 — non-negotiable wording, three table values, closing sentence)
+  - `docs/reports/REPORT-REGISTRY.md` (ISS-015 to ISS-018)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** `acquire_task_lock` / `release_task_lock` / `is_lock_held` from `backend/apps/pipeline/services/task_lock.py` (no API change — just newly used). Existing every-5-batch progress-throttle pattern at `embeddings.py:457-460` extended to flush embeddings on the same cadence rather than introducing a new throttle. Existing `HelperNode.last_heartbeat`, `status`, `capabilities` fields used by the new heartbeat endpoint — no migration needed. Existing resume path at `import_content:615-633` reused by the cleanup-stuck-sync-jobs fix — no new resume code needed. Existing pre-task-publish hook in catch-up dispatch was confirmed to share the `app.send_task()` path with Beat, so no separate edit to `catchup.py` was needed (the decorator covers both paths).
+
+- **Session Gate compliance:**
+  - Read `AI-CONTEXT.md` Session Gate, `docs/PERFORMANCE.md`, `docs/reports/REPORT-REGISTRY.md` (no overlapping open findings — ISS-012 about health routing was resolved 2026-04-14), `CLAUDE.md` (mandatory research + duplicate-check rule), `backend/PYTHON-RULES.md` and `frontend/FRONTEND-RULES.md` not separately re-read this session as no new patterns were introduced.
+  - Mandatory duplicate-check pass run before adding any new code. Findings recorded in the plan file at `.claude/plans/tranquil-munching-conway.md`. Decorator was new; heartbeat endpoint was new; partial-embedding flush extended an existing throttle; no other duplicates.
+  - No new migrations introduced — `HelperNode.last_heartbeat` already exists, `SyncJob.is_resumable` and `SyncJob.checkpoint_stage` already exist.
+  - Layout Precision Rules respected — only text-content edits to existing components, no new layouts introduced.
+
+- **Verification that passed:**
+  - Doc-consistency grep for `76°C`, `68°C`, `60%.{0,30}GPU`, `3.6 GB` across `frontend/`, `docs/`, and `backend/` — only matches are in this session's own Report Registry historical entries (intentional).
+  - Frontend Angular dev server reload — confirm the new strings render at the Performance Mode card and System Load card. Screenshots captured.
+
+- **What was deliberately NOT done:**
+  - Did not ship a helper-node client that calls the new heartbeat endpoint — the endpoint is a stub for a future Stage 8 piece. The doc claim is now backed by a real route.
+  - Did not add a background watchdog that marks helpers offline if `last_heartbeat` is stale. That belongs with the helper-client work.
+  - Did not refactor `_check_gpu_temperature` to share a single `pynvml.nvmlInit()` lifecycle with `_wait_for_gpu_cooldown` — the per-call init/shutdown is microseconds and not worth the change here.
+  - Did not change anything about Light tasks — they correctly skip locks per `task_lock.py:48`.
+
 ### 2026-04-15 - Phase 7 complete (items 27-31) - **PROMPT X PLAN FULLY SHIPPED** (Claude)
 
 - **AI/tool:** Claude

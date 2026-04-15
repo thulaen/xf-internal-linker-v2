@@ -103,10 +103,10 @@
           <mat-card-title>GPU Status</mat-card-title>
         </mat-card-header>
         <mat-card-content>
-          <div class="metric-row"><span>Temperature</span><span [class.warn]="gpuHealth!.temp_c! >= 76">{{ gpuHealth!.temp_c }}°C</span></div>
+          <div class="metric-row"><span>Temperature</span><span [class.warn]="gpuHealth!.temp_c! >= 86">{{ gpuHealth!.temp_c }}°C</span></div>
           <div class="metric-row"><span>VRAM Used</span><span>{{ gpuHealth!.vram_used_mb }} / {{ gpuHealth!.vram_total_mb }} MB</span></div>
           <div class="metric-row"><span>Utilization</span><span>{{ gpuHealth!.utilization_pct }}%</span></div>
-          <app-health-banner *ngIf="gpuHealth!.temp_c! >= 76" severity="error" message="GPU temperature at or above 76°C ceiling — GPU work is paused." />
+          <app-health-banner *ngIf="gpuHealth!.temp_c! >= 86" severity="error" message="GPU temperature at or above 86°C ceiling — GPU work is paused." />
         </mat-card-content>
       </mat-card>
     </div>

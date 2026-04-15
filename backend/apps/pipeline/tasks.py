@@ -13,6 +13,8 @@ import requests
 from asgiref.sync import async_to_sync
 from celery import shared_task
 from channels.layers import get_channel_layer
+
+from apps.pipeline.decorators import with_weight_lock
 from json import JSONDecodeError
 from requests import RequestException
 from django.db import DatabaseError, IntegrityError
@@ -566,6 +568,7 @@ def build_knowledge_graph(self, job_id: str | None = None) -> dict:
     soft_time_limit=7140,
     acks_late=True,
 )
+@with_weight_lock("heavy")
 def import_content(
     self,
     scope_ids: list[int] | None = None,
@@ -1230,13 +1233,33 @@ def cleanup_stuck_sync_jobs():
     count = stuck.count()
 
     if count:
-        stuck.update(
+        # Jobs with a checkpoint can resume from where they left off — flag
+        # is_resumable=True so the next import_content call (manual or scheduled)
+        # picks up via the resume path at tasks.py ~line 615.
+        resumable_count = stuck.filter(checkpoint_stage__isnull=False).update(
             status="failed",
-            error_message="Job timed out — server was likely restarted mid-sync.",
+            is_resumable=True,
+            error_message=(
+                "Job interrupted — server was likely restarted mid-sync. "
+                "Resumable from last checkpoint."
+            ),
+            completed_at=timezone.now(),
+        )
+        # Jobs with no checkpoint must restart from scratch.
+        no_checkpoint_count = stuck.filter(checkpoint_stage__isnull=True).update(
+            status="failed",
+            error_message=(
+                "Job timed out before any checkpoint — server was likely "
+                "restarted mid-sync."
+            ),
             completed_at=timezone.now(),
         )
         logger.info(
-            "[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed.", count
+            "[cleanup_stuck_sync_jobs] Marked %d stuck job(s) as failed "
+            "(%d resumable, %d need restart).",
+            count,
+            resumable_count,
+            no_checkpoint_count,
         )
     else:
         logger.info("[cleanup_stuck_sync_jobs] No stuck jobs found.")
@@ -1371,6 +1394,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
     soft_time_limit=540,
     acks_late=True,
 )
+@with_weight_lock("medium")
 def monthly_weight_tune(self):
     """Trigger a FR-18 weight-tune run via the native WeightTuner, then evaluate.
 
