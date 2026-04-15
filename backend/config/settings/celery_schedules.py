@@ -119,6 +119,41 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
         "options": {"queue": "default", "expires": 290},
     },
+    # Plan item 12 + 14 — auto-revert performance mode every 5 minutes.
+    # Reads system.performance_mode_expiry / _expires_at AppSettings and flips
+    # HIGH to BALANCED when the "Until tonight ends" window closes.  Light
+    # task: a few DB reads, at most one UPDATE, one alert.
+    "auto-revert-performance-mode": {
+        "task": "core.auto_revert_performance_mode",
+        "schedule": 300.0,
+        "options": {"queue": "default", "expires": 290},
+    },
+    # Plan item 19 — prune stale SyncJob checkpoint metadata at 22:25 UTC
+    # nightly.  Clears completed checkpoints >24h old and failed/paused >48h
+    # old.  Light task: bulk UPDATE, no file I/O today (scratch-file pruning
+    # ships once we have a canonical scratch directory).
+    "prune-stale-checkpoints": {
+        "task": "core.prune_stale_checkpoints",
+        "schedule": crontab(hour=22, minute=25),
+        "options": {"queue": "default"},
+    },
+    # Plan item 20 — prune superseded embedding archives older than 7 days
+    # that have a verified replacement.  Unverified rows stay so operators
+    # retain a rollback path if a bad embedding sneaks through.  Runs at
+    # 22:50 UTC nightly to stay clear of the 22:00-22:45 alert check band.
+    "prune-superseded-embeddings": {
+        "task": "core.prune_superseded_embeddings",
+        "schedule": crontab(hour=22, minute=50),
+        "options": {"queue": "default"},
+    },
+    # Plan item 30 — laptop-sleep-safe resume sweeper every 5 minutes.
+    # Conservative: only undoes pauses that the wake watcher itself set, never
+    # overrides an explicit user master-pause.
+    "resume-after-wake": {
+        "task": "core.resume_after_wake",
+        "schedule": 300.0,
+        "options": {"queue": "default", "expires": 290},
+    },
     # ── Stage 9 alert rules: 22:30–22:45 UTC ────────────────────
     "check-silent-failure": {
         "task": "notifications.check_silent_failure",

@@ -3306,7 +3306,13 @@ class ResumeStateView(APIView):
 
 
 class RuntimeSettingsView(APIView):
-    """GET /api/settings/runtime/ — current runtime mode and state."""
+    """GET /api/settings/runtime/ — current runtime mode and state.
+
+    In addition to `runtime_mode` and `performance_mode`, also returns the
+    optional expiry fields set by the time-bound chips (plan item 8). Frontend
+    hydrates the chip selection from these fields on every page load so the
+    user sees the same state across tabs and restarts.
+    """
 
     permission_classes = [IsAuthenticated]
 
@@ -3315,6 +3321,8 @@ class RuntimeSettingsView(APIView):
 
         mode = "cpu"
         perf_mode = "balanced"
+        expiry = "none"
+        expires_at = ""
         try:
             mode_val = (
                 AppSetting.objects.filter(key="system.runtime_mode")
@@ -3330,21 +3338,56 @@ class RuntimeSettingsView(APIView):
             )
             if perf_val:
                 perf_mode = perf_val
+            expiry_val = (
+                AppSetting.objects.filter(key="system.performance_mode_expiry")
+                .values_list("value", flat=True)
+                .first()
+            )
+            if expiry_val in ("none", "activity", "night"):
+                expiry = expiry_val
+            expires_at_val = (
+                AppSetting.objects.filter(key="system.performance_mode_expires_at")
+                .values_list("value", flat=True)
+                .first()
+            )
+            if expires_at_val:
+                expires_at = expires_at_val
+            master_pause_val = (
+                AppSetting.objects.filter(key="system.master_pause")
+                .values_list("value", flat=True)
+                .first()
+            )
+            master_pause = (master_pause_val or "false").lower() == "true"
         except Exception:
             logger.debug(
                 "AppSetting table not available, using default runtime and performance modes"
             )
+            master_pause = False
 
         return Response(
             {
                 "runtime_mode": mode,
                 "performance_mode": perf_mode,
+                "performance_mode_expiry": expiry,
+                "performance_mode_expires_at": expires_at,
+                "master_pause": master_pause,
             }
         )
 
 
 class RuntimeSwitchView(APIView):
-    """POST /api/settings/runtime/switch/ — switch performance mode."""
+    """POST /api/settings/runtime/switch/ — switch performance mode.
+
+    Accepts:
+      {
+        "mode": "safe" | "balanced" | "high",
+        "expiry": "none" | "activity" | "night",  # optional, only valid with mode=high
+        "expires_at": "2026-04-15T06:00:00-07:00"  # optional ISO 8601 for 'night'
+      }
+
+    Backend enforcement for the expiry is `core.auto_revert_performance_mode`
+    (plan items 12 + 14) running every 5 minutes via Celery Beat.
+    """
 
     permission_classes = [IsAuthenticated]
 
@@ -3366,7 +3409,148 @@ class RuntimeSwitchView(APIView):
                 "category": "performance",
             },
         )
-        return Response({"performance_mode": new_mode})
+
+        # Expiry only makes sense with High Performance. Any other mode clears it.
+        new_expiry = request.data.get("expiry", "none")
+        if new_mode != "high" or new_expiry not in ("none", "activity", "night"):
+            new_expiry = "none"
+
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode_expiry",
+            defaults={
+                "value": new_expiry,
+                "value_type": "str",
+                "category": "performance",
+            },
+        )
+
+        new_expires_at = (
+            request.data.get("expires_at", "") if new_expiry == "night" else ""
+        )
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode_expires_at",
+            defaults={
+                "value": new_expires_at or "",
+                "value_type": "str",
+                "category": "performance",
+            },
+        )
+
+        return Response(
+            {
+                "performance_mode": new_mode,
+                "performance_mode_expiry": new_expiry,
+                "performance_mode_expires_at": new_expires_at or "",
+            }
+        )
+
+
+class RuntimeSwitchRunView(APIView):
+    """POST /api/settings/runtime/switch-runtime/ — drain-and-resume runtime switch (plan item 23).
+
+    Request body:
+        {"target": "cpu" | "gpu", "wait_for_drain": true}
+
+    Response mirrors ``runtime_switcher.switch_runtime`` so the UI can show
+    exactly what happened (previous mode, drain seconds, warmup result).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.runtime_switcher import switch_runtime
+
+        target = (request.data or {}).get("target", "").lower()
+        wait = bool((request.data or {}).get("wait_for_drain", True))
+        if target not in ("cpu", "gpu"):
+            return Response(
+                {"ok": False, "error": "target must be 'cpu' or 'gpu'"}, status=400
+            )
+        try:
+            result = switch_runtime(target=target, wait_for_drain=wait)
+            return Response(result)
+        except Exception:
+            logger.exception("runtime switch failed")
+            return Response({"ok": False, "error": "internal"}, status=500)
+
+
+class RuntimeSwitchStatusView(APIView):
+    """GET /api/settings/runtime/switch-status/ — current mode + any in-flight switch."""
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.runtime_switcher import get_switch_status
+
+        return Response(get_switch_status())
+
+
+class MasterPauseToggleView(APIView):
+    """POST /api/settings/master-pause/ — flip system.master_pause (plan item 28).
+
+    Request body (optional): {"paused": true|false}
+    If the body is empty the current value is TOGGLED.
+
+    Workers read ``system.master_pause`` at each batch boundary via
+    ``apps.core.pause_contract.should_pause_now()`` (plan item 29) and stop
+    taking new batches when it is truthy. Existing in-flight batches finish
+    normally and save their checkpoints.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.core.models import AppSetting
+
+        current = (
+            AppSetting.objects.filter(key="system.master_pause")
+            .values_list("value", flat=True)
+            .first()
+        )
+        current_bool = (current or "false").lower() == "true"
+
+        desired_raw = (request.data or {}).get("paused")
+        if desired_raw is None:
+            desired_bool = not current_bool
+        else:
+            desired_bool = bool(desired_raw)
+
+        AppSetting.objects.update_or_create(
+            key="system.master_pause",
+            defaults={
+                "value": "true" if desired_bool else "false",
+                "value_type": "bool",
+                "category": "performance",
+            },
+        )
+        logger.info("master-pause toggled: %s -> %s", current_bool, desired_bool)
+        return Response({"master_pause": desired_bool})
+
+
+class RuntimeActivityResumedView(APIView):
+    """POST /api/settings/runtime/activity-resumed/ — user is active again.
+
+    Plan item 13 ("Until I come back"). The frontend's UserActivityService
+    calls this once the user starts typing/mousing after being idle while
+    High Performance + 'activity' expiry was active. The call is idempotent:
+    if no revert is needed the server returns {reverted: false}.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):  # noqa: D401 — simple delegating view
+        try:
+            from apps.core.tasks import activity_resumed_revert
+
+            # Run synchronously so the frontend knows the final state immediately.
+            # The task itself is tiny (a few DB reads + one write at most).
+            result = activity_resumed_revert.apply().result
+            if not isinstance(result, dict):
+                result = {"reverted": False}
+            return Response(result)
+        except Exception:
+            logger.exception("activity-resumed endpoint failed")
+            return Response({"reverted": False, "error": "internal"}, status=500)
 
 
 _BYTES_PER_MEGABYTE = 1024 * 1024
@@ -3669,14 +3853,50 @@ class JobQueueView(APIView):
 
 
 class JobQuarantineView(APIView):
-    """GET /api/jobs/quarantine/ — quarantined pipeline runs."""
+    """GET /api/jobs/quarantine/ — quarantined items (first-class model, plan item 16).
+
+    Prefers the new `QuarantineRecord` table; for back-compat also folds in any
+    `PipelineRun.is_quarantined=True` rows that don't have a matching
+    QuarantineRecord yet.  Frontend reads from the same endpoint; no breaking
+    change.
+    """
 
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from apps.core.models import QuarantineRecord
         from apps.suggestions.models import PipelineRun
 
-        quarantined = list(
+        out: list[dict] = []
+
+        # 1. New-style: open QuarantineRecord rows (resolved_at IS NULL).
+        open_records = QuarantineRecord.objects.filter(
+            resolved_at__isnull=True
+        ).order_by("-updated_at")[:50]
+        quarantined_run_ids: set[str] = set()
+        for rec in open_records:
+            out.append(
+                {
+                    "id": rec.pk,
+                    "kind": "record",
+                    "run_id": rec.related_object_id,
+                    "related_object_type": rec.related_object_type,
+                    "reason": rec.reason,
+                    "reason_display": rec.get_reason_display(),
+                    "reason_detail": rec.reason_detail,
+                    "affected_items": rec.affected_items,
+                    "fix_available": rec.fix_available,
+                    "resume_from_checkpoint": rec.resume_from_checkpoint,
+                    "checkpoint_id": rec.checkpoint_id,
+                    "created_at": rec.created_at.isoformat(),
+                    "updated_at": rec.updated_at.isoformat(),
+                }
+            )
+            if rec.related_object_type == "pipeline_run":
+                quarantined_run_ids.add(rec.related_object_id)
+
+        # 2. Legacy: PipelineRun.is_quarantined=True rows without a matching record.
+        legacy = list(
             PipelineRun.objects.filter(is_quarantined=True)
             .values(
                 "run_id",
@@ -3689,14 +3909,36 @@ class JobQuarantineView(APIView):
             )
             .order_by("-updated_at")[:50]
         )
-        for run in quarantined:
-            run["run_id"] = str(run["run_id"])
-            if run["created_at"]:
-                run["created_at"] = run["created_at"].isoformat()
-            if run["updated_at"]:
-                run["updated_at"] = run["updated_at"].isoformat()
+        for run in legacy:
+            rid = str(run["run_id"])
+            if rid in quarantined_run_ids:
+                continue
+            out.append(
+                {
+                    "id": None,
+                    "kind": "legacy",
+                    "run_id": rid,
+                    "related_object_type": "pipeline_run",
+                    "reason": "repeated_failure",
+                    "reason_display": "Repeated failures",
+                    "reason_detail": run.get("error_message") or "",
+                    "affected_items": [],
+                    "fix_available": "reset-quarantined-job",
+                    "resume_from_checkpoint": False,
+                    "checkpoint_id": "",
+                    "run_state": run["run_state"],
+                    "rerun_mode": run["rerun_mode"],
+                    "phase_log": run["phase_log"],
+                    "created_at": run["created_at"].isoformat()
+                    if run["created_at"]
+                    else None,
+                    "updated_at": run["updated_at"].isoformat()
+                    if run["updated_at"]
+                    else None,
+                }
+            )
 
-        return Response(quarantined)
+        return Response(out)
 
 
 class HelperNodeListView(APIView):

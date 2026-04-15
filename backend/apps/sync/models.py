@@ -10,6 +10,7 @@ class SyncJob(models.Model):
     STATUS_CHOICES = [
         ("pending", "Pending"),
         ("running", "Running"),
+        ("paused", "Paused"),  # plan item 27 — graceful user-initiated pause
         ("completed", "Completed"),
         ("failed", "Failed"),
         ("cancelled", "Cancelled"),

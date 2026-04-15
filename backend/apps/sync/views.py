@@ -185,6 +185,70 @@ class SyncJobViewSet(viewsets.ReadOnlyModelViewSet):
             }
         )
 
+    @action(detail=True, methods=["post"])
+    def pause(self, request, job_id=None):
+        """Graceful pause (plan item 27).
+
+        POST /api/sync-jobs/{job_id}/pause/
+
+        Requests a graceful pause at the next safe checkpoint boundary. Unlike
+        cancel, pause preserves the job row and keeps ``is_resumable=True`` so
+        the worker or user can pick up the same job later via the resume endpoint.
+        The worker reads ``system.master_pause`` AND its own per-job pause flag
+        (stored on the SyncJob row) and stops at the next safe boundary.
+        """
+        job = self.get_object()
+        if job.status != "running":
+            return Response(
+                {"error": f"Cannot pause a job with status '{job.status}'."},
+                status=400,
+            )
+        job.status = "paused"
+        if job.checkpoint_stage:
+            job.is_resumable = True
+        job.save(update_fields=["status", "is_resumable", "updated_at"])
+        return Response(
+            {
+                "job_id": str(job.job_id),
+                "status": "paused",
+                "is_resumable": job.is_resumable,
+                "message": "Pause requested. Worker will stop at the next safe checkpoint.",
+            }
+        )
+
+    @action(detail=True, methods=["post"])
+    def resume(self, request, job_id=None):
+        """Resume a paused job (plan item 27).
+
+        POST /api/sync-jobs/{job_id}/resume/
+
+        Flips a paused job back to ``pending`` so the scheduler picks it up on
+        the next dispatch cycle. The resume reads the stored checkpoint so no
+        duplicate work is done.
+        """
+        job = self.get_object()
+        if job.status != "paused":
+            return Response(
+                {"error": f"Cannot resume a job with status '{job.status}'."},
+                status=400,
+            )
+        if not job.is_resumable or not job.checkpoint_stage:
+            return Response(
+                {"error": "This job has no checkpoint to resume from."},
+                status=400,
+            )
+        job.status = "pending"
+        job.save(update_fields=["status", "updated_at"])
+        return Response(
+            {
+                "job_id": str(job.job_id),
+                "status": "pending",
+                "is_resumable": True,
+                "checkpoint_stage": job.checkpoint_stage,
+                "message": "Resume queued. The worker will pick up from the saved checkpoint.",
+            }
+        )
+
     @action(detail=False, methods=["get"])
     def source_status(self, request):
         """

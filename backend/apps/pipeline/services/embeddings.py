@@ -45,7 +45,15 @@ def _resolve_device() -> str:
     """Return 'cuda' or 'cpu' based on ML_PERFORMANCE_MODE.
 
     When CUDA is selected, applies mode-dependent VRAM fraction limits
-    as documented in docs/PERFORMANCE.md §6 (GPU Self-Limiting).
+    as documented in docs/PERFORMANCE.md §6 (GPU Self-Limiting) AND runs a
+    tiny warmup op (plan item 15). A driver can report CUDA available but
+    fail on the first real op (bad VRAM state, thermal throttle at boot,
+    etc.); warmup catches those silent failures so we fall back to CPU
+    with a loud alert instead of crashing mid-pipeline.
+
+    If the user asked for HIGH_PERFORMANCE but GPU is unavailable, emit the
+    named operator-alert rule from notifications/alert_rules.py so they know
+    the system silently dropped to CPU (plan item 10, rule d).
     """
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
     if mode == "HIGH_PERFORMANCE":
@@ -53,11 +61,46 @@ def _resolve_device() -> str:
             import torch
 
             if torch.cuda.is_available():
+                if not _cuda_warmup_ok():
+                    _emit_gpu_fallback_alert("CUDA warmup failed")
+                    return "cpu"
                 _apply_vram_fraction()
                 return "cuda"
+            _emit_gpu_fallback_alert("CUDA not available")
         except ImportError:
             logger.debug("torch not installed, falling back to CPU")
+            _emit_gpu_fallback_alert("torch not installed")
     return "cpu"
+
+
+def _cuda_warmup_ok() -> bool:
+    """Run a tiny GPU op to confirm CUDA actually works, not just reports-available.
+
+    Returns True if a 1x1 tensor allocation + multiplication succeeds.  Any
+    exception (OOM, driver fault, thermal pause) returns False and the caller
+    falls back to CPU.  Logged at warning level so the failure is visible in
+    container logs.
+    """
+    try:
+        import torch
+
+        t = torch.ones(1, device="cuda")
+        _ = (t * 2).sum().item()
+        torch.cuda.synchronize()
+        return True
+    except Exception as exc:  # broad on purpose — any CUDA failure must fall back
+        logger.warning("CUDA warmup failed: %s", exc)
+        return False
+
+
+def _emit_gpu_fallback_alert(reason: str) -> None:
+    """Best-effort alert emit. Never raises — embeddings must keep working."""
+    try:
+        from apps.notifications.alert_rules import alert_gpu_fallback_to_cpu
+
+        alert_gpu_fallback_to_cpu(reason=reason)
+    except Exception:
+        logger.debug("Failed to emit gpu-fallback alert", exc_info=True)
 
 
 def _apply_vram_fraction() -> None:

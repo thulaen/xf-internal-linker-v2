@@ -75,6 +75,34 @@ class CrawlSession(TimestampedModel):
         blank=True,
         help_text="Redis key holding the serialised URL frontier for resume.",
     )
+    # Plan item 31 — exact-boundary resume.  Instead of only pointing at a
+    # Redis key (volatile), also persist a lightweight snapshot of the URL
+    # frontier and the set of already-visited URL hashes to the DB so a
+    # crash that also loses Redis can still resume from the right place.
+    frontier_snapshot = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Durable snapshot of the URL queue at the last safe pause. "
+            "Each entry is {url, depth}. Persisted to the DB so we can resume "
+            "even if Redis has been flushed."
+        ),
+    )
+    visited_hashes = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Stable hashes of URLs already crawled in this session. Prevents "
+            "re-visiting on resume."
+        ),
+    )
+    scan_version = models.IntegerField(
+        default=1,
+        help_text=(
+            "Monotonic counter incremented each time the crawl definition changes. "
+            "Resume uses this to refuse mixing snapshots across versions."
+        ),
+    )
     is_resumable = models.BooleanField(default=False)
 
     # ── Error details ────────────────────────────────────────────────

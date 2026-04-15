@@ -224,6 +224,26 @@ class ContentItem(TimestampedModel):
         blank=True,
         help_text="History of URL/slug changes: [{url, changed_at}]. Never creates a new record on URL change.",
     )
+    last_checked_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Timestamp of the most recent re-import/recrawl touch, regardless of whether the content "
+            "actually changed. Updated on every 'mark as checked' short-circuit (plan item 21) so "
+            "operators can see that the item was verified without re-embedding."
+        ),
+    )
+    embedding_model_version = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Model + preprocessing version that produced the current embedding. Used by the "
+            "superseded-embedding retention policy (plan item 20) to keep rollback copies "
+            "when the model changes."
+        ),
+    )
 
     # ML scores
     march_2026_pagerank_score = models.FloatField(
@@ -539,3 +559,79 @@ class ContentMetricSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"Snapshot {self.captured_at.date()} — {self.content_item}"
+
+
+class SupersededEmbedding(models.Model):
+    """Archive of replaced embeddings (plan item 20).
+
+    When a ContentItem's embedding is overwritten (because the content hash
+    changed, the model changed, or preprocessing rules changed), the old
+    vector is archived here before the new one is written.  Retention policy:
+
+      - Rows are eligible for pruning 7 days after ``superseded_at``.
+      - The pruner only deletes rows whose replacement has been *verified*
+        (``replacement_verified_at`` is non-null).  That stops us from
+        throwing away rollback copies when the new embedding turns out to
+        be bad before anyone notices.
+      - Rows that are still within the 7-day window, or not yet verified,
+        stay untouched even if disk pressure grows.  Old unverified copies
+        are a feature, not a leak.
+
+    Disk footprint: ~4 KB per 1024-dim float32 vector + row overhead. At
+    typical sync volumes this is bounded by the 7-day retention; steady-state
+    disk usage at 90 days is effectively zero because everything past 7 days
+    that was verified has been pruned.
+    """
+
+    content_item = models.ForeignKey(
+        ContentItem,
+        on_delete=models.CASCADE,
+        related_name="superseded_embeddings",
+        help_text="The content item whose embedding was replaced.",
+    )
+    embedding = VectorField(
+        dimensions=1024,
+        null=True,
+        blank=True,
+        help_text="The old 1024-dim vector that was replaced.",
+    )
+    embedding_model_version = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Model + preprocessing version that produced this archived vector.",
+    )
+    content_hash = models.CharField(
+        max_length=64,
+        blank=True,
+        help_text="Content hash at the time this embedding was produced.",
+    )
+    content_version = models.IntegerField(
+        default=1,
+        help_text="ContentItem.content_version at the time of archival.",
+    )
+    superseded_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="When this embedding was replaced.",
+    )
+    replacement_verified_at = models.DateTimeField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "When the replacement was verified as correct. The retention pruner "
+            "only deletes archived rows whose replacement has been verified."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Superseded Embedding"
+        verbose_name_plural = "Superseded Embeddings"
+        ordering = ["-superseded_at"]
+        indexes = [
+            models.Index(fields=["content_item", "-superseded_at"]),
+            models.Index(fields=["superseded_at", "replacement_verified_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"SupersededEmbedding<content={self.content_item_id} superseded_at={self.superseded_at}>"

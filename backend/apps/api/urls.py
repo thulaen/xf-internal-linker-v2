@@ -155,6 +155,22 @@ urlpatterns = [
         WordPressWebhookView.as_view(),
         name="wordpress-webhook",
     ),
+    # Plan item 24 — 3-minute dry-run sync preview.
+    path(
+        "sync/preview/",
+        __import__(
+            "apps.core.views_preview", fromlist=["SyncPreviewView"]
+        ).SyncPreviewView.as_view(),
+        name="sync-preview",
+    ),
+    # Plan item 26 — safe prune (GET allowed targets; POST dry-run / commit).
+    path(
+        "prune/safe/",
+        __import__(
+            "apps.core.views_prune", fromlist=["SafePruneView"]
+        ).SafePruneView.as_view(),
+        name="prune-safe",
+    ),
     path(
         "settings/appearance/",
         AppearanceSettingsView.as_view(),

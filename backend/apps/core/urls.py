@@ -1,6 +1,7 @@
 """Core URL routes — system status + dashboard operating desk."""
 
 from django.urls import path
+from .views_runbooks import RunbookExecuteView
 from .views import (
     HealthCheckView,
     TodayActionsView,
@@ -8,6 +9,10 @@ from .views import (
     ResumeStateView,
     RuntimeSettingsView,
     RuntimeSwitchView,
+    RuntimeSwitchRunView,
+    RuntimeSwitchStatusView,
+    RuntimeActivityResumedView,
+    MasterPauseToggleView,
     SystemMetricsView,
     RuntimeConfigView,
     SafeModeBootView,
@@ -42,6 +47,27 @@ urlpatterns = [
         name="settings-runtime-switch",
     ),
     path(
+        "settings/runtime/activity-resumed/",
+        RuntimeActivityResumedView.as_view(),
+        name="settings-runtime-activity-resumed",
+    ),
+    path(
+        "settings/runtime/switch-runtime/",
+        RuntimeSwitchRunView.as_view(),
+        name="settings-runtime-switch-runtime",
+    ),
+    path(
+        "settings/runtime/switch-status/",
+        RuntimeSwitchStatusView.as_view(),
+        name="settings-runtime-switch-status",
+    ),
+    # Plan item 28 — "Pause Everything" master switch.
+    path(
+        "settings/master-pause/",
+        MasterPauseToggleView.as_view(),
+        name="settings-master-pause",
+    ),
+    path(
         "settings/runtime-config/",
         RuntimeConfigView.as_view(),
         name="settings-runtime-config",
@@ -63,5 +89,11 @@ urlpatterns = [
         "settings/helpers/<int:pk>/",
         HelperNodeDetailView.as_view(),
         name="helpers-detail",
+    ),
+    # Runbook execution endpoints (plan item 17)
+    path(
+        "runbooks/<str:runbook_id>/execute/",
+        RunbookExecuteView.as_view(),
+        name="runbook-execute",
     ),
 ]
