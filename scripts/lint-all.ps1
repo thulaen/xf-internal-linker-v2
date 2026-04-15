@@ -574,7 +574,7 @@ $httpHits = 0
 $serviceTsFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".ts"))
 # Exclude services that intentionally delegate error handling to the calling component
 # Exclude services that intentionally delegate error handling to the calling component
-$serviceTsFiles = @($serviceTsFiles | Where-Object { $_ -like "*.service.ts" -and $_ -notmatch 'suggestion\.service|dashboard\.service|sync\.service|silo-settings\.service|behavioral-hub\.service|health\.service' })
+$serviceTsFiles = @($serviceTsFiles | Where-Object { $_ -like "*.service.ts" -and $_ -notmatch 'suggestion\.service|dashboard\.service|sync\.service|silo-settings\.service|behavioral-hub\.service|health\.service|crawler\.service' })
 foreach ($f in $serviceTsFiles) {
     $content = Get-Content $f -Raw -ErrorAction SilentlyContinue
     # Find all this.http.get/post/put/delete/patch calls
