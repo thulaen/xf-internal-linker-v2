@@ -61,7 +61,7 @@ lxml==5.3.0                          # High-performance HTML parser back-end
 Pillow==12.2.0                       # Image handling — 12.2.0 patches CVE-2026-40192
 paramiko==3.5.0                      # SSH sync
 django-redis==5.4.0                  # Django cache backend for Redis
-whitenoise==6.8.2                    # Static file serving in production
+whitenoise==6.12.0                    # Static file serving in production
 requests==2.33.0                     # HTTP client (XenForo/WP API calls)
  
 # ── Performance Layer ─────────────────────────────────────────────
