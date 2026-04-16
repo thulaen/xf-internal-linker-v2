@@ -11,16 +11,12 @@ Covers:
   - Integration: meta crash leaves slot in valid state (current winner preserved)
 """
 
-import math
-import uuid
 from datetime import date, timedelta
 from unittest.mock import patch
 
-import pytest
 from django.test import TestCase
-from django.utils import timezone
 
-from apps.suggestions.models import HoldoutQuery, MetaTournamentResult
+from apps.suggestions.models import HoldoutQuery
 from apps.suggestions.services.meta_rotation_scheduler import (
     _evaluate_meta_on_holdout,
     _should_promote,

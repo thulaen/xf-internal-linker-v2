@@ -10,7 +10,7 @@ rotation_mode options:
                      No tournament needed; no member fights another.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 
 @dataclass
