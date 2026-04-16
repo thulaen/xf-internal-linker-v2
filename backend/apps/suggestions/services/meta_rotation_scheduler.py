@@ -40,9 +40,6 @@ _DEFAULT_CADENCE_DAYS = 30
 _DEFAULT_MIN_QUERIES = 100
 _DEFAULT_PROMOTION_THRESHOLD_PCT = 1.0
 _GRADE_WEIGHTS = {0: 0.0, 1: 1.0, 2: 2.0, 3: 3.0}  # relevance grades for NDCG
-_PCT_TO_FRACTION = (
-    100.0  # converts a percentage threshold (e.g. 1.0) to a fraction (0.01)
-)
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +325,9 @@ def _should_promote(
     """Return True only if candidate strictly beats current by >= threshold_pct."""
     if candidate == current:
         return False  # no churn
-    return ndcg_delta >= (threshold_pct / _PCT_TO_FRACTION)
+    return (
+        ndcg_delta >= threshold_pct * 0.01
+    )  # threshold_pct is a percentage, e.g. 1.0 → 0.01
 
 
 def _promote_winner(
