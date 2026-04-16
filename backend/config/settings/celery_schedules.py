@@ -8,6 +8,14 @@ Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
+    # ── FR-225 — Meta Rotation Tournament: 03:00 UTC daily (off-peak) ──
+    # Runs after midnight when the system is idle. Sequential evaluation,
+    # no concurrent shadow runs. Peak RAM <= 512 MB.
+    "meta-rotation-tournament": {
+        "task": "suggestions.meta_rotation_tournament",
+        "schedule": crontab(hour=3, minute=0),
+        "options": {"queue": "pipeline"},
+    },
     # ── Heavy tasks: 21:00–22:00 UTC evening window ─────────────────
     # See docs/PERFORMANCE.md §5 for rationale (avoid Chrome/dev contention).
     "nightly-xenforo-sync": {

@@ -132,6 +132,40 @@ export interface WeightDiagnosticsResponse {
   };
 }
 
+export interface TournamentPromotion {
+  meta_id: string;
+  evaluated_at: string;
+  ndcg_at_10: number;
+  ndcg_delta: number | null;
+  previous_winner: string;
+  queries_evaluated: number;
+}
+
+export interface TournamentSlot {
+  slot_id: string;
+  rotation_mode: 'single_active' | 'all_active';
+  description: string;
+  pinned: boolean;
+  active_winner: string;
+  members: string[];
+  last_tournament_date: string | null;
+  last_winner: {
+    meta_id: string;
+    ndcg_at_10: number;
+    evaluated_at: string;
+    queries_evaluated: number;
+  } | null;
+  promotion_history: TournamentPromotion[];
+}
+
+export interface MetaTournamentResponse {
+  slots: TournamentSlot[];
+  total_slots: number;
+  single_active_slots: number;
+  all_active_slots: number;
+  pinned_slots: number;
+}
+
 export interface ErrorLogEntry {
   id: number;
   job_type: string;
@@ -190,5 +224,23 @@ export class DiagnosticsService {
 
   getWeightDiagnostics(): Observable<WeightDiagnosticsResponse> {
     return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`);
+  }
+
+  getMetaTournament(): Observable<MetaTournamentResponse> {
+    return this.http.get<MetaTournamentResponse>(`${this.baseUrl}/meta-tournament/`);
+  }
+
+  triggerMetaTournament(slotId?: string): Observable<{ status: string; task_id: string; slot_id: string }> {
+    return this.http.post<{ status: string; task_id: string; slot_id: string }>(
+      `${this.baseUrl}/meta-tournament/run/`,
+      slotId ? { slot_id: slotId } : {}
+    );
+  }
+
+  pinMetaTournamentSlot(slotId: string, pinned: boolean): Observable<{ slot_id: string; pinned: boolean; active_winner: string }> {
+    return this.http.post<{ slot_id: string; pinned: boolean; active_winner: string }>(
+      `${this.baseUrl}/meta-tournament/pin/`,
+      { slot_id: slotId, pinned }
+    );
   }
 }

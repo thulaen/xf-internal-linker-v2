@@ -4,6 +4,7 @@ import { DiagnosticsService, ServiceStatus, SystemConflict, FeatureReadiness, Re
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
+import { MetaTournamentComponent } from './meta-tournament/meta-tournament.component';
 import { forkJoin, Subject, takeUntil } from 'rxjs';
 
 interface RuntimeLaneCard {
@@ -43,7 +44,8 @@ interface RuntimeExecutionCard {
     CommonModule,
     ServiceCardComponent,
     ConflictListComponent,
-    ReadinessMatrixComponent
+    ReadinessMatrixComponent,
+    MetaTournamentComponent,
   ],
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss']

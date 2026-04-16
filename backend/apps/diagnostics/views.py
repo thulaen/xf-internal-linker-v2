@@ -203,6 +203,133 @@ class SchedulerDispatchView(views.APIView):
         )
 
 
+class MetaTournamentView(views.APIView):
+    """
+    FR-225: Meta Tournament diagnostics.
+
+    GET  /api/system/status/meta-tournament/         — summary per slot
+    POST /api/system/status/meta-tournament/run/     — trigger a manual run
+    POST /api/system/status/meta-tournament/pin/     — operator pin a winner
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import MetaTournamentResult
+        from apps.suggestions.services.meta_slot_registry import META_SLOT_REGISTRY
+
+        slots = []
+        for slot_id, config in META_SLOT_REGISTRY.items():
+            # Last winner
+            last_winner = (
+                MetaTournamentResult.objects.filter(slot_id=slot_id, was_winner=True)
+                .order_by("-evaluated_at")
+                .first()
+            )
+            # Last tournament date
+            last_run = (
+                MetaTournamentResult.objects.filter(slot_id=slot_id)
+                .order_by("-evaluated_at")
+                .values_list("evaluated_at", flat=True)
+                .first()
+            )
+            # Promotion history (last 10)
+            promotions = list(
+                MetaTournamentResult.objects.filter(slot_id=slot_id, was_winner=True)
+                .order_by("-evaluated_at")
+                .values(
+                    "meta_id",
+                    "evaluated_at",
+                    "ndcg_at_10",
+                    "ndcg_delta",
+                    "previous_winner",
+                    "queries_evaluated",
+                )[:10]
+            )
+
+            slots.append(
+                {
+                    "slot_id": slot_id,
+                    "rotation_mode": config.rotation_mode,
+                    "description": config.description,
+                    "pinned": config.pinned,
+                    "active_winner": config.active_default,
+                    "members": config.members,
+                    "last_tournament_date": last_run,
+                    "last_winner": {
+                        "meta_id": last_winner.meta_id,
+                        "ndcg_at_10": last_winner.ndcg_at_10,
+                        "evaluated_at": last_winner.evaluated_at,
+                        "queries_evaluated": last_winner.queries_evaluated,
+                    }
+                    if last_winner
+                    else None,
+                    "promotion_history": promotions,
+                }
+            )
+
+        return response.Response(
+            {
+                "slots": slots,
+                "total_slots": len(slots),
+                "single_active_slots": sum(
+                    1 for s in slots if s["rotation_mode"] == "single_active"
+                ),
+                "all_active_slots": sum(
+                    1 for s in slots if s["rotation_mode"] == "all_active"
+                ),
+                "pinned_slots": sum(1 for s in slots if s["pinned"]),
+            }
+        )
+
+
+class MetaTournamentRunView(views.APIView):
+    """POST — trigger a manual tournament run (optionally for a single slot)."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.suggestions.services.meta_rotation_scheduler import meta_rotation_tournament
+
+        slot_id = request.data.get("slot_id") or None
+        task = meta_rotation_tournament.delay(slot_id=slot_id)
+        return response.Response(
+            {
+                "status": "queued",
+                "task_id": task.id,
+                "slot_id": slot_id or "ALL",
+            },
+            status=status.HTTP_202_ACCEPTED,
+        )
+
+
+class MetaTournamentPinView(views.APIView):
+    """POST — operator pin/unpin a winner for a slot."""
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from apps.suggestions.services.meta_slot_registry import META_SLOT_REGISTRY
+
+        slot_id = str(request.data.get("slot_id") or "").strip()
+        pin = bool(request.data.get("pinned", True))
+
+        if slot_id not in META_SLOT_REGISTRY:
+            return response.Response(
+                {"detail": f"Unknown slot_id '{slot_id}'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        META_SLOT_REGISTRY[slot_id].pinned = pin
+        return response.Response(
+            {
+                "slot_id": slot_id,
+                "pinned": META_SLOT_REGISTRY[slot_id].pinned,
+                "active_winner": META_SLOT_REGISTRY[slot_id].active_default,
+            }
+        )
+
+
 class WeightDiagnosticsView(views.APIView):
     """
     FR-028: Algorithm Weight Diagnostics.
