@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { Observable } from 'rxjs';
+import { Observable, throwError } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 
 export interface ServiceStatus {
   id: number;
@@ -183,64 +184,88 @@ export class DiagnosticsService {
   private baseUrl = '/api/system/status';
 
   getOverview(): Observable<DiagnosticsOverview> {
-    return this.http.get<DiagnosticsOverview>(`${this.baseUrl}/overview/`);
+    return this.http.get<DiagnosticsOverview>(`${this.baseUrl}/overview/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getServices(): Observable<ServiceStatus[]> {
-    return this.http.get<ServiceStatus[]>(`${this.baseUrl}/services/`);
+    return this.http.get<ServiceStatus[]>(`${this.baseUrl}/services/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   refreshServices(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/services/refresh/`, {});
+    return this.http.post(`${this.baseUrl}/services/refresh/`, {}).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getConflicts(): Observable<SystemConflict[]> {
-    return this.http.get<SystemConflict[]>(`${this.baseUrl}/conflicts/`);
+    return this.http.get<SystemConflict[]>(`${this.baseUrl}/conflicts/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   detectConflicts(): Observable<any> {
-    return this.http.post(`${this.baseUrl}/conflicts/detect/`, {});
+    return this.http.post(`${this.baseUrl}/conflicts/detect/`, {}).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   resolveConflict(id: number): Observable<any> {
-    return this.http.patch(`${this.baseUrl}/conflicts/${id}/`, { resolved: true });
+    return this.http.patch(`${this.baseUrl}/conflicts/${id}/`, { resolved: true }).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getFeatures(): Observable<FeatureReadiness[]> {
-    return this.http.get<FeatureReadiness[]>(`${this.baseUrl}/features/`);
+    return this.http.get<FeatureReadiness[]>(`${this.baseUrl}/features/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getResources(): Observable<ResourceUsage> {
-    return this.http.get<ResourceUsage>(`${this.baseUrl}/resources/`);
+    return this.http.get<ResourceUsage>(`${this.baseUrl}/resources/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getErrors(): Observable<ErrorLogEntry[]> {
-    return this.http.get<ErrorLogEntry[]>(`${this.baseUrl}/errors/`);
+    return this.http.get<ErrorLogEntry[]>(`${this.baseUrl}/errors/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   acknowledgeError(id: number): Observable<any> {
-    return this.http.post(`${this.baseUrl}/errors/${id}/acknowledge/`, {});
+    return this.http.post(`${this.baseUrl}/errors/${id}/acknowledge/`, {}).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getWeightDiagnostics(): Observable<WeightDiagnosticsResponse> {
-    return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`);
+    return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   getMetaTournament(): Observable<MetaTournamentResponse> {
-    return this.http.get<MetaTournamentResponse>(`${this.baseUrl}/meta-tournament/`);
+    return this.http.get<MetaTournamentResponse>(`${this.baseUrl}/meta-tournament/`).pipe(
+      catchError(err => throwError(() => err))
+    );
   }
 
   triggerMetaTournament(slotId?: string): Observable<{ status: string; task_id: string; slot_id: string }> {
     return this.http.post<{ status: string; task_id: string; slot_id: string }>(
       `${this.baseUrl}/meta-tournament/run/`,
       slotId ? { slot_id: slotId } : {}
-    );
+    ).pipe(catchError(err => throwError(() => err)));
   }
 
   pinMetaTournamentSlot(slotId: string, pinned: boolean): Observable<{ slot_id: string; pinned: boolean; active_winner: string }> {
     return this.http.post<{ slot_id: string; pinned: boolean; active_winner: string }>(
       `${this.baseUrl}/meta-tournament/pin/`,
       { slot_id: slotId, pinned }
-    );
+    ).pipe(catchError(err => throwError(() => err)));
   }
 }
