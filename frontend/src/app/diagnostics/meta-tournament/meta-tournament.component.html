@@ -76,7 +76,11 @@
       </div>
 
       <!-- Promotion history toggle -->
-      <div class="history-toggle" *ngIf="slot.promotion_history.length > 0" (click)="toggleExpand(slot.slot_id)">
+      <div class="history-toggle" *ngIf="slot.promotion_history.length > 0"
+           role="button" tabindex="0"
+           (click)="toggleExpand(slot.slot_id)"
+           (keydown.enter)="toggleExpand(slot.slot_id)"
+           (keydown.space)="toggleExpand(slot.slot_id)">
         <mat-icon>{{ expandedSlot === slot.slot_id ? 'expand_less' : 'expand_more' }}</mat-icon>
         <span>{{ slot.promotion_history.length }} promotion{{ slot.promotion_history.length !== 1 ? 's' : '' }}</span>
       </div>

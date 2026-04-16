@@ -119,7 +119,6 @@ def _run_single_active_tournament(
     threshold_pct = _setting_float(
         "meta_rotation.promotion_threshold_pct", _DEFAULT_PROMOTION_THRESHOLD_PCT
     )
-
     window_start = (timezone.now() - timedelta(days=cadence_days)).date()
     holdout_qs = HoldoutQuery.objects.filter(
         stage_slot=slot_id,
@@ -127,7 +126,6 @@ def _run_single_active_tournament(
         meets_min_impressions=True,
     )
     query_count = holdout_qs.count()
-
     if query_count < min_queries:
         logger.info(
             "Slot %s: only %d qualifying holdout rows (need %d) — skipping.",
@@ -140,21 +138,30 @@ def _run_single_active_tournament(
             skipped=True,
             skip_reason=f"insufficient_evidence ({query_count}/{min_queries})",
         )
+    results = _evaluate_all_members(
+        slot_id, config.members, list(holdout_qs), query_count
+    )
+    if not results:
+        return TournamentResult(
+            slot_id=slot_id, skipped=True, skip_reason="all_members_failed"
+        )
+    return _decide_and_persist(slot_id, config, results, query_count, threshold_pct)
 
-    holdout_rows = list(holdout_qs)
+
+def _evaluate_all_members(
+    slot_id: str,
+    members: list[str],
+    holdout_rows: list,
+    query_count: int,
+) -> list[tuple[str, float]]:
+    """Score every member meta on the holdout rows; skip crashed metas."""
     results = []
     now = timezone.now()
-
-    for meta_id in config.members:
+    for meta_id in members:
         try:
             ndcg = _evaluate_meta_on_holdout(meta_id, holdout_rows)
         except Exception as exc:
-            logger.error(
-                "Meta %s crashed during evaluation in slot %s: %s",
-                meta_id,
-                slot_id,
-                exc,
-            )
+            logger.error("Meta %s crashed in slot %s: %s", meta_id, slot_id, exc)
             _record_result(
                 slot_id=slot_id,
                 meta_id=meta_id,
@@ -173,24 +180,23 @@ def _run_single_active_tournament(
             was_winner=False,
             evaluated_at=now,
         )
+    return results
 
-    if not results:
-        return TournamentResult(
-            slot_id=slot_id,
-            skipped=True,
-            skip_reason="all_members_failed",
-        )
 
+def _decide_and_persist(
+    slot_id: str,
+    config: MetaSlotConfig,
+    results: list[tuple[str, float]],
+    query_count: int,
+    threshold_pct: float,
+) -> TournamentResult:
+    """Pick the winner, optionally promote, and return the outcome."""
     results.sort(key=lambda r: -r[1])
     best_meta, best_ndcg = results[0]
     current_winner = config.active_default
-
-    # Find the current winner's score for comparison
-    current_ndcg = next(
-        (score for meta, score in results if meta == current_winner), 0.0
-    )
+    current_ndcg = next((s for m, s in results if m == current_winner), 0.0)
     ndcg_delta = best_ndcg - current_ndcg
-
+    now = timezone.now()
     promoted = False
     if _should_promote(current_winner, best_meta, ndcg_delta, threshold_pct):
         _promote_winner(
@@ -213,17 +219,15 @@ def _run_single_active_tournament(
             query_count,
         )
     else:
-        # Mark winning row (even if no promotion happened)
         _update_winner_flag(slot_id, current_winner, now)
         logger.info(
-            "Slot %s: current winner %s holds (best challenger %s delta=%.4f < threshold %.2f%%).",
+            "Slot %s: current winner %s holds (challenger %s delta=%.4f < %.2f%%).",
             slot_id,
             current_winner,
             best_meta,
             ndcg_delta,
             threshold_pct,
         )
-
     return TournamentResult(
         slot_id=slot_id,
         skipped=False,
