@@ -1,41 +1,23 @@
-"""Forward-declared Phase 2 meta-algorithm weights — Blocks Q2 through Q24.
-
-Covers META-106 through META-249 (144 keys total):
-  - Block Q2:  Markov Chain Monte Carlo (META-106 .. META-113)
-  - Block Q3:  Variational inference (META-114 .. META-119)
-  - Block Q4:  Evolutionary and population-based search (META-120 .. META-127)
-  - Block Q5:  Accelerated gradient methods (META-128 .. META-135)
-  - Block Q6:  Regularisation via data augmentation and noise (META-136 .. META-142)
-  - Block Q7:  Basis-function feature expansions (META-143 .. META-146)
-  - Block Q8:  Categorical and high-cardinality encodings (META-147 .. META-150)
-  - Block Q9:  Dimensionality reduction (META-151 .. META-157)
-  - Block Q10: Kernel-based and Gaussian-process regressors (META-158 .. META-162)
-  - Block Q11: Information-theoretic model selection (META-163 .. META-167)
-  - Block Q12: Clustering algorithms (META-168 .. META-175)
-  - Block Q13: Feature importance and model explanation (META-176 .. META-180)
-  - Block Q14: Active and semi-supervised learning (META-181 .. META-190)
-  - Block Q15: Causal inference estimators (META-191 .. META-195)
-  - Block Q16: Reinforcement-learning policy optimisers (META-196 .. META-201)
-  - Block Q17: Contextual bandits (META-202 .. META-205)
-  - Block Q18: Matrix factorisation (META-206 .. META-210)
-  - Block Q19: Weight initialisation and normalisation (META-211 .. META-218)
-  - Block Q20: Probabilistic calibration (META-219 .. META-223)
-  - Block Q21: Feature selection methods (META-224 .. META-231)
-  - Block Q22: Metric learning (META-232 .. META-236)
-  - Block Q23: Outlier and anomaly detection (META-237 .. META-242)
-  - Block Q24: AutoML, online trees and streaming variants (META-243 .. META-249)
-
-These keys are inert until their corresponding META is implemented and an
-operator selects it. They live in a separate file to keep each module under the
-file-length limit.
-
-``FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q`` is merged into
-``RECOMMENDED_PRESET_WEIGHTS`` at import time by the main module.
-
-All keys use ``.enabled="false"`` (metas stay off until an operator selects one).
-
-Source specs: docs/specs/meta-106-*.md through docs/specs/meta-249-*.md
-"""
+"""Forward-declared Phase 2 meta-algorithm weights — Blocks Q2 through Q24."""
+# Covers 144 forward-declared meta-algorithms from Blocks Q2..Q24:
+# MCMC, variational inference, evolutionary search, accelerated gradients,
+# regularisation via augmentation/noise, basis-function expansions, encodings,
+# dimensionality reduction, kernel methods, information-theoretic model
+# selection, clustering, feature attribution, active/semi-supervised, causal,
+# RL, contextual bandits, matrix factorisation, NN init/norm, probabilistic
+# calibration, feature selection, metric learning, anomaly detection, and
+# AutoML / streaming variants. See block headers inside the dict for ranges.
+#
+# These keys are inert until their corresponding META is implemented and an
+# operator selects it. They live in a separate file to keep each module under
+# the file-length limit.
+#
+# ``FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q`` is merged into
+# ``RECOMMENDED_PRESET_WEIGHTS`` at import time by the main module.
+#
+# All keys use ``.enabled="false"`` (metas stay off until an operator selects one).
+#
+# Source specs: docs/specs/meta-1NN-*.md (three-digit ranges; see dict headers).
 
 from __future__ import annotations
 

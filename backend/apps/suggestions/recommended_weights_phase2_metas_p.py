@@ -1,31 +1,18 @@
-"""Forward-declared Phase 2 meta-algorithm weights — Blocks P1 through Q1.
-
-Covers META-40 through META-105 (66 keys total):
-  - Block P1:  Second-order and trust-region optimisers (META-40 .. META-50)
-  - Block P2:  Adaptive deep-learning optimisers (META-51 .. META-53)
-  - Block P3:  Bayesian and surrogate hyperparameter optimisation (META-54 .. META-59)
-  - Block P4:  Multi-objective optimisation (META-60 .. META-64)
-  - Block P5:  Swarm and nature-inspired metaheuristics (META-65 .. META-69)
-  - Block P6:  Online learning and streaming optimisation (META-70 .. META-75)
-  - Block P7:  Listwise and smooth-rank loss surrogates (META-76 .. META-81)
-  - Block P8:  Proximal, structured-sparsity regularisers (META-82 .. META-86)
-  - Block P9:  Calibration (META-87 .. META-90)
-  - Block P10: Learning-rate schedules (META-91 .. META-95)
-  - Block P11: Ensembling and weight averaging (META-96 .. META-99)
-  - Block P12: Distributionally robust optimisation (META-100 .. META-101)
-  - Block Q1:  Mini-batch and sampling strategies (META-102 .. META-105)
-
-These keys are inert until their corresponding META is implemented and an
-operator selects it. They live in a separate file to keep each module under the
-file-length limit.
-
-``FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P`` is merged into
-``RECOMMENDED_PRESET_WEIGHTS`` at import time by the main module.
-
-All keys use ``.enabled="false"`` (metas stay off until an operator selects one).
-
-Source specs: docs/specs/meta-40-*.md through docs/specs/meta-105-*.md
-"""
+"""Forward-declared Phase 2 meta-algorithm weights — Blocks P1 through Q1."""
+# Covers 66 forward-declared meta-algorithms from Blocks P1..P12 and Q1 (the
+# P1..P12 range plus mini-batch/sampling strategies). See block headers inside
+# the dict below for exact META-ID ranges per block.
+#
+# These keys are inert until their corresponding META is implemented and an
+# operator selects it. They live in a separate file to keep each module under
+# the file-length limit.
+#
+# ``FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P`` is merged into
+# ``RECOMMENDED_PRESET_WEIGHTS`` at import time by the main module.
+#
+# All keys use ``.enabled="false"`` (metas stay off until an operator selects one).
+#
+# Source specs live under docs/specs/meta-*.md. See the dict block headers below.
 
 from __future__ import annotations
 
