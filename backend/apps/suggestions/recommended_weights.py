@@ -8,6 +8,14 @@ keys.
 from __future__ import annotations
 
 from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
+from .recommended_weights_phase2_signals_a_f import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_F,
+)
+from .recommended_weights_phase2_signals_g_o import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_G_O,
+)
+from .recommended_weights_phase2_metas_p import FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P
+from .recommended_weights_phase2_metas_q import FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
@@ -74,6 +82,10 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
 
 # Merge forward-declared FR keys (FR-038 through FR-096 etc.) into the main dict.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_F)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_G_O)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q)
 
 
 def recommended_bool(key: str) -> bool:
