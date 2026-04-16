@@ -5,71 +5,343 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0020_contentitem_embedding_model_version_and_more'),
-        ('suggestions', '0029_add_phase_log_quarantine'),
+        ("content", "0020_contentitem_embedding_model_version_and_more"),
+        ("suggestions", "0029_add_phase_log_quarantine"),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='MetaTournamentResult',
+            name="MetaTournamentResult",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('slot_id', models.CharField(db_index=True, help_text="Stage slot this tournament evaluated, e.g. 'second_order_optimizer'.", max_length=64)),
-                ('meta_id', models.CharField(db_index=True, help_text="Identifier of the meta algorithm evaluated, e.g. 'lbfgs_b'.", max_length=64)),
-                ('evaluated_at', models.DateTimeField(db_index=True, help_text="When this meta's evaluation completed.")),
-                ('ndcg_at_10', models.FloatField(help_text='NDCG@10 score computed on the holdout query set for this meta.')),
-                ('queries_evaluated', models.IntegerField(default=0, help_text='Number of holdout queries used to compute this score.')),
-                ('was_winner', models.BooleanField(db_index=True, default=False, help_text='True if this meta was promoted to active for its slot in this tournament cycle.')),
-                ('previous_winner', models.CharField(blank=True, help_text='meta_id of the previous winner that was dethroned (empty if no change).', max_length=64)),
-                ('ndcg_delta', models.FloatField(blank=True, help_text='NDCG@10 improvement over the previous winner (positive = better). Null if no previous winner.', null=True)),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "slot_id",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Stage slot this tournament evaluated, e.g. 'second_order_optimizer'.",
+                        max_length=64,
+                    ),
+                ),
+                (
+                    "meta_id",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Identifier of the meta algorithm evaluated, e.g. 'lbfgs_b'.",
+                        max_length=64,
+                    ),
+                ),
+                (
+                    "evaluated_at",
+                    models.DateTimeField(
+                        db_index=True,
+                        help_text="When this meta's evaluation completed.",
+                    ),
+                ),
+                (
+                    "ndcg_at_10",
+                    models.FloatField(
+                        help_text="NDCG@10 score computed on the holdout query set for this meta."
+                    ),
+                ),
+                (
+                    "queries_evaluated",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Number of holdout queries used to compute this score.",
+                    ),
+                ),
+                (
+                    "was_winner",
+                    models.BooleanField(
+                        db_index=True,
+                        default=False,
+                        help_text="True if this meta was promoted to active for its slot in this tournament cycle.",
+                    ),
+                ),
+                (
+                    "previous_winner",
+                    models.CharField(
+                        blank=True,
+                        help_text="meta_id of the previous winner that was dethroned (empty if no change).",
+                        max_length=64,
+                    ),
+                ),
+                (
+                    "ndcg_delta",
+                    models.FloatField(
+                        blank=True,
+                        help_text="NDCG@10 improvement over the previous winner (positive = better). Null if no previous winner.",
+                        null=True,
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Meta Tournament Result',
-                'verbose_name_plural': 'Meta Tournament Results',
-                'indexes': [models.Index(fields=['slot_id', '-evaluated_at'], name='suggestions_slot_id_aeb419_idx'), models.Index(fields=['slot_id', 'was_winner', '-evaluated_at'], name='suggestions_slot_id_857de4_idx')],
+                "verbose_name": "Meta Tournament Result",
+                "verbose_name_plural": "Meta Tournament Results",
+                "indexes": [
+                    models.Index(
+                        fields=["slot_id", "-evaluated_at"],
+                        name="suggestions_slot_id_aeb419_idx",
+                    ),
+                    models.Index(
+                        fields=["slot_id", "was_winner", "-evaluated_at"],
+                        name="suggestions_slot_id_857de4_idx",
+                    ),
+                ],
             },
         ),
         migrations.CreateModel(
-            name='HoldoutQuery',
+            name="HoldoutQuery",
             fields=[
-                ('id', models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID')),
-                ('created_at', models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.')),
-                ('updated_at', models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.')),
-                ('stage_slot', models.CharField(db_index=True, help_text="Meta stage slot being evaluated, e.g. 'second_order_optimizer'.", max_length=64)),
-                ('algorithm_version_slug', models.CharField(db_index=True, help_text='Algorithm version slug active when these impressions were served.', max_length=64)),
-                ('window_start', models.DateField(help_text='First day of the evaluation window (inclusive).')),
-                ('window_end', models.DateField(help_text='Last day of the evaluation window (inclusive).')),
-                ('window_days', models.IntegerField(default=0, help_text='Actual number of days of data aggregated. Used to weight shorter windows lower.')),
-                ('impressions_ga4', models.IntegerField(default=0, help_text='Total suggestion impressions recorded by GA4 in this window.')),
-                ('impressions_matomo', models.IntegerField(default=0, help_text='Total suggestion impressions recorded by Matomo in this window.')),
-                ('clicks_ga4', models.IntegerField(default=0, help_text='Internal link clicks recorded by GA4 in this window.')),
-                ('clicks_matomo', models.IntegerField(default=0, help_text='Internal link clicks recorded by Matomo in this window.')),
-                ('ctr_ga4', models.FloatField(blank=True, help_text='clicks_ga4 / impressions_ga4 — null when impressions_ga4 is 0.', null=True)),
-                ('ctr_matomo', models.FloatField(blank=True, help_text='clicks_matomo / impressions_matomo — null when impressions_matomo is 0.', null=True)),
-                ('destination_views_ga4', models.IntegerField(default=0, help_text='Destination page views attributed to suggestion clicks (GA4).')),
-                ('destination_views_matomo', models.IntegerField(default=0, help_text='Destination page views attributed to suggestion clicks (Matomo).')),
-                ('engaged_sessions_ga4', models.IntegerField(default=0, help_text='Sessions that engaged with the destination (GA4).')),
-                ('engaged_sessions_matomo', models.IntegerField(default=0, help_text='Sessions that engaged with the destination (Matomo).')),
-                ('avg_engagement_time_ga4', models.FloatField(blank=True, help_text='Average seconds spent on destination per attributed session (GA4).', null=True)),
-                ('avg_engagement_time_matomo', models.FloatField(blank=True, help_text='Average seconds spent on destination per attributed session (Matomo).', null=True)),
-                ('bounce_sessions_ga4', models.IntegerField(default=0, help_text='Sessions that bounced immediately from the destination (GA4).')),
-                ('bounce_sessions_matomo', models.IntegerField(default=0, help_text='Sessions that bounced immediately from the destination (Matomo).')),
-                ('conversions_ga4', models.IntegerField(default=0, help_text='Goal conversions on the destination attributed to suggestion clicks (GA4).')),
-                ('conversions_matomo', models.IntegerField(default=0, help_text='Goal conversions on the destination attributed to suggestion clicks (Matomo).')),
-                ('meets_min_impressions', models.BooleanField(db_index=True, default=False, help_text='True when impressions_ga4 + impressions_matomo >= 50. Rows below this threshold are excluded from NDCG scoring.')),
-                ('sources_agree', models.BooleanField(default=True, help_text='False when GA4 and Matomo click counts diverge by more than 20%. Flagged for human review; still included in scoring unless meets_min_impressions is False.')),
-                ('suggestion_ids', models.JSONField(default=list, help_text='Ordered list of suggestion UUIDs shown on this page (position matters for NDCG).')),
-                ('per_suggestion_data', models.JSONField(default=dict, help_text='Keyed by suggestion_id (str). Each entry may contain: rank_position, slate_size, score_final, score_semantic, score_ga4_gsc, active_meta_flags, weight_snapshot, anchor_confidence, anchor_length, repeated_anchor, content_position, same_silo, device_category, traffic_channel, country, content_type_pairing, clicks_ga4, clicks_matomo, dwell_time_ratio, return_visit, session_depth, engaged_session_rate, bounce_rate, conversion_rate, total_engagement_time, event_count, host_gsc_impressions, dest_organic_visits, dest_gsc_ctr_baseline, dest_days_since_edit, ips_weight, ndcg_grade (0-3), impression_recency_weight.')),
-                ('host', models.ForeignKey(help_text='Host page where suggestions were shown.', on_delete=django.db.models.deletion.CASCADE, related_name='holdout_queries', to='content.contentitem')),
-                ('pipeline_run', models.ForeignKey(blank=True, help_text='Pipeline run that generated the suggestions for this host page.', null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='holdout_queries', to='suggestions.pipelinerun')),
+                (
+                    "id",
+                    models.BigAutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
+                (
+                    "created_at",
+                    models.DateTimeField(
+                        auto_now_add=True,
+                        help_text="Timestamp when this record was created.",
+                    ),
+                ),
+                (
+                    "updated_at",
+                    models.DateTimeField(
+                        auto_now=True,
+                        help_text="Timestamp when this record was last modified.",
+                    ),
+                ),
+                (
+                    "stage_slot",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Meta stage slot being evaluated, e.g. 'second_order_optimizer'.",
+                        max_length=64,
+                    ),
+                ),
+                (
+                    "algorithm_version_slug",
+                    models.CharField(
+                        db_index=True,
+                        help_text="Algorithm version slug active when these impressions were served.",
+                        max_length=64,
+                    ),
+                ),
+                (
+                    "window_start",
+                    models.DateField(
+                        help_text="First day of the evaluation window (inclusive)."
+                    ),
+                ),
+                (
+                    "window_end",
+                    models.DateField(
+                        help_text="Last day of the evaluation window (inclusive)."
+                    ),
+                ),
+                (
+                    "window_days",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Actual number of days of data aggregated. Used to weight shorter windows lower.",
+                    ),
+                ),
+                (
+                    "impressions_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Total suggestion impressions recorded by GA4 in this window.",
+                    ),
+                ),
+                (
+                    "impressions_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Total suggestion impressions recorded by Matomo in this window.",
+                    ),
+                ),
+                (
+                    "clicks_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Internal link clicks recorded by GA4 in this window.",
+                    ),
+                ),
+                (
+                    "clicks_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Internal link clicks recorded by Matomo in this window.",
+                    ),
+                ),
+                (
+                    "ctr_ga4",
+                    models.FloatField(
+                        blank=True,
+                        help_text="clicks_ga4 / impressions_ga4 — null when impressions_ga4 is 0.",
+                        null=True,
+                    ),
+                ),
+                (
+                    "ctr_matomo",
+                    models.FloatField(
+                        blank=True,
+                        help_text="clicks_matomo / impressions_matomo — null when impressions_matomo is 0.",
+                        null=True,
+                    ),
+                ),
+                (
+                    "destination_views_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Destination page views attributed to suggestion clicks (GA4).",
+                    ),
+                ),
+                (
+                    "destination_views_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Destination page views attributed to suggestion clicks (Matomo).",
+                    ),
+                ),
+                (
+                    "engaged_sessions_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Sessions that engaged with the destination (GA4).",
+                    ),
+                ),
+                (
+                    "engaged_sessions_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Sessions that engaged with the destination (Matomo).",
+                    ),
+                ),
+                (
+                    "avg_engagement_time_ga4",
+                    models.FloatField(
+                        blank=True,
+                        help_text="Average seconds spent on destination per attributed session (GA4).",
+                        null=True,
+                    ),
+                ),
+                (
+                    "avg_engagement_time_matomo",
+                    models.FloatField(
+                        blank=True,
+                        help_text="Average seconds spent on destination per attributed session (Matomo).",
+                        null=True,
+                    ),
+                ),
+                (
+                    "bounce_sessions_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Sessions that bounced immediately from the destination (GA4).",
+                    ),
+                ),
+                (
+                    "bounce_sessions_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Sessions that bounced immediately from the destination (Matomo).",
+                    ),
+                ),
+                (
+                    "conversions_ga4",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Goal conversions on the destination attributed to suggestion clicks (GA4).",
+                    ),
+                ),
+                (
+                    "conversions_matomo",
+                    models.IntegerField(
+                        default=0,
+                        help_text="Goal conversions on the destination attributed to suggestion clicks (Matomo).",
+                    ),
+                ),
+                (
+                    "meets_min_impressions",
+                    models.BooleanField(
+                        db_index=True,
+                        default=False,
+                        help_text="True when impressions_ga4 + impressions_matomo >= 50. Rows below this threshold are excluded from NDCG scoring.",
+                    ),
+                ),
+                (
+                    "sources_agree",
+                    models.BooleanField(
+                        default=True,
+                        help_text="False when GA4 and Matomo click counts diverge by more than 20%. Flagged for human review; still included in scoring unless meets_min_impressions is False.",
+                    ),
+                ),
+                (
+                    "suggestion_ids",
+                    models.JSONField(
+                        default=list,
+                        help_text="Ordered list of suggestion UUIDs shown on this page (position matters for NDCG).",
+                    ),
+                ),
+                (
+                    "per_suggestion_data",
+                    models.JSONField(
+                        default=dict,
+                        help_text="Keyed by suggestion_id (str). Each entry may contain: rank_position, slate_size, score_final, score_semantic, score_ga4_gsc, active_meta_flags, weight_snapshot, anchor_confidence, anchor_length, repeated_anchor, content_position, same_silo, device_category, traffic_channel, country, content_type_pairing, clicks_ga4, clicks_matomo, dwell_time_ratio, return_visit, session_depth, engaged_session_rate, bounce_rate, conversion_rate, total_engagement_time, event_count, host_gsc_impressions, dest_organic_visits, dest_gsc_ctr_baseline, dest_days_since_edit, ips_weight, ndcg_grade (0-3), impression_recency_weight.",
+                    ),
+                ),
+                (
+                    "host",
+                    models.ForeignKey(
+                        help_text="Host page where suggestions were shown.",
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="holdout_queries",
+                        to="content.contentitem",
+                    ),
+                ),
+                (
+                    "pipeline_run",
+                    models.ForeignKey(
+                        blank=True,
+                        help_text="Pipeline run that generated the suggestions for this host page.",
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="holdout_queries",
+                        to="suggestions.pipelinerun",
+                    ),
+                ),
             ],
             options={
-                'verbose_name': 'Holdout Query',
-                'verbose_name_plural': 'Holdout Queries',
-                'indexes': [models.Index(fields=['stage_slot', 'window_start'], name='suggestions_stage_s_813817_idx'), models.Index(fields=['stage_slot', 'meets_min_impressions'], name='suggestions_stage_s_854895_idx')],
-                'unique_together': {('host', 'stage_slot', 'algorithm_version_slug', 'window_start')},
+                "verbose_name": "Holdout Query",
+                "verbose_name_plural": "Holdout Queries",
+                "indexes": [
+                    models.Index(
+                        fields=["stage_slot", "window_start"],
+                        name="suggestions_stage_s_813817_idx",
+                    ),
+                    models.Index(
+                        fields=["stage_slot", "meets_min_impressions"],
+                        name="suggestions_stage_s_854895_idx",
+                    ),
+                ],
+                "unique_together": {
+                    ("host", "stage_slot", "algorithm_version_slug", "window_start")
+                },
             },
         ),
     ]

@@ -22,14 +22,20 @@ from apps.suggestions.services.meta_rotation_scheduler import (
     _should_promote,
     run_meta_tournament,
 )
-from apps.suggestions.services.meta_slot_registry import META_SLOT_REGISTRY, MetaSlotConfig
+from apps.suggestions.services.meta_slot_registry import (
+    META_SLOT_REGISTRY,
+    MetaSlotConfig,
+)
 
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _make_holdout(host_id, stage_slot, algo_slug, window_start, per_suggestion_data, meets_min=True):
+
+def _make_holdout(
+    host_id, stage_slot, algo_slug, window_start, per_suggestion_data, meets_min=True
+):
     """Create a HoldoutQuery without needing real ContentItem or PipelineRun FKs."""
     return HoldoutQuery(
         host_id=host_id,
@@ -61,32 +67,45 @@ def _grade_data(rank: int, grade: int, recency: float = 1.0, ips: float = 1.0) -
 # Unit: _should_promote
 # ---------------------------------------------------------------------------
 
+
 class TestShouldPromote(TestCase):
     def test_promotes_when_delta_exceeds_threshold(self):
-        assert _should_promote("old", "new", ndcg_delta=0.015, threshold_pct=1.0) is True
+        assert (
+            _should_promote("old", "new", ndcg_delta=0.015, threshold_pct=1.0) is True
+        )
 
     def test_no_promote_when_delta_below_threshold(self):
-        assert _should_promote("old", "new", ndcg_delta=0.009, threshold_pct=1.0) is False
+        assert (
+            _should_promote("old", "new", ndcg_delta=0.009, threshold_pct=1.0) is False
+        )
 
     def test_no_promote_when_tie_same_meta(self):
         # Same meta — no churn even if delta > 0
-        assert _should_promote("lbfgs_b", "lbfgs_b", ndcg_delta=0.05, threshold_pct=1.0) is False
+        assert (
+            _should_promote("lbfgs_b", "lbfgs_b", ndcg_delta=0.05, threshold_pct=1.0)
+            is False
+        )
 
     def test_no_promote_when_delta_exactly_below_threshold(self):
         # 0.99% < 1.0% threshold
-        assert _should_promote("old", "new", ndcg_delta=0.0099, threshold_pct=1.0) is False
+        assert (
+            _should_promote("old", "new", ndcg_delta=0.0099, threshold_pct=1.0) is False
+        )
 
     def test_promotes_at_exact_threshold(self):
         # 1.0% == 1.0% threshold — should promote
         assert _should_promote("old", "new", ndcg_delta=0.01, threshold_pct=1.0) is True
 
     def test_no_promote_when_challenger_is_worse(self):
-        assert _should_promote("old", "new", ndcg_delta=-0.05, threshold_pct=1.0) is False
+        assert (
+            _should_promote("old", "new", ndcg_delta=-0.05, threshold_pct=1.0) is False
+        )
 
 
 # ---------------------------------------------------------------------------
 # Unit: NDCG@10 formula
 # ---------------------------------------------------------------------------
+
 
 class TestNdcgFormula(TestCase):
     def test_perfect_ranking_gives_ndcg_1(self):
@@ -167,7 +186,9 @@ class TestNdcgFormula(TestCase):
                 algo_slug="v1",
                 window_start=date.today(),
                 per_suggestion_data={
-                    "s1": _grade_data(rank=11, grade=3),  # beyond cap — excluded from actual DCG
+                    "s1": _grade_data(
+                        rank=11, grade=3
+                    ),  # beyond cap — excluded from actual DCG
                     "s2": _grade_data(rank=1, grade=1),
                 },
             )
@@ -175,7 +196,9 @@ class TestNdcgFormula(TestCase):
         ndcg = _evaluate_meta_on_holdout("any_meta", rows)
         # actual DCG only gets s2 (grade=1, rank=1); ideal gets grade=3 at pos 1 + grade=1 at pos 2
         # So NDCG < 1.0 — the rank-11 placement is penalised.
-        assert ndcg < 1.0, f"Expected NDCG < 1 when best item is beyond rank 10, got {ndcg}"
+        assert (
+            ndcg < 1.0
+        ), f"Expected NDCG < 1 when best item is beyond rank 10, got {ndcg}"
         # And the row is not entirely skipped (ideal_dcg > 0 because grade-3 exists)
         assert ndcg > 0.0, "Expected NDCG > 0 when a grade-1 item is at rank 1"
 
@@ -212,8 +235,8 @@ class TestNdcgFormula(TestCase):
 # Integration: run_meta_tournament (DB not required — uses in-memory registry)
 # ---------------------------------------------------------------------------
 
-class TestRunMetaTournament(TestCase):
 
+class TestRunMetaTournament(TestCase):
     def setUp(self):
         # Stash and restore the registry slot we'll manipulate
         self._original_slot = META_SLOT_REGISTRY.get("second_order_optimizer")
@@ -222,14 +245,22 @@ class TestRunMetaTournament(TestCase):
         if self._original_slot is not None:
             META_SLOT_REGISTRY["second_order_optimizer"] = self._original_slot
 
-    @patch("apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled", return_value=False)
+    @patch(
+        "apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled",
+        return_value=False,
+    )
     def test_skips_all_when_disabled(self, _mock):
         outcomes = run_meta_tournament()
         assert outcomes == []
 
-    @patch("apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled", return_value=True)
+    @patch(
+        "apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled",
+        return_value=True,
+    )
     @patch("apps.suggestions.services.meta_rotation_scheduler._setting_int")
-    def test_skips_slot_with_insufficient_holdout_rows(self, mock_setting, _mock_enabled):
+    def test_skips_slot_with_insufficient_holdout_rows(
+        self, mock_setting, _mock_enabled
+    ):
         # min_holdout_queries = 100, but DB is empty so count = 0
         mock_setting.side_effect = lambda key, default: (
             100 if key == "meta_rotation.min_holdout_queries" else default
@@ -239,7 +270,10 @@ class TestRunMetaTournament(TestCase):
         assert outcomes[0].skipped is True
         assert "insufficient_evidence" in outcomes[0].skip_reason
 
-    @patch("apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled", return_value=True)
+    @patch(
+        "apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled",
+        return_value=True,
+    )
     def test_pinned_slot_is_skipped(self, _mock_enabled):
         META_SLOT_REGISTRY["second_order_optimizer"].pinned = True
         outcomes = run_meta_tournament(slot_id="second_order_optimizer")
@@ -247,7 +281,10 @@ class TestRunMetaTournament(TestCase):
         assert outcomes[0].skip_reason == "operator_pinned"
         META_SLOT_REGISTRY["second_order_optimizer"].pinned = False
 
-    @patch("apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled", return_value=True)
+    @patch(
+        "apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled",
+        return_value=True,
+    )
     def test_all_active_slot_returns_without_tournament(self, _mock_enabled):
         outcomes = run_meta_tournament(slot_id="feature_attribution")
         assert len(outcomes) == 1
@@ -255,7 +292,10 @@ class TestRunMetaTournament(TestCase):
         assert outcomes[0].winner == "all"
         assert outcomes[0].promoted is False
 
-    @patch("apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled", return_value=True)
+    @patch(
+        "apps.suggestions.services.meta_rotation_scheduler._is_rotation_enabled",
+        return_value=True,
+    )
     @patch("apps.suggestions.services.meta_rotation_scheduler._setting_int")
     @patch("apps.suggestions.services.meta_rotation_scheduler._setting_float")
     @patch("apps.suggestions.services.meta_rotation_scheduler.HoldoutQuery")

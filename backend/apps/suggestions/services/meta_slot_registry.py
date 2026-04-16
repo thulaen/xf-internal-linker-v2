@@ -17,7 +17,7 @@ from dataclasses import dataclass
 class MetaSlotConfig:
     members: list[str]
     active_default: str  # meta_id of the current winner, or "all" for all_active slots
-    rotation_mode: str   # "single_active" | "all_active"
+    rotation_mode: str  # "single_active" | "all_active"
     description: str = ""
     pinned: bool = False  # operator manual override — skip tournament when True
 
@@ -28,7 +28,14 @@ class MetaSlotConfig:
 META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     # ── Optimisers (single_active) ─────────────────────────────────────────
     "second_order_optimizer": MetaSlotConfig(
-        members=["newton", "gauss_newton", "levenberg_marquardt", "lbfgs_b", "bfgs", "fletcher_reeves_cg"],
+        members=[
+            "newton",
+            "gauss_newton",
+            "levenberg_marquardt",
+            "lbfgs_b",
+            "bfgs",
+            "fletcher_reeves_cg",
+        ],
         active_default="lbfgs_b",
         rotation_mode="single_active",
         description="Second-order gradient methods for weight tuning.",
@@ -42,21 +49,38 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     ),
     # ── Calibrators (single_active) ───────────────────────────────────────
     "calibrator": MetaSlotConfig(
-        members=["platt_scaling", "isotonic_regression", "beta_calibration", "temperature_scaling"],
+        members=[
+            "platt_scaling",
+            "isotonic_regression",
+            "beta_calibration",
+            "temperature_scaling",
+        ],
         active_default="platt_scaling",
         rotation_mode="single_active",
         description="Post-hoc score calibration to produce well-calibrated probabilities.",
     ),
     # ── Learning-rate schedulers (single_active) ──────────────────────────
     "lr_scheduler": MetaSlotConfig(
-        members=["cosine_annealing", "one_cycle", "step_decay", "warmup_cosine", "cyclical_lr"],
+        members=[
+            "cosine_annealing",
+            "one_cycle",
+            "step_decay",
+            "warmup_cosine",
+            "cyclical_lr",
+        ],
         active_default="cosine_annealing",
         rotation_mode="single_active",
         description="Learning-rate schedule for gradient-based meta-optimisers.",
     ),
     # ── Hyperparameter optimisation (single_active) ───────────────────────
     "hyperparameter_optimizer": MetaSlotConfig(
-        members=["bayesian_hpo", "hyperband", "successive_halving", "random_search", "tpe"],
+        members=[
+            "bayesian_hpo",
+            "hyperband",
+            "successive_halving",
+            "random_search",
+            "tpe",
+        ],
         active_default="bayesian_hpo",
         rotation_mode="single_active",
         description="Outer-loop HPO strategy for meta-algorithm configuration.",
@@ -110,10 +134,15 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
         rotation_mode="single_active",
         description="Graph-based authority propagation for click-distance scoring.",
     ),
-
     # ── Feature attribution (all_active) ──────────────────────────────────
     "feature_attribution": MetaSlotConfig(
-        members=["permutation_importance", "shap_kernel", "lime", "integrated_gradients", "mdi_importance"],
+        members=[
+            "permutation_importance",
+            "shap_kernel",
+            "lime",
+            "integrated_gradients",
+            "mdi_importance",
+        ],
         active_default="all",
         rotation_mode="all_active",
         description="Complementary attribution methods run sequentially for explainability.",
@@ -176,7 +205,12 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     ),
     # ── Sampling (all_active) ─────────────────────────────────────────────
     "sampler": MetaSlotConfig(
-        members=["oversampling_smote", "undersampling_enn", "class_weight_rebalance", "focal_resampling"],
+        members=[
+            "oversampling_smote",
+            "undersampling_enn",
+            "class_weight_rebalance",
+            "focal_resampling",
+        ],
         active_default="all",
         rotation_mode="all_active",
         description="Complementary class-imbalance samplers.",
@@ -190,7 +224,11 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     ),
     # ── Knowledge distillation (single_active) ────────────────────────────
     "knowledge_distillation": MetaSlotConfig(
-        members=["response_distillation", "feature_distillation", "relation_distillation"],
+        members=[
+            "response_distillation",
+            "feature_distillation",
+            "relation_distillation",
+        ],
         active_default="response_distillation",
         rotation_mode="single_active",
         description="Distillation strategy for compressing large embeddings.",
@@ -204,7 +242,11 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     ),
     # ── Prompt / context expansion (single_active) ────────────────────────
     "prompt_expander": MetaSlotConfig(
-        members=["query_expansion_bow", "query_expansion_lm", "pseudo_relevance_feedback"],
+        members=[
+            "query_expansion_bow",
+            "query_expansion_lm",
+            "pseudo_relevance_feedback",
+        ],
         active_default="query_expansion_bow",
         rotation_mode="single_active",
         description="Query/context expansion before embedding lookup.",
@@ -267,7 +309,12 @@ META_SLOT_REGISTRY: dict[str, MetaSlotConfig] = {
     ),
     # ── Feedback aggregation (single_active) ──────────────────────────────
     "feedback_aggregator": MetaSlotConfig(
-        members=["ema_feedback", "bayesian_update", "sliding_window_avg", "kalman_filter"],
+        members=[
+            "ema_feedback",
+            "bayesian_update",
+            "sliding_window_avg",
+            "kalman_filter",
+        ],
         active_default="ema_feedback",
         rotation_mode="single_active",
         description="How historical approval/rejection signals are aggregated into priors.",

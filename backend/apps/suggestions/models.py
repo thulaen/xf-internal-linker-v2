@@ -950,7 +950,9 @@ class HoldoutQuery(TimestampedModel):
     class Meta:
         verbose_name = "Holdout Query"
         verbose_name_plural = "Holdout Queries"
-        unique_together = [("host", "stage_slot", "algorithm_version_slug", "window_start")]
+        unique_together = [
+            ("host", "stage_slot", "algorithm_version_slug", "window_start")
+        ]
         indexes = [
             models.Index(fields=["stage_slot", "window_start"]),
             models.Index(fields=["stage_slot", "meets_min_impressions"]),

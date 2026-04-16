@@ -26,7 +26,10 @@ from django.utils import timezone
 
 from apps.core.models import AppSetting
 from apps.suggestions.models import HoldoutQuery, MetaTournamentResult
-from apps.suggestions.services.meta_slot_registry import META_SLOT_REGISTRY, MetaSlotConfig
+from apps.suggestions.services.meta_slot_registry import (
+    META_SLOT_REGISTRY,
+    MetaSlotConfig,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ _GRADE_WEIGHTS = {0: 0.0, 1: 1.0, 2: 2.0, 3: 3.0}  # relevance grades for NDCG
 # ---------------------------------------------------------------------------
 # Public entry point
 # ---------------------------------------------------------------------------
+
 
 @dataclass
 class TournamentResult:
@@ -80,7 +84,11 @@ def run_meta_tournament(slot_id: Optional[str] = None) -> list[TournamentResult]
     for sid, config in slots.items():
         if config.pinned:
             logger.info("Slot %s is operator-pinned — skipping.", sid)
-            outcomes.append(TournamentResult(slot_id=sid, skipped=True, skip_reason="operator_pinned"))
+            outcomes.append(
+                TournamentResult(
+                    slot_id=sid, skipped=True, skip_reason="operator_pinned"
+                )
+            )
             continue
 
         if config.rotation_mode == "single_active":
@@ -97,11 +105,20 @@ def run_meta_tournament(slot_id: Optional[str] = None) -> list[TournamentResult]
 # Single-active tournament
 # ---------------------------------------------------------------------------
 
-def _run_single_active_tournament(slot_id: str, config: MetaSlotConfig) -> TournamentResult:
+
+def _run_single_active_tournament(
+    slot_id: str, config: MetaSlotConfig
+) -> TournamentResult:
     """Evaluate alternates on the holdout set and promote the best."""
-    min_queries = _setting_int("meta_rotation.min_holdout_queries", _DEFAULT_MIN_QUERIES)
-    cadence_days = _setting_int("meta_rotation.tournament_cadence_days", _DEFAULT_CADENCE_DAYS)
-    threshold_pct = _setting_float("meta_rotation.promotion_threshold_pct", _DEFAULT_PROMOTION_THRESHOLD_PCT)
+    min_queries = _setting_int(
+        "meta_rotation.min_holdout_queries", _DEFAULT_MIN_QUERIES
+    )
+    cadence_days = _setting_int(
+        "meta_rotation.tournament_cadence_days", _DEFAULT_CADENCE_DAYS
+    )
+    threshold_pct = _setting_float(
+        "meta_rotation.promotion_threshold_pct", _DEFAULT_PROMOTION_THRESHOLD_PCT
+    )
 
     window_start = (timezone.now() - timedelta(days=cadence_days)).date()
     holdout_qs = HoldoutQuery.objects.filter(
@@ -132,11 +149,30 @@ def _run_single_active_tournament(slot_id: str, config: MetaSlotConfig) -> Tourn
         try:
             ndcg = _evaluate_meta_on_holdout(meta_id, holdout_rows)
         except Exception as exc:
-            logger.error("Meta %s crashed during evaluation in slot %s: %s", meta_id, slot_id, exc)
-            _record_result(slot_id=slot_id, meta_id=meta_id, ndcg=0.0, queries=query_count, was_winner=False, evaluated_at=now)
+            logger.error(
+                "Meta %s crashed during evaluation in slot %s: %s",
+                meta_id,
+                slot_id,
+                exc,
+            )
+            _record_result(
+                slot_id=slot_id,
+                meta_id=meta_id,
+                ndcg=0.0,
+                queries=query_count,
+                was_winner=False,
+                evaluated_at=now,
+            )
             continue
         results.append((meta_id, ndcg))
-        _record_result(slot_id=slot_id, meta_id=meta_id, ndcg=ndcg, queries=query_count, was_winner=False, evaluated_at=now)
+        _record_result(
+            slot_id=slot_id,
+            meta_id=meta_id,
+            ndcg=ndcg,
+            queries=query_count,
+            was_winner=False,
+            evaluated_at=now,
+        )
 
     if not results:
         return TournamentResult(
@@ -150,12 +186,23 @@ def _run_single_active_tournament(slot_id: str, config: MetaSlotConfig) -> Tourn
     current_winner = config.active_default
 
     # Find the current winner's score for comparison
-    current_ndcg = next((score for meta, score in results if meta == current_winner), 0.0)
+    current_ndcg = next(
+        (score for meta, score in results if meta == current_winner), 0.0
+    )
     ndcg_delta = best_ndcg - current_ndcg
 
     promoted = False
     if _should_promote(current_winner, best_meta, ndcg_delta, threshold_pct):
-        _promote_winner(slot_id, config, best_meta, current_winner, ndcg_delta, best_ndcg, query_count, now)
+        _promote_winner(
+            slot_id,
+            config,
+            best_meta,
+            current_winner,
+            ndcg_delta,
+            best_ndcg,
+            query_count,
+            now,
+        )
         promoted = True
         logger.info(
             "Slot %s: promoted %s over %s (+%.4f NDCG@10, %d queries).",
@@ -203,6 +250,7 @@ def _run_all_active_pass(slot_id: str, config: MetaSlotConfig) -> TournamentResu
 # ---------------------------------------------------------------------------
 # NDCG@10 scoring
 # ---------------------------------------------------------------------------
+
 
 def _evaluate_meta_on_holdout(meta_id: str, holdout_rows: list[HoldoutQuery]) -> float:
     """
@@ -266,7 +314,10 @@ def _evaluate_meta_on_holdout(meta_id: str, holdout_rows: list[HoldoutQuery]) ->
 # Promotion helpers
 # ---------------------------------------------------------------------------
 
-def _should_promote(current: str, candidate: str, ndcg_delta: float, threshold_pct: float) -> bool:
+
+def _should_promote(
+    current: str, candidate: str, ndcg_delta: float, threshold_pct: float
+) -> bool:
     """Return True only if candidate strictly beats current by >= threshold_pct."""
     if candidate == current:
         return False  # no churn
@@ -296,7 +347,9 @@ def _promote_winner(
         evaluated_at__date=now.date(),
     ).update(was_winner=True, previous_winner=previous_winner, ndcg_delta=ndcg_delta)
 
-    _emit_promotion_notification(slot_id, new_winner, previous_winner, ndcg_delta, queries)
+    _emit_promotion_notification(
+        slot_id, new_winner, previous_winner, ndcg_delta, queries
+    )
 
 
 def _update_winner_flag(slot_id: str, current_winner: str, now) -> None:
@@ -350,6 +403,7 @@ def _emit_promotion_notification(
 # Celery task
 # ---------------------------------------------------------------------------
 
+
 @shared_task(bind=True, name="suggestions.meta_rotation_tournament")
 def meta_rotation_tournament(self, slot_id: Optional[str] = None):
     """
@@ -368,7 +422,10 @@ def meta_rotation_tournament(self, slot_id: Optional[str] = None):
     )
     return {
         "slots_evaluated": len(outcomes),
-        "promotions": [{"slot": o.slot_id, "winner": o.winner, "delta": o.ndcg_delta} for o in promoted],
+        "promotions": [
+            {"slot": o.slot_id, "winner": o.winner, "delta": o.ndcg_delta}
+            for o in promoted
+        ],
         "skipped": [{"slot": o.slot_id, "reason": o.skip_reason} for o in skipped],
     }
 
@@ -376,6 +433,7 @@ def meta_rotation_tournament(self, slot_id: Optional[str] = None):
 # ---------------------------------------------------------------------------
 # AppSetting helpers
 # ---------------------------------------------------------------------------
+
 
 def _is_rotation_enabled() -> bool:
     return _setting_bool("meta_rotation.enabled", True)

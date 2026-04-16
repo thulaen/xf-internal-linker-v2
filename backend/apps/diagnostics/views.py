@@ -289,7 +289,9 @@ class MetaTournamentRunView(views.APIView):
     permission_classes = [IsAuthenticated]
 
     def post(self, request):
-        from apps.suggestions.services.meta_rotation_scheduler import meta_rotation_tournament
+        from apps.suggestions.services.meta_rotation_scheduler import (
+            meta_rotation_tournament,
+        )
 
         slot_id = request.data.get("slot_id") or None
         task = meta_rotation_tournament.delay(slot_id=slot_id)
