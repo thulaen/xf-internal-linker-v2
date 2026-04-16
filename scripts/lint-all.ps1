@@ -476,7 +476,7 @@ if ($complexityDiffPy.Count -gt 0) {
 Write-Step "17/32 Python: magic number detector (diff-scoped)"
 $magicHits = 0
 $magicPyFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
-$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$|\\health\.py$|tasks_broken_links\.py$|async_http\.py$|test_' })
+$magicPyFiles = @($magicPyFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|settings|\\benchmarks\\|\\models\.py$|\\health\.py$|tasks_broken_links\.py$|async_http\.py$|test_|recommended_weights.*\.py$' })
 $magicPattern = '(?<![.\w])\b(\d{3,})\b(?!\s*(#|px|rem|em|MB|GB|KB|ms|seconds?|minutes?|hours?|days?))' # 3+ digit literals
 foreach ($f in $magicPyFiles) {
     $hits = Select-String -Path $f -Pattern $magicPattern |

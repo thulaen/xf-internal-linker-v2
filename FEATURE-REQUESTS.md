@@ -2506,4 +2506,39 @@ Template placeholder only. Not backlog scope.
 [technical hints]
 ```
 
-*Last updated: 2026-04-15 (Phase 2 forward-declared backlog added in compressed table format: 126 ranking signals FR-099 … FR-224 across blocks A–O + 210 meta-algorithms META-40 … META-249 across blocks P1–P12 and Q1–Q24 = 336 new entries. Each row links to its full spec file under `docs/specs/`. All entries are Pending — spec stubs only, implementation deferred to future phases per plan `C:\Users\goldm\.claude\plans\zesty-roaming-treasure.md`.)*
+### FR-225 — Meta Rotation Scheduler
+
+**Requested:** 2026-04-15
+**Target phase:** TBD (planned to land alongside the first Phase 2 meta implementation)
+**Status:** Pending
+**Priority:** Medium
+**Research basis:** Olson & Moore, "TPOT" Springer 2016 (tournament alternative selection); Li et al. "Hyperband" JMLR 2017 (bandit-style allocation, generalised here from HPO to meta-algorithm rotation).
+**Spec:** `docs/specs/fr225-meta-rotation-scheduler.md`
+
+### What's wanted
+
+- Coordinator that lets all 249 meta-algorithms (META-01..META-249) be "available" without fighting each other.
+- Each meta belongs to a "stage slot" (optimiser, loss, calibrator, learning-rate scheduler, attribution, anomaly detection, etc.).
+- For "single_active" slots (only one driver at a time): scheduler runs the active winner on production; alternates run on holdout once per cycle; promotes the highest-NDCG@10 result.
+- For "all_active" slots (complementary metas like attribution + anomaly detection): every member runs sequentially under the existing Heavy/Medium task lock — no fight, just sequential execution.
+- Operators see a "Meta Tournament" diagnostics tab with current winner per slot, last tournament date, and a manual override.
+- Sequential execution honours the per-meta resource budget (≤ 256 MB RAM peak) — never two metas active at once.
+
+### Specific controls / behaviour
+
+- Settings: `meta_rotation.enabled` (true), `meta_rotation.tournament_cadence_days` (30), `meta_rotation.holdout_metric` (ndcg_at_10), `meta_rotation.min_holdout_queries` (100), `meta_rotation.promotion_threshold_pct` (1.0), `meta_rotation.notification_on_promotion` (true), `meta_rotation.shadow_evaluation_concurrent` (false).
+- Default slot winners are pre-filled in the recommended preset (recommended_weights_phase2_*.py) — winners default `enabled=true`, alternates default `enabled=false` but pre-filled with researched hyperparameters.
+- Manual pin: operator can lock a slot's winner from the diagnostics UI, disabling rotation for that slot.
+
+### Implementation notes for the AI
+
+- New service `backend/apps/suggestions/services/meta_rotation_scheduler.py` + slot registry `meta_slot_registry.py`.
+- New model `MetaTournamentResult(slot_id, meta_id, evaluated_at, ndcg_at_10, queries_evaluated, was_winner)` with 90-day pruning under FR-094.
+- New Celery beat entry `meta_rotation_tournament` running daily at 03:00 UTC.
+- Uses existing `with_weight_lock("medium")` decorator from ISS-016 to ensure only one tournament runs at a time.
+- New `WeightPreset.meta_winners: JSONField` for per-slot active selections.
+- Angular: new "Meta Tournament" tab on `/diagnostics`.
+
+---
+
+*Last updated: 2026-04-15 (Phase 2 recipe-completion pass: replaced inert phase2 weights with researched starting values + algorithm hyperparameters across 9 split files. Each of the 126 signals now has its researched ranking_weight pre-filled (typically 0.02–0.05) so the moment the C++ extension is wired the signal is live and the auto-tuner can adjust. Each of the 210 metas has researched hyperparameters; one "winner" per fight-category is enabled=true, alternates enabled=false but pre-filled — ready for FR-225 Meta Rotation Scheduler. Recipe expanded from 462 to 1470 keys; main RECOMMENDED_PRESET_WEIGHTS now totals 1886 keys end-to-end. Filed FR-225 to coordinate the rotation.)*

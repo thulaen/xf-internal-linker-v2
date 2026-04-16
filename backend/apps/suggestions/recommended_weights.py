@@ -8,14 +8,33 @@ keys.
 from __future__ import annotations
 
 from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
-from .recommended_weights_phase2_signals_a_f import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_F,
+from .recommended_weights_phase2_signals_a_d import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_D,
 )
-from .recommended_weights_phase2_signals_g_o import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_G_O,
+from .recommended_weights_phase2_signals_e_h import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_E_H,
 )
-from .recommended_weights_phase2_metas_p import FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P
-from .recommended_weights_phase2_metas_q import FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q
+from .recommended_weights_phase2_signals_i_l import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_I_L,
+)
+from .recommended_weights_phase2_signals_m_o import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_M_O,
+)
+from .recommended_weights_phase2_metas_p1_p6 import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6,
+)
+from .recommended_weights_phase2_metas_p7_p12 import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12,
+)
+from .recommended_weights_phase2_metas_q1_q8 import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8,
+)
+from .recommended_weights_phase2_metas_q9_q16 import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16,
+)
+from .recommended_weights_phase2_metas_q17_q24 import (
+    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24,
+)
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
@@ -82,10 +101,19 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
 
 # Merge forward-declared FR keys (FR-038 through FR-096 etc.) into the main dict.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_F)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_G_O)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q)
+# Merge Phase 2 forward-declared keys (FR-099 through FR-224, META-40 through META-249).
+# Each signal carries researched starting ranking_weight + algorithm hyperparameters.
+# Each meta carries researched hyperparameters; "winner" metas in their category
+# default enabled=true, alternates default enabled=false (ready for FR-225 rotation).
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_D)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_E_H)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_I_L)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_M_O)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16)
+RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24)
 
 
 def recommended_bool(key: str) -> bool:
