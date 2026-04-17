@@ -3,8 +3,8 @@ import hmac
 from django.conf import settings
 
 _BYTES_PER_KIB = 1024.0  # bytes per kibibyte
-_SECONDS_PER_HOUR = 3600   # 60 * 60
-_SECONDS_PER_DAY = 86400   # 60 * 60 * 24
+_SECONDS_PER_HOUR = 3600  # 60 * 60
+_SECONDS_PER_DAY = 86400  # 60 * 60 * 24
 from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
