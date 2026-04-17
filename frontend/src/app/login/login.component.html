@@ -39,6 +39,26 @@
         }
         Sign in
       </button>
+
+      @if (passkeyAvailable()) {
+        <div class="login-divider" aria-hidden="true">
+          <span>or</span>
+        </div>
+        <button
+          mat-stroked-button
+          type="button"
+          class="login-passkey-btn"
+          [disabled]="passkeyBusy()"
+          (click)="loginWithPasskey()"
+        >
+          @if (passkeyBusy()) {
+            <mat-spinner diameter="18" class="btn-spinner"></mat-spinner>
+          } @else {
+            <mat-icon>fingerprint</mat-icon>
+          }
+          Sign in with a passkey
+        </button>
+      }
     </form>
   </div>
 </div>

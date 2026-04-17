@@ -37,6 +37,41 @@ export interface LastSync {
   items_synced: number;
 }
 
+/**
+ * Phase D1 / Gap 53 — status-story narrative from `/api/dashboard/story/`.
+ * Refreshed every 5 minutes; read-only on the dashboard.
+ */
+export interface StatusStory {
+  headline: string;
+  fragments: string[];
+  alerts_today: number;
+  pending_reviews: number;
+  broken_links_open: number;
+  health_status: string;
+  generated_at: string;
+}
+
+/**
+ * Phase D1 / Gap 61 — three-sentence mission brief from
+ * `/api/dashboard/mission-brief/`. Pinned at the very top of the dashboard.
+ */
+export interface MissionBrief {
+  sentences: [string, string, string];
+  counts: {
+    approved_last_24h: number;
+    synced_last_24h: number;
+    pipeline_runs_last_24h: number;
+    pending_reviews: number;
+    running_syncs: number;
+  };
+  top_alert: {
+    alert_id: string;
+    severity: string;
+    title: string;
+  } | null;
+  generated_at: string;
+}
+
 export interface DashboardData {
   suggestion_counts: SuggestionCounts;
   content_count: number;
@@ -114,5 +149,21 @@ export class DashboardService {
       ...current,
       open_broken_links: count,
     });
+  }
+
+  /**
+   * Phase D1 / Gap 53 — fetch the Status Story narrative.
+   * Cheap enough to call ad-hoc; components pipe through
+   * takeUntilDestroyed(destroyRef) as usual.
+   */
+  getStatusStory(): Observable<StatusStory> {
+    return this.http.get<StatusStory>('/api/dashboard/story/');
+  }
+
+  /**
+   * Phase D1 / Gap 61 — fetch the three-sentence Mission Brief.
+   */
+  getMissionBrief(): Observable<MissionBrief> {
+    return this.http.get<MissionBrief>('/api/dashboard/mission-brief/');
   }
 }

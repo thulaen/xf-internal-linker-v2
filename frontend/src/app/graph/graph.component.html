@@ -8,9 +8,13 @@
   <p class="page-description">Explore the internal link topology and topical silos of your site</p>
 </div>
 
+<!-- Phase NV / Gap 145 — appPersistTab restores the last-active tab on
+     return visits. Subscribes to selectedIndexChange alongside the
+     existing onTabChange handler; both fire (multicast EventEmitter). -->
 <mat-tab-group
   [selectedIndex]="selectedTabIndex"
   (selectedIndexChange)="onTabChange($event)"
+  appPersistTab="graph.main"
   animationDuration="200ms"
   class="graph-tabs">
 
@@ -169,6 +173,7 @@
           <mat-label>Search entities</mat-label>
           <mat-icon matPrefix>search</mat-icon>
           <input matInput
+            autocomplete="off"
             [(ngModel)]="entitySearch"
             (ngModelChange)="onEntitySearchChange($event)"
             placeholder="e.g. machine learning" />
@@ -823,6 +828,7 @@
           <mat-label>From article</mat-label>
           <mat-icon matPrefix>article</mat-icon>
           <input matInput
+            autocomplete="off"
             [matAutocomplete]="fromAuto"
             [(ngModel)]="fromQuery"
             (input)="onFromInput($event)"
@@ -840,6 +846,7 @@
           <mat-label>To article</mat-label>
           <mat-icon matPrefix>article</mat-icon>
           <input matInput
+            autocomplete="off"
             [matAutocomplete]="toAuto"
             [(ngModel)]="toQuery"
             (input)="onToInput($event)"

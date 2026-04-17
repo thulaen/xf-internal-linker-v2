@@ -1,4 +1,5 @@
-import { Component, OnInit, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { Component, DestroyRef, OnInit, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
@@ -174,6 +175,8 @@ interface RuntimeConfig {
 export class PerformanceSettingsComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   readonly batchSize = signal<number>(32);
   readonly concurrency = signal<number>(2);
@@ -194,7 +197,7 @@ export class PerformanceSettingsComponent implements OnInit {
 
   private load(): void {
     this.http.get<RuntimeConfig>('/api/settings/runtime-config/')
-      .pipe(catchError(() => EMPTY))
+      .pipe(catchError(() => EMPTY), takeUntilDestroyed(this.destroyRef))
       .subscribe((cfg) => {
         if (!cfg) return;
         this.batchSize.set(cfg.embedding_batch_size);
@@ -223,6 +226,7 @@ export class PerformanceSettingsComponent implements OnInit {
           this.snack.open('Could not save. Try again.', 'OK', { duration: 4000 });
           return EMPTY;
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.saving.set(false);

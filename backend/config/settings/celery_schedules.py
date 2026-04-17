@@ -83,6 +83,15 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=22, minute=0, day_of_week=1),
         "options": {"queue": "default"},
     },
+    # Phase GT Step 7 — GlitchTip issue sync every 30 minutes.
+    # Off-minute scheduling so multiple projects don't stampede the
+    # GlitchTip API at :00/:30. Expires at 29 min so a stuck run can't
+    # overlap the next one.
+    "glitchtip-issue-sync": {
+        "task": "audit.sync_glitchtip_issues",
+        "schedule": 1800.0,
+        "options": {"queue": "default", "expires": 1700},
+    },
     # OPT-84 — nightly performance benchmarks: 22:15 UTC daily.
     "nightly-benchmarks": {
         "task": "apps.benchmarks.tasks.run_all_benchmarks",

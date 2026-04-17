@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -64,9 +65,13 @@ export class SuggestionDetailDialogComponent implements OnInit {
   readonly data: DialogData = inject(MAT_DIALOG_DATA);
   private svc = inject(SuggestionService);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP if dialog closes first.
+  private destroyRef = inject(DestroyRef);
 
   ngOnInit(): void {
-    this.svc.getDetail(this.data.suggestionId).subscribe({
+    this.svc.getDetail(this.data.suggestionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (d) => {
         this.detail = d;
         this.anchorEdited = d.anchor_edited || d.anchor_phrase;
@@ -516,7 +521,9 @@ export class SuggestionDetailDialogComponent implements OnInit {
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
-    this.svc.approve(this.detail.suggestion_id, this.anchorEdited, this.reviewerNotes).subscribe({
+    this.svc.approve(this.detail.suggestion_id, this.anchorEdited, this.reviewerNotes)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => this.dialogRef.close({ action: 'approved', suggestion: s }),
       error: () => { this.saving = false; this.error = 'Approve failed.'; },
     });
@@ -529,7 +536,9 @@ export class SuggestionDetailDialogComponent implements OnInit {
   confirmReject(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
-    this.svc.reject(this.detail.suggestion_id, this.rejectionReason, this.reviewerNotes).subscribe({
+    this.svc.reject(this.detail.suggestion_id, this.rejectionReason, this.reviewerNotes)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => this.dialogRef.close({ action: 'rejected', suggestion: s }),
       error: () => { this.saving = false; this.error = 'Reject failed.'; },
     });
@@ -538,7 +547,9 @@ export class SuggestionDetailDialogComponent implements OnInit {
   apply(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
-    this.svc.apply(this.detail.suggestion_id).subscribe({
+    this.svc.apply(this.detail.suggestion_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => this.dialogRef.close({ action: 'applied', suggestion: s }),
       error: () => { this.saving = false; this.error = 'Apply failed.'; },
     });

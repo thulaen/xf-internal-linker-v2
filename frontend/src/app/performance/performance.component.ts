@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -37,6 +38,8 @@ import {
 })
 export class PerformanceComponent implements OnInit {
   private svc = inject(PerformanceService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
+  private destroyRef = inject(DestroyRef);
 
   latestRun: BenchmarkRun | null = null;
   isLoading = true;
@@ -79,7 +82,9 @@ export class PerformanceComponent implements OnInit {
 
   loadLatest(): void {
     this.isLoading = true;
-    this.svc.getLatest().subscribe({
+    this.svc.getLatest()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (run) => {
         this.latestRun = run;
         this.updateSummary(run);
@@ -95,7 +100,9 @@ export class PerformanceComponent implements OnInit {
 
   triggerRun(): void {
     this.isTriggering = true;
-    this.svc.trigger().subscribe({
+    this.svc.trigger()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.isTriggering = false;
         /* Poll for completion */
@@ -109,7 +116,9 @@ export class PerformanceComponent implements OnInit {
 
   downloadReport(): void {
     if (!this.latestRun) return;
-    this.svc.getReport(this.latestRun.id).subscribe({
+    this.svc.getReport(this.latestRun.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         const blob = new Blob([res.report], { type: 'text/plain' });
         const url = URL.createObjectURL(blob);
@@ -156,7 +165,9 @@ export class PerformanceComponent implements OnInit {
   }
 
   private loadTrends(): void {
-    this.svc.getTrends().subscribe({
+    this.svc.getTrends()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (points) => {
         if (points.length === 0) return;
         this.buildTrendChart(points);

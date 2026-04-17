@@ -1,0 +1,340 @@
+import { Injectable, OnDestroy, inject, NgZone } from '@angular/core';
+import { BehaviorSubject, Observable, Subject } from 'rxjs';
+import { filter } from 'rxjs/operators';
+
+import { environment } from '../../../environments/environment';
+import {
+  ConnectionStatus,
+  IncomingFrame,
+  OutgoingFrame,
+  TopicUpdate,
+} from './realtime.types';
+
+/**
+ * RealtimeService — singleton manager for the generic /ws/realtime/ socket.
+ *
+ * Phase R0 of the approved plan at
+ * C:\Users\goldm\.claude\plans\robust-floating-cerf.md.
+ *
+ * Responsibilities
+ * ----------------
+ * - Maintain ONE WebSocket per tab regardless of how many components
+ *   subscribe to how many topics.
+ * - Expose `subscribe(topic)` which returns an Observable<TopicUpdate> using
+ *   refCount semantics — the first subscriber causes a server-side
+ *   `subscribe` frame, the last unsubscribe causes an `unsubscribe` frame.
+ * - Auto-reconnect with exponential backoff (1s → 30s cap) and re-subscribe
+ *   all active topics when the socket recovers.
+ * - Expose `connectionStatus$` for the WS status dot (Gap 38).
+ *
+ * What this service deliberately does NOT do
+ * ------------------------------------------
+ * - Parse topic payload shapes. Consumers cast the generic payload.
+ * - Replace the existing Jobs WebSocket or Notifications WebSocket. Those
+ *   work today and are deliberately left alone (see plan §"Leave existing
+ *   WebSockets alone"). This service is for every OTHER topic.
+ */
+@Injectable({ providedIn: 'root' })
+export class RealtimeService implements OnDestroy {
+  private readonly zone = inject(NgZone);
+
+  // ── Connection state ─────────────────────────────────────────────
+  private socket: WebSocket | null = null;
+  private destroyed = false;
+
+  /** Exponential-backoff state. Reset on successful open. */
+  private reconnectAttempt = 0;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Heartbeat ping so idle corporate proxies don't silently drop the socket. */
+  private pingTimer: ReturnType<typeof setInterval> | null = null;
+
+  private readonly _status$ = new BehaviorSubject<ConnectionStatus>('offline');
+  readonly connectionStatus$: Observable<ConnectionStatus> =
+    this._status$.asObservable();
+
+  // ── Topic multiplexing ───────────────────────────────────────────
+
+  /** All frames from the socket, fan-out to per-topic subjects. */
+  private readonly incoming$ = new Subject<TopicUpdate>();
+
+  /** Ref-count per topic so we know when to fire subscribe / unsubscribe. */
+  private readonly refCounts = new Map<string, number>();
+
+  constructor() {
+    // Lazy connect — the socket opens on the first subscribe() call.
+    // Doing it in the constructor would open a socket even on pages that
+    // never use realtime (e.g. /login).
+  }
+
+  // ── Public API ───────────────────────────────────────────────────
+
+  /**
+   * Subscribe to a topic. Returns an Observable that emits every incoming
+   * `topic.update` message whose `topic` field equals the requested name.
+   *
+   * Usage:
+   *   inject(RealtimeService)
+   *     .subscribe<MyPayload>('diagnostics')
+   *     .subscribe(update => console.log(update.event, update.payload));
+   *
+   * Unsubscribing from the returned Observable is what drives the
+   * server-side `unsubscribe` frame.
+   */
+  subscribeTopic<T = unknown>(topic: string): Observable<TopicUpdate<T>> {
+    const normalised = topic.trim();
+    if (!normalised) {
+      throw new Error('[RealtimeService] topic must be a non-empty string');
+    }
+
+    // `incoming$` is a Subject — it already multicasts to every subscriber.
+    // We return a thin Observable wrapper whose only side effects are
+    // acquire/release on subscription boundaries, which is what drives the
+    // server-side subscribe/unsubscribe frames.
+    return new Observable<TopicUpdate<T>>((subscriber) => {
+      this.acquireTopic(normalised);
+      const inner = this.incoming$
+        .pipe(filter((u) => u.topic === normalised))
+        .subscribe({
+          next: (update) => subscriber.next(update as TopicUpdate<T>),
+          error: (err) => subscriber.error(err),
+          complete: () => subscriber.complete(),
+        });
+      return () => {
+        inner.unsubscribe();
+        this.releaseTopic(normalised);
+      };
+    });
+  }
+
+  /**
+   * Phase RC / Gaps 139-142 — publish a payload to a collaboration
+   * topic. The backend fans the event out to every other subscriber
+   * (and to the publisher's other tabs) but enforces that only
+   * `presence.*`, `cursor.*`, `lock.*`, and `typing.*` topics accept
+   * client publishes — anything else returns an error frame.
+   *
+   * Fire-and-forget: the WebSocket is queued / opened on demand if
+   * not currently connected. Frames sent while disconnected are
+   * dropped (deliberately — stale presence data shouldn't be
+   * resurrected after a long offline window).
+   */
+  publish(topic: string, event: string, payload: Record<string, unknown> = {}): void {
+    const t = topic.trim();
+    const e = event.trim();
+    if (!t || !e) return;
+    this.ensureSocketOpen();
+    this.send({ action: 'publish', topic: t, event: e, payload });
+  }
+
+  /** Force an immediate reconnect attempt. Safe to call anytime. */
+  reconnectNow(): void {
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch {
+        // ignore
+      }
+      this.socket = null;
+    }
+    this.clearReconnectTimer();
+    this.openSocket();
+  }
+
+  ngOnDestroy(): void {
+    this.destroyed = true;
+    this.clearReconnectTimer();
+    this.clearPingTimer();
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch {
+        // ignore
+      }
+      this.socket = null;
+    }
+    this._status$.next('offline');
+  }
+
+  // ── Ref-counting helpers ─────────────────────────────────────────
+
+  private acquireTopic(topic: string): void {
+    const next = (this.refCounts.get(topic) ?? 0) + 1;
+    this.refCounts.set(topic, next);
+    if (next === 1) {
+      this.ensureSocketOpen();
+      this.send({ action: 'subscribe', topics: [topic] });
+    }
+  }
+
+  private releaseTopic(topic: string): void {
+    const current = this.refCounts.get(topic) ?? 0;
+    if (current <= 1) {
+      this.refCounts.delete(topic);
+      this.send({ action: 'unsubscribe', topics: [topic] });
+    } else {
+      this.refCounts.set(topic, current - 1);
+    }
+  }
+
+  private activeTopics(): string[] {
+    return Array.from(this.refCounts.keys());
+  }
+
+  // ── Socket management ────────────────────────────────────────────
+
+  private ensureSocketOpen(): void {
+    if (this.destroyed) return;
+    if (this.socket && this.socket.readyState <= WebSocket.OPEN) {
+      // Either CONNECTING (0) or OPEN (1) — nothing to do.
+      return;
+    }
+    this.openSocket();
+  }
+
+  private openSocket(): void {
+    if (this.destroyed) return;
+    const url = `${environment.wsBaseUrl}/realtime/`;
+
+    // Run outside Angular so mouse-idle browsers don't pay change-detection
+    // tax for every incoming frame. Consumers that need zone-awareness can
+    // wrap their subscribe callback in NgZone.run themselves.
+    this.zone.runOutsideAngular(() => {
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket(url);
+      } catch {
+        this.scheduleReconnect();
+        return;
+      }
+
+      this._status$.next(this.reconnectAttempt === 0 ? 'offline' : 'reconnecting');
+
+      ws.onopen = () => {
+        this.reconnectAttempt = 0;
+        this._status$.next('connected');
+        this.startPingTimer();
+        // Re-send subscribes for every topic that had refs before the break.
+        const topics = this.activeTopics();
+        if (topics.length > 0) {
+          this.sendFrame(ws, { action: 'subscribe', topics });
+        }
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        this.handleMessage(event.data);
+      };
+
+      ws.onerror = () => {
+        // Let onclose schedule the retry. onerror fires without enough info
+        // to distinguish transient blips from policy rejections.
+        try {
+          ws.close();
+        } catch {
+          // ignore
+        }
+      };
+
+      ws.onclose = () => {
+        this.clearPingTimer();
+        this.socket = null;
+        if (!this.destroyed && this.refCounts.size > 0) {
+          this._status$.next('reconnecting');
+          this.scheduleReconnect();
+        } else {
+          this._status$.next('offline');
+        }
+      };
+
+      this.socket = ws;
+    });
+  }
+
+  private scheduleReconnect(): void {
+    if (this.destroyed) return;
+    this.clearReconnectTimer();
+    // Exponential 1s, 2s, 4s, 8s, 16s, 30s cap. Small jitter so N tabs
+    // don't stampede the server after a network blip.
+    const base = Math.min(1000 * 2 ** this.reconnectAttempt, 30_000);
+    const jitter = Math.floor(Math.random() * 500);
+    this.reconnectAttempt += 1;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.openSocket();
+    }, base + jitter);
+  }
+
+  private clearReconnectTimer(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+  }
+
+  private startPingTimer(): void {
+    this.clearPingTimer();
+    // 25s is under the 30s default proxy idle timeout most setups use.
+    this.pingTimer = setInterval(() => {
+      this.send({ action: 'ping' });
+    }, 25_000);
+  }
+
+  private clearPingTimer(): void {
+    if (this.pingTimer) {
+      clearInterval(this.pingTimer);
+      this.pingTimer = null;
+    }
+  }
+
+  // ── Wire protocol ────────────────────────────────────────────────
+
+  private send(frame: OutgoingFrame): void {
+    const ws = this.socket;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      // Frames sent while the socket is connecting are dropped intentionally;
+      // the onopen handler re-subscribes all active topics, so no state is lost.
+      return;
+    }
+    this.sendFrame(ws, frame);
+  }
+
+  private sendFrame(ws: WebSocket, frame: OutgoingFrame): void {
+    try {
+      ws.send(JSON.stringify(frame));
+    } catch {
+      // Serialization failures shouldn't happen (frames are simple objects);
+      // if they do, the connection is already in a bad state and onclose
+      // will trigger reconnect.
+    }
+  }
+
+  private handleMessage(raw: unknown): void {
+    let parsed: IncomingFrame | null = null;
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw) as IncomingFrame;
+      } catch {
+        parsed = null;
+      }
+    }
+    if (!parsed || typeof parsed !== 'object' || !('type' in parsed)) {
+      return;
+    }
+
+    if (parsed.type === 'topic.update') {
+      // Re-enter Angular's zone so template bindings using async pipe
+      // update without manual change detection calls.
+      this.zone.run(() => {
+        this.incoming$.next({
+          topic: parsed!.topic as string,
+          event: (parsed as { event: string }).event,
+          payload: (parsed as { payload: unknown }).payload,
+          receivedAt: Date.now(),
+        });
+      });
+      return;
+    }
+
+    // Other frames (acks, pong, error) are no-ops for consumers today —
+    // they exist for debugging and future features (Gap 38 detail tooltip).
+  }
+}

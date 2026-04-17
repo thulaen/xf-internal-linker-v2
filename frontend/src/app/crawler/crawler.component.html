@@ -27,14 +27,14 @@
           matTooltip="How many pages per second to crawl. Lower = gentler on your server. Start with 2-4 for most sites."
         >
           <mat-label>Rate (req/sec)</mat-label>
-          <input matInput type="number" [(ngModel)]="rateLimit" min="1" max="10" />
+          <input matInput type="number" autocomplete="off" [(ngModel)]="rateLimit" min="1" max="10" />
         </mat-form-field>
 
         <mat-form-field class="slider-field"
           matTooltip="How many clicks deep from the homepage to crawl. 5 is usually enough for most sites."
         >
           <mat-label>Max Depth</mat-label>
-          <input matInput type="number" [(ngModel)]="maxDepth" min="1" max="10" />
+          <input matInput type="number" autocomplete="off" [(ngModel)]="maxDepth" min="1" max="10" />
         </mat-form-field>
 
         <div class="controls-actions">
@@ -93,11 +93,11 @@
         <div class="sitemap-add-row">
           <mat-form-field class="sitemap-domain-field">
             <mat-label>Domain</mat-label>
-            <input matInput [(ngModel)]="newSitemapDomain" placeholder="yoursite.com" />
+            <input matInput autocomplete="off" [(ngModel)]="newSitemapDomain" placeholder="yoursite.com" />
           </mat-form-field>
           <mat-form-field class="sitemap-url-field">
             <mat-label>Sitemap URL</mat-label>
-            <input matInput [(ngModel)]="newSitemapUrl" placeholder="https://yoursite.com/sitemap.xml" />
+            <input matInput type="url" autocomplete="url" [(ngModel)]="newSitemapUrl" placeholder="https://yoursite.com/sitemap.xml" />
           </mat-form-field>
           <button
             mat-stroked-button

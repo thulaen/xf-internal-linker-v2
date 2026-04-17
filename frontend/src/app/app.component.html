@@ -4,10 +4,42 @@
   <router-outlet />
 } @else {
 
+<!-- Phase E2 / Gap 40 — Skip-to-content link.
+     Visually hidden until focused (Tab from page load). Pressing Enter
+     jumps keyboard focus past the toolbar and sidenav directly to <main>,
+     so keyboard-only users don't have to Tab through ~40 controls every
+     navigation. Complements RouteFocusService (Gap 22). -->
+<a href="#main-content"
+   class="skip-link"
+   (click)="onSkipToContent($event)"
+   (keydown.enter)="onSkipToContent($event)">
+  Skip to main content
+</a>
+
+<!-- Phase U2 / Gap 1 — Global route-change progress bar. Fixed at the
+     very top; self-shows on NavigationStart, hides on End/Cancel/Error. -->
+<app-nav-progress-bar />
+
+<!-- Phase U1 / Gap 11 — Offline banner at top of shell, above toolbar.
+     Self-hides when the browser is online; sticky so it stays visible
+     while scrolling. -->
+<app-offline-banner />
+
 <!-- ── Top Toolbar (Spans entire width) ────────────────────────── -->
 <mat-toolbar class="app-toolbar">
   @if (config.logoUrl) {
-    <img [src]="config.logoUrl" alt="" class="toolbar-logo-img" aria-hidden="true" />
+    <!-- Phase F1 / Gap 89 — fetchpriority="high" marks the toolbar
+         logo as the LCP candidate so browsers prioritise it over
+         lazy-loaded below-the-fold content. decoding="async" keeps
+         the main thread free during image parse. -->
+    <img
+      [src]="config.logoUrl"
+      alt=""
+      class="toolbar-logo-img"
+      aria-hidden="true"
+      fetchpriority="high"
+      decoding="async"
+    />
   }
   <span>{{ siteName }}</span>
   <span class="toolbar-spacer"></span>
@@ -98,6 +130,198 @@
       </div>
     </div>
   </mat-menu>
+  <!-- Gap 38 — WebSocket connection status dot.
+       Bound to RealtimeService.connectionStatus$ via wsStatus signal.
+       Green = connected, amber = reconnecting, grey = offline. -->
+  <div
+    class="ws-status-dot-wrap"
+    [matTooltip]="wsStatus() === 'connected'
+      ? 'Real-time: connected'
+      : wsStatus() === 'reconnecting'
+        ? 'Real-time: reconnecting…'
+        : 'Real-time: offline'"
+    aria-label="WebSocket connection status"
+    role="status"
+  >
+    <span
+      class="ws-status-dot"
+      [class.ws-connected]="wsStatus() === 'connected'"
+      [class.ws-reconnecting]="wsStatus() === 'reconnecting'"
+      [class.ws-offline]="wsStatus() === 'offline'"
+    ></span>
+    <span class="ws-status-label">WS</span>
+  </div>
+
+  <!-- Phase RC / Gap 139 — Presence indicator. Shows how many other
+       users are online and which are on the same route. Heartbeats
+       on the `presence.app` realtime topic via PresenceService. -->
+  <app-presence-indicator />
+
+  <!-- Phase NV / Gap 146 — Recent pages menu. Last 5 visited pages,
+       newest first; auto-hides when the history is empty (e.g. on
+       first visit). Lives next to presence so all "where am I /
+       who's here" controls are grouped. -->
+  <app-recent-pages-menu />
+
+  <!-- Phase D1 / Gap 55 — Tutorial Mode toggle. Persistent overlay
+       with per-card callouts. State lives in TutorialModeService. -->
+  <button
+    mat-icon-button
+    type="button"
+    [matTooltip]="tutorialMode.enabled() ? 'Tutorial mode is ON — click to hide hints' : 'Show tutorial hints on each card'"
+    [attr.aria-pressed]="tutorialMode.enabled()"
+    (click)="tutorialMode.toggle()"
+  >
+    <mat-icon [class.toolbar-toggle-on]="tutorialMode.enabled()">school</mat-icon>
+  </button>
+  <!-- Phase D1 / Gap 58 — Explain Mode toggle. Reveals per-widget
+       info icons whose tooltips define the metric. -->
+  <button
+    mat-icon-button
+    type="button"
+    [matTooltip]="explainMode.enabled() ? 'Explain mode is ON — click to hide info icons' : 'Show inline definitions on widgets'"
+    [attr.aria-pressed]="explainMode.enabled()"
+    (click)="explainMode.toggle()"
+  >
+    <mat-icon [class.toolbar-toggle-on]="explainMode.enabled()">help_outline</mat-icon>
+  </button>
+  <!-- Phase D2 / Gap 71 — Noob / Pro mode toggle. Hides advanced knobs
+       in noob mode; reveals everything in pro mode. -->
+  <button
+    mat-icon-button
+    type="button"
+    [matTooltip]="noobMode.mode() === 'pro' ? 'Pro mode is ON — click to hide advanced controls' : 'Noob mode is ON — click to reveal advanced controls'"
+    [attr.aria-pressed]="noobMode.mode() === 'pro'"
+    (click)="noobMode.toggle()"
+  >
+    <mat-icon [class.toolbar-toggle-on]="noobMode.mode() === 'pro'">
+      {{ noobMode.mode() === 'pro' ? 'engineering' : 'sentiment_satisfied' }}
+    </mat-icon>
+  </button>
+  <!-- Phase D2 / Gap 69 — Glossary drawer toggle (also Alt+G). -->
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Open the glossary (Alt + G)"
+    aria-label="Open glossary"
+    (click)="glossary.toggle()"
+  >
+    <mat-icon>menu_book</mat-icon>
+  </button>
+  <!-- Phase D2 / Gap 70 — Replay the guided dashboard tour. -->
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Replay the dashboard guided tour"
+    aria-label="Replay guided tour"
+    (click)="startDashboardTour()"
+  >
+    <mat-icon>tour</mat-icon>
+  </button>
+  <!-- Phase D3 / Gap 177 — FAQ drawer toggle. -->
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Open frequently-asked questions"
+    aria-label="Open FAQ"
+    (click)="faq.toggle()"
+  >
+    <mat-icon>contact_support</mat-icon>
+  </button>
+
+  <!-- Phase GB / Gap 151 — in-app "Suggest a feature" dialog. Opens
+       the same FeatureRequestDialogComponent as the Preference Center,
+       so operators can submit without leaving whatever page they're
+       reading. -->
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Suggest a feature"
+    aria-label="Suggest a feature"
+    (click)="openFeatureRequestDialog()"
+  >
+    <mat-icon>lightbulb</mat-icon>
+  </button>
+
+  <!-- Phase A1 / Gaps 98-101 — accessibility menu trigger.
+       One icon expands a menu with high-contrast / font-size /
+       dyslexia / colour-blind toggles. -->
+  <button
+    mat-icon-button
+    type="button"
+    matTooltip="Accessibility settings"
+    aria-label="Accessibility settings"
+    [matMenuTriggerFor]="a11yMenu"
+  >
+    <mat-icon>accessibility_new</mat-icon>
+  </button>
+  <mat-menu #a11yMenu="matMenu" xPosition="before" class="ga4-menu">
+    <div class="a11y-menu-body" (click)="$event.stopPropagation()">
+      <h3 class="a11y-menu-title">Accessibility</h3>
+
+      <div class="a11y-menu-row">
+        <span class="a11y-menu-label">High contrast</span>
+        <button
+          mat-stroked-button
+          type="button"
+          [class.a11y-on]="a11y.contrast() === 'high'"
+          (click)="a11y.toggleContrast()"
+        >
+          {{ a11y.contrast() === 'high' ? 'On' : 'Off' }}
+        </button>
+      </div>
+
+      <div class="a11y-menu-row">
+        <span class="a11y-menu-label">Font size</span>
+        <div class="a11y-menu-segments">
+          @for (size of fontSizeChoices; track size) {
+            <button
+              mat-stroked-button
+              type="button"
+              [class.a11y-on]="a11y.fontSize() === size"
+              (click)="a11y.setFontSize($any(size))"
+            >
+              {{ size }}%
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="a11y-menu-row">
+        <span class="a11y-menu-label">Dyslexia-friendly font</span>
+        <button
+          mat-stroked-button
+          type="button"
+          [class.a11y-on]="a11y.fontStack() === 'dyslexia'"
+          (click)="a11y.toggleDyslexiaFont()"
+        >
+          {{ a11y.fontStack() === 'dyslexia' ? 'On' : 'Off' }}
+        </button>
+      </div>
+
+      <div class="a11y-menu-row a11y-menu-cvd">
+        <span class="a11y-menu-label">Colour-blind palette</span>
+        <div class="a11y-menu-segments">
+          @for (p of cvdChoices; track p.value) {
+            <button
+              mat-stroked-button
+              type="button"
+              [class.a11y-on]="a11y.cvdPalette() === p.value"
+              (click)="a11y.setCvdPalette($any(p.value))"
+            >
+              {{ p.label }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="a11y-menu-actions">
+        <button mat-button type="button" (click)="a11y.resetAll()">
+          Reset to defaults
+        </button>
+      </div>
+    </div>
+  </mat-menu>
   <button
     mat-icon-button
     matTooltip="Customize appearance"
@@ -179,6 +403,11 @@
               @if (item.route === '/review' && pendingSuggestionCount > 0) {
                 <span class="nav-badge">{{ pendingSuggestionCount }}</span>
               }
+              @if (item.route === '/diagnostics' && unacknowledgedErrorCount > 0) {
+                <span class="nav-badge nav-badge-error" [matTooltip]="unacknowledgedErrorCount + ' unacknowledged errors'">
+                  {{ unacknowledgedErrorCount > 99 ? '99+' : unacknowledgedErrorCount }}
+                </span>
+              }
             </div>
           </a>
         }
@@ -198,7 +427,12 @@
   </mat-sidenav>
 
   <!-- ── Main Content Area ──────────────────────────────────────── -->
-  <mat-sidenav-content class="app-content">
+  <!-- Phase NV / Gap 144 — appSwipeNavigate gives touch users a
+       browser-style back/forward gesture (right-swipe from left
+       edge → history.back, mirror for forward). Mouse and stylus
+       swipes are ignored, and any element marked
+       data-no-swipe-nav="true" opts out (carousels, etc.). -->
+  <mat-sidenav-content class="app-content" appSwipeNavigate>
 
     <!-- Freshness Ribbon -->
     <div class="freshness-ribbon">
@@ -211,8 +445,20 @@
       </mat-chip>
     </div>
 
-    <!-- Page Content (routed with transition animation) -->
-    <main class="page-content" [@routeAnimation]="getRouteAnimationData()">
+    <!-- Phase NV / Gap 143 — Breadcrumb trail. Self-hides when
+         the current route is shallow (<3 levels deep). All routes
+         resolve their own labels via route.title or data.breadcrumb. -->
+    <app-breadcrumbs />
+
+    <!-- Page Content (routed with transition animation).
+         id + tabindex=-1 lets Gap 40's skip link and Gap 22's RouteFocusService
+         both focus <main> programmatically without making it a Tab stop. -->
+    <main
+      id="main-content"
+      tabindex="-1"
+      class="page-content"
+      [@routeAnimation]="getRouteAnimationData()"
+    >
       <router-outlet />
     </main>
 
@@ -231,5 +477,22 @@
 @if (config.showScrollToTop) {
   <app-scroll-to-top />
 }
+
+<!-- ── Phase D2 global overlays ──────────────────────────────── -->
+<!-- Gap 69 — Glossary drawer (slides in from right; toggles via toolbar
+     book icon or Alt+G). Reads its own open-state from GlossaryService. -->
+<app-glossary-drawer />
+<!-- Phase D3 / Gap 177 — FAQ drawer (toolbar 💬 button or toggle()). -->
+<app-faq-drawer />
+<!-- Gap 70 — Guided tour overlay (only renders when GuidedTourService
+     has an active tour; otherwise a no-op). -->
+<app-guided-tour />
+<!-- Gap 74 — Escape Hatch FAB (bottom-left, hidden on dashboard/login). -->
+<app-escape-hatch />
+<!-- Gap 78 — Help Chatbot FAB (bottom-right, hidden on dashboard/login). -->
+<app-help-chatbot />
+<!-- Phase OB / Gap 133 — Shift+D debug overlay. Renders nothing until
+     the user presses the keyboard shortcut. -->
+<app-debug-overlay />
 
 } <!-- end @else (not login page) -->

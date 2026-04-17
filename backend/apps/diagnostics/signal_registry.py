@@ -3,6 +3,16 @@
 This registry maps signal IDs to their human-readable names, describing their
 purpose, and identifying their data persistence (database tables) and
 acceleration status (C++ kernels).
+
+Phase SEQ note — If you break a signal out of the inline pipeline into
+its own Celery task, the function (or its ``@shared_task(name=...)``)
+MUST be prefixed ``compute_signal_`` AND wear
+``@with_signal_lock()`` from ``apps.pipeline.decorators``. The CI test
+``apps.pipeline.test_signal_lock_coverage`` enforces this at merge
+time — missing the decorator causes a fleet-wide throughput hit
+because signals would then fight for the same GPU/CPU slot in
+parallel. See ``docs/PERFORMANCE.md §4`` and the Phase SEQ section of
+the master plan.
 """
 
 from dataclasses import dataclass

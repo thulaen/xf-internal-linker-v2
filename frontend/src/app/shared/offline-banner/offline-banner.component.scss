@@ -1,0 +1,51 @@
+// Phase U1 / Gap 11 — Offline banner styles.
+// Full-width warning strip pinned to the top of the viewport so the user
+// sees it regardless of what route they're on.
+
+:host {
+  display: block;
+  width: 100%;
+}
+
+.offline-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-sm, 8px) var(--space-md, 16px);
+  background: var(--color-warning);
+  color: var(--color-text-on-dark);
+  font-size: 13px;
+  font-weight: 500;
+  // Sticky so scrolling doesn't hide the banner — the whole point is
+  // that the user should know about the connectivity loss while scrolling.
+  position: sticky;
+  top: 0;
+  z-index: 1000;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+
+  mat-icon {
+    color: var(--color-text-on-dark);
+    font-size: 20px;
+    height: 20px;
+    width: 20px;
+    flex: 0 0 auto;
+  }
+}
+
+.offline-text {
+  flex: 1 1 auto;
+  line-height: 1.4;
+
+  strong {
+    font-weight: 700;
+    margin-right: 4px;
+  }
+}
+
+// Respect reduced-motion — the banner is non-animated anyway, but future
+// transitions should honor the preference.
+@media (prefers-reduced-motion: reduce) {
+  .offline-banner {
+    transition: none;
+  }
+}

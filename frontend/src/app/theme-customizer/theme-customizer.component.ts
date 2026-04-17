@@ -1,4 +1,5 @@
-import { Component, EventEmitter, Output, inject } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, Output, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -39,6 +40,8 @@ export class ThemeCustomizerComponent {
 
   appearance = inject(AppearanceService);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight uploads on destroy.
+  private destroyRef = inject(DestroyRef);
 
   newPresetName = '';
   showSavePreset = false;
@@ -53,7 +56,9 @@ export class ThemeCustomizerComponent {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.uploadingLogo = true;
-    this.appearance.uploadLogo(file).subscribe({
+    this.appearance.uploadLogo(file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.uploadingLogo = false;
         this.snack.open('Logo uploaded', 'Dismiss', { duration: 3000 });
@@ -77,7 +82,9 @@ export class ThemeCustomizerComponent {
     const file = (event.target as HTMLInputElement).files?.[0];
     if (!file) return;
     this.uploadingFavicon = true;
-    this.appearance.uploadFavicon(file).subscribe({
+    this.appearance.uploadFavicon(file)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.uploadingFavicon = false;
         this.snack.open('Favicon uploaded', 'Dismiss', { duration: 3000 });

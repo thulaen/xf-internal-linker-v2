@@ -1,4 +1,5 @@
-import { Component, inject, ChangeDetectionStrategy, signal } from '@angular/core';
+import { Component, DestroyRef, inject, ChangeDetectionStrategy, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -194,6 +195,8 @@ export class RunbookDialogComponent {
   private http = inject(HttpClient);
   private dialogRef = inject(MatDialogRef<RunbookDialogComponent>);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight runbook POST if dialog closes.
+  private destroyRef = inject(DestroyRef);
 
   running = signal(false);
   resultMessage = signal<string>('');
@@ -223,6 +226,7 @@ export class RunbookDialogComponent {
             detail?: string;
           });
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
         this.running.set(false);

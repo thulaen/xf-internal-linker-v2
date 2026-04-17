@@ -1,4 +1,5 @@
-import { Component, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject, ChangeDetectionStrategy } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -74,6 +75,8 @@ type AlertDetail = OperatorAlert;
 export class AlertDetailComponent implements OnInit {
   private route = inject(ActivatedRoute);
   private notifSvc = inject(NotificationService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   alert: AlertDetail | null = null;
   loading = true;
@@ -82,7 +85,9 @@ export class AlertDetailComponent implements OnInit {
   ngOnInit(): void {
     const id = this.route.snapshot.paramMap.get('id');
     if (id) {
-      this.notifSvc.getAlert(id).subscribe((alert) => {
+      this.notifSvc.getAlert(id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((alert) => {
         this.alert = alert;
         this.loadError = alert ? null : 'This alert could not be loaded or no longer exists.';
         this.loading = false;

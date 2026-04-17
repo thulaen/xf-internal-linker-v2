@@ -1,3 +1,28 @@
+<!-- ── Phase MC — Mission Critical section. Top of dashboard so the
+     first thing the operator sees is a health glance of every
+     component that has to be working. Tiles dedup by root cause;
+     the Algorithms group collapses when everything is healthy. -->
+<app-mission-critical class="d3-block" />
+
+<!-- ── Phase D3 / Gaps 152-187 — Top-of-dashboard noob strip ────── -->
+<app-personal-bar class="d3-block" />
+<app-you-are-here class="d3-inline" />
+<app-quick-search-bar class="d3-block" />
+<app-welcome-card class="d3-block" />
+<app-whats-new class="d3-block" />
+
+<div class="d3-row d3-row-actions">
+  <app-dashboard-mode-toggles class="d3-flex" />
+  <app-emergency-stop class="d3-action" />
+</div>
+
+<app-metric-ticker
+  class="d3-block"
+  [data]="data"
+  [openBrokenLinks]="data?.open_broken_links ?? 0"
+  [urgentAlertCount]="0"
+/>
+
 <section class="dashboard-hero">
   <div class="dashboard-hero-copy">
     <span class="dashboard-kicker">Operations snapshot</span>
@@ -53,12 +78,65 @@
   </div>
 }
 
+<!-- ── Phase D1 / Gap 61 — Mission Brief (pinned at very top) ─── -->
+@if (!loading) {
+  <app-tutorial-callout
+    cardId="mission-brief"
+    title="Mission Brief"
+    body="Three sentences summarising yesterday's outcomes, today's queue, and the single most pressing thing to fix. Refreshes every 15 minutes." />
+  <div class="d1-row d1-row-mission">
+    <app-mission-brief class="d1-flex" />
+    <app-priority-summary-bell
+      class="d1-bell"
+      [actions]="todayActions"
+    />
+  </div>
+}
+
 <!-- ── Fix Runbooks Strip (hidden when healthy) ──────────────── -->
 @if (!loading && data) {
   <app-fix-runbooks-strip
     [healthStatus]="data.system_health?.status"
     [openQuarantineCount]="0"
   />
+}
+
+<!-- ── Phase D1 / Gaps 53/54/63 — Status, Action Queue, Health Dial ─ -->
+@if (!loading && data) {
+  <app-tutorial-callout
+    cardId="status-and-actions"
+    title="Status, actions, score"
+    body="The Status Story is a rolling present-tense snapshot. The Action Queue ranks your top three to-dos. The Health Score is one number summarising overall system health — green ≥ 80, amber 50-79, red below 50." />
+  <div class="d1-row d1-row-triple">
+    <app-status-story />
+    <app-priority-action-queue [actions]="todayActions" />
+    <app-health-score-dial
+      [data]="data"
+      [openBrokenLinks]="data.open_broken_links ?? 0"
+      [urgentAlertCount]="0"
+    />
+  </div>
+}
+
+<!-- ── Phase D1 / Gap 64 — Trend Deltas strip ───────────────── -->
+@if (!loading && data) {
+  <app-trend-deltas
+    class="d1-block"
+    [data]="data"
+    [openBrokenLinks]="data.open_broken_links ?? 0"
+  />
+}
+
+<!-- ── Phase D2 / Gaps 67/73 — Daily checklist + behavioral nudge ── -->
+@if (!loading) {
+  <app-tutorial-callout
+    cardId="d2-routine-row"
+    title="Your morning routine"
+    body="Daily pre-flight is a checkbox list of the things to do before you trust the dashboard. The Behavioral Nudge suggests the page you usually open first based on your last 14 days." />
+  <div class="d1-row d1-row-pair">
+    <app-operator-checklist />
+    <app-behavioral-nudge />
+  </div>
 }
 
 <!-- ── Operating Desk: Row 1 ──────────────────────────────────── -->
@@ -457,4 +535,136 @@
 
     <app-webhook-log id="dashboard-webhooks"></app-webhook-log>
   </section>
+}
+
+<!-- ── Phase D1 / Gaps 56/57/59/60 — Noob helpers cluster ─────── -->
+@if (!loading) {
+  <section class="d1-noob-helpers">
+    <h2 class="d1-section-title">
+      <mat-icon class="d1-section-icon">school</mat-icon>
+      Learn &amp; navigate
+    </h2>
+    <app-tutorial-callout
+      cardId="noob-helpers"
+      title="Learn &amp; navigate"
+      body="Type your intent in 'I want to…' to jump to the right page, or pick from the structured 'Take me to…' menu. The Color key explains the dots and chips you see across the app. The daily quiz teaches one new concept each day." />
+    <div class="d1-row d1-row-quad">
+      <app-command-suggestions />
+      <app-task-to-page-router />
+      <app-color-legend />
+      <app-daily-quiz />
+    </div>
+  </section>
+}
+
+<!-- ── Phase D2 / Gaps 68/72/76 — Help &amp; admin cluster ─────── -->
+@if (!loading) {
+  <section class="d1-noob-helpers">
+    <h2 class="d1-section-title">
+      <mat-icon class="d1-section-icon">handyman</mat-icon>
+      Help &amp; admin
+    </h2>
+    <app-tutorial-callout
+      cardId="d2-help-admin"
+      title="Help &amp; admin"
+      body="One-Button Reset is the safe 'something feels off' button — it refreshes data and reconnects live updates without losing your place. Tips rotate one tidbit per visit. Weekly Digest emails a summary every week." />
+    <div class="d1-row d1-row-triple">
+      <app-one-button-reset />
+      <app-tips-of-day />
+      <app-weekly-digest-optin />
+    </div>
+  </section>
+}
+
+<!-- ── Phase D3 / Gaps 173/155/156 — Instant health glance ─────── -->
+@if (!loading) {
+  <div class="d3-row d3-row-triple">
+    <app-instant-health
+      [data]="data"
+      [urgentAlertCount]="0"
+    />
+    <app-launcher-grid />
+    <app-goal-tracker [data]="data" />
+  </div>
+}
+
+<!-- ── Phase D3 / Gaps 162-166 — Live operations + schedule ───── -->
+@if (!loading) {
+  <div class="d3-row d3-row-pair">
+    <app-sync-activity />
+    <app-schedule-widget />
+  </div>
+}
+
+<!-- ── Phase D3 / Gaps 159/160/176/186 — Education + content cluster ─ -->
+@if (!loading && !modes.calm()) {
+  <section class="d3-section">
+    <h2 class="d3-section-title">
+      <mat-icon class="d3-section-icon">auto_stories</mat-icon>
+      Wisdom &amp; warnings
+    </h2>
+    <div class="d3-row d3-row-quad">
+      <app-rotating-card
+        title="Latest wins"
+        subtitle="Recent successes worth knowing"
+        icon="emoji_events"
+        accent="good"
+        [bank]="winsBank"
+        storageKey="rotating-wins"
+        rotation="random"
+      />
+      <app-rotating-card
+        title="Things to avoid"
+        subtitle="Don't trip over these"
+        icon="warning"
+        accent="warn"
+        [bank]="avoidsBank"
+        storageKey="rotating-avoids"
+        rotation="random"
+      />
+      <app-rotating-card
+        title="Pitfall of the day"
+        subtitle="A new one each day"
+        icon="report_problem"
+        accent="bad"
+        [bank]="pitfallsBank"
+        storageKey="rotating-pitfalls"
+        rotation="daily"
+        [showControls]="false"
+      />
+      <app-rotating-card
+        title="Quote of the day"
+        subtitle="One per day, swapped at midnight"
+        icon="format_quote"
+        accent="info"
+        [bank]="quotesBank"
+        storageKey="rotating-quotes"
+        rotation="daily"
+        [showControls]="false"
+      />
+    </div>
+  </section>
+}
+
+<!-- ── Phase D3 / Gaps 176/172 — ELI5 + flow diagram ──────────── -->
+@if (!loading) {
+  <div class="d3-row d3-row-pair">
+    <app-eli5-card />
+    <app-flow-diagram />
+  </div>
+}
+
+<!-- ── Phase D3 / Gaps 182/183 — Quiet hours + Who's on shift ── -->
+@if (!loading) {
+  <div class="d3-row d3-row-pair">
+    <app-quiet-hours-indicator />
+    <app-whos-on-shift />
+  </div>
+}
+
+<!-- ── Phase OB / Gap 130 — Real User Monitoring card ────────── -->
+@if (!loading && !modes.calm()) {
+  <div class="d3-block">
+    <app-rum-summary />
+  </div>
 }

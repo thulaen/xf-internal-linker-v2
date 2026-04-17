@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -72,20 +73,25 @@ interface GapRow {
 export class UnderLinkedComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
   rows: GapRow[] = [];
   loading = true;
   watchingId: number | null = null;
 
   ngOnInit(): void {
     this.http.get<GapRow[]>('/api/graph/gap-analysis/')
-      .pipe(catchError(() => of([])))
+      .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.rows = data; this.loading = false; });
   }
 
   watch(row: GapRow): void {
     this.watchingId = row.content_item_id;
     this.http.post('/api/analytics/watched-pages/', { content_item_id: row.content_item_id, notes: '' })
-      .pipe(catchError(() => { this.snack.open('Could not add to watchlist.', 'Dismiss', { duration: 3000 }); return of(null); }))
+      .pipe(
+        catchError(() => { this.snack.open('Could not add to watchlist.', 'Dismiss', { duration: 3000 }); return of(null); }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(res => {
         this.watchingId = null;
         if (res) { this.snack.open(`"${row.title}" added to watchlist.`, undefined, { duration: 2500 }); }

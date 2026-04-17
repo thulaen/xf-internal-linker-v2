@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
@@ -84,12 +85,14 @@ interface ImpactEntry {
 })
 export class ImpactDiaryComponent implements OnInit {
   private http = inject(HttpClient);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
   entries: ImpactEntry[] = [];
   loading = true;
 
   ngOnInit(): void {
     this.http.get<ImpactEntry[]>('/api/analytics/impacts/')
-      .pipe(catchError(() => of([])))
+      .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.entries = data; this.loading = false; });
   }
 }

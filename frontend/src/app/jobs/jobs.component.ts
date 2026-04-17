@@ -18,13 +18,15 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of } from 'rxjs';
+import { catchError, of, Subject, takeUntil } from 'rxjs';
 import { SyncService, SyncJob } from './sync.service';
 import { JobDetailDialogComponent, JobDetailDialogResult } from './job-detail-dialog.component';
 import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
 import { EmptyStateComponent } from '../shared/empty-state/empty-state.component';
 import { SystemMetricsComponent } from '../dashboard/system-metrics/system-metrics.component';
 import { SchedulingPolicyCardComponent } from './scheduling-policy-card/scheduling-policy-card.component';
+import { RealtimeService } from '../core/services/realtime.service';
+import { TopicUpdate } from '../core/services/realtime.types';
 
 type ImportState = 'idle' | 'uploading' | 'running' | 'paused' | 'completed' | 'failed';
 
@@ -93,6 +95,8 @@ export class JobsComponent implements OnInit, OnDestroy {
   private http = inject(HttpClient);
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
+  private realtime = inject(RealtimeService);
+  private destroy$ = new Subject<void>();
 
   // Queue + Quarantine (Stage 5)
   queueItems: any[] = [];
@@ -196,21 +200,25 @@ export class JobsComponent implements OnInit, OnDestroy {
       data: { job },
     });
 
-    ref.afterClosed().subscribe((result) => {
-      if (result?.action === 'retry' && result.source && result.mode) {
-        this.syncService.triggerApiSync(result.source, result.mode).subscribe({
-          next: () => {
-            this.snack.open('Retry started — check progress above', 'Dismiss', { duration: 5000 });
-            this.loadHistory();
-          },
-          error: () => {
-            this.snack.open('Failed to retry job', 'Dismiss', { duration: 4000 });
-          },
-        });
-      } else if (result?.action === 'resume' && result.jobId) {
-        this.resumeSyncJob(result.jobId);
-      }
-    });
+    ref.afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((result) => {
+        if (result?.action === 'retry' && result.source && result.mode) {
+          this.syncService.triggerApiSync(result.source, result.mode)
+            .pipe(takeUntil(this.destroy$))
+            .subscribe({
+              next: () => {
+                this.snack.open('Retry started — check progress above', 'Dismiss', { duration: 5000 });
+                this.loadHistory();
+              },
+              error: () => {
+                this.snack.open('Failed to retry job', 'Dismiss', { duration: 4000 });
+              },
+            });
+        } else if (result?.action === 'resume' && result.jobId) {
+          this.resumeSyncJob(result.jobId);
+        }
+      });
   }
 
   ngOnInit(): void {
@@ -218,13 +226,38 @@ export class JobsComponent implements OnInit, OnDestroy {
     this.loadSourceStatus();
     this.loadQueue();
     this.loadQuarantine();
-    // Refresh the history table every 30 seconds so status changes are visible.
-    this.historyInterval = setInterval(() => this.loadHistory(), 30_000);
+
+    // Phase R1.3 — live updates from `jobs.history` topic. Every SyncJob
+    // save fans out instantly; the historyInterval below drops to a
+    // 2-minute defensive fallback (if the WS drops, state still recovers).
+    this.realtime
+      .subscribeTopic('jobs.history')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((update: TopicUpdate) => this.handleJobsRealtimeUpdate(update));
+
+    this.historyInterval = setInterval(() => this.loadHistory(), 120_000);
+  }
+
+  private handleJobsRealtimeUpdate(update: TopicUpdate): void {
+    if (update.event === 'job.deleted') {
+      const id = (update.payload as { job_id: string }).job_id;
+      this.syncJobs = this.syncJobs.filter((j) => j.job_id !== id);
+      return;
+    }
+    if (update.event === 'job.created' || update.event === 'job.updated') {
+      const next = update.payload as SyncJob;
+      const idx = this.syncJobs.findIndex((j) => j.job_id === next.job_id);
+      if (idx >= 0) {
+        this.syncJobs = this.syncJobs.map((j) => (j.job_id === next.job_id ? next : j));
+      } else {
+        this.syncJobs = [next, ...this.syncJobs];
+      }
+    }
   }
 
   loadQueue(): void {
     this.http.get<{ items: any[]; locks: Record<string, string | null> }>('/api/jobs/queue/')
-      .pipe(catchError(() => of({ items: [], locks: {} })))
+      .pipe(catchError(() => of({ items: [], locks: {} })), takeUntil(this.destroy$))
       .subscribe(data => {
         this.queueItems = data.items;
         this.activeLocks = data.locks;
@@ -233,7 +266,7 @@ export class JobsComponent implements OnInit, OnDestroy {
 
   loadQuarantine(): void {
     this.http.get<any[]>('/api/jobs/quarantine/')
-      .pipe(catchError(() => of([])))
+      .pipe(catchError(() => of([])), takeUntil(this.destroy$))
       .subscribe(items => this.quarantineItems = items);
   }
 
@@ -248,7 +281,7 @@ export class JobsComponent implements OnInit, OnDestroy {
    */
   pauseSyncJob(jobId: string): void {
     this.syncService.pauseJob(jobId)
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError(() => of(null)), takeUntil(this.destroy$))
       .subscribe((res: any) => {
         if (res && res.status === 'paused') {
           this.snack.open(
@@ -269,7 +302,7 @@ export class JobsComponent implements OnInit, OnDestroy {
    */
   resumeSyncJob(jobId: string): void {
     this.syncService.resumeJob(jobId)
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError(() => of(null)), takeUntil(this.destroy$))
       .subscribe((res: any) => {
         if (res && res.status === 'pending') {
           this.snack.open(
@@ -301,11 +334,13 @@ export class JobsComponent implements OnInit, OnDestroy {
       autoFocus: 'first-tabbable',
       restoreFocus: true,
     });
-    ref.afterClosed().subscribe((decision) => {
-      if (decision === 'run') {
-        this.startSourceSync(source);
-      }
-    });
+    ref.afterClosed()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((decision) => {
+        if (decision === 'run') {
+          this.startSourceSync(source);
+        }
+      });
   }
 
   async launchQuarantineRunbook(item: any): Promise<void> {
@@ -334,7 +369,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   loadSourceStatus(): void {
-    this.syncService.getSourceStatus().subscribe({
+    this.syncService.getSourceStatus()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (s) => { 
         if (s && typeof s === 'object') {
           this.sourceStatus = s; 
@@ -347,7 +384,9 @@ export class JobsComponent implements OnInit, OnDestroy {
   }
 
   loadHistory(): void {
-    this.syncService.getJobs().subscribe({
+    this.syncService.getJobs()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (jobs) => { 
         // Ensure we only bind to arrays to avoid NG02200 crash
         if (Array.isArray(jobs)) {
@@ -378,18 +417,20 @@ export class JobsComponent implements OnInit, OnDestroy {
     job.progressMessage = `Requesting ${source === 'api' ? 'XenForo' : 'WordPress'} sync…`;
     job.errorMessage = '';
 
-    this.syncService.triggerApiSync(source, this.importMode).subscribe({
-      next: (res) => {
-        job.jobId = res.job_id;
-        job.progressMessage = 'Sync scheduled — connecting…';
-        this.connectWebSocketForSource(source, res.job_id);
-        this.loadHistory();
-      },
-      error: (err) => {
-        job.state = 'failed';
-        job.errorMessage = err.error?.error ?? 'Sync request failed.';
-      },
-    });
+    this.syncService.triggerApiSync(source, this.importMode)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          job.jobId = res.job_id;
+          job.progressMessage = 'Sync scheduled — connecting…';
+          this.connectWebSocketForSource(source, res.job_id);
+          this.loadHistory();
+        },
+        error: (err) => {
+          job.state = 'failed';
+          job.errorMessage = err.error?.error ?? 'Sync request failed.';
+        },
+      });
   }
 
   startJsonlImport(): void {
@@ -403,19 +444,21 @@ export class JobsComponent implements OnInit, OnDestroy {
     job.progressMessage = 'Uploading file…';
     job.errorMessage = '';
 
-    this.syncService.uploadFile(this.selectedFile, this.importMode).subscribe({
-      next: (res) => {
-        job.jobId = res.job_id;
-        job.state = 'running';
-        job.progressMessage = 'Import scheduled — connecting…';
-        this.connectWebSocketForSource('jsonl', res.job_id);
-        this.loadHistory();
-      },
-      error: (err) => {
-        job.state = 'failed';
-        job.errorMessage = err.error?.error ?? 'Upload failed.';
-      },
-    });
+    this.syncService.uploadFile(this.selectedFile, this.importMode)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+        next: (res) => {
+          job.jobId = res.job_id;
+          job.state = 'running';
+          job.progressMessage = 'Import scheduled — connecting…';
+          this.connectWebSocketForSource('jsonl', res.job_id);
+          this.loadHistory();
+        },
+        error: (err) => {
+          job.state = 'failed';
+          job.errorMessage = err.error?.error ?? 'Upload failed.';
+        },
+      });
   }
 
   resetJob(source: 'api' | 'wp' | 'jsonl'): void {
@@ -487,8 +530,10 @@ export class JobsComponent implements OnInit, OnDestroy {
     const job = this.jobs[source];
     if (job.pollingInterval) return;
     job.pollingInterval = setInterval(() => {
-      this.syncService.getJob(jobId).subscribe({
-        next: (j) => {
+      this.syncService.getJob(jobId)
+        .pipe(takeUntil(this.destroy$))
+        .subscribe({
+          next: (j) => {
           job.ingestProgress    = Math.round((j.ingest_progress ?? j.progress ?? 0) * 100);
           job.mlProgress        = Math.round((j.ml_progress ?? 0) * 100);
           job.spacyProgress     = Math.round((j.spacy_progress ?? 0) * 100);
@@ -570,5 +615,7 @@ export class JobsComponent implements OnInit, OnDestroy {
       this.clearPolling(j);
     });
     if (this.historyInterval) clearInterval(this.historyInterval);
+    this.destroy$.next();
+    this.destroy$.complete();
   }
 }

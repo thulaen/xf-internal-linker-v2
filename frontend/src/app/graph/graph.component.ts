@@ -44,6 +44,7 @@ import {
   GhostEdge,
 } from './graph.service';
 import { LinkGraphVizComponent } from './link-graph-viz/link-graph-viz.component';
+import { PersistTabDirective } from '../core/directives/persist-tab.directive';
 
 // ── Qualities tab local types ─────────────────────────────────────────────────
 
@@ -96,6 +97,8 @@ interface AnchorWarning {
     MatSliderModule,
     LinkGraphVizComponent,
     BaseChartDirective,
+    // Phase NV / Gap 145 — restores last-viewed tab on return visits.
+    PersistTabDirective,
   ],
   templateUrl: './graph.component.html',
   styleUrls: ['./graph.component.scss'],
@@ -247,7 +250,9 @@ export class GraphComponent implements OnInit {
 
   private _loadStats(): void {
     this.loadingStats = true;
-    this.graphService.getStats().subscribe({
+    this.graphService.getStats()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => { this.stats = s; this.loadingStats = false; },
       error: () => { this.loadingStats = false; },
     });
@@ -257,7 +262,9 @@ export class GraphComponent implements OnInit {
 
   private _loadTopics(): void {
     this.loadingTopics = true;
-    this.graphService.getTopics().subscribe({
+    this.graphService.getTopics()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (t) => { this.topics = t; this.loadingTopics = false; },
       error: () => { this.loadingTopics = false; },
     });
@@ -282,6 +289,7 @@ export class GraphComponent implements OnInit {
     this.loadingEntities = true;
     this.graphService
       .getEntities({ entity_type: this.entityTypeFilter, search: this.entitySearch, page: this.entityPage })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (res) => {
           this.entities = res.results;
@@ -320,7 +328,9 @@ export class GraphComponent implements OnInit {
 
   private _loadHubs(): void {
     this.loadingHubs = true;
-    this.graphService.getHubArticles(50).subscribe({
+    this.graphService.getHubArticles(50)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (a) => { this.hubArticles = a; this.loadingHubs = false; },
       error: () => { this.loadingHubs = false; },
     });
@@ -334,7 +344,9 @@ export class GraphComponent implements OnInit {
 
   private _loadAudit(): void {
     this.loadingAudit = true;
-    this.graphService.getOrphans(this.auditPage, this.auditPageSize, this.auditMode).subscribe({
+    this.graphService.getOrphans(this.auditPage, this.auditPageSize, this.auditMode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         this.auditItems = res.results;
         this.auditCount = res.count;
@@ -358,7 +370,9 @@ export class GraphComponent implements OnInit {
   }
 
   exportAuditCsv(): void {
-    this.graphService.exportOrphansCsv(this.auditMode).subscribe({
+    this.graphService.exportOrphansCsv(this.auditMode)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
         const anchor = document.createElement('a');
@@ -376,7 +390,9 @@ export class GraphComponent implements OnInit {
 
   suggestLinks(item: ContentItemSummary): void {
     this.suggestingId = item.id;
-    this.graphService.suggestLinksForOrphan(item.id).subscribe({
+    this.graphService.suggestLinksForOrphan(item.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.suggestingId = null;
         this.snack.open(`Pipeline started for "${item.title}"`, 'OK', { duration: 4000 });
@@ -457,7 +473,9 @@ export class GraphComponent implements OnInit {
     if (!this.fromArticle || !this.toArticle) return;
     this.loadingPath = true;
     this.pathResult = null;
-    this.graphService.findPath(this.fromArticle.id, this.toArticle.id).subscribe({
+    this.graphService.findPath(this.fromArticle.id, this.toArticle.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => { this.pathResult = res; this.loadingPath = false; },
       error: () => { this.loadingPath = false; },
     });
@@ -479,7 +497,9 @@ export class GraphComponent implements OnInit {
       return;
     }
     this.loadingTopology = true;
-    this.graphService.getTopology(500, at).subscribe({
+    this.graphService.getTopology(500, at)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (t) => {
         this.topology = t;
         this.churnyIds = new Set(t.churny_ids);
@@ -493,7 +513,9 @@ export class GraphComponent implements OnInit {
 
   private _loadPageRankEquity(): void {
     this.loadingEquity = true;
-    this.graphService.getPageRankEquity().subscribe({
+    this.graphService.getPageRankEquity()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (eq) => { this.pageRankEquity = eq; this.loadingEquity = false; },
       error: () => { this.loadingEquity = false; },
     });
@@ -647,7 +669,9 @@ export class GraphComponent implements OnInit {
 
   private _loadGaps(): void {
     this.loadingGaps = true;
-    this.graphService.getGapAnalysis(this.gapThreshold).subscribe({
+    this.graphService.getGapAnalysis(this.gapThreshold)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (data) => { this.gapData = data; this.loadingGaps = false; },
       error: () => { this.loadingGaps = false; },
     });
@@ -667,13 +691,17 @@ export class GraphComponent implements OnInit {
   onGhostEdgeClicked(edge: GhostEdge): void {
     this.activeGhostEdge = edge;
     this._gapDialogRef = this.dialog.open(this.quickApproveDialogRef, { width: '480px' });
-    this._gapDialogRef.afterClosed().subscribe(() => { this.activeGhostEdge = null; });
+    this._gapDialogRef.afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => { this.activeGhostEdge = null; });
   }
 
   approveGhostEdge(): void {
     if (!this.activeGhostEdge) return;
     const edge = this.activeGhostEdge;
-    this.graphService.approveSuggestion(edge.suggestion_id).subscribe({
+    this.graphService.approveSuggestion(edge.suggestion_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         if (this.gapData) {
           this.gapData = {

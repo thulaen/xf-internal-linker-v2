@@ -67,6 +67,9 @@ LOCAL_APPS = [
     "apps.cooccurrence",
     "apps.crawler",
     "apps.benchmarks",
+    "apps.realtime",
+    # Phase OF — Operations Feed.
+    "apps.ops_feed",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -491,19 +494,37 @@ HOST_SCAN_WORD_LIMIT = min(env.int("HOST_SCAN_WORD_LIMIT", default=1200), 2000)
 
 # ── Error Tracking (GlitchTip / Sentry-compatible) ──────────────────────────
 # Self-hosted GlitchTip running in Docker reuses this project's PostgreSQL and
-# Redis. Set GLITCHTIP_DSN in .env to enable. When DSN is empty, no-ops.
+# Redis. Set ERROR_TRACKING_DSN or GLITCHTIP_DSN in .env to enable.
+# When both are empty, every call here is a no-op.
+#
 # AGENTS: Never remove or comment out this block — it is the only error
 # tracking for both Python exceptions and pybind11 C++ exceptions.
-_GLITCHTIP_DSN = env("GLITCHTIP_DSN", default="")
-if _GLITCHTIP_DSN:
+#
+# ERROR_TRACKING_DSN is the canonical name; GLITCHTIP_DSN remains as a legacy
+# alias so a future switch to paid Sentry is one env var, zero code changes.
+# Phase GT of the approved master plan.
+_TRACKING_DSN = env("ERROR_TRACKING_DSN", default="") or env(
+    "GLITCHTIP_DSN", default=""
+)
+if _TRACKING_DSN:
+    import socket as _socket
+
     import sentry_sdk
+    from sentry_sdk.integrations.celery import CeleryIntegration
+    from sentry_sdk.integrations.django import DjangoIntegration
 
     sentry_sdk.init(
-        dsn=_GLITCHTIP_DSN,
+        dsn=_TRACKING_DSN,
+        integrations=[DjangoIntegration(), CeleryIntegration()],
         traces_sample_rate=0.1,
         environment=env("DJANGO_ENV", default="production"),
         send_default_pii=False,
     )
+    # Tag every captured event with the host node identity so errors from
+    # future worker/K8s/Lightsail/slave nodes stay attributable. Safe to
+    # override via NODE_ID / NODE_ROLE env vars per container.
+    sentry_sdk.set_tag("node_id", env("NODE_ID", default=_socket.gethostname()))
+    sentry_sdk.set_tag("node_role", env("NODE_ROLE", default="primary"))
 
 # ── drf-spectacular (OpenAPI schema) ────────────────────────────────────────
 SPECTACULAR_SETTINGS = {

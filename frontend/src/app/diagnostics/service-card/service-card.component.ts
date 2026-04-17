@@ -1,4 +1,4 @@
-import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ServiceStatus } from '../diagnostics.service';
 
@@ -10,6 +10,9 @@ interface MetadataEntry {
 @Component({
   selector: 'app-service-card',
   standalone: true,
+  // Phase E1 / Gap 28 — OnPush: data comes in via @Input() only; ngOnChanges
+  // marks the view dirty when input references change.
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule],
   templateUrl: './service-card.component.html',
   styleUrls: ['./service-card.component.scss']

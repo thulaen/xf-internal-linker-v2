@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -216,6 +217,8 @@ interface SafePruneStatus {
 export class SafePruneCardComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   loading = signal(true);
   status = signal<SafePruneStatus | null>(null);
@@ -229,7 +232,7 @@ export class SafePruneCardComponent implements OnInit {
     this.loading.set(true);
     this.http
       .get<SafePruneStatus>('/api/prune/safe/')
-      .pipe(catchError(() => of<SafePruneStatus | null>(null)))
+      .pipe(catchError(() => of<SafePruneStatus | null>(null)), takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => {
         this.status.set(res);
         this.loading.set(false);
@@ -248,6 +251,7 @@ export class SafePruneCardComponent implements OnInit {
           const detail = err?.error?.detail || 'Preview failed.';
           return of<PreviewResponse>({ ok: false, detail });
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
         this.busyTarget.set('');
@@ -276,6 +280,7 @@ export class SafePruneCardComponent implements OnInit {
           const detail = err?.error?.detail || 'Prune failed.';
           return of<CommitResponse>({ ok: false, detail });
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
         this.busyTarget.set('');

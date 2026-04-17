@@ -70,6 +70,7 @@ export class NotificationCenterComponent implements OnInit {
     this.loading = true;
     this.notifSvc
       .loadAlerts({ status: 'unread' })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (data) => {
           this.alerts = data;
@@ -93,7 +94,9 @@ export class NotificationCenterComponent implements OnInit {
   }
 
   onAcknowledgeAll(): void {
-    this.notifSvc.acknowledgeAll().subscribe({
+    this.notifSvc.acknowledgeAll()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => { this.alerts = []; },
       error: () => { this.loadAlerts(); },
     });
@@ -101,14 +104,18 @@ export class NotificationCenterComponent implements OnInit {
 
   onAcknowledge(alert: OperatorAlert, event: Event): void {
     event.stopPropagation();
-    this.notifSvc.acknowledge(alert.alert_id).subscribe({
+    this.notifSvc.acknowledge(alert.alert_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => { this.alerts = this.alerts.filter((a) => a.alert_id !== alert.alert_id); },
       error: () => { this.loadAlerts(); },
     });
   }
 
   onOpenRelated(alert: OperatorAlert): void {
-    this.notifSvc.markRead(alert.alert_id).subscribe({
+    this.notifSvc.markRead(alert.alert_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       error: () => { /* error interceptor handles display */ },
     });
     if (alert.related_route) {

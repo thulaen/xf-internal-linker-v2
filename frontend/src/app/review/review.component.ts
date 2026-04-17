@@ -32,6 +32,11 @@ import {
 } from './suggestion-detail-dialog.component';
 import { ConfidenceBadgeComponent } from '../shared/confidence-badge/confidence-badge.component';
 import { SuggestionExplainerPipe } from './pipes/suggestion-explainer.pipe';
+// Phase SR — readiness gate. The page holds rendering until the
+// readiness service reports every prerequisite ready, unless the user
+// has manually overridden via the "Show me anyway" button.
+import { PreparingSuggestionsComponent } from './preparing-suggestions/preparing-suggestions.component';
+import { SuggestionReadinessService } from '../core/services/suggestion-readiness.service';
 
 interface StatusTab {
   value: string;
@@ -64,6 +69,8 @@ interface StatusTab {
     HighlightPipe,
     ConfidenceBadgeComponent,
     SuggestionExplainerPipe,
+    // Phase SR — panel shown when the readiness gate reports a block.
+    PreparingSuggestionsComponent,
   ],
   templateUrl: './review.component.html',
   styleUrls: ['./review.component.scss'],
@@ -73,6 +80,15 @@ export class ReviewComponent implements OnInit {
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  // Phase SR — public so the template can read `readiness.ready()` /
+  // `readiness.blocking()` directly.
+  readiness = inject(SuggestionReadinessService);
+
+  /** Phase SR — operator-pressed override. When true, the gate is
+   *  treated as "ready" for the remainder of this browser session
+   *  so power users can unblock themselves without waiting for the
+   *  prerequisites to flip. Not persisted — expires on reload. */
+  gateOverride = false;
 
   // ── Data ─────────────────────────────────────────────────────────
   suggestions: Suggestion[] = [];
@@ -120,7 +136,29 @@ export class ReviewComponent implements OnInit {
   // ── Lifecycle ────────────────────────────────────────────────────
 
   ngOnInit(): void {
+    // Phase SR — kick the readiness service. Idempotent; safe even if
+    // some other page already started it.
+    this.readiness.start();
     this.load();
+  }
+
+  /** Phase SR — computed helper the template reads to decide which
+   *  region to render. Mirrors the service but honours the session
+   *  override flag. */
+  get isReadyForSuggestions(): boolean {
+    return this.gateOverride || this.readiness.ready();
+  }
+
+  /** Phase SR — operator-pressed "Show me anyway". Logs to the
+   *  console for debugging; a future Ops Feed emitter will replace
+   *  this with a structured event. */
+  onReadinessOverride(): void {
+    this.gateOverride = true;
+    this.snack.open(
+      'Showing suggestions with stale prerequisites — results may be inaccurate.',
+      'OK',
+      { duration: 5000 },
+    );
   }
 
   load(): void {

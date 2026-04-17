@@ -118,3 +118,133 @@ def compute_weekly_reviewer_scorecard():
         approval_rate,
     )
     return {"status": "created", "scorecard_id": scorecard.id}
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase GT Step 7 — GlitchTip issue sync
+# ─────────────────────────────────────────────────────────────────────────
+
+
+@shared_task(name="audit.sync_glitchtip_issues")
+def sync_glitchtip_issues():
+    """
+    Pull open issues from the GlitchTip REST API and mirror them into
+    ErrorLog so the operator can triage internal + third-party errors
+    in one Diagnostics view. Runs every 30 minutes via Celery Beat.
+
+    Dedup rule: `source='glitchtip'` + `glitchtip_issue_id` is the unique
+    key. An issue that flips to `resolved` upstream auto-acknowledges
+    its mirrored row.
+
+    Graceful no-op when any of the required env vars is missing — that
+    way a project without GlitchTip doesn't see Beat errors every 30 min.
+    """
+    import os
+
+    import requests
+
+    from apps.audit.fix_suggestions import suggest
+    from apps.audit.models import ErrorLog
+    from apps.audit.runtime_context import snapshot as runtime_snapshot
+
+    api_url = os.environ.get("GLITCHTIP_API_URL", "").rstrip("/")
+    token = os.environ.get("GLITCHTIP_API_TOKEN", "")
+    org = os.environ.get("GLITCHTIP_ORG_SLUG", "")
+    proj = os.environ.get("GLITCHTIP_PROJECT_SLUG", "")
+    if not all([api_url, token, org, proj]):
+        return {"status": "skipped", "reason": "missing_env_vars"}
+
+    try:
+        response = requests.get(
+            f"{api_url}/api/0/projects/{org}/{proj}/issues/",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"limit": 100},
+            timeout=15,
+        )
+        response.raise_for_status()
+        issues = response.json()
+    except requests.RequestException as exc:
+        logger.warning("[glitchtip-sync] Fetch failed: %s", exc)
+        return {"status": "error", "detail": str(exc)}
+    except ValueError as exc:
+        logger.warning("[glitchtip-sync] Response not JSON: %s", exc)
+        return {"status": "error", "detail": str(exc)}
+
+    severity_map = {
+        "fatal": ErrorLog.SEVERITY_CRITICAL,
+        "error": ErrorLog.SEVERITY_HIGH,
+        "warning": ErrorLog.SEVERITY_MEDIUM,
+        "info": ErrorLog.SEVERITY_LOW,
+        "debug": ErrorLog.SEVERITY_LOW,
+    }
+
+    created = updated = resolved = 0
+
+    for issue in issues:
+        gt_id = str(issue.get("id", ""))
+        if not gt_id:
+            continue
+        status_ = issue.get("status", "")
+        title = issue.get("title") or "Untitled"
+        culprit = issue.get("culprit", "")
+        count = int(issue.get("count", 1))
+        level = issue.get("level", "error")
+        severity = severity_map.get(level, ErrorLog.SEVERITY_MEDIUM)
+        url = f"{api_url}/issues/{gt_id}/"
+        fingerprint = str(issue.get("fingerprint") or gt_id)[:255]
+        tags = {
+            t[0]: t[1]
+            for t in (issue.get("tags") or [])
+            if isinstance(t, (list, tuple)) and len(t) == 2
+        }
+
+        existing = ErrorLog.objects.filter(glitchtip_issue_id=gt_id).first()
+
+        if status_ == "resolved":
+            if existing is not None and not existing.acknowledged:
+                existing.acknowledged = True
+                existing.save(update_fields=["acknowledged"])
+                resolved += 1
+            continue
+
+        if existing is not None:
+            existing.occurrence_count = count
+            existing.severity = severity
+            existing.save(update_fields=["occurrence_count", "severity"])
+            updated += 1
+            continue
+
+        ErrorLog.objects.create(
+            source=ErrorLog.SOURCE_GLITCHTIP,
+            job_type=(culprit.split(".")[0][:50] if culprit else "unknown"),
+            step=(culprit[:100] if culprit else "unknown"),
+            error_message=title[:4000],
+            why=(
+                f"GlitchTip captured a '{level}' event. Culprit: "
+                f"{culprit or 'unknown'}. Seen {count} time(s)."
+            ),
+            how_to_fix=suggest(title, fingerprint, culprit),
+            glitchtip_issue_id=gt_id,
+            glitchtip_url=url,
+            fingerprint=fingerprint,
+            occurrence_count=count,
+            severity=severity,
+            node_id=tags.get("node_id", "primary"),
+            node_role=tags.get("node_role", "primary"),
+            node_hostname=tags.get("server_name", ""),
+            runtime_context=runtime_snapshot(),
+        )
+        created += 1
+
+    logger.info(
+        "[glitchtip-sync] created=%d updated=%d resolved=%d",
+        created,
+        updated,
+        resolved,
+    )
+    return {
+        "status": "ok",
+        "created": created,
+        "updated": updated,
+        "resolved": resolved,
+    }

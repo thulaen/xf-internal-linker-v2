@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
@@ -206,6 +207,8 @@ export class SyncPreviewDialogComponent {
   data = inject<SyncPreviewDialogData>(MAT_DIALOG_DATA);
   private http = inject(HttpClient);
   private dialogRef = inject(MatDialogRef<SyncPreviewDialogComponent>);
+  // Phase E2 / Gap 41 — cancel in-flight preview if dialog closes first.
+  private destroyRef = inject(DestroyRef);
 
   loading = signal(true);
   result = signal<PreviewResult | null>(null);
@@ -226,6 +229,7 @@ export class SyncPreviewDialogComponent {
           this.error.set(detail);
           return of<PreviewResult | null>(null);
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((res) => {
         if (res) {

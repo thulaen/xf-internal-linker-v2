@@ -51,65 +51,75 @@
     </div>
   }
 
-  <!-- Error cards -->
+  <!-- Error cards — Phase E1 / Gap 27: wrapped in cdk-virtual-scroll-viewport
+       so the browser only renders ~5 cards at a time instead of all of them.
+       itemSize is an approximation (collapsed card ≈ 200px); CDK buffers
+       extra rows above/below via minBufferPx / maxBufferPx. -->
   @if (!loading && filteredErrors.length > 0) {
-    <div class="error-list">
-      @for (error of filteredErrors; track error.id) {
-        <mat-card class="error-card" [class.acknowledged]="error.acknowledged">
-          <mat-card-header>
-            <mat-icon mat-card-avatar class="error-avatar-icon" [class.reviewed]="error.acknowledged">
-              {{ error.acknowledged ? 'check_circle' : 'error' }}
-            </mat-icon>
-            <mat-card-title class="error-title">{{ error.step }}</mat-card-title>
-            <mat-card-subtitle>
-              <mat-chip-set>
-                <mat-chip class="job-type-chip" [matTooltip]="'Job type: ' + error.job_type">
-                  {{ jobTypeLabel(error.job_type) }}
-                </mat-chip>
-              </mat-chip-set>
-              <span class="error-date">{{ error.created_at | date:'medium' }}</span>
-            </mat-card-subtitle>
-          </mat-card-header>
+    <cdk-virtual-scroll-viewport
+      class="error-viewport"
+      itemSize="200"
+      [minBufferPx]="400"
+      [maxBufferPx]="800"
+    >
+      <mat-card
+        *cdkVirtualFor="let error of filteredErrors; trackBy: trackById"
+        class="error-card"
+        [class.acknowledged]="error.acknowledged"
+      >
+        <mat-card-header>
+          <mat-icon mat-card-avatar class="error-avatar-icon" [class.reviewed]="error.acknowledged">
+            {{ error.acknowledged ? 'check_circle' : 'error' }}
+          </mat-icon>
+          <mat-card-title class="error-title">{{ error.step }}</mat-card-title>
+          <mat-card-subtitle>
+            <mat-chip-set>
+              <mat-chip class="job-type-chip" [matTooltip]="'Job type: ' + error.job_type">
+                {{ jobTypeLabel(error.job_type) }}
+              </mat-chip>
+            </mat-chip-set>
+            <span class="error-date">{{ error.created_at | date:'medium' }}</span>
+          </mat-card-subtitle>
+        </mat-card-header>
 
-          <mat-card-content>
-            <!-- Plain English explanation -->
-            @if (error.why) {
-              <div class="why-box">
-                <div class="why-header">
-                  <mat-icon>lightbulb</mat-icon>
-                  <strong>What happened</strong>
-                </div>
-                <p>{{ error.why }}</p>
+        <mat-card-content>
+          <!-- Plain English explanation -->
+          @if (error.why) {
+            <div class="why-box">
+              <div class="why-header">
+                <mat-icon>lightbulb</mat-icon>
+                <strong>What happened</strong>
               </div>
-            }
-
-            <!-- Error message -->
-            <div class="error-message">
-              <strong>Error:</strong> {{ error.error_message }}
+              <p>{{ error.why }}</p>
             </div>
+          }
 
-            <!-- Expandable raw exception -->
-            @if (error.raw_exception) {
-              <details class="exception-details">
-                <summary>Show full traceback</summary>
-                <pre class="exception-pre">{{ error.raw_exception }}</pre>
-              </details>
-            }
-          </mat-card-content>
+          <!-- Error message -->
+          <div class="error-message">
+            <strong>Error:</strong> {{ error.error_message }}
+          </div>
 
-          <mat-card-actions align="end">
-            @if (!error.acknowledged) {
-              <button mat-stroked-button (click)="acknowledgeError(error)">
-                <mat-icon>done</mat-icon> Mark Reviewed
-              </button>
-            } @else {
-              <span class="reviewed-label">
-                <mat-icon class="icon-sm">check</mat-icon> Reviewed
-              </span>
-            }
-          </mat-card-actions>
-        </mat-card>
-      }
-    </div>
+          <!-- Expandable raw exception -->
+          @if (error.raw_exception) {
+            <details class="exception-details">
+              <summary>Show full traceback</summary>
+              <pre class="exception-pre">{{ error.raw_exception }}</pre>
+            </details>
+          }
+        </mat-card-content>
+
+        <mat-card-actions align="end">
+          @if (!error.acknowledged) {
+            <button mat-stroked-button (click)="acknowledgeError(error)">
+              <mat-icon>done</mat-icon> Mark Reviewed
+            </button>
+          } @else {
+            <span class="reviewed-label">
+              <mat-icon class="icon-sm">check</mat-icon> Reviewed
+            </span>
+          }
+        </mat-card-actions>
+      </mat-card>
+    </cdk-virtual-scroll-viewport>
   }
 </div>

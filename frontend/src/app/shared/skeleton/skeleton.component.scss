@@ -1,0 +1,118 @@
+// Phase U1 / Gap 2 — skeleton screen styles.
+//
+// Uses ONLY CSS variables from default-theme.scss. The shimmer animation
+// is a linear background-position sweep rather than a gradient so the
+// "no gradients on UI elements" rule in FRONTEND-RULES.md is preserved —
+// we alternate two flat background colors with a masked pseudo-element
+// that slides across.
+//
+// Respects `prefers-reduced-motion: reduce` by disabling the sweep and
+// showing a static dimmed bar instead.
+
+$shimmer-duration: 1.4s;
+
+@mixin shimmer-base {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-border-faint);
+  border-radius: 4px;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    // Single-colour swipe over the grey base.
+    background-color: var(--color-bg-white);
+    opacity: 0;
+    animation: skeleton-shimmer $shimmer-duration infinite cubic-bezier(0.4, 0, 0.2, 1);
+  }
+}
+
+@keyframes skeleton-shimmer {
+  0%   { transform: translateX(-100%); opacity: 0; }
+  50%  { opacity: 0.6; }
+  100% { transform: translateX(100%); opacity: 0; }
+}
+
+// ── Card shape ─────────────────────────────────────────────────────────
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm, 8px);
+  padding: var(--space-md, 16px);
+  border: var(--card-border);
+  border-radius: var(--card-border-radius, 8px);
+  background: var(--color-surface);
+  min-height: 140px;
+}
+
+.skeleton-line {
+  @include shimmer-base;
+  height: 12px;
+  width: 100%;
+}
+
+.skeleton-line-header { height: 20px; width: 40%; margin-bottom: var(--space-xs, 4px); }
+.skeleton-line-md     { width: 85%; }
+.skeleton-line-lg     { width: 95%; }
+.skeleton-line-sm     { width: 60%; }
+
+// ── Table shape ────────────────────────────────────────────────────────
+
+.skeleton-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs, 4px);
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md, 16px);
+  padding: var(--space-sm, 8px);
+  border-bottom: 1px solid var(--color-border-faint);
+}
+
+.skeleton-cell {
+  @include shimmer-base;
+  height: 10px;
+  flex: 1 1 0;
+}
+
+.skeleton-cell-sm { flex: 0 0 80px; }
+.skeleton-cell-md { flex: 0 0 140px; }
+.skeleton-cell-lg { flex: 2 1 0; }
+
+// ── Block shape ────────────────────────────────────────────────────────
+
+.skeleton-block {
+  @include shimmer-base;
+  width: 100%;
+  border-radius: var(--card-border-radius, 8px);
+}
+
+// ── Reduced-motion ─────────────────────────────────────────────────────
+
+@media (prefers-reduced-motion: reduce) {
+  .skeleton-line::after,
+  .skeleton-cell::after,
+  .skeleton-block::after {
+    animation: none;
+    opacity: 0.3;
+  }
+}
+
+// ── Visually-hidden SR-only label ──────────────────────────────────────
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

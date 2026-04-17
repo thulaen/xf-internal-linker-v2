@@ -1,4 +1,5 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatTableModule } from '@angular/material/table';
@@ -25,6 +26,8 @@ import { DiagnosticsService, WeightDiagnosticsResponse } from '../../diagnostics
 })
 export class WeightDiagnosticsCardComponent implements OnInit {
   private diagnosticsService = inject(DiagnosticsService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   loading = true;
   error: string | null = null;
@@ -39,7 +42,9 @@ export class WeightDiagnosticsCardComponent implements OnInit {
   loadData(): void {
     this.loading = true;
     this.error = null;
-    this.diagnosticsService.getWeightDiagnostics().subscribe({
+    this.diagnosticsService.getWeightDiagnostics()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         this.data = res;
         this.loading = false;

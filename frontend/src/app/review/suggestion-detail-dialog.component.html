@@ -60,7 +60,7 @@
       <div class="anchor-row">
         <mat-form-field appearance="outline" class="anchor-field">
           <mat-label>Anchor phrase</mat-label>
-          <input matInput [(ngModel)]="anchorEdited" />
+          <input matInput autocomplete="off" [(ngModel)]="anchorEdited" />
           <mat-hint>Edit the link text that will appear in the post</mat-hint>
         </mat-form-field>
         <span class="confidence-badge confidence-{{ detail.anchor_confidence }}">
@@ -430,7 +430,7 @@
     <section class="section">
       <mat-form-field appearance="outline" class="full-width">
         <mat-label>Reviewer notes (optional)</mat-label>
-        <textarea matInput [(ngModel)]="reviewerNotes" rows="2"></textarea>
+        <textarea matInput autocomplete="off" [(ngModel)]="reviewerNotes" rows="2"></textarea>
       </mat-form-field>
     </section>
 

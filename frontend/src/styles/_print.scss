@@ -1,0 +1,140 @@
+// ─────────────────────────────────────────────────────────────────────
+// Phase E2 / Gap 47 — Print styles.
+//
+// When the user triggers Ctrl+P (or File → Print) we want:
+//   - Chrome gone: toolbar, sidenav, FABs, dialogs backdrop, scroll-to-top,
+//     notification center, freshness ribbon, nav progress bar.
+//   - Data visible: the content of <main> at full width, with a clear
+//     header showing the site name + printed-at timestamp.
+//   - No shadows, no hover states, no background colors that eat toner.
+//   - Links show their destination URL in parentheses so a printed page
+//     is self-describing.
+//
+// This is a pure CSS concern — no Angular code needed. Imported from
+// styles.scss at the bottom of the stack so it overrides anything.
+// ─────────────────────────────────────────────────────────────────────
+
+@media print {
+  // ── Hide app chrome ────────────────────────────────────────────────
+  app-nav-progress-bar,
+  app-offline-banner,
+  mat-toolbar.app-toolbar,
+  mat-sidenav.app-sidenav,
+  mat-sidenav.customizer-drawer,
+  app-scroll-to-top,
+  app-notification-center,
+  .skip-link,
+  .freshness-ribbon,
+  .app-footer,
+  button,
+  mat-icon-button,
+  .mat-mdc-fab,
+  .mat-mdc-icon-button,
+  .mat-mdc-tooltip,
+  .mat-mdc-snack-bar-container,
+  .cdk-overlay-container {
+    display: none !important;
+  }
+
+  // ── Full-bleed main content ───────────────────────────────────────
+  html,
+  body,
+  app-root,
+  mat-sidenav-container.app-container,
+  mat-sidenav-content.app-content {
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  main.page-content {
+    margin: 0 !important;
+    padding: 12mm !important;
+    overflow: visible !important;
+  }
+
+  // ── Cards flatten — no shadows, no colored borders ────────────────
+  mat-card,
+  .mat-mdc-card {
+    box-shadow: none !important;
+    border: 0.5pt solid #999 !important;
+    background: #ffffff !important;
+    page-break-inside: avoid;
+  }
+
+  // ── Tables readable on paper ──────────────────────────────────────
+  table,
+  mat-table,
+  .mat-mdc-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    page-break-inside: auto;
+  }
+  tr,
+  mat-row,
+  mat-header-row {
+    page-break-inside: avoid;
+    page-break-after: auto;
+  }
+  th,
+  td,
+  mat-header-cell,
+  mat-cell {
+    border: 0.5pt solid #999 !important;
+    padding: 4pt 6pt !important;
+    color: #000000 !important;
+    background: #ffffff !important;
+  }
+  thead,
+  mat-header-row {
+    display: table-header-group;
+  }
+
+  // ── Expose link destinations ──────────────────────────────────────
+  // Show the href after every visible link so the paper copy is self-
+  // describing. Skip router links with fragment-only or javascript:
+  // hrefs since those don't point anywhere useful off-page.
+  a[href]:not([href="#"]):not([href^="javascript:"])::after {
+    content: " (" attr(href) ")";
+    font-size: 9pt;
+    color: #444;
+    word-break: break-all;
+  }
+
+  // Internal routerLinks usually have a relative href — skip.
+  a[routerLink]::after {
+    content: "";
+  }
+
+  // ── Page break helpers ────────────────────────────────────────────
+  // Consumers add class="page-break-before" / "page-break-after" to
+  // force breaks; "avoid-break" keeps a section together.
+  .page-break-before { page-break-before: always; }
+  .page-break-after  { page-break-after: always; }
+  .avoid-break       { page-break-inside: avoid; }
+
+  // ── Color-safe typography ─────────────────────────────────────────
+  * {
+    color: #000000 !important;
+    text-shadow: none !important;
+    filter: none !important;
+  }
+  h1, h2, h3, h4, h5, h6 {
+    page-break-after: avoid;
+  }
+  // Prevent headings being orphaned at bottom of page.
+  h1 + *, h2 + *, h3 + * {
+    page-break-before: avoid;
+  }
+
+  // ── Page margins (A4 + Letter both work) ──────────────────────────
+  @page {
+    margin: 15mm;
+  }
+}

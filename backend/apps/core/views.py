@@ -3305,6 +3305,272 @@ class ResumeStateView(APIView):
         )
 
 
+class StatusStoryView(APIView):
+    """GET /api/dashboard/story/
+
+    Phase D1 / Gap 53 — a plain-English narrative summary for the
+    dashboard's "Status Story" card.
+
+    Composes one or two sentences from data the frontend already
+    has, plus counts that would be awkward to aggregate client-side.
+    Refreshed every 5 minutes by the caller (dashboard component).
+
+    Example output:
+        "This morning: 3 alerts fired, Celery is healthy, 47
+         suggestions are waiting for review."
+        "Quiet so far — no alerts, no broken links, 12 suggestions
+         ready."
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.notifications.models import OperatorAlert
+        from apps.suggestions.models import Suggestion
+
+        now = timezone.now()
+        since_morning = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # Count today's unacknowledged alerts (excluding 'info' noise).
+        alerts_today = OperatorAlert.objects.filter(
+            first_seen_at__gte=since_morning,
+            status="unread",
+            severity__in=["urgent", "error", "warning"],
+        ).count()
+
+        # Pending suggestions waiting for review.
+        pending_reviews = Suggestion.objects.filter(status="pending").count()
+
+        # System health — best-effort. If the health app isn't happy,
+        # treat as 'unknown' rather than crash the narrative.
+        try:
+            from apps.health.services import compute_system_summary
+
+            summary = compute_system_summary()
+            health_status = summary.get("system_status", "unknown")
+        except Exception:
+            logger.debug("health summary unavailable for status story")
+            health_status = "unknown"
+
+        # Broken links open count — reuses the existing dashboard view's
+        # model if available.
+        broken_links_open = 0
+        try:
+            from apps.graph.models import BrokenLink
+
+            broken_links_open = BrokenLink.objects.filter(status="open").count()
+        except Exception:
+            logger.debug("BrokenLink not available for status story")
+
+        # Compose. The phrasing is deliberately short: three to six
+        # items max. Noobs need to read this in under two seconds.
+        fragments: list[str] = []
+
+        if alerts_today == 0:
+            fragments.append("no new alerts")
+        elif alerts_today == 1:
+            fragments.append("1 alert fired today")
+        else:
+            fragments.append(f"{alerts_today} alerts fired today")
+
+        if health_status == "healthy":
+            fragments.append("all systems healthy")
+        elif health_status == "degraded":
+            fragments.append("some services degraded")
+        elif health_status in ("critical", "error"):
+            fragments.append("a critical service is down")
+        # 'unknown' — stay silent rather than mislead.
+
+        if pending_reviews == 0:
+            fragments.append("no suggestions waiting")
+        elif pending_reviews == 1:
+            fragments.append("1 suggestion waiting for review")
+        else:
+            fragments.append(f"{pending_reviews} suggestions waiting for review")
+
+        if broken_links_open > 0:
+            fragments.append(
+                f"{broken_links_open} broken link"
+                + ("s" if broken_links_open != 1 else "")
+            )
+
+        # Title cases the first fragment, joins with commas + "and".
+        headline = self._join_fragments(fragments)
+
+        # Choose a time-of-day greeting so the narrative feels alive.
+        hour = now.hour
+        if hour < 12:
+            prefix = "This morning"
+        elif hour < 17:
+            prefix = "This afternoon"
+        else:
+            prefix = "This evening"
+
+        return Response(
+            {
+                "headline": f"{prefix}: {headline}.",
+                "fragments": fragments,
+                "alerts_today": alerts_today,
+                "pending_reviews": pending_reviews,
+                "broken_links_open": broken_links_open,
+                "health_status": health_status,
+                "generated_at": now.isoformat(),
+            }
+        )
+
+    @staticmethod
+    def _join_fragments(fragments: list[str]) -> str:
+        if not fragments:
+            return "nothing to report"
+        if len(fragments) == 1:
+            return fragments[0]
+        if len(fragments) == 2:
+            return f"{fragments[0]} and {fragments[1]}"
+        return ", ".join(fragments[:-1]) + f", and {fragments[-1]}"
+
+
+class MissionBriefView(APIView):
+    """GET /api/dashboard/mission-brief/
+
+    Phase D1 / Gap 61 — a pinned three-sentence summary for the
+    dashboard header. Differs from StatusStoryView by timeframe:
+    Mission Brief is the morning executive summary (yesterday's
+    outcomes + today's priorities), Status Story is a rolling
+    present-tense snapshot.
+
+    Three sentences, plain English:
+      1. Yesterday: what the system did (counts).
+      2. Today: what's queued (counts).
+      3. Watch: the single most pressing thing to fix, if any.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.notifications.models import OperatorAlert
+        from apps.suggestions.models import PipelineRun, Suggestion
+        from apps.sync.models import SyncJob
+
+        now = timezone.now()
+        yesterday_cutoff = now - timedelta(hours=24)
+        today_cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+
+        # ── Sentence 1: Yesterday ────────────────────────────────
+        approved_yday = Suggestion.objects.filter(
+            status="approved", reviewed_at__gte=yesterday_cutoff
+        ).count()
+        synced_yday = SyncJob.objects.filter(
+            status="completed", completed_at__gte=yesterday_cutoff
+        ).count()
+        pipeline_runs_yday = PipelineRun.objects.filter(
+            created_at__gte=yesterday_cutoff
+        ).count()
+
+        if approved_yday == 0 and synced_yday == 0 and pipeline_runs_yday == 0:
+            sentence_yesterday = (
+                "In the last 24 hours nothing was approved or synced."
+            )
+        else:
+            parts: list[str] = []
+            if approved_yday:
+                parts.append(
+                    f"{approved_yday} suggestion"
+                    + ("s" if approved_yday != 1 else "")
+                    + " approved"
+                )
+            if synced_yday:
+                parts.append(
+                    f"{synced_yday} sync job"
+                    + ("s" if synced_yday != 1 else "")
+                    + " finished"
+                )
+            if pipeline_runs_yday:
+                parts.append(
+                    f"{pipeline_runs_yday} pipeline run"
+                    + ("s" if pipeline_runs_yday != 1 else "")
+                )
+            sentence_yesterday = (
+                "In the last 24 hours: " + ", ".join(parts) + "."
+            )
+
+        # ── Sentence 2: Today's queue ───────────────────────────
+        pending_reviews = Suggestion.objects.filter(status="pending").count()
+        running_syncs = SyncJob.objects.filter(
+            status__in=["running", "pending"]
+        ).count()
+
+        queue_parts: list[str] = []
+        if pending_reviews:
+            queue_parts.append(
+                f"{pending_reviews} suggestion"
+                + ("s" if pending_reviews != 1 else "")
+                + " waiting for review"
+            )
+        if running_syncs:
+            queue_parts.append(
+                f"{running_syncs} sync"
+                + ("s" if running_syncs != 1 else "")
+                + " in flight"
+            )
+
+        if queue_parts:
+            sentence_today = "Right now: " + " and ".join(queue_parts) + "."
+        else:
+            sentence_today = "Right now the queue is clear."
+
+        # ── Sentence 3: Watch (most pressing) ───────────────────
+        top_alert = (
+            OperatorAlert.objects.filter(
+                status="unread", severity__in=["urgent", "error"]
+            )
+            .order_by("-first_seen_at")
+            .first()
+        )
+
+        if top_alert:
+            sentence_watch = (
+                f"Watch: {top_alert.severity} alert — "
+                f"\"{top_alert.title[:80]}\"."
+            )
+        else:
+            sentence_watch = "Nothing is on fire."
+
+        return Response(
+            {
+                "sentences": [
+                    sentence_yesterday,
+                    sentence_today,
+                    sentence_watch,
+                ],
+                "counts": {
+                    "approved_last_24h": approved_yday,
+                    "synced_last_24h": synced_yday,
+                    "pipeline_runs_last_24h": pipeline_runs_yday,
+                    "pending_reviews": pending_reviews,
+                    "running_syncs": running_syncs,
+                },
+                "top_alert": (
+                    {
+                        "alert_id": str(top_alert.alert_id),
+                        "severity": top_alert.severity,
+                        "title": top_alert.title,
+                    }
+                    if top_alert
+                    else None
+                ),
+                "generated_at": now.isoformat(),
+            }
+        )
+
+
 class RuntimeSettingsView(APIView):
     """GET /api/settings/runtime/ — current runtime mode and state.
 

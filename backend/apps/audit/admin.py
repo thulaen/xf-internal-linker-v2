@@ -5,7 +5,13 @@ Audit admin — AuditEntry, ReviewerScorecard, ErrorLog.
 from django.contrib import admin
 from unfold.admin import ModelAdmin
 
-from .models import AuditEntry, ErrorLog, ReviewerScorecard
+from .models import (
+    AuditEntry,
+    ErrorLog,
+    FeatureRequest,
+    FeatureRequestVote,
+    ReviewerScorecard,
+)
 
 
 @admin.register(AuditEntry)
@@ -89,3 +95,30 @@ class ErrorLogAdmin(ModelAdmin):
             if len(obj.error_message) > 80
             else obj.error_message
         )
+
+
+@admin.register(FeatureRequest)
+class FeatureRequestAdmin(ModelAdmin):
+    """Phase GB / Gap 151 — maintainer triage queue."""
+
+    list_display = [
+        "title",
+        "status",
+        "priority",
+        "votes",
+        "author",
+        "category",
+        "created_at",
+    ]
+    list_filter = ["status", "priority", "category"]
+    search_fields = ["title", "body", "author__username", "admin_reply"]
+    readonly_fields = ["created_at", "updated_at", "votes", "context"]
+    ordering = ["-created_at"]
+
+
+@admin.register(FeatureRequestVote)
+class FeatureRequestVoteAdmin(ModelAdmin):
+    list_display = ["request", "user", "created_at"]
+    search_fields = ["request__title", "user__username"]
+    readonly_fields = ["created_at"]
+    ordering = ["-created_at"]

@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, OnDestroy, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { RouterModule } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -13,6 +14,7 @@ import { ScrollHighlightDirective } from '../core/directives/scroll-highlight.di
 import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
 import { SafePruneCardComponent } from './safe-prune-card/safe-prune-card.component';
 import { DeepLinkSpotlightDirective } from '../shared/directives/deep-link-spotlight.directive';
+import { PersistTabDirective } from '../core/directives/persist-tab.directive';
 import { finalize } from 'rxjs';
 
 export interface ChecklistGroup {
@@ -73,6 +75,8 @@ const STATUS_SORT_ORDER: Record<string, number> = {
     HealthBannerComponent,
     SafePruneCardComponent,
     DeepLinkSpotlightDirective,
+    // Phase NV / Gap 145 — persist last-viewed tier tab.
+    PersistTabDirective,
   ],
   templateUrl: './health.component.html',
   styleUrls: ['./health.component.scss'],
@@ -80,6 +84,8 @@ const STATUS_SORT_ORDER: Record<string, number> = {
 export class HealthComponent implements OnInit, OnDestroy {
   private healthService = inject(HealthService);
   private syncService = inject(SyncService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
+  private destroyRef = inject(DestroyRef);
 
   summary: HealthSummary | null = null;
   services: ServiceHealth[] = [];
@@ -121,8 +127,12 @@ export class HealthComponent implements OnInit, OnDestroy {
   ngOnInit(): void {
     this.loadData();
     this.loadActiveJobs();
-    this.healthService.getDiskHealth().subscribe(d => this.diskHealth = d);
-    this.healthService.getGpuHealth().subscribe(g => this.gpuHealth = g);
+    this.healthService.getDiskHealth()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(d => this.diskHealth = d);
+    this.healthService.getGpuHealth()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(g => this.gpuHealth = g);
   }
 
   ngOnDestroy(): void {
@@ -132,7 +142,10 @@ export class HealthComponent implements OnInit, OnDestroy {
   loadData(): void {
     this.loading = true;
     this.healthService.getHealthStatus()
-      .pipe(finalize(() => this.loading = false))
+      .pipe(
+        finalize(() => this.loading = false),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (data) => {
           this.services = [...data].sort(
@@ -148,20 +161,28 @@ export class HealthComponent implements OnInit, OnDestroy {
   }
 
   updateSummary(): void {
-    this.healthService.getSummary().subscribe(s => this.summary = s);
+    this.healthService.getSummary()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(s => this.summary = s);
   }
 
   refreshAll(): void {
     this.refreshing = true;
     this.healthService.checkAll()
-      .pipe(finalize(() => this.refreshing = false))
+      .pipe(
+        finalize(() => this.refreshing = false),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(() => this.loadData());
   }
 
   refreshService(serviceKey: string): void {
     this.refreshingServices.add(serviceKey);
     this.healthService.checkService(serviceKey)
-      .pipe(finalize(() => this.refreshingServices.delete(serviceKey)))
+      .pipe(
+        finalize(() => this.refreshingServices.delete(serviceKey)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(updated => {
         const idx = this.services.findIndex(s => s.service_key === serviceKey);
         if (idx !== -1) {
@@ -179,31 +200,35 @@ export class HealthComponent implements OnInit, OnDestroy {
   // ── Active Jobs ──────────────────────────────────────────────────
 
   loadActiveJobs(): void {
-    this.syncService.getJobs().subscribe({
-      next: (jobs) => {
-        const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
-        this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
-        if (this.activeJobs.length > 0) {
-          this.startJobPoll();
-        }
-      },
-      error: () => { /* jobs widget is non-critical */ }
-    });
+    this.syncService.getJobs()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (jobs) => {
+          const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
+          this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
+          if (this.activeJobs.length > 0) {
+            this.startJobPoll();
+          }
+        },
+        error: () => { /* jobs widget is non-critical */ }
+      });
   }
 
   private startJobPoll(): void {
     if (this.jobPollInterval) return;
     this.jobPollInterval = setInterval(() => {
-      this.syncService.getJobs().subscribe({
-        next: (jobs) => {
-          const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
-          this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
-          if (this.activeJobs.length === 0) {
-            this.clearJobPoll();
-          }
-        },
-        error: () => {}
-      });
+      this.syncService.getJobs()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (jobs) => {
+            const raw = Array.isArray(jobs) ? jobs : ((jobs as any).results ?? []);
+            this.activeJobs = raw.filter((j: SyncJob) => j.status === 'running' || j.status === 'pending');
+            if (this.activeJobs.length === 0) {
+              this.clearJobPoll();
+            }
+          },
+          error: () => {}
+        });
     }, 5000);
   }
 

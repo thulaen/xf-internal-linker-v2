@@ -267,3 +267,9 @@ class QuarantineRecord(TimestampedModel):
     def __str__(self) -> str:
         state = "open" if self.is_open else "resolved"
         return f"QuarantineRecord<{self.related_object_type}:{self.related_object_id} {self.reason} {state}>"
+
+
+# Phase OB / Gaps 131 + 132 — Feature flags + A/B variants + exposures.
+# Defined in ``feature_flags.py`` to keep this file manageable; re-exported
+# so Django's app registry picks them up at makemigrations time.
+from .feature_flags import FeatureFlag, FeatureFlagExposure  # noqa: E402, F401

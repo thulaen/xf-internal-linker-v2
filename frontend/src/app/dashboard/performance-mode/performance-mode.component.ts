@@ -1,4 +1,5 @@
-import { Component, Input, Output, EventEmitter, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { Component, DestroyRef, Input, Output, EventEmitter, ChangeDetectionStrategy, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { PerformanceModeService, PerformanceExpiry } from '../../core/services/performance-mode.service';
 import { MatButtonModule } from '@angular/material/button';
@@ -333,6 +334,8 @@ export class PerformanceModeComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private dialog = inject(MatDialog);
   private perfMode = inject(PerformanceModeService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   @Input() currentMode = 'balanced';
   @Output() modeChange = new EventEmitter<string>();
@@ -350,12 +353,14 @@ export class PerformanceModeComponent implements OnInit {
 
   ngOnInit(): void {
     this.http.get<{ armed: boolean }>('/api/system/safe-mode-boot/')
-      .pipe(catchError(() => EMPTY))
+      .pipe(catchError(() => EMPTY), takeUntilDestroyed(this.destroyRef))
       .subscribe((r) => this.bootArmed.set(!!r?.armed));
 
     // Hydrate mode + expiry from the backend so the chip state is consistent
     // across tabs.
-    this.perfMode.refresh().subscribe();
+    this.perfMode.refresh()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   setExpiry(next: PerformanceExpiry): void {
@@ -367,6 +372,7 @@ export class PerformanceModeComponent implements OnInit {
         this.snack.open('Could not save revert timer. Try again.', 'OK', { duration: 4000 });
         return EMPTY;
       }),
+      takeUntilDestroyed(this.destroyRef),
     ).subscribe();
   }
 
@@ -388,6 +394,7 @@ export class PerformanceModeComponent implements OnInit {
           this.snack.open('Could not arm safe-mode boot. Try again.', 'OK', { duration: 4000 });
           return EMPTY;
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.bootArmed.set(true);
@@ -407,11 +414,13 @@ export class PerformanceModeComponent implements OnInit {
         width: '480px',
         autoFocus: false,
       });
-      ref.afterClosed().subscribe((confirmed) => {
-        if (confirmed) {
-          this.applyMode(key);
-        }
-      });
+      ref.afterClosed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((confirmed) => {
+          if (confirmed) {
+            this.applyMode(key);
+          }
+        });
       return;
     }
 
@@ -428,6 +437,7 @@ export class PerformanceModeComponent implements OnInit {
           this.snack.open('Could not switch mode. Try again.', 'OK', { duration: 4000 });
           return EMPTY;
         }),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe(() => {
         this.pending.set(null);

@@ -39,6 +39,48 @@ import { RankingStrategyCardComponent } from './ranking-strategy-card/ranking-st
 import { SuggestionFunnelComponent } from './suggestion-funnel/suggestion-funnel.component';
 import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opportunity-pages.component';
 import { FixRunbooksStripComponent } from './fix-runbooks-strip/fix-runbooks-strip.component';
+// ── Phase D1 imports (Gaps 53-65) ────────────────────────────────────
+import { StatusStoryComponent } from './status-story/status-story.component';
+import { PriorityActionQueueComponent } from './priority-action-queue/priority-action-queue.component';
+import { DailyQuizComponent } from './daily-quiz/daily-quiz.component';
+import { CommandSuggestionsComponent } from './command-suggestions/command-suggestions.component';
+import { ColorLegendComponent } from './color-legend/color-legend.component';
+import { TaskToPageRouterComponent } from './task-to-page-router/task-to-page-router.component';
+import { MissionBriefComponent } from './mission-brief/mission-brief.component';
+import { HealthScoreDialComponent } from './health-score-dial/health-score-dial.component';
+import { TrendDeltasComponent } from './trend-deltas/trend-deltas.component';
+import { PrioritySummaryBellComponent } from './priority-summary-bell/priority-summary-bell.component';
+import { TutorialCalloutComponent } from '../shared/ui/tutorial-callout/tutorial-callout.component';
+// ── Phase D2 imports (Gaps 66-78) ────────────────────────────────────
+import { OperatorChecklistComponent } from './operator-checklist/operator-checklist.component';
+import { OneButtonResetComponent } from './one-button-reset/one-button-reset.component';
+import { TipsOfDayComponent } from './tips-of-day/tips-of-day.component';
+import { BehavioralNudgeComponent } from './behavioral-nudge/behavioral-nudge.component';
+import { WeeklyDigestOptinComponent } from './weekly-digest-optin/weekly-digest-optin.component';
+// ── Phase D3 imports (Gaps 152-187) ──────────────────────────────────
+import { PersonalBarComponent } from './personal-bar/personal-bar.component';
+import { InstantHealthComponent } from './instant-health/instant-health.component';
+import { MetricTickerComponent } from './metric-ticker/metric-ticker.component';
+import { QuickSearchBarComponent } from './quick-search-bar/quick-search-bar.component';
+import { LauncherGridComponent } from './launcher-grid/launcher-grid.component';
+import { RotatingCardComponent } from './rotating-cards/rotating-card.component';
+import { WINS, AVOIDS, PITFALLS, QUOTES } from './rotating-cards/content-cards.data';
+import { DashboardModeTogglesComponent } from './dashboard-mode-toggles/dashboard-mode-toggles.component';
+import { SyncActivityComponent } from './sync-activity/sync-activity.component';
+import { ScheduleWidgetComponent } from './schedule-widget/schedule-widget.component';
+import { EmergencyStopComponent } from './emergency-stop/emergency-stop.component';
+import { WelcomeCardComponent } from './welcome-card/welcome-card.component';
+import { FlowDiagramComponent } from './flow-diagram/flow-diagram.component';
+import { GoalTrackerComponent } from './goal-tracker/goal-tracker.component';
+import { Eli5CardComponent } from './eli5-card/eli5-card.component';
+import { QuietHoursIndicatorComponent } from './quiet-hours-indicator/quiet-hours-indicator.component';
+import { WhosOnShiftComponent } from './whos-on-shift/whos-on-shift.component';
+import { WhatsNewComponent } from './whats-new/whats-new.component';
+import { DashboardModesService } from '../core/services/dashboard-modes.service';
+import { YouAreHereComponent } from '../shared/ui/you-are-here/you-are-here.component';
+import { RumSummaryComponent } from './rum-summary/rum-summary.component';
+// Phase MC — Mission Critical section at top of dashboard.
+import { MissionCriticalComponent } from './mission-critical/mission-critical.component';
 
 @Component({
   selector: 'app-dashboard',
@@ -70,6 +112,47 @@ import { FixRunbooksStripComponent } from './fix-runbooks-strip/fix-runbooks-str
     SuggestionFunnelComponent,
     TopOpportunityPagesComponent,
     FixRunbooksStripComponent,
+    // Phase D1 / Gaps 53-65 — noob UX components.
+    StatusStoryComponent,
+    PriorityActionQueueComponent,
+    DailyQuizComponent,
+    CommandSuggestionsComponent,
+    ColorLegendComponent,
+    TaskToPageRouterComponent,
+    MissionBriefComponent,
+    HealthScoreDialComponent,
+    TrendDeltasComponent,
+    PrioritySummaryBellComponent,
+    TutorialCalloutComponent,
+    // Phase D2 — noob UX additions.
+    OperatorChecklistComponent,
+    OneButtonResetComponent,
+    TipsOfDayComponent,
+    BehavioralNudgeComponent,
+    WeeklyDigestOptinComponent,
+    // Phase D3 — KISS extensions (gaps 152-187).
+    PersonalBarComponent,
+    InstantHealthComponent,
+    MetricTickerComponent,
+    QuickSearchBarComponent,
+    LauncherGridComponent,
+    RotatingCardComponent,
+    DashboardModeTogglesComponent,
+    SyncActivityComponent,
+    ScheduleWidgetComponent,
+    EmergencyStopComponent,
+    WelcomeCardComponent,
+    FlowDiagramComponent,
+    GoalTrackerComponent,
+    Eli5CardComponent,
+    QuietHoursIndicatorComponent,
+    WhosOnShiftComponent,
+    WhatsNewComponent,
+    YouAreHereComponent,
+    // Phase OB / Gap 130 — RUM summary card.
+    RumSummaryComponent,
+    // Phase MC — Mission Critical tile grid.
+    MissionCriticalComponent,
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
@@ -85,6 +168,15 @@ export class DashboardComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  // Phase D3 / Gaps 161 + 167 — modes service exposed for the
+  // template's calm-mode `@if` gates.
+  modes = inject(DashboardModesService);
+
+  // Phase D3 — rotating card snippet banks made template-accessible.
+  readonly winsBank = WINS;
+  readonly avoidsBank = AVOIDS;
+  readonly pitfallsBank = PITFALLS;
+  readonly quotesBank = QUOTES;
 
   data: DashboardData | null = null;
   activityEvents: SystemEvent[] = [];
@@ -138,30 +230,34 @@ export class DashboardComponent implements OnInit {
         'Got it',
         { duration: 8000 },
       );
-      ref.onAction().subscribe(() => {
-        try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
-      });
-      ref.afterDismissed().subscribe(() => {
-        try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
-      });
+      ref.onAction()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
+        });
+      ref.afterDismissed()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          try { localStorage.setItem(KEY, '1'); } catch { /* ignore */ }
+        });
     }, 1500);
   }
 
   private loadOperatingDesk(): void {
     this.http.get<TodayAction[]>('/api/dashboard/today-actions/')
-      .pipe(catchError(() => of([])))
+      .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(actions => this.todayActions = actions);
 
     this.http.get<WhatChangedData>('/api/dashboard/what-changed/')
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => this.whatChanged = data);
 
     this.http.get<ResumeState>('/api/dashboard/resume-state/')
-      .pipe(catchError(() => of(null)))
+      .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
       .subscribe(state => this.resumeState = state);
 
     this.http.get<{ runtime_mode: string; performance_mode: string }>('/api/settings/runtime/')
-      .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced' })))
+      .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced' })), takeUntilDestroyed(this.destroyRef))
       .subscribe(rt => {
         this.runtimeMode = rt.runtime_mode;
         this.performanceMode = rt.performance_mode;
@@ -177,18 +273,21 @@ export class DashboardComponent implements OnInit {
   resumeFromDashboard(id: string): void {
     const syncJob = this.resumeState?.resumable_syncs.find(job => job.job_id === id);
     if (syncJob) {
-      this.syncSvc.resumeJob(id).subscribe({
-        next: () => {
-          this.snack.open('Resume queued. Open Jobs to watch progress.', 'Jobs', { duration: 6000 })
-            .onAction()
-            .subscribe(() => this.router.navigate(['/jobs']));
-          this.loadOperatingDesk();
-        },
-        error: (err) => {
-          const message = err?.error?.error || 'Could not resume that sync job.';
-          this.snack.open(message, 'Dismiss', { duration: 5000 });
-        },
-      });
+      this.syncSvc.resumeJob(id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => {
+            this.snack.open('Resume queued. Open Jobs to watch progress.', 'Jobs', { duration: 6000 })
+              .onAction()
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe(() => this.router.navigate(['/jobs']));
+            this.loadOperatingDesk();
+          },
+          error: (err) => {
+            const message = err?.error?.error || 'Could not resume that sync job.';
+            this.snack.open(message, 'Dismiss', { duration: 5000 });
+          },
+        });
       return;
     }
 
@@ -211,19 +310,21 @@ export class DashboardComponent implements OnInit {
 
   load(): void {
     this.loading = true;
-    this.dashSvc.refresh().subscribe({
-      next: (d) => {
-        this.data = d;
-        this.loading = false;
-        this.daysSinceLastRun = this.computeDaysSinceLastRun(d.pipeline_runs);
-        this.updateSetupChecklist(d);
-        this.maybeShowSetupWizard(d);
-      },
-      error: () => {
-        this.loading = false;
-        this.snack.open('Failed to load dashboard', 'Dismiss', { duration: 4000 });
-      },
-    });
+    this.dashSvc.refresh()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (d) => {
+          this.data = d;
+          this.loading = false;
+          this.daysSinceLastRun = this.computeDaysSinceLastRun(d.pipeline_runs);
+          this.updateSetupChecklist(d);
+          this.maybeShowSetupWizard(d);
+        },
+        error: () => {
+          this.loading = false;
+          this.snack.open('Failed to load dashboard', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   private computeDaysSinceLastRun(runs: PipelineRunSummary[]): number | null {
@@ -235,43 +336,47 @@ export class DashboardComponent implements OnInit {
 
   catchUpSync(): void {
     this.syncing = true;
-    this.syncSvc.getSourceStatus().subscribe({
-      next: (status) => {
-        const calls: string[] = [];
-        if (status.api) calls.push('api');
-        if (status.wp) calls.push('wp');
-        if (calls.length === 0) {
+    this.syncSvc.getSourceStatus()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (status) => {
+          const calls: string[] = [];
+          if (status.api) calls.push('api');
+          if (status.wp) calls.push('wp');
+          if (calls.length === 0) {
+            this.syncing = false;
+            this.snack.open('No sources configured', 'Dismiss', { duration: 4000 });
+            return;
+          }
+          let completed = 0;
+          for (const source of calls) {
+            this.syncSvc.triggerApiSync(source as 'api' | 'wp', 'full')
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe({
+                next: () => {
+                  completed++;
+                  if (completed === calls.length) {
+                    this.syncing = false;
+                    this.snack.open(
+                      'Sync started \u2014 check Jobs page for progress',
+                      'Dismiss',
+                      { duration: 5000 },
+                    );
+                  }
+                },
+                error: () => {
+                  completed++;
+                  if (completed === calls.length) this.syncing = false;
+                  this.snack.open(`Failed to sync ${source}`, 'Dismiss', { duration: 4000 });
+                },
+              });
+          }
+        },
+        error: () => {
           this.syncing = false;
-          this.snack.open('No sources configured', 'Dismiss', { duration: 4000 });
-          return;
-        }
-        let completed = 0;
-        for (const source of calls) {
-          this.syncSvc.triggerApiSync(source as 'api' | 'wp', 'full').subscribe({
-            next: () => {
-              completed++;
-              if (completed === calls.length) {
-                this.syncing = false;
-                this.snack.open(
-                  'Sync started \u2014 check Jobs page for progress',
-                  'Dismiss',
-                  { duration: 5000 },
-                );
-              }
-            },
-            error: () => {
-              completed++;
-              if (completed === calls.length) this.syncing = false;
-              this.snack.open(`Failed to sync ${source}`, 'Dismiss', { duration: 4000 });
-            },
-          });
-        }
-      },
-      error: () => {
-        this.syncing = false;
-        this.snack.open('Failed to check source status', 'Dismiss', { duration: 4000 });
-      },
-    });
+          this.snack.open('Failed to check source status', 'Dismiss', { duration: 4000 });
+        },
+      });
   }
 
   runPipeline(): void {
@@ -281,25 +386,29 @@ export class DashboardComponent implements OnInit {
       RunPipelineDialogResult | null
     >(RunPipelineDialogComponent, { width: '420px' });
 
-    ref.afterClosed().subscribe((result) => {
-      if (!result) return;
-      this.startingPipeline = true;
-      this.suggSvc.startPipeline(result.rerunMode).subscribe({
-        next: (run) => {
-          this.startingPipeline = false;
-          this.snack.open(
-            `Pipeline started (run ${run.run_id.slice(0, 8)})`,
-            'Dismiss',
-            { duration: 5000 },
-          );
-          this.load();
-        },
-        error: () => {
-          this.startingPipeline = false;
-          this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
-        },
+    ref.afterClosed()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (!result) return;
+        this.startingPipeline = true;
+        this.suggSvc.startPipeline(result.rerunMode)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (run) => {
+              this.startingPipeline = false;
+              this.snack.open(
+                `Pipeline started (run ${run.run_id.slice(0, 8)})`,
+                'Dismiss',
+                { duration: 5000 },
+              );
+              this.load();
+            },
+            error: () => {
+              this.startingPipeline = false;
+              this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
+            },
+          });
       });
-    });
   }
 
   stateColor(state: string): string {

@@ -4,8 +4,17 @@
 
 @use './styles/default-theme';
 @use './styles/scroll-highlight';
+@use './styles/attention';
 @use './styles/themes/icons';
 @use './styles/themes/material-overrides';
+// Phase A1 / Gaps 98-101 — accessibility theme variants (high
+// contrast, font-size scaling, dyslexia font stack, CVD-safe
+// palettes). Loaded AFTER the default theme so its rebound
+// CSS variables override the defaults when active.
+@use './styles/a11y';
+// Phase E2 / Gap 47 — print-only rules. Must come last so they
+// override earlier screen-oriented styles when @media print fires.
+@use './styles/print';
 
 // ── Reset / Base ───────────────────────────────────────────────────
 *,
@@ -35,6 +44,182 @@ body {
 // ── Angular Material Overrides ─────────────────────────────────────
 .mat-typography {
   font-family: var(--font-family) !important;
+}
+
+// Phase A1 / Gap 97 — Touch-target minimum size.
+// WCAG 2.5.5 (Target Size — Enhanced) requires 44×44 CSS pixels for
+// any pointer target. The icon-only Material buttons we use widely
+// already meet 40×40; this nudges them up to 44 across the app
+// without changing their visual padding (which would break the GA4
+// dense layout). Consumers can opt OUT with `.no-min-target`.
+button:not(.no-min-target),
+[role='button']:not(.no-min-target),
+a[href]:not(.no-min-target) {
+  min-width: 44px;
+  min-height: 44px;
+  // Restore the minimum so display:inline links can collapse to text.
+  // The rule above is a hint for tap targets, not a layout constraint
+  // on every link.
+  &:where(a, span, .mat-mdc-card-title a, .yah-label, .pb-greet-line a) {
+    min-width: 0;
+    min-height: 0;
+  }
+}
+// Pre-existing ICON-only buttons already render at 40×40 in Material
+// 17; nudge them to 44 without disturbing the icon size inside.
+.mat-mdc-icon-button.mat-mdc-button-base {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+// Phase F1 / Gap 92 — CSS container queries for dashboard cards.
+// Cards opt in by setting `container-type: inline-size; container-name`
+// on their host. Inner elements then re-layout based on the CARD's
+// width, not the viewport's — so a card squeezed into a 280px column
+// can stack its content while the same card at 600px keeps it inline.
+//
+// This block defines the conventions; per-component SCSS uses the
+// `@container card (min-width: ...)` pattern at will.
+.cq-card {
+  container-type: inline-size;
+  container-name: card;
+}
+@container card (max-width: 320px) {
+  .cq-stack-on-narrow {
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+  .cq-hide-on-narrow {
+    display: none !important;
+  }
+}
+
+// Phase F1 / Gaps 79 + 81 — View Transitions API cross-fade animations.
+// Browsers that support `document.startViewTransition()` render two
+// snapshots — the ::view-transition-old pseudo-element holds the
+// outgoing route, the ::view-transition-new holds the incoming route.
+// Keeping the duration short (200ms) lets route changes feel snappy.
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+::view-transition-old(root) { animation-name: fade-out; }
+::view-transition-new(root) { animation-name: fade-in; }
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes fade-out {
+  from { opacity: 1; }
+  to   { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none;
+  }
+}
+
+// Phase F1 / Gap 81 — shared-element transition hook. Any component
+// that wants to "fly" across route boundaries sets
+// `view-transition-name: <stable-id>` on the element; when both old
+// and new DOMs expose the same name, the browser morphs between them.
+.view-hero-suggestion { view-transition-name: suggestion-hero; }
+.view-hero-job        { view-transition-name: job-hero; }
+.view-hero-alert      { view-transition-name: alert-hero; }
+
+// Phase F1 / Gap 91 — Font strategy for zero CLS.
+// `font-display: swap` is set on the Material Icons stylesheet link in
+// index.html; this block declares a sized-matched fallback so that
+// when the icon font arrives layout doesn't shift.
+@font-face {
+  font-family: 'MaterialIconsFallback';
+  src: local('Arial');
+  size-adjust: 100%;
+  ascent-override: 100%;
+  descent-override: 0%;
+  line-gap-override: 0%;
+}
+
+// Phase D3 / Gap 178 — Jargon directive underline.
+// Subtle dotted underline + help cursor so users learn that this
+// styling means "hover for definition."
+.app-jargon {
+  border-bottom: 1px dotted var(--color-text-secondary);
+  cursor: help;
+  text-underline-offset: 2px;
+  transition: border-color 0.15s ease;
+}
+.app-jargon:hover,
+.app-jargon:focus-visible {
+  border-bottom-color: var(--color-primary);
+  outline: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .app-jargon { transition: none; }
+}
+
+// Phase FR / Gap 115 — Show-password reveal button.
+// Absolutely positioned so it sits inside the input's right padding
+// without breaking mat-form-field's underline alignment.
+.password-reveal-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: transparent;
+  border: 0;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  z-index: 2;
+
+  &:hover { color: var(--color-text-primary); background: var(--color-bg-faint); }
+  &:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 1px;
+  }
+  .material-icons { font-size: 18px; }
+}
+
+// Phase FR / Gap 113 — Inline valid checkmark.
+.valid-checkmark {
+  display: none;
+  margin-left: 6px;
+  color: var(--color-success, #1e8e3e);
+  font-weight: 700;
+  font-size: 14px;
+  vertical-align: middle;
+  user-select: none;
+}
+
+// Phase E2 / Gap 50 — Char counter directive styles.
+// The directive injects a <span.char-counter> next to the input; these
+// rules give it a consistent presentation without requiring the consumer
+// to add per-component CSS.
+.char-counter {
+  display: inline-block;
+  font-size: 11px;
+  line-height: 1;
+  margin-top: 4px;
+  color: var(--color-text-secondary);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+
+  &.char-counter-warn {
+    color: var(--color-warning);
+  }
+  &.char-counter-over {
+    color: var(--color-error);
+    font-weight: 500;
+  }
 }
 
 // Global Background Enforcements
@@ -461,6 +646,31 @@ mat-sidenav.app-sidenav,
     color: var(--color-text-muted) !important;
     max-width: 400px !important;
     margin-bottom: 32px !important;
+  }
+}
+
+// ── Phase E1 / Gap 39 — Reduced motion global rule ──────────────
+// Disables Angular route transition animations and all non-attention
+// CSS transitions for users who prefer reduced motion in their OS.
+// The attention pulse fallback lives in _attention.scss.
+@media (prefers-reduced-motion: reduce) {
+  /* Angular's @Component animations are controlled via JS (see route-transition.animation.ts).
+     For CSS-driven transitions we suppress them globally here. */
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  /* Preserve attention pulse class fallback styles from _attention.scss
+     (they explicitly set animation: none so !important isn't needed for those). */
+  .attention-pulse,
+  .attention-pulse-low,
+  .attention-pulse-urgent {
+    animation: none !important;
   }
 }
 

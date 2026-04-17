@@ -1,4 +1,4 @@
-import { Component, Input, OnDestroy, OnInit } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, Input, OnDestroy, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,6 +7,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 @Component({
   selector: 'app-scroll-to-top',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [CommonModule, MatButtonModule, MatIconModule, MatTooltipModule],
   template: `
     @if (visible) {
@@ -42,6 +43,7 @@ export class ScrollToTopComponent implements OnInit, OnDestroy {
   visible = false;
 
   private readonly THRESHOLD = 300;
+  private cdRef = inject(ChangeDetectorRef);
   // Store the bound reference so addEventListener and removeEventListener
   // receive the exact same function object.
   private readonly boundOnScroll = this.onScroll.bind(this);
@@ -58,10 +60,27 @@ export class ScrollToTopComponent implements OnInit, OnDestroy {
   }
 
   private onScroll(): void {
+    const wasVisible = this.visible;
     this.visible = (this.scrollTarget?.scrollTop ?? 0) > this.THRESHOLD;
+    // Gap 28 — with OnPush, DOM events outside Angular's zone don't trigger
+    // change detection automatically. markForCheck() tells Angular to check
+    // this component on the next cycle.
+    if (this.visible !== wasVisible) {
+      this.cdRef.markForCheck();
+    }
   }
 
   scrollToTop(): void {
-    this.scrollTarget?.scrollTo({ top: 0, behavior: 'smooth' });
+    // Phase E2 / Gap 44 + Gap 39 — respect the OS reduced-motion
+    // preference. Smooth-scrolling a very long page is a known motion
+    // trigger for vestibular disorders; we jump instead.
+    const reduced =
+      typeof window !== 'undefined' &&
+      typeof window.matchMedia === 'function' &&
+      window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    this.scrollTarget?.scrollTo({
+      top: 0,
+      behavior: reduced ? 'auto' : 'smooth',
+    });
   }
 }

@@ -1,6 +1,8 @@
-import { Component, OnInit, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { ScrollingModule } from '@angular/cdk/scrolling';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatChipsModule } from '@angular/material/chips';
@@ -14,13 +16,29 @@ import {
   ErrorLogEntry,
 } from '../diagnostics/diagnostics.service';
 
+/**
+ * Phase E1 / Gap 27 — Virtual scroll applied to the error list.
+ *
+ * The error-log can grow to hundreds of entries in production. Rather than
+ * rendering all DOM nodes at once (slow scrolling, high memory), we wrap the
+ * list in `cdk-virtual-scroll-viewport` with `*cdkVirtualFor`.
+ *
+ * Row height approximation: each error card is ~200px when collapsed. Cards
+ * with long stack traces expand beyond that, but CDK handles variable-height
+ * cards reasonably with `minBufferPx` / `maxBufferPx`.
+ *
+ * Pattern reuse: See `core/util/virtual-scroll-datasource.ts` for the
+ * VirtualScrollDataSource utility when a mat-table integration is needed.
+ */
 @Component({
   selector: 'app-error-log',
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     CommonModule,
     DatePipe,
     FormsModule,
+    ScrollingModule,
     MatButtonModule,
     MatCardModule,
     MatChipsModule,
@@ -35,6 +53,8 @@ import {
 })
 export class ErrorLogComponent implements OnInit {
   private diagnostics = inject(DiagnosticsService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
+  private destroyRef = inject(DestroyRef);
 
   errors: ErrorLogEntry[] = [];
   loading = true;
@@ -48,15 +68,17 @@ export class ErrorLogComponent implements OnInit {
 
   loadErrors(): void {
     this.loading = true;
-    this.diagnostics.getErrors().subscribe({
-      next: (data) => {
-        this.errors = data;
-        this.loading = false;
-      },
-      error: () => {
-        this.loading = false;
-      },
-    });
+    this.diagnostics.getErrors()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (data) => {
+          this.errors = data;
+          this.loading = false;
+        },
+        error: () => {
+          this.loading = false;
+        },
+      });
   }
 
   get filteredErrors(): ErrorLogEntry[] {
@@ -77,11 +99,18 @@ export class ErrorLogComponent implements OnInit {
   }
 
   acknowledgeError(error: ErrorLogEntry): void {
-    this.diagnostics.acknowledgeError(error.id).subscribe({
-      next: () => {
-        error.acknowledged = true;
-      },
-    });
+    this.diagnostics.acknowledgeError(error.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          error.acknowledged = true;
+        },
+      });
+  }
+
+  /** Gap 27 — trackBy for *cdkVirtualFor; prevents full re-render on data refresh. */
+  trackById(_index: number, error: ErrorLogEntry): number {
+    return error.id;
   }
 
   jobTypeLabel(type: string): string {

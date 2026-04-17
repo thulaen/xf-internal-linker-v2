@@ -1,4 +1,5 @@
-import { Component, OnInit, OnDestroy, inject } from '@angular/core';
+import { Component, DestroyRef, OnInit, OnDestroy, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -45,6 +46,8 @@ import {
 })
 export class BehavioralHubsComponent implements OnInit, OnDestroy {
   private svc = inject(BehavioralHubService);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
+  private destroyRef = inject(DestroyRef);
   private detectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   // Hub list state
@@ -86,7 +89,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
 
   loadHubs(): void {
     this.loadingHubs = true;
-    this.svc.getHubs(this.page, this.pageSize).subscribe({
+    this.svc.getHubs(this.page, this.pageSize)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (res) => {
         this.hubs = res.results;
         this.totalHubs = res.count;
@@ -100,7 +105,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
 
   loadRuns(): void {
     this.loadingRuns = true;
-    this.svc.getRuns().subscribe({
+    this.svc.getRuns()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (runs) => {
         this.lastRun = runs.length > 0 ? runs[0] : null;
         this.loadingRuns = false;
@@ -112,7 +119,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
   }
 
   loadSettings(): void {
-    this.svc.getSettings().subscribe({
+    this.svc.getSettings()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => (this.settings = s),
       error: () => {},
     });
@@ -127,7 +136,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
   openHub(hub: BehavioralHub): void {
     this.loadingDetail = true;
     this.selectedHub = null;
-    this.svc.getHub(hub.hub_id).subscribe({
+    this.svc.getHub(hub.hub_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (detail) => {
         this.selectedHub = detail;
         this.editName = detail.name;
@@ -147,7 +158,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
   saveName(): void {
     if (!this.selectedHub || !this.editName.trim()) return;
     this.savingName = true;
-    this.svc.patchHub(this.selectedHub.hub_id, { name: this.editName.trim() }).subscribe({
+    this.svc.patchHub(this.selectedHub.hub_id, { name: this.editName.trim() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (updated) => {
         if (this.selectedHub) this.selectedHub.name = updated.name;
         this.savingName = false;
@@ -164,6 +177,7 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
     this.togglingAutoLink = true;
     this.svc
       .patchHub(this.selectedHub.hub_id, { auto_link_enabled: !this.selectedHub.auto_link_enabled })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updated) => {
           if (this.selectedHub) this.selectedHub.auto_link_enabled = updated.auto_link_enabled;
@@ -178,7 +192,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
 
   removeMember(member: BehavioralHubMembership): void {
     if (!this.selectedHub) return;
-    this.svc.removeMember(this.selectedHub.hub_id, member.content_item_id).subscribe({
+    this.svc.removeMember(this.selectedHub.hub_id, member.content_item_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         if (this.selectedHub) {
           this.selectedHub.members = this.selectedHub.members.filter(
@@ -195,7 +211,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
 
   triggerCompute(): void {
     this.triggeringCompute = true;
-    this.svc.triggerCompute().subscribe({
+    this.svc.triggerCompute()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.triggeringCompute = false;
         this.loadRuns();
@@ -208,7 +226,9 @@ export class BehavioralHubsComponent implements OnInit, OnDestroy {
 
   triggerDetect(): void {
     this.triggeringDetect = true;
-    this.svc.triggerDetection().subscribe({
+    this.svc.triggerDetection()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.triggeringDetect = false;
         this.detectTimeout = setTimeout(() => this.loadHubs(), 2000);

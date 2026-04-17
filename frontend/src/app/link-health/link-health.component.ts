@@ -1,4 +1,5 @@
-import { Component, OnDestroy, OnInit, inject } from '@angular/core';
+import { Component, DestroyRef, OnDestroy, OnInit, inject } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
@@ -51,6 +52,8 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   private dashboardSvc = inject(DashboardService);
   private syncService = inject(SyncService);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
+  private destroyRef = inject(DestroyRef);
 
   brokenLinks: BrokenLink[] = [];
   totalCount = 0;
@@ -118,7 +121,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
       status: this.statusFilter,
       http_status: this.httpStatusFilter,
       page: this.page,
-    }).subscribe({
+    })
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
       next: (response) => {
         this.brokenLinks = response.results;
         this.totalCount = response.count;
@@ -136,7 +141,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
       open: this.brokenLinkSvc.list({ status: 'open' }),
       ignored: this.brokenLinkSvc.list({ status: 'ignored' }),
       fixed: this.brokenLinkSvc.list({ status: 'fixed' }),
-    }).subscribe({
+    })
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
       next: ({ open, ignored, fixed }) => {
         this.summary = {
           open: open.count,
@@ -177,7 +184,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     this.progressMessage = 'Scheduling broken-link scan...';
     this.errorMessage = '';
 
-    this.brokenLinkSvc.startScan().subscribe({
+    this.brokenLinkSvc.startScan()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: ({ job_id, message }) => {
         this.jobId = job_id;
         this.progressMessage = message;
@@ -195,7 +204,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     this.brokenLinkSvc.exportCsv({
       status: this.statusFilter,
       http_status: this.httpStatusFilter,
-    }).subscribe({
+    })
+    .pipe(takeUntilDestroyed(this.destroyRef))
+    .subscribe({
       next: (blob) => {
         const url = window.URL.createObjectURL(blob);
         const anchor = document.createElement('a');
@@ -212,7 +223,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
 
   markStatus(link: BrokenLink, status: BrokenLinkStatus): void {
     const oldStatus = link.status;
-    this.brokenLinkSvc.patch(link.broken_link_id, { status }).subscribe({
+    this.brokenLinkSvc.patch(link.broken_link_id, { status })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.snack.open(
           status === 'fixed' ? 'Marked as fixed' : 'Broken link ignored',
@@ -317,7 +330,9 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
   private startPolling(jobId: string): void {
     if (this.pollingInterval) return;
     this.pollingInterval = setInterval(() => {
-      this.syncService.getJob(jobId).subscribe({
+      this.syncService.getJob(jobId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
         next: (job) => {
           this.progress = Math.round((job.progress ?? 0) * 100);
           this.progressMessage = job.message ?? '';

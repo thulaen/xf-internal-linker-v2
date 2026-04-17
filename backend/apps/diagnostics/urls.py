@@ -17,6 +17,30 @@ urlpatterns = [
     path("features/", views.FeatureReadinessView.as_view(), name="feature-readiness"),
     path("resources/", views.ResourceUsageView.as_view(), name="resource-usage"),
     path("weights/", views.WeightDiagnosticsView.as_view(), name="weight-diagnostics"),
+    # Phase GT Step 5 — operator intelligence endpoints
+    path(
+        "runtime-context/",
+        views.RuntimeContextView.as_view(),
+        name="runtime-context",
+    ),
+    path("nodes/", views.NodesView.as_view(), name="nodes-summary"),
+    path(
+        "pipeline-gate/",
+        views.PipelineGateView.as_view(),
+        name="pipeline-gate",
+    ),
+    # Phase SEQ — signal queue visibility
+    path(
+        "signal-queue/",
+        views.SignalQueueView.as_view(),
+        name="signal-queue",
+    ),
+    # Phase MC — Mission Critical tile aggregator for the dashboard tab.
+    path(
+        "mission-critical/",
+        views.MissionCriticalView.as_view(),
+        name="mission-critical",
+    ),
     # FR-225 — Meta Tournament
     path(
         "meta-tournament/", views.MetaTournamentView.as_view(), name="meta-tournament"

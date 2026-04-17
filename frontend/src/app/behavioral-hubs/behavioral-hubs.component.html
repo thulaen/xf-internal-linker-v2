@@ -157,7 +157,7 @@
             <span class="section-label">Hub name</span>
             <div class="name-row">
               <mat-form-field appearance="outline" class="name-field">
-                <input matInput [(ngModel)]="editName" placeholder="Hub name" />
+                <input matInput autocomplete="off" [(ngModel)]="editName" placeholder="Hub name" />
               </mat-form-field>
               <button mat-stroked-button (click)="saveName()" [disabled]="savingName || !editName.trim()">
                 @if (savingName) { <mat-spinner diameter="18" class="btn-spinner"></mat-spinner> } @else { Save }

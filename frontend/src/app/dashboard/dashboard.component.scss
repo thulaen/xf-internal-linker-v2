@@ -1,3 +1,95 @@
+/* ── Phase D1 / Gaps 53-65 — Dashboard Noob UX layout ──────────── */
+.d1-row {
+  display: grid;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  align-items: stretch;
+}
+.d1-row-mission {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+.d1-flex { min-width: 0; }
+.d1-bell {
+  align-self: start;
+  margin-top: 8px;
+}
+.d1-row-triple {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.d1-row-quad {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.d1-row-pair {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.d1-block { margin-bottom: var(--space-md); }
+.d1-noob-helpers {
+  margin-top: var(--space-lg);
+}
+.d1-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-md);
+}
+.d1-section-icon {
+  color: var(--color-primary);
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
+/* ── Phase D3 layout (gaps 152-187) ─────────────────────────────── */
+.d3-block {
+  display: block;
+  margin-bottom: var(--space-md);
+}
+.d3-inline {
+  display: inline-block;
+  margin-bottom: var(--space-md);
+}
+.d3-row {
+  display: grid;
+  gap: var(--space-md);
+  margin-bottom: var(--space-md);
+  align-items: stretch;
+}
+.d3-row-pair {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+.d3-row-triple {
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+.d3-row-quad {
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+.d3-row-actions {
+  grid-template-columns: 1fr auto;
+  align-items: start;
+}
+.d3-flex { min-width: 0; }
+.d3-action { align-self: start; }
+.d3-section { margin-top: var(--space-lg); }
+.d3-section-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-md);
+}
+.d3-section-icon {
+  color: var(--color-primary);
+  font-size: 22px;
+  width: 22px;
+  height: 22px;
+}
+
 /* ── Operating Desk Grid ─────────────────────────────── */
 .desk-row {
   display: grid;

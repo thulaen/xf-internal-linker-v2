@@ -115,6 +115,7 @@
       <mat-label>Site name</mat-label>
       <input
         matInput
+        autocomplete="organization"
         [value]="cfg.siteName"
         (blur)="setSiteName($any($event.target).value)"
       />
@@ -125,7 +126,7 @@
       <span class="asset-label">Logo</span>
       @if (cfg.logoUrl) {
         <div class="asset-preview">
-          <img [src]="cfg.logoUrl" alt="Site logo" class="asset-thumb" />
+          <img [src]="cfg.logoUrl" alt="Site logo" class="asset-thumb" loading="lazy" />
           <button
             mat-icon-button
             class="asset-remove"
@@ -165,7 +166,7 @@
       <span class="asset-label">Favicon</span>
       @if (cfg.faviconUrl) {
         <div class="asset-preview">
-          <img [src]="cfg.faviconUrl" alt="Favicon" class="asset-thumb favicon-thumb" />
+          <img [src]="cfg.faviconUrl" alt="Favicon" class="asset-thumb favicon-thumb" loading="lazy" />
           <button
             mat-icon-button
             class="asset-remove"
@@ -220,6 +221,7 @@
         <mat-label>Footer text</mat-label>
         <input
           matInput
+          autocomplete="off"
           [value]="cfg.footerText"
           (blur)="setFooterText($any($event.target).value)"
         />
@@ -283,7 +285,7 @@
       <div class="save-preset-row">
         <mat-form-field appearance="outline" class="flex-1">
           <mat-label>Preset name</mat-label>
-          <input matInput [(ngModel)]="newPresetName" (keydown.enter)="savePreset()" />
+          <input matInput autocomplete="off" [(ngModel)]="newPresetName" (keydown.enter)="savePreset()" />
         </mat-form-field>
         <button mat-flat-button color="primary" (click)="savePreset()">Save</button>
         <button mat-button (click)="showSavePreset = false">Cancel</button>

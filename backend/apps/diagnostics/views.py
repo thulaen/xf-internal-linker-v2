@@ -108,6 +108,280 @@ class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
         error.save()
         return response.Response({"status": "acknowledged"})
 
+    @action(detail=True, methods=["post"])
+    def rerun(self, request, pk=None):
+        """
+        Phase GT Step 8 — re-dispatch the original failing Celery task.
+
+        Supports a small whitelist of re-dispatchable job types
+        (`pipeline`, `sync`, `import`). On successful dispatch the error
+        row is auto-acknowledged so the Error Log clears. Out-of-scope
+        job types return 400 instead of silently queuing nothing.
+        """
+        from apps.pipeline import tasks as pipeline_tasks
+
+        error = self.get_object()
+        known = {
+            "pipeline": getattr(pipeline_tasks, "run_pipeline", None),
+            "sync": getattr(pipeline_tasks, "sync_single_xf_item", None),
+            "import": getattr(pipeline_tasks, "dispatch_import_content", None),
+        }
+        task = known.get(error.job_type)
+        if task is None:
+            return response.Response(
+                {
+                    "detail": (
+                        f"Job type '{error.job_type}' is not currently "
+                        "rerun-able from the UI."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            if hasattr(task, "delay"):
+                task.delay()
+            else:
+                task()
+        except Exception as exc:  # noqa: BLE001
+            return response.Response(
+                {"status": "error", "detail": str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+        error.acknowledged = True
+        error.save(update_fields=["acknowledged"])
+        return response.Response({"status": "queued", "acknowledged": True})
+
+
+# ── Phase GT Step 5 — operator intelligence endpoints ──────────────────────
+
+
+class RuntimeContextView(views.APIView):
+    """
+    Snapshot of the current runtime — GPU / CUDA / embedding / spaCy /
+    node. Consumed by the Live Runtime Health strip at the top of the
+    Diagnostics Error Log.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.audit.runtime_context import snapshot as runtime_snapshot
+
+        return response.Response(runtime_snapshot())
+
+
+class NodesView(views.APIView):
+    """
+    One row per known node (primary + every slave that has written an
+    ErrorLog in the last 24 hours). Powers the GT-G13 nodes strip on
+    the Diagnostics page. No separate heartbeat table — slaves self-
+    announce by writing errors tagged with their NODE_ID env var.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        import os
+        import socket
+
+        from django.db.models import Count, Max, Q
+
+        since = timezone.now() - timedelta(hours=24)
+        nodes = (
+            ErrorLog.objects.filter(created_at__gte=since)
+            .values("node_id", "node_role", "node_hostname")
+            .annotate(
+                last_seen=Max("created_at"),
+                unacknowledged=Count("id", filter=Q(acknowledged=False)),
+                total=Count("id"),
+                worst_severity=Max("severity"),
+            )
+            .order_by("-last_seen")
+        )
+        primary_id = os.environ.get("NODE_ID", socket.gethostname())
+        payload = list(nodes)
+        if primary_id not in {n["node_id"] for n in payload}:
+            payload.insert(
+                0,
+                {
+                    "node_id": primary_id,
+                    "node_role": "primary",
+                    "node_hostname": socket.gethostname(),
+                    "last_seen": None,
+                    "unacknowledged": 0,
+                    "total": 0,
+                    "worst_severity": "low",
+                },
+            )
+        return response.Response(payload)
+
+
+class SignalQueueView(views.APIView):
+    """
+    Phase SEQ — ranking signal execution queue visibility.
+
+    Returns the current lock-holder (if any) and the list of pending
+    signal-compute tasks. Consumed by:
+    - Mission Critical "Ranking Signals" tile (Phase MC)
+    - Meta Algorithm Settings tab "Run now" button (Phase MS)
+    - Operations Feed signal-start/finish events (Phase OF)
+
+    No new backend state — reads directly from the `task_lock.py`
+    cache namespace. Pending task count is a stub today (Celery doesn't
+    expose queue inspection without broker introspection tools); a
+    follow-up can populate it via `celery inspect scheduled` data.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.pipeline.services.task_lock import get_active_locks
+        from django.core.cache import cache
+
+        locks = get_active_locks()
+        signal_holder = locks.get("signal")
+
+        # Phase MX1 extras — read Celery's scheduled/reserved queues via
+        # the inspect API when available. Best-effort: if Celery isn't
+        # reachable we still return the running holder so the UI doesn't
+        # flash empty.
+        queued: list[dict] = []
+        queue_depth = 0
+        try:
+            from config.celery import app as celery_app
+
+            inspector = celery_app.control.inspect(timeout=0.3)
+            scheduled = inspector.scheduled() or {}
+            reserved = inspector.reserved() or {}
+            for worker_entries in (*scheduled.values(), *reserved.values()):
+                for entry in worker_entries or []:
+                    task = entry.get("request", entry)
+                    task_name = (task.get("name") or "").split(".")[-1]
+                    if task_name.startswith("compute_signal_"):
+                        queued.append(
+                            {
+                                "task": task_name,
+                                "id": task.get("id"),
+                                "eta": task.get("eta"),
+                            }
+                        )
+            queue_depth = len(queued)
+        except Exception:  # noqa: BLE001
+            pass
+
+        # Phase MX1 / Gap 288 — total queue ETA, based on a coarse
+        # `avg_signal_ms` hint cached by recent completions.
+        avg_ms = cache.get("signal_exec:avg_ms", 30_000)
+        eta_total_ms = queue_depth * int(avg_ms)
+
+        # Phase MX1 / Gap 289 — last-run-per-signal map kept in cache by
+        # the wrapper on completion.
+        last_run_map: dict = cache.get("signal_exec:last_run", {}) or {}
+
+        return response.Response(
+            {
+                "running": signal_holder,
+                "queued": queued,
+                "queue_depth": queue_depth,
+                "eta_total_ms": eta_total_ms,
+                "avg_signal_ms": avg_ms,
+                "last_run": last_run_map,
+                "lock_class": "signal",
+                "pause_after_current": bool(
+                    cache.get("signal_exec:pause_after_current", False)
+                ),
+                "other_lock_holders": {
+                    wc: holder
+                    for wc, holder in locks.items()
+                    if wc != "signal" and holder
+                },
+            }
+        )
+
+    def post(self, request):
+        """Phase MX1 — operator controls for the signal queue.
+
+        Payload: `{"action": "pause_after_current"|"resume"|"abort_all"}`.
+        All three manipulate a small set of cache flags the decorator
+        + future queue-scheduler consult on every run boundary.
+        """
+        from django.core.cache import cache
+
+        action = (request.data.get("action") or "").strip()
+        if action == "pause_after_current":
+            cache.set("signal_exec:pause_after_current", True, timeout=3600)
+            return response.Response({"status": "pause-after-current queued"})
+        if action == "resume":
+            cache.delete("signal_exec:pause_after_current")
+            return response.Response({"status": "resumed"})
+        if action == "abort_all":
+            # Typed-string confirmation happens client-side; server just
+            # publishes the flag. A future scheduler pass drains the queue
+            # at the next lock-acquisition attempt.
+            cache.set("signal_exec:abort_all", True, timeout=300)
+            return response.Response({"status": "abort-all flag set"})
+        return response.Response(
+            {"detail": f"unknown action: {action}"},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+
+
+class PipelineGateView(views.APIView):
+    """
+    GT-G14 — single go/no-go verdict for the ranking pipeline.
+
+    Reuses the existing checks in apps.health.services — does NOT
+    introduce new detection logic. Returns `can_run` + a list of
+    `blockers` each with plain-English explanation and next step, so
+    the UI banner can render the fix instructions directly.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.health.services import (
+            check_celery_health,
+            check_gpu_faiss_health,
+            check_ml_models_health,
+        )
+
+        checks = (
+            ("GPU (FAISS)", check_gpu_faiss_health),
+            ("ML models", check_ml_models_health),
+            ("Celery worker", check_celery_health),
+        )
+        blockers = []
+        for check_name, fn in checks:
+            try:
+                result = fn()
+                data = result.to_dict() if hasattr(result, "to_dict") else dict(result)
+            except Exception as exc:  # noqa: BLE001
+                blockers.append(
+                    {
+                        "check": check_name,
+                        "state": "failed",
+                        "explanation": str(exc),
+                        "next_step": "",
+                    }
+                )
+                continue
+
+            state = str(data.get("status") or data.get("state") or "unknown")
+            if state not in ("healthy", "not_configured", "degraded"):
+                blockers.append(
+                    {
+                        "check": check_name,
+                        "state": state,
+                        "explanation": data.get("issue_description")
+                        or data.get("explanation", ""),
+                        "next_step": data.get("suggested_fix")
+                        or data.get("next_action_step", ""),
+                    }
+                )
+        return response.Response(
+            {"can_run": len(blockers) == 0, "blockers": blockers}
+        )
+
 
 class SchedulerDispatchView(views.APIView):
     authentication_classes = []
@@ -486,3 +760,427 @@ class WeightDiagnosticsView(views.APIView):
                 return f"{bytes_val:.1f} {unit}"
             bytes_val /= _BYTES_PER_KIB
         return f"{bytes_val:.1f} PB"
+
+
+class MissionCriticalView(views.APIView):
+    """Phase MC — single aggregator the dashboard's Mission Critical tab reads.
+
+    Returns a flat list of tile descriptors. Each tile entry is:
+
+        {
+            "id": "pipeline",
+            "name": "Pipeline",
+            "state": "WORKING" | "IDLE" | "PAUSED" | "DEGRADED" | "FAILED",
+            "plain_english": "One-line status.",
+            "last_action_at": "ISO8601" | None,
+            "progress": 0..1 | None,
+            "actions": ["Resume", "Pause", ...],
+            "group": "algorithms" | None,
+            "root_cause": "<tile_id>" | None,
+        }
+
+    Dedup rules (from the approved plan):
+      * When the pipeline gate is blocked, dependent tiles (pipeline /
+        embeddings / signals / meta / cooccurrence) mark `root_cause` =
+        'pipeline_gate' so the UI collapses them under the root.
+      * The five meta-algorithm tiles are flagged with `group='algorithms'`
+        so the UI can render one green summary row when all five are
+        healthy, expanding only on degrade.
+
+    Reuses existing health checks + AppSettings — no new telemetry.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.pipeline.services.task_lock import get_active_locks
+        from apps.suggestions.readiness import assemble_prerequisites
+
+        locks = get_active_locks()
+        tiles: list[dict] = []
+
+        # ── Pipeline ─────────────────────────────────────────────
+        heavy_holder = locks.get("heavy")
+        master_pause = _read_master_pause()
+        if master_pause:
+            tiles.append(_tile(
+                "pipeline", "Pipeline", "PAUSED",
+                "Master pause active — workers at safe checkpoint.",
+                actions=["Resume"],
+            ))
+        elif heavy_holder:
+            tiles.append(_tile(
+                "pipeline", "Pipeline", "WORKING",
+                f"Running: {_owner_label(heavy_holder)}.",
+                actions=["Pause"],
+            ))
+        else:
+            tiles.append(_tile(
+                "pipeline", "Pipeline", "IDLE",
+                "No heavy task currently running.",
+                actions=["Pause"],
+            ))
+
+        # ── Ranking signals (Phase SEQ namespace) ────────────────
+        signal_holder = locks.get("signal")
+        if signal_holder:
+            tiles.append(_tile(
+                "signals", "Ranking signals", "WORKING",
+                f"Computing {_owner_label(signal_holder)}.",
+                actions=["Pause"],
+            ))
+        else:
+            tiles.append(_tile(
+                "signals", "Ranking signals", "IDLE",
+                "Signal queue empty — no compute in flight.",
+            ))
+
+        # ── Embeddings ────────────────────────────────────────────
+        tiles.append(_embeddings_tile())
+
+        # ── Algorithms accordion ─────────────────────────────────
+        tiles.append(_meta_tile_native_scoring())
+        tiles.append(_meta_tile_slate_diversity())
+        tiles.append(_meta_tile_weight_tuning())
+        tiles.append(_meta_tile_attribution())
+        tiles.append(_meta_tile_cooccurrence())
+
+        # ── External data sources ────────────────────────────────
+        tiles.append(_external_tile("gsc", "Google Search Console"))
+        tiles.append(_external_tile("ga4", "Google Analytics 4"))
+        tiles.append(_external_tile("matomo", "Matomo"))
+
+        # ── Crawler + Import + Webhooks ──────────────────────────
+        tiles.append(_crawler_tile())
+        tiles.append(_import_tile())
+        tiles.append(_webhooks_tile())
+
+        # ── Suggestion Readiness (Phase SR) ──────────────────────
+        prereqs = assemble_prerequisites()
+        blocking = [p for p in prereqs if p["status"] != "ready"]
+        if not blocking:
+            tiles.append(_tile(
+                "suggestion_readiness", "Suggestion readiness", "WORKING",
+                "All prerequisites ready.",
+            ))
+        else:
+            first = blocking[0]
+            mc_state = "DEGRADED" if first["status"] != "blocked" else "FAILED"
+            tiles.append(_tile(
+                "suggestion_readiness", "Suggestion readiness", mc_state,
+                f"Blocking: {first['name']} — {first['plain_english']}",
+            ))
+
+        # ── Root-cause dedup ─────────────────────────────────────
+        for p in prereqs:
+            if p["id"] == "pipeline_gate" and p["status"] == "blocked":
+                for tile in tiles:
+                    if (
+                        tile["id"] in ("pipeline", "signals", "embeddings")
+                        or tile.get("group") == "algorithms"
+                    ):
+                        tile["root_cause"] = "pipeline_gate"
+
+        return response.Response(
+            {
+                "tiles": tiles,
+                "updated_at": timezone.now().isoformat(),
+            }
+        )
+
+
+# ── MC helpers ───────────────────────────────────────────────────────
+
+
+def _tile(
+    tile_id: str,
+    name: str,
+    state: str,
+    plain_english: str,
+    *,
+    actions: list[str] | None = None,
+    group: str | None = None,
+    progress: float | None = None,
+    last_action_at=None,
+) -> dict:
+    return {
+        "id": tile_id,
+        "name": name,
+        "state": state,
+        "plain_english": plain_english,
+        "last_action_at": last_action_at.isoformat() if last_action_at else None,
+        "progress": progress,
+        "actions": actions or [],
+        "group": group,
+        "root_cause": None,
+    }
+
+
+def _owner_label(raw) -> str:
+    if not raw:
+        return "task"
+    s = str(raw)
+    return s.split(":", 1)[0] if ":" in s else s
+
+
+def _read_master_pause() -> bool:
+    row = AppSetting.objects.filter(key="system.master_pause").first()
+    if row is None:
+        return False
+    return str(row.value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _embeddings_tile() -> dict:
+    try:
+        from apps.content.models import ContentItem
+
+        total = ContentItem.objects.count()
+        if total == 0:
+            return _tile(
+                "embeddings", "Embeddings", "IDLE",
+                "No in-scope content yet.",
+            )
+        missing = ContentItem.objects.filter(embedding__isnull=True).count()
+        if missing == 0:
+            return _tile(
+                "embeddings", "Embeddings", "WORKING",
+                f"All {total:,} items embedded.",
+                progress=1.0,
+            )
+        done = total - missing
+        return _tile(
+            "embeddings", "Embeddings", "WORKING",
+            f"{done:,} of {total:,} items embedded.",
+            actions=["Pause"], progress=done / total,
+        )
+    except Exception:  # noqa: BLE001
+        return _tile(
+            "embeddings", "Embeddings", "DEGRADED",
+            "Could not read embedding state.",
+        )
+
+
+def _health_state_to_mc(state: str) -> str:
+    if state == "healthy":
+        return "WORKING"
+    if state in ("degraded", "stale"):
+        return "DEGRADED"
+    if state in ("down", "error", "failed"):
+        return "FAILED"
+    if state == "not_configured":
+        return "IDLE"
+    return "IDLE"
+
+
+def _meta_tile_native_scoring() -> dict:
+    from apps.diagnostics import health as dh
+
+    state, explanation, _next, _meta = dh.check_native_scoring()
+    return _tile(
+        "cpp_hot_path", "C++ hot path", _health_state_to_mc(state),
+        explanation, group="algorithms",
+    )
+
+
+def _meta_tile_slate_diversity() -> dict:
+    from apps.diagnostics import health as dh
+
+    state, explanation, _next, _meta = dh.check_slate_diversity_runtime()
+    return _tile(
+        "slate_diversity", "Slate diversity", _health_state_to_mc(state),
+        explanation, group="algorithms",
+    )
+
+
+def _meta_tile_weight_tuning() -> dict:
+    last = _read_datetime_setting("system.last_weight_tune_at")
+    if last is None:
+        return _tile(
+            "weight_tuning", "Weight tuning", "IDLE",
+            "Weight tuner has never run.",
+            actions=["Run now"], group="algorithms",
+        )
+    age = timezone.now() - last
+    if age <= timedelta(days=31):
+        return _tile(
+            "weight_tuning", "Weight tuning", "WORKING",
+            f"Last tune {_humanize_age(age)}.",
+            actions=["Run now"], group="algorithms",
+            last_action_at=last,
+        )
+    return _tile(
+        "weight_tuning", "Weight tuning", "DEGRADED",
+        f"Last tune {_humanize_age(age)} — overdue.",
+        actions=["Run now"], group="algorithms",
+        last_action_at=last,
+    )
+
+
+def _meta_tile_attribution() -> dict:
+    last = _read_datetime_setting("system.last_attribution_run_at")
+    if last is None:
+        return _tile(
+            "attribution", "Attribution", "IDLE",
+            "Attribution engine has never run.",
+            actions=["Recompute"], group="algorithms",
+        )
+    age = timezone.now() - last
+    if age <= timedelta(hours=12):
+        return _tile(
+            "attribution", "Attribution", "WORKING",
+            f"Attribution computed {_humanize_age(age)}.",
+            actions=["Recompute"], group="algorithms",
+            last_action_at=last,
+        )
+    return _tile(
+        "attribution", "Attribution", "DEGRADED",
+        f"Attribution last computed {_humanize_age(age)}.",
+        actions=["Recompute"], group="algorithms",
+        last_action_at=last,
+    )
+
+
+def _meta_tile_cooccurrence() -> dict:
+    try:
+        from apps.cooccurrence.models import SessionCooccurrencePair
+        from django.db.models import Max
+
+        latest = SessionCooccurrencePair.objects.aggregate(m=Max("updated_at"))["m"]
+        if latest is None:
+            return _tile(
+                "cooccurrence", "Cooccurrence", "IDLE",
+                "Cooccurrence table is empty.",
+                actions=["Rebuild"], group="algorithms",
+            )
+        age = timezone.now() - latest
+        if age <= timedelta(hours=24):
+            return _tile(
+                "cooccurrence", "Cooccurrence", "WORKING",
+                f"Pairs refreshed {_humanize_age(age)}.",
+                actions=["Rebuild"], group="algorithms",
+                last_action_at=latest,
+            )
+        return _tile(
+            "cooccurrence", "Cooccurrence", "DEGRADED",
+            f"Pairs last refreshed {_humanize_age(age)}.",
+            actions=["Rebuild"], group="algorithms",
+            last_action_at=latest,
+        )
+    except Exception:  # noqa: BLE001
+        return _tile(
+            "cooccurrence", "Cooccurrence", "DEGRADED",
+            "Could not read cooccurrence state.",
+            actions=["Rebuild"], group="algorithms",
+        )
+
+
+def _external_tile(source_id: str, name: str) -> dict:
+    from apps.diagnostics import health as dh
+
+    checker = {"gsc": dh.check_gsc, "ga4": dh.check_ga4, "matomo": dh.check_matomo}[source_id]
+    state, explanation, _next, _meta = checker()
+    mc_state = _health_state_to_mc(state)
+    actions = ["Reconnect"] if mc_state in ("DEGRADED", "FAILED") else []
+    return _tile(source_id, name, mc_state, explanation, actions=actions)
+
+
+def _crawler_tile() -> dict:
+    try:
+        from apps.crawler.models import CrawlSession
+
+        latest = CrawlSession.objects.order_by("-started_at").first()
+        if latest is None:
+            return _tile(
+                "crawler", "Crawler", "IDLE",
+                "No crawl sessions yet.",
+            )
+        state_raw = getattr(latest, "state", "") or getattr(latest, "status", "")
+        mc_state = {
+            "running": "WORKING",
+            "paused": "PAUSED",
+            "completed": "IDLE",
+            "failed": "FAILED",
+        }.get(state_raw, "IDLE")
+        return _tile(
+            "crawler", "Crawler", mc_state,
+            f"Last session: {state_raw or 'unknown'}.",
+            actions=["Pause", "Resume"] if mc_state in ("WORKING", "PAUSED") else [],
+        )
+    except Exception:  # noqa: BLE001
+        return _tile("crawler", "Crawler", "IDLE", "No crawler state available.")
+
+
+def _import_tile() -> dict:
+    try:
+        from apps.sync.models import SyncJob
+
+        latest = SyncJob.objects.order_by("-started_at").first()
+        if latest is None:
+            return _tile("imports", "Imports", "IDLE", "No import jobs yet.")
+        state_raw = getattr(latest, "state", "") or getattr(latest, "status", "")
+        mc_state = {
+            "running": "WORKING",
+            "paused": "PAUSED",
+            "completed": "IDLE",
+            "success": "IDLE",
+            "failed": "FAILED",
+            "error": "FAILED",
+        }.get(state_raw, "IDLE")
+        return _tile(
+            "imports", "Imports", mc_state,
+            f"Last job: {state_raw or 'unknown'}.",
+            actions=["Pause", "Resume"] if mc_state in ("WORKING", "PAUSED") else [],
+        )
+    except Exception:  # noqa: BLE001
+        return _tile("imports", "Imports", "IDLE", "No import state available.")
+
+
+def _webhooks_tile() -> dict:
+    try:
+        from apps.sync.models import WebhookReceipt
+
+        recent_count = WebhookReceipt.objects.filter(
+            created_at__gte=timezone.now() - timedelta(minutes=30)
+        ).count()
+        if recent_count == 0:
+            return _tile(
+                "webhooks", "Webhooks", "IDLE",
+                "No receipts in last 30 min.",
+            )
+        return _tile(
+            "webhooks", "Webhooks", "WORKING",
+            f"{recent_count} receipts in last 30 min.",
+        )
+    except Exception:  # noqa: BLE001
+        return _tile("webhooks", "Webhooks", "IDLE", "No webhook state available.")
+
+
+def _read_datetime_setting(key: str):
+    from datetime import datetime
+
+    row = AppSetting.objects.filter(key=key).first()
+    if row is None or not row.value:
+        return None
+    raw = str(row.value).strip().strip('"')
+    try:
+        if raw.endswith("Z"):
+            raw = raw[:-1] + "+00:00"
+        dt = datetime.fromisoformat(raw)
+        if dt.tzinfo is None:
+            from django.utils.timezone import utc
+
+            dt = dt.replace(tzinfo=utc)
+        return dt
+    except (ValueError, TypeError):
+        return None
+
+
+def _humanize_age(delta: timedelta) -> str:
+    s = int(delta.total_seconds())
+    if s < 60:
+        return f"{s}s ago"
+    if s < 3600:
+        return f"{s // 60}m ago"
+    if s < 86400:
+        return f"{s // 3600}h ago"
+    return f"{s // 86400}d ago"

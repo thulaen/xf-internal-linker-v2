@@ -167,6 +167,19 @@ export interface MetaTournamentResponse {
   pinned_slots: number;
 }
 
+// Phase GT Step 10 — Runtime context snapshot captured with every error row.
+export interface RuntimeContext {
+  node_id: string;
+  node_role: string;
+  node_hostname: string;
+  python_version: string;
+  embedding_model: string;
+  gpu_available: boolean;
+  cuda_version: string | null;
+  gpu_name: string | null;
+  spacy_model: string | null;
+}
+
 export interface ErrorLogEntry {
   id: number;
   job_type: string;
@@ -176,6 +189,45 @@ export interface ErrorLogEntry {
   why: string;
   acknowledged: boolean;
   created_at: string;
+
+  // Phase GT fields — all optional so old snapshots still parse cleanly.
+  source?: 'internal' | 'glitchtip';
+  glitchtip_issue_id?: string | null;
+  glitchtip_url?: string | null;
+  fingerprint?: string | null;
+  occurrence_count?: number;
+  severity?: 'critical' | 'high' | 'medium' | 'low';
+  how_to_fix?: string;
+  node_id?: string;
+  node_role?: string;
+  node_hostname?: string;
+  runtime_context?: Partial<RuntimeContext>;
+
+  // Derived (from ErrorLogSerializer).
+  error_trend?: { date: string; count: number }[];
+  related_error_ids?: number[];
+}
+
+export interface NodeSummary {
+  node_id: string;
+  node_role: string;
+  node_hostname: string;
+  last_seen: string | null;
+  unacknowledged: number;
+  total: number;
+  worst_severity: 'critical' | 'high' | 'medium' | 'low';
+}
+
+export interface PipelineGateBlocker {
+  check: string;
+  state: string;
+  explanation: string;
+  next_step: string;
+}
+
+export interface PipelineGate {
+  can_run: boolean;
+  blockers: PipelineGateBlocker[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -239,6 +291,34 @@ export class DiagnosticsService {
 
   acknowledgeError(id: number): Observable<any> {
     return this.http.post(`${this.baseUrl}/errors/${id}/acknowledge/`, {}).pipe(
+      catchError(err => throwError(() => err))
+    );
+  }
+
+  // Phase GT Step 8 — re-dispatch the failing Celery task. Server-side
+  // whitelist limits this to job_types that are safely re-runnable.
+  rerunError(id: number): Observable<{ status: string; acknowledged?: boolean }> {
+    return this.http.post<{ status: string; acknowledged?: boolean }>(
+      `${this.baseUrl}/errors/${id}/rerun/`,
+      {}
+    ).pipe(catchError(err => throwError(() => err)));
+  }
+
+  // Phase GT Step 5 — operator intelligence endpoints.
+  getRuntimeContext(): Observable<RuntimeContext> {
+    return this.http.get<RuntimeContext>(`${this.baseUrl}/runtime-context/`).pipe(
+      catchError(err => throwError(() => err))
+    );
+  }
+
+  getNodes(): Observable<NodeSummary[]> {
+    return this.http.get<NodeSummary[]>(`${this.baseUrl}/nodes/`).pipe(
+      catchError(err => throwError(() => err))
+    );
+  }
+
+  getPipelineGate(): Observable<PipelineGate> {
+    return this.http.get<PipelineGate>(`${this.baseUrl}/pipeline-gate/`).pipe(
       catchError(err => throwError(() => err))
     );
   }

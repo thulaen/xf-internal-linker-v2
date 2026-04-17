@@ -34,6 +34,8 @@ import {
   SEOAuditSummary,
   SitemapConfig,
 } from './crawler.service';
+import { RealtimeService } from '../core/services/realtime.service';
+import { TopicUpdate } from '../core/services/realtime.types';
 
 @Component({
   selector: 'app-crawler',
@@ -64,6 +66,7 @@ export class CrawlerComponent implements OnInit {
   private crawlerSvc = inject(CrawlerService);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  private realtime = inject(RealtimeService);
 
   // ── Controls ──────────────────────────────────────────────────
   sitemaps: SitemapConfig[] = [];
@@ -94,7 +97,20 @@ export class CrawlerComponent implements OnInit {
   ngOnInit(): void {
     this.loadData();
 
-    // Poll active session every 5 seconds.
+    // Phase R1.2 — live updates from `crawler.sessions` topic. The backend
+    // `CrawlSession` signals broadcast on every save/delete, so there's no
+    // need to poll anymore. The 5-second `timer` below is kept as a
+    // fallback for the case where the WebSocket is briefly disconnected
+    // during an active crawl; `RealtimeService` handles reconnects but a
+    // paused/broken socket shouldn't leave a running session stale.
+    this.realtime
+      .subscribeTopic('crawler.sessions')
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((update: TopicUpdate) => this.handleRealtimeUpdate(update));
+
+    // Fallback poll — only fires when an active session is running and the
+    // realtime stream may have missed a transition. Lightweight: single
+    // GET of the one active session, not the list.
     timer(0, 5000)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
@@ -106,9 +122,39 @@ export class CrawlerComponent implements OnInit {
       });
   }
 
+  private handleRealtimeUpdate(update: TopicUpdate): void {
+    if (update.event === 'session.deleted') {
+      const id = (update.payload as { session_id: string }).session_id;
+      this.sessions = this.sessions.filter((s) => s.session_id !== id);
+      if (this.activeSession?.session_id === id) {
+        this.activeSession = null;
+      }
+      return;
+    }
+
+    if (update.event === 'session.created' || update.event === 'session.updated') {
+      const next = update.payload as CrawlSession;
+      const idx = this.sessions.findIndex((s) => s.session_id === next.session_id);
+      if (idx >= 0) {
+        this.sessions = this.sessions.map((s) => (s.session_id === next.session_id ? next : s));
+      } else {
+        this.sessions = [next, ...this.sessions];
+      }
+      // Refresh the active-session binding so the live progress card updates
+      // without waiting for the polling fallback.
+      if (this.activeSession?.session_id === next.session_id) {
+        this.activeSession = next;
+      } else if (!this.activeSession && (next.status === 'running' || next.status === 'pending')) {
+        this.activeSession = next;
+      }
+    }
+  }
+
   loadData(): void {
     this.loading = true;
-    this.crawlerSvc.getSitemaps().subscribe({
+    this.crawlerSvc.getSitemaps()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (sitemaps) => {
         this.sitemaps = sitemaps;
         const domains = [...new Set(sitemaps.map((s) => s.domain))];
@@ -117,7 +163,9 @@ export class CrawlerComponent implements OnInit {
         }
       },
     });
-    this.crawlerSvc.getSessions().subscribe({
+    this.crawlerSvc.getSessions()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (sessions) => {
         this.sessions = sessions;
         this.activeSession =
@@ -126,7 +174,9 @@ export class CrawlerComponent implements OnInit {
       },
       error: () => (this.loading = false),
     });
-    this.crawlerSvc.getContext().subscribe({
+    this.crawlerSvc.getContext()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (ctx) => (this.storageBytes = ctx.storage_bytes),
     });
   }
@@ -142,7 +192,9 @@ export class CrawlerComponent implements OnInit {
   // ── Actions ───────────────────────────────────────────────────
   startCrawl(): void {
     if (!this.selectedDomain) return;
-    this.crawlerSvc.startCrawl(this.selectedDomain, this.rateLimit, this.maxDepth).subscribe({
+    this.crawlerSvc.startCrawl(this.selectedDomain, this.rateLimit, this.maxDepth)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (session) => {
         this.activeSession = session;
         this.snack.open('Crawl started!', 'OK', { duration: 3000 });
@@ -155,7 +207,9 @@ export class CrawlerComponent implements OnInit {
   resumeCrawl(): void {
     const resumable = this.hasResumable;
     if (!resumable) return;
-    this.crawlerSvc.resumeCrawl(resumable.session_id).subscribe({
+    this.crawlerSvc.resumeCrawl(resumable.session_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (session) => {
         this.activeSession = session;
         this.snack.open('Crawl resumed!', 'OK', { duration: 3000 });
@@ -167,7 +221,9 @@ export class CrawlerComponent implements OnInit {
 
   pauseCrawl(): void {
     if (!this.activeSession) return;
-    this.crawlerSvc.pauseCrawl(this.activeSession.session_id).subscribe({
+    this.crawlerSvc.pauseCrawl(this.activeSession.session_id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (session) => {
         this.activeSession = session;
         this.snack.open('Crawl paused.', 'OK', { duration: 3000 });
@@ -178,7 +234,9 @@ export class CrawlerComponent implements OnInit {
   // ── Sitemap management ────────────────────────────────────────
   addSitemap(): void {
     if (!this.newSitemapDomain || !this.newSitemapUrl) return;
-    this.crawlerSvc.addSitemap(this.newSitemapDomain, this.newSitemapUrl).subscribe({
+    this.crawlerSvc.addSitemap(this.newSitemapDomain, this.newSitemapUrl)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (sm) => {
         this.sitemaps = [...this.sitemaps, sm];
         if (!this.selectedDomain) {
@@ -194,7 +252,9 @@ export class CrawlerComponent implements OnInit {
   }
 
   removeSitemap(id: number): void {
-    this.crawlerSvc.deleteSitemap(id).subscribe({
+    this.crawlerSvc.deleteSitemap(id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.sitemaps = this.sitemaps.filter((s) => s.id !== id);
         this.snack.open('Sitemap removed.', 'OK', { duration: 3000 });
@@ -211,10 +271,14 @@ export class CrawlerComponent implements OnInit {
 
     switch (index) {
       case 2: // Internal Links
-        this.crawlerSvc.getLinks(sid).subscribe({ next: (l) => (this.links = l) });
+        this.crawlerSvc.getLinks(sid)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({ next: (l) => (this.links = l) });
         break;
       case 4: // SEO Audit
-        this.crawlerSvc.getSEOAudit().subscribe({
+        this.crawlerSvc.getSEOAudit()
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
           next: (a) => (this.audit = a),
           error: () => (this.audit = null),
         });

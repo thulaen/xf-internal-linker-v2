@@ -1,0 +1,127 @@
+// ─────────────────────────────────────────────────────────────────────
+// Phase A1 — Accessibility theme variants.
+//
+// `data-*` attributes are written onto <html> by `A11yPrefsService`.
+// Each block here re-binds the existing CSS custom properties to
+// alternative values; per-component SCSS keeps reading the same
+// `var(--color-text-primary)` etc., so no component needs to know
+// which mode is active.
+//
+// Gaps covered:
+//   - Gap 98  high-contrast theme
+//   - Gap 99  font-size preference (90 / 100 / 115 / 130 %)
+//   - Gap 100 dyslexia-friendly font stack
+//   - Gap 101 colour-blind safe palettes (protanopia / deuteranopia /
+//             tritanopia)
+// ─────────────────────────────────────────────────────────────────────
+
+// Gap 99 — font-size scaling. Sets the root font-size; em/rem units
+// scale automatically. Defaults to 100 when the attribute is absent.
+:root[data-font-size='90']  { font-size: 14.4px; }
+:root[data-font-size='100'] { font-size: 16px;   }
+:root[data-font-size='115'] { font-size: 18.4px; }
+:root[data-font-size='130'] { font-size: 20.8px; }
+
+// Gap 100 — dyslexia-friendly font stack. We don't ship the proprietary
+// OpenDyslexic font (license + bundle size); instead we route to a
+// well-known approachable stack that maximises letter distinction.
+// Loads progressively if the user has the font installed locally.
+:root[data-font-stack='dyslexia'] {
+  --font-family:
+    'OpenDyslexic',
+    'Comic Sans MS',
+    'Trebuchet MS',
+    sans-serif;
+
+  // Loosen letter / word spacing — recommendation from the British
+  // Dyslexia Association style guide.
+  body, .mat-typography {
+    letter-spacing: 0.04em;
+    word-spacing: 0.12em;
+    line-height: 1.6;
+  }
+}
+
+// Gap 98 — high-contrast theme. Forces near-black text on near-white
+// background, bright primary, thick borders. Designed for users with
+// low vision; respects the system `prefers-contrast: more` media query
+// when the explicit toggle is off.
+:root[data-contrast='high'],
+:root:not([data-contrast]):root {
+  // (the second selector is a no-op fallback — kept so the cascade
+  // is identical whether contrast is unset or `normal`)
+}
+
+:root[data-contrast='high'] {
+  --color-text-primary:    #000000;
+  --color-text-secondary:  #1a1a1a;
+  --color-text-disabled:   #4a4a4a;
+  --color-bg-page:         #ffffff;
+  --color-bg-white:        #ffffff;
+  --color-bg-faint:        #f0f0f0;
+  --color-border:          #000000;
+  --color-border-faint:    #555555;
+  --color-primary:         #0040b0;
+  --color-primary-dark:    #002080;
+  --color-on-primary:      #ffffff;
+  --color-success:         #006627;
+  --color-success-dark:    #003e17;
+  --color-warning:         #8a5a00;
+  --color-warning-dark:    #5a3700;
+  --color-error:           #b3000c;
+  --color-error-dark:      #800007;
+  --card-border:           1.5px solid #000000;
+  --shadow-sm:             0 0 0 1px #000000;
+  --shadow-md:             0 0 0 2px #000000;
+  --shadow-lg:             0 0 0 3px #000000;
+}
+
+@media (prefers-contrast: more) {
+  // Honour OS preference too — saves the user from having to flip
+  // the in-app toggle if their OS already says so.
+  :root:not([data-contrast='high']) {
+    --color-text-primary: #000000;
+    --color-border:       #000000;
+    --card-border:        1.5px solid #000000;
+  }
+}
+
+// Gap 101 — Colour-blind safe palettes. Each palette shifts the few
+// signal colours (success / warning / error) to a hue pair that's
+// distinguishable by the named colour-vision deficiency (CVD).
+//
+// Source: Bang Wong (2011) — "Points of view: Color blindness".
+// Nature Methods 8, 441. Three palettes, one per major CVD type.
+
+:root[data-cvd-palette='protanopia'] {
+  // Reds shifted toward magenta; success kept teal-ward.
+  --color-success:         #009e73;   // bluish green
+  --color-success-dark:    #006e51;
+  --color-warning:         #f0e442;   // yellow
+  --color-warning-dark:    #b29e00;
+  --color-error:           #cc79a7;   // reddish purple — visible to protans
+  --color-error-dark:      #993f73;
+  --color-primary:         #0072b2;   // blue (unchanged hue, deeper)
+}
+
+:root[data-cvd-palette='deuteranopia'] {
+  // Same Wong palette — happens to be deuteranopia-safe too.
+  --color-success:         #009e73;
+  --color-success-dark:    #006e51;
+  --color-warning:         #e69f00;   // orange
+  --color-warning-dark:    #a67200;
+  --color-error:           #d55e00;   // vermillion (warm hue, distinct)
+  --color-error-dark:      #993f00;
+  --color-primary:         #0072b2;
+}
+
+:root[data-cvd-palette='tritanopia'] {
+  // Tritans confuse blue/yellow; shift toward red/green axis.
+  --color-success:         #009e73;
+  --color-success-dark:    #006e51;
+  --color-warning:         #d55e00;   // vermillion (instead of yellow)
+  --color-warning-dark:    #993f00;
+  --color-error:           #cc0033;   // pure red — visible to tritans
+  --color-error-dark:      #800020;
+  --color-primary:         #44aa99;   // teal (instead of blue)
+}

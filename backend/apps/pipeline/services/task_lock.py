@@ -106,9 +106,14 @@ def get_active_locks() -> dict[str, str | None]:
 
     Used by the Dashboard RunningNow component and Queue View to show
     which tasks are blocking others.
+
+    Phase SEQ added the `signal` weight class so ranking-signal compute
+    tasks are serialised on their own namespace — they must not fight
+    each other for GPU/CPU while a medium task (e.g. monthly weight
+    tune) is also eligible to run.
     """
     result: dict[str, str | None] = {}
-    for wc in ("heavy", "medium"):
+    for wc in ("heavy", "medium", "signal"):
         lock_key = f"{_LOCK_KEY_PREFIX}{wc}"
         holder = cache.get(lock_key)
         result[wc] = holder

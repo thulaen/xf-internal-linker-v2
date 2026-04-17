@@ -2,6 +2,8 @@ import { CommonModule, DatePipe } from '@angular/common';
 import { Component, OnInit, OnDestroy, HostListener, inject } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { forkJoin, Subject, takeUntil } from 'rxjs';
+import { debounceTime } from 'rxjs/operators';
+import { RealtimeService } from '../core/services/realtime.service';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
@@ -63,6 +65,8 @@ import {
 import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
 import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
 import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
+// Phase MS — Meta Algorithm Settings tab (new at the end of the tab group).
+import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 
 interface SettingTooltip {
   definition: string;
@@ -1740,6 +1744,7 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
     WeightDiagnosticsCardComponent,
     PerformanceSettingsComponent,
     HelpersSettingsComponent,
+    MetaAlgorithmsTabComponent,
   ],
 })
 export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
@@ -1749,6 +1754,15 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   private audioSvc = inject(AudioCueService);
   private snack = inject(MatSnackBar);
   private route = inject(ActivatedRoute);
+  private realtime = inject(RealtimeService);
+
+  /**
+   * Phase R1.4 — tracks the last realtime refresh so we don't spam the user
+   * with reload toasts if the backend fires several setting saves in a
+   * tight burst (e.g. a preset that writes 20 keys). Debounced via the
+   * stream below.
+   */
+  private readonly _settingsRuntimeUpdates$ = new Subject<void>();
   private destroy$ = new Subject<void>();
 
   loading = true;
@@ -2393,6 +2407,50 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
 
     this.reload();
+
+    // Phase R1.4 — settings.runtime is staff-only; non-staff users will
+    // receive a subscription.ack with denied=["settings.runtime"] and the
+    // stream stays silent, which is the intended no-op.
+    this.realtime
+      .subscribeTopic('settings.runtime')
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this._settingsRuntimeUpdates$.next());
+
+    // Debounce so a batch save of N AppSetting rows produces ONE reload
+    // and ONE snackbar, not N.
+    this._settingsRuntimeUpdates$
+      .pipe(debounceTime(500), takeUntil(this.destroy$))
+      .subscribe(() => {
+        // Don't steal state if the user is mid-edit. The snackbar gives
+        // them the cue; they choose when to reload by closing the toast.
+        if (this.hasAnyDirtyForm()) {
+          this.snack.open(
+            'Settings changed in another tab. Save or discard your edits to reload.',
+            'Dismiss',
+            { duration: 6000 },
+          );
+          return;
+        }
+        this.snack.open('Settings updated from another tab.', 'Dismiss', { duration: 3000 });
+        this.reload();
+      });
+  }
+
+  /**
+   * Best-effort guard for the realtime reload path — if the component has a
+   * dirty-form detector we use it; otherwise we assume clean. Avoids
+   * overwriting in-flight user input during a collaborative edit.
+   */
+  private hasAnyDirtyForm(): boolean {
+    const anyThis = this as unknown as { hasUnsavedChanges?: () => boolean };
+    if (typeof anyThis.hasUnsavedChanges === 'function') {
+      try {
+        return !!anyThis.hasUnsavedChanges();
+      } catch {
+        return false;
+      }
+    }
+    return false;
   }
 
   /**
@@ -2752,7 +2810,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   savePhraseMatchingSettings(): void {
     this.savingPhraseMatching = true;
-    this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching).subscribe({
+    this.siloSvc.updatePhraseMatchingSettings(this.phraseMatching)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (phraseMatching) => {
         this.phraseMatching = phraseMatching;
         this.refreshCurrentWeights();
@@ -2768,7 +2828,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveLearnedAnchorSettings(): void {
     this.savingLearnedAnchor = true;
-    this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor).subscribe({
+    this.siloSvc.updateLearnedAnchorSettings(this.learnedAnchor)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (learnedAnchor) => {
         this.learnedAnchor = learnedAnchor;
         this.refreshCurrentWeights();
@@ -2784,7 +2846,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveRareTermPropagationSettings(): void {
     this.savingRareTermPropagation = true;
-    this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation).subscribe({
+    this.siloSvc.updateRareTermPropagationSettings(this.rareTermPropagation)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (rareTermPropagation) => {
         this.rareTermPropagation = rareTermPropagation;
         this.refreshCurrentWeights();
@@ -2800,7 +2864,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveFieldAwareRelevanceSettings(): void {
     this.savingFieldAwareRelevance = true;
-    this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance).subscribe({
+    this.siloSvc.updateFieldAwareRelevanceSettings(this.fieldAwareRelevance)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (fieldAwareRelevance) => {
         this.fieldAwareRelevance = fieldAwareRelevance;
         this.refreshCurrentWeights();
@@ -2877,7 +2943,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       property_url: this.ga4Gsc.property_url.trim() || undefined,
       client_email: this.ga4Gsc.client_email.trim() || undefined,
       private_key: this.gscPrivateKey.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGSCConnection = false;
         this.ga4Gsc = {
@@ -2905,7 +2971,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     this.siloSvc.testXenForoConnection({
       base_url: this.xenforo.base_url?.trim() || undefined,
       api_key: this.xfApiKey?.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingXenForo = false;
         this.snack.open(result.message, undefined, { duration: 3500 });
@@ -2924,7 +2990,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       base_url: this.wordpress.base_url?.trim() || undefined,
       username: this.wordpress.username?.trim() || undefined,
       app_password: this.wordpressPassword?.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingWordPress = false;
         this.snack.open(result.message, undefined, { duration: 3500 });
@@ -2939,7 +3005,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   testWebhookEndpoints(): void {
     this.testingWebhooks = true;
-    this.siloSvc.testWebhookEndpoints().subscribe({
+    this.siloSvc.testWebhookEndpoints()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingWebhooks = false;
         this.snack.open(result.message, undefined, { duration: 3500 });
@@ -2993,7 +3061,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.read_private_key = this.ga4TelemetryReadPrivateKey.trim();
     }
 
-    this.siloSvc.updateGA4TelemetrySettings(payload).subscribe({
+    this.siloSvc.updateGA4TelemetrySettings(payload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (ga4Telemetry) => {
         this.ga4Telemetry = ga4Telemetry;
         this.ga4TelemetrySecret = '';
@@ -3013,7 +3083,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     this.siloSvc.testGA4TelemetryConnection({
       measurement_id: this.ga4Telemetry.measurement_id.trim() || undefined,
       api_secret: this.ga4TelemetrySecret.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGA4Telemetry = false;
         this.ga4Telemetry = {
@@ -3043,7 +3113,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       read_project_id: this.ga4Telemetry.read_project_id.trim() || undefined,
       read_client_email: this.ga4Telemetry.read_client_email.trim() || undefined,
       read_private_key: this.ga4TelemetryReadPrivateKey.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingGA4TelemetryRead = false;
         this.ga4Telemetry = {
@@ -3080,7 +3150,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.token_auth = this.matomoTelemetryToken.trim();
     }
 
-    this.siloSvc.updateMatomoTelemetrySettings(payload).subscribe({
+    this.siloSvc.updateMatomoTelemetrySettings(payload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (matomoTelemetry) => {
         this.matomoTelemetry = matomoTelemetry;
         this.matomoTelemetryToken = '';
@@ -3100,7 +3172,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       url: this.matomoTelemetry.url.trim() || undefined,
       site_id_xenforo: this.matomoTelemetry.site_id_xenforo.trim() || undefined,
       token_auth: this.matomoTelemetryToken.trim() || undefined,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (result: AnalyticsConnectionResult) => {
         this.testingMatomoTelemetry = false;
         this.matomoTelemetry = {
@@ -3125,7 +3197,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveGraphCandidateSettings(): void {
     this.savingGraphCandidate = true;
-    this.siloSvc.updateGraphCandidateSettings(this.graphCandidate).subscribe({
+    this.siloSvc.updateGraphCandidateSettings(this.graphCandidate)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (graphCandidate) => {
         this.graphCandidate = graphCandidate;
         this.refreshCurrentWeights();
@@ -3141,7 +3215,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveValueModelSettings(): void {
     this.savingValueModel = true;
-    this.siloSvc.updateValueModelSettings(this.valueModel).subscribe({
+    this.siloSvc.updateValueModelSettings(this.valueModel)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (valueModel) => {
         this.valueModel = valueModel;
         this.refreshCurrentWeights();
@@ -3172,7 +3248,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveLinkFreshnessSettings(): void {
     this.savingLinkFreshness = true;
-    this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness).subscribe({
+    this.siloSvc.updateLinkFreshnessSettings(this.linkFreshness)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (linkFreshness) => {
         this.linkFreshness = linkFreshness;
         this.refreshCurrentWeights();
@@ -3188,7 +3266,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveSpamGuardSettings(): void {
     this.savingSpamGuards = true;
-    this.siloSvc.updateSpamGuardSettings(this.spamGuards).subscribe({
+    this.siloSvc.updateSpamGuardSettings(this.spamGuards)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (spamGuards) => {
         this.spamGuards = spamGuards;
         this.savingSpamGuards = false;
@@ -3203,7 +3283,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveClickDistanceSettings(): void {
     this.savingClickDistance = true;
-    this.siloSvc.updateClickDistanceSettings(this.clickDistance).subscribe({
+    this.siloSvc.updateClickDistanceSettings(this.clickDistance)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (clickDistance) => {
         this.clickDistance = clickDistance;
         this.refreshCurrentWeights();
@@ -3219,7 +3301,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveFeedbackRerankSettings(): void {
     this.savingFeedbackRerank = true;
-    this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank).subscribe({
+    this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (feedbackRerank) => {
         this.feedbackRerank = feedbackRerank;
         this.refreshCurrentWeights();
@@ -3235,7 +3319,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveClusteringSettings(): void {
     this.savingClustering = true;
-    this.siloSvc.updateClusteringSettings(this.clustering).subscribe({
+    this.siloSvc.updateClusteringSettings(this.clustering)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (clustering) => {
         this.clustering = clustering;
         this.refreshCurrentWeights();
@@ -3251,7 +3337,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveSlateDiversitySettings(): void {
     this.savingSlate = true;
-    this.siloSvc.updateSlateDiversitySettings(this.slateDiversity).subscribe({
+    this.siloSvc.updateSlateDiversitySettings(this.slateDiversity)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (slateDiversity) => {
         this.slateDiversity = slateDiversity;
         this.refreshCurrentWeights();
@@ -3267,7 +3355,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   recalculateClickDistance(): void {
     this.recalculatingClickDistance = true;
-    this.siloSvc.recalculateClickDistance().subscribe({
+    this.siloSvc.recalculateClickDistance()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (response) => {
         this.recalculatingClickDistance = false;
         this.snack.open(`Click distance recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
@@ -3281,7 +3371,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   recalculateClustering(): void {
     this.recalculatingClustering = true;
-    this.siloSvc.recalculateClustering().subscribe({
+    this.siloSvc.recalculateClustering()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (response) => {
         this.recalculatingClustering = false;
         this.snack.open(`Clustering recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
@@ -3294,10 +3386,14 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   private loadGroupsAndScopes(): void {
-    this.siloSvc.listSiloGroups().subscribe({
+    this.siloSvc.listSiloGroups()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (groups) => {
         this.siloGroups = groups;
-        this.siloSvc.listScopes().subscribe({
+        this.siloSvc.listScopes()
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
           next: (scopes) => {
             this.scopes = scopes;
             this.loading = false;
@@ -3317,7 +3413,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveSettings(): void {
     this.savingSettings = true;
-    this.siloSvc.updateSettings(this.settings).subscribe({
+    this.siloSvc.updateSettings(this.settings)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (settings) => {
         this.settings = settings;
         this.refreshCurrentWeights();
@@ -3333,7 +3431,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveWeightedAuthoritySettings(): void {
     this.savingWeightedAuthority = true;
-    this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority).subscribe({
+    this.siloSvc.updateWeightedAuthoritySettings(this.weightedAuthority)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (weightedAuthority) => {
         this.weightedAuthority = weightedAuthority;
         this.refreshCurrentWeights();
@@ -3349,7 +3449,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   recalculateWeightedAuthority(): void {
     this.recalculatingWeightedAuthority = true;
-    this.siloSvc.recalculateWeightedAuthority().subscribe({
+    this.siloSvc.recalculateWeightedAuthority()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (response) => {
         this.recalculatingWeightedAuthority = false;
         this.snack.open(`March 2026 PageRank recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
@@ -3363,7 +3465,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   recalculateLinkFreshness(): void {
     this.recalculatingLinkFreshness = true;
-    this.siloSvc.recalculateLinkFreshness().subscribe({
+    this.siloSvc.recalculateLinkFreshness()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (response) => {
         this.recalculatingLinkFreshness = false;
         this.snack.open(`Link Freshness recalculation started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
@@ -3385,11 +3489,15 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (this.xfApiKey.trim()) {
       payload.api_key = this.xfApiKey.trim();
     }
-    this.siloSvc.updateXenForoSettings(payload).subscribe({
+    this.siloSvc.updateXenForoSettings(payload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: () => {
         this.xfApiKey = '';
         this.savingXenForo = false;
-        this.siloSvc.getXenForoSettings().subscribe({
+        this.siloSvc.getXenForoSettings()
+          .pipe(takeUntil(this.destroy$))
+          .subscribe({
           next: (xf) => { this.xenforo = { ...this.xenforo, ...xf }; },
           error: () => {},
         });
@@ -3415,7 +3523,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       payload.app_password = this.wordpressPassword.trim();
     }
 
-    this.siloSvc.updateWordPressSettings(payload).subscribe({
+    this.siloSvc.updateWordPressSettings(payload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (wordpress) => {
         this.wordpress = wordpress;
         this.wordpressPassword = '';
@@ -3437,7 +3547,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     if (this.xfWebhookSecret.trim()) payload.xf_webhook_secret = this.xfWebhookSecret.trim();
     if (this.wpWebhookSecret.trim()) payload.wp_webhook_secret = this.wpWebhookSecret.trim();
     this.savingWebhooks = true;
-    this.siloSvc.updateWebhookSettings(payload).subscribe({
+    this.siloSvc.updateWebhookSettings(payload)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (result) => {
         this.webhookSettings = result;
         this.xfWebhookSecret = '';
@@ -3588,7 +3700,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       sync_hour: Number(this.wordpress.sync_hour),
       sync_minute: Number(this.wordpress.sync_minute),
       app_password: '',
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (wordpress) => {
         this.wordpress = wordpress;
         this.wordpressPassword = '';
@@ -3604,7 +3716,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   runWordPressSync(): void {
     this.runningWordPressSync = true;
-    this.siloSvc.runWordPressSync().subscribe({
+    this.siloSvc.runWordPressSync()
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (response) => {
         this.runningWordPressSync = false;
         this.snack.open(`WordPress sync started (${response.job_id.slice(0, 8)})`, 'Dismiss', { duration: 5000 });
@@ -3622,7 +3736,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       return;
     }
     this.creatingGroup = true;
-    this.siloSvc.createSiloGroup(this.newGroup).subscribe({
+    this.siloSvc.createSiloGroup(this.newGroup)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (group) => {
         this.siloGroups = [...this.siloGroups, group].sort((a, b) => a.display_order - b.display_order || a.name.localeCompare(b.name));
         this.newGroup = { name: '', slug: '', description: '', display_order: 0 };
@@ -3642,7 +3758,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       slug: group.slug,
       description: group.description,
       display_order: group.display_order,
-    }).subscribe({
+    }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (updated) => {
         Object.assign(group, updated);
         this.snack.open('Silo group updated', undefined, { duration: 2500 });
@@ -3654,7 +3770,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   deleteGroup(group: SiloGroup): void {
-    this.siloSvc.deleteSiloGroup(group.id).subscribe({
+    this.siloSvc.deleteSiloGroup(group.id)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: () => {
         this.siloGroups = this.siloGroups.filter((item) => item.id !== group.id);
         this.scopes = this.scopes.map((scope) =>
@@ -3671,7 +3789,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   }
 
   updateScope(scope: ScopeItem, siloGroupId: number | null): void {
-    this.siloSvc.updateScopeSilo(scope.id, siloGroupId).subscribe({
+    this.siloSvc.updateScopeSilo(scope.id, siloGroupId)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (updated) => {
         Object.assign(scope, updated);
         this.snack.open('Scope assignment saved', undefined, { duration: 2000 });
@@ -3686,7 +3806,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   saveNotifPrefs(): void {
     this.savingNotifPrefs = true;
-    this.notifSvc.savePreferences(this.notifPrefs).subscribe({
+    this.notifSvc.savePreferences(this.notifPrefs)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: (saved) => {
         this.notifPrefs = saved;
         this.savingNotifPrefs = false;
@@ -3701,7 +3823,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
   sendTestNotification(severity: string): void {
     this.testingNotification = true;
-    this.notifSvc.sendTestNotification(severity).subscribe({
+    this.notifSvc.sendTestNotification(severity)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
       next: () => {
         this.testingNotification = false;
         this.snack.open('Test notification sent.', undefined, { duration: 2500 });

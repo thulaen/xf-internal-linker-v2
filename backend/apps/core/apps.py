@@ -52,3 +52,7 @@ class CoreConfig(AppConfig):
     def ready(self):
         # Run after migrations to avoid touching the table before it exists.
         post_migrate.connect(_consume_safe_mode_boot_flag, sender=self)
+
+        # Phase R1.3 — realtime broadcast signals for AppSetting changes.
+        # Idempotent via dispatch_uid on each receiver.
+        from . import signals  # noqa: F401

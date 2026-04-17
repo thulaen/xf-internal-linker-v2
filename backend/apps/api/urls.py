@@ -73,9 +73,12 @@ from apps.cooccurrence.views import (
     CoOccurrenceSettingsView,
 )
 from apps.suggestions.views import (
+    MetaAlgorithmSettingsView,
+    MetaAlgorithmToggleView,
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
     RankingChallengerViewSet,
+    SuggestionReadinessView,
     SuggestionViewSet,
     WeightAdjustmentHistoryViewSet,
     WeightPresetViewSet,
@@ -143,6 +146,25 @@ urlpatterns = [
     # are not mistaken for service-key detail lookups.
     path("health/disk/", HealthDiskView.as_view(), name="health-disk"),
     path("health/gpu/", HealthGpuView.as_view(), name="health-gpu"),
+    # Phase SR / Phase MS — these share the `suggestions/` + `meta-algorithms/`
+    # URL prefixes with DRF router ViewSets below. Must come BEFORE the
+    # router include or DRF treats "readiness" and "<id>/toggle" as pk
+    # lookups on SuggestionViewSet / non-existent meta ViewSet and 404s.
+    path(
+        "suggestions/readiness/",
+        SuggestionReadinessView.as_view(),
+        name="suggestion-readiness",
+    ),
+    path(
+        "meta-algorithms/",
+        MetaAlgorithmSettingsView.as_view(),
+        name="meta-algorithm-settings",
+    ),
+    path(
+        "meta-algorithms/<str:algo_id>/toggle/",
+        MetaAlgorithmToggleView.as_view(),
+        name="meta-algorithm-toggle",
+    ),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),
     path("ml/distill/", MLDistillView.as_view(), name="ml-distill"),
@@ -370,9 +392,13 @@ urlpatterns = [
         "sync/wordpress/run/", WordPressSyncRunView.as_view(), name="wordpress-sync-run"
     ),
     path("dashboard/", DashboardView.as_view(), name="dashboard"),
+    # Phase SR + MS routes live above the DRF router include (see note
+    # next to `suggestions/readiness/` earlier in this file).
     path("crawler/", include("apps.crawler.urls")),
     path("", include("apps.notifications.urls")),
     path("system/status/", include("apps.diagnostics.urls")),
     path("auth/", include("rest_framework.urls", namespace="rest_framework")),
     path("benchmarks/", include("apps.benchmarks.urls")),
+    # Phase OF — /api/operations/events/ hydrates the feed on reload.
+    path("operations/", include("apps.ops_feed.urls")),
 ]

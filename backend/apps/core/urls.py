@@ -2,8 +2,19 @@
 
 from django.urls import path
 from .views_runbooks import RunbookExecuteView
+from .views_streaming import (
+    StreamedSuggestionsHtmlView,
+    StreamedSuggestionsSseView,
+)
+from .views_observability import (
+    FeatureFlagExposureView,
+    FeatureFlagsListView,
+    RumSummaryView,
+)
 from .views import (
     HealthCheckView,
+    MissionBriefView,
+    StatusStoryView,
     TodayActionsView,
     WhatChangedView,
     ResumeStateView,
@@ -40,6 +51,18 @@ urlpatterns = [
         "dashboard/resume-state/",
         ResumeStateView.as_view(),
         name="dashboard-resume-state",
+    ),
+    # Phase D1 / Gap 53 — Status Story card narrative.
+    path(
+        "dashboard/story/",
+        StatusStoryView.as_view(),
+        name="dashboard-status-story",
+    ),
+    # Phase D1 / Gap 61 — Mission Brief pinned summary.
+    path(
+        "dashboard/mission-brief/",
+        MissionBriefView.as_view(),
+        name="dashboard-mission-brief",
     ),
     path("settings/runtime/", RuntimeSettingsView.as_view(), name="settings-runtime"),
     path(
@@ -103,5 +126,32 @@ urlpatterns = [
         "runbooks/<str:runbook_id>/execute/",
         RunbookExecuteView.as_view(),
         name="runbook-execute",
+    ),
+    # Phase F1 / Gap 82 — streamed report responses.
+    path(
+        "reports/stream/suggestions/",
+        StreamedSuggestionsHtmlView.as_view(),
+        name="reports-stream-suggestions-html",
+    ),
+    path(
+        "reports/stream/suggestions.sse",
+        StreamedSuggestionsSseView.as_view(),
+        name="reports-stream-suggestions-sse",
+    ),
+    # Phase OB / Gaps 130-132 — RUM + feature-flag endpoints.
+    path(
+        "rum/summary/",
+        RumSummaryView.as_view(),
+        name="rum-summary",
+    ),
+    path(
+        "feature-flags/",
+        FeatureFlagsListView.as_view(),
+        name="feature-flags-list",
+    ),
+    path(
+        "feature-flags/exposures/",
+        FeatureFlagExposureView.as_view(),
+        name="feature-flags-exposure",
     ),
 ]

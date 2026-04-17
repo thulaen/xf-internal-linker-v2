@@ -1,0 +1,122 @@
+// ═══════════════════════════════════════════════════════════════════
+// Scroll-to-Attention pulse keyframes
+// Phase GB / Gap 148 — cross-cutting attention-drawing service
+// Consumed by: frontend/src/app/core/services/scroll-attention.service.ts
+//
+// Design rules (per frontend/FRONTEND-RULES.md):
+//  - No hardcoded hex colors — use CSS variables from default-theme.scss
+//  - Respect prefers-reduced-motion — swap the smooth pulse for an
+//    instant background flash so motion-sensitive users still see the cue
+//  - No gradients — flat colors only (GA4 identity)
+//  - 4px-grid values only where spacing applies
+// ═══════════════════════════════════════════════════════════════════
+
+// Pulse timing constants (milliseconds) — keep in sync with
+// pulseDurationFor() in scroll-attention.service.ts.
+// low    =  800ms
+// normal = 1200ms
+// urgent = 1600ms
+
+// ── Keyframes ──────────────────────────────────────────────────────
+
+// Normal-priority pulse: primary brand blue ring.
+@keyframes attention-pulse-kf {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb), 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 12px rgba(var(--color-primary-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb), 0);
+  }
+}
+
+// Low-priority pulse: same color, softer + shorter reach.
+@keyframes attention-pulse-low-kf {
+  0% {
+    box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb), 0.35);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(var(--color-primary-rgb), 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(var(--color-primary-rgb), 0);
+  }
+}
+
+// Urgent pulse: amber warning, two-beat for emphasis (covers the 1600ms window).
+@keyframes attention-pulse-urgent-kf {
+  0%   { box-shadow: 0 0 0 0   rgba(232, 20, 3, 0.6); }   // var(--color-error) at 60%
+  30%  { box-shadow: 0 0 0 14px rgba(232, 20, 3, 0); }
+  50%  { box-shadow: 0 0 0 0   rgba(232, 20, 3, 0.6); }
+  80%  { box-shadow: 0 0 0 14px rgba(232, 20, 3, 0); }
+  100% { box-shadow: 0 0 0 0   rgba(232, 20, 3, 0); }
+}
+
+// ── Classes applied by ScrollAttentionService ──────────────────────
+
+// The service adds one of these classes on drawTo(); removes on dismiss().
+
+.attention-pulse {
+  animation: attention-pulse-kf 1200ms cubic-bezier(0.4, 0, 0.2, 1) 1;
+  // Give a subtle resting outline so the pulse visually attaches to the
+  // element even before the keyframe fires.
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--card-border-radius);
+}
+
+.attention-pulse-low {
+  animation: attention-pulse-low-kf 800ms cubic-bezier(0.4, 0, 0.2, 1) 1;
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--card-border-radius);
+}
+
+.attention-pulse-urgent {
+  animation: attention-pulse-urgent-kf 1600ms cubic-bezier(0.4, 0, 0.2, 1) 1;
+  outline: 2px solid var(--color-error);
+  outline-offset: 2px;
+  border-radius: var(--card-border-radius);
+}
+
+// ── Reduced-motion fallback ────────────────────────────────────────
+
+// Users who set `prefers-reduced-motion: reduce` get an instant color
+// flash instead of a pulsing ring. The color still communicates priority.
+@media (prefers-reduced-motion: reduce) {
+  .attention-pulse,
+  .attention-pulse-low {
+    animation: none;
+    background-color: var(--color-blue-50);
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    transition: background-color 0s;
+  }
+
+  .attention-pulse-urgent {
+    animation: none;
+    background-color: var(--color-error-light);
+    outline: 2px solid var(--color-error);
+    outline-offset: 2px;
+    transition: background-color 0s;
+  }
+}
+
+// ── Screen-reader-only live region (used by service) ───────────────
+
+// Visually-hidden but accessible. Service uses this class as a defense
+// in depth in case the inline styles it applies get stripped.
+.sr-only,
+.attention-live-region.sr-only {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

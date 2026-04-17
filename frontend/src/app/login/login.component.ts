@@ -11,6 +11,8 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { filter, take } from 'rxjs';
 import { AuthService } from '../core/services/auth.service';
+import { PasskeyService } from '../core/services/passkey.service';
+import { signal } from '@angular/core';
 
 @Component({
   selector: 'app-login',
@@ -32,6 +34,13 @@ export class LoginComponent implements OnInit {
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   private destroyRef = inject(DestroyRef);
+  private passkey = inject(PasskeyService);
+
+  /** Phase F1 / Gap 95 — passkey availability. The button shows only
+   *  when the browser supports WebAuthn AND the server's passkey
+   *  endpoints respond (HEAD probe). */
+  readonly passkeyAvailable = signal(false);
+  readonly passkeyBusy = signal(false);
 
   form = new FormGroup({
     username: new FormControl('', { nonNullable: true, validators: [Validators.required] }),
@@ -44,6 +53,9 @@ export class LoginComponent implements OnInit {
 
   ngOnInit(): void {
     this.returnUrl = this.route.snapshot.queryParamMap.get('returnUrl') ?? '/';
+
+    // Phase F1 / Gap 95 — detect passkey availability.
+    void this.passkey.isAvailable().then((avail) => this.passkeyAvailable.set(avail));
 
     // Redirect already-authenticated users away from login page
     this.auth.isChecking$.pipe(
@@ -66,13 +78,38 @@ export class LoginComponent implements OnInit {
     this.errorMessage = '';
 
     const { username, password } = this.form.getRawValue();
-    this.auth.login(username, password).subscribe({
+    this.auth.login(username, password)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => this.router.navigateByUrl(this.returnUrl),
       error: (err: HttpErrorResponse) => {
         this.errorMessage = this.getErrorMessage(err);
         this.loading = false;
       },
     });
+  }
+
+  /** Phase F1 / Gap 95 — passkey sign-in handler. */
+  async loginWithPasskey(): Promise<void> {
+    if (this.passkeyBusy()) return;
+    this.passkeyBusy.set(true);
+    this.errorMessage = '';
+    const result = await this.passkey.login();
+    this.passkeyBusy.set(false);
+    if (result.ok) {
+      this.router.navigateByUrl(this.returnUrl || '/dashboard');
+      return;
+    }
+    if (result.reason === 'cancelled') return; // user pressed cancel
+    if (result.reason === 'unsupported') {
+      this.errorMessage = 'Your browser does not support passkeys.';
+      return;
+    }
+    if (result.reason === 'not-configured') {
+      this.errorMessage = 'Passkey sign-in is not yet configured on this server.';
+      return;
+    }
+    this.errorMessage = result.detail || 'Passkey sign-in failed.';
   }
 
   private getErrorMessage(err: HttpErrorResponse): string {

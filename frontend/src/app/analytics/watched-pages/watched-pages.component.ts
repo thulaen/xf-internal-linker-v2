@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, inject, OnInit } from '@angular/core';
+import { Component, ChangeDetectionStrategy, DestroyRef, inject, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
@@ -73,20 +74,25 @@ interface WatchedPage {
 export class WatchedPagesComponent implements OnInit {
   private http = inject(HttpClient);
   private snack = inject(MatSnackBar);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
   pages: WatchedPage[] = [];
   loading = true;
   removingId: number | null = null;
 
   ngOnInit(): void {
     this.http.get<WatchedPage[]>('/api/analytics/watched-pages/')
-      .pipe(catchError(() => of([])))
+      .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
       .subscribe(data => { this.pages = data; this.loading = false; });
   }
 
   remove(page: WatchedPage): void {
     this.removingId = page.id;
     this.http.delete(`/api/analytics/watched-pages/${page.id}/`)
-      .pipe(catchError(() => { this.snack.open('Could not remove page.', 'Dismiss', { duration: 3000 }); return of(null); }))
+      .pipe(
+        catchError(() => { this.snack.open('Could not remove page.', 'Dismiss', { duration: 3000 }); return of(null); }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe(res => {
         this.removingId = null;
         if (res !== null) {

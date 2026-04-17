@@ -68,3 +68,31 @@
 .btn-spinner {
   display: inline-flex;
 }
+
+/* Phase F1 / Gap 95 — passkey divider + button. */
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: var(--space-md) 0;
+  color: var(--color-text-secondary);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--color-border);
+  }
+}
+
+.login-passkey-btn {
+  width: 100%;
+
+  mat-icon {
+    margin-right: 6px;
+  }
+}

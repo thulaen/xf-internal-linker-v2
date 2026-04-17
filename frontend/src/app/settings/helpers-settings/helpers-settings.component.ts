@@ -1,4 +1,5 @@
-import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, DestroyRef, OnInit, inject, signal } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { MatButtonModule } from '@angular/material/button';
@@ -305,6 +306,8 @@ interface HelperNode {
 })
 export class HelpersSettingsComponent implements OnInit {
   private http = inject(HttpClient);
+  // Phase E2 / Gap 41 — cancel in-flight HTTP on destroy.
+  private destroyRef = inject(DestroyRef);
 
   readonly loading = signal(true);
   readonly nodes = signal<HelperNode[]>([]);
@@ -317,7 +320,7 @@ export class HelpersSettingsComponent implements OnInit {
     this.loading.set(true);
     this.http
       .get<HelperNode[] | { results: HelperNode[] }>('/api/settings/helpers/')
-      .pipe(catchError(() => of<HelperNode[]>([])))
+      .pipe(catchError(() => of<HelperNode[]>([])), takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => {
         const list = Array.isArray(res) ? res : (res?.results ?? []);
         this.nodes.set(list);

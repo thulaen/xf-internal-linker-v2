@@ -5,14 +5,57 @@
  *
  * Enterprise-grade features:
  * - Single retry on 5xx errors (covers transient blips)
- * - 429 rate-limit handling
+ * - 429 rate-limit handling with Retry-After countdown (Gap 43)
  * - Network error cause distinction
  */
 
-import { HttpInterceptorFn } from '@angular/common/http';
+import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, retry, throwError, timer } from 'rxjs';
+
+import {
+  RateLimitSnackbarComponent,
+  RateLimitSnackbarData,
+} from './rate-limit-snackbar.component';
+
+/**
+ * Phase E2 / Gap 43 — parse the RFC 7231 Retry-After header.
+ *
+ * Two legal formats:
+ *   - delta-seconds: a non-negative integer ("120" = 120 seconds from now).
+ *   - HTTP-date: e.g. "Wed, 21 Oct 2015 07:28:00 GMT" — compute delta.
+ *
+ * Returns the number of seconds to wait, or a sensible fallback if the
+ * header is missing or unparseable. Clamped to [1, 3600] so we don't
+ * show "wait 0 seconds" (useless) or "wait 14 hours" (a hostile server;
+ * show a short toast instead).
+ */
+function parseRetryAfter(error: HttpErrorResponse): number {
+  const FALLBACK_SECONDS = 30;
+  const MIN_SECONDS = 1;
+  const MAX_SECONDS = 3600;
+
+  const raw = error?.headers?.get?.('Retry-After');
+  if (!raw) return FALLBACK_SECONDS;
+
+  // delta-seconds form
+  const asInt = Number.parseInt(raw, 10);
+  if (Number.isFinite(asInt) && asInt >= 0) {
+    return Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, asInt));
+  }
+
+  // HTTP-date form
+  const asDate = Date.parse(raw);
+  if (!Number.isNaN(asDate)) {
+    const deltaSec = Math.ceil((asDate - Date.now()) / 1000);
+    if (deltaSec > 0) {
+      return Math.max(MIN_SECONDS, Math.min(MAX_SECONDS, deltaSec));
+    }
+  }
+
+  return FALLBACK_SECONDS;
+}
 
 export const errorInterceptor: HttpInterceptorFn = (req, next) => {
   const snack = inject(MatSnackBar);
@@ -30,11 +73,28 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         return throwError(() => error);
       },
     }),
-    catchError((error) => {
+    catchError((error: HttpErrorResponse) => {
       const status = error?.status;
 
       // Auth interceptor handles 401/403 — don't show duplicate toasts
       if (status === 401 || status === 403) {
+        return throwError(() => error);
+      }
+
+      // Gap 43 — 429 gets a live countdown snackbar instead of a flat toast.
+      if (status === 429) {
+        const seconds = parseRetryAfter(error);
+        snack.openFromComponent<RateLimitSnackbarComponent, RateLimitSnackbarData>(
+          RateLimitSnackbarComponent,
+          {
+            // Keep the snackbar open for the full window + 1s, capped so a
+            // hostile server can't freeze the toast forever. The component
+            // self-dismisses when the countdown hits zero.
+            duration: (seconds + 1) * 1000,
+            data: { seconds },
+            panelClass: ['rate-limit-snackbar'],
+          },
+        );
         return throwError(() => error);
       }
 
@@ -50,8 +110,6 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
         }
       } else if (status === 404) {
         message = 'Resource not found';
-      } else if (status === 429) {
-        message = 'Too many requests — please wait a moment';
       } else if (status >= 500) {
         message = 'Server error — please try again later';
       }

@@ -66,7 +66,8 @@
       <mat-icon class="icon-base">category</mat-icon>
       Services by Requirement
     </h2>
-    <mat-tab-group animationDuration="200ms">
+    <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
+    <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
       <mat-tab *ngFor="let tier of tiers" [label]="tierLabels[tier]">
         <div class="tier-grid">
           <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]" [ngClass]="'tier-status-' + s.status">

@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 from django.db import transaction
 from django.db.models import F
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, status, views, viewsets
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -477,3 +477,207 @@ _TUNABLE_KEYS = frozenset({"w_semantic", "w_keyword", "w_node", "w_quality"})
 # second line of defence).
 _MAX_DELTA_PER_RUN = 0.05
 _MAX_DRIFT_FROM_BASELINE = 0.20
+
+
+class MetaAlgorithmSettingsView(views.APIView):
+    """Phase MS — list every meta-algorithm with current runtime state.
+
+    GET /api/meta-algorithms/
+
+    Query params (optional):
+      * `family` — filter by P1/P2/…/Q24/active/signal
+      * `status` — filter by active/forward-declared/disabled
+      * `q` — case-insensitive substring match on id/meta_code/title
+
+    No new backend state: reads the registry (derived from existing
+    `recommended_weights_phase2_*.py` files) and layers in current
+    `AppSetting` values for `<algo>.enabled` + `<algo>.ranking_weight`.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.core.models import AppSetting
+
+        from .meta_registry import enumerate_metas, families_summary
+
+        metas = enumerate_metas()
+
+        # Bulk-fetch AppSetting rows for the keys we care about so we
+        # don't do 700+ single-row queries on a 375-entry list.
+        wanted_keys: set[str] = set()
+        for m in metas:
+            wanted_keys.add(m.enabled_key)
+            if m.weight_key:
+                wanted_keys.add(m.weight_key)
+        setting_map: dict[str, str] = {
+            row.key: row.value
+            for row in AppSetting.objects.filter(key__in=list(wanted_keys))
+        }
+
+        rows: list[dict] = []
+        for m in metas:
+            enabled_raw = setting_map.get(m.enabled_key)
+            enabled = _coerce_bool(enabled_raw)
+            weight_val = setting_map.get(m.weight_key) if m.weight_key else None
+            rows.append(
+                {
+                    "id": m.id,
+                    "meta_code": m.meta_code,
+                    "family": m.family,
+                    "title": m.title,
+                    "status": "disabled"
+                    if enabled_raw is not None and not enabled
+                    else m.status,
+                    "enabled": enabled,
+                    "enabled_key": m.enabled_key,
+                    "weight_key": m.weight_key,
+                    "weight_value": weight_val,
+                    "spec_path": m.spec_path,
+                    "cpp_kernel": m.cpp_kernel,
+                    "param_keys": list(m.param_keys),
+                }
+            )
+
+        # Apply query filters.
+        family_filter = request.query_params.get("family", "").strip()
+        status_filter = request.query_params.get("status", "").strip()
+        query = request.query_params.get("q", "").strip().lower()
+
+        if family_filter:
+            rows = [r for r in rows if r["family"] == family_filter]
+        if status_filter:
+            rows = [r for r in rows if r["status"] == status_filter]
+        if query:
+            rows = [
+                r
+                for r in rows
+                if query in r["id"].lower()
+                or query in (r["meta_code"] or "").lower()
+                or query in r["title"].lower()
+            ]
+
+        return Response(
+            {
+                "rows": rows,
+                "families": families_summary(
+                    type("ListWrap", (), {"__iter__": lambda self: iter(_MetasAdapter(rows))})()
+                ),
+                "total": len(rows),
+            }
+        )
+
+
+class _MetasAdapter:
+    """Tiny adapter so families_summary can iterate raw rows as if they
+    were MetaDefinition instances (it only reads `.family` + `.status`)."""
+
+    def __init__(self, rows):
+        self._rows = rows
+
+    def __iter__(self):
+        class _Proxy:
+            def __init__(self, row):
+                self.family = row["family"]
+                self.status = row["status"]
+
+        return (_Proxy(r) for r in self._rows)
+
+
+class MetaAlgorithmToggleView(views.APIView):
+    """Phase MS — flip `<algo>.enabled` for a single meta-algorithm.
+
+    POST /api/meta-algorithms/<id>/toggle/  body: {"enabled": true|false}
+
+    Writes through to the AppSetting row (created if missing). Broadcasts
+    on the `meta_algorithms.state` realtime topic so other operators see
+    the change instantly.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, algo_id: str):
+        from apps.core.models import AppSetting
+
+        from .meta_registry import enumerate_metas
+
+        # Validate the id is in the registry — refuse to create arbitrary
+        # AppSetting rows via this endpoint.
+        metas = {m.id: m for m in enumerate_metas()}
+        meta = metas.get(algo_id)
+        if meta is None:
+            return Response(
+                {"detail": f"unknown meta-algorithm id: {algo_id}"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        raw_enabled = request.data.get("enabled")
+        if raw_enabled is None:
+            return Response(
+                {"detail": "body must include `enabled` (true/false)"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        enabled = _coerce_bool(raw_enabled)
+        new_value = "true" if enabled else "false"
+
+        AppSetting.objects.update_or_create(
+            key=meta.enabled_key,
+            defaults={
+                "value": new_value,
+                "value_type": "bool",
+                "category": "ml",
+                "description": f"Auto-set by MetaAlgorithmToggleView for {meta.meta_code or meta.id}.",
+            },
+        )
+
+        # Best-effort realtime nudge — every Settings tab viewer refreshes.
+        try:
+            from apps.realtime.services import broadcast
+
+            broadcast(
+                "meta_algorithms.state",
+                "toggled",
+                {
+                    "id": meta.id,
+                    "meta_code": meta.meta_code,
+                    "enabled": enabled,
+                },
+            )
+        except Exception:  # noqa: BLE001
+            pass
+
+        return Response(
+            {
+                "id": meta.id,
+                "meta_code": meta.meta_code,
+                "enabled": enabled,
+            }
+        )
+
+
+def _coerce_bool(raw) -> bool:
+    if isinstance(raw, bool):
+        return raw
+    if raw is None:
+        return False
+    s = str(raw).strip().lower()
+    return s in {"1", "true", "yes", "on", "t", "y"}
+
+
+class SuggestionReadinessView(views.APIView):
+    """Phase SR — single endpoint the Review page consults before showing suggestions.
+
+    Returns a compact `{ready, prerequisites, blocking, updated_at}` payload.
+    Every prerequisite reuses an existing health / AppSetting source of truth;
+    no new telemetry is introduced. Root-cause dedup is applied inside
+    `apps.suggestions.readiness.assemble_prerequisites()`, so when the
+    pipeline gate blocks, the operator sees one root explanation instead of
+    five downstream echoes.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from .readiness import compute_readiness_payload
+
+        return Response(compute_readiness_payload())

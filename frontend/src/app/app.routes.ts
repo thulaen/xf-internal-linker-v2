@@ -131,6 +131,39 @@ export const routes: Routes = [
     title: 'Performance — XF Internal Linker',
     canActivate: [authGuard],
   },
+  // Phase OF — Operations Feed: live ambient narration of what the
+  // system is doing, deduped per 60s, with severity chips + pause.
+  {
+    path: 'operations-feed',
+    loadComponent: () =>
+      import('./operations-feed/operations-feed.component').then(
+        (m) => m.OperationsFeedComponent,
+      ),
+    title: 'Operations Feed — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Operations Feed' },
+  },
+  // Phase GB / Gap 149 — User Preference Center: single place to manage
+  // every client-side setting. Consolidates a11y, locale, tutorial,
+  // onboarding, and data-hygiene controls on one page.
+  {
+    path: 'preferences',
+    loadComponent: () =>
+      import('./preferences/preferences.component').then((m) => m.PreferencesComponent),
+    title: 'Preferences — XF Internal Linker',
+    canActivate: [authGuard],
+    data: { breadcrumb: 'Preferences' },
+  },
+  // Phase U1 / Gap 18 — dedicated 500 / "something went wrong" page.
+  // The Global ErrorHandler (Gap 26) navigates here on unrecoverable
+  // errors. Must come BEFORE the wildcard `**` below so a direct
+  // /server-error visit hits this route instead of the 404.
+  {
+    path: 'server-error',
+    loadComponent: () =>
+      import('./server-error/server-error.component').then((m) => m.ServerErrorComponent),
+    title: 'Something went wrong — XF Internal Linker',
+  },
   {
     path: '**',
     loadComponent: () =>

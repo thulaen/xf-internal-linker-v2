@@ -1,3 +1,14 @@
+<!-- Phase SR — readiness gate. Hold the full Review UI behind the
+     preparing-suggestions panel until every prerequisite reports ready,
+     unless the operator has pressed "Show me anyway" for this session. -->
+@if (!isReadyForSuggestions) {
+  <app-preparing-suggestions
+    [allowOverride]="true"
+    (override)="onReadinessOverride()"
+  />
+}
+
+@if (isReadyForSuggestions) {
 <section class="review-shell">
   <section class="review-hero" id="review-hero">
     <div class="review-hero-copy">
@@ -50,6 +61,7 @@
         <mat-icon matPrefix>search</mat-icon>
         <input
           matInput
+          autocomplete="off"
           placeholder="Search..."
           [(ngModel)]="searchQuery"
           (keydown.enter)="onSearch()"
@@ -301,3 +313,6 @@
     aria-label="Suggestion pages"
   ></mat-paginator>
 }
+}
+<!-- /Phase SR gate wrapping @if (isReadyForSuggestions) -->
+

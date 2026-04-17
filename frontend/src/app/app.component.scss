@@ -1,5 +1,41 @@
 // ── App Shell Layout ──────────────────────────────────────────────
 
+// Phase E2 / Gap 40 — Skip-to-content link.
+// Invisible until a keyboard user tabs onto it from page load, then
+// slides in at the top-left corner. Clicking/Enter calls
+// onSkipToContent() which focuses <main>, letting keyboard users
+// jump past the ~40 toolbar and sidenav controls on every navigation.
+.skip-link {
+  position: fixed;
+  top: -48px;               // hidden above the viewport
+  left: var(--space-sm);
+  z-index: 10000;           // above the nav-progress-bar and everything else
+  padding: var(--space-sm) var(--space-md);
+  background: var(--color-primary);
+  color: var(--color-on-primary, #ffffff);
+  border-radius: var(--card-border-radius, 8px);
+  font-family: var(--font-family);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  box-shadow: var(--shadow-md);
+  transition: top 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  &:focus,
+  &:focus-visible {
+    top: var(--space-sm);   // slides down into view
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+// Respect user's reduced-motion preference (Gap 39).
+@media (prefers-reduced-motion: reduce) {
+  .skip-link {
+    transition: none;
+  }
+}
+
 .app-container {
   height: calc(100vh - 64px);
   background-color: var(--color-bg-page);
@@ -362,6 +398,13 @@
     }
   }
 
+  // Phase D1 / Gaps 55 + 58 — toolbar toggle highlight when active.
+  // Applied via [class.toolbar-toggle-on] on the inner mat-icon so the
+  // color is unmistakable but the button chrome stays standard.
+  mat-icon.toolbar-toggle-on {
+    color: var(--color-primary) !important;
+  }
+
   // System status dot — wrapped in a button so it's a proper menu trigger
   // (was a bare div; buttons give us keyboard + ARIA for free).
   .system-status-dot-btn {
@@ -403,6 +446,54 @@
       background-color: var(--color-error);
       box-shadow: 0 0 8px var(--color-error-light);
       animation: heartbeat 2s infinite ease-in-out;
+    }
+  }
+
+  // Gap 38 — WS connection status dot in the toolbar.
+  .ws-status-dot-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: 2px 8px;
+    margin: 0 4px;
+    border-radius: 12px;
+    border: var(--card-border);
+    background: var(--color-bg-faint);
+    cursor: default;
+  }
+  .ws-status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-border);
+    transition: background-color 0.3s ease, box-shadow 0.3s ease;
+
+    &.ws-connected {
+      background: var(--color-success, #34a853);
+      box-shadow: 0 0 4px var(--color-success-light, #d4edda);
+    }
+    &.ws-reconnecting {
+      background: var(--color-warning, #f59e0b);
+      animation: ws-blink 1s steps(1, end) infinite;
+    }
+    &.ws-offline {
+      background: var(--color-border);
+    }
+  }
+  @keyframes ws-blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+  .ws-status-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ws-status-dot.ws-reconnecting {
+      animation: none;
+      opacity: 0.7;
     }
   }
 
@@ -464,6 +555,53 @@
 // ── Global Customizations for GA4 Menu ────────────────────────────
 
 // AppComponent is the root, so these selectors are effectively global.
+
+// Phase A1 / Gaps 98-101 — accessibility menu styles.
+.a11y-menu-body {
+  padding: 16px;
+  min-width: 280px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.a11y-menu-title {
+  margin: 0 0 4px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.a11y-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.a11y-menu-cvd {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.a11y-menu-label {
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.a11y-menu-segments {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.a11y-menu-segments button { min-width: 44px; padding: 0 10px; }
+.a11y-menu-actions {
+  border-top: var(--card-border);
+  padding-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+.a11y-on {
+  background: var(--color-primary) !important;
+  color: var(--color-on-primary, #ffffff) !important;
+  border-color: var(--color-primary) !important;
+}
 
 .ga4-menu {
   margin-top: 8px;

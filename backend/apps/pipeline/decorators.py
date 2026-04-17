@@ -52,3 +52,60 @@ def with_weight_lock(
         return wrapper
 
     return decorator
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# Phase SEQ — Sequential Execution for Ranking Signals
+# ─────────────────────────────────────────────────────────────────────────
+
+
+def with_signal_lock() -> Callable[[Callable[..., Any]], Callable[..., Any]]:
+    """Run a ranking-signal compute task one-at-a-time across the fleet.
+
+    Phase SEQ of the approved master plan. Rationale: the 23 existing
+    ranking signals (plus 126 forward-declared in RPT-002) all compete
+    for the same GPU, CPU, and Postgres connection pool. Running them
+    in parallel is pathologically slow because each one saturates the
+    hot path — a pipeline doing 3 signals at once is slower than doing
+    them back-to-back on constrained hardware ("The Tail at Scale").
+
+    This decorator is semantically a specialisation of
+    ``with_weight_lock("signal")``: it lives on its own Redis key
+    namespace so medium / heavy tasks can still run alongside signal
+    computes. On contention, the FIFO-defer timing is shorter (30s
+    retry, 120 max-retries = 1 hour patience) because signals are
+    typically faster than full pipeline runs.
+
+    The wrapped task MUST be defined with ``bind=True``.
+
+    Example
+    -------
+        @shared_task(bind=True, name="suggestions.compute_signal_authority")
+        @with_signal_lock()
+        def compute_signal_authority(self, run_id: str) -> dict:
+            ...
+
+    Future signals (FR-099 through FR-224) adopt this decorator by
+    convention. A CI test asserts new ``compute_signal_*`` tasks use it.
+    """
+
+    def decorator(func: Callable[..., Any]) -> Callable[..., Any]:
+        @functools.wraps(func)
+        def wrapper(self: Any, *args: Any, **kwargs: Any) -> Any:
+            from apps.pipeline.services.task_lock import (
+                acquire_task_lock,
+                release_task_lock,
+            )
+
+            if not acquire_task_lock("signal", func.__name__):
+                # Shorter retry cadence than with_weight_lock so the signal
+                # queue drains quickly during a busy compute window.
+                raise self.retry(countdown=30, max_retries=120)
+            try:
+                return func(self, *args, **kwargs)
+            finally:
+                release_task_lock("signal", func.__name__)
+
+        return wrapper
+
+    return decorator

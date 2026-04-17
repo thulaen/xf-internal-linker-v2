@@ -85,10 +85,22 @@
   }
 }
 
-.error-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
+/* Phase E1 / Gap 27 — Virtual scroll viewport for the error list.
+   cdk-virtual-scroll-viewport requires an explicit height so it knows
+   the viewable area. We cap at 70vh so the rest of the page (header,
+   filters) remains visible. The viewport itself scrolls; the page doesn't. */
+.error-viewport {
+  height: 70vh;
+  /* Ensure the viewport fills the page width up to the page max-width. */
+  width: 100%;
+}
+
+/* Each card rendered by *cdkVirtualFor needs a consistent left/right layout
+   and its own bottom margin so cards don't touch each other. The viewport
+   handles vertical position; we just add the gap. */
+.error-viewport mat-card,
+.error-viewport .error-card {
+  margin-bottom: var(--space-md);
 }
 
 .error-card {
