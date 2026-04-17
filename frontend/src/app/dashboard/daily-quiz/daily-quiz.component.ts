@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   OnInit,
-  inject,
   signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -196,6 +195,7 @@ const ANSWERED_KEY_PREFIX = 'xfil_quiz_answered.';
               [class.quiz-wrong]="answered() && selectedIndex() === i && i !== question().correctIndex"
               [disabled]="answered()"
               [attr.aria-pressed]="selectedIndex() === i"
+              [attr.aria-checked]="selectedIndex() === i"
               role="radio"
               (click)="answer(i)"
             >

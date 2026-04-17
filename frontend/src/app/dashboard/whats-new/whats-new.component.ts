@@ -20,7 +20,6 @@ import { CHANGELOG, ChangelogEntry } from './whats-new.data';
  */
 
 const SEEN_KEY = 'xfil_changelog_seen_iso';
-const VISIT_KEY = 'xfil_last_visit';
 
 @Component({
   selector: 'app-whats-new',

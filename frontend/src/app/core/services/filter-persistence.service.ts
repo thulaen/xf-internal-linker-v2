@@ -79,7 +79,7 @@ export class FilterPersistenceService {
       const pageId = ev.key.slice(NS.length);
       const set = this.listeners.get(pageId);
       if (!set || set.size === 0) return;
-      let payload: unknown = null;
+      let payload: unknown;
       try {
         payload = ev.newValue ? JSON.parse(ev.newValue) : null;
       } catch {

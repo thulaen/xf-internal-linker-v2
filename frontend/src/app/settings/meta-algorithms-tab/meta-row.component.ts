@@ -59,7 +59,7 @@ import { MetaRow } from './meta-algorithms.service';
       <mat-slide-toggle
         class="mr-toggle"
         [checked]="row.enabled"
-        (change)="toggle.emit({ id: row.id, enabled: $event.checked })"
+        (change)="toggled.emit({ id: row.id, enabled: $event.checked })"
         [attr.aria-label]="'Enable ' + row.title"
       />
       <button
@@ -76,7 +76,7 @@ import { MetaRow } from './meta-algorithms.service';
           mat-menu-item
           type="button"
           [disabled]="!row.enabled || row.status !== 'active'"
-          (click)="action.emit({ id: row.id, action: 'run' })"
+          (click)="actionClick.emit({ id: row.id, action: 'run' })"
         >
           <mat-icon>play_arrow</mat-icon>
           Run now
@@ -85,7 +85,7 @@ import { MetaRow } from './meta-algorithms.service';
           mat-menu-item
           type="button"
           [disabled]="!row.spec_path"
-          (click)="action.emit({ id: row.id, action: 'spec' })"
+          (click)="actionClick.emit({ id: row.id, action: 'spec' })"
         >
           <mat-icon>description</mat-icon>
           View spec
@@ -93,7 +93,7 @@ import { MetaRow } from './meta-algorithms.service';
         <button
           mat-menu-item
           type="button"
-          (click)="action.emit({ id: row.id, action: 'ops_feed' })"
+          (click)="actionClick.emit({ id: row.id, action: 'ops_feed' })"
         >
           <mat-icon>rss_feed</mat-icon>
           Show in Ops Feed
@@ -101,7 +101,7 @@ import { MetaRow } from './meta-algorithms.service';
         <button
           mat-menu-item
           type="button"
-          (click)="action.emit({ id: row.id, action: 'mission_critical' })"
+          (click)="actionClick.emit({ id: row.id, action: 'mission_critical' })"
         >
           <mat-icon>dashboard_customize</mat-icon>
           Show in Mission Critical
@@ -178,8 +178,8 @@ import { MetaRow } from './meta-algorithms.service';
 export class MetaRowComponent {
   @Input({ required: true }) row!: MetaRow;
 
-  @Output() toggle = new EventEmitter<{ id: string; enabled: boolean }>();
-  @Output() action = new EventEmitter<{ id: string; action: string }>();
+  @Output() toggled = new EventEmitter<{ id: string; enabled: boolean }>();
+  @Output() actionClick = new EventEmitter<{ id: string; action: string }>();
 
   statusLabel(): string {
     switch (this.row.status) {

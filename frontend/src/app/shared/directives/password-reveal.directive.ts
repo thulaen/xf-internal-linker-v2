@@ -47,7 +47,7 @@ export class PasswordRevealDirective implements OnInit {
   ngOnInit(): void {
     const input = this.host.nativeElement;
     if (input.tagName.toLowerCase() !== 'input') {
-      // eslint-disable-next-line no-console
+       
       console.warn('[appPasswordReveal] host is not an <input>');
       return;
     }

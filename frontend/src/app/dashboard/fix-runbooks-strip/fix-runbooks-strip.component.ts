@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, Component, Input, computed, inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Input, computed, inject, signal, OnChanges } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -113,7 +113,7 @@ import { RunbookDialogComponent } from '../../shared/runbooks/runbook-dialog/run
     }
   `],
 })
-export class FixRunbooksStripComponent {
+export class FixRunbooksStripComponent implements OnChanges {
   private dialog = inject(MatDialog);
 
   /** Accepts the DashboardData.system_health.status string verbatim. */

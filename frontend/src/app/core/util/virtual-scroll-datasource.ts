@@ -60,7 +60,8 @@ export class VirtualScrollDataSource<T> extends DataSource<T> {
 
   // DataSource contract ──────────────────────────────────────────────
 
-  connect(_viewer: CollectionViewer): Observable<T[]> {
+  connect(viewer: CollectionViewer): Observable<T[]> {
+    void viewer; // CollectionViewer param required by CDK interface
     // We push ALL data on every change. For very large sets (>10 000 rows)
     // switch to a windowed observable using `viewer.viewChange`. For the
     // typical use-case of a few hundred rows, pushing everything is simpler
@@ -68,7 +69,8 @@ export class VirtualScrollDataSource<T> extends DataSource<T> {
     return this.data$.asObservable();
   }
 
-  disconnect(_viewer: CollectionViewer): void {
+  disconnect(viewer: CollectionViewer): void {
+    void viewer;
     this.sub?.unsubscribe();
     this.sub = null;
   }

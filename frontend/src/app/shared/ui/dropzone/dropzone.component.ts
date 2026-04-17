@@ -7,8 +7,7 @@ import {
   Input,
   OnInit,
   Output,
-  inject,
-  signal,
+  signal, OnDestroy,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -112,7 +111,7 @@ import { MatIconModule } from '@angular/material/icon';
     }
   `],
 })
-export class DropzoneComponent implements OnInit {
+export class DropzoneComponent implements OnInit, OnDestroy {
   /** Extensions or mime types accepted. Pass `['.csv']` or `['image/*']`. */
   @Input() accept: readonly string[] = [];
   @Input() multiple = false;

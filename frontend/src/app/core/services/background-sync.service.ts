@@ -110,7 +110,7 @@ export class BackgroundSyncService {
     if (this.draining) return;
     this.draining = true;
     try {
-      let queue = await this.readQueue();
+      const queue = await this.readQueue();
       while (queue.length > 0) {
         const next = queue[0];
         const ok = await this.send(next);

@@ -77,7 +77,7 @@ export class FormAutosaveDirective implements OnInit {
     if (!this.form) {
       // Without a form there's nothing to save. Console hint helps
       // catch the directive being applied to a non-form element.
-      // eslint-disable-next-line no-console
+       
       console.warn(
         '[appFormAutosave] no FormGroup or NgForm bound — directive is a no-op',
       );

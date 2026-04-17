@@ -152,8 +152,8 @@ export class TypingIndicatorComponent implements OnInit {
   /** Listen on the closest form element for input events. The
    *  component is typically dropped INSIDE a `<form>`, so the parent
    *  bubbles input events through us. */
-  @HostListener('input', ['$event'])
-  onParentInput(_event: Event): void {
+  @HostListener('input')
+  onParentInput(): void {
     if (!this.myUsername || !this.topic) return;
     const now = Date.now();
     if (now - this.lastSentAt < SEND_INTERVAL_MS) return;

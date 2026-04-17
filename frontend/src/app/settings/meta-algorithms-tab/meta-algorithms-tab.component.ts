@@ -184,8 +184,8 @@ import { MetaRowComponent } from './meta-row.component';
           <app-meta-row
             *cdkVirtualFor="let row of filteredRows(); trackBy: trackById"
             [row]="row"
-            (toggle)="onToggle($event)"
-            (action)="onAction($event)"
+            (toggled)="onToggle($event)"
+            (actionClick)="onAction($event)"
           />
         </cdk-virtual-scroll-viewport>
       }

@@ -9,7 +9,7 @@ import {
   QueryList,
   TemplateRef,
   computed,
-  signal,
+  signal, AfterContentInit,
 } from '@angular/core';
 import { CommonModule, NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
@@ -27,22 +27,22 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
  *   <app-form-wizard
  *     [(activeStep)]="step"
  *     [completed]="completedSteps"
- *     (finish)="onFinish()"
+ *     (finished)="onFinish()"
  *   >
  *     <app-form-wizard-step label="Source" [valid]="form.controls.source.valid">
- *       <ng-template wizardStepContent>
+ *       <ng-template appWizardStepContent>
  *         <!-- step 1 inputs -->
  *       </ng-template>
  *     </app-form-wizard-step>
  *
  *     <app-form-wizard-step label="Schedule" [valid]="form.controls.schedule.valid">
- *       <ng-template wizardStepContent>
+ *       <ng-template appWizardStepContent>
  *         <!-- step 2 inputs -->
  *       </ng-template>
  *     </app-form-wizard-step>
  *
  *     <app-form-wizard-step label="Review">
- *       <ng-template wizardStepContent>
+ *       <ng-template appWizardStepContent>
  *         <!-- review screen -->
  *       </ng-template>
  *     </app-form-wizard-step>
@@ -53,7 +53,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
  *   - Numbered breadcrumb (1, 2, 3) with click-to-jump back.
  *   - Per-step `[valid]` input: Next is disabled until the step is valid.
  *   - Built-in Previous / Next / Finish buttons (configurable labels).
- *   - Emits (finish) on the last step.
+ *   - Emits (finished) on the last step.
  *
  * Why not just MatStepper: MatStepper is heavy and ties tightly to
  * Reactive Forms. This wrapper works with template-driven forms,
@@ -66,14 +66,14 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
  * the consumer to use *appWizardStepContent="" syntax.
  */
 @Directive({
-  selector: '[wizardStepContent]',
+  selector: '[appWizardStepContent]',
   standalone: true,
 })
 export class WizardStepContentDirective {
   constructor(public template: TemplateRef<unknown>) {}
 }
 
-/** A single wizard step. Wrap content inside <ng-template wizardStepContent>. */
+/** A single wizard step. Wrap content inside <ng-template appWizardStepContent>. */
 @Component({
   selector: 'app-form-wizard-step',
   standalone: true,
@@ -263,7 +263,7 @@ export class FormWizardStepComponent {
     }
   `],
 })
-export class FormWizardComponent {
+export class FormWizardComponent implements AfterContentInit {
   /** Active step index (0-based). Two-way bound. */
   @Input() activeStep = 0;
   @Output() activeStepChange = new EventEmitter<number>();
@@ -272,7 +272,7 @@ export class FormWizardComponent {
   @Input() nextLabel = 'Next';
   @Input() finishLabel = 'Finish';
 
-  @Output() finish = new EventEmitter<void>();
+  @Output() finished = new EventEmitter<void>();
 
   @ContentChildren(FormWizardStepComponent)
   stepsQuery!: QueryList<FormWizardStepComponent>;
@@ -332,7 +332,7 @@ export class FormWizardComponent {
 
   emitFinish(): void {
     if (!this.currentValid()) return;
-    this.finish.emit();
+    this.finished.emit();
   }
 
   // ── internals ──────────────────────────────────────────────────────

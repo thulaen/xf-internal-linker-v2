@@ -55,7 +55,7 @@ export function reportPlatformFeatures(): void {
   if (!hasPopoverApi()) missing.push('Popover API');
   if (!hasDialogElement()) missing.push('<dialog> element');
   if (missing.length === 0) return;
-  // eslint-disable-next-line no-console
+   
   console.info(
     '[xfil] Platform features missing in this browser:',
     missing.join(', '),

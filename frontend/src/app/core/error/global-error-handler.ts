@@ -36,7 +36,7 @@ export class GlobalErrorHandler implements ErrorHandler {
 
   handleError(error: unknown): void {
     // 1) Preserve the native console behavior so dev tools still light up.
-    // eslint-disable-next-line no-console
+     
     console.error(error);
 
     // 2) Rate-limit before doing anything network-bound.

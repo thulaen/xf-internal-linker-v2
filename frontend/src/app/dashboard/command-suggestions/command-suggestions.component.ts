@@ -1,11 +1,10 @@
 import {
   ChangeDetectionStrategy,
   Component,
-  DestroyRef,
   inject,
   signal,
 } from '@angular/core';
-import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import {} from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
@@ -158,6 +157,7 @@ export class CommandSuggestionsComponent {
   }
 
   onPick(intent: Intent): void {
+    void intent; // signature expected by (optionSelected) binding
     // The routerLink on the mat-option already navigates; we only have
     // to reset the input so the card is ready for the next intent.
     this.query = '';

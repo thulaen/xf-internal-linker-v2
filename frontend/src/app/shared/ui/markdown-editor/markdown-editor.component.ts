@@ -5,7 +5,6 @@ import {
   Input,
   Output,
   forwardRef,
-  signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';

@@ -50,7 +50,7 @@ export class SmartDefaultDirective implements OnInit {
   ngOnInit(): void {
     const ctrl = this.control?.control;
     if (!ctrl) {
-      // eslint-disable-next-line no-console
+       
       console.warn('[appSmartDefault] expects an NgControl host (formControl, formControlName, ngModel)');
       return;
     }

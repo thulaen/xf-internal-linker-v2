@@ -73,7 +73,7 @@ export async function optimistic<TResult>(
     } catch {
       // A broken rollback is a real bug; surface it on the console.
       // We still call `onError` below so the user sees the original error.
-      // eslint-disable-next-line no-console
+       
       console.error('[optimistic] rollback threw while handling server error:', err);
     }
     options.onError?.(err);
