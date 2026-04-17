@@ -52,6 +52,17 @@
   --color-bg-card:    #ffffff;
   --color-dark-blue:  #0045a6;
 
+  // Subtle Gemini-style surface. One token, used across every
+  // transient surface (dropdowns, menus, autocomplete, tooltips) so
+  // the whole app has one unified popover colour.
+  --color-surface-subtle: #f0f4f9;
+
+  // Aliases kept for older call sites; both point at the same palette
+  // entry above so overlays and tooltips can never drift apart.
+  --color-dropdown-bg: var(--color-surface-subtle);
+  --color-tooltip-bg:  var(--color-surface-subtle);
+  --color-tooltip-text: #202124; // --color-text-primary, readable on light surface
+
   // ── Brand Specific (WordPress/Google) ──────────────────────────
   --color-wp-blue:        #21759b;
   --color-wp-faint:       rgba(33, 117, 155, 0.1);

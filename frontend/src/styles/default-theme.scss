@@ -7,6 +7,7 @@
 // ═══════════════════════════════════════════════════════════════════
 
 @forward './theme-vars';
+@forward './grid';
 @use './theme-vars' as vars;
 @use '@angular/material' as mat;
 
@@ -48,6 +49,14 @@ html {
   --mat-sys-on-primary:           #ffffff;
   --mat-sys-primary-container:    var(--color-blue-50);       // #e8f0fe
   --mat-sys-on-primary-container: var(--color-primary-dark);  // #1558b0
+
+  // Overlay surfaces (select panel, menu panel, autocomplete panel, dialog).
+  // All pinned to a single design token so dropdowns never render
+  // transparent and the entire system shares one Gemini-style surface.
+  --mat-sys-surface-container:               var(--color-dropdown-bg);
+  --mdc-select-panel-container-color:        var(--color-dropdown-bg);
+  --mdc-menu-container-color:                var(--color-dropdown-bg);
+  --mdc-autocomplete-panel-container-color:  var(--color-dropdown-bg);
 }
 
 // Shared UI Attributes (attribute-based for global use)
@@ -60,16 +69,16 @@ html {
 }
 
 // ── Global Setting Tooltip ─────────────────────────────────────────
+// Inherits the base surface/text colour from the global
+// `.mat-mdc-tooltip` rule in styles.scss. This class only adds the
+// info-tooltip-specific tweaks: roomier max-width for the long
+// DEFINITION / IMPACT / RECOMMENDED / EXAMPLE / VALID RANGE blocks
+// and a higher z-index so it wins over sticky page regions.
 .setting-tooltip {
-  background: rgba(32, 33, 36, 0.96) !important;
-  color: #fff !important;
-  font-size: 13px !important;
-  line-height: 1.5 !important;
-  padding: 16px !important;
-  border-radius: 8px !important;
-  max-width: 440px !important;
-  white-space: pre-line !important;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.25) !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  max-width: 480px !important;
   z-index: 10000 !important;
+
+  .mdc-tooltip__surface {
+    padding: 14px 16px !important;
+  }
 }

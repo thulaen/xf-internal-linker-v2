@@ -1,14 +1,26 @@
+import hashlib
 import hmac
+import json
 import logging
+from datetime import timedelta
 
 from django.conf import settings
 from django.core.cache import cache
+from django.db import transaction
+from django.db.models import F
+from django.utils import timezone
+
 from apps.pipeline.tasks import sync_single_xf_item, sync_single_wp_item
 from apps.sync.models import WebhookReceipt
 
 # Lock TTL for webhook idempotency — prevents duplicate task execution
 # when a webhook arrives while a previous task for the same item is running.
 _WEBHOOK_LOCK_TTL = 300  # 5 minutes
+
+# Cooldown window for dedup. Identical (source, event_type, payload) webhooks
+# arriving inside this window collapse into a single receipt row whose
+# occurrence_count is incremented. Matches `OperatorAlert.dedupe_key` convention.
+_WEBHOOK_DEDUP_WINDOW = timedelta(minutes=5)
 
 logger = logging.getLogger(__name__)
 
@@ -17,19 +29,60 @@ logger = logging.getLogger(__name__)
 _SECRET_CACHE_TTL = 60
 
 
+def _compute_dedupe_key(source: str, event_type: str, payload) -> str:
+    """Canonical `source:event_type:sha256(payload)[:16]` key.
+
+    JSON is serialised with sorted keys and tight separators so that two
+    semantically identical payloads hash to the same digest regardless of
+    insertion order or whitespace.
+    """
+    try:
+        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+    except (TypeError, ValueError):
+        # Fallback: stringify whatever we got. Worse dedup quality but
+        # never crashes the ingest path.
+        canonical = str(payload)
+    digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    return f"{source}:{event_type}:{digest}"
+
+
 def record_webhook(
     source, event_type, payload, status="received", error_message="", sync_job=None
 ):
-    """Log a webhook receipt to the database for the audit log."""
+    """Log a webhook receipt to the database for the audit log.
+
+    Dedup behaviour: if a row with the same `dedupe_key` exists inside
+    the cooldown window, increment its `occurrence_count` instead of
+    inserting a new row. `last_seen_at` is refreshed automatically via
+    `auto_now=True`.
+    """
+    dedupe_key = _compute_dedupe_key(source, event_type, payload)
+    cutoff = timezone.now() - _WEBHOOK_DEDUP_WINDOW
+
     try:
-        return WebhookReceipt.objects.create(
-            source=source,
-            event_type=event_type,
-            payload=payload,
-            status=status,
-            error_message=error_message,
-            sync_job=sync_job,
-        )
+        with transaction.atomic():
+            existing = (
+                WebhookReceipt.objects
+                .select_for_update()
+                .filter(dedupe_key=dedupe_key, created_at__gte=cutoff)
+                .order_by("-created_at")
+                .first()
+            )
+            if existing is not None:
+                existing.occurrence_count = F("occurrence_count") + 1
+                existing.save(update_fields=["occurrence_count", "last_seen_at"])
+                existing.refresh_from_db(fields=["occurrence_count", "last_seen_at"])
+                return existing
+
+            return WebhookReceipt.objects.create(
+                source=source,
+                event_type=event_type,
+                payload=payload,
+                status=status,
+                error_message=error_message,
+                sync_job=sync_job,
+                dedupe_key=dedupe_key,
+            )
     except Exception:
         logger.exception(
             "Failed to record webhook receipt for %s/%s", source, event_type

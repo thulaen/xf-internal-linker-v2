@@ -90,6 +90,13 @@ class SyncJob(models.Model):
 class WebhookReceipt(models.Model):
     """
     Audit log for every incoming webhook attempt from XF or WP.
+
+    Repeated events are deduped via `dedupe_key` — the same key inside a
+    5-minute cooldown window increments `occurrence_count` and refreshes
+    `last_seen_at` instead of creating a new row. This mirrors the pattern
+    used by `OperatorAlert` so operators see one row labelled "×N" instead
+    of N identical rows when a webhook retries or a remote site sends the
+    same event to multiple URLs.
     """
 
     receipt_id = models.UUIDField(default=uuid.uuid4, primary_key=True, editable=False)
@@ -113,8 +120,19 @@ class WebhookReceipt(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
+    # Dedupe fields — `source:event_type:sha256(payload)[:16]`. Empty
+    # string on legacy rows is fine: lookups always scope by cooldown
+    # window, and the ingest helper only ever matches non-empty keys.
+    dedupe_key = models.CharField(max_length=200, blank=True, default="", db_index=True)
+    occurrence_count = models.PositiveIntegerField(default=1)
+    last_seen_at = models.DateTimeField(auto_now=True)
+
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["-last_seen_at"]),
+            models.Index(fields=["dedupe_key", "-created_at"]),
+        ]
 
     def __str__(self):
         return f"Webhook {self.source} {self.event_type} - {self.status} at {self.created_at}"

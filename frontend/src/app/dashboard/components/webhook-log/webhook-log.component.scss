@@ -39,6 +39,18 @@
   }
 }
 
+.dedup-count {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: var(--color-bg-faint);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  vertical-align: middle;
+}
+
 .source-tag {
   @include vars.ga4-chip;
   padding: 2px 6px;

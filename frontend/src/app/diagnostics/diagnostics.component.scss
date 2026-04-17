@@ -121,10 +121,15 @@
   }
 }
 
+// Shared 3-col grid (see frontend/src/styles/_grid.scss)
 .runtime-lane-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 24px;
+  align-items: start;
+
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 
 .runtime-lane-card {

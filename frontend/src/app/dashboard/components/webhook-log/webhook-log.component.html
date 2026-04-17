@@ -33,6 +33,9 @@
             <th mat-header-cell *matHeaderCellDef>Event</th>
             <td mat-cell *matCellDef="let r">
               <code class="event-type">{{ r.event_type }}</code>
+              @if (r.occurrence_count > 1) {
+                <span class="dedup-count" [matTooltip]="'Collapsed ' + r.occurrence_count + ' identical events'">×{{ r.occurrence_count }}</span>
+              }
             </td>
           </ng-container>
 

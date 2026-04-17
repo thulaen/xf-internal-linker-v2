@@ -44,5 +44,7 @@ class WebhookReceiptSerializer(serializers.ModelSerializer):
             "error_message",
             "sync_job",
             "created_at",
+            "occurrence_count",
+            "last_seen_at",
         ]
         read_only_fields = fields

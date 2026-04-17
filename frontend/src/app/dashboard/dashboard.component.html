@@ -1,5 +1,10 @@
-<!-- ── Phase MC — Mission Critical section. Top of dashboard so the
-     first thing the operator sees is a health glance of every
+<!-- ── Quick Search — pinned at the very top of the dashboard and sticky
+     while the user scrolls, matching the pattern of Gemini / YouTube /
+     GA4 where global search is always reachable without scrolling. -->
+<app-quick-search-bar class="d3-block" />
+
+<!-- ── Phase MC — Mission Critical section. First substantive block
+     so the operator immediately sees a health glance of every
      component that has to be working. Tiles dedup by root cause;
      the Algorithms group collapses when everything is healthy. -->
 <app-mission-critical class="d3-block" />
@@ -7,7 +12,6 @@
 <!-- ── Phase D3 / Gaps 152-187 — Top-of-dashboard noob strip ────── -->
 <app-personal-bar class="d3-block" />
 <app-you-are-here class="d3-inline" />
-<app-quick-search-bar class="d3-block" />
 <app-welcome-card class="d3-block" />
 <app-whats-new class="d3-block" />
 

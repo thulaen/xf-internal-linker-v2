@@ -4,11 +4,16 @@
 .tier-section {
   margin-bottom: var(--space-lg);
 }
+// Shared 3-col grid (see frontend/src/styles/_grid.scss)
 .tier-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-md);
+  align-items: start;
   padding: var(--space-md) 0;
+
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 .tier-card {
   border: var(--card-border);
@@ -28,10 +33,15 @@
 
 // ── Disk & GPU Section ──────────────────────────────────────────
 .disk-gpu-section { margin-bottom: var(--space-lg); }
+// Shared 3-col grid (see frontend/src/styles/_grid.scss)
 .disk-gpu-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: var(--space-md);
+  align-items: start;
+
+  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 .info-card {
   border: var(--card-border);

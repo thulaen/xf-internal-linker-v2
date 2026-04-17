@@ -4,6 +4,37 @@
 // Scoped by wrapper classes or component tag selectors.
 // ═══════════════════════════════════════════════════════════════════
 
+// ── Global overlay-panel background (dropdowns, menus, autocomplete) ─
+// Backstop for Material versions that haven't yet wired the M3 tokens
+// pinned in default-theme.scss. The token `--color-dropdown-bg`
+// (#f0f4f9, Gemini-style) is the single source of truth.
+.mat-mdc-select-panel,
+.mat-mdc-menu-panel,
+.mat-mdc-autocomplete-panel {
+  background: var(--color-dropdown-bg) !important;
+}
+
+// ── Global mat-icon centring ───────────────────────────────────────
+// Every <mat-icon> is a flex-centred box with line-height tied to its
+// font-size. This guarantees the glyph sits in the exact middle of its
+// own bounding box even when a component overrides font-size/width/height
+// inline without also overriding line-height (the classic Material bug).
+// Components can still override font-size/width/height; this rule only
+// controls how the glyph positions itself inside whatever box is chosen.
+//
+// Selector note: `mat-icon.mat-icon` beats Material's own `.mat-icon`
+// on specificity (0,1,1 vs 0,1,0), so the centring wins without needing
+// !important. Angular renders every <mat-icon> with class="mat-icon"
+// so this matches every instance.
+mat-icon.mat-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
 // ── Settings: Tab Styling ──────────────────────────────────────────
 // Previously in settings.component.scss (::ng-deep block)
 .settings-tabs {

@@ -95,9 +95,18 @@ from rest_framework.throttling import AnonRateThrottle
 
 
 class _LoginRateThrottle(AnonRateThrottle):
-    """Tight per-IP throttle on the login endpoint to prevent brute-force."""
+    """Per-IP throttle on the login endpoint.
 
-    rate = "10/min"
+    10 attempts per rolling 10-second window. After the cap, the 429
+    response asks the client to retry in at most 10 seconds. DRF's default
+    rate parser only understands whole units (s/m/h/d), so we override
+    parse_rate to express a 10-second window directly.
+    """
+
+    rate = "10/10s"
+
+    def parse_rate(self, rate):
+        return (10, 10)
 
 
 class _CsrfFreeObtainAuthToken(ObtainAuthToken):

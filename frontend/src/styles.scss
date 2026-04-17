@@ -264,40 +264,63 @@ mat-sidenav.app-sidenav,
   background-color: transparent;
 }
 
-// ── Global tooltip width + contrast + readability ─────────────────
-// Angular Material's default tooltip can stretch arbitrarily wide AND its
-// default container is a translucent grey that becomes unreadable on top of
-// card text. We fix both: solid dark navy background, white text, subtle
-// shadow for depth, bounded width so long messages wrap cleanly.
-// Hits Material's MDC plain-tooltip custom properties so every tooltip in
-// the app inherits these without any component needing its own styles.
+// ── Global tooltip: uniform Gemini-style surface ──────────────────
+// Every tooltip in the app uses the same light `--color-surface-subtle`
+// (#f0f4f9) background with dark text. `white-space: pre-line` means any
+// `\n\n` in the source content renders as a real paragraph break, which
+// is what long info tooltips (DEFINITION / IMPACT / RECOMMENDED / EXAMPLE
+// / VALID RANGE) need to stay readable instead of collapsing into a wall
+// of text.
 .mat-mdc-tooltip {
-  // System tokens used by MDC's plain tooltip — target all of them.
-  --mdc-plain-tooltip-container-color: #202124 !important;      // near-black, same as --color-text-primary
-  --mdc-plain-tooltip-supporting-text-color: #ffffff !important; // pure white text
+  --mdc-plain-tooltip-container-color: var(--color-tooltip-bg) !important;
+  --mdc-plain-tooltip-supporting-text-color: var(--color-tooltip-text) !important;
   --mdc-plain-tooltip-supporting-text-font: var(--font-family) !important;
-  --mdc-plain-tooltip-supporting-text-size: 12px !important;
-  --mdc-plain-tooltip-supporting-text-weight: 500 !important;
-  --mdc-plain-tooltip-supporting-text-line-height: 1.45 !important;
+  --mdc-plain-tooltip-supporting-text-size: 13px !important;
+  --mdc-plain-tooltip-supporting-text-weight: 400 !important;
+  --mdc-plain-tooltip-supporting-text-line-height: 1.55 !important;
 
-  max-width: 280px !important;
-  white-space: normal !important;
-  padding: 8px 12px !important;
-  border-radius: var(--radius-sm) !important;
-  box-shadow: 0 4px 12px rgba(32, 33, 36, 0.28) !important;
+  max-width: 440px !important;
+  white-space: pre-line !important;
+  padding: 0 !important;
+  border-radius: var(--radius-md) !important;
+  box-shadow: 0 4px 12px rgba(32, 33, 36, 0.18) !important;
+  border: 1px solid var(--color-border) !important;
 }
 
-// Fallback: for any stray tooltip that doesn't pick up the system tokens
-// (older Material, themed components, etc), force the surface directly.
+// Direct surface rule: target the element that actually paints the
+// background + text so older Material builds (and themed overrides)
+// cannot punch through.
+//
+// `max-height: 80vh` + `overflow-y: auto` guarantees the bottom of a
+// long tooltip is never truncated — when the CDK overlay can't find a
+// position where the whole thing fits in the viewport, the surface
+// scrolls internally instead of clipping content invisibly.
 .mat-mdc-tooltip .mdc-tooltip__surface,
 .mat-mdc-tooltip-surface {
-  background-color: #202124 !important;
-  color: #ffffff !important;
-  font-size: 12px !important;
-  font-weight: 500 !important;
-  line-height: 1.45 !important;
-  padding: 8px 12px !important;
-  border-radius: var(--radius-sm) !important;
+  background-color: var(--color-tooltip-bg) !important;
+  color: var(--color-tooltip-text) !important;
+  font-size: 13px !important;
+  font-weight: 400 !important;
+  line-height: 1.55 !important;
+  padding: 12px 16px !important;
+  border-radius: var(--radius-md) !important;
+  white-space: pre-line !important;
+  text-align: left !important;
+  // Override MDC's default 200px cap — the narrow surface forces every
+  // long tooltip into excessive wrapping which made the tail get
+  // pushed off-viewport. Match the outer panel's 440px so the surface
+  // actually uses the space we gave it.
+  max-width: 440px !important;
+  min-width: 0 !important;
+  max-height: 80vh !important;
+  overflow-y: auto !important;
+  overscroll-behavior: contain !important;
+}
+
+// The `.setting-tooltip` wrapper widens the outer panel to 480px;
+// mirror that on the surface so the extra pixels are actually used.
+.setting-tooltip.mat-mdc-tooltip .mdc-tooltip__surface {
+  max-width: 480px !important;
 }
 
 // ── Design-system utility: dashboard card action row ──────────────

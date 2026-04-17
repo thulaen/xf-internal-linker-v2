@@ -1,0 +1,34 @@
+// ═══════════════════════════════════════════════════════════════════
+// Shared responsive grid primitives
+// One rule for every card-heavy page (Dashboard, Analytics, System
+// Health, Diagnostics, Link Health). Uses CSS multi-column so cards
+// with different heights butt up inside a column — true masonry, no
+// grid-row gaps, no JavaScript.
+// ═══════════════════════════════════════════════════════════════════
+
+:root {
+  --bp-tablet: 1024px;
+  --bp-mobile: 640px;
+}
+
+// Usage: <div class="page-cards-grid"> <mat-card>…</mat-card> × N </div>
+//
+// CSS Grid (not multi-column) because with small N the browser's
+// multi-column balancer collapses 4 equal items into 2+2 instead of
+// 2+1+1. Grid gives predictable 3-col desktop, 2-col tablet, 1-col
+// mobile behaviour. Row heights follow the tallest card per row,
+// which matches what "masonry" means to most operators in practice.
+.page-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--spacing-md, 24px);
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .page-cards-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (max-width: 640px) {
+  .page-cards-grid { grid-template-columns: 1fr; }
+}

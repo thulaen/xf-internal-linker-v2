@@ -7,6 +7,18 @@
   align-items: center;
 }
 
+// YouTube-style badge on the bell: red circle, bold digit at top-right.
+// matBadgeColor="warn" already resolves to red via the M3 theme; these
+// overrides only tighten the typography so single-digit counts read
+// clearly at 13 px base font size.
+:host button[mat-icon-button] .mat-badge-content {
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 16px;
+  height: 16px;
+  line-height: 16px;
+}
+
 // ── Backdrop ──────────────────────────────────────────────────────
 .notif-backdrop {
   position: fixed;

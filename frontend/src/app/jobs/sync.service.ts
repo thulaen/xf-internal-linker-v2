@@ -38,6 +38,8 @@ export interface WebhookReceipt {
   status: string;
   error_message?: string;
   created_at: string;
+  occurrence_count: number;
+  last_seen_at: string;
 }
 
 @Injectable({

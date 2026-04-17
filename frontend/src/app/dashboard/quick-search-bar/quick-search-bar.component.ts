@@ -43,6 +43,17 @@ import { CommandPaletteService } from '../../shared/services/command-palette.ser
     </button>
   `,
   styles: [`
+    :host {
+      display: block;
+      /* Pinned to the top of the dashboard scroll area; 40px offset clears
+         the freshness ribbon which is also sticky at top: 0 in the shell. */
+      position: sticky;
+      top: 40px;
+      z-index: 5;
+      background: var(--color-bg-page);
+      padding: 8px 0;
+      margin: -8px 0 0; /* reclaim the padding visually so layout doesn't shift */
+    }
     .qsb {
       display: flex;
       align-items: center;
