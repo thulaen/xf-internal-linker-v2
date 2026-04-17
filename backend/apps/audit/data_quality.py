@@ -158,11 +158,11 @@ def anomalies() -> list[Anomaly]:
         today = points[-1]["count"] if points else 0
         if len(counts) < 3:
             continue
-        try:
-            avg = mean(counts)
-            sigma = stdev(counts)
-        except Exception:  # noqa: BLE001
-            continue
+        # `stdev` raises only on <2 samples — the length check above
+        # already guards against that. Bare calls here keep bandit B112
+        # (try/except/continue) from flagging the block.
+        avg = mean(counts)
+        sigma = stdev(counts)
         if sigma == 0:
             continue
         z = (today - avg) / sigma
