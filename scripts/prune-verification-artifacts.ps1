@@ -19,7 +19,14 @@ function Remove-DirectoryIfExists {
     }
 
     Write-Host "Pruning $Label..."
-    Remove-Item -LiteralPath $Path -Recurse -Force
+    # cmd.exe rd handles Windows junction points / symlinks inside Angular
+    # dist output reliably where Remove-Item -Recurse can fail mid-tree.
+    $cmdPath = $Path -replace '/', '\'
+    cmd /c "rd /s /q `"$cmdPath`"" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "  rd /s /q failed (exit $LASTEXITCODE); retrying with Remove-Item..."
+        Remove-Item -LiteralPath $Path -Recurse -Force -ErrorAction Continue
+    }
 }
 
 # ── Frontend artifacts ────────────────────────────────────────────
