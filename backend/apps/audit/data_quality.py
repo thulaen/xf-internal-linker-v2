@@ -150,7 +150,7 @@ def volume_trend(days: int = 14) -> dict[str, list[VolumePoint]]:
 
 
 def anomalies() -> list[Anomaly]:
-    """Gap 325 — plain-English flag when today's count is >3σ off baseline."""
+    """Gap 325 — plain-English flag when today's count is >3-sigma off baseline."""
     out: list[Anomaly] = []
     trend = volume_trend(days=14)
     for source, points in trend.items():
@@ -159,20 +159,20 @@ def anomalies() -> list[Anomaly]:
         if len(counts) < 3:
             continue
         try:
-            μ = mean(counts)
-            σ = stdev(counts)
+            avg = mean(counts)
+            sigma = stdev(counts)
         except Exception:  # noqa: BLE001
             continue
-        if σ == 0:
+        if sigma == 0:
             continue
-        z = (today - μ) / σ
+        z = (today - avg) / sigma
         if z >= 3:
             out.append(
                 {
                     "source": source,
                     "plain_english": (
-                        f"{source.upper()} ingested {today:,} rows today — "
-                        f"about {today / max(μ, 1):.1f}× the usual volume. "
+                        f"{source.upper()} ingested {today:,} rows today - "
+                        f"about {today / max(avg, 1):.1f}x the usual volume. "
                         f"Check the connector for a backlog or a replay."
                     ),
                     "severity": "warning",
@@ -183,8 +183,8 @@ def anomalies() -> list[Anomaly]:
                 {
                     "source": source,
                     "plain_english": (
-                        f"{source.upper()} ingested only {today:,} rows today — "
-                        f"well below the {μ:.0f}-row baseline. "
+                        f"{source.upper()} ingested only {today:,} rows today - "
+                        f"well below the {avg:.0f}-row baseline. "
                         f"Is the connector still healthy?"
                     ),
                     "severity": "error",

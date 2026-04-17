@@ -30,9 +30,13 @@ def _make_dedup_key(
     related_entity_type: str,
     related_entity_id: str,
 ) -> str:
-    """Stable short hash covering the tuple the plan specified."""
+    """Stable short hash covering the tuple the plan specified.
+
+    SHA1 is used as a cheap dedup key, not a cryptographic hash —
+    `usedforsecurity=False` tells both the runtime and bandit that.
+    """
     raw = f"{event_type}|{source}|{related_entity_type}|{related_entity_id}".encode()
-    return hashlib.sha1(raw).hexdigest()[:20]
+    return hashlib.sha1(raw, usedforsecurity=False).hexdigest()[:20]
 
 
 def emit(

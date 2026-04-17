@@ -49,8 +49,14 @@ _NORMALIZE = re.compile(r"(\d{2,}|[0-9a-f]{8,}|/[/\w.\-]+|0x[0-9a-f]+)", re.IGNO
 
 
 def _compute_fingerprint(job_type: str, step: str, msg: str) -> str:
+    # SHA1 is fine here — we use it as a cheap dedup fingerprint, not a
+    # cryptographic hash. `usedforsecurity=False` signals that to both
+    # the Python runtime (FIPS-compliant builds) and to bandit.
     normalized = _NORMALIZE.sub("*", msg or "")
-    return hashlib.sha1(f"{job_type}|{step}|{normalized}".encode("utf-8")).hexdigest()
+    return hashlib.sha1(
+        f"{job_type}|{step}|{normalized}".encode(),
+        usedforsecurity=False,
+    ).hexdigest()
 
 
 def ingest_error(
