@@ -3325,7 +3325,6 @@ class StatusStoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-        from datetime import timedelta
 
         from django.utils import timezone
 
@@ -3461,7 +3460,7 @@ class MissionBriefView(APIView):
 
         now = timezone.now()
         yesterday_cutoff = now - timedelta(hours=24)
-        today_cutoff = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        # (today_cutoff retained for future midnight-scoped queries)
 
         # ── Sentence 1: Yesterday ────────────────────────────────
         approved_yday = Suggestion.objects.filter(

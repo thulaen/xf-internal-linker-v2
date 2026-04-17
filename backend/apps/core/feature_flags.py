@@ -15,7 +15,6 @@ effective flag set from ``/api/feature-flags/``.
 from __future__ import annotations
 
 import hashlib
-import json
 from typing import Optional
 
 from django.contrib.auth import get_user_model

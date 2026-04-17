@@ -18,7 +18,7 @@ from unittest import mock
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.audit import error_ingest, fix_suggestions, runtime_context
+from apps.audit import fix_suggestions, runtime_context
 from apps.audit.error_ingest import _compute_fingerprint, ingest_error
 from apps.audit.models import ErrorLog
 from apps.diagnostics.serializers import ErrorLogSerializer

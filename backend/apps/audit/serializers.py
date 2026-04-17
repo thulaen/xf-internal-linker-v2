@@ -4,11 +4,9 @@ from rest_framework import serializers
 
 from .models import (
     AuditEntry,
-    ClientErrorLog,
     ErrorLog,
     FeatureRequest,
     ReviewerScorecard,
-    WebVital,
 )
 
 

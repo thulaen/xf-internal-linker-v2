@@ -17,10 +17,8 @@ the project-wide throttle classes.
 
 from __future__ import annotations
 
-import statistics
 from collections import defaultdict
 from datetime import timedelta
-from typing import Any
 
 from django.utils import timezone
 from rest_framework import status

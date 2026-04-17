@@ -21,10 +21,8 @@ Gap mapping:
 
 from __future__ import annotations
 
-from datetime import timedelta
 from typing import TypedDict
 
-from django.utils import timezone
 
 
 class IntegrationStatus(TypedDict):
@@ -49,7 +47,6 @@ _DEPENDENTS_BY_SOURCE: dict[str, list[str]] = {
 
 def statuses() -> list[IntegrationStatus]:
     """All known connectors, one row each."""
-    from apps.diagnostics import health as dh
 
     out: list[IntegrationStatus] = []
     for cfg in _CONNECTORS:

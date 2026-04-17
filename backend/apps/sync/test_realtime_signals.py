@@ -7,7 +7,6 @@ lifecycle changes reach a WebSocket subscriber on the expected topic.
 
 from __future__ import annotations
 
-import uuid
 
 from django.contrib.auth import get_user_model
 from django.test import TransactionTestCase, override_settings
