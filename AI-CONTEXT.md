@@ -21,6 +21,19 @@ Execution order and FR IDs are decoupled.
 
 This is the single source of truth for what every AI must read, update, and check. CLAUDE.md and AGENTS.md point here. Do not duplicate these rules elsewhere.
 
+### MUST TELL THE USER IN CHAT at session start
+
+Before any other work — before reading further files, before writing code, before answering the user's actual request — every AI must post this 4-part **Session Start Snapshot** in chat, in plain English. This applies to Claude, Codex, Gemini, and any future agent.
+
+**Session Start Snapshot**
+
+1. **What this app does today** — one short paragraph in everyday words, derived from the Execution Ledger and the Completed FR list in the Project Status Dashboard (both below in this file).
+2. **Last phase done + what's queued next** — `Last done: Phase NN / FR-XXX (title). Next queued: Phase NN / FR-XXX (title).`
+3. **Open issues that touch your request** — grep `docs/reports/REPORT-REGISTRY.md` for `OPEN` or reopened findings whose area overlaps the user's request. If none, say **"None in this area."**
+4. **Forward clashes with upcoming phases** — read the next 3 queued phases in the Execution Ledger. If the user's request would constrain, break, or complicate any of them, name them. If none, say **"No clash with the next 3 queued phases."**
+
+**Silence is forbidden.** If any of the four parts is empty, say so explicitly — never omit a part. This requirement does not replace the MUST sub-sections below; they still apply after the snapshot is posted.
+
 ### MUST READ before any code changes
 
 | Order | Document | When |
