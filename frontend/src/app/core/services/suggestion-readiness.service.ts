@@ -1,4 +1,4 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Observable, catchError, of } from 'rxjs';
@@ -46,6 +46,7 @@ export interface ReadinessPayload {
 export class SuggestionReadinessService {
   private http = inject(HttpClient);
   private realtime = inject(RealtimeService);
+  private destroyRef = inject(DestroyRef);
 
   private readonly _payload = signal<ReadinessPayload | null>(null);
   private readonly _loading = signal<boolean>(false);
@@ -69,7 +70,7 @@ export class SuggestionReadinessService {
     this.refresh().subscribe();
     this.realtime
       .subscribeTopic('suggestions.readiness')
-      .pipe(takeUntilDestroyed())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         // Any prereq change broadcast → re-fetch the canonical payload.
         // Keeps the dedup logic server-side and the client tiny.
