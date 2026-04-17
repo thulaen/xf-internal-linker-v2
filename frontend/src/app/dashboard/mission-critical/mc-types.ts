@@ -29,6 +29,7 @@ export interface McTile {
   silent_since?: string | null;
   last_action_label?: string | null;
   downstream_impact?: string[];
+  kernel_names?: string[];
 }
 
 export interface McPayload {

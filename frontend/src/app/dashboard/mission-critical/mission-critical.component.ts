@@ -19,11 +19,13 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { interval, merge, of, startWith, switchMap } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
+import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { RealtimeService } from '../../core/services/realtime.service';
 import { ScrollAttentionService } from '../../core/services/scroll-attention.service';
 import { applyDedup } from './mc-dedup';
 import { McPayload, McTile } from './mc-types';
 import { McTileComponent } from './mc-tile.component';
+import { KernelListDialogComponent } from './kernel-list-dialog.component';
 
 /**
  * Phase MC — Mission Critical tab.
@@ -38,6 +40,9 @@ import { McTileComponent } from './mc-tile.component';
  * Every FAILED tile triggers ScrollAttentionService.drawTo() on first
  * detection so the operator's eyes land on the broken thing.
  */
+
+const PRIMARY_TILE_IDS = ['pipeline', 'signals', 'embeddings', 'cpp_hot_path'] as const;
+
 @Component({
   selector: 'app-mission-critical',
   standalone: true,
@@ -46,6 +51,7 @@ import { McTileComponent } from './mc-tile.component';
     CommonModule,
     MatButtonModule,
     MatCardModule,
+    MatDialogModule,
     MatIconModule,
     MatProgressSpinnerModule,
     MatSnackBarModule,
@@ -54,32 +60,57 @@ import { McTileComponent } from './mc-tile.component';
   ],
   template: `
     <section class="mc-tab">
-      <header class="mc-header">
-        <h2 class="mc-title">
-          <mat-icon>dashboard_customize</mat-icon>
-          Mission Critical
-        </h2>
-        <p class="mc-subtitle">
-          One glance at the pieces that actually have to work.
-          Root causes shown once; healthy things are collapsed.
-        </p>
-        <!-- Phase MX1 / Gap 254 — health pie: visual summary of tile states. -->
-        <div class="mc-health-pie" [matTooltip]="healthPieTooltip()" aria-hidden="true">
-          @for (slice of healthPie(); track slice.state) {
-            <span
-              class="mc-pie-slice"
-              [ngClass]="'mc-pie-' + slice.state.toLowerCase()"
-              [style.flex]="slice.count"
-              [attr.aria-label]="slice.count + ' ' + slice.state"
-            ></span>
+      <!-- Primary stat card — 4 key tiles inline -->
+      <mat-card class="mc-summary-card">
+        <mat-card-header class="mc-summary-header">
+          <span class="mc-summary-title">
+            <mat-icon>dashboard_customize</mat-icon>
+            Mission Critical
+          </span>
+          <div class="mc-health-pie" [matTooltip]="healthPieTooltip()" aria-hidden="true">
+            @for (slice of healthPie(); track slice.state) {
+              <span
+                class="mc-pie-slice"
+                [ngClass]="'mc-pie-' + slice.state.toLowerCase()"
+                [style.flex]="slice.count"
+              ></span>
+            }
+          </div>
+          @if (loading()) {
+            <mat-spinner diameter="16" matTooltip="Refreshing…" />
           }
-        </div>
-        <!-- Phase MX1 / Gap 264 — auto-refresh indicator. -->
-        @if (loading()) {
-          <mat-spinner diameter="18" matTooltip="Refreshing mission-critical state…" />
-        }
-      </header>
+        </mat-card-header>
+        <mat-card-content>
+          <div class="mc-stat-row">
+            @for (tile of primaryTiles(); track tile.id) {
+              <div class="mc-stat-tile" [attr.id]="'mc-tile-' + tile.id">
+                <span class="mc-stat-dot" [ngClass]="'mc-dot-' + tile.state.toLowerCase()"></span>
+                <div class="mc-stat-body">
+                  <span class="mc-stat-name">{{ tile.name }}</span>
+                  <span class="mc-stat-msg">{{ tile.plain_english }}</span>
+                  @if (tile.id === 'cpp_hot_path') {
+                    <button
+                      mat-button
+                      color="primary"
+                      class="mc-kernels-btn"
+                      type="button"
+                      (click)="openKernels(tile); $event.stopPropagation()"
+                    >
+                      See all kernels
+                    </button>
+                  }
+                </div>
+                <span
+                  class="mc-state-chip"
+                  [ngClass]="'mc-state-chip-' + tile.state.toLowerCase()"
+                >{{ tile.state }}</span>
+              </div>
+            }
+          </div>
+        </mat-card-content>
+      </mat-card>
 
+      <!-- Algorithms summary or expanded tiles -->
       @if (grid().algorithmsSummary; as algo) {
         <section class="mc-algo-summary" [attr.aria-label]="algo.name">
           <mat-icon>auto_awesome</mat-icon>
@@ -88,8 +119,9 @@ import { McTileComponent } from './mc-tile.component';
         </section>
       }
 
+      <!-- Remaining tiles grid (non-primary, non-algorithm-summary) -->
       <ul class="mc-grid" role="list">
-        @for (tile of grid().tiles; track tile.id) {
+        @for (tile of secondaryTiles(); track tile.id) {
           <li class="mc-cell" [attr.id]="'mc-tile-' + tile.id">
             <app-mc-tile
               [tile]="tile"
@@ -102,9 +134,7 @@ import { McTileComponent } from './mc-tile.component';
       </ul>
 
       @if (lastUpdated(); as ts) {
-        <footer class="mc-footer">
-          Updated {{ relative(ts) }}
-        </footer>
+        <footer class="mc-footer">Updated {{ relative(ts) }}</footer>
       }
     </section>
   `,
@@ -115,39 +145,109 @@ import { McTileComponent } from './mc-tile.component';
       flex-direction: column;
       gap: 16px;
     }
-    .mc-header {
+    /* ── Summary card ── */
+    .mc-summary-card { border: var(--card-border); }
+    .mc-summary-header {
       display: flex;
       align-items: center;
       gap: 12px;
+      padding: 16px 16px 0;
     }
-    .mc-title {
+    .mc-summary-title {
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      margin: 0;
-      font-size: 18px;
+      font-size: 15px;
       font-weight: 500;
-    }
-    .mc-subtitle {
       flex: 1;
-      margin: 0;
-      font-size: 13px;
-      color: var(--color-text-secondary);
     }
     .mc-health-pie {
       display: inline-flex;
       height: 8px;
-      min-width: 140px;
+      min-width: 100px;
       border-radius: 4px;
       overflow: hidden;
       background: var(--color-bg-faint, #f1f3f4);
     }
     .mc-pie-slice { height: 100%; }
-    .mc-pie-working { background: var(--color-success, #1e8e3e); }
-    .mc-pie-idle    { background: var(--color-text-secondary, #5f6368); opacity: 0.4; }
-    .mc-pie-paused  { background: var(--color-primary, #1a73e8); }
-    .mc-pie-degraded{ background: var(--color-warning, #f9ab00); }
-    .mc-pie-failed  { background: var(--color-error, #d93025); }
+    .mc-pie-working  { background: var(--color-success, #1e8e3e); }
+    .mc-pie-idle     { background: var(--color-text-secondary, #5f6368); opacity: 0.4; }
+    .mc-pie-paused   { background: var(--color-primary, #1a73e8); }
+    .mc-pie-degraded { background: var(--color-warning, #f9ab00); }
+    .mc-pie-failed   { background: var(--color-error, #d93025); }
+    /* ── 4-tile stat row ── */
+    .mc-stat-row {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+      padding: 12px 0 4px;
+    }
+    .mc-stat-tile {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: var(--card-border);
+      background: var(--color-bg-faint, #f8f9fa);
+    }
+    .mc-stat-dot {
+      margin-top: 3px;
+      flex-shrink: 0;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--color-text-secondary);
+    }
+    .mc-dot-working  { background: var(--color-success, #1e8e3e); }
+    .mc-dot-idle     { background: var(--color-text-secondary, #5f6368); opacity: 0.5; }
+    .mc-dot-paused   { background: var(--color-primary, #1a73e8); }
+    .mc-dot-degraded { background: var(--color-warning, #f9ab00); }
+    .mc-dot-failed   { background: var(--color-error, #d93025); }
+    .mc-stat-body {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    .mc-stat-name {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--color-text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .mc-stat-msg {
+      font-size: 11px;
+      color: var(--color-text-secondary);
+      line-height: 1.4;
+    }
+    .mc-kernels-btn {
+      font-size: 11px;
+      padding: 0 4px;
+      min-width: 0;
+      line-height: 24px;
+      height: 24px;
+      margin-top: 2px;
+    }
+    .mc-state-chip {
+      flex-shrink: 0;
+      font-size: 9px;
+      letter-spacing: 0.5px;
+      padding: 2px 6px;
+      border-radius: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      align-self: flex-start;
+    }
+    .mc-state-chip-working  { background: #e6f4ea; color: #137333; }
+    .mc-state-chip-idle     { background: #f1f3f4; color: #5f6368; }
+    .mc-state-chip-paused   { background: #e8f0fe; color: #1967d2; }
+    .mc-state-chip-degraded { background: #fef7e0; color: #b06000; }
+    .mc-state-chip-failed   { background: #fce8e6; color: #c5221f; }
+    /* ── Algorithms summary ── */
     .mc-algo-summary {
       display: flex;
       align-items: center;
@@ -160,6 +260,7 @@ import { McTileComponent } from './mc-tile.component';
     }
     .mc-algo-label { font-weight: 600; }
     .mc-algo-reason { color: #1e8e3e; }
+    /* ── Secondary tiles grid ── */
     .mc-grid {
       list-style: none;
       padding: 0;
@@ -168,9 +269,7 @@ import { McTileComponent } from './mc-tile.component';
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
       gap: 12px;
     }
-    .mc-cell {
-      min-width: 0;
-    }
+    .mc-cell { min-width: 0; }
     .mc-footer {
       font-size: 11px;
       color: var(--color-text-secondary);
@@ -182,6 +281,7 @@ export class MissionCriticalComponent implements OnInit {
   private http = inject(HttpClient);
   private realtime = inject(RealtimeService);
   private snack = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
   private scrollAttention = inject(ScrollAttentionService);
   private destroyRef = inject(DestroyRef);
 
@@ -189,14 +289,21 @@ export class MissionCriticalComponent implements OnInit {
   protected readonly tiles = signal<McTile[]>([]);
   protected readonly lastUpdated = signal<string | null>(null);
 
-  /** Tracks which tile ids have already flashed scroll-attention,
-   *  so we don't re-pulse the same failure on every refresh. */
   private readonly alerted = new Set<string>();
 
-  /** Cached dedup result so the template doesn't recompute on each
-   *  render — signals make this cheap; computed + Object.is equality
-   *  covers the reference-change trigger. */
   protected readonly grid = computed(() => applyDedup(this.tiles()));
+
+  /** The 4 primary tiles shown inline in the summary card. */
+  protected readonly primaryTiles = computed(() =>
+    PRIMARY_TILE_IDS
+      .map((id) => this.tiles().find((t) => t.id === id))
+      .filter((t): t is McTile => t !== undefined),
+  );
+
+  /** All tiles NOT in the primary row — rendered in the secondary grid. */
+  protected readonly secondaryTiles = computed(() =>
+    this.grid().tiles.filter((t) => !(PRIMARY_TILE_IDS as readonly string[]).includes(t.id)),
+  );
 
   /** Phase MX1 / Gap 254 — count tiles per state for the health pie.
    *  Order matters: WORKING/IDLE/PAUSED on the left, problems on the
@@ -247,9 +354,14 @@ export class MissionCriticalComponent implements OnInit {
       });
   }
 
+  openKernels(tile: McTile): void {
+    this.dialog.open(KernelListDialogComponent, {
+      width: '480px',
+      data: { kernels: tile.kernel_names ?? [], tileState: tile.state },
+    });
+  }
+
   onTileClick(tile: McTile): void {
-    // Future: open a detail dialog. For now the scroll-to-attention
-    // service pulses the tile itself so the user's eyes track it.
     this.scrollAttention.drawTo(`#mc-tile-${tile.id}`, {
       priority: tile.state === 'FAILED' ? 'urgent' : 'normal',
     });

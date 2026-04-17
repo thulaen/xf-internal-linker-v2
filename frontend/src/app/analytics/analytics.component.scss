@@ -28,8 +28,8 @@
     align-items: center;
     gap: 8px;
     margin: 0 0 6px;
-    font-size: 22px;
-    font-weight: 600;
+    font-size: var(--page-title-size);
+    font-weight: var(--page-title-weight);
     color: var(--color-text-primary);
 
     mat-icon {

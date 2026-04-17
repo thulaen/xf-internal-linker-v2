@@ -24,8 +24,8 @@
 }
 
 .alerts-title {
-  font-size: 22px;
-  font-weight: 500;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
   color: var(--color-text-primary);
   margin: 0;
 }

@@ -1011,13 +1011,15 @@ def _meta_tile_native_scoring() -> dict:
     from apps.diagnostics import health as dh
 
     state, explanation, _next, _meta = dh.check_native_scoring()
-    return _tile(
+    tile = _tile(
         "cpp_hot_path",
         "C++ hot path",
         _health_state_to_mc(state),
         explanation,
         group="algorithms",
     )
+    tile["kernel_names"] = [label for _, _, label, _ in dh._NATIVE_RUNTIME_MODULES]
+    return tile
 
 
 def _meta_tile_slate_diversity() -> dict:

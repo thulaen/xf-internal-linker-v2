@@ -8,8 +8,8 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 22px;
-  font-weight: 400;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
   color: var(--color-text-primary);
   margin: 0 0 8px;
 

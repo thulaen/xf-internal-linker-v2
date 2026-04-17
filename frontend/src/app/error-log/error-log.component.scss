@@ -17,8 +17,8 @@
 }
 
 .page-title {
-  font-size: 22px;
-  font-weight: 500;
+  font-size: var(--page-title-size);
+  font-weight: var(--page-title-weight);
   margin: 0;
   color: var(--color-text-primary);
 }

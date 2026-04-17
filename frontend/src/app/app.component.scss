@@ -115,9 +115,9 @@
         font-size: 13px;
         font-weight: 600;
         letter-spacing: 0.1px;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
+        white-space: normal;
+        word-break: break-word;
+        line-height: 1.25;
       }
 
       .brand-version {
@@ -129,13 +129,9 @@
       }
     }
 
-    // Dropdown arrow indicator
+    // Dropdown arrow indicator — hidden until multi-workspace is supported
     &::after {
-      content: 'arrow_drop_down';
-      font-family: 'Material Icons';
-      font-size: 20px;
-      color: var(--color-text-muted);
-      margin-left: 4px;
+      display: none;
     }
   }
 
