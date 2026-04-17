@@ -75,7 +75,7 @@ export class RealtimeService implements OnDestroy {
    * Usage:
    *   inject(RealtimeService)
    *     .subscribe<MyPayload>('diagnostics')
-   *     .subscribe(update => console.log(update.event, update.payload));
+   *     .subscribe(update => handle(update.event, update.payload));
    *
    * Unsubscribing from the returned Observable is what drives the
    * server-side `unsubscribe` frame.
