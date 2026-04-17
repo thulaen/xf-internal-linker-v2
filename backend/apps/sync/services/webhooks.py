@@ -266,7 +266,7 @@ def process_wp_webhook(event_type, payload):
     Expected payload:
     {
         "event": "post_updated",
-        "post_id": 123,
+        "post_id": 42,
         "post_type": "post" | "page"
     }
     """
