@@ -37,7 +37,9 @@ def _compute_dedupe_key(source: str, event_type: str, payload) -> str:
     insertion order or whitespace.
     """
     try:
-        canonical = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        canonical = json.dumps(
+            payload, sort_keys=True, separators=(",", ":"), default=str
+        )
     except (TypeError, ValueError):
         # Fallback: stringify whatever we got. Worse dedup quality but
         # never crashes the ingest path.
@@ -62,8 +64,7 @@ def record_webhook(
     try:
         with transaction.atomic():
             existing = (
-                WebhookReceipt.objects
-                .select_for_update()
+                WebhookReceipt.objects.select_for_update()
                 .filter(dedupe_key=dedupe_key, created_at__gte=cutoff)
                 .order_by("-created_at")
                 .first()

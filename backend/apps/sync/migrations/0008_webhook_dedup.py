@@ -4,33 +4,39 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('sync', '0007_syncjob_file_path'),
+        ("sync", "0007_syncjob_file_path"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='webhookreceipt',
-            name='dedupe_key',
-            field=models.CharField(blank=True, db_index=True, default='', max_length=200),
+            model_name="webhookreceipt",
+            name="dedupe_key",
+            field=models.CharField(
+                blank=True, db_index=True, default="", max_length=200
+            ),
         ),
         migrations.AddField(
-            model_name='webhookreceipt',
-            name='last_seen_at',
+            model_name="webhookreceipt",
+            name="last_seen_at",
             field=models.DateTimeField(auto_now=True),
         ),
         migrations.AddField(
-            model_name='webhookreceipt',
-            name='occurrence_count',
+            model_name="webhookreceipt",
+            name="occurrence_count",
             field=models.PositiveIntegerField(default=1),
         ),
         migrations.AddIndex(
-            model_name='webhookreceipt',
-            index=models.Index(fields=['-last_seen_at'], name='sync_webhoo_last_se_77ad4f_idx'),
+            model_name="webhookreceipt",
+            index=models.Index(
+                fields=["-last_seen_at"], name="sync_webhoo_last_se_77ad4f_idx"
+            ),
         ),
         migrations.AddIndex(
-            model_name='webhookreceipt',
-            index=models.Index(fields=['dedupe_key', '-created_at'], name='sync_webhoo_dedupe__7af4ed_idx'),
+            model_name="webhookreceipt",
+            index=models.Index(
+                fields=["dedupe_key", "-created_at"],
+                name="sync_webhoo_dedupe__7af4ed_idx",
+            ),
         ),
     ]
