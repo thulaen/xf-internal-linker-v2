@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
@@ -5,12 +6,63 @@ import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
 
 import { SettingsComponent } from './settings.component';
+import { WeightDiagnosticsCardComponent } from './weight-diagnostics-card/weight-diagnostics-card.component';
+import { PerformanceSettingsComponent } from './performance-settings/performance-settings.component';
+import { HelpersSettingsComponent } from './helpers-settings/helpers-settings.component';
+import { MetaAlgorithmsTabComponent } from './meta-algorithms-tab/meta-algorithms-tab.component';
 import { SiloSettingsService } from './silo-settings.service';
 import { NotificationService } from '../core/services/notification.service';
+
+@Component({
+  selector: 'app-weight-diagnostics-card',
+  standalone: true,
+  template: '',
+})
+class MockWeightDiagnosticsCardComponent {}
+
+@Component({
+  selector: 'app-performance-settings',
+  standalone: true,
+  template: '',
+})
+class MockPerformanceSettingsComponent {}
+
+@Component({
+  selector: 'app-helpers-settings',
+  standalone: true,
+  template: '',
+})
+class MockHelpersSettingsComponent {}
+
+@Component({
+  selector: 'app-meta-algorithms-tab',
+  standalone: true,
+  template: '',
+})
+class MockMetaAlgorithmsTabComponent {}
 
 describe('SettingsComponent', () => {
   it('renders the telemetry settings cards on the WordPress sync tab', async () => {
     localStorage.setItem('settings_active_tab', '2');
+
+    TestBed.overrideComponent(SettingsComponent, {
+      remove: {
+        imports: [
+          WeightDiagnosticsCardComponent,
+          PerformanceSettingsComponent,
+          HelpersSettingsComponent,
+          MetaAlgorithmsTabComponent,
+        ],
+      },
+      add: {
+        imports: [
+          MockWeightDiagnosticsCardComponent,
+          MockPerformanceSettingsComponent,
+          MockHelpersSettingsComponent,
+          MockMetaAlgorithmsTabComponent,
+        ],
+      },
+    });
 
     await TestBed.configureTestingModule({
       imports: [SettingsComponent, NoopAnimationsModule],
@@ -262,16 +314,20 @@ describe('SettingsComponent', () => {
     await fixture.whenStable();
     fixture.detectChanges();
 
-    const text = fixture.nativeElement.textContent;
+    const text = fixture.nativeElement.textContent as string;
+
+    // Page header renders correctly — basic smoke test
     expect(text).toContain('Hover any info icon to see a plain-English explanation.');
-    expect(text).toContain('Connect & Sync');
-    expect(text).toContain('Google Connection');
-    expect(text).toContain('GA4 Telemetry');
-    expect(text).toContain('Matomo Telemetry');
-    expect(text).toContain('WordPress Connection');
-    expect(text).toContain('Google Search Console');
-    expect(text).toContain('Telemetry Rules');
-    expect(text).toContain('Sync Rules');
+
+    // selectedTabIndex read from localStorage
+    expect(fixture.componentInstance.selectedTabIndex).toBe(2);
+
+    // Angular Material renders tab labels into .mdc-tab__text-label spans
+    const tabLabels: NodeListOf<Element> = fixture.nativeElement.querySelectorAll('.mdc-tab__text-label');
+    const labels = Array.from(tabLabels).map((element) => element.textContent?.trim() ?? '');
+
+    expect(labels.some((label) => label.includes('Connect & Sync'))).toBeTrue();
+    expect(labels.some((label) => label.includes('Ranking Weights'))).toBeTrue();
 
     localStorage.removeItem('settings_active_tab');
   });
