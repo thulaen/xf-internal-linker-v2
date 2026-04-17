@@ -3,6 +3,8 @@ import hmac
 from django.conf import settings
 
 _BYTES_PER_KIB = 1024.0  # bytes per kibibyte
+_SECONDS_PER_HOUR = 3600   # 60 * 60
+_SECONDS_PER_DAY = 86400   # 60 * 60 * 24
 from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
@@ -116,7 +118,7 @@ class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
         Supports a small whitelist of re-dispatchable job types
         (`pipeline`, `sync`, `import`). On successful dispatch the error
         row is auto-acknowledged so the Error Log clears. Out-of-scope
-        job types return 400 instead of silently queuing nothing.
+        job types return a Bad Request error instead of silently queuing nothing.
         """
         from apps.pipeline import tasks as pipeline_tasks
 
@@ -1264,8 +1266,8 @@ def _humanize_age(delta: timedelta) -> str:
     s = int(delta.total_seconds())
     if s < 60:
         return f"{s}s ago"
-    if s < 3600:
+    if s < _SECONDS_PER_HOUR:
         return f"{s // 60}m ago"
-    if s < 86400:
-        return f"{s // 3600}h ago"
-    return f"{s // 86400}d ago"
+    if s < _SECONDS_PER_DAY:
+        return f"{s // _SECONDS_PER_HOUR}h ago"
+    return f"{s // _SECONDS_PER_DAY}d ago"
