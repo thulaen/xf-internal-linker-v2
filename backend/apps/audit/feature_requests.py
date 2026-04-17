@@ -80,9 +80,7 @@ class FeatureRequest(models.Model):
         verbose_name_plural = "Feature Requests"
         ordering = ["-created_at"]
         indexes = [
-            models.Index(
-                fields=["status", "-created_at"], name="audit_fr_status_idx"
-            ),
+            models.Index(fields=["status", "-created_at"], name="audit_fr_status_idx"),
             models.Index(
                 fields=["priority", "-created_at"], name="audit_fr_priority_idx"
             ),

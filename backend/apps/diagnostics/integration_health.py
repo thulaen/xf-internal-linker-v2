@@ -24,7 +24,6 @@ from __future__ import annotations
 from typing import TypedDict
 
 
-
 class IntegrationStatus(TypedDict):
     id: str
     name: str
@@ -79,15 +78,16 @@ def autopsy_for(source_id: str) -> dict:
     from apps.diagnostics.models import ServiceStatusSnapshot
 
     errors = list(
-        ErrorLog.objects.filter(
-            job_type__icontains=source_id
-        ).order_by("-created_at")[:5].values(
-            "id", "created_at", "severity", "error_message", "how_to_fix"
-        )
+        ErrorLog.objects.filter(job_type__icontains=source_id)
+        .order_by("-created_at")[:5]
+        .values("id", "created_at", "severity", "error_message", "how_to_fix")
     )
-    last_flip = ServiceStatusSnapshot.objects.filter(
-        service_key=f"{source_id}"
-    ).order_by("-created_at").values("created_at", "state").first()
+    last_flip = (
+        ServiceStatusSnapshot.objects.filter(service_key=f"{source_id}")
+        .order_by("-created_at")
+        .values("created_at", "state")
+        .first()
+    )
 
     return {
         "source": source_id,
@@ -110,33 +110,81 @@ def reconnect_steps_for(source_id: str) -> list[dict]:
     """Gap 333 — guided reconnect flow per connector."""
     steps_by_source: dict[str, list[dict]] = {
         "gsc": [
-            {"title": "Open Google Search Console", "action": "external-open", "target": "https://search.google.com/search-console"},
+            {
+                "title": "Open Google Search Console",
+                "action": "external-open",
+                "target": "https://search.google.com/search-console",
+            },
             {"title": "Verify the property owns your domain", "action": "manual"},
-            {"title": "Refresh the OAuth token in Settings → GA4/GSC", "action": "settings-jump", "target": "/settings#connections"},
-            {"title": "Run the test-connection button", "action": "test-connection", "target": "gsc"},
+            {
+                "title": "Refresh the OAuth token in Settings → GA4/GSC",
+                "action": "settings-jump",
+                "target": "/settings#connections",
+            },
+            {
+                "title": "Run the test-connection button",
+                "action": "test-connection",
+                "target": "gsc",
+            },
         ],
         "ga4": [
-            {"title": "Open Google Analytics admin", "action": "external-open", "target": "https://analytics.google.com"},
-            {"title": "Paste the measurement ID + service-account JSON in Settings", "action": "settings-jump", "target": "/settings#connections"},
-            {"title": "Run the test-connection button", "action": "test-connection", "target": "ga4"},
+            {
+                "title": "Open Google Analytics admin",
+                "action": "external-open",
+                "target": "https://analytics.google.com",
+            },
+            {
+                "title": "Paste the measurement ID + service-account JSON in Settings",
+                "action": "settings-jump",
+                "target": "/settings#connections",
+            },
+            {
+                "title": "Run the test-connection button",
+                "action": "test-connection",
+                "target": "ga4",
+            },
         ],
         "matomo": [
             {"title": "Log into your Matomo admin", "action": "manual"},
             {"title": "Copy a fresh API token", "action": "manual"},
-            {"title": "Paste it in Settings → Matomo", "action": "settings-jump", "target": "/settings#matomo"},
-            {"title": "Run the test-connection button", "action": "test-connection", "target": "matomo"},
+            {
+                "title": "Paste it in Settings → Matomo",
+                "action": "settings-jump",
+                "target": "/settings#matomo",
+            },
+            {
+                "title": "Run the test-connection button",
+                "action": "test-connection",
+                "target": "matomo",
+            },
         ],
         "xenforo": [
             {"title": "Open your XenForo admin panel", "action": "manual"},
             {"title": "Verify the API key is still valid", "action": "manual"},
-            {"title": "Paste it in Settings → XenForo", "action": "settings-jump", "target": "/settings#xenforo"},
-            {"title": "Run the test-connection button", "action": "test-connection", "target": "xenforo"},
+            {
+                "title": "Paste it in Settings → XenForo",
+                "action": "settings-jump",
+                "target": "/settings#xenforo",
+            },
+            {
+                "title": "Run the test-connection button",
+                "action": "test-connection",
+                "target": "xenforo",
+            },
         ],
         "wordpress": [
             {"title": "Open your WordPress Users page", "action": "manual"},
             {"title": "Generate an application password", "action": "manual"},
-            {"title": "Paste it in Settings → WordPress", "action": "settings-jump", "target": "/settings#wordpress"},
-            {"title": "Run the test-connection button", "action": "test-connection", "target": "wordpress"},
+            {
+                "title": "Paste it in Settings → WordPress",
+                "action": "settings-jump",
+                "target": "/settings#wordpress",
+            },
+            {
+                "title": "Run the test-connection button",
+                "action": "test-connection",
+                "target": "wordpress",
+            },
         ],
     }
     return steps_by_source.get(source_id, [])
@@ -181,9 +229,24 @@ def _lazy_check(name: str):
 
 
 _CONNECTORS: list[dict] = [
-    {"id": "gsc", "name": "Google Search Console", "check": _lazy_check("check_gsc"), "latest_field": "latest_gsc_date"},
-    {"id": "ga4", "name": "Google Analytics 4", "check": _lazy_check("check_ga4"), "latest_field": "latest_ga4_date"},
-    {"id": "matomo", "name": "Matomo", "check": _lazy_check("check_matomo"), "latest_field": "latest_matomo_date"},
+    {
+        "id": "gsc",
+        "name": "Google Search Console",
+        "check": _lazy_check("check_gsc"),
+        "latest_field": "latest_gsc_date",
+    },
+    {
+        "id": "ga4",
+        "name": "Google Analytics 4",
+        "check": _lazy_check("check_ga4"),
+        "latest_field": "latest_ga4_date",
+    },
+    {
+        "id": "matomo",
+        "name": "Matomo",
+        "check": _lazy_check("check_matomo"),
+        "latest_field": "latest_matomo_date",
+    },
 ]
 
 

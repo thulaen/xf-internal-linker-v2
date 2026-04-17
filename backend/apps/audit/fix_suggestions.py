@@ -33,11 +33,15 @@ _RULES: list[tuple[re.Pattern[str], str]] = [
         "`docker compose exec backend python -m spacy download en_core_web_sm`.",
     ),
     (
-        re.compile(r"ConnectionError.*redis|Redis.*refused|redis.*ConnectionError", re.I),
+        re.compile(
+            r"ConnectionError.*redis|Redis.*refused|redis.*ConnectionError", re.I
+        ),
         "Redis is down. Run `docker compose restart redis`.",
     ),
     (
-        re.compile(r"psycopg|OperationalError.*database|could not connect to server", re.I),
+        re.compile(
+            r"psycopg|OperationalError.*database|could not connect to server", re.I
+        ),
         "Postgres is down or unreachable. Check `docker compose ps postgres` "
         "and `docker compose logs postgres --tail=50`.",
     ),

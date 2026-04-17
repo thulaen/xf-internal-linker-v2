@@ -306,9 +306,7 @@ class FeatureRequestViewSet(viewsets.ModelViewSet):
     def set_status(self, request, pk=None):
         """Maintainer-only lifecycle transition."""
         if not request.user.is_staff:
-            return Response(
-                {"detail": "Staff only."}, status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"detail": "Staff only."}, status=status.HTTP_403_FORBIDDEN)
         req = self.get_object()
         new_status = (request.data.get("status") or "").strip()
         valid = {c[0] for c in FeatureRequest.STATUS_CHOICES}
@@ -325,9 +323,7 @@ class FeatureRequestViewSet(viewsets.ModelViewSet):
     def reply(self, request, pk=None):
         """Maintainer adds a public reply the submitter will see."""
         if not request.user.is_staff:
-            return Response(
-                {"detail": "Staff only."}, status=status.HTTP_403_FORBIDDEN
-            )
+            return Response({"detail": "Staff only."}, status=status.HTTP_403_FORBIDDEN)
         req = self.get_object()
         body = (request.data.get("admin_reply") or "").strip()[:10_000]
         req.admin_reply = body

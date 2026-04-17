@@ -47,9 +47,7 @@ def snapshot() -> dict[str, Any]:
         gpu_available = bool(torch.cuda.is_available())
         ctx["gpu_available"] = gpu_available
         ctx["cuda_version"] = torch.version.cuda if gpu_available else None
-        ctx["gpu_name"] = (
-            torch.cuda.get_device_name(0) if gpu_available else None
-        )
+        ctx["gpu_name"] = torch.cuda.get_device_name(0) if gpu_available else None
     except Exception:  # noqa: BLE001 — probe must never fail the caller
         ctx["gpu_available"] = False
         ctx["cuda_version"] = None
@@ -61,9 +59,7 @@ def snapshot() -> dict[str, Any]:
         import spacy
 
         ctx["spacy_model"] = (
-            "en_core_web_sm"
-            if spacy.util.is_package("en_core_web_sm")
-            else None
+            "en_core_web_sm" if spacy.util.is_package("en_core_web_sm") else None
         )
     except Exception:  # noqa: BLE001
         ctx["spacy_model"] = None

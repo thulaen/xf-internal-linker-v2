@@ -269,7 +269,9 @@ def _prereq_attribution() -> dict:
             else f"Attribution last computed {_humanize_ago(age)} — older than "
             f"{_ATTRIBUTION_MAX_STALE_HOURS}h freshness window."
         ),
-        "next_step": "" if ok else "Recompute attribution from the Mission Critical tile.",
+        "next_step": ""
+        if ok
+        else "Recompute attribution from the Mission Critical tile.",
         "progress": 1.0 if ok else 0.0,
         "affects": [],
     }
@@ -304,7 +306,9 @@ def _prereq_cooccurrence() -> dict:
                 else f"Cooccurrence pairs last refreshed {_humanize_ago(age)}; older "
                 f"than {_COOCCURRENCE_MAX_STALE_HOURS}h."
             ),
-            "next_step": "" if ok else "Rebuild cooccurrence from the Mission Critical tile.",
+            "next_step": ""
+            if ok
+            else "Rebuild cooccurrence from the Mission Critical tile.",
             "progress": 1.0 if ok else 0.0,
             "affects": [],
         }

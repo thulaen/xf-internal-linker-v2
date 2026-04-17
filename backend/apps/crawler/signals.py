@@ -43,10 +43,10 @@ def _on_crawl_session_saved(
     )
 
 
-@receiver(post_delete, sender=CrawlSession, dispatch_uid="realtime.crawl_session.deleted")
-def _on_crawl_session_deleted(
-    sender, instance: CrawlSession, **kwargs: object
-) -> None:
+@receiver(
+    post_delete, sender=CrawlSession, dispatch_uid="realtime.crawl_session.deleted"
+)
+def _on_crawl_session_deleted(sender, instance: CrawlSession, **kwargs: object) -> None:
     broadcast(
         TOPIC,
         event="session.deleted",

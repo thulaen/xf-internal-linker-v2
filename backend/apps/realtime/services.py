@@ -86,7 +86,9 @@ def broadcast(topic: str, event: str, payload: Mapping[str, Any] | None = None) 
     try:
         async_to_sync(layer.group_send)(group, message)
     except Exception:  # noqa: BLE001 — transport failures must not crash producers
-        logger.exception("realtime.broadcast failed for topic=%s event=%s", topic, event)
+        logger.exception(
+            "realtime.broadcast failed for topic=%s event=%s", topic, event
+        )
 
 
 async def abroadcast(

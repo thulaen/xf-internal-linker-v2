@@ -46,8 +46,12 @@ class DiagnosticsRealtimeSignalsTests(TransactionTestCase):
         return comm
 
     # ── DB helpers (wrap sync ORM for async test methods) ────────────
-    _create_service = staticmethod(database_sync_to_async(ServiceStatusSnapshot.objects.create))
-    _create_conflict = staticmethod(database_sync_to_async(SystemConflict.objects.create))
+    _create_service = staticmethod(
+        database_sync_to_async(ServiceStatusSnapshot.objects.create)
+    )
+    _create_conflict = staticmethod(
+        database_sync_to_async(SystemConflict.objects.create)
+    )
 
     @staticmethod
     @database_sync_to_async
@@ -104,9 +108,7 @@ class DiagnosticsRealtimeSignalsTests(TransactionTestCase):
         await comm.disconnect()
 
     async def test_service_status_deleted_broadcasts(self):
-        snap = await self._create_service(
-            service_name="celery_worker", state="healthy"
-        )
+        snap = await self._create_service(service_name="celery_worker", state="healthy")
         comm = await self._connect()
 
         snap_id = snap.pk

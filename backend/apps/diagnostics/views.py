@@ -378,9 +378,7 @@ class PipelineGateView(views.APIView):
                         or data.get("next_action_step", ""),
                     }
                 )
-        return response.Response(
-            {"can_run": len(blockers) == 0, "blockers": blockers}
-        )
+        return response.Response({"can_run": len(blockers) == 0, "blockers": blockers})
 
 
 class SchedulerDispatchView(views.APIView):
@@ -803,37 +801,57 @@ class MissionCriticalView(views.APIView):
         heavy_holder = locks.get("heavy")
         master_pause = _read_master_pause()
         if master_pause:
-            tiles.append(_tile(
-                "pipeline", "Pipeline", "PAUSED",
-                "Master pause active — workers at safe checkpoint.",
-                actions=["Resume"],
-            ))
+            tiles.append(
+                _tile(
+                    "pipeline",
+                    "Pipeline",
+                    "PAUSED",
+                    "Master pause active — workers at safe checkpoint.",
+                    actions=["Resume"],
+                )
+            )
         elif heavy_holder:
-            tiles.append(_tile(
-                "pipeline", "Pipeline", "WORKING",
-                f"Running: {_owner_label(heavy_holder)}.",
-                actions=["Pause"],
-            ))
+            tiles.append(
+                _tile(
+                    "pipeline",
+                    "Pipeline",
+                    "WORKING",
+                    f"Running: {_owner_label(heavy_holder)}.",
+                    actions=["Pause"],
+                )
+            )
         else:
-            tiles.append(_tile(
-                "pipeline", "Pipeline", "IDLE",
-                "No heavy task currently running.",
-                actions=["Pause"],
-            ))
+            tiles.append(
+                _tile(
+                    "pipeline",
+                    "Pipeline",
+                    "IDLE",
+                    "No heavy task currently running.",
+                    actions=["Pause"],
+                )
+            )
 
         # ── Ranking signals (Phase SEQ namespace) ────────────────
         signal_holder = locks.get("signal")
         if signal_holder:
-            tiles.append(_tile(
-                "signals", "Ranking signals", "WORKING",
-                f"Computing {_owner_label(signal_holder)}.",
-                actions=["Pause"],
-            ))
+            tiles.append(
+                _tile(
+                    "signals",
+                    "Ranking signals",
+                    "WORKING",
+                    f"Computing {_owner_label(signal_holder)}.",
+                    actions=["Pause"],
+                )
+            )
         else:
-            tiles.append(_tile(
-                "signals", "Ranking signals", "IDLE",
-                "Signal queue empty — no compute in flight.",
-            ))
+            tiles.append(
+                _tile(
+                    "signals",
+                    "Ranking signals",
+                    "IDLE",
+                    "Signal queue empty — no compute in flight.",
+                )
+            )
 
         # ── Embeddings ────────────────────────────────────────────
         tiles.append(_embeddings_tile())
@@ -859,17 +877,25 @@ class MissionCriticalView(views.APIView):
         prereqs = assemble_prerequisites()
         blocking = [p for p in prereqs if p["status"] != "ready"]
         if not blocking:
-            tiles.append(_tile(
-                "suggestion_readiness", "Suggestion readiness", "WORKING",
-                "All prerequisites ready.",
-            ))
+            tiles.append(
+                _tile(
+                    "suggestion_readiness",
+                    "Suggestion readiness",
+                    "WORKING",
+                    "All prerequisites ready.",
+                )
+            )
         else:
             first = blocking[0]
             mc_state = "DEGRADED" if first["status"] != "blocked" else "FAILED"
-            tiles.append(_tile(
-                "suggestion_readiness", "Suggestion readiness", mc_state,
-                f"Blocking: {first['name']} — {first['plain_english']}",
-            ))
+            tiles.append(
+                _tile(
+                    "suggestion_readiness",
+                    "Suggestion readiness",
+                    mc_state,
+                    f"Blocking: {first['name']} — {first['plain_english']}",
+                )
+            )
 
         # ── Root-cause dedup ─────────────────────────────────────
         for p in prereqs:
@@ -937,25 +963,34 @@ def _embeddings_tile() -> dict:
         total = ContentItem.objects.count()
         if total == 0:
             return _tile(
-                "embeddings", "Embeddings", "IDLE",
+                "embeddings",
+                "Embeddings",
+                "IDLE",
                 "No in-scope content yet.",
             )
         missing = ContentItem.objects.filter(embedding__isnull=True).count()
         if missing == 0:
             return _tile(
-                "embeddings", "Embeddings", "WORKING",
+                "embeddings",
+                "Embeddings",
+                "WORKING",
                 f"All {total:,} items embedded.",
                 progress=1.0,
             )
         done = total - missing
         return _tile(
-            "embeddings", "Embeddings", "WORKING",
+            "embeddings",
+            "Embeddings",
+            "WORKING",
             f"{done:,} of {total:,} items embedded.",
-            actions=["Pause"], progress=done / total,
+            actions=["Pause"],
+            progress=done / total,
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "embeddings", "Embeddings", "DEGRADED",
+            "embeddings",
+            "Embeddings",
+            "DEGRADED",
             "Could not read embedding state.",
         )
 
@@ -977,8 +1012,11 @@ def _meta_tile_native_scoring() -> dict:
 
     state, explanation, _next, _meta = dh.check_native_scoring()
     return _tile(
-        "cpp_hot_path", "C++ hot path", _health_state_to_mc(state),
-        explanation, group="algorithms",
+        "cpp_hot_path",
+        "C++ hot path",
+        _health_state_to_mc(state),
+        explanation,
+        group="algorithms",
     )
 
 
@@ -987,8 +1025,11 @@ def _meta_tile_slate_diversity() -> dict:
 
     state, explanation, _next, _meta = dh.check_slate_diversity_runtime()
     return _tile(
-        "slate_diversity", "Slate diversity", _health_state_to_mc(state),
-        explanation, group="algorithms",
+        "slate_diversity",
+        "Slate diversity",
+        _health_state_to_mc(state),
+        explanation,
+        group="algorithms",
     )
 
 
@@ -996,22 +1037,31 @@ def _meta_tile_weight_tuning() -> dict:
     last = _read_datetime_setting("system.last_weight_tune_at")
     if last is None:
         return _tile(
-            "weight_tuning", "Weight tuning", "IDLE",
+            "weight_tuning",
+            "Weight tuning",
+            "IDLE",
             "Weight tuner has never run.",
-            actions=["Run now"], group="algorithms",
+            actions=["Run now"],
+            group="algorithms",
         )
     age = timezone.now() - last
     if age <= timedelta(days=31):
         return _tile(
-            "weight_tuning", "Weight tuning", "WORKING",
+            "weight_tuning",
+            "Weight tuning",
+            "WORKING",
             f"Last tune {_humanize_age(age)}.",
-            actions=["Run now"], group="algorithms",
+            actions=["Run now"],
+            group="algorithms",
             last_action_at=last,
         )
     return _tile(
-        "weight_tuning", "Weight tuning", "DEGRADED",
+        "weight_tuning",
+        "Weight tuning",
+        "DEGRADED",
         f"Last tune {_humanize_age(age)} — overdue.",
-        actions=["Run now"], group="algorithms",
+        actions=["Run now"],
+        group="algorithms",
         last_action_at=last,
     )
 
@@ -1020,22 +1070,31 @@ def _meta_tile_attribution() -> dict:
     last = _read_datetime_setting("system.last_attribution_run_at")
     if last is None:
         return _tile(
-            "attribution", "Attribution", "IDLE",
+            "attribution",
+            "Attribution",
+            "IDLE",
             "Attribution engine has never run.",
-            actions=["Recompute"], group="algorithms",
+            actions=["Recompute"],
+            group="algorithms",
         )
     age = timezone.now() - last
     if age <= timedelta(hours=12):
         return _tile(
-            "attribution", "Attribution", "WORKING",
+            "attribution",
+            "Attribution",
+            "WORKING",
             f"Attribution computed {_humanize_age(age)}.",
-            actions=["Recompute"], group="algorithms",
+            actions=["Recompute"],
+            group="algorithms",
             last_action_at=last,
         )
     return _tile(
-        "attribution", "Attribution", "DEGRADED",
+        "attribution",
+        "Attribution",
+        "DEGRADED",
         f"Attribution last computed {_humanize_age(age)}.",
-        actions=["Recompute"], group="algorithms",
+        actions=["Recompute"],
+        group="algorithms",
         last_action_at=last,
     )
 
@@ -1048,36 +1107,50 @@ def _meta_tile_cooccurrence() -> dict:
         latest = SessionCooccurrencePair.objects.aggregate(m=Max("updated_at"))["m"]
         if latest is None:
             return _tile(
-                "cooccurrence", "Cooccurrence", "IDLE",
+                "cooccurrence",
+                "Cooccurrence",
+                "IDLE",
                 "Cooccurrence table is empty.",
-                actions=["Rebuild"], group="algorithms",
+                actions=["Rebuild"],
+                group="algorithms",
             )
         age = timezone.now() - latest
         if age <= timedelta(hours=24):
             return _tile(
-                "cooccurrence", "Cooccurrence", "WORKING",
+                "cooccurrence",
+                "Cooccurrence",
+                "WORKING",
                 f"Pairs refreshed {_humanize_age(age)}.",
-                actions=["Rebuild"], group="algorithms",
+                actions=["Rebuild"],
+                group="algorithms",
                 last_action_at=latest,
             )
         return _tile(
-            "cooccurrence", "Cooccurrence", "DEGRADED",
+            "cooccurrence",
+            "Cooccurrence",
+            "DEGRADED",
             f"Pairs last refreshed {_humanize_age(age)}.",
-            actions=["Rebuild"], group="algorithms",
+            actions=["Rebuild"],
+            group="algorithms",
             last_action_at=latest,
         )
     except Exception:  # noqa: BLE001
         return _tile(
-            "cooccurrence", "Cooccurrence", "DEGRADED",
+            "cooccurrence",
+            "Cooccurrence",
+            "DEGRADED",
             "Could not read cooccurrence state.",
-            actions=["Rebuild"], group="algorithms",
+            actions=["Rebuild"],
+            group="algorithms",
         )
 
 
 def _external_tile(source_id: str, name: str) -> dict:
     from apps.diagnostics import health as dh
 
-    checker = {"gsc": dh.check_gsc, "ga4": dh.check_ga4, "matomo": dh.check_matomo}[source_id]
+    checker = {"gsc": dh.check_gsc, "ga4": dh.check_ga4, "matomo": dh.check_matomo}[
+        source_id
+    ]
     state, explanation, _next, _meta = checker()
     mc_state = _health_state_to_mc(state)
     actions = ["Reconnect"] if mc_state in ("DEGRADED", "FAILED") else []
@@ -1091,7 +1164,9 @@ def _crawler_tile() -> dict:
         latest = CrawlSession.objects.order_by("-started_at").first()
         if latest is None:
             return _tile(
-                "crawler", "Crawler", "IDLE",
+                "crawler",
+                "Crawler",
+                "IDLE",
                 "No crawl sessions yet.",
             )
         state_raw = getattr(latest, "state", "") or getattr(latest, "status", "")
@@ -1102,7 +1177,9 @@ def _crawler_tile() -> dict:
             "failed": "FAILED",
         }.get(state_raw, "IDLE")
         return _tile(
-            "crawler", "Crawler", mc_state,
+            "crawler",
+            "Crawler",
+            mc_state,
             f"Last session: {state_raw or 'unknown'}.",
             actions=["Pause", "Resume"] if mc_state in ("WORKING", "PAUSED") else [],
         )
@@ -1127,7 +1204,9 @@ def _import_tile() -> dict:
             "error": "FAILED",
         }.get(state_raw, "IDLE")
         return _tile(
-            "imports", "Imports", mc_state,
+            "imports",
+            "Imports",
+            mc_state,
             f"Last job: {state_raw or 'unknown'}.",
             actions=["Pause", "Resume"] if mc_state in ("WORKING", "PAUSED") else [],
         )
@@ -1144,11 +1223,15 @@ def _webhooks_tile() -> dict:
         ).count()
         if recent_count == 0:
             return _tile(
-                "webhooks", "Webhooks", "IDLE",
+                "webhooks",
+                "Webhooks",
+                "IDLE",
                 "No receipts in last 30 min.",
             )
         return _tile(
-            "webhooks", "Webhooks", "WORKING",
+            "webhooks",
+            "Webhooks",
+            "WORKING",
             f"{recent_count} receipts in last 30 min.",
         )
     except Exception:  # noqa: BLE001

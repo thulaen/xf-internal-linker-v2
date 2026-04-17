@@ -143,9 +143,7 @@ class RealtimeConsumer(AsyncJsonWebsocketConsumer):
 
         await self.send_json({"type": "unsubscription.ack", "topics": removed})
 
-    async def _handle_publish(
-        self, topic: Any, event: Any, payload: Any
-    ) -> None:
+    async def _handle_publish(self, topic: Any, event: Any, payload: Any) -> None:
         """Phase RC / Gaps 139-142 — client publishes a payload that
         the server immediately fans out to every subscriber of the
         topic (including the publisher's other tabs).

@@ -83,10 +83,16 @@ class ClientErrorLogSerializer(serializers.Serializer):
 
     message = serializers.CharField(required=True, allow_blank=False)
     stack = serializers.CharField(required=False, allow_blank=True, default="")
-    route = serializers.CharField(required=False, allow_blank=True, default="", max_length=500)
-    url = serializers.URLField(required=False, allow_blank=True, default="", max_length=1000)
+    route = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500
+    )
+    url = serializers.URLField(
+        required=False, allow_blank=True, default="", max_length=1000
+    )
     user_agent = serializers.CharField(required=False, allow_blank=True, default="")
-    app_version = serializers.CharField(required=False, allow_blank=True, default="", max_length=50)
+    app_version = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=50
+    )
     user_id = serializers.IntegerField(required=False, allow_null=True, default=None)
     context = serializers.JSONField(required=False, default=dict)
 
@@ -134,7 +140,9 @@ class WebVitalSerializer(serializers.Serializer):
     value = serializers.FloatField(required=True)
     rating = serializers.CharField(required=False, allow_blank=True, default="good")
     delta = serializers.FloatField(required=False, default=0.0)
-    id = serializers.CharField(required=False, allow_blank=True, default="", max_length=100)
+    id = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=100
+    )
     navigation_type = serializers.CharField(
         required=False,
         allow_blank=True,
@@ -142,8 +150,12 @@ class WebVitalSerializer(serializers.Serializer):
         default="",
         max_length=20,
     )
-    path = serializers.CharField(required=False, allow_blank=True, default="", max_length=500)
-    device_memory = serializers.FloatField(required=False, allow_null=True, default=None)
+    path = serializers.CharField(
+        required=False, allow_blank=True, default="", max_length=500
+    )
+    device_memory = serializers.FloatField(
+        required=False, allow_null=True, default=None
+    )
     effective_connection_type = serializers.CharField(
         required=False,
         allow_blank=True,

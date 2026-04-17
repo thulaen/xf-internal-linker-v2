@@ -43,7 +43,11 @@ TOPIC = "diagnostics"
 # ── ServiceStatusSnapshot ──────────────────────────────────────────
 
 
-@receiver(post_save, sender=ServiceStatusSnapshot, dispatch_uid="realtime.service_status.saved")
+@receiver(
+    post_save,
+    sender=ServiceStatusSnapshot,
+    dispatch_uid="realtime.service_status.saved",
+)
 def _on_service_status_saved(
     sender, instance: ServiceStatusSnapshot, created: bool, **kwargs: object
 ) -> None:
@@ -58,7 +62,9 @@ def _on_service_status_saved(
 
 
 @receiver(
-    post_delete, sender=ServiceStatusSnapshot, dispatch_uid="realtime.service_status.deleted"
+    post_delete,
+    sender=ServiceStatusSnapshot,
+    dispatch_uid="realtime.service_status.deleted",
 )
 def _on_service_status_deleted(
     sender, instance: ServiceStatusSnapshot, **kwargs: object
@@ -75,7 +81,9 @@ def _on_service_status_deleted(
 # ── SystemConflict ─────────────────────────────────────────────────
 
 
-@receiver(post_save, sender=SystemConflict, dispatch_uid="realtime.system_conflict.saved")
+@receiver(
+    post_save, sender=SystemConflict, dispatch_uid="realtime.system_conflict.saved"
+)
 def _on_system_conflict_saved(
     sender, instance: SystemConflict, created: bool, **kwargs: object
 ) -> None:

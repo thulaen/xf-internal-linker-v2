@@ -66,9 +66,7 @@ class FingerprintNormalisationTests(TestCase):
 
 class IngestErrorTests(TestCase):
     def test_first_call_creates_row(self):
-        row = ingest_error(
-            job_type="pipeline", step="score", error_message="boom"
-        )
+        row = ingest_error(job_type="pipeline", step="score", error_message="boom")
         self.assertIsNotNone(row)
         assert row is not None  # mypy comfort
         self.assertEqual(row.occurrence_count, 1)
@@ -164,25 +162,17 @@ class RuntimeContextSnapshotTests(TestCase):
 
 class ErrorLogSerializerTrendTests(TestCase):
     def test_trend_produces_seven_buckets(self):
-        row = ingest_error(
-            job_type="pipeline", step="score", error_message="trendy"
-        )
+        row = ingest_error(job_type="pipeline", step="score", error_message="trendy")
         data = ErrorLogSerializer(row).data
         self.assertEqual(len(data["error_trend"]), 7)
         # Today's bucket must count the just-inserted row.
         today = timezone.now().date()
-        today_bucket = next(
-            b for b in data["error_trend"] if b["date"] == str(today)
-        )
+        today_bucket = next(b for b in data["error_trend"] if b["date"] == str(today))
         self.assertGreaterEqual(today_bucket["count"], 1)
 
     def test_related_errors_within_five_minute_window(self):
-        r1 = ingest_error(
-            job_type="a", step="x", error_message="unique message one"
-        )
-        r2 = ingest_error(
-            job_type="b", step="y", error_message="unique message two"
-        )
+        r1 = ingest_error(job_type="a", step="x", error_message="unique message one")
+        r2 = ingest_error(job_type="b", step="y", error_message="unique message two")
         assert r1 is not None and r2 is not None
         data = ErrorLogSerializer(r1).data
         self.assertIn(r2.pk, data["related_error_ids"])

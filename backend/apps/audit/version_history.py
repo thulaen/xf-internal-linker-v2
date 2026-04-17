@@ -63,7 +63,9 @@ class EntityVersion(models.Model):
         ]
 
     def __str__(self) -> str:
-        return f"{self.target_type}:{self.target_id} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
+        return (
+            f"{self.target_type}:{self.target_id} @ {self.created_at:%Y-%m-%d %H:%M:%S}"
+        )
 
 
 def snapshot(
@@ -102,9 +104,9 @@ def list_versions(target_type: str, target_id: str | int) -> list[EntityVersion]
 
 
 def _prune(target_type: str, target_id: str) -> None:
-    qs = EntityVersion.objects.filter(target_type=target_type, target_id=target_id).order_by(
-        "-created_at"
-    )
+    qs = EntityVersion.objects.filter(
+        target_type=target_type, target_id=target_id
+    ).order_by("-created_at")
     count = qs.count()
     if count <= MAX_VERSIONS_PER_ENTITY:
         return

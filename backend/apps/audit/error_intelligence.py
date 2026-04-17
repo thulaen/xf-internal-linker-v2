@@ -91,9 +91,7 @@ def past_resolutions_for(error_log, limit: int = 3) -> list[SimilarError]:
     if not getattr(error_log, "fingerprint", None):
         return []
     qs = (
-        ErrorLog.objects.filter(
-            fingerprint=error_log.fingerprint, acknowledged=True
-        )
+        ErrorLog.objects.filter(fingerprint=error_log.fingerprint, acknowledged=True)
         .exclude(pk=error_log.pk)
         .order_by("-created_at")[:limit]
     )

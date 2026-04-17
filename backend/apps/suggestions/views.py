@@ -561,7 +561,11 @@ class MetaAlgorithmSettingsView(views.APIView):
             {
                 "rows": rows,
                 "families": families_summary(
-                    type("ListWrap", (), {"__iter__": lambda self: iter(_MetasAdapter(rows))})()
+                    type(
+                        "ListWrap",
+                        (),
+                        {"__iter__": lambda self: iter(_MetasAdapter(rows))},
+                    )()
                 ),
                 "total": len(rows),
             }

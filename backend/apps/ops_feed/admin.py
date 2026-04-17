@@ -34,4 +34,8 @@ class OperationEventAdmin(ModelAdmin):
 
     @admin.display(description="Message")
     def short_message(self, obj):
-        return obj.plain_english[:80] + "…" if len(obj.plain_english) > 80 else obj.plain_english
+        return (
+            obj.plain_english[:80] + "…"
+            if len(obj.plain_english) > 80
+            else obj.plain_english
+        )

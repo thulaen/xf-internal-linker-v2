@@ -113,7 +113,11 @@ class FeatureFlagsListView(APIView):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get(self, request):
-        user_id = request.user.pk if getattr(request.user, "is_authenticated", False) else None
+        user_id = (
+            request.user.pk
+            if getattr(request.user, "is_authenticated", False)
+            else None
+        )
         return Response(serialise_for_user(user_id))
 
 
@@ -143,7 +147,9 @@ class FeatureFlagExposureView(APIView):
                 {"detail": "unknown flag"},
                 status=status.HTTP_404_NOT_FOUND,
             )
-        user = request.user if getattr(request.user, "is_authenticated", False) else None
+        user = (
+            request.user if getattr(request.user, "is_authenticated", False) else None
+        )
         FeatureFlagExposure.objects.create(key=key, variant=variant[:60], user=user)
         return Response({"status": "recorded"}, status=status.HTTP_201_CREATED)
 

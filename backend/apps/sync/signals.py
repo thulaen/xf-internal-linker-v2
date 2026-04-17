@@ -38,7 +38,9 @@ TOPIC_WEBHOOKS = "webhooks.receipts"
 
 
 @receiver(post_save, sender=SyncJob, dispatch_uid="realtime.sync_job.saved")
-def _on_sync_job_saved(sender, instance: SyncJob, created: bool, **kwargs: object) -> None:
+def _on_sync_job_saved(
+    sender, instance: SyncJob, created: bool, **kwargs: object
+) -> None:
     broadcast(
         TOPIC_JOBS,
         event="job.created" if created else "job.updated",
@@ -58,7 +60,9 @@ def _on_sync_job_deleted(sender, instance: SyncJob, **kwargs: object) -> None:
 # ── WebhookReceipt ────────────────────────────────────────────────
 
 
-@receiver(post_save, sender=WebhookReceipt, dispatch_uid="realtime.webhook_receipt.saved")
+@receiver(
+    post_save, sender=WebhookReceipt, dispatch_uid="realtime.webhook_receipt.saved"
+)
 def _on_webhook_receipt_saved(
     sender, instance: WebhookReceipt, created: bool, **kwargs: object
 ) -> None:

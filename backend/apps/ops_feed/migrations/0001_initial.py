@@ -4,7 +4,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     initial = True
 
     dependencies = []
@@ -16,7 +15,10 @@ class Migration(migrations.Migration):
                 (
                     "id",
                     models.BigAutoField(
-                        auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
                     ),
                 ),
                 ("timestamp", models.DateTimeField(auto_now_add=True, db_index=True)),
@@ -49,20 +51,36 @@ class Migration(migrations.Migration):
                         max_length=10,
                     ),
                 ),
-                ("related_entity_type", models.CharField(blank=True, db_index=True, max_length=60)),
-                ("related_entity_id", models.CharField(blank=True, db_index=True, max_length=100)),
+                (
+                    "related_entity_type",
+                    models.CharField(blank=True, db_index=True, max_length=60),
+                ),
+                (
+                    "related_entity_id",
+                    models.CharField(blank=True, db_index=True, max_length=100),
+                ),
                 ("runtime_context", models.JSONField(blank=True, default=dict)),
-                ("dedup_key", models.CharField(blank=True, db_index=True, max_length=100)),
+                (
+                    "dedup_key",
+                    models.CharField(blank=True, db_index=True, max_length=100),
+                ),
                 ("occurrence_count", models.IntegerField(default=1)),
-                ("error_log_id", models.IntegerField(blank=True, db_index=True, null=True)),
+                (
+                    "error_log_id",
+                    models.IntegerField(blank=True, db_index=True, null=True),
+                ),
             ],
             options={
                 "verbose_name": "Operation Event",
                 "verbose_name_plural": "Operation Events",
                 "ordering": ["-timestamp"],
                 "indexes": [
-                    models.Index(fields=["severity", "-timestamp"], name="ofeed_sev_ts_idx"),
-                    models.Index(fields=["dedup_key", "-timestamp"], name="ofeed_dedup_idx"),
+                    models.Index(
+                        fields=["severity", "-timestamp"], name="ofeed_sev_ts_idx"
+                    ),
+                    models.Index(
+                        fields=["dedup_key", "-timestamp"], name="ofeed_dedup_idx"
+                    ),
                 ],
             },
         ),

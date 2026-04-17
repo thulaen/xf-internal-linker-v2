@@ -62,9 +62,7 @@ def scorecard() -> list[SourceScorecard]:
     # GSC / GA4 / Matomo — reuse SearchMetric rows.
     for source in ("gsc", "ga4", "matomo"):
         latest = (
-            SearchMetric.objects.filter(source=source)
-            .aggregate(m=Max("date"))
-            .get("m")
+            SearchMetric.objects.filter(source=source).aggregate(m=Max("date")).get("m")
         )
         last_dt = (
             timezone.make_aware(
@@ -204,9 +202,7 @@ def duplicate_counts() -> dict[str, int]:
         .annotate(n=Count("id"))
         .filter(n__gt=1)
     )
-    content_dupes = sum(
-        r["n"] - 1 for r in dupe_qs if r.get("external_id")
-    )
+    content_dupes = sum(r["n"] - 1 for r in dupe_qs if r.get("external_id"))
     return {"content": content_dupes}
 
 
@@ -257,9 +253,7 @@ def _clamp_pct(v: float) -> float:
     return round(v, 1)
 
 
-def _densify(
-    start: date, days: int, day_map: dict[str, int]
-) -> list[VolumePoint]:
+def _densify(start: date, days: int, day_map: dict[str, int]) -> list[VolumePoint]:
     out: list[VolumePoint] = []
     for i in range(days):
         day = (start + timedelta(days=i)).isoformat()

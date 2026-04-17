@@ -37,15 +37,15 @@ from typing import Iterable
 class MetaDefinition:
     """One meta-algorithm entry the Settings tab renders."""
 
-    id: str                      # stable short id, e.g. "newton"
-    meta_code: str               # canonical code, e.g. "META-40"
-    family: str                  # "P1", "P2", ..., "Q24", or "active"
-    title: str                   # human-readable headline
-    status: str                  # "active" | "forward-declared" | "disabled"
-    weight_key: str | None       # e.g. "newton.ranking_weight" when present
-    enabled_key: str             # e.g. "newton.enabled"
-    spec_path: str | None        # docs/specs/meta-NN-*.md when inferable
-    cpp_kernel: str | None       # e.g. "pagerank.pagerank_step"
+    id: str  # stable short id, e.g. "newton"
+    meta_code: str  # canonical code, e.g. "META-40"
+    family: str  # "P1", "P2", ..., "Q24", or "active"
+    title: str  # human-readable headline
+    status: str  # "active" | "forward-declared" | "disabled"
+    weight_key: str | None  # e.g. "newton.ranking_weight" when present
+    enabled_key: str  # e.g. "newton.enabled"
+    spec_path: str | None  # docs/specs/meta-NN-*.md when inferable
+    cpp_kernel: str | None  # e.g. "pagerank.pagerank_step"
     # Raw hyper-parameter keys owned by this meta (for future deep-edit UI).
     param_keys: tuple[str, ...] = field(default_factory=tuple)
 
@@ -66,25 +66,57 @@ _ACTIVE_METAS: tuple[dict, ...] = (
     {"id": "rmsprop", "meta_code": "META-04", "title": "RMSprop"},
     {"id": "adam", "meta_code": "META-34", "title": "Adam (Kingma & Ba 2014)"},
     {"id": "bge_m3", "meta_code": "META-05", "title": "BGE-M3 sentence embeddings"},
-    {"id": "pagerank", "meta_code": "META-06", "title": "PageRank authority", "cpp_kernel": "pagerank.pagerank_step"},
-    {"id": "simsearch", "meta_code": "META-07", "title": "Cosine sim top-k", "cpp_kernel": "simsearch.score_and_topk"},
-    {"id": "texttok", "meta_code": "META-08", "title": "Tokeniser", "cpp_kernel": "texttok.tokenize_text_batch"},
+    {
+        "id": "pagerank",
+        "meta_code": "META-06",
+        "title": "PageRank authority",
+        "cpp_kernel": "pagerank.pagerank_step",
+    },
+    {
+        "id": "simsearch",
+        "meta_code": "META-07",
+        "title": "Cosine sim top-k",
+        "cpp_kernel": "simsearch.score_and_topk",
+    },
+    {
+        "id": "texttok",
+        "meta_code": "META-08",
+        "title": "Tokeniser",
+        "cpp_kernel": "texttok.tokenize_text_batch",
+    },
     {"id": "bm25", "meta_code": "META-09", "title": "BM25 lexical ranking"},
     {"id": "tfidf", "meta_code": "META-10", "title": "TF-IDF baseline"},
     {"id": "jaccard", "meta_code": "META-11", "title": "Keyword Jaccard"},
     {"id": "cosine_similarity", "meta_code": "META-12", "title": "Cosine similarity"},
     {"id": "slate_diversity", "meta_code": "META-13", "title": "Slate diversity (MMR)"},
-    {"id": "feedrerank", "meta_code": "META-14", "title": "Feedback reranker", "cpp_kernel": "feedrerank.rerank"},
+    {
+        "id": "feedrerank",
+        "meta_code": "META-14",
+        "title": "Feedback reranker",
+        "cpp_kernel": "feedrerank.rerank",
+    },
     {"id": "link_freshness", "meta_code": "META-15", "title": "Link freshness decay"},
     {"id": "click_distance", "meta_code": "META-16", "title": "Click distance"},
-    {"id": "weighted_authority", "meta_code": "META-17", "title": "Weighted destination authority"},
+    {
+        "id": "weighted_authority",
+        "meta_code": "META-17",
+        "title": "Weighted destination authority",
+    },
     {"id": "phrase_match", "meta_code": "META-18", "title": "Phrase match"},
     {"id": "node_proximity", "meta_code": "META-19", "title": "Scope tree proximity"},
     {"id": "post_quality", "meta_code": "META-20", "title": "Host post quality"},
     {"id": "learned_anchor", "meta_code": "META-21", "title": "Learned anchor"},
     {"id": "rare_term", "meta_code": "META-22", "title": "Rare-term propagation"},
-    {"id": "field_aware_relevance", "meta_code": "META-23", "title": "Field-aware relevance"},
-    {"id": "feedback_rerank", "meta_code": "META-24", "title": "Feedback reranker (Py)"},
+    {
+        "id": "field_aware_relevance",
+        "meta_code": "META-23",
+        "title": "Field-aware relevance",
+    },
+    {
+        "id": "feedback_rerank",
+        "meta_code": "META-24",
+        "title": "Feedback reranker (Py)",
+    },
     {"id": "spam_guard", "meta_code": "META-25", "title": "Spam guard"},
     {"id": "value_model", "meta_code": "META-26", "title": "Value model"},
     {"id": "cooccurrence", "meta_code": "META-27", "title": "Session cooccurrence"},
@@ -111,10 +143,44 @@ _ACTIVE_METAS: tuple[dict, ...] = (
 # File → family range. Each file covers a contiguous span of block codes.
 _FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {
     "recommended_weights_phase2_metas_p1_p6.py": ("P1", "P2", "P3", "P4", "P5", "P6"),
-    "recommended_weights_phase2_metas_p7_p12.py": ("P7", "P8", "P9", "P10", "P11", "P12"),
-    "recommended_weights_phase2_metas_q1_q8.py": ("Q1", "Q2", "Q3", "Q4", "Q5", "Q6", "Q7", "Q8"),
-    "recommended_weights_phase2_metas_q9_q16.py": ("Q9", "Q10", "Q11", "Q12", "Q13", "Q14", "Q15", "Q16"),
-    "recommended_weights_phase2_metas_q17_q24.py": ("Q17", "Q18", "Q19", "Q20", "Q21", "Q22", "Q23", "Q24"),
+    "recommended_weights_phase2_metas_p7_p12.py": (
+        "P7",
+        "P8",
+        "P9",
+        "P10",
+        "P11",
+        "P12",
+    ),
+    "recommended_weights_phase2_metas_q1_q8.py": (
+        "Q1",
+        "Q2",
+        "Q3",
+        "Q4",
+        "Q5",
+        "Q6",
+        "Q7",
+        "Q8",
+    ),
+    "recommended_weights_phase2_metas_q9_q16.py": (
+        "Q9",
+        "Q10",
+        "Q11",
+        "Q12",
+        "Q13",
+        "Q14",
+        "Q15",
+        "Q16",
+    ),
+    "recommended_weights_phase2_metas_q17_q24.py": (
+        "Q17",
+        "Q18",
+        "Q19",
+        "Q20",
+        "Q21",
+        "Q22",
+        "Q23",
+        "Q24",
+    ),
 }
 
 # Signal-level forward-declared files — included because several of the
@@ -143,10 +209,10 @@ _ENABLED_KEY_RE = re.compile(
 
 @dataclass
 class _ParsedMeta:
-    prefix: str            # e.g. "newton"
-    meta_code: str         # e.g. "META-40"
+    prefix: str  # e.g. "newton"
+    meta_code: str  # e.g. "META-40"
     title: str
-    family: str            # "P1"
+    family: str  # "P1"
     enabled_line_no: int
 
 
@@ -163,13 +229,17 @@ def _parse_meta_file(path: Path) -> list[_ParsedMeta]:
     # Pre-compute position of every META-NN comment + every Block header
     # by line number.
     meta_positions: list[tuple[int, str, str]] = []  # (line_no, meta_code, title)
-    block_positions: list[tuple[int, str]] = []     # (line_no, family)
+    block_positions: list[tuple[int, str]] = []  # (line_no, family)
 
     for idx, line in enumerate(lines):
         m = _META_COMMENT_RE.match(line + "\n")
         if m:
             meta_positions.append(
-                (idx, f"META-{m.group('num').zfill(2)}", m.group("title").strip(" .").strip())
+                (
+                    idx,
+                    f"META-{m.group('num').zfill(2)}",
+                    m.group("title").strip(" .").strip(),
+                )
             )
             continue
         b = _BLOCK_HEADER_RE.match(line + "\n")
@@ -264,7 +334,8 @@ def _params_for(prefix: str) -> tuple[str, ...]:
     from .recommended_weights import RECOMMENDED_PRESET_WEIGHTS
 
     return tuple(
-        k for k in sorted(RECOMMENDED_PRESET_WEIGHTS.keys())
+        k
+        for k in sorted(RECOMMENDED_PRESET_WEIGHTS.keys())
         if k.startswith(f"{prefix}.")
     )
 
@@ -346,6 +417,7 @@ def families_summary(metas: Iterable[MetaDefinition]) -> list[dict]:
             b["disabled"] += 1
         elif m.status == "forward-declared":
             b["forward"] += 1
+
     # Stable order: active → P1..P12 → Q1..Q24 → signal → others alphabetically.
     def sort_key(bucket: dict) -> tuple:
         fam = bucket["family"]

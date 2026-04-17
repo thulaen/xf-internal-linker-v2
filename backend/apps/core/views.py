@@ -3325,7 +3325,6 @@ class StatusStoryView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-
         from django.utils import timezone
 
         from apps.notifications.models import OperatorAlert
@@ -3474,9 +3473,7 @@ class MissionBriefView(APIView):
         ).count()
 
         if approved_yday == 0 and synced_yday == 0 and pipeline_runs_yday == 0:
-            sentence_yesterday = (
-                "In the last 24 hours nothing was approved or synced."
-            )
+            sentence_yesterday = "In the last 24 hours nothing was approved or synced."
         else:
             parts: list[str] = []
             if approved_yday:
@@ -3496,9 +3493,7 @@ class MissionBriefView(APIView):
                     f"{pipeline_runs_yday} pipeline run"
                     + ("s" if pipeline_runs_yday != 1 else "")
                 )
-            sentence_yesterday = (
-                "In the last 24 hours: " + ", ".join(parts) + "."
-            )
+            sentence_yesterday = "In the last 24 hours: " + ", ".join(parts) + "."
 
         # ── Sentence 2: Today's queue ───────────────────────────
         pending_reviews = Suggestion.objects.filter(status="pending").count()
@@ -3536,8 +3531,7 @@ class MissionBriefView(APIView):
 
         if top_alert:
             sentence_watch = (
-                f"Watch: {top_alert.severity} alert — "
-                f"\"{top_alert.title[:80]}\"."
+                f"Watch: {top_alert.severity} alert — " f'"{top_alert.title[:80]}".'
             )
         else:
             sentence_watch = "Nothing is on fire."

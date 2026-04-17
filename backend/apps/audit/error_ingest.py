@@ -50,9 +50,7 @@ _NORMALIZE = re.compile(r"(\d{2,}|[0-9a-f]{8,}|/[/\w.\-]+|0x[0-9a-f]+)", re.IGNO
 
 def _compute_fingerprint(job_type: str, step: str, msg: str) -> str:
     normalized = _NORMALIZE.sub("*", msg or "")
-    return hashlib.sha1(
-        f"{job_type}|{step}|{normalized}".encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha1(f"{job_type}|{step}|{normalized}".encode("utf-8")).hexdigest()
 
 
 def ingest_error(
@@ -129,9 +127,7 @@ def ingest_error(
         try:
             fp = _compute_fingerprint(job_type, step, error_message)
             node_id = os.environ.get("NODE_ID", socket.gethostname())
-            row = ErrorLog.objects.filter(
-                fingerprint=fp, node_id=node_id
-            ).first()
+            row = ErrorLog.objects.filter(fingerprint=fp, node_id=node_id).first()
             if row is not None:
                 row.occurrence_count += 1
                 row.acknowledged = False

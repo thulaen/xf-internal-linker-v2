@@ -56,9 +56,7 @@ def _on_app_setting_saved(
 
 
 @receiver(post_delete, sender=AppSetting, dispatch_uid="realtime.app_setting.deleted")
-def _on_app_setting_deleted(
-    sender, instance: AppSetting, **kwargs: object
-) -> None:
+def _on_app_setting_deleted(sender, instance: AppSetting, **kwargs: object) -> None:
     broadcast(
         TOPIC,
         event="setting.deleted",

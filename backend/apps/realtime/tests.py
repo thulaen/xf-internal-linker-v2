@@ -175,9 +175,7 @@ class RealtimeConsumerTests(TransactionTestCase):
         await comm.connect()
         await comm.receive_json_from()  # drain
 
-        await comm.send_json_to(
-            {"action": "subscribe", "topics": ["settings.runtime"]}
-        )
+        await comm.send_json_to({"action": "subscribe", "topics": ["settings.runtime"]})
         ack = await comm.receive_json_from()
         self.assertEqual(ack["type"], "subscription.ack")
         self.assertEqual(ack["topics"], [])
