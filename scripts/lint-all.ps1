@@ -215,7 +215,9 @@ $baselineLongFiles = @(
     'test_parity_feedrerank.py', # RPT-001 parity test — reference implementation is intentionally verbose
     'explainability-tooltip.component.ts', # two components in one file (tooltip + dialog)
     'analytics.component.ts',   # pre-existing 670+ lines — 9 chart configs inline
-    'jobs.component.ts'         # pre-existing 550+ lines before resume wiring — getters, formatters, and 3 source-typed flows; candidates for extraction into jobs.helpers.ts + sync.service
+    'jobs.component.ts',        # pre-existing 550+ lines before resume wiring — getters, formatters, and 3 source-typed flows; candidates for extraction into jobs.helpers.ts + sync.service
+    'urls.py',                  # DRF URL conf — the throttle parse_rate override triggers the linter's EOF bug (2-line method reported as 306 because no `def` follows it)
+    'webhooks.py'               # sync/services/webhooks.py — pre-existing process_xf_webhook / process_wp_webhook are ~95 lines each; candidates for per-event dispatch extraction
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
