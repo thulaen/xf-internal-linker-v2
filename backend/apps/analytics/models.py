@@ -257,6 +257,35 @@ class SuggestionTelemetryDaily(models.Model):
     conversions = models.IntegerField(default=0)
     sessions = models.IntegerField(default=0)
     bounce_sessions = models.IntegerField(default=0)
+    # Phase 2 richer engagement signals (plans/what-is-other-telemetry-*).
+    # Source: Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to
+    # predict click-level satisfaction" (WSDM) — dwell-tier and quick-exit
+    # counts are stronger ranking signals than the single existing
+    # `engaged_sessions` boolean. Dwell buckets at 30s/60s combine with the
+    # existing 10s `engaged_sessions` to form a three-tier distribution.
+    quick_exit_sessions = models.IntegerField(
+        default=0,
+        help_text=(
+            "Count of sessions where the user left the destination page within "
+            "5s of landing (suggestion_destination_quick_exit event). Strong "
+            "negative signal — 'pogo-sticking' — a bad suggestion match."
+        ),
+    )
+    dwell_30s_sessions = models.IntegerField(
+        default=0,
+        help_text=(
+            "Count of sessions that stayed on the destination page for 30s+ "
+            "(suggestion_destination_dwell_30s event). Intermediate positive "
+            "signal."
+        ),
+    )
+    dwell_60s_sessions = models.IntegerField(
+        default=0,
+        help_text=(
+            "Count of sessions that stayed on the destination page for 60s+ "
+            "(suggestion_destination_dwell_60s event). Strong positive signal."
+        ),
+    )
     avg_engagement_time_seconds = models.FloatField(default=0.0)
     total_engagement_time_seconds = models.FloatField(default=0.0)
     event_count = models.IntegerField(default=0)

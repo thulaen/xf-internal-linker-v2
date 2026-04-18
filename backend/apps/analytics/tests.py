@@ -813,6 +813,10 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             },
             {"rows": []},
             {"rows": []},
+            # Phase 2 — quick_exit, dwell_30s, dwell_60s (empty in this test).
+            {"rows": []},
+            {"rows": []},
+            {"rows": []},
             {
                 "rows": [
                     {
@@ -954,6 +958,10 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
                     },
                 ]
             },
+            {"rows": []},
+            {"rows": []},
+            # Phase 2 — quick_exit, dwell_30s, dwell_60s (empty in this test).
+            {"rows": []},
             {"rows": []},
             {"rows": []},
             {
@@ -1432,3 +1440,199 @@ class GSCSlice3Tests(APITestCase):
         )
         sync_run = AnalyticsSyncRun.objects.get(pk=payload["sync_run_id"])
         self.assertEqual(sync_run.lookback_days, 180)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 2 richer engagement signals — quick_exit + dwell_30s + dwell_60s.
+# See plans/what-is-other-telemetry-idempotent-bee.md and
+# backend/apps/analytics/integration_snippet.py module docstring for the
+# academic source (Kim, Hassan, White & Zitouni WSDM 2014).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class EngagementSignalsSnippetTests(APITestCase):
+    """Verify the browser snippet wires the 3 new Phase 2 events."""
+
+    def test_snippet_contains_quick_exit_and_dwell_events(self) -> None:
+        from apps.analytics.integration_snippet import (
+            DWELL_30S_THRESHOLD_MS,
+            DWELL_60S_THRESHOLD_MS,
+            QUICK_EXIT_THRESHOLD_MS,
+            build_browser_bridge_snippet,
+        )
+
+        snippet = build_browser_bridge_snippet(
+            event_schema="fr016_v1",
+            impression_visible_ratio=0.5,
+            impression_min_ms=1000,
+            engaged_min_seconds=10,
+            ga4_measurement_id="G-TEST",
+            ga4_enabled=True,
+            matomo_enabled=False,
+        )
+        # Each new event name appears in at least one emit call.
+        self.assertIn("suggestion_destination_quick_exit", snippet)
+        self.assertIn("suggestion_destination_dwell_30s", snippet)
+        self.assertIn("suggestion_destination_dwell_60s", snippet)
+        # Threshold constants surface in the config block so the snippet
+        # honours the shared Python-side values.
+        self.assertIn(str(QUICK_EXIT_THRESHOLD_MS), snippet)
+        self.assertIn(str(DWELL_30S_THRESHOLD_MS), snippet)
+        self.assertIn(str(DWELL_60S_THRESHOLD_MS), snippet)
+        # Visibility-change handler is wired for quick-exit detection.
+        self.assertIn("visibilitychange", snippet)
+        # Pre-existing events stay present — additive only.
+        self.assertIn("suggestion_link_impression", snippet)
+        self.assertIn("suggestion_link_click", snippet)
+        self.assertIn("suggestion_destination_view", snippet)
+        self.assertIn("suggestion_destination_engaged", snippet)
+
+
+class MatomoEngagementSyncTests(APITestCase):
+    """Confirm the Matomo sync rolls the 3 new events into the new columns."""
+
+    def _build_suggestion(self) -> Suggestion:
+        host = ContentItem.objects.create(
+            content_id=5001,
+            content_type="thread",
+            title="Host thread",
+            url="https://forum.example.com/host-5001",
+        )
+        destination = ContentItem.objects.create(
+            content_id=5002,
+            content_type="thread",
+            title="Destination",
+            url="https://forum.example.com/dest-5002",
+        )
+        post = Post.objects.create(content_item=host, raw_bbcode="hi", clean_text="hi")
+        sentence = Sentence.objects.create(
+            content_item=host,
+            post=post,
+            text="Hi",
+            position=0,
+            char_count=2,
+            start_char=0,
+            end_char=2,
+            word_position=0,
+        )
+        pipeline_run = PipelineRun.objects.create(run_state="completed")
+        return Suggestion.objects.create(
+            pipeline_run=pipeline_run,
+            destination=destination,
+            destination_title=destination.title,
+            host=host,
+            host_sentence=sentence,
+            host_sentence_text=sentence.text,
+            anchor_phrase="host",
+            anchor_start=0,
+            anchor_end=4,
+            anchor_confidence="strong",
+        )
+
+    @patch("apps.analytics.sync._fetch_matomo_event_rows")
+    def test_matomo_sync_records_new_engagement_fields(self, fetch_mock) -> None:
+        from apps.analytics.sync import run_matomo_sync
+
+        AppSetting.objects.bulk_create(
+            [
+                AppSetting(
+                    category="analytics",
+                    key="analytics.matomo_enabled",
+                    value="true",
+                    value_type="bool",
+                ),
+                AppSetting(
+                    category="analytics",
+                    key="analytics.matomo_sync_enabled",
+                    value="true",
+                    value_type="bool",
+                ),
+                AppSetting(
+                    category="analytics",
+                    key="analytics.matomo_url",
+                    value="https://matomo.test/",
+                    value_type="str",
+                ),
+                AppSetting(
+                    category="analytics",
+                    key="analytics.matomo_site_id_xenforo",
+                    value="1",
+                    value_type="str",
+                ),
+                AppSetting(
+                    category="analytics",
+                    key="analytics.matomo_token_auth",
+                    value="secret-token",
+                    value_type="str",
+                    is_secret=True,
+                ),
+                AppSetting(
+                    category="analytics",
+                    key="analytics.telemetry_event_schema",
+                    value="fr016_v1",
+                    value_type="str",
+                ),
+            ]
+        )
+        suggestion = self._build_suggestion()
+        sid = str(suggestion.suggestion_id)
+        # 2 quick_exits + 5 dwell_30s + 3 dwell_60s for the same suggestion
+        # all on the same day.
+        fetch_mock.return_value = (
+            [
+                (sid, "suggestion_link_impression", 10),
+                (sid, "suggestion_link_click", 7),
+                (sid, "suggestion_destination_view", 6),
+                (sid, "suggestion_destination_engaged", 5),
+                (sid, "suggestion_destination_quick_exit", 2),
+                (sid, "suggestion_destination_dwell_30s", 5),
+                (sid, "suggestion_destination_dwell_60s", 3),
+            ],
+            7,
+        )
+        sync_run = AnalyticsSyncRun.objects.create(
+            source="matomo", status="pending", lookback_days=1
+        )
+
+        run_matomo_sync(sync_run)
+
+        row = SuggestionTelemetryDaily.objects.get(
+            telemetry_source="matomo", suggestion=suggestion
+        )
+        self.assertEqual(row.impressions, 10)
+        self.assertEqual(row.clicks, 7)
+        self.assertEqual(row.destination_views, 6)
+        self.assertEqual(row.engaged_sessions, 5)
+        # Phase 2 signals land in their own columns.
+        self.assertEqual(row.quick_exit_sessions, 2)
+        self.assertEqual(row.dwell_30s_sessions, 5)
+        self.assertEqual(row.dwell_60s_sessions, 3)
+
+
+class SuggestionTelemetryDailyEngagementColumnsTests(APITestCase):
+    """Smoke-check the new model columns default to 0 and store what we set."""
+
+    def test_new_engagement_columns_default_zero_and_persist(self) -> None:
+        host = ContentItem.objects.create(
+            content_id=6001, content_type="thread", title="H"
+        )
+        destination = ContentItem.objects.create(
+            content_id=6002, content_type="thread", title="D"
+        )
+        row = SuggestionTelemetryDaily.objects.create(
+            date=date(2026, 4, 18),
+            telemetry_source="ga4",
+            destination=destination,
+            host=host,
+        )
+        self.assertEqual(row.quick_exit_sessions, 0)
+        self.assertEqual(row.dwell_30s_sessions, 0)
+        self.assertEqual(row.dwell_60s_sessions, 0)
+        row.quick_exit_sessions = 11
+        row.dwell_30s_sessions = 22
+        row.dwell_60s_sessions = 33
+        row.save()
+        row.refresh_from_db()
+        self.assertEqual(row.quick_exit_sessions, 11)
+        self.assertEqual(row.dwell_30s_sessions, 22)
+        self.assertEqual(row.dwell_60s_sessions, 33)

@@ -444,6 +444,64 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 2 of suggestion-quality telemetry: quick_exit + dwell_30s + dwell_60s engagement events (Claude)
+
+- **AI/tool:** Claude
+- **Why:** User asked to continue the plan in `plans/what-is-other-telemetry-idempotent-bee.md` after Phase 1 shipped. Research confirmed FR-016 / Phase 19 is live (SuggestionTelemetryDaily rollup, GA4 + Matomo sync, integration_snippet.py browser bridge all shipping), so Phase 2's richer engagement signals were a clean additive extension rather than new plumbing.
+- **Scope revision vs original plan:** Original plan proposed continuous-valued `avg_dwell_seconds`, `max_scroll_pct`, `hover_ms_median`. After reading `analytics/sync.py` end-to-end it became clear GA4 / Matomo sync is an **event-count aggregator**, not an event stream — continuous numeric aggregation would require custom GA4 metrics and operator config. Revised to **three discrete events** that slot cleanly into the existing count-per-event model. Hover dropped entirely (same reason). Continuous scroll-% dropped because `engaged_reason="scroll_depth"` already exists and fires at 50%.
+- **What was done:**
+  - **New event `suggestion_destination_quick_exit`** — fires on `visibilitychange` to `'hidden'` within 5s of `suggestion_destination_view` when the session has not been marked engaged. Count aggregated as new column `quick_exit_sessions`. Strong negative signal (pogo-sticking).
+  - **New events `suggestion_destination_dwell_30s` and `suggestion_destination_dwell_60s`** — fire at their checkpoint delays after destination view. Counts aggregated as `dwell_30s_sessions` and `dwell_60s_sessions`. Combined with the existing 10s `engaged_sessions`, produces a three-tier dwell distribution.
+  - **Academic source (BLC §1.1):** Kim, Hassan, White & Zitouni (2014) *"Modeling dwell time to predict click-level satisfaction"* (WSDM) — covers both quick-exit and dwell-tier as ranking-quality signals.
+  - **Migration 0010_add_engagement_phase2.py** adds three nullable-default-0 IntegerField columns. Additive — existing rows default cleanly.
+  - **`sync.py`** — `MATOMO_EVENT_FIELDS` and `GA4_EVENT_FIELDS` maps extended; `_upsert_telemetry_row` and `_upsert_ga4_row` write the three new columns; `merged_rows` defaultdict in `run_ga4_sync` initialises the new keys so old event sets still upsert cleanly.
+  - **`integration_snippet.py`** — module-level threshold constants (`QUICK_EXIT_THRESHOLD_MS=5000`, `DWELL_30S_THRESHOLD_MS=30000`, `DWELL_60S_THRESHOLD_MS=60000`) shared between Python and the JS bridge via the config block; JS body adds `markDestinationViewed`, `maybeEmitQuickExit`, `emitDwellCheckpoint`, `visibilitychange` listener, and two `setTimeout` dwell checkpoints.
+  - **3 new test classes** (`EngagementSignalsSnippetTests`, `MatomoEngagementSyncTests`, `SuggestionTelemetryDailyEngagementColumnsTests`) — 3 tests total. 2 existing GA4 sync tests updated with 3 extra `{"rows": []}` mock responses (my GA4_EVENT_FIELDS additions meant 3 more runReport calls per day) — test comments explain why.
+  - **Event schema stays `fr016_v1`** — treating this as an additive backward-compatible extension. Existing consumers ignore unknown events; new consumers see the new events. Separate schema bump (`fr016_v2`) would have added operator coordination cost without benefit here.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/models.py` (+3 IntegerField columns on SuggestionTelemetryDaily with inline source citation)
+  - `backend/apps/analytics/migrations/0010_add_engagement_phase2.py` (new)
+  - `backend/apps/analytics/integration_snippet.py` (module docstring, 3 threshold constants, config-block additions, JS body extensions)
+  - `backend/apps/analytics/sync.py` (event-field maps, upsert defaults, GA4 merged_rows defaultdict)
+  - `backend/apps/analytics/tests.py` (3 new test classes, 2 existing tests updated with Phase 2 mock responses)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** Existing `SuggestionTelemetryDaily` model (extended, not forked); existing `integration_snippet.py` JS bridge (extended, not replaced); existing `MATOMO_EVENT_FIELDS` + `GA4_EVENT_FIELDS` maps (extended); existing `_upsert_telemetry_row` + `_upsert_ga4_row` (defaults dict extended); existing `emit` + `readAttribution` + `emit` JS primitives. No new models, no new endpoints, no new Celery tasks, no frontend changes.
+
+- **Session Gate compliance:**
+  - Continuation of 2026-04-18 Phase 1 session — all gate reads still in context (AI-CONTEXT Session Gate, REPORT-REGISTRY, BUSINESS-LOGIC-CHECKLIST, PYTHON-RULES, FRONTEND-RULES, AGENTS.md Code Quality Mandate, docs/PERFORMANCE.md).
+  - Duplicate-check pass before coding: confirmed via `grep fr016` that integration_snippet.py, sync.py, and SuggestionTelemetryDaily are the existing FR-016 surfaces, extension was the correct move.
+  - BLC §0 AI Drift Rejection Gate: feature extends FR-016 with published-research-backed signals, neutral fallback (empty event sets → all-zero columns), reviewer-visible (counts appear in `SuggestionTelemetryDaily` rollup used by the analytics UI).
+  - BLC §1.1 academic source cited inline on both the model columns and the integration snippet module docstring.
+  - BLC §6.2 disk budget: 3 × IntegerField = ~12 bytes per row added to SuggestionTelemetryDaily. The existing `analytics.tasks.prune_telemetry` (90-day retention per BLC §6.3) already covers this table.
+  - PYTHON-RULES: no mutable defaults, type hints on new helpers, module-level constants are descriptive names not magic numbers.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py makemigrations analytics --name add_engagement_phase2` — created 0010 clean.
+  - `docker compose exec backend python manage.py migrate --noinput` — applied.
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected."
+  - `docker compose exec backend python manage.py test apps.analytics` — **27 tests pass** (3 new + 24 pre-existing).
+  - `docker compose exec backend python manage.py test` — **316 tests pass**, 1 skipped, 0 failures (full suite).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - `docker compose exec backend python -m ruff format` (pre-emptive) — 2 files reformatted, tests still pass.
+
+- **What was deliberately NOT done (and why):**
+  - Did not add `hover_ms` / continuous-dwell / continuous-scroll metrics. GA4 and Matomo's count-aggregation contract doesn't support per-event numeric aggregation without operator-side custom-metric config. Discrete event counts are enough signal and ship without operator friction.
+  - Did not bump `event_schema` label from `fr016_v1`. Change is additive and backward-compatible.
+  - Did not wire new columns into any frontend analytics UI. Data now lands in the DB; UI surfacing can be a later slice (rollup chart of quick_exit_rate per suggestion, etc).
+  - Did not touch `impact_engine.py`, `feedback_rerank.py`, or the ranker — those are RPT-001 Findings 2/3/4's territory and remain blocked until the audit report is recovered or those findings resolved.
+
+- **Commit/push state:** Pending — about to commit as slice 2 of this session.
+
+### 2026-04-18 — Slice 1 of resumed session: FR-045 ledger drift reconciled (ISS-020) (Claude)
+
+- **AI/tool:** Claude
+- **Why:** During Phase 1 duplicate-check I discovered `anchor_diversity.py` + `score_anchor_diversity` + migrations 0031/0032 all ship, yet `AI-CONTEXT.md` line 322 listed FR-045 as Pending. Logged as ISS-020. User asked to resolve it in this session.
+- **What was done:** Checked FR-045's spec and confirmed it's actually **Partial**, not Complete — the spec mandates "both a Python reference path and a C++ batch fast path with parity tests" since it's hot-path scoring, but no C++ extension exists under `backend/extensions/` and no `test_bench_anchor_*` benchmark exists under `backend/benchmarks/`. Reconciliation moved FR-045 from Pending (60) → Partial (6) in `AI-CONTEXT.md` Project Status Dashboard; added a `Status: Partial` line in `FEATURE-REQUESTS.md` listing the two unmet criteria; marked ISS-020 RESOLVED in `REPORT-REGISTRY.md` with the specific resolution.
+- **Noted but NOT fixed:** The pre-existing dashboard drift where line 299 claimed 61 Pending while line 321 said 60 Pending. Out of scope for the FR-045 reconciliation — kept minimum-scope edit. Could be tidied in a future pass.
+- **Commit/push state:** Shipped as `f3bf0ee`.
+
 ### 2026-04-18 — Phase 1 of suggestion-quality telemetry: edit_anchor AuditEntry + RejectedPair negative memory (Claude)
 
 - **AI/tool:** Claude

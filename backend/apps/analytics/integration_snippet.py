@@ -1,8 +1,34 @@
-"""Plain-English FR-016 browser bridge payloads."""
+"""Plain-English FR-016 browser bridge payloads.
+
+Phase 2 richer engagement signals. Original FR-016 events
+(`suggestion_link_impression`, `_click`, `_destination_view`, `_engaged`,
+`_conversion`) stay unchanged. Three new events extend the destination-side
+contract without breaking existing GA4 / Matomo consumers:
+
+- ``suggestion_destination_quick_exit`` — fires on ``visibilitychange`` to
+  'hidden' within 5s of ``suggestion_destination_view`` when the session has
+  not been marked engaged. Count per day = quick_exit_sessions rollup column.
+- ``suggestion_destination_dwell_30s`` — fires 30s after view.
+- ``suggestion_destination_dwell_60s`` — fires 60s after view.
+
+Combined with the existing 10s `engaged` threshold, this produces a three-tier
+dwell distribution (10s+ engaged, 30s+ dwell, 60s+ dwell) — aligned with Kim,
+Hassan, White & Zitouni 2014 "Modeling dwell time to predict click-level
+satisfaction" (WSDM). All three events are simple event counts — they slot
+into GA4 and Matomo's standard event-count aggregation without requiring
+custom numeric metrics or operator config changes.
+"""
 
 from __future__ import annotations
 
 import json
+
+#: Time after view beyond which a session no longer counts as a quick-exit.
+QUICK_EXIT_THRESHOLD_MS = 5000
+
+#: Dwell checkpoint delays fired after view if the user is still on the page.
+DWELL_30S_THRESHOLD_MS = 30000
+DWELL_60S_THRESHOLD_MS = 60000
 
 
 def _js_bool(value: bool) -> str:
@@ -35,6 +61,10 @@ def build_browser_bridge_snippet(
         "ga4MeasurementId": ga4_measurement_id,
         "ga4Enabled": ga4_enabled,
         "matomoEnabled": matomo_enabled,
+        # Phase 2 engagement signals — see module docstring.
+        "quickExitThresholdMs": QUICK_EXIT_THRESHOLD_MS,
+        "dwell30sThresholdMs": DWELL_30S_THRESHOLD_MS,
+        "dwell60sThresholdMs": DWELL_60S_THRESHOLD_MS,
     }
     config_json = _copyable_json(config)
     return f"""<script>
@@ -149,9 +179,56 @@ def build_browser_bridge_snippet(
 +    emit('suggestion_destination_engaged', {{ ...payload, engaged_reason: reason }});
 +  }}
 +
++  // Phase 2 engagement: quick-exit detection + dwell checkpoints.
++  // Source: Kim, Hassan, White, Zitouni (WSDM 2014).
++  let destinationViewedAt = 0;
++  let quickExitSent = false;
++  let dwell30Sent = false;
++  let dwell60Sent = false;
++
++  function markDestinationViewed() {{
++    const payload = readAttribution();
++    if (!payload) return;
++    if (payload.destination_path !== window.location.pathname) return;
++    if (destinationViewedAt > 0) return;
++    destinationViewedAt = Date.now();
++  }}
++
++  function maybeEmitQuickExit() {{
++    if (quickExitSent || engagedSent || destinationViewedAt === 0) return;
++    const elapsed = Date.now() - destinationViewedAt;
++    if (elapsed >= config.quickExitThresholdMs) return;
++    const payload = readAttribution();
++    if (!payload) return;
++    quickExitSent = true;
++    emit('suggestion_destination_quick_exit', {{
++      ...payload,
++      dwell_ms_before_exit: elapsed,
++    }});
++  }}
++
++  function emitDwellCheckpoint(eventName, sentFlag) {{
++    if (sentFlag) return true;
++    const payload = readAttribution();
++    if (!payload) return true;
++    if (payload.destination_path !== window.location.pathname) return true;
++    emit(eventName, payload);
++    return true;
++  }}
++
 +  document.querySelectorAll('a[data-xfil-suggestion-id]').forEach(wireLink);
 +  emitDestinationView();
++  markDestinationViewed();
 +  window.setTimeout(() => emitEngaged('focused_time'), config.engagedMinSeconds * 1000);
++  window.setTimeout(() => {{
++    dwell30Sent = emitDwellCheckpoint('suggestion_destination_dwell_30s', dwell30Sent);
++  }}, config.dwell30sThresholdMs);
++  window.setTimeout(() => {{
++    dwell60Sent = emitDwellCheckpoint('suggestion_destination_dwell_60s', dwell60Sent);
++  }}, config.dwell60sThresholdMs);
++  document.addEventListener('visibilitychange', () => {{
++    if (document.visibilityState === 'hidden') maybeEmitQuickExit();
++  }});
 +  window.addEventListener('scroll', () => {{
 +    const doc = document.documentElement;
 +    const maxScroll = doc.scrollHeight - window.innerHeight;

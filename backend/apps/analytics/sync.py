@@ -36,6 +36,11 @@ MATOMO_EVENT_FIELDS = {
     "suggestion_destination_view": "destination_views",
     "suggestion_destination_engaged": "engaged_sessions",
     "suggestion_destination_conversion": "conversions",
+    # Phase 2 engagement signals (plans/what-is-other-telemetry-*).
+    # Source: Kim, Hassan, White & Zitouni (WSDM 2014).
+    "suggestion_destination_quick_exit": "quick_exit_sessions",
+    "suggestion_destination_dwell_30s": "dwell_30s_sessions",
+    "suggestion_destination_dwell_60s": "dwell_60s_sessions",
 }
 
 GA4_EVENT_FIELDS = {
@@ -43,6 +48,10 @@ GA4_EVENT_FIELDS = {
     "suggestion_link_click": "clicks",
     "suggestion_destination_engaged": "engaged_sessions",
     "suggestion_destination_conversion": "conversions",
+    # Phase 2 engagement signals — mirror of MATOMO_EVENT_FIELDS.
+    "suggestion_destination_quick_exit": "quick_exit_sessions",
+    "suggestion_destination_dwell_30s": "dwell_30s_sessions",
+    "suggestion_destination_dwell_60s": "dwell_60s_sessions",
 }
 
 MATOMO_EXCLUDED_SEGMENT = ";".join(
@@ -277,6 +286,11 @@ def _upsert_telemetry_row(
         "destination_views": int(field_totals.get("destination_views", 0)),
         "engaged_sessions": int(field_totals.get("engaged_sessions", 0)),
         "conversions": int(field_totals.get("conversions", 0)),
+        # Phase 2 engagement signals — safe defaults so old event sets that
+        # predate the new events still upsert cleanly.
+        "quick_exit_sessions": int(field_totals.get("quick_exit_sessions", 0)),
+        "dwell_30s_sessions": int(field_totals.get("dwell_30s_sessions", 0)),
+        "dwell_60s_sessions": int(field_totals.get("dwell_60s_sessions", 0)),
         "event_count": int(sum(field_totals.values())),
         "sessions": int(field_totals.get("destination_views", 0)),
         "is_attributed": True,
@@ -333,6 +347,11 @@ def _upsert_ga4_row(
         "conversions": int(field_totals.get("conversions", 0)),
         "sessions": sessions,
         "bounce_sessions": max(sessions - engaged_sessions, 0),
+        # Phase 2 engagement signals — safe defaults so old event sets still
+        # upsert cleanly.
+        "quick_exit_sessions": int(field_totals.get("quick_exit_sessions", 0)),
+        "dwell_30s_sessions": int(field_totals.get("dwell_30s_sessions", 0)),
+        "dwell_60s_sessions": int(field_totals.get("dwell_60s_sessions", 0)),
         "avg_engagement_time_seconds": (total_engagement / sessions)
         if sessions
         else 0.0,
@@ -527,6 +546,10 @@ def run_ga4_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
                 "sessions": 0,
                 "event_count": 0,
                 "total_engagement_time_seconds": 0.0,
+                # Phase 2 engagement signals.
+                "quick_exit_sessions": 0,
+                "dwell_30s_sessions": 0,
+                "dwell_60s_sessions": 0,
             }
         )
         missing_metadata_events = 0
