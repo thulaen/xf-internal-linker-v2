@@ -265,7 +265,15 @@ class ContentItem(TimestampedModel):
     content_value_score = models.FloatField(
         default=0.5,
         db_index=True,
-        help_text="Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.",
+        help_text=(
+            "GA4 + Matomo + GSC composite score for linking value. 0.5 = "
+            "neutral (no activity in the lookback window). Written by "
+            "analytics.sync._refresh_content_value_scores via the pure "
+            "formula compute_content_value_raw. Phase 3a extension credits "
+            "dwell-60s reach and penalises quick-exit rate per Kim et al. "
+            "WSDM 2014 — both new terms are zero when Phase 2 telemetry is "
+            "unavailable, so pre-Phase 3a sites see no behaviour change."
+        ),
     )
     engagement_quality_score = models.FloatField(
         default=0.5,

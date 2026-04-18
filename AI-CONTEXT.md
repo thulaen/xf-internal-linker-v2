@@ -444,6 +444,57 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 3a: content_value_score learns from Phase 2 engagement signals (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 2 collected engagement data; Phase 2b/2c/2d made it operator-visible. Phase 3a is where the telemetry **actually influences ranking** — the `content_value_score` that feeds the ranker's `score_ga4_gsc` component now credits dwell-60s reach and penalises quick-exit rate. First ranker-touching slice of this session; BLC gates cleared openly in the commit message.
+- **What was done:**
+  - **Extracted pure helper** `compute_content_value_raw(**kwargs) -> float | None` from `_refresh_content_value_scores` in `analytics/sync.py`. Returns `None` when every input is zero (neutral fallback — preserves the 0.5 default for items with no activity). Makes the formula benchmarkable without DB setup.
+  - **Extended the formula** with two new terms: `+ (0.05 * dwell_60s_rate * 10.0)` and `- (0.05 * quick_exit_rate * 10.0)`. Coefficients chosen to match the modest weight of existing `conversion_rate` and `click_rate` terms — conservative per BLC §1.3, tunable later by FR-018 auto-tuner.
+  - **Extended aggregation** in `_refresh_content_value_scores` with two more `Sum()` annotations (`quick_exit_sessions`, `dwell_60s_sessions`). The per-item loop now delegates entirely to `compute_content_value_raw`.
+  - **Updated `ContentItem.content_value_score` `help_text`** to describe the new inputs + neutral-fallback semantics. Triggered migration `0021_content_value_score_help_text_phase3a.py`. Metadata-only migration, no data change.
+  - **5 new unit tests** on the pure helper (`SimpleTestCase`, no DB): neutral-fallback-when-all-zero, dwell adds positive contribution, quick-exit subtracts contribution, mirrored inputs net to zero, Phase-2-only inputs still score.
+  - **Benchmark at 3 input sizes** in `backend/benchmarks/test_bench_content_value_score.py` (100 / 1_000 / 5_000 items). Follows the project's existing `test_bench_*.py` pattern — requires `pytest-benchmark` (dev dep only) to run, ships alongside the code for benchmark-coverage compliance per AGENTS.md §34.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/sync.py` (extracted `compute_content_value_raw`, extended aggregation, simplified per-item loop)
+  - `backend/apps/analytics/tests.py` (+5 new `ComputeContentValueRawTests`; new `SimpleTestCase` import)
+  - `backend/apps/content/models.py` (expanded `content_value_score` help_text)
+  - `backend/apps/content/migrations/0021_content_value_score_help_text_phase3a.py` (new, metadata-only)
+  - `backend/benchmarks/test_bench_content_value_score.py` (new)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** existing `_refresh_content_value_scores` plumbing (aggregation queries, min-max normalisation, `item_qs.update(content_value_score=0.5)` reset), existing `_compute_engagement_raw_score` companion pattern (similar helper extraction style), existing benchmark conftest + Django bootstrap in `backend/benchmarks/`. No new endpoint, no new migration beyond the help_text metadata change, no frontend change — `score_ga4_gsc` surfaces the extended score automatically via the existing suggestion detail view.
+
+- **BLC gate compliance (cleared openly):**
+  - **§0 Drift Rejection Gate** — extends existing FR-017 `content_value_score`, not a duplicate; primary source is Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to predict click-level satisfaction" (WSDM); no mixing of unrelated concepts; named inputs (`quick_exit_sessions`, `dwell_60s_sessions`); neutral fallback when both are zero; reviewer-visible via existing `content_value_score` → `score_ga4_gsc` pipeline; user harm prevented is wasted reviewer time on bad-match suggestions.
+  - **§1.1 Source binding** — inline comment on the helper cites Kim et al. 2014 (WSDM). Coefficients selected to match the existing `conversion_rate` / `click_rate` tier (modest 5% each).
+  - **§1.2 Duplicate check** — `_refresh_content_value_scores` is the canonical function; I extended, did not fork.
+  - **§1.3 Researched defaults** — 5% weight each is conservative relative to Kim's reported dwell-AUC gains; FR-018 auto-tuner can refine later.
+  - **§1.4 Benchmark** — present at 3 input sizes per AGENTS.md §34. Runs via `pytest backend/benchmarks/test_bench_content_value_score.py --benchmark-only` in a dev environment with `pytest-benchmark` installed.
+  - **§2.1 Formula lineage** — inline `# Source: ...` comment on the helper.
+  - **§2.4 Edge cases** — division by zero guarded with `max(destination_views, 1)`; all-zero inputs caught by the `any([...])` fallback guard.
+  - **§2.6 Safety invariants** — feature does not auto-apply links, does not bypass any checks, lowers confidence when signals are strong (quick-exit penalty is subtractive).
+  - **§3 Operator diagnostics** — `content_value_score` is already a reviewer-visible field via the ContentItem serializer + the suggestion detail view's `score_ga4_gsc` breakdown. The extended help_text documents the new inputs.
+  - **§5 CI** — magic numbers kept paired with their existing counterparts (0.05 coefficient matches the `conversion_rate` and `click_rate` tiers already in the formula); no new 3+-digit literals introduced.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics apps.content` — analytics + content test suites pass.
+  - `docker compose exec backend python manage.py test` — **325 tests pass**, 1 skipped, 0 failures (full backend suite; +5 new vs prior 320).
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected" after migration applied.
+  - `cd frontend && npm run test:ci` — 25 frontend tests pass (no frontend change this slice).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - Pure-function smoke test: `compute_content_value_raw(...)` returns `4.0731` on a representative input, confirming the formula produces the expected order of magnitude.
+  - Benchmark file parses cleanly via `ast.parse`; runs in dev environments with `pytest-benchmark` installed (consistent with `test_bench_feedback_rerank.py` pattern).
+
+- **What was deliberately NOT done (and why):**
+  - Did not touch `engagement_quality_score` (`_compute_engagement_raw_score`) — similar extension opportunity but separate slice.
+  - Did not wire a signal-contribution breakdown in the suggestion detail UI — existing `score_ga4_gsc` breakdown covers the composite signal as required by BLC §3; a per-component decomposition is a UX polish slice.
+  - Did not add a setting to disable the Phase 3a terms — neutral fallback (all-zero counts) achieves the same effect for any site that hasn't installed the Phase 2 browser snippet.
+  - Did not re-balance the existing 40/20/20/10/5/5 coefficient split — kept Phase 3a additive so the existing formula's behaviour is preserved when Phase 2 data is absent.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 2d: Engagement UX polish (window toggle + sort-by-quick-exit toggle) (Claude)
 
 - **AI/tool:** Claude

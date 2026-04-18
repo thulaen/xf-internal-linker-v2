@@ -901,6 +901,68 @@ def run_gsc_sync(sync_run: AnalyticsSyncRun) -> dict[str, int]:
     }
 
 
+def compute_content_value_raw(
+    *,
+    gsc_clicks: int,
+    gsc_ctr: float,
+    gsc_impressions: int,
+    destination_views: int,
+    engaged_sessions: int,
+    conversions: int,
+    telemetry_clicks: int,
+    quick_exit_sessions: int = 0,
+    dwell_60s_sessions: int = 0,
+) -> float | None:
+    """Compute the raw (pre-normalisation) content-value score for one item.
+
+    Returns ``None`` when every input is zero (the neutral-fallback branch
+    that keeps the field at its 0.5 default for items with no activity).
+
+    Phase 3a extension: two new terms derived from Phase 2 engagement events.
+
+    # Source: Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to
+    # predict click-level satisfaction" (WSDM). Dwell-60s is a strong
+    # positive satisfaction signal; quick-exit is its strong-negative
+    # counterpart. Both coefficients are ``0.05`` — matching the modest
+    # weight of ``conversion_rate`` and ``click_rate`` (conservative
+    # starting values per BLC §1.3, tunable later by FR-018 auto-tuner).
+    # Neutral fallback: if both new counts are zero (no telemetry wired
+    # yet or no Phase 2 events fired) the two terms add to 0, leaving
+    # the pre-Phase 3a formula intact.
+    """
+    if not any(
+        [
+            gsc_clicks,
+            gsc_impressions,
+            destination_views,
+            engaged_sessions,
+            conversions,
+            telemetry_clicks,
+            quick_exit_sessions,
+            dwell_60s_sessions,
+        ]
+    ):
+        return None
+
+    engagement_rate = engaged_sessions / max(destination_views, 1)
+    conversion_rate = conversions / max(destination_views, 1)
+    click_rate = telemetry_clicks / max(destination_views, 1)
+    dwell_60s_rate = dwell_60s_sessions / max(destination_views, 1)
+    quick_exit_rate = quick_exit_sessions / max(destination_views, 1)
+
+    return (
+        (0.40 * math.log1p(gsc_clicks))
+        + (0.20 * gsc_ctr * 100.0)
+        + (0.20 * math.log1p(destination_views))
+        + (0.10 * engagement_rate * 10.0)
+        + (0.05 * conversion_rate * 10.0)
+        + (0.05 * click_rate * 10.0)
+        # Phase 3a — dwell credit + quick-exit penalty (Kim et al. WSDM 2014).
+        + (0.05 * dwell_60s_rate * 10.0)
+        - (0.05 * quick_exit_rate * 10.0)
+    )
+
+
 def _refresh_content_value_scores(
     *, destination_ids: set[int] | None = None, lookback_days: int = 28
 ) -> int:
@@ -926,6 +988,10 @@ def _refresh_content_value_scores(
             destination_views=Sum("destination_views"),
             engaged_sessions=Sum("engaged_sessions"),
             conversions=Sum("conversions"),
+            # Phase 3a — dwell-60s credit + quick-exit penalty in
+            # compute_content_value_raw.
+            quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )
     gsc_rows = (
@@ -947,37 +1013,19 @@ def _refresh_content_value_scores(
     for item_id in item_ids:
         telemetry = telemetry_map.get(item_id, {})
         gsc = gsc_map.get(item_id, {})
-        gsc_clicks = int(gsc.get("clicks") or 0)
-        gsc_impressions = int(gsc.get("impressions") or 0)
-        gsc_ctr = float(gsc.get("ctr") or 0.0)
-        destination_views = int(telemetry.get("destination_views") or 0)
-        engaged_sessions = int(telemetry.get("engaged_sessions") or 0)
-        conversions = int(telemetry.get("conversions") or 0)
-        telemetry_clicks = int(telemetry.get("clicks") or 0)
-
-        if not any(
-            [
-                gsc_clicks,
-                gsc_impressions,
-                destination_views,
-                engaged_sessions,
-                conversions,
-                telemetry_clicks,
-            ]
-        ):
-            continue
-
-        engagement_rate = engaged_sessions / max(destination_views, 1)
-        conversion_rate = conversions / max(destination_views, 1)
-        click_rate = telemetry_clicks / max(destination_views, 1)
-        raw_scores[item_id] = (
-            (0.40 * math.log1p(gsc_clicks))
-            + (0.20 * gsc_ctr * 100.0)
-            + (0.20 * math.log1p(destination_views))
-            + (0.10 * engagement_rate * 10.0)
-            + (0.05 * conversion_rate * 10.0)
-            + (0.05 * click_rate * 10.0)
+        raw = compute_content_value_raw(
+            gsc_clicks=int(gsc.get("clicks") or 0),
+            gsc_ctr=float(gsc.get("ctr") or 0.0),
+            gsc_impressions=int(gsc.get("impressions") or 0),
+            destination_views=int(telemetry.get("destination_views") or 0),
+            engaged_sessions=int(telemetry.get("engaged_sessions") or 0),
+            conversions=int(telemetry.get("conversions") or 0),
+            telemetry_clicks=int(telemetry.get("clicks") or 0),
+            quick_exit_sessions=int(telemetry.get("quick_exit_sessions") or 0),
+            dwell_60s_sessions=int(telemetry.get("dwell_60s_sessions") or 0),
         )
+        if raw is not None:
+            raw_scores[item_id] = raw
 
     item_qs.update(content_value_score=0.5)
     if not raw_scores:

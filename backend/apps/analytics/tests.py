@@ -2,6 +2,7 @@ from datetime import date
 from unittest.mock import Mock, patch
 
 from django.contrib.auth import get_user_model
+from django.test import SimpleTestCase
 from django_celery_beat.models import PeriodicTask
 from rest_framework.test import APITestCase
 
@@ -1604,6 +1605,115 @@ class GSCSlice3Tests(APITestCase):
 # backend/apps/analytics/integration_snippet.py module docstring for the
 # academic source (Kim, Hassan, White & Zitouni WSDM 2014).
 # ─────────────────────────────────────────────────────────────────────────────
+
+
+class ComputeContentValueRawTests(SimpleTestCase):
+    """Phase 3a — unit tests for the pure-function content_value formula.
+
+    The helper is a hot-path-adjacent batch function; tests here cover the
+    neutral-fallback guard + the dwell/quick-exit deltas without any DB I/O.
+    """
+
+    def test_returns_none_when_all_inputs_zero(self) -> None:
+        from apps.analytics.sync import compute_content_value_raw
+
+        result = compute_content_value_raw(
+            gsc_clicks=0,
+            gsc_ctr=0.0,
+            gsc_impressions=0,
+            destination_views=0,
+            engaged_sessions=0,
+            conversions=0,
+            telemetry_clicks=0,
+            quick_exit_sessions=0,
+            dwell_60s_sessions=0,
+        )
+        self.assertIsNone(result)
+
+    def test_dwell_60s_adds_positive_contribution(self) -> None:
+        from apps.analytics.sync import compute_content_value_raw
+
+        base_kwargs = dict(
+            gsc_clicks=5,
+            gsc_ctr=0.1,
+            gsc_impressions=100,
+            destination_views=50,
+            engaged_sessions=20,
+            conversions=2,
+            telemetry_clicks=10,
+            quick_exit_sessions=0,
+        )
+        without_dwell = compute_content_value_raw(**base_kwargs, dwell_60s_sessions=0)
+        with_dwell = compute_content_value_raw(**base_kwargs, dwell_60s_sessions=25)
+        assert without_dwell is not None
+        assert with_dwell is not None
+        self.assertGreater(with_dwell, without_dwell)
+
+    def test_quick_exit_subtracts_contribution(self) -> None:
+        from apps.analytics.sync import compute_content_value_raw
+
+        base_kwargs = dict(
+            gsc_clicks=5,
+            gsc_ctr=0.1,
+            gsc_impressions=100,
+            destination_views=50,
+            engaged_sessions=20,
+            conversions=2,
+            telemetry_clicks=10,
+            dwell_60s_sessions=0,
+        )
+        without_quick_exit = compute_content_value_raw(
+            **base_kwargs, quick_exit_sessions=0
+        )
+        with_quick_exit = compute_content_value_raw(
+            **base_kwargs, quick_exit_sessions=25
+        )
+        assert without_quick_exit is not None
+        assert with_quick_exit is not None
+        self.assertLess(with_quick_exit, without_quick_exit)
+
+    def test_mirrored_dwell_and_quick_exit_net_to_zero(self) -> None:
+        """Equal dwell and quick-exit counts cancel — same score as the
+        pre-Phase-3a baseline with both set to zero."""
+        from apps.analytics.sync import compute_content_value_raw
+
+        base_kwargs = dict(
+            gsc_clicks=5,
+            gsc_ctr=0.1,
+            gsc_impressions=100,
+            destination_views=50,
+            engaged_sessions=20,
+            conversions=2,
+            telemetry_clicks=10,
+        )
+        baseline = compute_content_value_raw(
+            **base_kwargs, quick_exit_sessions=0, dwell_60s_sessions=0
+        )
+        mirrored = compute_content_value_raw(
+            **base_kwargs, quick_exit_sessions=10, dwell_60s_sessions=10
+        )
+        assert baseline is not None
+        assert mirrored is not None
+        self.assertAlmostEqual(baseline, mirrored, places=9)
+
+    def test_only_phase_2_signals_still_scores(self) -> None:
+        """An item with only dwell-60s events (no GSC, no clicks) still scores
+        rather than falling back to neutral — Phase 2 events alone carry
+        information the formula should respect."""
+        from apps.analytics.sync import compute_content_value_raw
+
+        result = compute_content_value_raw(
+            gsc_clicks=0,
+            gsc_ctr=0.0,
+            gsc_impressions=0,
+            destination_views=10,
+            engaged_sessions=0,
+            conversions=0,
+            telemetry_clicks=0,
+            quick_exit_sessions=0,
+            dwell_60s_sessions=5,
+        )
+        self.assertIsNotNone(result)
 
 
 class EngagementSignalsSnippetTests(APITestCase):
