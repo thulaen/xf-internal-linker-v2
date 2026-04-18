@@ -6,9 +6,12 @@ Mission Critical, System Health, Settings, and runtime actions.
 
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import asdict, dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from django.conf import settings as django_settings
 from django.db.models import Max
@@ -310,15 +313,15 @@ def capture_primary_hardware_snapshot(
 
         ram_gb = round(psutil.virtual_memory().total / (1024**3), 2)
         snapshot["ram_gb"] = ram_gb
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("psutil unavailable for hardware snapshot: %s", exc)
 
     try:
         usage = shutil.disk_usage("/app" if os.name != "nt" else os.getcwd())
         disk_free_gb = round(usage.free / (1024**3), 2)
         snapshot["disk_free_gb"] = disk_free_gb
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("shutil.disk_usage failed for hardware snapshot: %s", exc)
 
     try:
         import torch
@@ -329,8 +332,8 @@ def capture_primary_hardware_snapshot(
             gpu_vram_gb = round(props.total_memory / (1024**3), 2)
             snapshot["gpu_name"] = gpu_name
             snapshot["gpu_vram_gb"] = gpu_vram_gb
-    except Exception:
-        pass
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("torch/CUDA probe failed for hardware snapshot: %s", exc)
 
     try:
         from apps.diagnostics.health import _native_module_runtime_status
