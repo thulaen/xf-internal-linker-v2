@@ -129,6 +129,26 @@
   margin-bottom: 24px;
 }
 
+.engagement-mix-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm, 8px);
+  margin-bottom: var(--space-sm, 8px);
+  padding-left: var(--space-md, 16px);
+
+  &__label {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+  }
+}
+
+.top-sort-toggle {
+  margin-left: auto;
+  align-self: flex-start;
+}
+
 .report-card {
   margin-bottom: 24px;
   border-radius: var(--card-border-radius) !important;

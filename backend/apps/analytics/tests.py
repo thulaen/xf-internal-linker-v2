@@ -378,6 +378,83 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         self.assertAlmostEqual(top_item["quick_exit_rate"], 1 / 3, places=3)
         self.assertAlmostEqual(top_item["dwell_60s_rate"], 1 / 3, places=3)
 
+    def test_top_suggestions_order_by_quick_exit_surfaces_bad_matches(self):
+        """With ?order=quick_exit, the top row is the highest quick-exit share."""
+        # Two suggestions: one with low quick-exit, one with high. Order=clicks
+        # should sort the high-click one first; order=quick_exit should sort
+        # the high-quick-exit-rate one first.
+        low = self._build_suggestion(
+            host_id=201, destination_id=202, title="Low quick-exit"
+        )
+        high = self._build_suggestion(
+            host_id=211, destination_id=212, title="High quick-exit"
+        )
+        day = PipelineRun.objects.first().created_at.date()
+        SuggestionTelemetryDaily.objects.create(
+            date=day,
+            telemetry_source="matomo",
+            suggestion=low,
+            destination=low.destination,
+            host=low.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            impressions=200,
+            clicks=50,
+            destination_views=50,
+            engaged_sessions=40,
+            conversions=5,
+            quick_exit_sessions=2,  # 4% quick-exit
+            dwell_60s_sessions=20,
+        )
+        SuggestionTelemetryDaily.objects.create(
+            date=day,
+            telemetry_source="matomo",
+            suggestion=high,
+            destination=high.destination,
+            host=high.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            impressions=100,
+            clicks=10,
+            destination_views=10,
+            engaged_sessions=2,
+            conversions=0,
+            quick_exit_sessions=6,  # 60% quick-exit
+            dwell_60s_sessions=0,
+        )
+
+        default_order = self.client.get(
+            "/api/analytics/telemetry/top-suggestions/?days=30"
+        )
+        quick_exit_order = self.client.get(
+            "/api/analytics/telemetry/top-suggestions/?days=30&order=quick_exit"
+        )
+
+        self.assertEqual(default_order.status_code, 200)
+        self.assertEqual(quick_exit_order.status_code, 200)
+        # Default order (clicks): Low quick-exit has more clicks -> first.
+        self.assertEqual(
+            default_order.json()["items"][0]["destination_title"], "Low quick-exit"
+        )
+        # Quick-exit order: High quick-exit ratio -> first.
+        self.assertEqual(
+            quick_exit_order.json()["items"][0]["destination_title"], "High quick-exit"
+        )
+        self.assertAlmostEqual(
+            quick_exit_order.json()["items"][0]["quick_exit_rate"], 0.6, places=3
+        )
+
+    def test_top_suggestions_invalid_order_falls_back_to_clicks(self):
+        """An unrecognised ?order=... value silently falls back to the default."""
+        response = self.client.get(
+            "/api/analytics/telemetry/top-suggestions/?order=garbage"
+        )
+        self.assertEqual(response.status_code, 200)
+
     def test_engagement_mix_endpoint_returns_phase_2_totals_and_rates(self):
         """Phase 2b — new /engagement-mix/ endpoint surfaces the 3 new columns."""
         suggestion = self._build_suggestion()

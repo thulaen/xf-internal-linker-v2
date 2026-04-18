@@ -85,6 +85,14 @@ export class AnalyticsComponent implements OnInit {
   selectedImpactDetail: SearchImpactDetailResponse | null = null;
   loadingDetail = false;
 
+  /**
+   * Phase 2 UX polish — operator-controlled window for the Engagement Mix
+   * card and sort order for the Top Suggestions card. Separate from
+   * selectedImpactWindow (which governs the Search Outcome section).
+   */
+  engagementWindowDays: 7 | 14 | 30 = 30;
+  topSuggestionsOrder: 'clicks' | 'quick_exit' = 'clicks';
+
   scatterChartData: ChartData<'scatter'> | null = null;
   scatterChartOptions: ChartConfiguration<'scatter'>['options'] = {
     responsive: true,
@@ -358,6 +366,35 @@ export class AnalyticsComponent implements OnInit {
     this.loadSearchImpacts();
   }
 
+  onEngagementWindowChange(event: MatButtonToggleChange): void {
+    const value = Number(event.value);
+    if (value === 7 || value === 14 || value === 30) {
+      this.engagementWindowDays = value;
+    }
+    // EngagementMixComponent consumes this via an input signal and
+    // re-fetches itself on change — no page-level reload needed.
+  }
+
+  onTopSuggestionsOrderChange(event: MatButtonToggleChange): void {
+    if (event.value !== 'clicks' && event.value !== 'quick_exit') {
+      return;
+    }
+    this.topSuggestionsOrder = event.value;
+    // Reload only the top-suggestions card rather than the whole page.
+    this.analyticsSvc
+      .getTopSuggestions(this.selectedSource, 30, this.topSuggestionsOrder)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          this.topSuggestions = response;
+        },
+        error: () => {
+          // Keep the prior list visible on error; the existing global
+          // error handler surfaces the failure to the operator.
+        },
+      });
+  }
+
   toggleImpactDetails(impact: GSCImpactSnapshot): void {
     if (this.expandedSuggestionId === impact.suggestion_id) {
       this.expandedSuggestionId = null;
@@ -391,7 +428,11 @@ export class AnalyticsComponent implements OnInit {
       breakdowns: this.analyticsSvc.getBreakdowns(this.selectedSource),
       funnel: this.analyticsSvc.getFunnel(this.selectedSource),
       trend: this.analyticsSvc.getTrend(this.selectedSource),
-      topSuggestions: this.analyticsSvc.getTopSuggestions(this.selectedSource),
+      topSuggestions: this.analyticsSvc.getTopSuggestions(
+        this.selectedSource,
+        30,
+        this.topSuggestionsOrder,
+      ),
       versionComparison: this.analyticsSvc.getTelemetryByVersion(this.selectedSource),
       geoDetail: this.analyticsSvc.getTelemetryGeoDetail(this.selectedSource),
     }).pipe(takeUntilDestroyed(this.destroyRef)).subscribe({

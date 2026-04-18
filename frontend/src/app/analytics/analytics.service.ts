@@ -294,8 +294,16 @@ export class AnalyticsService {
     return this.http.get<AnalyticsTrendResponse>(`/api/analytics/telemetry/trend/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
-  getTopSuggestions(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTopSuggestionsResponse> {
-    return this.http.get<AnalyticsTopSuggestionsResponse>(`/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
+  getTopSuggestions(
+    source: 'all' | 'ga4' | 'matomo' = 'all',
+    days = 30,
+    order: 'clicks' | 'quick_exit' = 'clicks',
+  ): Observable<AnalyticsTopSuggestionsResponse> {
+    return this.http
+      .get<AnalyticsTopSuggestionsResponse>(
+        `/api/analytics/telemetry/top-suggestions/?source=${source}&days=${days}&order=${order}`,
+      )
+      .pipe(catchError((err) => throwError(() => err)));
   }
 
   getHealth(days = 30): Observable<AnalyticsHealthResponse> {

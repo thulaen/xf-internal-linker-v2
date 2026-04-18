@@ -387,7 +387,7 @@ describe('AnalyticsComponent', () => {
     expect(analyticsServiceStub.getFunnel).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getBreakdowns).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTrend).toHaveBeenCalledWith('ga4');
-    expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4');
+    expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4', 30, 'clicks');
     expect(analyticsServiceStub.getTelemetryByVersion).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTelemetryGeoDetail).toHaveBeenCalledWith('ga4');
   });

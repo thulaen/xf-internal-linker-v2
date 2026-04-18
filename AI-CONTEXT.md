@@ -444,6 +444,49 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 2d: Engagement UX polish (window toggle + sort-by-quick-exit toggle) (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phases 2b/2c shipped the Engagement Mix card and the quick-exit column, but the card's window was hardcoded to 30 days and the Top Suggestions list only sorted by clicks. Operators need both a time-window control and a way to surface bad-match rows first.
+- **What was done:**
+  - **Backend** — `AnalyticsTelemetryTopSuggestionsView` now accepts `?order=clicks|quick_exit`. When `order=quick_exit`, the view filters out zero-view rows (SQL division guard), annotates a derived `_quick_exit_ratio = F(quick_exit_sessions) * 1.0 / F(destination_views)` (cast to `FloatField`), and orders by `-_quick_exit_ratio, -destination_views, -clicks`. Unrecognised values silently fall back to `clicks` — safe default.
+  - **Frontend service** — `getTopSuggestions(source, days, order)` gains the third parameter with a typed union.
+  - **Frontend component** — two new properties `engagementWindowDays: 7 | 14 | 30 = 30` and `topSuggestionsOrder: 'clicks' | 'quick_exit' = 'clicks'`. Two new handlers: `onEngagementWindowChange` (updates the signal input to `EngagementMixComponent`, which re-fetches itself via its `effect()`) and `onTopSuggestionsOrderChange` (narrow re-fetch of only the Top Suggestions card, keeps the rest of the page stable). `loadData()` now threads `topSuggestionsOrder` into the initial `getTopSuggestions` call.
+  - **Frontend template** — two `mat-button-toggle-group` controls. Window toggle (7/14/30 days) sits above the Engagement Mix card; sort toggle (Top clicks / Bad matches) sits in the Top Suggestions card header. The Top Suggestions subtitle adapts: "Rows with the highest quick-exit share (bad-match candidates)" when the "Bad matches" mode is active.
+  - **Tests** — two new backend tests: `test_top_suggestions_order_by_quick_exit_surfaces_bad_matches` seeds two suggestions (50 clicks / 4% quick-exit vs 10 clicks / 60% quick-exit) and asserts the default order surfaces the high-click row while `order=quick_exit` surfaces the high-rate row; `test_top_suggestions_invalid_order_falls_back_to_clicks` confirms the guard. Existing spec's call-count expectation updated to the new `('ga4', 30, 'clicks')` tuple.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/views.py` (+~25 lines for the ordering branch)
+  - `backend/apps/analytics/tests.py` (+2 new test methods)
+  - `frontend/src/app/analytics/analytics.service.ts` (+ order param)
+  - `frontend/src/app/analytics/analytics.component.ts` (+2 properties, 2 handlers, 1 load-data wiring)
+  - `frontend/src/app/analytics/analytics.component.html` (+toggle group in engagement-mix slot, +toggle + adaptive subtitle in top-suggestions card header)
+  - `frontend/src/app/analytics/analytics.component.scss` (+layout rules for controls)
+  - `frontend/src/app/analytics/analytics.component.spec.ts` (updated call-count expectation)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** existing `mat-button-toggle-group` pattern (mirrors Search Impact window toggle), existing `_safe_rate` helper, existing `getTopSuggestions` signature extended rather than forked, existing `EngagementMixComponent` input signal (already prepared for dynamic values in Phase 2b).
+
+- **Session Gate compliance:**
+  - BLC §0 — no scoring logic change, no new ranking signal. Pure UX polish. Ordering is a presentation-only concern.
+  - FRONTEND-RULES — Material toggle group, token-only spacing (`var(--space-sm)`, `var(--space-md)`), no hex.
+  - PYTHON-RULES — F-expression division explicitly casts to `FloatField` to avoid integer-truncation surprises; filter guards against division by zero.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics` — **31 tests pass** (2 new + 29 prior).
+  - `docker compose exec backend python manage.py test` — **320 tests pass**, 1 skipped, 0 failures.
+  - `cd frontend && npm run test:ci` — **25 tests pass** (after updating the spec's `getTopSuggestions` call-count expectation to match the new tuple).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - `docker compose exec backend python -m ruff format apps/analytics/views.py apps/analytics/tests.py` — 1 file reformatted preemptively.
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected."
+
+- **What was deliberately NOT done (and why):**
+  - Did not re-fetch the whole page when the order toggle changes — narrow refetch of only Top Suggestions is cheaper and preserves scroll position.
+  - Did not persist operator choices across sessions — session-local state is enough for v1; local-storage persistence can be a later slice.
+  - Did not add a fourth window option (e.g., 90 days) — matches the existing Search Impact toggle's 3-button pattern.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 2c: Quick-exit rate column in Top Suggestions table (Claude)
 
 - **AI/tool:** Claude

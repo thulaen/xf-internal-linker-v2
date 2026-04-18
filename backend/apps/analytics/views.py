@@ -1237,30 +1237,47 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
+        from django.db.models import ExpressionWrapper, F, FloatField
+
         queryset, days, source = _telemetry_queryset(request)
-        rows = (
-            queryset.values(
-                "suggestion_id",
-                "suggestion__destination_title",
-                "suggestion__anchor_phrase",
-                "suggestion__status",
-                "telemetry_source",
-            )
-            .annotate(
-                impressions=Sum("impressions"),
-                clicks=Sum("clicks"),
-                destination_views=Sum("destination_views"),
-                engaged_sessions=Sum("engaged_sessions"),
-                conversions=Sum("conversions"),
-                # Phase 2c — expose the new engagement tiers per suggestion so
-                # operators can spot individual bad-match rows (high
-                # quick_exit_rate) and standout good-match rows (high
-                # dwell_60s_rate).
-                quick_exit_sessions=Sum("quick_exit_sessions"),
-                dwell_60s_sessions=Sum("dwell_60s_sessions"),
-            )
-            .order_by("-clicks", "-engaged_sessions", "-impressions")[:8]
+        order = (request.query_params.get("order") or "clicks").strip().lower()
+        if order not in {"clicks", "quick_exit"}:
+            order = "clicks"
+        grouped = queryset.values(
+            "suggestion_id",
+            "suggestion__destination_title",
+            "suggestion__anchor_phrase",
+            "suggestion__status",
+            "telemetry_source",
+        ).annotate(
+            impressions=Sum("impressions"),
+            clicks=Sum("clicks"),
+            destination_views=Sum("destination_views"),
+            engaged_sessions=Sum("engaged_sessions"),
+            conversions=Sum("conversions"),
+            # Phase 2c — expose the new engagement tiers per suggestion so
+            # operators can spot individual bad-match rows (high
+            # quick_exit_rate) and standout good-match rows (high
+            # dwell_60s_rate).
+            quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
+        if order == "quick_exit":
+            # Sort by the derived quick-exit share of destination views. Filter
+            # destination_views > 0 to avoid SQL division by zero and to keep
+            # rows that only received impressions out of the bad-match list.
+            rows = (
+                grouped.filter(destination_views__gt=0)
+                .annotate(
+                    _quick_exit_ratio=ExpressionWrapper(
+                        F("quick_exit_sessions") * 1.0 / F("destination_views"),
+                        output_field=FloatField(),
+                    ),
+                )
+                .order_by("-_quick_exit_ratio", "-destination_views", "-clicks")[:8]
+            )
+        else:
+            rows = grouped.order_by("-clicks", "-engaged_sessions", "-impressions")[:8]
         items = []
         for row in rows:
             impressions = int(row["impressions"] or 0)
