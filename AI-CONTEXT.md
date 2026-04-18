@@ -296,13 +296,13 @@ Last verified against code: 2026-04-08
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
-| Feature Requests (FR-001..FR-098) |   31 |       5 |      61 |         1 |    98 |
+| Feature Requests (FR-001..FR-098) |   31 |       6 |      60 |         1 |    98 |
 | Feature Requests (FR-099..FR-224 — Phase 2 forward-declared) |    0 |       0 |     126 |         0 |   126 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
 | C++ META extensions (META-01..META-39) |    0 |       0 |      36 |         0 |    36 |
 | C++ META extensions (META-40..META-249 — Phase 2 forward-declared) |    0 |       0 |     210 |         0 |   210 |
 | C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
-| **All work items**  | **31** | **5** | **525** | **1** | **562** |
+| **All work items**  | **31** | **6** | **524** | **1** | **562** |
 
 **Completed FRs (31):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
@@ -311,15 +311,16 @@ FR-022, FR-024, FR-025, FR-026, FR-028, FR-029, FR-030, FR-031, FR-032,
 FR-033, FR-035
 (Plus FR-023 which is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry)
 
-**Partial (5 — scaffolding exists, core logic missing):**
+**Partial (6 — scaffolding exists, core logic missing; or core logic ships but perf/bench path missing):**
 - FR-034: link parser and context scoring refs exist, audit dashboard/trail UI missing
 - FR-037: silo tracking (_same_silo) exists, leakage map visualization component missing
 - FR-040: config keys in migration 0019 exist, ContentItem field and scoring service missing
 - FR-042: config keys in migration 0019 exist, score field and scoring logic missing
 - FR-044: config keys in migration 0019 exist, score field and analytics aggregation missing
+- FR-045: Python reference scorer + `score_anchor_diversity` field + settings + migrations 0031/0032 all ship; C++ batch fast path AND pytest benchmark pending (spec line 1244 mandates both for a hot-path signal; AGENTS.md §34 + BLC §1.4)
 
-**Pending FRs (60):**
-FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-045, FR-046, FR-047, FR-048,
+**Pending FRs (59):**
+FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-046, FR-047, FR-048,
 FR-049, FR-050, FR-051, FR-052, FR-053, FR-054, FR-055, FR-056, FR-057, FR-058,
 FR-059, FR-060, FR-061, FR-062, FR-063, FR-064, FR-065, FR-066, FR-067, FR-068,
 FR-069, FR-070, FR-071, FR-072, FR-073, FR-074, FR-075, FR-076, FR-077, FR-078,

@@ -1221,6 +1221,7 @@ The scaffold functions for FR-023 Hot decay and FR-024 rolling engagement will b
 **Requested:** 2026-04-04
 **Target phase:** Phase 48
 **Priority:** Medium
+**Status:** Partial (since ~2026-04-15 based on migration dates) — Python reference scorer ships (`backend/apps/pipeline/services/anchor_diversity.py`, `Suggestion.score_anchor_diversity`, `Suggestion.anchor_diversity_diagnostics`, migrations 0031/0032, six `anchor_diversity.*` settings keys). **Unmet criteria:** (1) C++ batch fast path — spec "Implementation notes for the AI" explicitly requires "both a Python reference path and a C++ batch fast path with parity tests" because this is hot-path scoring; (2) pytest benchmark at 3 input sizes per BUSINESS-LOGIC-CHECKLIST §1.4.
 **Research basis:** Google Search Central link-text guidance, Google Search Central spam policies, patent `US20110238644A1` (*Using Anchor Text With Hyperlink Structures for Web Searches*). User-supplied `US7814085B1` was checked and rejected as the wrong source for this topic.
 **Spec draft:** `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md`
 

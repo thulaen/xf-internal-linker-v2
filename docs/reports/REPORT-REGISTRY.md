@@ -157,8 +157,10 @@ This file is the single index of all audit reports and individual issues found b
 - **Severity:** low
 - **Affected files:** `AI-CONTEXT.md` (line 322, Pending FRs list), `FEATURE-REQUESTS.md` (FR-045 status)
 - **Description:** `AI-CONTEXT.md` lists `FR-045` among the 60 pending FRs, but the shipping evidence is present: `backend/apps/pipeline/services/anchor_diversity.py` implements `evaluate_anchor_diversity`; `Suggestion.score_anchor_diversity` exists with help text `"FR-045 anchor-diversity anti-spam score"`; migrations `0031_suggestion_anchor_diversity_diagnostics_and_more.py` and `0032_upsert_runtime_antispam_defaults.py` are applied; spec `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md` exists. The ranker, diagnostic surface, and settings UI all reference FR-045. Either the implementation is effectively complete and the ledger needs updating, or some acceptance criterion is unmet and the gap should be documented. Per BLC §4.1 "If a feature is complete but marked partial or pending, fix the ledger. If it is partial but marked complete, fix the ledger."
-- **Status:** OPEN
-- **Regression watch:** Future sessions touching anchor-diversity telemetry should not create parallel `AnchorUsage` tables or over-optimised-anchor warning UIs — FR-045 already handles that surface via `score_anchor_diversity` and `anchor_diversity_diagnostics`.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-18
+- **Resolution:** Moved FR-045 from Pending (60) → Partial (6 total) in `AI-CONTEXT.md` Project Status Dashboard and added a `Status: Partial` line in `FEATURE-REQUESTS.md`. The correct state is **Partial, not Complete**: the Python reference scorer, `score_anchor_diversity` field, diagnostics JSON, migrations 0031/0032, and the six `anchor_diversity.*` settings keys all ship, but two spec-mandated criteria remain unmet: (1) no C++ batch fast path exists in `backend/extensions/` despite the spec's hot-path rule ("both a Python reference path and a C++ batch fast path with parity tests"), and (2) no pytest benchmark exists in `backend/benchmarks/` (BLC §1.4 mandates 3 input sizes for every hot-path function).
+- **Regression watch:** Future sessions touching anchor-diversity telemetry should not create parallel `AnchorUsage` tables or over-optimised-anchor warning UIs — FR-045 already handles that surface via `score_anchor_diversity` and `anchor_diversity_diagnostics`. When the C++ port + benchmark land, move FR-045 from Partial to Done in the dashboard.
 
 ---
 
