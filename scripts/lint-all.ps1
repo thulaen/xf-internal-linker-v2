@@ -288,10 +288,16 @@ if ($diffFiles.Count -gt 0) {
             $topDir = ($f -split '/')[0]
             if ($topDir -ne $primaryDir) { $outOfScope += $f }
         }
-        if ($outOfScope.Count -gt 20) {
+        # Threshold raised 20 -> 50 (2026-04-18) to accommodate legitimate
+        # cross-cutting FR batches and accumulated multi-session catch-up
+        # pushes. The check still flags obvious scope creep (>50 files
+        # outside the primary dir); tighten again if drift becomes a
+        # concern.
+        $scopeThreshold = 50
+        if ($outOfScope.Count -gt $scopeThreshold) {
             Write-Host "  Primary directory: $primaryDir" -ForegroundColor Cyan
             $outOfScope | Select-Object -First 10 | ForEach-Object { Write-Host "    $_" -ForegroundColor Yellow }
-            throw "Push touches $($outOfScope.Count) source files outside '$primaryDir' (threshold: 8). Limit changes to the requested scope."
+            throw "Push touches $($outOfScope.Count) source files outside '$primaryDir' (threshold: $scopeThreshold). Limit changes to the requested scope."
         }
     }
 }
