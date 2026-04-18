@@ -91,7 +91,9 @@ def detect_link_farm_rings(
             continue
 
         capped_size = min(size, max(1, int(total_nodes * 0.1)))
-        ring_score = density * math.log1p(capped_size) * (1.0 / (1.0 + (outflow / size)))
+        ring_score = (
+            density * math.log1p(capped_size) * (1.0 / (1.0 + (outflow / size)))
+        )
         ring_penalty = 1.0 - math.exp(-settings.lambda_value * ring_score)
         score_link_farm = 0.5 - 0.5 * ring_penalty
         score_component = min(0.0, 2.0 * (score_link_farm - 0.5))

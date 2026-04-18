@@ -448,8 +448,6 @@ def _collect_destination_result(
     elif "anchor_too_long" in blocked_reasons:
         diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
     elif "anchor_diversity_blocked" in blocked_reasons:
-        diagnostics.append(
-            (dest_key[0], dest_key[1], "anchor_diversity_blocked", None)
-        )
+        diagnostics.append((dest_key[0], dest_key[1], "anchor_diversity_blocked", None))
     else:
         diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))

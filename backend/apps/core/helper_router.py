@@ -199,7 +199,9 @@ def _projected_routing_score(
     gpu_share = demand_gpu / max(usable_gpu, 1e-6) if demand_gpu > 0 else 0.0
     dominant_share = max(cpu_share, ram_share, gpu_share)
 
-    slot_pressure = float(node.active_jobs or 0) / max(int(node.max_concurrency or 1), 1)
+    slot_pressure = float(node.active_jobs or 0) / max(
+        int(node.max_concurrency or 1), 1
+    )
     cpu_pressure = float(node.cpu_pct or 0.0) / max(float(node.cpu_cap_pct or 1), 1.0)
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
     gpu_pressure = 0.0
@@ -211,7 +213,9 @@ def _projected_routing_score(
             float(node.gpu_vram_used_mb) / max(float(node.gpu_vram_total_mb), 1.0),
         )
 
-    effective_load = min(1.0, max(slot_pressure, cpu_pressure, ram_pressure, gpu_pressure))
+    effective_load = min(
+        1.0, max(slot_pressure, cpu_pressure, ram_pressure, gpu_pressure)
+    )
     return max(dominant_share, effective_load)
 
 

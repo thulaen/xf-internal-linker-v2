@@ -260,8 +260,12 @@ def check_ml_models_health() -> ServiceHealthResult:
         spacy_ok = spacy.util.is_package(model_name)
         model_runtime = summarize_model_registry()
         active_model = model_runtime.get("active_model") or {}
-        embedding_model = active_model.get("model_name") or get_current_embedding_model_name()
-        device_target = active_model.get("device_target") or get_current_embedding_device()
+        embedding_model = (
+            active_model.get("model_name") or get_current_embedding_model_name()
+        )
+        device_target = (
+            active_model.get("device_target") or get_current_embedding_device()
+        )
 
         # Check BGE (using import check as proxy for environment readiness)
 
@@ -289,7 +293,9 @@ def check_ml_models_health() -> ServiceHealthResult:
                 "spacy_model": model_name,
                 "embedding_model": embedding_model,
                 "embedding_device": device_target,
-                "candidate_model": (model_runtime.get("candidate_model") or {}).get("model_name"),
+                "candidate_model": (model_runtime.get("candidate_model") or {}).get(
+                    "model_name"
+                ),
                 "hot_swap_safe": model_runtime.get("hot_swap_safe", False),
             },
         )
@@ -316,8 +322,12 @@ def check_model_runtime_health() -> ServiceHealthResult:
         active_model = summary.get("active_model") or {}
         candidate_model = summary.get("candidate_model") or {}
         backfill = summary.get("backfill") or {}
-        active_name = active_model.get("model_name") or get_current_embedding_model_name()
-        device_target = active_model.get("device_target") or get_current_embedding_device()
+        active_name = (
+            active_model.get("model_name") or get_current_embedding_model_name()
+        )
+        device_target = (
+            active_model.get("device_target") or get_current_embedding_device()
+        )
         active_status = active_model.get("status") or "unknown"
 
         metadata = {

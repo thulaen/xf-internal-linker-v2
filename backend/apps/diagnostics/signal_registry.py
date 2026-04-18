@@ -101,7 +101,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="cpp_first",
         neutral_value=0.0,
         min_data_threshold=">=10 ContentItem rows with embeddings",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+        ),
         benchmark_module="backend/benchmarks/test_bench_embeddings.py",
         autotune_included=True,
         default_enabled=True,
@@ -163,7 +167,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="cpp_first",
         neutral_value=0.15,
         min_data_threshold=">=1 ExistingLink edge per host; >=10 ContentItem rows for stable scores",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+        ),
         benchmark_module="backend/benchmarks/test_bench_graph.py",
         autotune_included=True,
         default_enabled=True,
@@ -184,7 +192,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="cpp_first",
         neutral_value=0.15,
         min_data_threshold=">=1 ExistingLink edge into destination; >=10 ContentItem rows for stable scores",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+        ),
         benchmark_module="backend/benchmarks/test_bench_graph.py",
         autotune_included=True,
         default_enabled=True,
@@ -204,7 +216,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=0.5,
         min_data_threshold=">=14 days of LinkFreshnessEdge history",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "system_health"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "system_health",
+        ),
         benchmark_module="backend/benchmarks/test_bench_scoring.py",
         autotune_included=True,
         default_enabled=True,
@@ -307,7 +323,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=0.0,
         min_data_threshold=">=7 days of SearchMetric rows for target page",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "system_health"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "system_health",
+        ),
         benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
@@ -347,7 +367,12 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=0.0,
         min_data_threshold=">=1 SiloGroup with >=2 Scope members",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "settings", "review_filter"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "settings",
+            "review_filter",
+        ),
         benchmark_module=None,
         autotune_included=False,
         default_enabled=True,
@@ -387,7 +412,12 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=1.0,
         min_data_threshold=">=2 Suggestion rows targeting the same destination",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical", "settings"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+            "settings",
+        ),
         benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
@@ -407,7 +437,12 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=1.0,
         min_data_threshold=">=20 ContentItem rows for stable site-baseline term distribution",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical", "settings"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+            "settings",
+        ),
         benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
@@ -427,7 +462,12 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=1.0,
         min_data_threshold=">=1 ExistingLink edge into destination; graph must have >=10 reciprocal pairs to surface rings",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical", "settings"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+            "settings",
+        ),
         benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
@@ -448,7 +488,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="cpp_first",
         neutral_value=1.0,
         min_data_threshold=">=2 scored candidates in the slate",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "mission_critical"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "mission_critical",
+        ),
         benchmark_module="backend/benchmarks/test_bench_feedback_rerank.py",
         autotune_included=False,
         default_enabled=True,
@@ -468,7 +512,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_fallback",
         neutral_value=1.0,
         min_data_threshold=">=100 SuggestionPresentation rows (any age)",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "system_health"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "system_health",
+        ),
         benchmark_module="backend/benchmarks/test_bench_feedback_rerank.py",
         autotune_included=False,
         default_enabled=True,
@@ -509,7 +557,11 @@ SIGNALS: list[SignalDefinition] = [
         architecture_lane="python_only",
         neutral_value=0.0,
         min_data_threshold=">=14 days of SuggestionTelemetryDaily rows",
-        diagnostic_surfaces=("suggestion_detail", "weight_diagnostics", "system_health"),
+        diagnostic_surfaces=(
+            "suggestion_detail",
+            "weight_diagnostics",
+            "system_health",
+        ),
         benchmark_module=None,
         autotune_included=True,
         default_enabled=True,
@@ -1178,7 +1230,10 @@ def validate_signal_contract(
                 "does not resolve to a file under any candidate repo root."
             )
 
-        if sig.benchmark_module and _resolve_under_any_root(sig.benchmark_module) is None:
+        if (
+            sig.benchmark_module
+            and _resolve_under_any_root(sig.benchmark_module) is None
+        ):
             violations.append(
                 f"Signal '{sig.id}' benchmark_module "
                 f"'{sig.benchmark_module}' does not resolve to a file."

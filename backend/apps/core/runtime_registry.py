@@ -52,7 +52,9 @@ def get_current_embedding_device() -> str:
         return "cpu"
 
 
-def get_active_runtime_model(task_type: str = MODEL_TASK_EMBEDDING) -> RuntimeModelRegistry | None:
+def get_active_runtime_model(
+    task_type: str = MODEL_TASK_EMBEDDING,
+) -> RuntimeModelRegistry | None:
     champion = (
         RuntimeModelRegistry.objects.filter(task_type=task_type, role="champion")
         .exclude(status="deleted")
@@ -90,7 +92,9 @@ def get_active_runtime_model(task_type: str = MODEL_TASK_EMBEDDING) -> RuntimeMo
     return registry
 
 
-def get_candidate_runtime_model(task_type: str = MODEL_TASK_EMBEDDING) -> RuntimeModelRegistry | None:
+def get_candidate_runtime_model(
+    task_type: str = MODEL_TASK_EMBEDDING,
+) -> RuntimeModelRegistry | None:
     return (
         RuntimeModelRegistry.objects.filter(task_type=task_type, role="candidate")
         .exclude(status="deleted")
@@ -117,7 +121,9 @@ def record_runtime_audit(
         metadata=metadata or {},
     )
     retained_ids = list(
-        RuntimeAuditLog.objects.order_by("-created_at").values_list("id", flat=True)[:1000]
+        RuntimeAuditLog.objects.order_by("-created_at").values_list("id", flat=True)[
+            :1000
+        ]
     )
     RuntimeAuditLog.objects.exclude(id__in=retained_ids).delete()
 
@@ -130,13 +136,15 @@ def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str,
         .order_by("-created_at")
         .first()
     )
-    placements = RuntimeModelPlacement.objects.select_related("registry", "helper").filter(
-        registry__task_type=task_type
-    )
+    placements = RuntimeModelPlacement.objects.select_related(
+        "registry", "helper"
+    ).filter(registry__task_type=task_type)
 
     placement_rows = []
     reclaimable_bytes = 0
-    for placement in placements.order_by("registry__role", "executor_type", "helper__name"):
+    for placement in placements.order_by(
+        "registry__role", "executor_type", "helper__name"
+    ):
         placement_rows.append(
             {
                 "id": placement.id,
@@ -152,7 +160,9 @@ def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str,
                 "last_used_at": placement.last_used_at.isoformat()
                 if placement.last_used_at
                 else None,
-                "warmed_at": placement.warmed_at.isoformat() if placement.warmed_at else None,
+                "warmed_at": placement.warmed_at.isoformat()
+                if placement.warmed_at
+                else None,
                 "last_error": placement.last_error,
                 "deletable": placement.registry.role == "retired"
                 and placement.status not in {"warming", "draining", "deleted"},
@@ -183,7 +193,9 @@ def summarize_model_registry(task_type: str = MODEL_TASK_EMBEDDING) -> dict[str,
             }
             for entry in RuntimeAuditLog.objects.order_by("-created_at")[:10]
         ],
-        "last_audit_at": RuntimeAuditLog.objects.aggregate(m=Max("created_at"))["m"].isoformat()
+        "last_audit_at": RuntimeAuditLog.objects.aggregate(m=Max("created_at"))[
+            "m"
+        ].isoformat()
         if RuntimeAuditLog.objects.exists()
         else None,
     }
@@ -211,7 +223,9 @@ def summarize_helpers() -> dict[str, Any]:
         else:
             offline += 1
 
-        aggregate_ram_pressure += min(1.0, max(0.0, float(node.ram_pct or 0.0) / max(node.ram_cap_pct or 1, 1)))
+        aggregate_ram_pressure += min(
+            1.0, max(0.0, float(node.ram_pct or 0.0) / max(node.ram_cap_pct or 1, 1))
+        )
         load = helper_effective_load(node)
         if load >= busiest_load:
             busiest_load = load
@@ -250,7 +264,9 @@ def helper_state(node: HelperNode, *, now=None) -> str:
 
 
 def helper_effective_load(node: HelperNode) -> float:
-    slot_pressure = float(node.active_jobs or 0) / max(int(node.max_concurrency or 1), 1)
+    slot_pressure = float(node.active_jobs or 0) / max(
+        int(node.max_concurrency or 1), 1
+    )
     cpu_pressure = float(node.cpu_pct or 0.0) / max(float(node.cpu_cap_pct or 1), 1.0)
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
     gpu_pressure = 0.0
@@ -264,7 +280,9 @@ def helper_effective_load(node: HelperNode) -> float:
     return min(1.0, max(slot_pressure, cpu_pressure, ram_pressure, gpu_pressure))
 
 
-def capture_primary_hardware_snapshot(*, force: bool = False) -> HardwareCapabilitySnapshot:
+def capture_primary_hardware_snapshot(
+    *, force: bool = False
+) -> HardwareCapabilitySnapshot:
     import shutil
 
     previous = (
@@ -365,7 +383,9 @@ def get_latest_primary_hardware_snapshot() -> HardwareCapabilitySnapshot:
     return capture_primary_hardware_snapshot()
 
 
-def recommend_runtime_profile(snapshot: HardwareCapabilitySnapshot | None = None) -> RuntimeProfileRecommendation:
+def recommend_runtime_profile(
+    snapshot: HardwareCapabilitySnapshot | None = None,
+) -> RuntimeProfileRecommendation:
     snapshot = snapshot or get_latest_primary_hardware_snapshot()
     if snapshot.gpu_vram_gb >= 10 or snapshot.ram_gb >= 32:
         return RuntimeProfileRecommendation(

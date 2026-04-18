@@ -153,9 +153,21 @@ def get_link_farm_settings() -> dict[str, object]:
     }
 
 
-def _persist_settings(prefix: str, validated: dict[str, object], *, category: str, descriptions: dict[str, str]) -> None:
+def _persist_settings(
+    prefix: str,
+    validated: dict[str, object],
+    *,
+    category: str,
+    descriptions: dict[str, str],
+) -> None:
     for key, value in validated.items():
-        value_type = "bool" if isinstance(value, bool) else "int" if isinstance(value, int) and not isinstance(value, bool) else "float"
+        value_type = (
+            "bool"
+            if isinstance(value, bool)
+            else "int"
+            if isinstance(value, int) and not isinstance(value, bool)
+            else "float"
+        )
         AppSetting.objects.update_or_create(
             key=f"{prefix}.{key}",
             defaults={
@@ -168,10 +180,16 @@ def _persist_settings(prefix: str, validated: dict[str, object], *, category: st
         )
 
 
-def _validate_anchor_diversity_settings(payload: dict, current: dict[str, object]) -> dict[str, object]:
+def _validate_anchor_diversity_settings(
+    payload: dict, current: dict[str, object]
+) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return raw if isinstance(raw, bool) else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return (
+            raw
+            if isinstance(raw, bool)
+            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        )
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:
@@ -195,10 +213,16 @@ def _validate_anchor_diversity_settings(payload: dict, current: dict[str, object
     }
 
 
-def _validate_keyword_stuffing_settings(payload: dict, current: dict[str, object]) -> dict[str, object]:
+def _validate_keyword_stuffing_settings(
+    payload: dict, current: dict[str, object]
+) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return raw if isinstance(raw, bool) else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return (
+            raw
+            if isinstance(raw, bool)
+            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        )
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:
@@ -222,10 +246,16 @@ def _validate_keyword_stuffing_settings(payload: dict, current: dict[str, object
     }
 
 
-def _validate_link_farm_settings(payload: dict, current: dict[str, object]) -> dict[str, object]:
+def _validate_link_farm_settings(
+    payload: dict, current: dict[str, object]
+) -> dict[str, object]:
     def _bool(key: str) -> bool:
         raw = payload.get(key, current[key])
-        return raw if isinstance(raw, bool) else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        return (
+            raw
+            if isinstance(raw, bool)
+            else str(raw).strip().lower() in {"1", "true", "yes", "on"}
+        )
 
     def _int(key: str, lo: int, hi: int) -> int:
         try:

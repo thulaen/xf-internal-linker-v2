@@ -117,7 +117,9 @@ def evaluate_keyword_stuffing(
         return KeywordStuffingEvaluation(0.5, 0.0, diagnostics)
 
     stuff_score = kl_sum / max(math.log(max(vocab_size_doc, 2)), 1e-9)
-    stuff_penalty = 1.0 / (1.0 + math.exp(-settings.alpha * (stuff_score - settings.tau)))
+    stuff_penalty = 1.0 / (
+        1.0 + math.exp(-settings.alpha * (stuff_score - settings.tau))
+    )
     score_keyword_stuffing = 0.5 - 0.5 * stuff_penalty
     score_component = min(0.0, 2.0 * (score_keyword_stuffing - 0.5))
 

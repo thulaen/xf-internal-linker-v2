@@ -48,7 +48,9 @@ def serialize_helper_node(node: HelperNode) -> dict[str, object]:
         "network_rtt_ms": node.network_rtt_ms,
         "native_kernels_healthy": node.native_kernels_healthy,
         "warmed_model_keys": node.warmed_model_keys,
-        "last_heartbeat": node.last_heartbeat.isoformat() if node.last_heartbeat else None,
+        "last_heartbeat": node.last_heartbeat.isoformat()
+        if node.last_heartbeat
+        else None,
         "last_snapshot_at": node.last_snapshot_at.isoformat()
         if node.last_snapshot_at
         else None,
@@ -79,7 +81,9 @@ class RuntimeModelsView(APIView):
             model_name=model_name,
             algorithm_version=str(data.get("algorithm_version") or "fr020-v1"),
             defaults={
-                "model_family": str(data.get("model_family") or "sentence-transformers"),
+                "model_family": str(
+                    data.get("model_family") or "sentence-transformers"
+                ),
                 "dimension": data.get("dimension"),
                 "device_target": str(data.get("device_target") or "cpu"),
                 "batch_size": int(data.get("batch_size") or 32),
@@ -124,7 +128,9 @@ class RuntimeModelsView(APIView):
             message=f"Registered {registry.model_name} as a {registry.role}.",
             metadata={"executor_type": executor_type, "placement_id": placement.id},
         )
-        return Response(summarize_model_registry(task_type), status=201 if created else 200)
+        return Response(
+            summarize_model_registry(task_type), status=201 if created else 200
+        )
 
 
 class RuntimeModelActionView(APIView):
@@ -159,9 +165,9 @@ class RuntimeModelActionView(APIView):
             if placement is None:
                 return Response({"error": "placement_id not found."}, status=404)
         else:
-            placement = (
-                registry.placements.order_by("executor_type", "helper__name").first()
-            )
+            placement = registry.placements.order_by(
+                "executor_type", "helper__name"
+            ).first()
 
         actor = getattr(request.user, "username", "")
         now = timezone.now()
@@ -226,7 +232,9 @@ class RuntimeModelActionView(APIView):
                     "description": "Master pause for runtime work.",
                 },
             )
-            latest_backfill = RuntimeModelBackfillPlan.objects.order_by("-created_at").first()
+            latest_backfill = RuntimeModelBackfillPlan.objects.order_by(
+                "-created_at"
+            ).first()
             if latest_backfill and latest_backfill.status == "running":
                 latest_backfill.status = "paused"
                 latest_backfill.save(update_fields=["status", "updated_at"])
@@ -249,7 +257,9 @@ class RuntimeModelActionView(APIView):
                     "description": "Master pause for runtime work.",
                 },
             )
-            latest_backfill = RuntimeModelBackfillPlan.objects.order_by("-created_at").first()
+            latest_backfill = RuntimeModelBackfillPlan.objects.order_by(
+                "-created_at"
+            ).first()
             if latest_backfill and latest_backfill.status == "paused":
                 latest_backfill.status = "running"
                 latest_backfill.save(update_fields=["status", "updated_at"])
@@ -307,9 +317,7 @@ class RuntimeModelActionView(APIView):
             registry.role = "champion"
             registry.status = "ready"
             registry.promoted_at = now
-            registry.save(
-                update_fields=["role", "status", "promoted_at", "updated_at"]
-            )
+            registry.save(update_fields=["role", "status", "promoted_at", "updated_at"])
             if placement is not None and placement.status != "ready":
                 placement.status = "ready"
                 placement.warmed_at = placement.warmed_at or now
@@ -339,7 +347,9 @@ class RuntimeModelActionView(APIView):
                 message=f"Promoted {registry.model_name} to champion.",
                 metadata={"dimension_changed": dimension_changed},
             )
-            return Response({"status": "promoted", "dimension_changed": dimension_changed})
+            return Response(
+                {"status": "promoted", "dimension_changed": dimension_changed}
+            )
 
         if action == "rollback":
             previous = (
@@ -352,7 +362,9 @@ class RuntimeModelActionView(APIView):
                 .first()
             )
             if previous is None:
-                return Response({"error": "No retired model available to roll back to."}, status=409)
+                return Response(
+                    {"error": "No retired model available to roll back to."}, status=409
+                )
             current = get_active_runtime_model(registry.task_type)
             if current is not None and current.pk != previous.pk:
                 current.role = "retired"
@@ -381,9 +393,13 @@ class RuntimeModelActionView(APIView):
                 actor=actor,
                 message=f"Rolled back champion to {previous.model_name}.",
             )
-            return Response({"status": "rolled_back", "model_name": previous.model_name})
+            return Response(
+                {"status": "rolled_back", "model_name": previous.model_name}
+            )
 
-        return Response({"error": "Action handling fell through unexpectedly."}, status=500)
+        return Response(
+            {"error": "Action handling fell through unexpectedly."}, status=500
+        )
 
 
 class RuntimeModelPlacementDeleteView(APIView):
@@ -392,30 +408,48 @@ class RuntimeModelPlacementDeleteView(APIView):
     permission_classes = [IsAuthenticated]
 
     def delete(self, request, pk):
-        placement = RuntimeModelPlacement.objects.select_related("registry", "helper").filter(pk=pk).first()
+        placement = (
+            RuntimeModelPlacement.objects.select_related("registry", "helper")
+            .filter(pk=pk)
+            .first()
+        )
         if placement is None:
             return Response({"error": "Placement not found."}, status=404)
         registry = placement.registry
         if registry.role in {"champion", "candidate"}:
-            return Response({"error": "Champion or candidate placements cannot be deleted."}, status=409)
+            return Response(
+                {"error": "Champion or candidate placements cannot be deleted."},
+                status=409,
+            )
         if placement.status in {"warming", "draining"}:
-            return Response({"error": "Warming or draining placements cannot be deleted."}, status=409)
+            return Response(
+                {"error": "Warming or draining placements cannot be deleted."},
+                status=409,
+            )
         from apps.suggestions.models import PipelineRun
         from apps.sync.models import SyncJob
 
         active_pipeline_runs = PipelineRun.objects.filter(
             run_state__in={"queued", "running"}
         ).exists()
-        active_or_resumable_sync_jobs = SyncJob.objects.filter(
-            status__in={"pending", "running", "paused"}
-        ).exists() or SyncJob.objects.filter(is_resumable=True).exclude(
-            status__in={"completed", "failed", "cancelled"}
-        ).exists()
-        active_backfill = RuntimeModelBackfillPlan.objects.filter(
-            status__in={"queued", "running", "paused"}
-        ).filter(from_model=registry).exists() or RuntimeModelBackfillPlan.objects.filter(
-            status__in={"queued", "running", "paused"}
-        ).filter(to_model=registry).exists()
+        active_or_resumable_sync_jobs = (
+            SyncJob.objects.filter(status__in={"pending", "running", "paused"}).exists()
+            or SyncJob.objects.filter(is_resumable=True)
+            .exclude(status__in={"completed", "failed", "cancelled"})
+            .exists()
+        )
+        active_backfill = (
+            RuntimeModelBackfillPlan.objects.filter(
+                status__in={"queued", "running", "paused"}
+            )
+            .filter(from_model=registry)
+            .exists()
+            or RuntimeModelBackfillPlan.objects.filter(
+                status__in={"queued", "running", "paused"}
+            )
+            .filter(to_model=registry)
+            .exists()
+        )
         if active_pipeline_runs or active_or_resumable_sync_jobs or active_backfill:
             return Response(
                 {

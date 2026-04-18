@@ -723,9 +723,7 @@ class WeightDiagnosticsView(views.APIView):
                 "signals": signal_data,
                 "summary": {
                     "total_signals": len(SIGNALS),
-                    "active_signals": sum(
-                        1 for s in SIGNALS if s.status == "active"
-                    ),
+                    "active_signals": sum(1 for s in SIGNALS if s.status == "active"),
                     "cpp_accelerated_count": sum(
                         1 for s in signal_data if s["cpp_acceleration"]["active"]
                     ),
@@ -985,7 +983,10 @@ def _read_master_pause() -> bool:
 def _embeddings_tile() -> dict:
     try:
         from apps.content.models import ContentItem
-        from apps.core.runtime_registry import summarize_helpers, summarize_model_registry
+        from apps.core.runtime_registry import (
+            summarize_helpers,
+            summarize_model_registry,
+        )
 
         runtime = summarize_model_registry()
         helpers = summarize_helpers()
@@ -1178,7 +1179,9 @@ def _anti_spam_tile() -> dict:
             "Keyword stuffing": get_keyword_stuffing_settings(),
             "Link farm": get_link_farm_settings(),
         }
-        disabled = [name for name, cfg in signals.items() if not bool(cfg.get("enabled"))]
+        disabled = [
+            name for name, cfg in signals.items() if not bool(cfg.get("enabled"))
+        ]
         zero_weight = [
             name
             for name, cfg in signals.items()
