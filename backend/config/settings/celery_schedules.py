@@ -105,6 +105,15 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=22, minute=20, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },
+    # Rejected-pair negative-memory prune: every Sunday 22:25 UTC.
+    # Keeps RejectedPair table bounded by deleting rows past the 365-day
+    # prune-after threshold (well beyond the 90-day suppression window).
+    # See BUSINESS-LOGIC-CHECKLIST §6.3.
+    "weekly-prune-rejected-pairs": {
+        "task": "suggestions.prune_rejected_pairs",
+        "schedule": crontab(hour=22, minute=25, day_of_week=0),
+        "options": {"queue": "default"},
+    },
     # ── Daytime / frequent tasks (unchanged) ────────────────────────
     # FR-019 — daily GSC spike detection: 08:00 UTC.
     "daily-gsc-spike-check": {

@@ -241,6 +241,7 @@ The following jobs run automatically on their stated cadence. Every pruning job 
 | `GSCImpactSnapshot` rows | 120 days | `analytics.tasks.prune_gsc_snapshots` |
 | `ImpactReport` rows | 180 days | `analytics.tasks.prune_impact_reports` |
 | `LinkFreshnessEdge` inactive rows | 90 days since last seen | `graph.tasks.prune_stale_edges` |
+| `RejectedPair` rows | 365 days since `last_rejected_at` (well past the 90-day suppression window) | `suggestions.prune_rejected_pairs` |
 | Celery task results (`django_celery_results`) | 14 days | Celery beat schedule |
 | Django log files (`logs/*.log`) | Rotate at 10 MB, keep 5 files | `logging.handlers.RotatingFileHandler` |
 | Docker dangling images | After every `docker-compose build` | `docker image prune -f` |

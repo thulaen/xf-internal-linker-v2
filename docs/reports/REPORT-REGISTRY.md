@@ -151,6 +151,17 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-020 — FR-045 ledger drift: anchor-diversity ships in code but ledger marks it pending (2026-04-18)
+
+- **Found by:** Claude (during duplicate-check research for suggestion-quality telemetry Phase 1)
+- **Severity:** low
+- **Affected files:** `AI-CONTEXT.md` (line 322, Pending FRs list), `FEATURE-REQUESTS.md` (FR-045 status)
+- **Description:** `AI-CONTEXT.md` lists `FR-045` among the 60 pending FRs, but the shipping evidence is present: `backend/apps/pipeline/services/anchor_diversity.py` implements `evaluate_anchor_diversity`; `Suggestion.score_anchor_diversity` exists with help text `"FR-045 anchor-diversity anti-spam score"`; migrations `0031_suggestion_anchor_diversity_diagnostics_and_more.py` and `0032_upsert_runtime_antispam_defaults.py` are applied; spec `docs/specs/fr045-anchor-diversity-exact-match-reuse-guard.md` exists. The ranker, diagnostic surface, and settings UI all reference FR-045. Either the implementation is effectively complete and the ledger needs updating, or some acceptance criterion is unmet and the gap should be documented. Per BLC §4.1 "If a feature is complete but marked partial or pending, fix the ledger. If it is partial but marked complete, fix the ledger."
+- **Status:** OPEN
+- **Regression watch:** Future sessions touching anchor-diversity telemetry should not create parallel `AnchorUsage` tables or over-optimised-anchor warning UIs — FR-045 already handles that surface via `score_anchor_diversity` and `anchor_diversity_diagnostics`.
+
+---
+
 ### ISS-011 — 101 stalled-job alerts flooding the Alerts page with 142× duplicates (2026-04-12)
 
 - **Found by:** Claude

@@ -878,3 +878,246 @@ class TestRunMetaTournament(TestCase):
         outcomes = run_meta_tournament(slot_id="second_order_optimizer")
         assert len(outcomes) == 1
         assert outcomes[0].skipped is False
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Phase 1 telemetry — negative memory (RejectedPair) + anchor-edit AuditEntry.
+# See plans/what-is-other-telemetry-idempotent-bee.md.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class RejectedPairModelTests(TestCase):
+    """Unit tests for RejectedPair.record_rejection and get_suppressed_pair_ids."""
+
+    def setUp(self) -> None:
+        self.host = ContentItem.objects.create(
+            content_id=9001,
+            content_type="thread",
+            title="Host thread",
+        )
+        self.destination = ContentItem.objects.create(
+            content_id=9002,
+            content_type="thread",
+            title="Destination thread",
+        )
+
+    def test_record_rejection_creates_row_with_count_one(self) -> None:
+        from apps.suggestions.models import RejectedPair
+
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        pair = RejectedPair.objects.get(
+            host=self.host, destination=self.destination
+        )
+        self.assertEqual(pair.rejection_count, 1)
+        self.assertIsNotNone(pair.first_rejected_at)
+        self.assertIsNotNone(pair.last_rejected_at)
+
+    def test_record_rejection_increments_existing_row(self) -> None:
+        from apps.suggestions.models import RejectedPair
+
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        pair = RejectedPair.objects.get(
+            host=self.host, destination=self.destination
+        )
+        self.assertEqual(pair.rejection_count, 3)
+
+    def test_get_suppressed_pair_ids_within_window(self) -> None:
+        from apps.suggestions.models import RejectedPair
+
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        suppressed = RejectedPair.get_suppressed_pair_ids()
+        self.assertIn((self.host.pk, self.destination.pk), suppressed)
+
+    def test_get_suppressed_pair_ids_excludes_rows_past_window(self) -> None:
+        from datetime import timedelta
+
+        from apps.suggestions.models import (
+            REJECTED_PAIR_SUPPRESSION_DAYS,
+            RejectedPair,
+        )
+
+        RejectedPair.record_rejection(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        )
+        # Push last_rejected_at past the suppression window.
+        stale_ts = timezone.now() - timedelta(
+            days=REJECTED_PAIR_SUPPRESSION_DAYS + 1
+        )
+        RejectedPair.objects.filter(
+            host_id=self.host.pk, destination_id=self.destination.pk
+        ).update(last_rejected_at=stale_ts)
+        suppressed = RejectedPair.get_suppressed_pair_ids()
+        self.assertNotIn((self.host.pk, self.destination.pk), suppressed)
+
+
+class PruneRejectedPairsTaskTests(TestCase):
+    """Verify the weekly prune task deletes only rows past PRUNE_AFTER_DAYS."""
+
+    def test_prune_deletes_only_rows_past_threshold(self) -> None:
+        from datetime import timedelta
+
+        from apps.suggestions.models import (
+            REJECTED_PAIR_PRUNE_AFTER_DAYS,
+            RejectedPair,
+        )
+        from apps.suggestions.tasks import prune_rejected_pairs
+
+        host = ContentItem.objects.create(
+            content_id=9101, content_type="thread", title="H"
+        )
+        dest_fresh = ContentItem.objects.create(
+            content_id=9102, content_type="thread", title="DF"
+        )
+        dest_stale = ContentItem.objects.create(
+            content_id=9103, content_type="thread", title="DS"
+        )
+        RejectedPair.record_rejection(
+            host_id=host.pk, destination_id=dest_fresh.pk
+        )
+        RejectedPair.record_rejection(
+            host_id=host.pk, destination_id=dest_stale.pk
+        )
+        # Age the stale row past the prune threshold.
+        stale_ts = timezone.now() - timedelta(
+            days=REJECTED_PAIR_PRUNE_AFTER_DAYS + 1
+        )
+        RejectedPair.objects.filter(destination_id=dest_stale.pk).update(
+            last_rejected_at=stale_ts
+        )
+
+        result = prune_rejected_pairs()
+
+        self.assertEqual(result["deleted"], 1)
+        self.assertEqual(result["remaining"], 1)
+        self.assertTrue(
+            RejectedPair.objects.filter(destination_id=dest_fresh.pk).exists()
+        )
+        self.assertFalse(
+            RejectedPair.objects.filter(destination_id=dest_stale.pk).exists()
+        )
+
+
+class ReviewEndpointAuditTests(APITestCase):
+    """Integration tests for the reject + approve (edit_anchor) audit flows."""
+
+    def setUp(self) -> None:
+        user = get_user_model().objects.create_user(
+            username="reviewer2", password="pass"
+        )
+        self.client.force_authenticate(user=user)
+        self.host = ContentItem.objects.create(
+            content_id=9201, content_type="thread", title="Host"
+        )
+        self.destination = ContentItem.objects.create(
+            content_id=9202, content_type="thread", title="Destination"
+        )
+        post = Post.objects.create(
+            content_item=self.host, raw_bbcode="hello", clean_text="hello"
+        )
+        self.sentence = Sentence.objects.create(
+            content_item=self.host,
+            post=post,
+            text="This is the host sentence",
+            position=0,
+            char_count=25,
+            start_char=0,
+            end_char=25,
+            word_position=1,
+        )
+
+    def _create_suggestion(self, anchor_phrase: str = "host") -> Suggestion:
+        return Suggestion.objects.create(
+            destination=self.destination,
+            destination_title=self.destination.title,
+            host=self.host,
+            host_sentence=self.sentence,
+            host_sentence_text=self.sentence.text,
+            anchor_phrase=anchor_phrase,
+            status="pending",
+        )
+
+    def test_reject_upserts_rejected_pair(self) -> None:
+        from apps.suggestions.models import RejectedPair
+
+        suggestion = self._create_suggestion()
+        response = self.client.post(
+            f"/api/suggestions/{suggestion.suggestion_id}/reject/",
+            data={"rejection_reason": "irrelevant"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(
+            RejectedPair.objects.filter(
+                host=self.host, destination=self.destination
+            ).exists()
+        )
+
+    def test_approve_with_anchor_edit_writes_edit_anchor_audit(self) -> None:
+        from apps.audit.models import AuditEntry
+
+        suggestion = self._create_suggestion(anchor_phrase="host")
+        response = self.client.post(
+            f"/api/suggestions/{suggestion.suggestion_id}/approve/",
+            data={"anchor_edited": "host sentence"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        edit_entries = AuditEntry.objects.filter(
+            action="edit_anchor",
+            target_id=str(suggestion.suggestion_id),
+        )
+        self.assertEqual(edit_entries.count(), 1)
+        detail = edit_entries.first().detail
+        self.assertEqual(detail["anchor_original"], "host")
+        self.assertEqual(detail["anchor_final"], "host sentence")
+
+    def test_approve_without_anchor_edit_does_not_write_edit_anchor_audit(
+        self,
+    ) -> None:
+        from apps.audit.models import AuditEntry
+
+        suggestion = self._create_suggestion(anchor_phrase="host")
+        response = self.client.post(
+            f"/api/suggestions/{suggestion.suggestion_id}/approve/",
+            data={},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            AuditEntry.objects.filter(
+                action="edit_anchor",
+                target_id=str(suggestion.suggestion_id),
+            ).exists()
+        )
+
+    def test_approve_with_unchanged_anchor_does_not_write_edit_anchor_audit(
+        self,
+    ) -> None:
+        """Reviewer submits anchor_edited equal to anchor_phrase — no edit."""
+        from apps.audit.models import AuditEntry
+
+        suggestion = self._create_suggestion(anchor_phrase="host")
+        response = self.client.post(
+            f"/api/suggestions/{suggestion.suggestion_id}/approve/",
+            data={"anchor_edited": "host"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(
+            AuditEntry.objects.filter(
+                action="edit_anchor",
+                target_id=str(suggestion.suggestion_id),
+            ).exists()
+        )

@@ -22,6 +22,7 @@ from .models import (
     PipelineDiagnostic,
     PipelineRun,
     RankingChallenger,
+    RejectedPair,
     Suggestion,
     SuggestionPresentation,
     WeightAdjustmentHistory,
@@ -208,7 +209,14 @@ class SuggestionViewSet(viewsets.ModelViewSet):
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None) -> Response:
-        """Approve a pending suggestion. Optionally accepts anchor_edited."""
+        """Approve a pending suggestion. Optionally accepts anchor_edited.
+
+        When the reviewer supplies an ``anchor_edited`` value that differs from
+        the system-generated ``anchor_phrase``, an additional ``edit_anchor``
+        AuditEntry is written alongside the ``approve`` entry. This turns
+        reviewer anchor edits into labelled training data for the
+        anchor-generator without otherwise changing approve semantics.
+        """
         suggestion = self.get_object()
         if suggestion.status not in ("pending", "rejected"):
             return Response(
@@ -217,6 +225,17 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 },
                 status=status.HTTP_400_BAD_REQUEST,
             )
+
+        # Capture the system-generated anchor BEFORE save so we can detect
+        # whether the reviewer's anchor_edited value represents a real edit.
+        original_anchor_phrase = suggestion.anchor_phrase
+        new_anchor_edited = request.data.get("anchor_edited")
+        anchor_was_edited = (
+            isinstance(new_anchor_edited, str)
+            and new_anchor_edited.strip() != ""
+            and new_anchor_edited != original_anchor_phrase
+        )
+
         suggestion.status = "approved"
         suggestion.reviewed_at = datetime.now(tz=timezone.utc)
         if "anchor_edited" in request.data:
@@ -233,11 +252,24 @@ class SuggestionViewSet(viewsets.ModelViewSet):
             ]
         )
         self._log_audit("approve", suggestion, request)
+        if anchor_was_edited:
+            self._log_anchor_edit_audit(
+                suggestion=suggestion,
+                request=request,
+                original=original_anchor_phrase,
+                final=new_anchor_edited,
+            )
         return Response(SuggestionDetailSerializer(suggestion).data)
 
     @action(detail=True, methods=["post"])
     def reject(self, request, pk=None) -> Response:
-        """Reject a pending suggestion with an optional reason."""
+        """Reject a pending suggestion with an optional reason.
+
+        Also upserts a ``RejectedPair`` row for (host, destination) so the
+        candidate generator suppresses this pair on future pipeline runs for
+        ``REJECTED_PAIR_SUPPRESSION_DAYS`` days. RejectedPair failures are
+        logged but never block the reject flow.
+        """
         suggestion = self.get_object()
         if suggestion.status not in ("pending", "approved"):
             return Response(
@@ -260,6 +292,7 @@ class SuggestionViewSet(viewsets.ModelViewSet):
             ]
         )
         self._log_audit("reject", suggestion, request)
+        self._record_rejected_pair(suggestion)
         return Response(SuggestionDetailSerializer(suggestion).data)
 
     @action(detail=True, methods=["post"])
@@ -310,12 +343,32 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 updated_at=now,
             )
         elif action_name == "reject":
+            # Capture (host, destination) pairs BEFORE the bulk update so we
+            # can upsert RejectedPair rows for each rejection.
+            pairs_to_record: list[tuple[int, int]] = list(
+                suggestions.values_list("host_id", "destination_id")
+            )
             updated = suggestions.update(
                 status="rejected",
                 reviewed_at=now,
                 rejection_reason=request.data.get("rejection_reason", "other"),
                 updated_at=now,
             )
+            # Upsert RejectedPair per pair. Bounded by the 500-ID batch cap
+            # above, so worst-case we do 500 ORM round-trips — acceptable for
+            # an operator batch action. Failures are logged but non-fatal.
+            for host_id, destination_id in pairs_to_record:
+                try:
+                    RejectedPair.record_rejection(
+                        host_id=host_id,
+                        destination_id=destination_id,
+                    )
+                except Exception:
+                    logger.exception(
+                        "Failed to record RejectedPair for host=%s dest=%s",
+                        host_id,
+                        destination_id,
+                    )
         else:
             updated = suggestions.update(updated_at=now)
 
@@ -341,6 +394,59 @@ class SuggestionViewSet(viewsets.ModelViewSet):
         except Exception:
             logger.exception(
                 "Failed to write audit entry for suggestion %s",
+                suggestion.suggestion_id,
+            )
+
+    def _record_rejected_pair(self, suggestion: Suggestion) -> None:
+        """Upsert a RejectedPair row for (host, destination).
+
+        Called from the single-suggestion ``reject`` action. Drives the
+        negative-memory suppression in ``_persist_suggestions``. Failures are
+        logged — the reject operation itself must not fail because of a
+        telemetry write.
+        """
+        try:
+            RejectedPair.record_rejection(
+                host_id=suggestion.host_id,
+                destination_id=suggestion.destination_id,
+            )
+        except Exception:
+            logger.exception(
+                "Failed to record RejectedPair for suggestion %s",
+                suggestion.suggestion_id,
+            )
+
+    def _log_anchor_edit_audit(
+        self,
+        *,
+        suggestion: Suggestion,
+        request,
+        original: str,
+        final: str,
+    ) -> None:
+        """Write an ``edit_anchor`` AuditEntry capturing a reviewer anchor edit.
+
+        Emitted from ``approve`` when ``anchor_edited`` differs from the
+        system-generated ``anchor_phrase``. The pair (original, final) becomes
+        training data for the anchor generator. Failures are logged but never
+        raised — audit write failures must not break the approve flow.
+        """
+        try:
+            AuditEntry.objects.create(
+                action="edit_anchor",
+                target_type="suggestion",
+                target_id=str(suggestion.suggestion_id),
+                detail={
+                    "anchor_original": original,
+                    "anchor_final": final,
+                    "original_length": len(original),
+                    "final_length": len(final),
+                },
+                ip_address=request.META.get("REMOTE_ADDR"),
+            )
+        except Exception:
+            logger.exception(
+                "Failed to write edit_anchor audit entry for suggestion %s",
                 suggestion.suggestion_id,
             )
 

@@ -1054,3 +1054,129 @@ class MetaTournamentResult(models.Model):
             f"NDCG@10={self.ndcg_at_10:.4f}{winner_tag} "
             f"@ {self.evaluated_at:%Y-%m-%d}"
         )
+
+
+# ── Rejected-pair negative memory ───────────────────────────────────────────
+# Window constants live at module level so tests, tasks, and the candidate
+# generator all read one source of truth.
+
+#: Days after a rejection during which the (host, destination) pair is
+#: suppressed from re-suggestion. After this window elapses, the pair is
+#: eligible for the ranker again (content may have drifted).
+REJECTED_PAIR_SUPPRESSION_DAYS = 90
+
+#: Days after which a RejectedPair row is deleted by the weekly prune task.
+#: Chosen well beyond SUPPRESSION_DAYS so the negative memory has time to
+#: influence multiple pipeline runs before being pruned.
+REJECTED_PAIR_PRUNE_AFTER_DAYS = 365
+
+
+class RejectedPair(models.Model):
+    """Negative memory for rejected (host, destination) suggestion pairs.
+
+    When a reviewer rejects a Suggestion, an entry is upserted here keyed on
+    ``(host_id, destination_id)``. During the next pipeline run,
+    ``_persist_suggestions`` filters out any candidate whose pair matches a
+    row where ``last_rejected_at`` falls within ``REJECTED_PAIR_SUPPRESSION_DAYS``,
+    and emits a ``PipelineDiagnostic`` row (skip_reason=``rejected_recently``)
+    so the operator can see the suppression in the "why no suggestion?"
+    explorer.
+
+    Neutral fallback: an empty table means behaviour is identical to the
+    pre-feature baseline — nothing is suppressed.
+
+    # HEURISTIC: no primary source (per BUSINESS-LOGIC-CHECKLIST §1.1).
+    # This is a simple implicit-negative-feedback hard filter, not a scored
+    # ranking signal. Related literature: Hu, Koren & Volinsky (2008)
+    # "Collaborative Filtering for Implicit Feedback Datasets" (ICDM'08)
+    # covers implicit-negative feedback in recommender systems, but this
+    # implementation is a hard filter, not an IPS-weighted model.
+    """
+
+    host = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="rejected_pair_hosts",
+        help_text="The page where a link was suggested and then rejected.",
+    )
+    destination = models.ForeignKey(
+        "content.ContentItem",
+        on_delete=models.CASCADE,
+        related_name="rejected_pair_destinations",
+        help_text="The suggested link target that was rejected.",
+    )
+    first_rejected_at = models.DateTimeField(
+        auto_now_add=True,
+        help_text="When this (host, destination) pair was first rejected.",
+    )
+    last_rejected_at = models.DateTimeField(
+        db_index=True,
+        help_text=(
+            "When this pair was most recently rejected. Drives the "
+            "suppression window during candidate generation."
+        ),
+    )
+    rejection_count = models.PositiveIntegerField(
+        default=1,
+        help_text="How many times this exact (host, destination) pair has been rejected.",
+    )
+
+    class Meta:
+        verbose_name = "Rejected Pair"
+        verbose_name_plural = "Rejected Pairs"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["host", "destination"],
+                name="unique_rejected_host_destination",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["-last_rejected_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return (
+            f"RejectedPair host={self.host_id} dest={self.destination_id} "
+            f"x{self.rejection_count}"
+        )
+
+    @classmethod
+    def record_rejection(cls, *, host_id: int, destination_id: int) -> None:
+        """Upsert a rejection: create the row or bump ``rejection_count`` +1.
+
+        Called from the reject and batch-reject endpoints. Safe to call for the
+        same pair repeatedly — the unique constraint on (host, destination)
+        keeps exactly one row per pair. Uses a database-side F() update so
+        concurrent rejections of the same pair do not lose counts.
+        """
+        from django.utils import timezone
+
+        now = timezone.now()
+        obj, created = cls.objects.get_or_create(
+            host_id=host_id,
+            destination_id=destination_id,
+            defaults={"last_rejected_at": now},
+        )
+        if not created:
+            cls.objects.filter(pk=obj.pk).update(
+                last_rejected_at=now,
+                rejection_count=models.F("rejection_count") + 1,
+            )
+
+    @classmethod
+    def get_suppressed_pair_ids(cls) -> set[tuple[int, int]]:
+        """Return the set of (host_id, destination_id) pairs currently suppressed.
+
+        A pair is suppressed when ``last_rejected_at`` is within
+        ``REJECTED_PAIR_SUPPRESSION_DAYS`` of now. Called once per pipeline
+        run to build the filter set. Empty set when the table is empty.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        threshold = timezone.now() - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS)
+        rows = cls.objects.filter(last_rejected_at__gte=threshold).values_list(
+            "host_id", "destination_id"
+        )
+        return set(rows)

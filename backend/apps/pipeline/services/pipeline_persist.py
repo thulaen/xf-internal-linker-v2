@@ -36,16 +36,32 @@ def _persist_suggestions(
 
     For full_regenerate mode, deletes existing pending/superseded suggestions
     for the same destination before inserting new ones.
+
+    Negative-memory suppression: any candidate whose ``(host_id, destination_id)``
+    is recorded in ``RejectedPair`` within ``REJECTED_PAIR_SUPPRESSION_DAYS``
+    is skipped and a ``PipelineDiagnostic`` row is emitted with
+    ``skip_reason="rejected_recently"`` so the operator can see the
+    suppression in the "why no suggestion?" explorer (BLC §3).
     """
     from apps.content.models import ContentItem, Sentence
-    from apps.suggestions.models import PipelineRun, Suggestion
+    from apps.suggestions.models import (
+        REJECTED_PAIR_SUPPRESSION_DAYS,
+        PipelineRun,
+        RejectedPair,
+        Suggestion,
+    )
 
     try:
         run = PipelineRun.objects.get(run_id=run_id)
     except PipelineRun.DoesNotExist:
         run = None
 
+    # Load the suppression set once per pipeline run. Empty set when the
+    # RejectedPair table is empty → behaviour identical to pre-feature.
+    suppressed_pairs = RejectedPair.get_suppressed_pair_ids()
+
     valid_candidates: list[ScoredCandidate] = []
+    suppressed_diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
     content_item_ids: set[int] = set()
     sentence_ids: set[int] = set()
     destination_ids_to_replace: set[int] = set()
@@ -56,12 +72,31 @@ def _persist_suggestions(
         sentence_record = sentence_records.get(candidate.host_sentence_id)
         if dest_record is None or sentence_record is None:
             continue
+        pair_id = (candidate.host_content_id, candidate.destination_content_id)
+        if pair_id in suppressed_pairs:
+            suppressed_diagnostics.append(
+                (
+                    candidate.destination_content_id,
+                    candidate.destination_content_type,
+                    "rejected_recently",
+                    {
+                        "host_content_id": candidate.host_content_id,
+                        "suppression_days": REJECTED_PAIR_SUPPRESSION_DAYS,
+                    },
+                )
+            )
+            continue
         valid_candidates.append(candidate)
         content_item_ids.add(candidate.destination_content_id)
         content_item_ids.add(candidate.host_content_id)
         sentence_ids.add(candidate.host_sentence_id)
         if rerun_mode == "full_regenerate":
             destination_ids_to_replace.add(candidate.destination_content_id)
+
+    # Emit negative-memory diagnostics even if no valid candidates remain, so
+    # operators can see suppression counts in the explorer.
+    if suppressed_diagnostics:
+        _persist_diagnostics(run_id=run_id, diagnostics=suppressed_diagnostics)
 
     if not valid_candidates:
         return 0

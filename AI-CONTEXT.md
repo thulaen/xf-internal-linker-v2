@@ -443,6 +443,60 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 1 of suggestion-quality telemetry: edit_anchor AuditEntry + RejectedPair negative memory (Claude)
+
+- **AI/tool:** Claude
+- **Why:** User asked "what other telemetry could improve the project?" and clarified they meant telemetry that improves the quality of link suggestions and SEO. After a duplicate-check sweep (CLAUDE.md mandatory research rule + BLC §1.2), most of the proposed Phase 1 was already scaffolded (`REJECTION_REASON_CHOICES`, `anchor_edited` field, `ACTION_CHOICES="edit_anchor"`) or already shipped (FR-045 `anchor_diversity.py` covers over-optimised anchor suppression). Scope collapsed to two genuinely new slices: (1b) emit the reserved-but-never-written `edit_anchor` `AuditEntry` when the reviewer changes the anchor at approve time, and (1c) a `RejectedPair` negative-memory table that suppresses (host, destination) re-suggestion for 90 days after a reject.
+- **What was done:**
+  - **Phase 1b — `edit_anchor` AuditEntry.** `backend/apps/suggestions/views.py` — `approve` action captures the pre-save `anchor_phrase`, detects whether the supplied `anchor_edited` is a real edit, and writes a separate `AuditEntry(action="edit_anchor")` via new `_log_anchor_edit_audit` helper. Failures are logged but never raised — audit writes must not break approve. No new model, no migration. The `edit_anchor` slot has existed in `ACTION_CHOICES` + `schema.yml` since 0001; no call site had ever written it.
+  - **Phase 1c — `RejectedPair` negative memory.** New `RejectedPair(host, destination, first_rejected_at, last_rejected_at, rejection_count)` model in `backend/apps/suggestions/models.py` with unique constraint on (host, destination). `record_rejection()` classmethod upserts via `get_or_create` + F()-based count bump. `get_suppressed_pair_ids()` returns the suppressed set for one pipeline run. Constants: `REJECTED_PAIR_SUPPRESSION_DAYS = 90`, `REJECTED_PAIR_PRUNE_AFTER_DAYS = 365`. Migration `0033_add_rejected_pair.py` applied clean.
+  - **Reject wiring.** `SuggestionViewSet.reject` single-action calls new `_record_rejected_pair(suggestion)` helper. `batch_action` captures `(host_id, destination_id)` pairs before the bulk update and upserts each (bounded by the existing 500-ID batch cap). Both paths log but never raise on RejectedPair failure.
+  - **Pipeline suppression.** `backend/apps/pipeline/services/pipeline_persist.py` `_persist_suggestions` fetches the suppressed pair set once per run and skips any candidate in it. A `PipelineDiagnostic(skip_reason="rejected_recently")` row is emitted per suppressed pair so the "why no suggestion?" explorer shows the suppression — BLC §3 diagnostic mandate. Empty `RejectedPair` table → behaviour identical to pre-feature.
+  - **Weekly prune task.** New `backend/apps/suggestions/tasks.py` → `prune_rejected_pairs` shared task deletes rows past `PRUNE_AFTER_DAYS`. Scheduled weekly via `celery_schedules.py` `weekly-prune-rejected-pairs` (Sunday 22:25 UTC). `docs/BUSINESS-LOGIC-CHECKLIST.md` §6.3 updated with the new prune rule.
+  - **Tests.** `backend/apps/suggestions/tests.py` gained `RejectedPairModelTests` (4 unit tests), `PruneRejectedPairsTaskTests` (1 unit test), `ReviewEndpointAuditTests` (4 API integration tests). All 9 new tests pass. Pre-existing pipeline regression test `test_persist_suggestions_saves_real_scores_and_uses_batched_fetches` bumped query-count bound 6 → 7 with a comment — the one added query is constant-cost (O(1), not O(N) on candidates) so it's not an N+1.
+
+- **Intentional files changed:**
+  - `backend/apps/suggestions/models.py` (+`RejectedPair` model + constants, ~130 lines)
+  - `backend/apps/suggestions/migrations/0033_add_rejected_pair.py` (new)
+  - `backend/apps/suggestions/views.py` (`approve` change, `reject` + `batch_action` wiring, 2 new helpers)
+  - `backend/apps/suggestions/tasks.py` (new — prune_rejected_pairs)
+  - `backend/apps/pipeline/services/pipeline_persist.py` (`_persist_suggestions` suppression + diagnostic emission)
+  - `backend/apps/pipeline/tests.py` (query-count bound 6 → 7 with explanation)
+  - `backend/apps/suggestions/tests.py` (+3 test classes, 9 tests)
+  - `backend/config/settings/celery_schedules.py` (+weekly-prune-rejected-pairs entry)
+  - `docs/BUSINESS-LOGIC-CHECKLIST.md` (§6.3 row for RejectedPair)
+  - `docs/reports/REPORT-REGISTRY.md` (new ISS-020 — FR-045 ledger drift discovered during research)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** Existing `ACTION_CHOICES="edit_anchor"` slot, existing `AuditEntry.detail` JSON field shape, existing `PipelineDiagnostic.skip_reason` surface, existing `_log_audit` pattern (try/except with log-on-failure), existing Celery beat schedule format, existing migration/prune policy in BLC §6.3. **Deliberately did NOT build** `AnchorUsage` or over-optimised-anchor warning UI — that duplicates FR-045 `anchor_diversity.py` which already ships.
+
+- **Session Gate compliance:**
+  - Session Start Snapshot posted in chat (4 parts). Flagged RPT-001's 5 OPEN ranking/attribution findings (overlap with Phase 3–5 of original plan; Phase 1 does not touch those files) and explained scope reduction to user before coding.
+  - `AI-CONTEXT.md` Session Gate, `docs/reports/REPORT-REGISTRY.md`, `docs/BUSINESS-LOGIC-CHECKLIST.md` (full), `backend/PYTHON-RULES.md`, `frontend/FRONTEND-RULES.md`, `AGENTS.md`, `docs/PERFORMANCE.md` §6 all read before writing code.
+  - Duplicate-check pass: confirmed `REJECTION_REASON_CHOICES` + `anchor_edited` already exist, `edit_anchor` action slot already exists, `score_anchor_diversity` already ships via FR-045 — dropped the original Phase 1a (rejection reason required — user asked to leave optional) and Phase 1d (anchor diversity UI — duplicates FR-045).
+  - BLC §0 AI Drift Rejection Gate: RejectedPair is a simple hard-filter negative-memory heuristic with a neutral fallback (empty table = identical behaviour), reviewer-visible diagnostic (`PipelineDiagnostic.skip_reason="rejected_recently"`). Marked `# HEURISTIC: no primary source` per §1.1. Does not mix concepts, does not smuggle a second capability.
+  - BLC §6.3 respected — new RejectedPair table has a pruning rule and row in the checklist table.
+  - PYTHON-RULES: no mutable defaults, type hints on new functions, `timezone.now()` not `datetime.now()` (§9.2), `logger.exception(...)` with `%s` style (§9.3), exceptions caught with specific `except Exception: logger.exception(...)` (§6.2), F() update for concurrent counter safety.
+  - No new persistent-hot-path scoring signal → no new benchmark required (BLC §1.4, mandatory benchmark rule). The added query in `_persist_suggestions` is O(1) per pipeline run.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py makemigrations suggestions --name add_rejected_pair` — created 0033 clean.
+  - `docker compose exec backend python manage.py migrate --noinput` — applied.
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected."
+  - `docker compose exec backend python manage.py test apps.suggestions apps.audit` — 67 tests pass (9 new + 58 existing).
+  - `docker compose exec backend python manage.py test` — **313 tests pass**, 1 skipped, 0 failures (full backend suite).
+  - `cd frontend && npm run build:prod` — clean production build; pre-existing warnings unrelated to this change.
+
+- **Discovered but deferred (logged as ISS-020):** Ledger drift — `AI-CONTEXT.md` line 322 lists FR-045 as pending, but `anchor_diversity.py`, `score_anchor_diversity` field, migrations 0031/0032, and spec `docs/specs/fr045-*.md` all exist. Not in this session's scope to reconcile, but logged per the MUST-LOG rule.
+
+- **What was deliberately NOT done (and why):**
+  - Did not make `rejection_reason` required (user explicitly asked to leave it optional).
+  - Did not build `AnchorUsage` table or over-optimised-anchor warning UI (duplicates FR-045).
+  - Did not touch `impact_engine.py`, `feedback_rerank.py`, `feedrerank.cpp`, or `WeightObjectiveFunction.cs` — RPT-001's 5 OPEN findings live there. Those are prerequisites for Phases 3, 4, 5 of the original plan, flagged to user up-front.
+  - Did not add a frontend surface for "N pairs currently suppressed" — deferred to Phase 2 rescoping.
+
+- **Commit/push state:** All changes uncommitted on `master`. No branch created. User deciding whether to commit.
+
 ### 2026-04-18 - Signal contract backfill + import-time validator + governance fields on every shipped signal (Claude)
 
 - **AI/tool:** Claude
