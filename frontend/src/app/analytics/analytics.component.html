@@ -358,6 +358,16 @@
                         <span class="top-metric__label">Engaged</span>
                         <span class="top-metric__value">{{ formatPercent(item.engagement_rate) }}</span>
                       </div>
+                      <div
+                        class="top-metric"
+                        [matTooltip]="quickExitTooltip(item)"
+                      >
+                        <span class="top-metric__label">Quick exit</span>
+                        <span
+                          class="top-metric__value"
+                          [class.top-metric__value--alert]="isHighQuickExit(item)"
+                        >{{ formatPercent(item.quick_exit_rate) }}</span>
+                      </div>
                     </div>
                   </div>
                 }

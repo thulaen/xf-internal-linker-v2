@@ -117,8 +117,14 @@ export interface AnalyticsTopSuggestion {
   destination_views: number;
   engaged_sessions: number;
   conversions: number;
+  // Phase 2c — per-suggestion engagement drill-down. High quick_exit_rate
+  // flags bad-match rows; high dwell_60s_rate flags standout good-match rows.
+  quick_exit_sessions: number;
+  dwell_60s_sessions: number;
   ctr: number;
   engagement_rate: number;
+  quick_exit_rate: number;
+  dwell_60s_rate: number;
 }
 
 export interface AnalyticsTopSuggestionsResponse {

@@ -21,6 +21,7 @@ import {
   AnalyticsIntegrationResponse,
   AnalyticsOverviewResponse,
   AnalyticsService,
+  AnalyticsTopSuggestion,
   AnalyticsTopSuggestionsResponse,
   AnalyticsTrendPoint,
   AnalyticsTrendResponse,
@@ -602,6 +603,30 @@ export class AnalyticsComponent implements OnInit {
 
   formatPercent(value: number): string {
     return `${(value * 100).toFixed(1)}%`;
+  }
+
+  /**
+   * Phase 2c — operator warning threshold: a quick-exit rate at or above this
+   * value gets a red tint in the top-suggestions table so bad-match rows are
+   * easy to spot. 20% chosen as a conservative working threshold — not a
+   * ranker input, purely a UI cue.
+   */
+  private readonly HIGH_QUICK_EXIT_RATE = 0.2;
+
+  isHighQuickExit(item: AnalyticsTopSuggestion): boolean {
+    return item.quick_exit_rate >= this.HIGH_QUICK_EXIT_RATE;
+  }
+
+  quickExitTooltip(item: AnalyticsTopSuggestion): string {
+    if (item.destination_views === 0) {
+      return 'No destination views yet in this window.';
+    }
+    const pct = (item.quick_exit_rate * 100).toFixed(1);
+    return (
+      `${item.quick_exit_sessions} of ${item.destination_views} readers ` +
+      `(${pct}%) left within 5 seconds of landing on the destination. ` +
+      'High quick-exit usually means the link does not match reader intent.'
+    );
   }
 
   coverageStateLabel(state: AnalyticsHealthSummary['latest_state']): string {

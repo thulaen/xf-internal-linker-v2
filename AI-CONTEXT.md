@@ -444,6 +444,50 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 2c: Quick-exit rate column in Top Suggestions table (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 2b shipped the aggregate Engagement Mix card but an operator can't act on aggregates — they need to know *which specific suggestions* are causing the quick-exits. Extends the existing Top Suggestions table with a per-row quick-exit rate + mild red tint when the rate crosses a working threshold.
+- **What was done:**
+  - **Backend** — extended `AnalyticsTelemetryTopSuggestionsView` with two new `Sum()` annotations (`quick_exit_sessions`, `dwell_60s_sessions`) and derived rates (`quick_exit_rate`, `dwell_60s_rate`) via the existing `_safe_rate` helper. Both raw counts and computed rates appear on every `items[]` row.
+  - **Frontend service** — extended `AnalyticsTopSuggestion` interface with the 4 new fields.
+  - **Frontend template** — added a 4th `.top-metric` tile ("Quick exit") to each row in the top-suggestions card. Binds `matTooltip` with a plain-English explanation (count, percentage, and the "high quick-exit means the link didn't match intent" message).
+  - **Frontend component** — added `isHighQuickExit()` + `quickExitTooltip()` helpers. The threshold (`HIGH_QUICK_EXIT_RATE = 0.2`, 20%) is a private readonly field — explicitly called out in the docstring as an operator-warning UI cue, NOT a ranker input, so it carries zero ranking-logic risk.
+  - **Styling** — new `.top-metric__value--alert` rule in `analytics.component.scss` using `var(--color-error)`. Token-only, no hex.
+  - **Tests** — extended the existing `test_reporting_endpoints_return_funnel_trend_and_top_suggestions` backend test to populate the new Phase 2 columns and assert the derived rates. Extended the `getTopSuggestions` spec stub with the 4 new fields so existing AnalyticsComponent specs keep passing.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/views.py` (+14 lines in `AnalyticsTelemetryTopSuggestionsView`)
+  - `backend/apps/analytics/tests.py` (+11 lines)
+  - `frontend/src/app/analytics/analytics.service.ts` (+6 lines in `AnalyticsTopSuggestion`)
+  - `frontend/src/app/analytics/analytics.component.ts` (+25 lines: import, 2 helpers, 1 constant)
+  - `frontend/src/app/analytics/analytics.component.html` (+10 lines for the new metric tile)
+  - `frontend/src/app/analytics/analytics.component.scss` (+6 lines for the alert variant)
+  - `frontend/src/app/analytics/analytics.component.spec.ts` (+4 lines in the stub)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** `_safe_rate` helper (zero-denominator-safe division), existing `_telemetry_queryset` source filter, existing `.top-metric` DOM + SCSS pattern, existing `matTooltip` wrapping. No new endpoint — just two extra annotations and four new fields on the existing one.
+
+- **Session Gate compliance:**
+  - Continuation of 2026-04-18 session — gates previously cleared.
+  - BLC §0 AI Drift Rejection Gate: pure visibility feature. The 20% quick-exit threshold is explicitly a UI warning cue, NOT a scoring input — so no new scoring signal, no new benchmark required per §1.4.
+  - FRONTEND-RULES: all Material components, CSS token-only, no hex, 4px grid, tooltip uses `matTooltip` directive.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics` — **29 tests pass** (no new test class; existing top-suggestions test extended with Phase 2c assertions).
+  - `docker compose exec backend python manage.py test` — full backend suite passes (318 pass, 1 skipped).
+  - `cd frontend && npm run test:ci` — **25 tests pass** (after extending the `getTopSuggestions` stub with the 4 new fields).
+  - `cd frontend && npm run build:prod` — clean.
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected."
+  - `docker compose exec backend python -m ruff format apps/analytics/views.py apps/analytics/tests.py` — 1 file reformatted preemptively.
+
+- **What was deliberately NOT done (and why):**
+  - Did not add a dwell-60s column to the table — two new metric tiles would have crowded the row. Quick-exit is the actionable bad-match signal; dwell-60s is already surfaced in the aggregate Engagement Mix card.
+  - Did not add sort-by-quick-exit — the existing `order_by("-clicks", "-engaged_sessions", "-impressions")` is fine for v1; adding client-side sort toggles is a separate UX slice.
+  - Did not touch the ranker — 20% threshold is a UI colour cue only. Any ranker integration needs BLC §0 gate + benchmark.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 2b: Engagement Mix card in the Analytics page (Claude)
 
 - **AI/tool:** Claude

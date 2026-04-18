@@ -1252,6 +1252,12 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
                 destination_views=Sum("destination_views"),
                 engaged_sessions=Sum("engaged_sessions"),
                 conversions=Sum("conversions"),
+                # Phase 2c — expose the new engagement tiers per suggestion so
+                # operators can spot individual bad-match rows (high
+                # quick_exit_rate) and standout good-match rows (high
+                # dwell_60s_rate).
+                quick_exit_sessions=Sum("quick_exit_sessions"),
+                dwell_60s_sessions=Sum("dwell_60s_sessions"),
             )
             .order_by("-clicks", "-engaged_sessions", "-impressions")[:8]
         )
@@ -1262,6 +1268,8 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
             destination_views = int(row["destination_views"] or 0)
             engaged_sessions = int(row["engaged_sessions"] or 0)
             conversions = int(row["conversions"] or 0)
+            quick_exit_sessions = int(row["quick_exit_sessions"] or 0)
+            dwell_60s_sessions = int(row["dwell_60s_sessions"] or 0)
             items.append(
                 {
                     "suggestion_id": str(row["suggestion_id"]),
@@ -1275,8 +1283,14 @@ class AnalyticsTelemetryTopSuggestionsView(APIView):
                     "destination_views": destination_views,
                     "engaged_sessions": engaged_sessions,
                     "conversions": conversions,
+                    "quick_exit_sessions": quick_exit_sessions,
+                    "dwell_60s_sessions": dwell_60s_sessions,
                     "ctr": _safe_rate(clicks, impressions),
                     "engagement_rate": _safe_rate(engaged_sessions, destination_views),
+                    "quick_exit_rate": _safe_rate(
+                        quick_exit_sessions, destination_views
+                    ),
+                    "dwell_60s_rate": _safe_rate(dwell_60s_sessions, destination_views),
                 }
             )
         return Response(

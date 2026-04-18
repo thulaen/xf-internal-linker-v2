@@ -325,6 +325,10 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             conversions=1,
             sessions=3,
             event_count=20,
+            # Phase 2c — non-zero engagement tiers so the test covers the new
+            # derived rates in top-suggestions output.
+            quick_exit_sessions=1,
+            dwell_60s_sessions=1,
         )
         SuggestionTelemetryDaily.objects.create(
             date=PipelineRun.objects.first().created_at.date(),
@@ -366,6 +370,13 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
             top.json()["items"][0]["destination_title"], "Destination Thread"
         )
         self.assertEqual(top.json()["items"][0]["clicks"], 4)
+        # Phase 2c — per-suggestion engagement drill-down.
+        top_item = top.json()["items"][0]
+        self.assertEqual(top_item["quick_exit_sessions"], 1)
+        self.assertEqual(top_item["dwell_60s_sessions"], 1)
+        # Rates are computed against destination_views = 3.
+        self.assertAlmostEqual(top_item["quick_exit_rate"], 1 / 3, places=3)
+        self.assertAlmostEqual(top_item["dwell_60s_rate"], 1 / 3, places=3)
 
     def test_engagement_mix_endpoint_returns_phase_2_totals_and_rates(self):
         """Phase 2b — new /engagement-mix/ endpoint surfaces the 3 new columns."""

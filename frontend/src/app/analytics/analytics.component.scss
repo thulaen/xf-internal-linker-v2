@@ -430,6 +430,12 @@
     font-weight: 800;
     color: var(--color-text-primary);
   }
+
+  // Phase 2c — tint the value red when quick_exit_rate crosses the
+  // operator-warning threshold (20%). Purely visual — no behaviour change.
+  &__value--alert {
+    color: var(--color-error);
+  }
 }
 
 .footer-grid {
