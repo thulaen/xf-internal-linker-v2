@@ -78,8 +78,8 @@ class NegativeMemoryDiagnosticsView(views.APIView):
       suppression window that haven't been pruned yet.
     - ``total_rejections_lifetime`` — sum of ``rejection_count`` across all
       rows; each reject increments its pair's counter.
-    - ``most_recent_rejection_at`` — ISO-8601 timestamp of the freshest
-      rejection on record, or ``null`` if the table is empty.
+    - ``most_recent_rejection_at`` — timestamp of the freshest rejection on
+      record in ISO format, or ``null`` if the table is empty.
 
     Read-only and cheap (3 aggregations, no joins). Frontend polls at page
     load; no WebSocket needed.
