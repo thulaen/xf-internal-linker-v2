@@ -1,7 +1,7 @@
 # FR-197 - Link-Farm Ring Detector
 
 ## Overview
-A link farm is a tightly knit set of pages or sites that exchange reciprocal links to inflate each other's PageRank. In a forum graph the same pattern shows up as small clusters of threads or user pages that all link to each other and to almost nothing else. This signal finds strongly connected components (SCCs) in the *reciprocal* link sub-graph and scores each node by the size and density of the SCC it belongs to. Used as a multiplicative penalty so candidates inside a detected ring fall in rank.
+A link farm is a tightly knit set of pages or sites that exchange reciprocal links to inflate each other's PageRank. In a forum graph the same pattern shows up as small clusters of threads or user pages that all link to each other and to almost nothing else. This signal finds strongly connected components (SCCs) in the *reciprocal* link sub-graph and scores each node by the size and density of the SCC it belongs to. Used as a bounded penalty component so candidates inside a detected ring fall in rank.
 
 ## Academic source
 **Gyöngyi, Zoltán and Garcia-Molina, Hector (2005).** "Link Spam Alliances." *Proceedings of the 31st International Conference on Very Large Data Bases (VLDB 2005)*, pp. 517-528. Companion paper presented at AIRWeb 2005: "Web Spam Taxonomy", Stanford TR 2004-25. The SCC-based ring detection algorithm and reciprocity density metric used here are from §4 of the VLDB paper.
@@ -29,7 +29,7 @@ ring_penalty(u) = 1 − exp(−λ · ring_score(u)),    λ = 0.8 (paper §5.2)
 ## Starting weight preset
 ```python
 "link_farm.enabled": "true",
-"link_farm.ranking_weight": "0.0",
+"link_farm.ranking_weight": "0.03",
 "link_farm.min_scc_size": "3",
 "link_farm.density_threshold": "0.6",
 "link_farm.lambda": "0.8",

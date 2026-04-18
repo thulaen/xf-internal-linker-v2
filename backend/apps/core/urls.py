@@ -11,6 +11,17 @@ from .views_observability import (
     FeatureFlagsListView,
     RumSummaryView,
 )
+from .views_antispam import (
+    AnchorDiversitySettingsView,
+    KeywordStuffingSettingsView,
+    LinkFarmSettingsView,
+)
+from .views_runtime_registry import (
+    RuntimeModelActionView,
+    RuntimeModelPlacementDeleteView,
+    RuntimeModelsView,
+    RuntimeSummaryView,
+)
 from .views import (
     HealthCheckView,
     MissionBriefView,
@@ -66,6 +77,26 @@ urlpatterns = [
     ),
     path("settings/runtime/", RuntimeSettingsView.as_view(), name="settings-runtime"),
     path(
+        "settings/runtime/models/",
+        RuntimeModelsView.as_view(),
+        name="settings-runtime-models",
+    ),
+    path(
+        "settings/runtime/models/<int:pk>/action/",
+        RuntimeModelActionView.as_view(),
+        name="settings-runtime-model-action",
+    ),
+    path(
+        "settings/runtime/models/placements/<int:pk>/",
+        RuntimeModelPlacementDeleteView.as_view(),
+        name="settings-runtime-model-placement-delete",
+    ),
+    path(
+        "settings/runtime/summary/",
+        RuntimeSummaryView.as_view(),
+        name="settings-runtime-summary",
+    ),
+    path(
         "settings/runtime/switch/",
         RuntimeSwitchView.as_view(),
         name="settings-runtime-switch",
@@ -120,6 +151,21 @@ urlpatterns = [
         "settings/helpers/<int:pk>/",
         HelperNodeDetailView.as_view(),
         name="helpers-detail",
+    ),
+    path(
+        "settings/anchor-diversity/",
+        AnchorDiversitySettingsView.as_view(),
+        name="settings-anchor-diversity",
+    ),
+    path(
+        "settings/keyword-stuffing/",
+        KeywordStuffingSettingsView.as_view(),
+        name="settings-keyword-stuffing",
+    ),
+    path(
+        "settings/link-farm/",
+        LinkFarmSettingsView.as_view(),
+        name="settings-link-farm",
     ),
     # Runbook execution endpoints (plan item 17)
     path(

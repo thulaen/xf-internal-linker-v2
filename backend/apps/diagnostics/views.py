@@ -26,7 +26,7 @@ from .health import (
     get_feature_readinessMatrix,
     check_native_scoring,
 )
-from .signal_registry import SIGNALS
+from .signal_registry import SIGNALS, validate_signal_contract
 
 
 class DiagnosticsOverviewView(views.APIView):
@@ -699,20 +699,41 @@ class WeightDiagnosticsView(views.APIView):
                         "status": "healthy" if err_count == 0 else "degraded",
                         "recent_errors": err_count,
                     },
+                    "governance": {
+                        "status": sig.status,
+                        "fr_id": sig.fr_id,
+                        "spec_path": sig.spec_path,
+                        "academic_source": sig.academic_source,
+                        "source_kind": sig.source_kind,
+                        "architecture_lane": sig.architecture_lane,
+                        "neutral_value": sig.neutral_value,
+                        "min_data_threshold": sig.min_data_threshold,
+                        "diagnostic_surfaces": list(sig.diagnostic_surfaces),
+                        "benchmark_module": sig.benchmark_module,
+                        "autotune_included": sig.autotune_included,
+                        "default_enabled": sig.default_enabled,
+                        "added_in_phase": sig.added_in_phase,
+                    },
                 }
             )
 
+        contract_violations = validate_signal_contract()
         return response.Response(
             {
                 "signals": signal_data,
                 "summary": {
                     "total_signals": len(SIGNALS),
+                    "active_signals": sum(
+                        1 for s in SIGNALS if s.status == "active"
+                    ),
                     "cpp_accelerated_count": sum(
                         1 for s in signal_data if s["cpp_acceleration"]["active"]
                     ),
                     "healthy_count": sum(
                         1 for s in signal_data if s["health"]["status"] == "healthy"
                     ),
+                    "contract_violations": contract_violations,
+                    "contract_clean": len(contract_violations) == 0,
                     "last_refreshed": timezone.now(),
                 },
             }
@@ -857,6 +878,9 @@ class MissionCriticalView(views.APIView):
 
         # ── Embeddings ────────────────────────────────────────────
         tiles.append(_embeddings_tile())
+        tiles.append(_model_runtime_tile())
+        tiles.append(_helper_nodes_tile())
+        tiles.append(_anti_spam_tile())
 
         # ── Algorithms accordion ─────────────────────────────────
         tiles.append(_meta_tile_native_scoring())
@@ -961,6 +985,21 @@ def _read_master_pause() -> bool:
 def _embeddings_tile() -> dict:
     try:
         from apps.content.models import ContentItem
+        from apps.core.runtime_registry import summarize_helpers, summarize_model_registry
+
+        runtime = summarize_model_registry()
+        helpers = summarize_helpers()
+        active_model = runtime.get("active_model") or {}
+        model_name = active_model.get("model_name") or "BAAI/bge-m3"
+        dimension = active_model.get("dimension")
+        device = active_model.get("device_target") or runtime.get("device") or "cpu"
+        helper_assisted = bool(
+            helpers.get("counts", {}).get("online", 0)
+            or helpers.get("counts", {}).get("busy", 0)
+        )
+        model_label = f"{model_name} on {device}"
+        if dimension:
+            model_label = f"{model_label} ({dimension}d)"
 
         total = ContentItem.objects.count()
         if total == 0:
@@ -968,7 +1007,7 @@ def _embeddings_tile() -> dict:
                 "embeddings",
                 "Embeddings",
                 "IDLE",
-                "No in-scope content yet.",
+                f"No in-scope content yet. Active model: {model_label}.",
             )
         missing = ContentItem.objects.filter(embedding__isnull=True).count()
         if missing == 0:
@@ -976,7 +1015,10 @@ def _embeddings_tile() -> dict:
                 "embeddings",
                 "Embeddings",
                 "WORKING",
-                f"All {total:,} items embedded.",
+                (
+                    f"All {total:,} items embedded with {model_label}. "
+                    f"Helper-assisted: {'yes' if helper_assisted else 'no'}."
+                ),
                 progress=1.0,
             )
         done = total - missing
@@ -984,7 +1026,10 @@ def _embeddings_tile() -> dict:
             "embeddings",
             "Embeddings",
             "WORKING",
-            f"{done:,} of {total:,} items embedded.",
+            (
+                f"{done:,} of {total:,} items embedded with {model_label}. "
+                f"Helper-assisted: {'yes' if helper_assisted else 'no'}."
+            ),
             actions=["Pause"],
             progress=done / total,
         )
@@ -994,6 +1039,186 @@ def _embeddings_tile() -> dict:
             "Embeddings",
             "DEGRADED",
             "Could not read embedding state.",
+        )
+
+
+def _model_runtime_tile() -> dict:
+    try:
+        from apps.core.runtime_registry import summarize_model_registry
+
+        summary = summarize_model_registry()
+        active_model = summary.get("active_model") or {}
+        candidate_model = summary.get("candidate_model") or {}
+        backfill = summary.get("backfill") or {}
+        active_name = active_model.get("model_name") or "Unknown model"
+        active_status = active_model.get("status") or "unknown"
+        device = active_model.get("device_target") or summary.get("device") or "cpu"
+
+        if active_status in {"failed", "deleted"}:
+            return _tile(
+                "model_runtime",
+                "Model runtime",
+                "FAILED",
+                (
+                    f"{active_name} is {active_status} on {device}. "
+                    "Open Settings > Runtime to warm, roll back, or replace it."
+                ),
+            )
+        if backfill and backfill.get("status") in {"queued", "running", "paused"}:
+            return _tile(
+                "model_runtime",
+                "Model runtime",
+                "DEGRADED",
+                (
+                    f"{active_name} is active on {device}, and a backfill is "
+                    f"{backfill.get('status')}."
+                ),
+                actions=["Pause", "Resume"],
+                progress=(backfill.get("progress_pct") or 0.0) / 100.0,
+            )
+        if candidate_model:
+            return _tile(
+                "model_runtime",
+                "Model runtime",
+                "DEGRADED",
+                (
+                    f"{active_name} is champion on {device}. Candidate "
+                    f"{candidate_model.get('model_name')} is "
+                    f"{candidate_model.get('status')}."
+                ),
+                actions=["Resume"],
+            )
+        return _tile(
+            "model_runtime",
+            "Model runtime",
+            "WORKING",
+            f"{active_name} is the active embedding model on {device}. Hot swap is ready.",
+        )
+    except Exception:  # noqa: BLE001
+        return _tile(
+            "model_runtime",
+            "Model runtime",
+            "DEGRADED",
+            "Could not read model runtime state.",
+        )
+
+
+def _helper_nodes_tile() -> dict:
+    try:
+        from apps.core.runtime_registry import summarize_helpers
+
+        summary = summarize_helpers()
+        counts = summary.get("counts") or {}
+        online = int(counts.get("online", 0))
+        busy = int(counts.get("busy", 0))
+        stale = int(counts.get("stale", 0))
+        offline = int(counts.get("offline", 0))
+        aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
+        busiest = summary.get("busiest") or {}
+
+        if online == 0 and busy == 0 and stale == 0 and offline == 0:
+            return _tile(
+                "helper_nodes",
+                "Helper nodes",
+                "IDLE",
+                "No helper nodes configured. The primary machine is handling all work.",
+            )
+        if online == 0 and busy == 0:
+            state = "FAILED" if stale == 0 else "DEGRADED"
+            return _tile(
+                "helper_nodes",
+                "Helper nodes",
+                state,
+                (
+                    f"No helpers are available right now. Counts: online {online}, "
+                    f"busy {busy}, stale {stale}, offline {offline}."
+                ),
+            )
+        if aggregate_ram_pressure >= 0.9:
+            return _tile(
+                "helper_nodes",
+                "Helper nodes",
+                "DEGRADED",
+                (
+                    f"Helpers are online, but RAM pressure is high "
+                    f"({aggregate_ram_pressure:.0%}). Busiest: "
+                    f"{busiest.get('name') or 'n/a'}."
+                ),
+                progress=aggregate_ram_pressure,
+            )
+        return _tile(
+            "helper_nodes",
+            "Helper nodes",
+            "WORKING",
+            (
+                f"Online {online}, busy {busy}, stale {stale}, offline {offline}. "
+                f"Busiest load: {(busiest.get('effective_load') or 0.0):.0%}."
+            ),
+            progress=aggregate_ram_pressure,
+        )
+    except Exception:  # noqa: BLE001
+        return _tile(
+            "helper_nodes",
+            "Helper nodes",
+            "DEGRADED",
+            "Could not read helper node state.",
+        )
+
+
+def _anti_spam_tile() -> dict:
+    try:
+        from apps.core.views_antispam import (
+            get_anchor_diversity_settings,
+            get_keyword_stuffing_settings,
+            get_link_farm_settings,
+        )
+
+        signals = {
+            "Anchor diversity": get_anchor_diversity_settings(),
+            "Keyword stuffing": get_keyword_stuffing_settings(),
+            "Link farm": get_link_farm_settings(),
+        }
+        disabled = [name for name, cfg in signals.items() if not bool(cfg.get("enabled"))]
+        zero_weight = [
+            name
+            for name, cfg in signals.items()
+            if float(cfg.get("ranking_weight") or 0.0) <= 0.0
+        ]
+        if disabled:
+            return _tile(
+                "anti_spam",
+                "Anti-spam",
+                "DEGRADED",
+                (
+                    f"Disabled signals: {', '.join(disabled)}. Open Settings to "
+                    "restore the default anti-spam stack."
+                ),
+            )
+        if zero_weight:
+            return _tile(
+                "anti_spam",
+                "Anti-spam",
+                "DEGRADED",
+                (
+                    f"Zero-weight signals: {', '.join(zero_weight)}. Recommended "
+                    "preset expects all three penalties to stay active."
+                ),
+            )
+        return _tile(
+            "anti_spam",
+            "Anti-spam",
+            "WORKING",
+            (
+                "Anchor diversity, keyword stuffing, and link-farm penalties are "
+                "enabled with active weights."
+            ),
+        )
+    except Exception:  # noqa: BLE001
+        return _tile(
+            "anti_spam",
+            "Anti-spam",
+            "DEGRADED",
+            "Could not read anti-spam settings.",
         )
 
 

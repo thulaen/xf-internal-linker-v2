@@ -443,6 +443,50 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 - Signal contract backfill + import-time validator + governance fields on every shipped signal (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Codex left a stated gap in his Phase 37 / FR-020 slice — "I did not fully backfill the new 'ranking signal contract' metadata across every older shipped signal yet." User asked me to continue that work, and asked for it to be resilient and forward-thinking so future signals inherit the contract automatically.
+- **What the gap was:** `apps/diagnostics/signal_registry.py` described each signal with only 7 loose fields (id, name, type, description, table_name, cpp_kernel, weight_key). Business Logic Checklist §1 / §3 / §6 require every shipped signal to publish an academic source, spec path, neutral fallback value, architecture lane, minimum-data threshold, and reviewer-visible diagnostic surface — none of which were machine-readable in the registry. Missing metadata could not be enforced at merge time because the dataclass had no governance fields.
+- **What was done:**
+  - **Expanded `SignalDefinition`** with 13 new optional governance fields: `status`, `fr_id`, `spec_path`, `academic_source`, `source_kind`, `architecture_lane`, `neutral_value`, `min_data_threshold`, `diagnostic_surfaces`, `benchmark_module`, `autotune_included`, `default_enabled`, `added_in_phase`. All new fields are optional with safe defaults so every existing consumer of `SIGNALS` keeps working without change.
+  - **Backfilled all 26 shipped signals** (19 ranking + 7 value, including Codex's 3 new anti-spam entries) with the complete contract — each signal now carries its primary source citation, FR id, spec file path, neutral-fallback value, minimum-data floor, architecture lane (cpp_first / python_only / python_fallback), and the UI surfaces it appears on.
+  - **Added `validate_signal_contract()`** as a pure function that returns a list of plain-English violations. It is not called at import time (strict import-time checks can break boot over one missing citation) but is enforced two ways instead: a new `SignalContractTests` test case asserts the list is empty on every test run, and `WeightDiagnosticsView` now returns `summary.contract_violations` so operators see partial-governance state without reading logs (BLC §3).
+  - **Added `get_signal()` and `signals_by_status()` helpers** so future tooling (auto-tuner, benchmark coverage checker, operator UI) can query the registry cleanly rather than writing ad-hoc list comprehensions.
+  - **Path resolution is portable** across host (repo root auto-detected via `AI-CONTEXT.md` marker) and inside Docker (`/repo` bind-mount), so `spec_path` and `benchmark_module` validation works identically in both environments.
+  - **5 new unit tests** in `apps/diagnostics/tests.py::SignalContractTests` — contract-clean assertion, duplicate-id guard, `get_signal` hit/miss paths, and `signals_by_status` partition sanity. Tests use `SimpleTestCase` (no DB) so CI stays fast.
+  - **Extended `WeightDiagnosticsView` response** with a new per-signal `governance` block (source, spec, lane, neutral, diagnostic surfaces, benchmark, autotune flag, default-enabled flag) plus summary keys `active_signals`, `contract_violations`, `contract_clean`.
+
+- **Intentional files changed:**
+  - `backend/apps/diagnostics/signal_registry.py` (expanded dataclass, 26 signals backfilled, validator + helpers added, +543 lines / -6 lines; commented-out forward-declared signal stubs below line 700 left untouched)
+  - `backend/apps/diagnostics/tests.py` (new `SignalContractTests` class, +71 lines)
+  - `backend/apps/diagnostics/views.py` (new `governance` block and summary keys in `WeightDiagnosticsView`, new import from registry, +23 lines in this file for this change; other view-level edits in the tree are Codex's Phase 37 work)
+  - `AI-CONTEXT.md` (this note)
+
+- **Session Gate compliance:**
+  - Session Start Snapshot posted in chat (4 parts: app summary, last/next phase, open RPT-001 / RPT-002 findings, no forward clash with next 3 queued phases).
+  - Flagged RPT-001 (5 OPEN ranking/attribution findings) and RPT-002 (336 forward-declared spec stubs) in chat before writing code. Work is metadata-only — no scoring math, no attribution math, no feedback reranker math touched, so no overlap with any of RPT-001's 5 findings.
+  - `docs/BUSINESS-LOGIC-CHECKLIST.md` read in full. §0 AI Drift Rejection Gate: no drift — this is governance tooling, not a new scoring signal. §0.5 Forward Clash Gate: no clash — the expanded contract makes adding RPT-002's 336 forward-declared signals easier, not harder. §3 Operator Diagnostics: satisfied by the new `governance` block in `WeightDiagnosticsView`.
+  - `backend/PYTHON-RULES.md` read top-to-bottom. New code uses typed `Literal` aliases, `dataclass(frozen=True)`, explicit return types, and `pathlib.Path` — no mutable defaults, no wildcard imports, no bare `except`.
+  - Research rule satisfied — every active signal's `academic_source` names a paper DOI, patent number, or RFC. Heuristic-only signals (`silo_affinity`, `value_penalty`) are marked `source_kind="internal"` per BLC §1.1's explicit fallback instruction.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py showmigrations` — all 166+ migrations applied clean (Codex's 0031, 0032 included).
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected." No migration impact from metadata-only work.
+  - `docker compose exec backend python manage.py test apps.diagnostics` — 14 tests pass (9 existing + 5 new).
+  - `docker compose exec backend python -m ruff check apps/diagnostics/signal_registry.py apps/diagnostics/tests.py apps/diagnostics/views.py` — "All checks passed!"
+  - Direct Python probe inside backend container confirmed: 26 active signals, 0 pending, 0 deprecated, 0 contract violations; `get_signal()` returns the expected `SignalDefinition` for known ids and `None` for unknown.
+
+- **Reused, not duplicated:** The existing `SIGNALS` list / `SignalDefinition` dataclass / `WeightDiagnosticsView` shape were all extended in place. No parallel registry, no new URL, no new app, no new migration.
+
+- **What was deliberately NOT done (and why):**
+  - Did not promote the ~70 commented-out forward-declared signal stubs (FR-038..FR-096 placeholders) to live entries with `status="pending"`. That is a legitimate follow-up — the contract is ready to hold them — but it is a separate governance pass and not what the user asked for in this slice.
+  - Did not wire the new `governance` block into the Angular Algorithm Weight Diagnostics tab. The backend now returns the data; the UI enrichment (show academic source, spec link, fallback value, architecture-lane badge) is a natural next step but does not gate the contract work.
+  - Did not update the Execution Ledger to move Phase 37 / FR-020 from `Queued` to `Complete` — that belongs to Codex's earlier slice which is still uncommitted in the working tree. Flagging here so the next AI picks it up.
+  - Did not commit or push. The working tree still contains Codex's uncommitted 42-file Phase 37 slice; mixing commits would confuse the audit trail. User can decide whether to commit the whole slice + my contract additions together, or split them.
+
+- **Commit/push state:** All changes uncommitted on `master`. No branch created.
+
 ### 2026-04-15 - Safe Docker build cache prune (Codex)
 
 - **AI/tool:** Codex

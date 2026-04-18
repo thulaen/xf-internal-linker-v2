@@ -96,8 +96,8 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     # boosting diverse ones. Raise to 0.03 after confirming exact_match_share
     # thresholds are well-calibrated on the target site.
     "anchor_diversity.enabled": "true",
-    "anchor_diversity.ranking_weight": "0.0",
-    "anchor_diversity.min_history_count": "2",
+    "anchor_diversity.ranking_weight": "0.03",
+    "anchor_diversity.min_history_count": "3",
     "anchor_diversity.max_exact_match_share": "0.40",
     "anchor_diversity.max_exact_match_count": "3",
     "anchor_diversity.hard_cap_enabled": "false",

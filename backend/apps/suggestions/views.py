@@ -73,6 +73,12 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
             get_rare_term_propagation_settings,
             get_weighted_authority_settings,
         )
+        from apps.core.views_antispam import (
+            get_anchor_diversity_settings,
+            get_keyword_stuffing_settings,
+            get_link_farm_settings,
+        )
+        from apps.core.runtime_registry import summarize_model_registry
         from apps.pipeline.services.algorithm_versions import (
             FIELD_AWARE_RELEVANCE_VERSION,
             LEARNED_ANCHOR_VERSION,
@@ -91,6 +97,10 @@ class PipelineRunViewSet(viewsets.ReadOnlyModelViewSet):
                 "learned_anchor": get_learned_anchor_settings(),
                 "rare_term_propagation": get_rare_term_propagation_settings(),
                 "field_aware_relevance": get_field_aware_relevance_settings(),
+                "anchor_diversity": get_anchor_diversity_settings(),
+                "keyword_stuffing": get_keyword_stuffing_settings(),
+                "link_farm": get_link_farm_settings(),
+                "embedding_runtime": summarize_model_registry(),
                 "algorithm_versions": {
                     "weighted_authority": WEIGHTED_AUTHORITY_VERSION,
                     "phrase_matching": PHRASE_MATCHING_VERSION,

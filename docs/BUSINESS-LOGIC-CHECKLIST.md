@@ -217,7 +217,7 @@ Before merging any new feature, measure it against all of these:
 - [ ] Python hot-path signal: < 50 ms per pipeline run on a 500-candidate batch (single core, sustained).
 - [ ] C++ hot-path: < 5 ms per pipeline run on a 500-candidate batch.
 - [ ] C# import / attribution: < 2 s per page batch.
-- [ ] Embedding batch (nomic-embed-text-v1.5): < 500 ms per 32-document batch on GPU; < 2 s on CPU fallback.
+- [ ] Embedding batch (BAAI/bge-m3): < 500 ms per 32-document batch on GPU; < 2 s on CPU fallback.
 - [ ] FAISS index rebuild: < 30 s for up to 50 k vectors on RTX 3050.
 - [ ] RAM headroom: Django + 2 Celery workers + PostgreSQL must stay under 10 GB combined during a pipeline run. Verify with `docker stats`.
 - [ ] Every spec for a feature that adds a new persistent table must include the estimated row size and projected growth rate (rows/day) under `## Real-World Constraints`.

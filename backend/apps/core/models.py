@@ -137,6 +137,10 @@ class HelperNode(TimestampedModel):
         default=60,
         help_text="Maximum RAM usage percentage (safety default: 60%).",
     )
+    accepting_work = models.BooleanField(
+        default=True,
+        help_text="Operator toggle that lets the helper stay healthy but stop taking work.",
+    )
     status = models.CharField(
         max_length=20,
         default="offline",
@@ -144,6 +148,20 @@ class HelperNode(TimestampedModel):
         help_text="Current state: online, busy, unhealthy, offline.",
     )
     last_heartbeat = models.DateTimeField(null=True, blank=True)
+    last_snapshot_at = models.DateTimeField(null=True, blank=True)
+    active_jobs = models.IntegerField(default=0)
+    queued_jobs = models.IntegerField(default=0)
+    cpu_pct = models.FloatField(default=0.0)
+    ram_pct = models.FloatField(default=0.0)
+    gpu_util_pct = models.FloatField(null=True, blank=True)
+    gpu_vram_used_mb = models.IntegerField(null=True, blank=True)
+    gpu_vram_total_mb = models.IntegerField(null=True, blank=True)
+    network_rtt_ms = models.IntegerField(null=True, blank=True)
+    native_kernels_healthy = models.BooleanField(default=False)
+    warmed_model_keys = models.JSONField(
+        default=list,
+        help_text='["embedding:BAAI/bge-m3:fr020-v1"]',
+    )
 
     class Meta:
         verbose_name = "Helper Node"
@@ -273,3 +291,10 @@ class QuarantineRecord(TimestampedModel):
 # Defined in ``feature_flags.py`` to keep this file manageable; re-exported
 # so Django's app registry picks them up at makemigrations time.
 from .feature_flags import FeatureFlag, FeatureFlagExposure  # noqa: E402, F401
+from .runtime_models import (  # noqa: E402, F401
+    HardwareCapabilitySnapshot,
+    RuntimeAuditLog,
+    RuntimeModelBackfillPlan,
+    RuntimeModelPlacement,
+    RuntimeModelRegistry,
+)

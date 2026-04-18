@@ -478,6 +478,18 @@ class Suggestion(TimestampedModel):
         default=0.0,
         help_text="FR-014 near-duplicate clustering suppression score. Negative values indicate suppression.",
     )
+    score_anchor_diversity = models.FloatField(
+        default=0.5,
+        help_text="FR-045 anchor-diversity anti-spam score. 0.5 = neutral, lower values mean the anchor is too repetitive for the destination.",
+    )
+    score_keyword_stuffing = models.FloatField(
+        default=0.5,
+        help_text="FR-198 keyword-stuffing anti-spam score. 0.5 = neutral, lower values mean the destination text looks more stuffed.",
+    )
+    score_link_farm = models.FloatField(
+        default=0.5,
+        help_text="FR-197 link-farm anti-spam score. 0.5 = neutral, lower values mean the destination sits in a suspicious reciprocal ring.",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -568,6 +580,21 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-012 click-distance context for review and debugging.",
+    )
+    anchor_diversity_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-045 anchor-diversity details for review and debugging.",
+    )
+    keyword_stuffing_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-198 keyword-stuffing details for review and debugging.",
+    )
+    link_farm_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-197 reciprocal-ring details for review and debugging.",
     )
     explore_exploit_diagnostics = models.JSONField(
         default=dict,
@@ -689,6 +716,7 @@ class PipelineDiagnostic(models.Model):
         ("circular_suppressed", "Circular candidate suppressed"),
         ("cross_silo_blocked", "Cross-silo candidate blocked by strict mode"),
         ("paragraph_cluster", "Host paragraph already has a suggestion"),
+        ("anchor_diversity_blocked", "Anchor diversity guard blocked the candidate"),
         ("other", "Other"),
     ]
 

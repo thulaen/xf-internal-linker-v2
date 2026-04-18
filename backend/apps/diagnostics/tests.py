@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.test import TestCase, override_settings
+from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
 
 from apps.diagnostics import health
@@ -70,3 +70,72 @@ class SchedulerDispatchViewTests(TestCase):
 
         self.assertEqual(response.status_code, 403)
         self.assertIn("did not match", response.json()["detail"])
+
+
+class SignalContractTests(SimpleTestCase):
+    """CI guard for the governance contract on every shipped signal.
+
+    Every active entry in :mod:`apps.diagnostics.signal_registry` must
+    fill the fields the Business Logic Checklist (§1, §3, §6) requires.
+    This test asserts ``validate_signal_contract()`` returns no
+    violations. Any new signal added without governance metadata will
+    fail this test at merge time.
+
+    Uses :class:`SimpleTestCase` because the registry is pure Python
+    with no DB access.
+    """
+
+    def test_every_active_signal_has_complete_governance_contract(self):
+        from apps.diagnostics.signal_registry import validate_signal_contract
+
+        violations = validate_signal_contract()
+        self.assertEqual(
+            violations,
+            [],
+            msg=(
+                "Signal contract violations found. Fix each active signal "
+                "entry in apps/diagnostics/signal_registry.py so it has "
+                "academic_source, source_kind, neutral_value, and at "
+                "least one diagnostic_surface. Violations:\n- "
+                + "\n- ".join(violations)
+            ),
+        )
+
+    def test_registry_has_no_duplicate_ids(self):
+        from apps.diagnostics.signal_registry import SIGNALS
+
+        ids = [s.id for s in SIGNALS]
+        self.assertEqual(
+            len(ids),
+            len(set(ids)),
+            "Duplicate signal ids found in SIGNALS list.",
+        )
+
+    def test_get_signal_returns_definition_for_known_id(self):
+        from apps.diagnostics.signal_registry import get_signal
+
+        semantic = get_signal("semantic_similarity")
+        self.assertIsNotNone(semantic)
+        self.assertEqual(semantic.type, "ranking")
+        self.assertEqual(semantic.architecture_lane, "cpp_first")
+
+    def test_get_signal_returns_none_for_unknown_id(self):
+        from apps.diagnostics.signal_registry import get_signal
+
+        self.assertIsNone(get_signal("does_not_exist"))
+
+    def test_signals_by_status_filters_correctly(self):
+        from apps.diagnostics.signal_registry import SIGNALS, signals_by_status
+
+        active = signals_by_status("active")
+        self.assertGreater(len(active), 0)
+        for sig in active:
+            self.assertEqual(sig.status, "active")
+
+        # Total count sanity: every signal in SIGNALS has some status.
+        status_sum = (
+            len(signals_by_status("active"))
+            + len(signals_by_status("pending"))
+            + len(signals_by_status("deprecated"))
+        )
+        self.assertEqual(status_sum, len(SIGNALS))

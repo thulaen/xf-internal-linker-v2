@@ -269,7 +269,24 @@
             s.metadata.usage_pct !== undefined ||
             s.metadata.success_rate_7d !== undefined ||
             s.metadata.last_run_minutes_ago !== undefined ||
-            s.metadata.tokens_per_day_remaining !== undefined
+            s.metadata.tokens_per_day_remaining !== undefined ||
+            s.metadata.embedding_model !== undefined ||
+            s.metadata.embedding_device !== undefined ||
+            s.metadata.active_model !== undefined ||
+            s.metadata.active_device !== undefined ||
+            s.metadata.active_dimension !== undefined ||
+            s.metadata.candidate_model !== undefined ||
+            s.metadata.candidate_status !== undefined ||
+            s.metadata.hot_swap_safe !== undefined ||
+            s.metadata.backfill_status !== undefined ||
+            s.metadata.backfill_progress_pct !== undefined ||
+            s.metadata.online_count !== undefined ||
+            s.metadata.busy_count !== undefined ||
+            s.metadata.stale_count !== undefined ||
+            s.metadata.offline_count !== undefined ||
+            s.metadata.aggregate_ram_pressure !== undefined ||
+            s.metadata.busiest_helper !== undefined ||
+            s.metadata.busiest_effective_load !== undefined
           )">
           <div class="metric" *ngIf="s.metadata.lag_hours !== undefined">
             <span class="m-label">Data lag</span>
@@ -318,6 +335,64 @@
           <div class="metric" *ngIf="s.metadata.tokens_per_day_remaining !== undefined">
             <span class="m-label">GA4 tokens today</span>
             <span class="m-value" [class.warn]="s.metadata.tokens_per_day_remaining < 40000">{{ s.metadata.tokens_per_day_remaining | number }} remaining</span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.embedding_model !== undefined">
+            <span class="m-label">Embedding model</span>
+            <span class="m-value core">
+              {{ s.metadata.embedding_model }}
+              <span *ngIf="s.metadata.embedding_device !== undefined"> • {{ s.metadata.embedding_device }}</span>
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.active_model !== undefined">
+            <span class="m-label">Active runtime model</span>
+            <span class="m-value core">
+              {{ s.metadata.active_model }}
+              <span *ngIf="s.metadata.active_device !== undefined"> • {{ s.metadata.active_device }}</span>
+              <span *ngIf="s.metadata.active_dimension !== undefined"> • {{ s.metadata.active_dimension }} dims</span>
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.candidate_model !== undefined">
+            <span class="m-label">Candidate</span>
+            <span class="m-value" [class.warn]="s.metadata.candidate_model">
+              {{ s.metadata.candidate_model || 'None queued' }}
+              <span *ngIf="s.metadata.candidate_status"> • {{ s.metadata.candidate_status }}</span>
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.hot_swap_safe !== undefined">
+            <span class="m-label">Hot swap</span>
+            <span class="m-value" [class.warn]="!s.metadata.hot_swap_safe">
+              {{ s.metadata.hot_swap_safe ? 'Safe' : 'Blocked' }}
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.backfill_status !== undefined">
+            <span class="m-label">Backfill</span>
+            <span class="m-value" [class.warn]="s.metadata.backfill_status && s.metadata.backfill_status !== 'completed'">
+              {{ s.metadata.backfill_status || 'None' }}
+              <span *ngIf="s.metadata.backfill_progress_pct !== undefined && s.metadata.backfill_progress_pct !== null">
+                • {{ s.metadata.backfill_progress_pct }}%
+              </span>
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.online_count !== undefined">
+            <span class="m-label">Helpers</span>
+            <span class="m-value core">
+              {{ s.metadata.online_count }} online • {{ s.metadata.busy_count || 0 }} busy • {{ s.metadata.stale_count || 0 }} stale • {{ s.metadata.offline_count || 0 }} offline
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.aggregate_ram_pressure !== undefined">
+            <span class="m-label">Helper RAM pressure</span>
+            <span class="m-value" [class.warn]="s.metadata.aggregate_ram_pressure > 0.8">
+              {{ (s.metadata.aggregate_ram_pressure * 100) | number:'1.0-0' }}%
+            </span>
+          </div>
+          <div class="metric" *ngIf="s.metadata.busiest_helper !== undefined">
+            <span class="m-label">Busiest helper</span>
+            <span class="m-value core">
+              {{ s.metadata.busiest_helper || 'None' }}
+              <span *ngIf="s.metadata.busiest_effective_load !== undefined && s.metadata.busiest_effective_load !== null">
+                • {{ (s.metadata.busiest_effective_load * 100) | number:'1.0-0' }}% load
+              </span>
+            </span>
           </div>
         </div>
 

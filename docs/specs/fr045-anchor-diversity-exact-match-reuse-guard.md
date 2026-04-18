@@ -149,7 +149,7 @@ FR-045 should:
 - treat exact normalized anchor reuse for the same destination as the primary anti-spam signal in v1;
 - keep missing or tiny history neutral at `0.5`;
 - support an optional hard cap for extreme exact-match repetition;
-- keep ranking impact bounded and off by default;
+- keep ranking impact bounded and enabled by default with a conservative starting weight;
 - preserve the existing `repeated_anchor` review warning while making it more systematic;
 - fit the current Django + PostgreSQL + Celery + Angular architecture.
 
@@ -381,9 +381,9 @@ score_final += anchor_diversity.ranking_weight * score_anchor_diversity_componen
 
 Default:
 
-- `ranking_weight = 0.0`
+- `ranking_weight = 0.03`
 
-This means diagnostics can ship before ranking impact is enabled.
+This keeps the default penalty live without overpowering the main relevance signals.
 
 ### Optional hard cap
 
@@ -533,8 +533,8 @@ Keys:
 ### Recommended defaults
 
 - `enabled = true`
-- `ranking_weight = 0.0`
-- `min_history_count = 2`
+- `ranking_weight = 0.03`
+- `min_history_count = 3`
 - `max_exact_match_share = 0.40`
 - `max_exact_match_count = 3`
 - `hard_cap_enabled = false`
@@ -648,9 +648,9 @@ Mitigation:
 
 Mitigation:
 
-- `ranking_weight` defaults to `0.0`
+- `ranking_weight` defaults to `0.03`
 - `hard_cap_enabled` defaults to `false`
-- diagnostics ship first
+- diagnostics still explain every penalty contribution
 
 ### 5. Duplicate logic with existing `repeated_anchor`
 

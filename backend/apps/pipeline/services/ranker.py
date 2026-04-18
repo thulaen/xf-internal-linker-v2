@@ -55,11 +55,18 @@ from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
 )
+from .anchor_diversity import (
+    AnchorDiversityEvaluation,
+    AnchorDiversitySettings,
+    evaluate_anchor_diversity,
+)
+from .keyword_stuffing import KeywordStuffingEvaluation, KeywordStuffingSettings
 from .learned_anchor import (
     LearnedAnchorInputRow,
     LearnedAnchorSettings,
     evaluate_learned_anchor_corroboration,
 )
+from .link_farm import LinkFarmEvaluation, LinkFarmSettings
 from .link_freshness import score_link_freshness_component
 from .phrase_matching import PhraseMatchingSettings, evaluate_phrase_match
 from .rare_term_propagation import (
@@ -173,6 +180,13 @@ class ScoredCandidate:
     cluster_diagnostics: dict[str, object]
     explore_exploit_diagnostics: dict[str, object]
     click_distance_diagnostics: dict[str, object]
+    score_anchor_diversity: float = 0.5
+    score_keyword_stuffing: float = 0.5
+    score_link_farm: float = 0.5
+    repeated_anchor: bool = False
+    anchor_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
+    keyword_stuffing_diagnostics: dict[str, object] = field(default_factory=dict)
+    link_farm_diagnostics: dict[str, object] = field(default_factory=dict)
     score_slate_diversity: float | None = field(default=None)
     slate_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
 
@@ -327,7 +341,7 @@ def _calculate_composite_scores_full_batch_py(
     weights: np.ndarray,
     silo: np.ndarray,
 ) -> np.ndarray:
-    """Return dot(row, weights) + silo using columns: semantic, keyword, node, quality, pagerank, freshness, phrase, learned_anchor, rare_term, field_aware, ga4_gsc, click_distance."""
+    """Return dot(row, weights) + silo using the per-candidate component vector."""
     component_scores = np.asarray(component_scores, dtype=np.float32)
     weights = np.asarray(weights, dtype=np.float32)
     silo = np.asarray(silo, dtype=np.float32)
@@ -364,13 +378,20 @@ def score_destination_matches(
     max_anchor_words: int = 4,
     learned_anchor_rows_by_destination: Mapping[ContentKey, list[LearnedAnchorInputRow]]
     | None = None,
+    anchor_history_by_destination: Mapping[ContentKey, object] | None = None,
     rare_term_profiles: Mapping[ContentKey, RareTermProfile] | None = None,
+    keyword_stuffing_by_destination: Mapping[ContentKey, KeywordStuffingEvaluation]
+    | None = None,
+    link_farm_by_destination: Mapping[ContentKey, LinkFarmEvaluation] | None = None,
     weights: Mapping[str, float],
     march_2026_pagerank_bounds: tuple[float, float],
     weighted_authority_ranking_weight: float = 0.0,
     link_freshness_ranking_weight: float = 0.0,
     ga4_gsc_ranking_weight: float = 0.0,
     click_distance_ranking_weight: float = 0.0,
+    anchor_diversity_settings: AnchorDiversitySettings = AnchorDiversitySettings(),
+    keyword_stuffing_settings: KeywordStuffingSettings = KeywordStuffingSettings(),
+    link_farm_settings: LinkFarmSettings = LinkFarmSettings(),
     phrase_matching_settings: PhraseMatchingSettings = PhraseMatchingSettings(),
     learned_anchor_settings: LearnedAnchorSettings = LearnedAnchorSettings(),
     rare_term_settings: RareTermPropagationSettings = RareTermPropagationSettings(),
@@ -386,12 +407,15 @@ def score_destination_matches(
     """Apply composite scoring plus local anti-junk filters for one destination."""
     march_2026_pagerank_min, march_2026_pagerank_max = march_2026_pagerank_bounds
     learned_anchor_rows_by_destination = learned_anchor_rows_by_destination or {}
+    anchor_history_by_destination = anchor_history_by_destination or {}
     rare_term_profiles = rare_term_profiles or {}
+    keyword_stuffing_by_destination = keyword_stuffing_by_destination or {}
+    link_farm_by_destination = link_farm_by_destination or {}
     ranked: list[ScoredCandidate] = []
     pending_candidates: list[dict[str, object]] = []
     # Pre-allocate fixed-size arrays: avoids repeated list.append + np.asarray copy on every candidate.
     # Upper bound is len(sentence_matches); sliced down to row_idx after the loop.
-    component_scores = np.empty((len(sentence_matches), 12), dtype=np.float32)
+    component_scores = np.empty((len(sentence_matches), 15), dtype=np.float32)
     silo_array = np.empty(len(sentence_matches), dtype=np.float32)
     row_idx = 0
     destination_learned_anchor_rows = learned_anchor_rows_by_destination.get(
@@ -411,8 +435,19 @@ def score_destination_matches(
             float(field_aware_settings.ranking_weight),
             float(ga4_gsc_ranking_weight),
             float(click_distance_ranking_weight),
+            float(anchor_diversity_settings.ranking_weight),
+            float(keyword_stuffing_settings.ranking_weight),
+            float(link_farm_settings.ranking_weight),
         ],
         dtype=np.float32,
+    )
+    keyword_stuffing_eval = keyword_stuffing_by_destination.get(
+        destination.key,
+        _neutral_keyword_stuffing_eval(keyword_stuffing_settings),
+    )
+    link_farm_eval = link_farm_by_destination.get(
+        destination.key,
+        _neutral_link_farm_eval(link_farm_settings),
     )
 
     for match in sentence_matches:
@@ -481,6 +516,16 @@ def score_destination_matches(
             if blocked_reasons is not None:
                 blocked_reasons.add("anchor_too_long")
             continue
+        anchor_diversity_eval = evaluate_anchor_diversity(
+            destination_key=destination.key,
+            candidate_anchor_text=phrase_match.anchor_phrase or "",
+            history_by_destination=anchor_history_by_destination,
+            settings=anchor_diversity_settings,
+        )
+        if anchor_diversity_eval.blocked:
+            if blocked_reasons is not None:
+                blocked_reasons.add("anchor_diversity_blocked")
+            continue
 
         learned_anchor_match = evaluate_learned_anchor_corroboration(
             candidate_anchor_text=phrase_match.anchor_phrase,
@@ -531,6 +576,9 @@ def score_destination_matches(
         score_field_aware = field_aware_match.field_aware_component
         score_click_distance = destination.click_distance_score
         score_click_distance_component = 2 * (score_click_distance - 0.5)
+        score_anchor_diversity_component = anchor_diversity_eval.score_component
+        score_keyword_stuffing_component = keyword_stuffing_eval.score_component
+        score_link_farm_component = link_farm_eval.score_component
         score_silo = score_silo_affinity(destination, host_record, silo_settings)
         pending_candidates.append(
             {
@@ -546,6 +594,9 @@ def score_destination_matches(
                 "score_ga4_gsc": score_ga4_gsc,
                 "score_click_distance": score_click_distance,
                 "score_click_distance_component": score_click_distance_component,
+                "anchor_diversity_eval": anchor_diversity_eval,
+                "keyword_stuffing_eval": keyword_stuffing_eval,
+                "link_farm_eval": link_farm_eval,
                 "phrase_match": phrase_match,
                 "learned_anchor_match": learned_anchor_match,
                 "rare_term_match": rare_term_match,
@@ -565,6 +616,9 @@ def score_destination_matches(
             float(score_field_aware),
             float(score_ga4_gsc),
             float(score_click_distance_component),
+            float(score_anchor_diversity_component),
+            float(score_keyword_stuffing_component),
+            float(score_link_farm_component),
         ]
         silo_array[row_idx] = float(score_silo)
         row_idx += 1
@@ -594,6 +648,9 @@ def score_destination_matches(
         learned_anchor_match = pending_candidate["learned_anchor_match"]
         rare_term_match = pending_candidate["rare_term_match"]
         field_aware_match = pending_candidate["field_aware_match"]
+        anchor_diversity_eval = pending_candidate["anchor_diversity_eval"]
+        keyword_stuffing_eval = pending_candidate["keyword_stuffing_eval"]
+        link_farm_eval = pending_candidate["link_farm_eval"]
         score_click_distance = float(pending_candidate["score_click_distance"])
         score_click_distance_component = float(
             pending_candidate["score_click_distance_component"]
@@ -665,11 +722,19 @@ def score_destination_matches(
                 score_click_distance=score_click_distance,
                 score_explore_exploit=0.0,  # Will be updated by feedback reranker later
                 score_cluster_suppression=float(score_cluster_suppression),
+                score_anchor_diversity=float(
+                    anchor_diversity_eval.score_anchor_diversity
+                ),
+                score_keyword_stuffing=float(
+                    keyword_stuffing_eval.score_keyword_stuffing
+                ),
+                score_link_farm=float(link_farm_eval.score_link_farm),
                 score_final=float(score_final),
                 anchor_phrase=phrase_match.anchor_phrase or "",
                 anchor_start=phrase_match.anchor_start,
                 anchor_end=phrase_match.anchor_end,
                 anchor_confidence=phrase_match.anchor_confidence,
+                repeated_anchor=anchor_diversity_eval.repeated_anchor,
                 phrase_match_diagnostics=phrase_match.phrase_match_diagnostics,
                 learned_anchor_diagnostics=learned_anchor_match.learned_anchor_diagnostics,
                 rare_term_diagnostics=rare_term_match.rare_term_diagnostics,
@@ -681,6 +746,9 @@ def score_destination_matches(
                     "click_distance_ranking_weight": click_distance_ranking_weight,
                     "score_component": round(score_click_distance_component, 4),
                 },
+                anchor_diversity_diagnostics=anchor_diversity_eval.diagnostics,
+                keyword_stuffing_diagnostics=keyword_stuffing_eval.diagnostics,
+                link_farm_diagnostics=link_farm_eval.diagnostics,
             )
         )
 
@@ -694,6 +762,36 @@ def score_destination_matches(
         )
     )
     return ranked
+
+
+def _neutral_keyword_stuffing_eval(
+    settings: KeywordStuffingSettings,
+) -> KeywordStuffingEvaluation:
+    return KeywordStuffingEvaluation(
+        score_keyword_stuffing=0.5,
+        score_component=0.0,
+        diagnostics={
+            "stuffing_state": "neutral",
+            "stuff_score": 0.0,
+            "stuff_penalty": 0.0,
+            "score_keyword_stuffing": 0.5,
+            "algorithm_version": settings.algorithm_version,
+        },
+    )
+
+
+def _neutral_link_farm_eval(settings: LinkFarmSettings) -> LinkFarmEvaluation:
+    return LinkFarmEvaluation(
+        score_link_farm=0.5,
+        score_component=0.0,
+        diagnostics={
+            "link_farm_state": "neutral",
+            "ring_score": 0.0,
+            "ring_penalty": 0.0,
+            "score_link_farm": 0.5,
+            "algorithm_version": settings.algorithm_version,
+        },
+    )
 
 
 def _is_paragraph_collision(

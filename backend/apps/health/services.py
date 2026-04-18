@@ -11,6 +11,12 @@ from apps.analytics.models import SearchMetric
 from apps.notifications.models import OperatorAlert
 from apps.notifications.services import emit_operator_alert, resolve_operator_alert
 from apps.content.models import ContentItem
+from apps.core.runtime_registry import (
+    get_current_embedding_device,
+    get_current_embedding_model_name,
+    summarize_helpers,
+    summarize_model_registry,
+)
 from apps.suggestions.models import PipelineRun
 from .models import ServiceHealthRecord
 
@@ -252,6 +258,10 @@ def check_ml_models_health() -> ServiceHealthResult:
 
         model_name = settings.SPACY_MODEL
         spacy_ok = spacy.util.is_package(model_name)
+        model_runtime = summarize_model_registry()
+        active_model = model_runtime.get("active_model") or {}
+        embedding_model = active_model.get("model_name") or get_current_embedding_model_name()
+        device_target = active_model.get("device_target") or get_current_embedding_device()
 
         # Check BGE (using import check as proxy for environment readiness)
 
@@ -269,12 +279,18 @@ def check_ml_models_health() -> ServiceHealthResult:
             service_key="ml_models",
             status=ServiceHealthRecord.STATUS_HEALTHY,
             status_label="ML models are loaded.",
-            issue_description=f"NLU ({model_name}) and Embedding ({settings.EMBEDDING_MODEL}) models are available.",
+            issue_description=(
+                f"NLU ({model_name}) and Embedding ({embedding_model}) models are "
+                f"available. Active device: {device_target}."
+            ),
             suggested_fix="No action needed.",
             last_success_at=timezone.now(),
             metadata={
                 "spacy_model": model_name,
-                "embedding_model": settings.EMBEDDING_MODEL,
+                "embedding_model": embedding_model,
+                "embedding_device": device_target,
+                "candidate_model": (model_runtime.get("candidate_model") or {}).get("model_name"),
+                "hot_swap_safe": model_runtime.get("hot_swap_safe", False),
             },
         )
     except Exception as e:
@@ -284,6 +300,239 @@ def check_ml_models_health() -> ServiceHealthResult:
             status_label="ML environment check failed.",
             issue_description=f"Error verifying ML dependencies: {str(e)}",
             suggested_fix="Ensure 'sentence-transformers' and 'spacy' are installed in the Python environment.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e),
+        )
+
+
+@HealthCheckRegistry.register(
+    "model_runtime",
+    name="Model Runtime",
+    description="Champion/candidate embedding runtime ownership, hot swap, and backfill state.",
+)
+def check_model_runtime_health() -> ServiceHealthResult:
+    try:
+        summary = summarize_model_registry()
+        active_model = summary.get("active_model") or {}
+        candidate_model = summary.get("candidate_model") or {}
+        backfill = summary.get("backfill") or {}
+        active_name = active_model.get("model_name") or get_current_embedding_model_name()
+        device_target = active_model.get("device_target") or get_current_embedding_device()
+        active_status = active_model.get("status") or "unknown"
+
+        metadata = {
+            "active_model": active_name,
+            "active_dimension": active_model.get("dimension"),
+            "active_device": device_target,
+            "candidate_model": candidate_model.get("model_name"),
+            "candidate_status": candidate_model.get("status"),
+            "hot_swap_safe": summary.get("hot_swap_safe", False),
+            "reclaimable_disk_bytes": summary.get("reclaimable_disk_bytes", 0),
+            "backfill_status": backfill.get("status"),
+            "backfill_progress_pct": backfill.get("progress_pct"),
+        }
+
+        if not active_model:
+            return ServiceHealthResult(
+                service_key="model_runtime",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Runtime registry inferred the active model.",
+                issue_description=(
+                    "The runtime registry has not been explicitly seeded yet, so the "
+                    "app inferred the active embedding model from current settings."
+                ),
+                suggested_fix=(
+                    "Open Settings > Runtime so the app can register the active model "
+                    "and show full hot-swap diagnostics."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        if active_status in {"failed", "deleted"}:
+            return ServiceHealthResult(
+                service_key="model_runtime",
+                status=ServiceHealthRecord.STATUS_ERROR,
+                status_label=f"Active model runtime is {active_status}.",
+                issue_description=(
+                    f"The active embedding model '{active_name}' is not ready to serve."
+                ),
+                suggested_fix=(
+                    "Open Settings > Runtime, warm or roll back the champion model, "
+                    "and re-run the health check."
+                ),
+                last_error_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        if backfill and backfill.get("status") in {"queued", "running", "paused"}:
+            return ServiceHealthResult(
+                service_key="model_runtime",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Model swap in progress.",
+                issue_description=(
+                    f"The active model is '{active_name}' on {device_target}, and a "
+                    f"backfill is {backfill.get('status')}."
+                ),
+                suggested_fix=(
+                    "Let the backfill finish, or pause it from Settings > Runtime if "
+                    "you need to free resources."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        if candidate_model:
+            return ServiceHealthResult(
+                service_key="model_runtime",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Candidate model waiting for promotion.",
+                issue_description=(
+                    f"The active model is '{active_name}' on {device_target}, and "
+                    f"candidate '{candidate_model.get('model_name')}' is "
+                    f"{candidate_model.get('status')}."
+                ),
+                suggested_fix=(
+                    "If the candidate looks good, promote it in Settings > Runtime. "
+                    "Otherwise drain or delete it to reclaim disk."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        return ServiceHealthResult(
+            service_key="model_runtime",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Runtime healthy: {active_name} on {device_target}.",
+            issue_description=(
+                f"The active embedding model is '{active_name}' on {device_target}, "
+                "and no swap or backfill is blocking work."
+            ),
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=metadata,
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="model_runtime",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Model runtime check failed.",
+            issue_description=f"Could not read runtime registry state: {str(e)}",
+            suggested_fix="Check the runtime registry tables and retry the health check.",
+            last_error_at=timezone.now(),
+            last_error_message=str(e),
+        )
+
+
+@HealthCheckRegistry.register(
+    "helper_nodes",
+    name="Helper Nodes",
+    description="Distributed helper availability, RAM pressure, and helper-assisted execution capacity.",
+)
+def check_helper_nodes_health() -> ServiceHealthResult:
+    try:
+        summary = summarize_helpers()
+        counts = summary.get("counts") or {}
+        online_count = int(counts.get("online", 0))
+        busy_count = int(counts.get("busy", 0))
+        stale_count = int(counts.get("stale", 0))
+        offline_count = int(counts.get("offline", 0))
+        aggregate_ram_pressure = float(summary.get("aggregate_ram_pressure") or 0.0)
+        busiest = summary.get("busiest") or {}
+        metadata = {
+            "online_count": online_count,
+            "busy_count": busy_count,
+            "stale_count": stale_count,
+            "offline_count": offline_count,
+            "aggregate_ram_pressure": aggregate_ram_pressure,
+            "busiest_helper": busiest.get("name"),
+            "busiest_effective_load": busiest.get("effective_load"),
+        }
+
+        if online_count + busy_count + stale_count + offline_count == 0:
+            return ServiceHealthResult(
+                service_key="helper_nodes",
+                status=ServiceHealthRecord.STATUS_NOT_CONFIGURED,
+                status_label="No helper nodes configured.",
+                issue_description=(
+                    "The primary machine is handling all work because no helper nodes "
+                    "have been registered yet."
+                ),
+                suggested_fix=(
+                    "Open Settings > Helpers to register a helper node if you want to "
+                    "offload RAM-heavy or GPU-heavy background work."
+                ),
+                metadata=metadata,
+            )
+
+        if online_count == 0 and busy_count == 0 and stale_count > 0:
+            return ServiceHealthResult(
+                service_key="helper_nodes",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Helpers are stale.",
+                issue_description=(
+                    "Helpers are registered, but their heartbeats are old enough that "
+                    "the scheduler is treating them as stale."
+                ),
+                suggested_fix=(
+                    "Check the helper machines, then use Settings > Helpers to resume "
+                    "or remove the stale entries."
+                ),
+                last_error_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        if online_count == 0 and busy_count == 0 and offline_count > 0:
+            return ServiceHealthResult(
+                service_key="helper_nodes",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="All helpers are offline.",
+                issue_description=(
+                    "Helper nodes are registered, but none are currently available for work."
+                ),
+                suggested_fix=(
+                    "Bring a helper online or delete old registrations in Settings > Helpers."
+                ),
+                last_error_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        if aggregate_ram_pressure >= 0.9:
+            return ServiceHealthResult(
+                service_key="helper_nodes",
+                status=ServiceHealthRecord.STATUS_WARNING,
+                status_label="Helpers are near their RAM cap.",
+                issue_description=(
+                    "At least one helper is online, but the aggregate RAM pressure is "
+                    "high enough that new RAM-heavy jobs may stay on the primary node."
+                ),
+                suggested_fix=(
+                    "Reduce helper load, add a stronger helper, or raise the helper RAM "
+                    "cap carefully in Settings > Helpers."
+                ),
+                last_success_at=timezone.now(),
+                metadata=metadata,
+            )
+
+        return ServiceHealthResult(
+            service_key="helper_nodes",
+            status=ServiceHealthRecord.STATUS_HEALTHY,
+            status_label=f"Helpers healthy ({online_count} online, {busy_count} busy).",
+            issue_description=(
+                f"{online_count} helpers are online, {busy_count} are busy, and "
+                "helper-assisted background execution is available."
+            ),
+            suggested_fix="No action needed.",
+            last_success_at=timezone.now(),
+            metadata=metadata,
+        )
+    except Exception as e:
+        return ServiceHealthResult(
+            service_key="helper_nodes",
+            status=ServiceHealthRecord.STATUS_ERROR,
+            status_label="Helper health check failed.",
+            issue_description=f"Could not summarise helper node state: {str(e)}",
+            suggested_fix="Check the helper registry data and retry the health check.",
             last_error_at=timezone.now(),
             last_error_message=str(e),
         )

@@ -1122,7 +1122,7 @@ def get_feature_readinessMatrix():
         {"id": "FR-017", "name": "GSC attribution", "status": "implemented"},
         {"id": "FR-018", "name": "Weight tuning", "status": "implemented"},
         {"id": "FR-019", "name": "Alert delivery", "status": "implemented"},
-        {"id": "FR-020", "name": "Hot swap", "status": "postponed"},
+        {"id": "FR-020", "name": "Hot swap", "status": "implemented"},
         {"id": "FR-021", "name": "System health", "status": "implemented"},
     ]
     return features

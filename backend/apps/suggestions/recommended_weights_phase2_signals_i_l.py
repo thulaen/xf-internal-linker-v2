@@ -304,7 +304,7 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_I_L: dict[str, str] = {
     # Starting weight 0.03 — top_k_stuff_terms surfaces the worst
     # offenders for diagnostics; tau tunes false-positive rate.
     "keyword_stuffing.enabled": "true",
-    "keyword_stuffing.ranking_weight": "0.03",
+    "keyword_stuffing.ranking_weight": "0.04",
     "keyword_stuffing.alpha": "6.0",
     "keyword_stuffing.tau": "0.30",
     "keyword_stuffing.dirichlet_mu": "2000",

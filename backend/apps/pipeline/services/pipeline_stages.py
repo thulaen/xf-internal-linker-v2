@@ -364,7 +364,10 @@ def _score_single_destination(
         max_existing_links_per_host=settings["max_existing_links_per_host"],
         max_anchor_words=settings["max_anchor_words"],
         learned_anchor_rows_by_destination=settings["learned_anchor_rows"],
+        anchor_history_by_destination=settings["anchor_history_by_destination"],
         rare_term_profiles=settings["rare_term_profiles"],
+        keyword_stuffing_by_destination=settings["keyword_stuffing_by_destination"],
+        link_farm_by_destination=settings["link_farm_by_destination"],
         weights=settings["weights"],
         march_2026_pagerank_bounds=settings["pagerank_bounds"],
         weighted_authority_ranking_weight=settings["weighted_authority"][
@@ -377,6 +380,9 @@ def _score_single_destination(
         field_aware_settings=settings["field_aware"],
         ga4_gsc_ranking_weight=settings["ga4_gsc"]["ranking_weight"],
         click_distance_ranking_weight=settings["click_distance"]["ranking_weight"],
+        anchor_diversity_settings=settings["anchor_diversity"],
+        keyword_stuffing_settings=settings["keyword_stuffing"],
+        link_farm_settings=settings["link_farm"],
         silo_settings=settings["silo"],
         clustering_settings=settings["clustering"],
         blocked_reasons=blocked_reasons,
@@ -441,5 +447,9 @@ def _collect_destination_result(
         diagnostics.append((dest_key[0], dest_key[1], "max_links_reached", None))
     elif "anchor_too_long" in blocked_reasons:
         diagnostics.append((dest_key[0], dest_key[1], "anchor_too_long", None))
+    elif "anchor_diversity_blocked" in blocked_reasons:
+        diagnostics.append(
+            (dest_key[0], dest_key[1], "anchor_diversity_blocked", None)
+        )
     else:
         diagnostics.append((dest_key[0], dest_key[1], "all_candidates_filtered", None))

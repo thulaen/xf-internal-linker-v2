@@ -39,13 +39,16 @@ from .pipeline_loaders import (  # noqa: F401
     _get_max_host_reuse,
     _get_paragraph_window,
     _load_all_pipeline_settings,
+    _load_anchor_diversity_settings,
     _load_click_distance_settings,
     _load_clustering_settings,
     _load_feedback_rerank_settings,
     _load_field_aware_relevance_settings,
     _load_ga4_gsc_settings,
+    _load_keyword_stuffing_settings,
     _load_learned_anchor_settings,
     _load_link_freshness_settings,
+    _load_link_farm_settings,
     _load_phrase_matching_settings,
     _load_rare_term_propagation_settings,
     _load_silo_settings,
@@ -134,6 +137,9 @@ def run_pipeline(
 
     _progress(0.02, "Loading settings and weights...")
     settings = _load_all_pipeline_settings()
+    settings.setdefault("anchor_diversity", _load_anchor_diversity_settings())
+    settings.setdefault("keyword_stuffing", _load_keyword_stuffing_settings())
+    settings.setdefault("link_farm", _load_link_farm_settings())
 
     _progress(0.04, "Initializing feedback reranker...")
     feedback_rerank_service = FeedbackRerankService(settings["feedback_rerank"])
@@ -147,6 +153,8 @@ def run_pipeline(
         host_scope_ids=host_scope_ids,
         rerun_mode=rerun_mode,
         rare_term_settings=settings["rare_term"],
+        keyword_stuffing_settings=settings["keyword_stuffing"],
+        link_farm_settings=settings["link_farm"],
         progress_fn=_progress,
     )
     data = _load_pipeline_resources(**resource_kwargs)
@@ -190,7 +198,10 @@ def _execute_pipeline_stages(
         max_existing_links_per_host=data["max_existing_links_per_host"],
         max_anchor_words=data["max_anchor_words"],
         learned_anchor_rows=data["learned_anchor_rows_by_destination"],
+        anchor_history_by_destination=data.get("anchor_history_by_destination", {}),
         rare_term_profiles=data["rare_term_profiles"],
+        keyword_stuffing_by_destination=data.get("keyword_stuffing_by_destination", {}),
+        link_farm_by_destination=data.get("link_farm_by_destination", {}),
         pagerank_bounds=data["march_2026_pagerank_bounds"],
     )
     scoring_kwargs = dict(

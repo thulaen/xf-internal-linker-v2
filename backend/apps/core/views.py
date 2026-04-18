@@ -4207,27 +4207,10 @@ class HelperNodeListView(APIView):
 
     def get(self, request):
         from apps.core.models import HelperNode
+        from apps.core.views_runtime_registry import serialize_helper_node
 
         nodes = HelperNode.objects.all()
-        data = [
-            {
-                "id": n.id,
-                "name": n.name,
-                "role": n.role,
-                "status": n.status,
-                "capabilities": n.capabilities,
-                "allowed_queues": n.allowed_queues,
-                "allowed_job_types": n.allowed_job_types,
-                "time_policy": n.time_policy,
-                "max_concurrency": n.max_concurrency,
-                "cpu_cap_pct": n.cpu_cap_pct,
-                "ram_cap_pct": n.ram_cap_pct,
-                "last_heartbeat": n.last_heartbeat.isoformat()
-                if n.last_heartbeat
-                else None,
-            }
-            for n in nodes
-        ]
+        data = [serialize_helper_node(n) for n in nodes]
         return Response(data)
 
     def post(self, request):
@@ -4253,6 +4236,7 @@ class HelperNodeListView(APIView):
                 "max_concurrency": request.data.get("max_concurrency", 2),
                 "cpu_cap_pct": request.data.get("cpu_cap_pct", 60),
                 "ram_cap_pct": request.data.get("ram_cap_pct", 60),
+                "accepting_work": bool(request.data.get("accepting_work", True)),
             },
         )
         if not created:
@@ -4269,7 +4253,10 @@ class HelperNodeDetailView(APIView):
     permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
+        import hashlib
+
         from apps.core.models import HelperNode
+        from apps.core.views_runtime_registry import serialize_helper_node
 
         try:
             node = HelperNode.objects.get(pk=pk)
@@ -4283,14 +4270,32 @@ class HelperNodeDetailView(APIView):
             "max_concurrency",
             "cpu_cap_pct",
             "ram_cap_pct",
+            "accepting_work",
+            "active_jobs",
+            "queued_jobs",
+            "cpu_pct",
+            "ram_pct",
+            "gpu_util_pct",
+            "gpu_vram_used_mb",
+            "gpu_vram_total_mb",
+            "network_rtt_ms",
+            "native_kernels_healthy",
         ):
             if field in request.data:
                 setattr(node, field, request.data[field])
-        for json_field in ("capabilities", "allowed_queues", "allowed_job_types"):
+        for json_field in (
+            "capabilities",
+            "allowed_queues",
+            "allowed_job_types",
+            "warmed_model_keys",
+        ):
             if json_field in request.data:
                 setattr(node, json_field, request.data[json_field])
+        token = request.data.get("token")
+        if token:
+            node.token_hash = hashlib.sha256(str(token).encode()).hexdigest()
         node.save()
-        return Response({"id": node.id, "name": node.name, "status": node.status})
+        return Response(serialize_helper_node(node))
 
     def delete(self, request, pk):
         from apps.core.models import HelperNode
@@ -4327,6 +4332,7 @@ class HelperNodeHeartbeatView(APIView):
             return Response({"error": "Not found"}, status=404)
 
         node.last_heartbeat = timezone.now()
+        node.last_snapshot_at = timezone.now()
         if "status" in request.data:
             node.status = request.data["status"]
         if "capabilities" in request.data and isinstance(
@@ -4335,8 +4341,61 @@ class HelperNodeHeartbeatView(APIView):
             merged = dict(node.capabilities or {})
             merged.update(request.data["capabilities"])
             node.capabilities = merged
+        if "accepting_work" in request.data:
+            node.accepting_work = bool(request.data["accepting_work"])
+        if "active_jobs" in request.data:
+            node.active_jobs = max(0, int(request.data["active_jobs"]))
+        if "queued_jobs" in request.data:
+            node.queued_jobs = max(0, int(request.data["queued_jobs"]))
+        if "cpu_pct" in request.data:
+            node.cpu_pct = max(0.0, min(100.0, float(request.data["cpu_pct"])))
+        if "ram_pct" in request.data:
+            node.ram_pct = max(0.0, min(100.0, float(request.data["ram_pct"])))
+        if "gpu_util_pct" in request.data:
+            gpu_util = request.data["gpu_util_pct"]
+            node.gpu_util_pct = (
+                None
+                if gpu_util in ("", None)
+                else max(0.0, min(100.0, float(gpu_util)))
+            )
+        if "gpu_vram_used_mb" in request.data:
+            gpu_vram_used = request.data["gpu_vram_used_mb"]
+            node.gpu_vram_used_mb = (
+                None if gpu_vram_used in ("", None) else max(0, int(gpu_vram_used))
+            )
+        if "gpu_vram_total_mb" in request.data:
+            gpu_vram_total = request.data["gpu_vram_total_mb"]
+            node.gpu_vram_total_mb = (
+                None if gpu_vram_total in ("", None) else max(0, int(gpu_vram_total))
+            )
+        if "network_rtt_ms" in request.data:
+            rtt = request.data["network_rtt_ms"]
+            node.network_rtt_ms = None if rtt in ("", None) else max(0, int(rtt))
+        if "native_kernels_healthy" in request.data:
+            node.native_kernels_healthy = bool(request.data["native_kernels_healthy"])
+        if "warmed_model_keys" in request.data and isinstance(
+            request.data["warmed_model_keys"], list
+        ):
+            node.warmed_model_keys = request.data["warmed_model_keys"]
         node.save(
-            update_fields=["last_heartbeat", "status", "capabilities", "updated_at"]
+            update_fields=[
+                "last_heartbeat",
+                "last_snapshot_at",
+                "status",
+                "capabilities",
+                "accepting_work",
+                "active_jobs",
+                "queued_jobs",
+                "cpu_pct",
+                "ram_pct",
+                "gpu_util_pct",
+                "gpu_vram_used_mb",
+                "gpu_vram_total_mb",
+                "network_rtt_ms",
+                "native_kernels_healthy",
+                "warmed_model_keys",
+                "updated_at",
+            ]
         )
         return Response(status=204)
 

@@ -26,9 +26,12 @@ import {
 } from '../core/services/notification.service';
 import { AudioCueService } from '../core/services/audio-cue.service';
 import {
+  AnchorDiversitySettings,
   FieldAwareRelevanceSettings,
   ClickDistanceSettings,
+  KeywordStuffingSettings,
   LearnedAnchorSettings,
+  LinkFarmSettings,
   PhraseMatchingSettings,
   RareTermPropagationSettings,
   ScopeItem,
@@ -616,6 +619,83 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     default: '3',
     example: 'At 3, if suggestion A is at sentence 2 and suggestion B is at sentence 4, only one survives. Set to 1 to allow links in consecutive sentences.',
     range: '1 to 10',
+  },
+  'keywordStuffing.enabled': {
+    definition: 'Turns on FR-198, which penalises destination pages whose term distribution diverges sharply from the site baseline.',
+    impact: 'Enabled demotes stuffed pages. Disabled removes this content-level anti-spam signal.',
+    default: 'Enabled',
+    example: 'Keep enabled so stuffing risk complements anchor and graph anti-spam signals.',
+    range: 'Enabled / Disabled',
+  },
+  'keywordStuffing.ranking_weight': {
+    definition: 'How strongly FR-198 penalises keyword stuffing anomalies.',
+    impact: 'Higher values demote stuffed pages more. Lower values keep the penalty gentle.',
+    default: '0.04',
+    example: '0.04 is the strongest anti-spam default because stuffing is a direct content-quality issue.',
+    range: '0 to 0.25',
+  },
+  'keywordStuffing.alpha': {
+    definition: 'Steepness of the sigmoid that converts KL divergence into the final stuffing penalty.',
+    impact: 'Higher values make the penalty rise faster once the threshold is crossed.',
+    default: '6.0',
+    example: 'Raise this if you want suspicious pages to move from neutral to penalised more abruptly.',
+    range: '0.1 to 20',
+  },
+  'keywordStuffing.tau': {
+    definition: 'KL-divergence threshold where FR-198 starts shifting from neutral toward penalised.',
+    impact: 'Lower values make the detector more sensitive. Higher values make it more tolerant.',
+    default: '0.30',
+    example: 'Lowering to 0.2 catches more anomalies, but can increase false positives.',
+    range: '0 to 2',
+  },
+  'keywordStuffing.dirichlet_mu': {
+    definition: 'Dirichlet smoothing mass for the site-wide baseline language model.',
+    impact: 'Higher values smooth harder toward the corpus baseline. Lower values trust each page distribution more.',
+    default: '2000',
+    example: 'Keep this reasonably high so small pages do not look stuffed too easily.',
+    range: '100 to 20000',
+  },
+  'keywordStuffing.top_k_stuff_terms': {
+    definition: 'How many suspicious repeated terms FR-198 should surface in diagnostics.',
+    impact: 'Higher values show more evidence. Lower values keep diagnostics shorter.',
+    default: '5',
+    example: 'Five terms is usually enough to explain why a page looked stuffed.',
+    range: '1 to 20',
+  },
+  'linkFarm.enabled': {
+    definition: 'Turns on FR-197, which penalises destinations inside dense reciprocal link rings.',
+    impact: 'Enabled adds graph-topology anti-spam protection. Disabled removes ring penalties.',
+    default: 'Enabled',
+    example: 'Keep enabled so the graph layer complements anchor and content anti-spam signals.',
+    range: 'Enabled / Disabled',
+  },
+  'linkFarm.ranking_weight': {
+    definition: 'How strongly FR-197 penalises reciprocal link-ring structures.',
+    impact: 'Higher values demote suspicious rings more. Lower values make the graph penalty gentler.',
+    default: '0.03',
+    example: '0.03 is conservative because topology can be noisier on smaller sites.',
+    range: '0 to 0.25',
+  },
+  'linkFarm.min_scc_size': {
+    definition: 'Minimum strongly connected component size before FR-197 treats a reciprocal ring as suspicious.',
+    impact: 'Higher values ignore smaller clusters. Lower values let the detector react earlier.',
+    default: '3',
+    example: 'Three avoids overreacting to simple two-page reciprocity.',
+    range: '2 to 100',
+  },
+  'linkFarm.density_threshold': {
+    definition: 'Density floor required before FR-197 treats a reciprocal ring as suspicious.',
+    impact: 'Higher values focus on tighter rings. Lower values catch looser reciprocal structures.',
+    default: '0.6',
+    example: 'Raise this if you only want the tightest rings to be penalised.',
+    range: '0.1 to 1.0',
+  },
+  'linkFarm.lambda': {
+    definition: 'Penalty-curve slope used when FR-197 converts ring score into the final penalty.',
+    impact: 'Higher values make the penalty rise faster as the ring score increases.',
+    default: '0.8',
+    example: '0.8 gives a moderate curve that complements the other anti-spam signals without dominating them.',
+    range: '0.01 to 5.0',
   },
   // Silo Ranking
   'silo.mode': {
@@ -1219,46 +1299,46 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
   },
   // FR-045 — Anchor Diversity & Exact-Match Reuse Guard
   'anchorDiversity.enabled': {
-    definition: 'Whether anchor diversity analysis is used to penalise repetitive anchor text.',
-    impact: 'Prevents the same exact anchor phrase from being used too many times for one destination.',
-    default: 'true',
-    example: 'Disable if you intentionally want consistent anchor text across links.',
-    range: 'on / off',
+    definition: 'Turns on FR-045, which demotes repeated exact-match anchors pointing at the same destination.',
+    impact: 'Enabled reduces over-optimized anchor repetition. Disabled leaves that risk to the older spam guards only.',
+    default: 'Enabled',
+    example: 'Keep enabled for normal production use so anchor reuse stays natural.',
+    range: 'Enabled / Disabled',
   },
   'anchorDiversity.ranking_weight': {
-    definition: 'How much anchor diversity contributes to the final score. Acts as a penalty, not a boost.',
-    impact: 'Higher values more aggressively penalise over-concentrated anchor text.',
-    default: '0.0',
-    example: 'Start at 0.0 (guard-only mode). Raise to 0.03 after calibrating thresholds.',
-    range: '0 to 0.20',
+    definition: 'How strongly FR-045 penalises repeated exact-match anchor reuse.',
+    impact: 'Higher values demote repetitive exact-match anchors more aggressively. Lower values keep the penalty gentle.',
+    default: '0.03',
+    example: '0.03 is conservative. Raising to 0.06 makes the system much less tolerant of exact-match reuse.',
+    range: '0 to 0.25',
   },
   'anchorDiversity.min_history_count': {
-    definition: 'Minimum number of active suggestions for a destination before diversity scoring activates.',
-    impact: 'Prevents penalising destinations with only 1 or 2 links where repetition is expected.',
-    default: '2',
-    example: 'Raise to 3 if your site has many short, single-topic pages.',
-    range: '1 to 10',
+    definition: 'Minimum active suggestion history required before FR-045 starts scoring anchor reuse.',
+    impact: 'Higher values keep low-data destinations neutral for longer. Lower values start judging reuse sooner.',
+    default: '3',
+    example: 'Set to 5 if you want sparse destinations to stay neutral until more history exists.',
+    range: '1 to 50',
   },
   'anchorDiversity.max_exact_match_share': {
-    definition: 'Maximum share of a destination\'s anchors that can be the exact same phrase.',
-    impact: 'Suggestions exceeding this share receive a diversity penalty.',
+    definition: 'Maximum safe share of active suggestions using the same exact anchor for one destination.',
+    impact: 'Lower values trigger penalties earlier. Higher values tolerate more exact-match reuse.',
     default: '0.40',
-    example: '0.40 means at most 40% of anchors can be identical before penalty kicks in.',
-    range: '0.20 to 0.90',
+    example: 'Lowering to 0.25 makes the ranker diversify anchors sooner.',
+    range: '0.05 to 1.0',
   },
   'anchorDiversity.max_exact_match_count': {
-    definition: 'Maximum count of exact-match anchors allowed for one destination.',
-    impact: 'Hard limit beyond which additional identical anchors are penalised regardless of share.',
+    definition: 'Maximum safe count of active exact-match suggestions before FR-045 penalises the candidate.',
+    impact: 'Lower values curb repeated anchors earlier. Higher values allow more reuse before penalties apply.',
     default: '3',
-    example: 'Raise on high-volume sites where 3 identical anchors is still acceptable.',
-    range: '1 to 10',
+    example: 'Three is a balanced starting point for manual-review workflows.',
+    range: '1 to 50',
   },
   'anchorDiversity.hard_cap_enabled': {
-    definition: 'Whether to hard-block (not just penalise) extreme anchor repetition.',
-    impact: 'When enabled, suggestions exceeding the cap are blocked entirely, not just downranked.',
-    default: 'false',
-    example: 'Enable as a strict spam guard after you trust the thresholds.',
-    range: 'on / off',
+    definition: 'Allows FR-045 to hard-block extreme exact-match reuse instead of only demoting it.',
+    impact: 'Enabled is stricter and may suppress some relevant candidates. Disabled stays soft-penalty-first.',
+    default: 'Disabled',
+    example: 'Leave off unless you want the system to reject extreme anchor repetition outright.',
+    range: 'Enabled / Disabled',
   },
   // FR-046 — Multi-Query Fan-Out for Stage 1 Retrieval
   'fanOut.enabled': {
@@ -1581,6 +1661,17 @@ const UI_TO_PRESET_KEY: Record<string, string> = {
   'anchorDiversity.max_exact_match_count': 'anchor_diversity.max_exact_match_count',
   'anchorDiversity.hard_cap_enabled': 'anchor_diversity.hard_cap_enabled',
   // FR-046 — Multi-Query Fan-Out for Stage 1 Retrieval
+  'keywordStuffing.enabled': 'keyword_stuffing.enabled',
+  'keywordStuffing.ranking_weight': 'keyword_stuffing.ranking_weight',
+  'keywordStuffing.alpha': 'keyword_stuffing.alpha',
+  'keywordStuffing.tau': 'keyword_stuffing.tau',
+  'keywordStuffing.dirichlet_mu': 'keyword_stuffing.dirichlet_mu',
+  'keywordStuffing.top_k_stuff_terms': 'keyword_stuffing.top_k_stuff_terms',
+  'linkFarm.enabled': 'link_farm.enabled',
+  'linkFarm.ranking_weight': 'link_farm.ranking_weight',
+  'linkFarm.min_scc_size': 'link_farm.min_scc_size',
+  'linkFarm.density_threshold': 'link_farm.density_threshold',
+  'linkFarm.lambda': 'link_farm.lambda',
   'fanOut.enabled': 'fan_out.enabled',
   'fanOut.max_sub_queries': 'fan_out.max_sub_queries',
   'fanOut.min_segment_words': 'fan_out.min_segment_words',
@@ -1696,6 +1787,15 @@ const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number;
   'anchorDiversity.max_exact_match_share': { warnBelow: 0.25, warnAbove: 0.75, dangerBelow: 0.20, dangerAbove: 0.90 },
   'anchorDiversity.max_exact_match_count': { warnAbove: 7, dangerAbove: 10 },
   // FR-046 — Multi-Query Fan-Out for Stage 1 Retrieval
+  'keywordStuffing.ranking_weight': { warnAbove: 0.10, dangerAbove: 0.15 },
+  'keywordStuffing.alpha': { warnAbove: 10, dangerAbove: 15 },
+  'keywordStuffing.tau': { warnBelow: 0.15, warnAbove: 0.80, dangerBelow: 0.10, dangerAbove: 1.20 },
+  'keywordStuffing.dirichlet_mu': { warnBelow: 500, warnAbove: 8000, dangerBelow: 250, dangerAbove: 12000 },
+  'keywordStuffing.top_k_stuff_terms': { warnAbove: 10, dangerAbove: 15 },
+  'linkFarm.ranking_weight': { warnAbove: 0.10, dangerAbove: 0.15 },
+  'linkFarm.min_scc_size': { warnBelow: 3, warnAbove: 20, dangerAbove: 40 },
+  'linkFarm.density_threshold': { warnBelow: 0.35, warnAbove: 0.85, dangerBelow: 0.20, dangerAbove: 0.95 },
+  'linkFarm.lambda': { warnAbove: 1.5, dangerAbove: 2.5 },
   'fanOut.max_sub_queries': { warnAbove: 4, dangerAbove: 5 },
   'fanOut.min_segment_words': { warnBelow: 25, warnAbove: 150, dangerBelow: 20, dangerAbove: 200 },
   'fanOut.rrf_k': { warnBelow: 15, warnAbove: 100, dangerBelow: 10, dangerAbove: 120 },
@@ -2020,6 +2120,32 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     paragraph_window: 3,
   };
   savingSpamGuards = false;
+  anchorDiversity: AnchorDiversitySettings = {
+    enabled: true,
+    ranking_weight: 0.03,
+    min_history_count: 3,
+    max_exact_match_share: 0.4,
+    max_exact_match_count: 3,
+    hard_cap_enabled: false,
+  };
+  savingAnchorDiversity = false;
+  keywordStuffing: KeywordStuffingSettings = {
+    enabled: true,
+    ranking_weight: 0.04,
+    alpha: 6.0,
+    tau: 0.3,
+    dirichlet_mu: 2000,
+    top_k_stuff_terms: 5,
+  };
+  savingKeywordStuffing = false;
+  linkFarm: LinkFarmSettings = {
+    enabled: true,
+    ranking_weight: 0.03,
+    min_scc_size: 3,
+    density_threshold: 0.6,
+    lambda: 0.8,
+  };
+  savingLinkFarm = false;
   feedbackRerank: FeedbackRerankSettings = {
     enabled: true,
     ranking_weight: 0.08,
@@ -2357,6 +2483,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       { label: 'Field-Aware Relevance', currentEnabled: this.fieldAwareRelevance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'field_aware_relevance.ranking_weight') },
       { label: 'GA4 + Search Console', currentEnabled: this.ga4Gsc.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'ga4_gsc.ranking_weight') },
       { label: 'Click Distance', currentEnabled: this.clickDistance.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'click_distance.ranking_weight') },
+      { label: 'Anchor Diversity', currentEnabled: this.anchorDiversity.enabled && this.anchorDiversity.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.enabled') && this.isFeatureEnabledInPreset(recommended, 'anchor_diversity.ranking_weight') },
+      { label: 'Keyword Stuffing', currentEnabled: this.keywordStuffing.enabled && this.keywordStuffing.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.enabled') && this.isFeatureEnabledInPreset(recommended, 'keyword_stuffing.ranking_weight') },
+      { label: 'Link-Farm Detection', currentEnabled: this.linkFarm.enabled && this.linkFarm.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'link_farm.enabled') && this.isFeatureEnabledInPreset(recommended, 'link_farm.ranking_weight') },
       { label: 'Silo Ranking', currentEnabled: this.settings.mode !== 'disabled', recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'silo.mode') },
       { label: 'Feedback Reranking', currentEnabled: this.feedbackRerank.enabled && this.feedbackRerank.ranking_weight > 0, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'explore_exploit.enabled') && this.isFeatureEnabledInPreset(recommended, 'explore_exploit.ranking_weight') },
       { label: 'Near-Duplicate Clustering', currentEnabled: this.clustering.enabled, recommendedEnabled: this.isFeatureEnabledInPreset(recommended, 'clustering.enabled') },
@@ -2462,6 +2591,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     const tabMap: Record<string, number> = {
       // Tab 0: Ranking Weights
       'ranking-weights': 0,
+      'anchor-diversity': 0,
+      'keyword-stuffing': 0,
+      'link-farm': 0,
       
       // Tab 1: Silo Architecture
       'silo-architecture': 1,
@@ -2494,6 +2626,8 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
 
       // Tab 6: Performance
       'performance-tunables': 6,
+      'model-runtime': 6,
+      'runtime-recommendations': 6,
 
       // Tab 7: Helpers (plan item 22)
       'helpers': 7,
@@ -2525,6 +2659,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       webhookSettings: this.siloSvc.getWebhookSettings(),
       clickDistance: this.siloSvc.getClickDistanceSettings(),
       spamGuards: this.siloSvc.getSpamGuardSettings(),
+      anchorDiversity: this.siloSvc.getAnchorDiversitySettings(),
+      keywordStuffing: this.siloSvc.getKeywordStuffingSettings(),
+      linkFarm: this.siloSvc.getLinkFarmSettings(),
       feedbackRerank: this.siloSvc.getFeedbackRerankSettings(),
       clustering: this.siloSvc.getClusteringSettings(),
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
@@ -2560,6 +2697,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         this.webhookSettings = { ...this.webhookSettings, ...data.webhookSettings };
         this.clickDistance = { ...this.clickDistance, ...data.clickDistance };
         this.spamGuards = { ...this.spamGuards, ...data.spamGuards };
+        this.anchorDiversity = { ...this.anchorDiversity, ...data.anchorDiversity };
+        this.keywordStuffing = { ...this.keywordStuffing, ...data.keywordStuffing };
+        this.linkFarm = { ...this.linkFarm, ...data.linkFarm };
         this.feedbackRerank = { ...this.feedbackRerank, ...data.feedbackRerank };
         this.clustering = { ...this.clustering, ...data.clustering };
         this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
@@ -3281,6 +3421,60 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     });
   }
 
+  saveAnchorDiversitySettings(): void {
+    this.savingAnchorDiversity = true;
+    this.siloSvc.updateAnchorDiversitySettings(this.anchorDiversity)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+      next: (anchorDiversity) => {
+        this.anchorDiversity = anchorDiversity;
+        this.refreshCurrentWeights();
+        this.savingAnchorDiversity = false;
+        this.snack.open('Anchor Diversity settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingAnchorDiversity = false;
+        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Anchor Diversity settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveKeywordStuffingSettings(): void {
+    this.savingKeywordStuffing = true;
+    this.siloSvc.updateKeywordStuffingSettings(this.keywordStuffing)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+      next: (keywordStuffing) => {
+        this.keywordStuffing = keywordStuffing;
+        this.refreshCurrentWeights();
+        this.savingKeywordStuffing = false;
+        this.snack.open('Keyword Stuffing settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingKeywordStuffing = false;
+        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Keyword Stuffing settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
+  saveLinkFarmSettings(): void {
+    this.savingLinkFarm = true;
+    this.siloSvc.updateLinkFarmSettings(this.linkFarm)
+      .pipe(takeUntil(this.destroy$))
+      .subscribe({
+      next: (linkFarm) => {
+        this.linkFarm = linkFarm;
+        this.refreshCurrentWeights();
+        this.savingLinkFarm = false;
+        this.snack.open('Link-Farm settings saved', undefined, { duration: 2500 });
+      },
+      error: (error) => {
+        this.savingLinkFarm = false;
+        this.snack.open(error?.error?.detail || error?.error?.error || 'Failed to save Link-Farm settings', 'Dismiss', { duration: 4000 });
+      },
+    });
+  }
+
   saveClickDistanceSettings(): void {
     this.savingClickDistance = true;
     this.siloSvc.updateClickDistanceSettings(this.clickDistance)
@@ -3644,6 +3838,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       matomoTelemetry: this.siloSvc.updateMatomoTelemetrySettings(matomoTelemetryPayload),
       click: this.siloSvc.updateClickDistanceSettings(this.clickDistance),
       spamGuards: this.siloSvc.updateSpamGuardSettings(this.spamGuards),
+      anchorDiversity: this.siloSvc.updateAnchorDiversitySettings(this.anchorDiversity),
+      keywordStuffing: this.siloSvc.updateKeywordStuffingSettings(this.keywordStuffing),
+      linkFarm: this.siloSvc.updateLinkFarmSettings(this.linkFarm),
       explore: this.siloSvc.updateFeedbackRerankSettings(this.feedbackRerank),
       clustering: this.siloSvc.updateClusteringSettings(this.clustering),
       slate: this.siloSvc.updateSlateDiversitySettings(this.slateDiversity),
@@ -3666,6 +3863,9 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         this.matomoTelemetry = results.matomoTelemetry;
         this.clickDistance = results.click;
         this.spamGuards = results.spamGuards;
+        this.anchorDiversity = results.anchorDiversity;
+        this.keywordStuffing = results.keywordStuffing;
+        this.linkFarm = results.linkFarm;
         this.feedbackRerank = results.explore;
         this.clustering = results.clustering;
         this.slateDiversity = results.slate;

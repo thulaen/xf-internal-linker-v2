@@ -15,7 +15,13 @@ import numpy as np
 import pyroaring as pr
 from django.conf import settings
 
+from .anchor_diversity import build_anchor_history
+from .keyword_stuffing import (
+    build_keyword_baseline,
+    evaluate_keyword_stuffing,
+)
 from .learned_anchor import LearnedAnchorInputRow
+from .link_farm import detect_link_farm_rings
 from .ranker import (
     ContentKey,
     ContentRecord,
@@ -74,6 +80,7 @@ def _load_pipeline_content(
     destination_content_item_ids: set[int] | None,
     host_scope_ids: set[int] | None,
     rare_term_settings: Any,
+    keyword_stuffing_settings: Any,
     progress_fn: Callable,
 ) -> Any:
     """Load content records, sentences, existing links, and rare-term profiles.
@@ -113,6 +120,7 @@ def _load_pipeline_content(
     max_anchor_words = _get_max_anchor_words()
     paragraph_window = _get_paragraph_window()
     learned_anchor_rows_by_destination = _load_learned_anchor_rows_by_destination()
+    anchor_history_by_destination = _load_active_anchor_history()
     rare_term_profiles: dict = {}
     if rare_term_settings.enabled:
         progress_fn(0.14, "Building rare-term propagation profiles...")
@@ -128,6 +136,20 @@ def _load_pipeline_content(
             settings=rare_term_settings,
         )
 
+    keyword_baseline = None
+    keyword_stuffing_by_destination: dict[ContentKey, dict[str, object]] = {}
+    if keyword_stuffing_settings.enabled:
+        keyword_source_records = (
+            content_records
+            if destination_scope_ids is None
+            and host_scope_ids is None
+            and destination_content_item_ids is None
+            else _load_content_records()
+        )
+        keyword_baseline = build_keyword_baseline(keyword_source_records)
+
+    link_farm_by_destination = {}
+
     return dict(
         content_records=content_records,
         sentence_records=sentence_records,
@@ -138,7 +160,11 @@ def _load_pipeline_content(
         max_anchor_words=max_anchor_words,
         paragraph_window=paragraph_window,
         learned_anchor_rows_by_destination=learned_anchor_rows_by_destination,
+        anchor_history_by_destination=anchor_history_by_destination,
         rare_term_profiles=rare_term_profiles,
+        keyword_baseline=keyword_baseline,
+        keyword_stuffing_by_destination=keyword_stuffing_by_destination,
+        link_farm_by_destination=link_farm_by_destination,
     )
 
 
@@ -149,6 +175,8 @@ def _load_pipeline_resources(
     host_scope_ids: set[int] | None,
     rerun_mode: str,
     rare_term_settings: Any,
+    keyword_stuffing_settings: Any,
+    link_farm_settings: Any,
     progress_fn: Callable,
 ) -> Any:
     """Load all pipeline resources including embeddings.
@@ -163,12 +191,30 @@ def _load_pipeline_resources(
         destination_content_item_ids=destination_content_item_ids,
         host_scope_ids=host_scope_ids,
         rare_term_settings=rare_term_settings,
+        keyword_stuffing_settings=keyword_stuffing_settings,
         progress_fn=progress_fn,
     )
     if isinstance(content_data, PipelineResult):
         return content_data
 
     content_records = content_data["content_records"]
+    if content_data.get("keyword_baseline") is not None:
+        progress_fn(0.145, "Scoring keyword stuffing baselines...")
+        content_data["keyword_stuffing_by_destination"] = {
+            key: evaluate_keyword_stuffing(
+                destination=record,
+                baseline=content_data["keyword_baseline"],
+                settings=keyword_stuffing_settings,
+            )
+            for key, record in content_records.items()
+        }
+
+    if link_farm_settings.enabled:
+        progress_fn(0.148, "Detecting reciprocal link rings...")
+        content_data["link_farm_by_destination"] = detect_link_farm_rings(
+            existing_links=content_data["existing_links"],
+            settings=link_farm_settings,
+        )
 
     progress_fn(0.15, "Applying rerun mode filter...")
     pending_destinations = _get_pending_destinations(rerun_mode)
@@ -402,6 +448,27 @@ def _load_learned_anchor_rows_by_destination() -> (
             )
         )
     return dict(rows_by_destination)
+
+
+def _load_active_anchor_history():
+    """Load active suggestion anchor history for FR-045."""
+    from apps.suggestions.models import Suggestion
+
+    rows = Suggestion.objects.filter(
+        status__in=("pending", "approved", "applied", "verified")
+    ).values_list(
+        "destination__pk",
+        "destination__content_type",
+        "anchor_phrase",
+        "anchor_edited",
+    )
+    return build_anchor_history(
+        (
+            (destination_id, destination_type),
+            (anchor_edited or anchor_phrase or ""),
+        )
+        for destination_id, destination_type, anchor_phrase, anchor_edited in rows
+    )
 
 
 def _get_pending_destinations(rerun_mode: str) -> set[ContentKey]:

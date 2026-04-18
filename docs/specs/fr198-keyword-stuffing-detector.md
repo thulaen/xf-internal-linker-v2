@@ -1,7 +1,7 @@
 # FR-198 - Keyword Stuffing Detector
 
 ## Overview
-Keyword stuffing is when a page repeats target keywords far more often than natural prose would. Modern variants include hidden-text stuffing, footer keyword lists, and ALT-attribute spam. This signal compares the term distribution of a page against a corpus-wide *natural-text baseline* using Kullback-Leibler divergence; pages that diverge sharply on a small handful of high-frequency terms are flagged. Used as a multiplicative penalty in the ranker.
+Keyword stuffing is when a page repeats target keywords far more often than natural prose would. Modern variants include hidden-text stuffing, footer keyword lists, and ALT-attribute spam. This signal compares the term distribution of a page against a corpus-wide *natural-text baseline* using Kullback-Leibler divergence; pages that diverge sharply on a small handful of high-frequency terms are flagged. Used as a bounded penalty component in the ranker.
 
 ## Academic source
 **Ntoulas, Alexandros; Najork, Marc; Manasse, Mark; Fetterly, Dennis (2006).** "Detecting Spam Web Pages through Content Analysis." *Proceedings of the 15th International Conference on World Wide Web (WWW 2006)*, pp. 83-92. DOI: `10.1145/1135777.1135794`. The KL-divergence-based stuffing score and the corpus-baseline construction in §4 are the basis for this signal.
@@ -28,7 +28,7 @@ Top-`k` "stuff terms" are the `t` that maximise the per-term KL contribution `P_
 ## Starting weight preset
 ```python
 "keyword_stuffing.enabled": "true",
-"keyword_stuffing.ranking_weight": "0.0",
+"keyword_stuffing.ranking_weight": "0.04",
 "keyword_stuffing.alpha": "6.0",
 "keyword_stuffing.tau": "0.30",
 "keyword_stuffing.dirichlet_mu": "2000",

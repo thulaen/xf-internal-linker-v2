@@ -12,8 +12,11 @@ from typing import Any
 
 from .feedback_rerank import FeedbackRerankSettings
 from .slate_diversity import SlateDiversitySettings
+from .anchor_diversity import AnchorDiversitySettings
 from .field_aware_relevance import FieldAwareRelevanceSettings
 from .learned_anchor import LearnedAnchorSettings
+from .keyword_stuffing import KeywordStuffingSettings
+from .link_farm import LinkFarmSettings
 from .ranker import (
     SiloSettings,
     ClusteringSettings,
@@ -53,6 +56,9 @@ def _load_all_pipeline_settings() -> dict[str, Any]:
         "field_aware": _load_field_aware_relevance_settings(),
         "ga4_gsc": _load_ga4_gsc_settings(),
         "click_distance": _load_click_distance_settings(),
+        "anchor_diversity": _load_anchor_diversity_settings(),
+        "keyword_stuffing": _load_keyword_stuffing_settings(),
+        "link_farm": _load_link_farm_settings(),
         "feedback_rerank": _load_feedback_rerank_settings(),
         "clustering": _load_clustering_settings(),
         "slate_diversity": _load_slate_diversity_settings(),
@@ -396,6 +402,59 @@ def _load_feedback_rerank_settings() -> FeedbackRerankSettings:
     except Exception:
         logger.exception("Failed to load feedback rerank settings; using defaults.")
         return FeedbackRerankSettings()
+
+
+def _load_anchor_diversity_settings() -> AnchorDiversitySettings:
+    try:
+        from apps.core.views_antispam import get_anchor_diversity_settings
+
+        raw = get_anchor_diversity_settings()
+        return AnchorDiversitySettings(
+            enabled=bool(raw["enabled"]),
+            ranking_weight=float(raw["ranking_weight"]),
+            min_history_count=int(raw["min_history_count"]),
+            max_exact_match_share=float(raw["max_exact_match_share"]),
+            max_exact_match_count=int(raw["max_exact_match_count"]),
+            hard_cap_enabled=bool(raw["hard_cap_enabled"]),
+        )
+    except Exception:
+        logger.exception("Failed to load anchor diversity settings; using defaults.")
+        return AnchorDiversitySettings()
+
+
+def _load_keyword_stuffing_settings() -> KeywordStuffingSettings:
+    try:
+        from apps.core.views_antispam import get_keyword_stuffing_settings
+
+        raw = get_keyword_stuffing_settings()
+        return KeywordStuffingSettings(
+            enabled=bool(raw["enabled"]),
+            ranking_weight=float(raw["ranking_weight"]),
+            alpha=float(raw["alpha"]),
+            tau=float(raw["tau"]),
+            dirichlet_mu=int(raw["dirichlet_mu"]),
+            top_k_stuff_terms=int(raw["top_k_stuff_terms"]),
+        )
+    except Exception:
+        logger.exception("Failed to load keyword stuffing settings; using defaults.")
+        return KeywordStuffingSettings()
+
+
+def _load_link_farm_settings() -> LinkFarmSettings:
+    try:
+        from apps.core.views_antispam import get_link_farm_settings
+
+        raw = get_link_farm_settings()
+        return LinkFarmSettings(
+            enabled=bool(raw["enabled"]),
+            ranking_weight=float(raw["ranking_weight"]),
+            min_scc_size=int(raw["min_scc_size"]),
+            density_threshold=float(raw["density_threshold"]),
+            lambda_value=float(raw["lambda"]),
+        )
+    except Exception:
+        logger.exception("Failed to load link-farm settings; using defaults.")
+        return LinkFarmSettings()
 
 
 def _load_clustering_settings() -> ClusteringSettings:

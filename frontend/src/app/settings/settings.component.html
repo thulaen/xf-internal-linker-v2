@@ -406,6 +406,188 @@
             </mat-card-content>
           </mat-card>
 
+          <mat-card class="settings-card" id="anchor-diversity">
+            <mat-card-header>
+              <mat-card-title>Anchor Diversity</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">FR-045 exact-match reuse guard. Keeps anchor wording varied without changing anchor selection itself.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="anchorDiversity.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="anchorDiversity.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min history count</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="50" step="1" [(ngModel)]="anchorDiversity.min_history_count" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.min_history_count')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Max exact-match share</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0.05" max="1" step="0.05" [(ngModel)]="anchorDiversity.max_exact_match_share" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.max_exact_match_share')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Max exact-match count</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="50" step="1" [(ngModel)]="anchorDiversity.max_exact_match_count" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.max_exact_match_count')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Hard cap</mat-label>
+                  <mat-select [(ngModel)]="anchorDiversity.hard_cap_enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="false">Penalty only</mat-option>
+                    <mat-option [value]="true">Hard block</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('anchorDiversity.hard_cap_enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingAnchorDiversity" (click)="saveAnchorDiversitySettings()">
+                  <mat-icon>{{ savingAnchorDiversity ? 'sync' : 'text_fields' }}</mat-icon>
+                  {{ savingAnchorDiversity ? 'Saving...' : 'Save Anchor Diversity' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="settings-card" id="keyword-stuffing">
+            <mat-card-header>
+              <mat-card-title>Keyword Stuffing</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">FR-198 content anomaly penalty using KL divergence against the site baseline language model.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="keywordStuffing.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="keywordStuffing.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Alpha</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0.1" max="20" step="0.1" [(ngModel)]="keywordStuffing.alpha" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.alpha')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Tau</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="2" step="0.05" [(ngModel)]="keywordStuffing.tau" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.tau')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Dirichlet μ</mat-label>
+                  <input matInput autocomplete="off" type="number" min="100" max="20000" step="100" [(ngModel)]="keywordStuffing.dirichlet_mu" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.dirichlet_mu')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Top suspicious terms</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="20" step="1" [(ngModel)]="keywordStuffing.top_k_stuff_terms" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('keywordStuffing.top_k_stuff_terms')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingKeywordStuffing" (click)="saveKeywordStuffingSettings()">
+                  <mat-icon>{{ savingKeywordStuffing ? 'sync' : 'article' }}</mat-icon>
+                  {{ savingKeywordStuffing ? 'Saving...' : 'Save Keyword Stuffing' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card class="settings-card" id="link-farm">
+            <mat-card-header>
+              <mat-card-title>Link-Farm Detection</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">FR-197 reciprocal-ring penalty using strongly connected components on the existing internal graph.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="linkFarm.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFarm.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.25" step="0.01" [(ngModel)]="linkFarm.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFarm.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min SCC size</mat-label>
+                  <input matInput autocomplete="off" type="number" min="2" max="100" step="1" [(ngModel)]="linkFarm.min_scc_size" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFarm.min_scc_size')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Density threshold</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0.1" max="1" step="0.05" [(ngModel)]="linkFarm.density_threshold" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFarm.density_threshold')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Lambda</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0.01" max="5" step="0.05" [(ngModel)]="linkFarm.lambda" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('linkFarm.lambda')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingLinkFarm" (click)="saveLinkFarmSettings()">
+                  <mat-icon>{{ savingLinkFarm ? 'sync' : 'hub' }}</mat-icon>
+                  {{ savingLinkFarm ? 'Saving...' : 'Save Link-Farm Detection' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <!-- Feedback Reranking -->
           <mat-card class="settings-card">
             <mat-card-header>
@@ -1079,7 +1261,7 @@
                 </h4>
                 <p class="hint">
                   Paths the crawler will skip. These apply to all domains.
-                  One path per line (e.g. <code style="background: rgba(0,0,0,0.06); padding: 2px 4px; border-radius: 4px; font-size: 12px;">/members/</code>).
+                  One path per line (e.g. <code style="background: var(--color-bg-faint); padding: 2px 4px; border-radius: 4px; font-size: 12px;">/members/</code>).
                 </p>
                 <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px;">
                   @for (path of crawlerExcludedPaths; track path) {
@@ -1929,7 +2111,7 @@
                       Grant browser permission
                     </button>
                   } @else {
-                    <span class="hint" style="color: #34a853;">
+                    <span class="hint" style="color: var(--color-success);">
                       <mat-icon style="font-size: 16px; vertical-align: middle;">check_circle</mat-icon>
                       Browser permission granted
                     </span>

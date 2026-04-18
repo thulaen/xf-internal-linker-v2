@@ -18,7 +18,7 @@
   - Final stage currently resolves host-reuse and circularity, then takes the top-3 by `score_final`.
   - The top-3 selection is the gap FR-015 fills: it does not account for whether those 3 candidates are semantically redundant with each other.
 - `backend/apps/content/models.py`
-  - `ContentItem.embedding`: 768-dimensional semantic vector (nomic-embed-text-v1.5). Used for similarity computation.
+  - `ContentItem.embedding`: 1024-dimensional semantic vector (BAAI/bge-m3). Used for similarity computation.
 - `backend/apps/suggestions/models.py`
   - `Suggestion` stores all per-suggestion scores and diagnostics.
 
@@ -110,7 +110,7 @@ Default: **λ = 0.7**.
 ```
 Input:
   candidates     = list of ScoredCandidate objects, ordered by score_final descending
-  embeddings     = dict mapping content_item_id -> 768-dim embedding vector
+    embeddings     = dict mapping content_item_id -> 1024-dim embedding vector
   k              = max_suggestions_per_host (3)
   λ              = diversity_lambda (default 0.7)
   score_window   = max score gap between top candidate and any eligible candidate (default 0.30)
@@ -143,7 +143,7 @@ Output: S (ordered list of selected ScoredCandidate objects)
 cosine(u, v) = (u · v) / (‖u‖ · ‖v‖)
 ```
 
-Computed between the 768-dim nomic-embed-text-v1.5 embedding vectors stored in `ContentItem.embedding`. Vectors are pre-normalized at write time so this reduces to a dot product. Use `numpy.dot` or pgvector's `<=>` distance operator (where cosine_similarity = 1 - distance).
+Computed between the 1024-dim BAAI/bge-m3 embedding vectors stored in `ContentItem.embedding`. Vectors are pre-normalized at write time so this reduces to a dot product. Use `numpy.dot` or pgvector's `<=>` distance operator (where cosine_similarity = 1 - distance).
 
 ### Score Window
 
@@ -213,7 +213,7 @@ class SlateDiversityService:
         Returns the final ordered slate using MMR greedy selection.
 
         candidates : list of ScoredCandidate, sorted by score_final descending
-        embeddings : dict of {content_item_id: np.ndarray (768-dim, pre-normalized)}
+        embeddings : dict of {content_item_id: np.ndarray (1024-dim, pre-normalized)}
         settings   : SlateDiversitySettings namedtuple
         """
 ```

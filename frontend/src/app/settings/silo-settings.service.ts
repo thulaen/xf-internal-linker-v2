@@ -329,6 +329,208 @@ export interface SpamGuardSettings {
   paragraph_window: number;
 }
 
+export interface AnchorDiversitySettings {
+  enabled: boolean;
+  ranking_weight: number;
+  min_history_count: number;
+  max_exact_match_share: number;
+  max_exact_match_count: number;
+  hard_cap_enabled: boolean;
+}
+
+export interface KeywordStuffingSettings {
+  enabled: boolean;
+  ranking_weight: number;
+  alpha: number;
+  tau: number;
+  dirichlet_mu: number;
+  top_k_stuff_terms: number;
+}
+
+export interface LinkFarmSettings {
+  enabled: boolean;
+  ranking_weight: number;
+  min_scc_size: number;
+  density_threshold: number;
+  lambda: number;
+}
+
+export interface RuntimeModelRegistryEntry {
+  id: number;
+  task_type: string;
+  model_name: string;
+  model_family: string;
+  dimension: number | null;
+  device_target: string;
+  batch_size: number;
+  memory_profile: Record<string, unknown>;
+  role: string;
+  status: string;
+  health_result: Record<string, unknown>;
+  algorithm_version: string;
+  promoted_at: string | null;
+  draining_since: string | null;
+  last_warmup_result: Record<string, unknown>;
+}
+
+export interface RuntimeModelPlacement {
+  id: number;
+  registry_id: number;
+  model_name: string;
+  role: string;
+  executor_type: string;
+  helper_id: number | null;
+  helper_name: string;
+  artifact_path: string;
+  disk_bytes: number;
+  status: string;
+  last_used_at: string | null;
+  warmed_at: string | null;
+  last_error: string;
+  deletable: boolean;
+}
+
+export interface RuntimeBackfillPlan {
+  id: number;
+  from_model_id: number;
+  to_model_id: number;
+  status: string;
+  compatibility_status: string;
+  progress_pct: number;
+  checkpoint: Record<string, unknown>;
+  last_error: string;
+}
+
+export interface RuntimeAuditEntry {
+  id: number;
+  created_at: string;
+  action: string;
+  subject_type: string;
+  subject_id: string;
+  actor: string;
+  message: string;
+  metadata: Record<string, unknown>;
+}
+
+export interface RuntimeModelSummary {
+  task_type: string;
+  active_model: RuntimeModelRegistryEntry | null;
+  candidate_model: RuntimeModelRegistryEntry | null;
+  placements: RuntimeModelPlacement[];
+  reclaimable_disk_bytes: number;
+  backfill: RuntimeBackfillPlan | null;
+  device: string;
+  hot_swap_safe: boolean;
+  recent_audit_log: RuntimeAuditEntry[];
+  last_audit_at: string | null;
+}
+
+export interface HelperNodeSummary {
+  online: number;
+  busy: number;
+  stale: number;
+  offline: number;
+}
+
+export interface HelperNodesRuntimeSummary {
+  counts: HelperNodeSummary;
+  busiest: {
+    name: string;
+    effective_load: number;
+  };
+  aggregate_ram_pressure: number;
+  helpers_enabled: boolean;
+}
+
+export interface HardwareCapabilitySummary {
+  cpu_cores: number;
+  ram_gb: number;
+  gpu_name: string;
+  gpu_vram_gb: number;
+  disk_free_gb: number;
+  native_kernels_healthy: boolean;
+  detected_upgrade: boolean;
+  captured_at: string;
+}
+
+export interface RuntimeProfileRecommendation {
+  profile: string;
+  reason: string;
+  suggested_batch_size: number;
+  suggested_concurrency: number;
+}
+
+export interface RuntimeSummaryPayload {
+  model_runtime: RuntimeModelSummary;
+  helper_nodes: HelperNodesRuntimeSummary;
+  hardware: HardwareCapabilitySummary;
+  recommended_profile: RuntimeProfileRecommendation;
+}
+
+export interface RuntimeModelRegistrationPayload {
+  task_type?: string;
+  model_name: string;
+  model_family?: string;
+  dimension?: number | null;
+  device_target?: string;
+  batch_size?: number;
+  memory_profile?: Record<string, unknown>;
+  role?: string;
+  algorithm_version?: string;
+  executor_type?: string;
+  helper_id?: number | null;
+  artifact_path?: string;
+  artifact_checksum?: string;
+  disk_bytes?: number;
+}
+
+export interface RuntimeModelActionPayload {
+  action: 'download' | 'warm' | 'pause' | 'resume' | 'promote' | 'rollback' | 'drain';
+  placement_id?: number;
+}
+
+export interface HelperNodeSettingsRecord {
+  id: number;
+  name: string;
+  role: string;
+  status: string;
+  derived_state: string;
+  capabilities: Record<string, unknown>;
+  allowed_queues: string[];
+  allowed_job_types: string[];
+  time_policy: 'anytime' | 'nighttime' | 'maintenance';
+  max_concurrency: number;
+  cpu_cap_pct: number;
+  ram_cap_pct: number;
+  accepting_work: boolean;
+  active_jobs: number;
+  queued_jobs: number;
+  cpu_pct: number;
+  ram_pct: number;
+  gpu_util_pct: number | null;
+  gpu_vram_used_mb: number | null;
+  gpu_vram_total_mb: number | null;
+  network_rtt_ms: number | null;
+  native_kernels_healthy: boolean;
+  warmed_model_keys: string[];
+  last_heartbeat: string | null;
+  last_snapshot_at: string | null;
+}
+
+export interface HelperNodeCreatePayload {
+  name: string;
+  token: string;
+  role?: string;
+  capabilities?: Record<string, unknown>;
+  allowed_queues?: string[];
+  allowed_job_types?: string[];
+  time_policy?: 'anytime' | 'nighttime' | 'maintenance';
+  max_concurrency?: number;
+  cpu_cap_pct?: number;
+  ram_cap_pct?: number;
+  accepting_work?: boolean;
+}
+
 export interface SyncRunResponse {
   job_id: string;
   source: string;
@@ -617,6 +819,70 @@ export class SiloSettingsService {
 
   updateSpamGuardSettings(payload: SpamGuardSettings): Observable<SpamGuardSettings> {
     return this.http.put<SpamGuardSettings>('/api/settings/spam-guards/', payload);
+  }
+
+  getAnchorDiversitySettings(): Observable<AnchorDiversitySettings> {
+    return this.http.get<AnchorDiversitySettings>('/api/settings/anchor-diversity/');
+  }
+
+  updateAnchorDiversitySettings(payload: AnchorDiversitySettings): Observable<AnchorDiversitySettings> {
+    return this.http.put<AnchorDiversitySettings>('/api/settings/anchor-diversity/', payload);
+  }
+
+  getKeywordStuffingSettings(): Observable<KeywordStuffingSettings> {
+    return this.http.get<KeywordStuffingSettings>('/api/settings/keyword-stuffing/');
+  }
+
+  updateKeywordStuffingSettings(payload: KeywordStuffingSettings): Observable<KeywordStuffingSettings> {
+    return this.http.put<KeywordStuffingSettings>('/api/settings/keyword-stuffing/', payload);
+  }
+
+  getLinkFarmSettings(): Observable<LinkFarmSettings> {
+    return this.http.get<LinkFarmSettings>('/api/settings/link-farm/');
+  }
+
+  updateLinkFarmSettings(payload: LinkFarmSettings): Observable<LinkFarmSettings> {
+    return this.http.put<LinkFarmSettings>('/api/settings/link-farm/', payload);
+  }
+
+  getRuntimeSummary(): Observable<RuntimeSummaryPayload> {
+    return this.http.get<RuntimeSummaryPayload>('/api/settings/runtime/summary/');
+  }
+
+  getRuntimeModels(): Observable<RuntimeModelSummary> {
+    return this.http.get<RuntimeModelSummary>('/api/settings/runtime/models/');
+  }
+
+  registerRuntimeModel(payload: RuntimeModelRegistrationPayload): Observable<RuntimeModelSummary> {
+    return this.http.post<RuntimeModelSummary>('/api/settings/runtime/models/', payload);
+  }
+
+  runRuntimeModelAction(id: number, payload: RuntimeModelActionPayload): Observable<Record<string, unknown>> {
+    return this.http.post<Record<string, unknown>>(`/api/settings/runtime/models/${id}/action/`, payload);
+  }
+
+  deleteRuntimePlacement(id: number): Observable<{ deleted?: boolean; reclaimed_disk_bytes?: number }> {
+    return this.http.delete<{ deleted?: boolean; reclaimed_disk_bytes?: number }>(`/api/settings/runtime/models/placements/${id}/`);
+  }
+
+  listHelpers(): Observable<HelperNodeSettingsRecord[]> {
+    return this.http.get<HelperNodeSettingsRecord[] | { results: HelperNodeSettingsRecord[] }>('/api/settings/helpers/')
+      .pipe(
+        map((r) => Array.isArray(r) ? r : r.results ?? []),
+        catchError(() => of([]))
+      );
+  }
+
+  createHelper(payload: HelperNodeCreatePayload): Observable<{ id: number; name: string }> {
+    return this.http.post<{ id: number; name: string }>('/api/settings/helpers/', payload);
+  }
+
+  updateHelper(id: number, payload: Partial<HelperNodeSettingsRecord>): Observable<HelperNodeSettingsRecord> {
+    return this.http.patch<HelperNodeSettingsRecord>(`/api/settings/helpers/${id}/`, payload);
+  }
+
+  deleteHelper(id: number): Observable<void> {
+    return this.http.delete<void>(`/api/settings/helpers/${id}/`);
   }
 
   recalculateClickDistance(): Observable<{ job_id: string }> {

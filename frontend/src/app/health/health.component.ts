@@ -24,7 +24,7 @@ export interface ChecklistGroup {
 
 const SERVICE_GROUPS: { label: string; keys: string[] }[] = [
   { label: 'Infrastructure', keys: ['database', 'redis', 'celery', 'celery_queues', 'celery_beat', 'disk_space'] },
-  { label: 'AI & Models', keys: ['ml_models', 'native_scoring', 'gpu_faiss'] },
+  { label: 'AI & Models', keys: ['ml_models', 'model_runtime', 'helper_nodes', 'native_scoring', 'gpu_faiss'] },
   { label: 'Analytics Credentials', keys: ['ga4', 'gsc', 'matomo'] },
   { label: 'Content Sources', keys: ['xenforo', 'wordpress', 'sitemaps'] },
   { label: 'Web Crawler', keys: ['crawler_status', 'crawler_storage'] },
@@ -348,7 +348,9 @@ export class HealthComponent implements OnInit, OnDestroy {
       'weights_plugins': 'ranking-weights',
       'knowledge_graph': 'silo-architecture',
       'webhooks': 'dashboard-webhooks',
-      'ml_models': 'pipeline-behaviour',
+      'ml_models': 'model-runtime',
+      'model_runtime': 'model-runtime',
+      'helper_nodes': 'helpers',
       'native_scoring': 'ranking-weights',
       'pipeline_health': 'pipeline-behaviour',
     };
