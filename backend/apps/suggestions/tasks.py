@@ -18,11 +18,13 @@ logger = logging.getLogger(__name__)
 
 @shared_task(name="suggestions.prune_rejected_pairs")
 def prune_rejected_pairs() -> dict[str, int]:
-    """Delete RejectedPair rows older than REJECTED_PAIR_PRUNE_AFTER_DAYS.
+    """Delete RejectedPair rows older than ``REJECTED_PAIR_PRUNE_AFTER_DAYS``.
 
-    These rows are well past the suppression window (SUPPRESSION_DAYS = 90,
-    PRUNE_AFTER_DAYS = 365) and no longer influence candidate generation, so
-    keeping them only grows the table. Scheduled weekly (Sunday 22:25 UTC).
+    These rows are well past the ``REJECTED_PAIR_SUPPRESSION_DAYS`` window and
+    no longer influence candidate generation, so keeping them only grows the
+    table. Scheduled weekly via ``weekly-prune-rejected-pairs`` in
+    ``celery_schedules.py`` (see BUSINESS-LOGIC-CHECKLIST §6.3 for the full
+    retention table).
 
     Returns a dict with ``deleted`` and ``remaining`` counts for the operator.
     """
