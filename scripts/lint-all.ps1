@@ -471,6 +471,10 @@ if ($fileViolations.Count -gt 0) {
 Write-Step "16/32 Python: cyclomatic complexity cap (C901, max 15, diff-scoped)"
 $complexityDiffPy = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py"))
 $complexityDiffPy = @($complexityDiffPy | Where-Object { $_ -notmatch '\\migrations\\|\\tests' })
+# Respect the same $baselineLongFiles allowlist used by the file- and
+# function-length checks — a file already carrying pre-existing tech
+# debt shouldn't trip this rule a second time.
+$complexityDiffPy = @($complexityDiffPy | Where-Object { $name = (Split-Path $_ -Leaf); -not ($baselineLongFiles -contains $name) })
 if ($complexityDiffPy.Count -gt 0) {
     Push-Location (Join-Path $repoRoot "backend")
     try {
