@@ -56,7 +56,6 @@ from .field_aware_relevance import (
     evaluate_field_aware_relevance,
 )
 from .anchor_diversity import (
-    AnchorDiversityEvaluation,
     AnchorDiversitySettings,
     evaluate_anchor_diversity,
 )

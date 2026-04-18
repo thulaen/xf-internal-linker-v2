@@ -16,7 +16,6 @@ from apps.core.runtime_models import (
 from apps.core.runtime_registry import (
     capture_primary_hardware_snapshot,
     get_active_runtime_model,
-    get_candidate_runtime_model,
     helper_state,
     record_runtime_audit,
     runtime_summary_payload,
