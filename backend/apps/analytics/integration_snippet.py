@@ -39,39 +39,6 @@ def _copyable_json(data: dict[str, object]) -> str:
     return json.dumps(data, indent=2, sort_keys=True)
 
 
-def build_browser_bridge_snippet(
-    *,
-    event_schema: str,
-    impression_visible_ratio: float,
-    impression_min_ms: int,
-    engaged_min_seconds: int,
-    ga4_measurement_id: str,
-    ga4_enabled: bool,
-    matomo_enabled: bool,
-    session_ttl_minutes: int = 30,
-) -> str:
-    """Return a copy-ready browser snippet for live-site telemetry wiring.
-
-    Builds the config dict and delegates the long JS body to
-    :func:`_build_bridge_js` — keeps this function under the 80-line cap.
-    """
-    config = {
-        "eventSchema": event_schema,
-        "impressionVisibleRatio": impression_visible_ratio,
-        "impressionMinMs": impression_min_ms,
-        "engagedMinSeconds": engaged_min_seconds,
-        "sessionTtlMinutes": session_ttl_minutes,
-        "ga4MeasurementId": ga4_measurement_id,
-        "ga4Enabled": ga4_enabled,
-        "matomoEnabled": matomo_enabled,
-        # Phase 2 engagement signals — see module docstring.
-        "quickExitThresholdMs": QUICK_EXIT_THRESHOLD_MS,
-        "dwell30sThresholdMs": DWELL_30S_THRESHOLD_MS,
-        "dwell60sThresholdMs": DWELL_60S_THRESHOLD_MS,
-    }
-    return _build_bridge_js(_copyable_json(config))
-
-
 #: Full JS body of the browser-bridge snippet. Kept at module scope so the
 #: per-function 80-line cap applies only to the small Python wrappers.
 #: Python-side braces must be doubled (``{{``, ``}}``) — we format the
@@ -259,6 +226,39 @@ def _build_bridge_js(config_json: str) -> str:
     essentially one long string constant.
     """
     return _BRIDGE_JS_TEMPLATE.format(config_json=config_json)
+
+
+def build_browser_bridge_snippet(
+    *,
+    event_schema: str,
+    impression_visible_ratio: float,
+    impression_min_ms: int,
+    engaged_min_seconds: int,
+    ga4_measurement_id: str,
+    ga4_enabled: bool,
+    matomo_enabled: bool,
+    session_ttl_minutes: int = 30,
+) -> str:
+    """Return a copy-ready browser snippet for live-site telemetry wiring.
+
+    Builds the config dict and delegates the long JS body to
+    :func:`_build_bridge_js` — keeps this function under the 80-line cap.
+    """
+    config = {
+        "eventSchema": event_schema,
+        "impressionVisibleRatio": impression_visible_ratio,
+        "impressionMinMs": impression_min_ms,
+        "engagedMinSeconds": engaged_min_seconds,
+        "sessionTtlMinutes": session_ttl_minutes,
+        "ga4MeasurementId": ga4_measurement_id,
+        "ga4Enabled": ga4_enabled,
+        "matomoEnabled": matomo_enabled,
+        # Phase 2 engagement signals — see module docstring.
+        "quickExitThresholdMs": QUICK_EXIT_THRESHOLD_MS,
+        "dwell30sThresholdMs": DWELL_30S_THRESHOLD_MS,
+        "dwell60sThresholdMs": DWELL_60S_THRESHOLD_MS,
+    }
+    return _build_bridge_js(_copyable_json(config))
 
 
 def build_integration_payload(
