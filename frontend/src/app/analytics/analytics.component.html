@@ -98,6 +98,13 @@
         </mat-card>
       }
 
+      <div id="analytics-engagement-mix" class="engagement-mix-slot">
+        <app-engagement-mix
+          [source]="selectedSource"
+          [windowDays]="30"
+        ></app-engagement-mix>
+      </div>
+
       @if (versionComparison; as versionData) {
         <mat-card class="report-card" id="analytics-algorithm">
           <mat-card-header>

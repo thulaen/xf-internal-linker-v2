@@ -444,6 +444,54 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 2b: Engagement Mix card in the Analytics page (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 2 shipped the data collection (quick_exit / dwell_30s / dwell_60s event counts on `SuggestionTelemetryDaily`) but nothing in the frontend surfaced it. User chose the "dedicated subcomponent" path so the engagement mix sits alongside other focused analytics sections (`impact-diary`, `under-linked`, etc.) rather than inlined.
+- **What was done:**
+  - **New backend endpoint** `GET /api/analytics/telemetry/engagement-mix/?source=&days=` → `AnalyticsTelemetryEngagementMixView` in `views.py`. Returns `totals` (5 counts) + `rates` (4 tier-reach percentages computed via the existing `_safe_rate` helper). Reuses the same `_telemetry_queryset` + `Sum()` annotation pattern as `AnalyticsTelemetryFunnelView`.
+  - **New Angular 20 standalone subcomponent** at `frontend/src/app/analytics/engagement-mix/engagement-mix.component.ts`. Inline template + styles following the `impact-diary` pattern. Uses `input()` signals for `source` + `windowDays` so it re-fetches when the parent analytics page's filter toggles change (via `effect()`). Four KPI tiles (Quick-exit, Engaged 10s+, Dwell 30s+, Dwell 60s+) plus a "Tier reach" strip with independent horizontal bars scaled to each tier's rate.
+  - **Service method** `AnalyticsService.getEngagementMix(source, days)` + `AnalyticsEngagementMixResponse` interface added to `analytics.service.ts`.
+  - **Integration** — registered `EngagementMixComponent` in the main `AnalyticsComponent` imports and rendered it in `analytics.component.html` between the Funnel and Algorithm Performance cards. `analytics.component.scss` got a small `.engagement-mix-slot` rule for consistent 24px bottom spacing.
+  - **Tooltips cite the research** — each KPI tile has a `matTooltip` with the plain-English meaning of the signal. Quick-exit tooltip explicitly flags "strong negative signal — the link probably did not match intent" (Kim, Hassan, White & Zitouni WSDM 2014, same citation as Phase 2).
+  - **No Chart.js** — the card uses plain CSS div-based bars. Keeps the subcomponent self-contained and avoids spinning up another chart library dependency for a 4-bar visualization.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/views.py` (+`AnalyticsTelemetryEngagementMixView`, ~55 lines)
+  - `backend/apps/analytics/urls.py` (+import + route)
+  - `backend/apps/analytics/tests.py` (+2 new tests covering populated + empty cases)
+  - `frontend/src/app/analytics/analytics.service.ts` (+interface + method)
+  - `frontend/src/app/analytics/analytics.component.ts` (+1 import + 1 entry in `imports` array)
+  - `frontend/src/app/analytics/analytics.component.html` (+7-line slot for the new component)
+  - `frontend/src/app/analytics/analytics.component.scss` (+3-line slot spacing)
+  - `frontend/src/app/analytics/analytics.component.spec.ts` (+stub for `getEngagementMix` so child component's service call resolves in tests)
+  - `frontend/src/app/analytics/engagement-mix/engagement-mix.component.ts` (new — single-file standalone component following `impact-diary` pattern)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** `_telemetry_queryset` helper (same filter semantics as the rest of the telemetry endpoints), `_safe_rate` helper (zero-denominator-safe division), `AnalyticsService` DI pattern, existing `mat-card` + `appearance="outlined"` styling, existing `--color-*` + `--space-*` design tokens, existing `matTooltip` for operator help text. No new endpoint on top of an existing-capable one — chose a dedicated URL because the rate computations + cumulative-tier semantics differ from funnel's flat counts.
+
+- **Session Gate compliance:**
+  - Continuation of the same 2026-04-18 session — governance files read earlier in session still in context.
+  - Duplicate-check pass: grep for `engagement-mix`, existing funnel/trend/top-suggestions endpoints already visualise `engaged_sessions`/`destination_views`, but no existing endpoint returns the Phase 2 dwell-tier distribution. New endpoint is the right call.
+  - BLC §0 AI Drift Rejection Gate: no drift — pure UI/visibility feature, no scoring math, neutral fallback (zero rows → empty-state card), reviewer-visible.
+  - FRONTEND-RULES: Angular Material only (`mat-card`, `mat-icon`, `mat-spinner`, `matTooltip`), no hex colors, no gradients, design tokens only, 4px grid respected in spacing.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics` — **29 tests pass** (2 new + 27 pre-existing).
+  - `docker compose exec backend python manage.py test` — **318 tests pass**, 1 skipped, 0 failures.
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected."
+  - `cd frontend && npm run test:ci` — **25 frontend tests pass** (after adding `getEngagementMix` stub to the existing `AnalyticsComponent` spec's service mock).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - `docker compose exec backend python -m ruff format apps/analytics/views.py apps/analytics/urls.py apps/analytics/tests.py` — 1 file reformatted preemptively.
+
+- **What was deliberately NOT done (and why):**
+  - Did not add a Chart.js chart — CSS div-bars are simpler and the subcomponent has zero new chart dependencies.
+  - Did not surface per-suggestion dwell breakdowns — the endpoint returns aggregates only. Per-suggestion drilldown can be a later slice (e.g., extend `AnalyticsTelemetryTopSuggestionsView` with the three new columns + a sort-by-quick-exit toggle).
+  - Did not wire a `windowDays` parent toggle yet — hardcoded to 30 in the template (`[windowDays]="30"`). The input signal is ready to accept a dynamic value whenever the parent adds a window selector for this card.
+  - Did not change `content_value_score` to incorporate the new signals — that touches the ranker and needs BLC §0 gating + a benchmark. Separate slice.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 2 of suggestion-quality telemetry: quick_exit + dwell_30s + dwell_60s engagement events (Claude)
 
 - **AI/tool:** Claude

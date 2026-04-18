@@ -4,6 +4,7 @@ from django.urls import path
 
 from .views import (
     AnalyticsTelemetryBreakdownView,
+    AnalyticsTelemetryEngagementMixView,
     AnalyticsTelemetryFunnelView,
     AnalyticsGA4SettingsView,
     AnalyticsGA4ReadConnectionView,
@@ -55,6 +56,11 @@ urlpatterns = [
         "telemetry/funnel/",
         AnalyticsTelemetryFunnelView.as_view(),
         name="analytics-telemetry-funnel",
+    ),
+    path(
+        "telemetry/engagement-mix/",
+        AnalyticsTelemetryEngagementMixView.as_view(),
+        name="analytics-telemetry-engagement-mix",
     ),
     path(
         "telemetry/trend/",

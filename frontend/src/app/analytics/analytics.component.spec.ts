@@ -143,6 +143,23 @@ describe('AnalyticsComponent', () => {
         },
       ],
     })),
+    getEngagementMix: jasmine.createSpy('getEngagementMix').and.returnValue(of({
+      days: 30,
+      selected_source: 'all' as const,
+      totals: {
+        destination_views: 0,
+        engaged_sessions: 0,
+        quick_exit_sessions: 0,
+        dwell_30s_sessions: 0,
+        dwell_60s_sessions: 0,
+      },
+      rates: {
+        quick_exit_rate: 0,
+        engaged_rate: 0,
+        dwell_30s_rate: 0,
+        dwell_60s_rate: 0,
+      },
+    })),
     getTrend: jasmine.createSpy('getTrend').and.returnValue(of({
       days: 30,
       selected_source: 'all' as const,

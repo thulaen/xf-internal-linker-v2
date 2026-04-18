@@ -1131,6 +1131,60 @@ class AnalyticsTelemetryFunnelView(APIView):
         )
 
 
+class AnalyticsTelemetryEngagementMixView(APIView):
+    """Return the Phase 2 engagement mix for the selected source + time window.
+
+    Surfaces the three new ``SuggestionTelemetryDaily`` columns
+    (``quick_exit_sessions``, ``dwell_30s_sessions``, ``dwell_60s_sessions``)
+    alongside the existing ``destination_views`` and ``engaged_sessions`` so
+    operators can see the dwell-tier distribution per source.
+
+    Rates are computed as ``<tier_count> / destination_views`` via the
+    existing ``_safe_rate`` helper (returns 0.0 on zero denominators). Tiers
+    are cumulative (a session that reaches 60s also fires the 30s event), so
+    the rates are independent tier-reach percentages, not stacked shares.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset, days, source = _telemetry_queryset(request)
+        totals = queryset.aggregate(
+            destination_views=Sum("destination_views"),
+            engaged_sessions=Sum("engaged_sessions"),
+            quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_30s_sessions=Sum("dwell_30s_sessions"),
+            dwell_60s_sessions=Sum("dwell_60s_sessions"),
+        )
+        destination_views = int(totals["destination_views"] or 0)
+        engaged_sessions = int(totals["engaged_sessions"] or 0)
+        quick_exit_sessions = int(totals["quick_exit_sessions"] or 0)
+        dwell_30s_sessions = int(totals["dwell_30s_sessions"] or 0)
+        dwell_60s_sessions = int(totals["dwell_60s_sessions"] or 0)
+
+        return Response(
+            {
+                "days": days,
+                "selected_source": source or "all",
+                "totals": {
+                    "destination_views": destination_views,
+                    "engaged_sessions": engaged_sessions,
+                    "quick_exit_sessions": quick_exit_sessions,
+                    "dwell_30s_sessions": dwell_30s_sessions,
+                    "dwell_60s_sessions": dwell_60s_sessions,
+                },
+                "rates": {
+                    "quick_exit_rate": _safe_rate(
+                        quick_exit_sessions, destination_views
+                    ),
+                    "engaged_rate": _safe_rate(engaged_sessions, destination_views),
+                    "dwell_30s_rate": _safe_rate(dwell_30s_sessions, destination_views),
+                    "dwell_60s_rate": _safe_rate(dwell_60s_sessions, destination_views),
+                },
+            }
+        )
+
+
 class AnalyticsTelemetryTrendView(APIView):
     """Return a day-by-day telemetry trend for the selected source and time window."""
 

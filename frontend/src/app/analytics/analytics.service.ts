@@ -44,6 +44,31 @@ export interface AnalyticsIntegrationResponse {
   browser_snippet: string;
 }
 
+/**
+ * Phase 2b — engagement mix for the selected source and time window. Surfaces
+ * the three new SuggestionTelemetryDaily columns (quick_exit, dwell_30s,
+ * dwell_60s) alongside destination_views and engaged_sessions. Rates are
+ * independent tier-reach percentages (cumulative events), not stacked shares.
+ * See backend/apps/analytics/views.py::AnalyticsTelemetryEngagementMixView.
+ */
+export interface AnalyticsEngagementMixResponse {
+  days: number;
+  selected_source: 'all' | 'ga4' | 'matomo';
+  totals: {
+    destination_views: number;
+    engaged_sessions: number;
+    quick_exit_sessions: number;
+    dwell_30s_sessions: number;
+    dwell_60s_sessions: number;
+  };
+  rates: {
+    quick_exit_rate: number;
+    engaged_rate: number;
+    dwell_30s_rate: number;
+    dwell_60s_rate: number;
+  };
+}
+
 export interface AnalyticsFunnelResponse {
   days: number;
   selected_source: 'all' | 'ga4' | 'matomo';
@@ -253,6 +278,10 @@ export class AnalyticsService {
 
   getFunnel(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsFunnelResponse> {
     return this.http.get<AnalyticsFunnelResponse>(`/api/analytics/telemetry/funnel/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
+  }
+
+  getEngagementMix(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsEngagementMixResponse> {
+    return this.http.get<AnalyticsEngagementMixResponse>(`/api/analytics/telemetry/engagement-mix/?source=${source}&days=${days}`).pipe(catchError((err) => throwError(() => err)));
   }
 
   getTrend(source: 'all' | 'ga4' | 'matomo' = 'all', days = 30): Observable<AnalyticsTrendResponse> {

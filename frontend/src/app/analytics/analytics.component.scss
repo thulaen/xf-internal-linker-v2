@@ -125,12 +125,16 @@
   }
 }
 
+.engagement-mix-slot {
+  margin-bottom: 24px;
+}
+
 .report-card {
   margin-bottom: 24px;
   border-radius: var(--card-border-radius) !important;
   border: var(--card-border) !important;
   box-shadow: none !important;
-  
+
   mat-card-header {
     padding: 24px 24px 8px;
     

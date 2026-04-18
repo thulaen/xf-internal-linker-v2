@@ -367,6 +367,74 @@ class AnalyticsTelemetrySettingsApiTests(APITestCase):
         )
         self.assertEqual(top.json()["items"][0]["clicks"], 4)
 
+    def test_engagement_mix_endpoint_returns_phase_2_totals_and_rates(self):
+        """Phase 2b — new /engagement-mix/ endpoint surfaces the 3 new columns."""
+        suggestion = self._build_suggestion()
+        # Two rows that sum to known totals. Both sources contribute to the
+        # aggregate when no source filter is passed.
+        SuggestionTelemetryDaily.objects.create(
+            date=PipelineRun.objects.first().created_at.date(),
+            telemetry_source="matomo",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            destination_views=100,
+            engaged_sessions=40,
+            quick_exit_sessions=20,
+            dwell_30s_sessions=25,
+            dwell_60s_sessions=10,
+        )
+        SuggestionTelemetryDaily.objects.create(
+            date=PipelineRun.objects.first().created_at.date(),
+            telemetry_source="ga4",
+            suggestion=suggestion,
+            destination=suggestion.destination,
+            host=suggestion.host,
+            algorithm_key="pipeline_bundle",
+            algorithm_version_slug="2026_04_02",
+            event_schema="fr016_v1",
+            source_label="xenforo",
+            device_category="desktop",
+            default_channel_group="Organic Search",
+            source_medium="google / organic",
+            country="United Kingdom",
+            destination_views=100,
+            engaged_sessions=60,
+            quick_exit_sessions=10,
+            dwell_30s_sessions=35,
+            dwell_60s_sessions=20,
+        )
+
+        response = self.client.get("/api/analytics/telemetry/engagement-mix/?days=30")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["selected_source"], "all")
+        self.assertEqual(payload["totals"]["destination_views"], 200)
+        self.assertEqual(payload["totals"]["engaged_sessions"], 100)
+        self.assertEqual(payload["totals"]["quick_exit_sessions"], 30)
+        self.assertEqual(payload["totals"]["dwell_30s_sessions"], 60)
+        self.assertEqual(payload["totals"]["dwell_60s_sessions"], 30)
+        # Rates use destination_views as denominator via _safe_rate.
+        self.assertAlmostEqual(payload["rates"]["quick_exit_rate"], 0.15)
+        self.assertAlmostEqual(payload["rates"]["engaged_rate"], 0.50)
+        self.assertAlmostEqual(payload["rates"]["dwell_30s_rate"], 0.30)
+        self.assertAlmostEqual(payload["rates"]["dwell_60s_rate"], 0.15)
+
+    def test_engagement_mix_endpoint_handles_empty_telemetry(self):
+        """Zero rows -> zero totals and zero rates (safe for empty stacks)."""
+        response = self.client.get("/api/analytics/telemetry/engagement-mix/?days=30")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["totals"]["destination_views"], 0)
+        self.assertEqual(payload["totals"]["quick_exit_sessions"], 0)
+        self.assertEqual(payload["rates"]["quick_exit_rate"], 0.0)
+        self.assertEqual(payload["rates"]["engaged_rate"], 0.0)
+
     def test_health_endpoint_summarizes_coverage_by_source(self):
         TelemetryCoverageDaily.objects.create(
             date=PipelineRun.objects.create(run_state="completed").created_at.date(),

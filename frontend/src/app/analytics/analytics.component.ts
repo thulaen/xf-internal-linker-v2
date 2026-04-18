@@ -29,6 +29,7 @@ import {
   GSCImpactSnapshot,
   SearchImpactDetailResponse,
 } from './analytics.service';
+import { EngagementMixComponent } from './engagement-mix/engagement-mix.component';
 import { ImpactDiaryComponent } from './impact-diary/impact-diary.component';
 import { UnderLinkedComponent } from './under-linked/under-linked.component';
 import { QueryMismatchComponent } from './query-mismatch/query-mismatch.component';
@@ -49,6 +50,7 @@ import { TrafficWorkbenchComponent } from './traffic-workbench/traffic-workbench
     MatTooltipModule,
     BaseChartDirective,
     RouterLink,
+    EngagementMixComponent,
     ImpactDiaryComponent,
     UnderLinkedComponent,
     QueryMismatchComponent,
