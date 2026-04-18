@@ -50,8 +50,11 @@ def build_browser_bridge_snippet(
     matomo_enabled: bool,
     session_ttl_minutes: int = 30,
 ) -> str:
-    """Return a copy-ready browser snippet for live-site telemetry wiring."""
+    """Return a copy-ready browser snippet for live-site telemetry wiring.
 
+    Builds the config dict and delegates the long JS body to
+    :func:`_build_bridge_js` — keeps this function under the 80-line cap.
+    """
     config = {
         "eventSchema": event_schema,
         "impressionVisibleRatio": impression_visible_ratio,
@@ -66,8 +69,14 @@ def build_browser_bridge_snippet(
         "dwell30sThresholdMs": DWELL_30S_THRESHOLD_MS,
         "dwell60sThresholdMs": DWELL_60S_THRESHOLD_MS,
     }
-    config_json = _copyable_json(config)
-    return f"""<script>
+    return _build_bridge_js(_copyable_json(config))
+
+
+#: Full JS body of the browser-bridge snippet. Kept at module scope so the
+#: per-function 80-line cap applies only to the small Python wrappers.
+#: Python-side braces must be doubled (``{{``, ``}}``) — we format the
+#: ``{config_json}`` slot at call time via :func:`_build_bridge_js`.
+_BRIDGE_JS_TEMPLATE = """<script>
 +(() => {{
 +  const config = {config_json};
 +  const storageKey = 'xfil_fr016_attribution_v1';
@@ -240,6 +249,16 @@ def build_browser_bridge_snippet(
 +  }}, {{ passive: true }});
 +}})();
 +</script>"""
+
+
+def _build_bridge_js(config_json: str) -> str:
+    """Return the JS body with ``config_json`` formatted into the template.
+
+    The template itself lives at module scope in ``_BRIDGE_JS_TEMPLATE`` so
+    the project-wide 80-line per-function cap is not blown by what is
+    essentially one long string constant.
+    """
+    return _BRIDGE_JS_TEMPLATE.format(config_json=config_json)
 
 
 def build_integration_payload(
