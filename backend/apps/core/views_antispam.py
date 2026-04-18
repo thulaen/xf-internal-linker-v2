@@ -13,6 +13,11 @@ from apps.suggestions.recommended_weights import (
     recommended_int,
 )
 
+# Link-farm detector: upper bound for min_scc_size. SCCs larger than
+# this should be reviewed manually rather than automatically penalised,
+# so the settings UI clamps the operator's input at this value.
+_MAX_MIN_SCC_SIZE = 100
+
 
 def _read_setting(key: str, *, default, cast):
     row = AppSetting.objects.filter(key=key).first()
@@ -272,7 +277,7 @@ def _validate_link_farm_settings(
     return {
         "enabled": _bool("enabled"),
         "ranking_weight": _float("ranking_weight", 0.0, 0.25),
-        "min_scc_size": _int("min_scc_size", 2, 100),
+        "min_scc_size": _int("min_scc_size", 2, _MAX_MIN_SCC_SIZE),
         "density_threshold": _float("density_threshold", 0.1, 1.0),
         "lambda": _float("lambda", 0.01, 5.0),
     }

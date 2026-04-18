@@ -51,6 +51,26 @@ HAS_CPP_FULL_BATCH = HAS_CPP_EXT and hasattr(
     scoring, "calculate_composite_scores_full_batch"
 )
 
+# Default character-length bounds for host sentences selected as
+# anchor context. A sentence shorter than ``_DEFAULT_MIN_SENTENCE_CHARS``
+# is usually a title/caption and lacks enough surrounding text to
+# corroborate a link; one longer than ``_DEFAULT_MAX_SENTENCE_CHARS``
+# is usually a paragraph run-on and dilutes the signal.
+_DEFAULT_MIN_SENTENCE_CHARS = 30
+_DEFAULT_MAX_SENTENCE_CHARS = 300
+
+# Minimum character count the host page itself must have for its body
+# to be considered substantive enough to link FROM. Set by the FR-006
+# / FR-011 spec at 300 chars ~= 50 words.
+_DEFAULT_MIN_HOST_CHARS = 300
+
+# Thin-content word-count thresholds applied as a penalty multiplier
+# during final scoring. Below ``_THIN_WORD_HARD_THRESHOLD`` the
+# penalty is 30% of score_final; below ``_THIN_WORD_SOFT_THRESHOLD``
+# it is 15%; at or above, no thin-content penalty applies.
+_THIN_WORD_HARD_THRESHOLD = 100
+_THIN_WORD_SOFT_THRESHOLD = 200
+
 from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
@@ -399,9 +419,9 @@ def score_destination_matches(
     clustering_settings: ClusteringSettings = ClusteringSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
-    min_sentence_chars: int = 30,
-    max_sentence_chars: int = 300,
-    min_host_chars: int = 300,
+    min_sentence_chars: int = _DEFAULT_MIN_SENTENCE_CHARS,
+    max_sentence_chars: int = _DEFAULT_MAX_SENTENCE_CHARS,
+    min_host_chars: int = _DEFAULT_MIN_HOST_CHARS,
 ) -> list[ScoredCandidate]:
     """Apply composite scoring plus local anti-junk filters for one destination."""
     march_2026_pagerank_min, march_2026_pagerank_max = march_2026_pagerank_bounds
@@ -689,9 +709,9 @@ def score_destination_matches(
         if wc is not None:
             if wc == 0:
                 thin_penalty = -score_final  # fully suppress
-            elif wc < 100:
+            elif wc < _THIN_WORD_HARD_THRESHOLD:
                 thin_penalty = score_final * -0.30
-            elif wc < 200:
+            elif wc < _THIN_WORD_SOFT_THRESHOLD:
                 thin_penalty = score_final * -0.15
         score_final += thin_penalty
 

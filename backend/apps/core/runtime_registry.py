@@ -13,6 +13,23 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
+# Default embedding-vector dimension for BGE-M3 (also the historical
+# default for the nomic-embed-text-v1.5 legacy runtime). Used when
+# seeding a new RuntimeModelRegistry row for the embedding task.
+_EMBEDDING_DIM_DEFAULT = 1024
+
+# How many most-recent audit rows to retain after every insert. Older
+# rows are pruned in the same transaction so the audit log stays
+# bounded without a separate Celery beat task.
+_AUDIT_LOG_RETAIN_ROWS = 1000
+
+# Minimum gap between two primary hardware snapshots. Below this, the
+# existing snapshot is returned instead of recomputing.
+_SNAPSHOT_REFRESH_WINDOW_SECONDS = 3600
+
+# Percent-to-fraction conversion for gpu_util_pct etc.
+_PCT_TO_FRACTION = 0.01
+
 from django.conf import settings as django_settings
 from django.db.models import Max
 from django.utils import timezone
@@ -74,7 +91,9 @@ def get_active_runtime_model(
         algorithm_version="fr020-v1",
         defaults={
             "model_family": "sentence-transformers",
-            "dimension": 1024 if task_type == MODEL_TASK_EMBEDDING else None,
+            "dimension": _EMBEDDING_DIM_DEFAULT
+            if task_type == MODEL_TASK_EMBEDDING
+            else None,
             "device_target": get_current_embedding_device(),
             "batch_size": int(
                 AppSetting.objects.filter(key="system.embedding_batch_size")
@@ -125,7 +144,7 @@ def record_runtime_audit(
     )
     retained_ids = list(
         RuntimeAuditLog.objects.order_by("-created_at").values_list("id", flat=True)[
-            :1000
+            :_AUDIT_LOG_RETAIN_ROWS
         ]
     )
     RuntimeAuditLog.objects.exclude(id__in=retained_ids).delete()
@@ -274,7 +293,9 @@ def helper_effective_load(node: HelperNode) -> float:
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
     gpu_pressure = 0.0
     if node.gpu_util_pct is not None:
-        gpu_pressure = max(gpu_pressure, float(node.gpu_util_pct or 0.0) / 100.0)
+        gpu_pressure = max(
+            gpu_pressure, float(node.gpu_util_pct or 0.0) * _PCT_TO_FRACTION
+        )
     if node.gpu_vram_used_mb and node.gpu_vram_total_mb:
         gpu_pressure = max(
             gpu_pressure,
@@ -296,7 +317,8 @@ def capture_primary_hardware_snapshot(
     if (
         not force
         and previous is not None
-        and (timezone.now() - previous.created_at).total_seconds() < 3600
+        and (timezone.now() - previous.created_at).total_seconds()
+        < _SNAPSHOT_REFRESH_WINDOW_SECONDS
     ):
         return previous
 

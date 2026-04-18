@@ -41,6 +41,11 @@ DiagnosticSurface = Literal[
     "review_filter",
 ]
 
+# Minimum SuggestionPresentation rows required before feedback reranking
+# leaves the neutral prior (BLC §6.4 ranking-engine floor for the
+# feedback subsystem).
+_FEEDBACK_MIN_PRESENTATIONS = 100
+
 
 @dataclass(frozen=True)
 class SignalDefinition:
@@ -511,7 +516,7 @@ SIGNALS: list[SignalDefinition] = [
         source_kind="paper",
         architecture_lane="python_fallback",
         neutral_value=1.0,
-        min_data_threshold=">=100 SuggestionPresentation rows (any age)",
+        min_data_threshold=f">={_FEEDBACK_MIN_PRESENTATIONS} SuggestionPresentation rows (any age)",
         diagnostic_surfaces=(
             "suggestion_detail",
             "weight_diagnostics",

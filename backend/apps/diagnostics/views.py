@@ -5,6 +5,7 @@ from django.conf import settings
 _BYTES_PER_KIB = 1024.0  # bytes per kibibyte
 _SECONDS_PER_HOUR = 3600  # 60 * 60
 _SECONDS_PER_DAY = 86400  # 60 * 60 * 24
+_PCT_TO_FRACTION = 0.01  # percent-to-fraction conversion (e.g. 73% -> 0.73)
 from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
@@ -1075,7 +1076,7 @@ def _model_runtime_tile() -> dict:
                     f"{backfill.get('status')}."
                 ),
                 actions=["Pause", "Resume"],
-                progress=(backfill.get("progress_pct") or 0.0) / 100.0,
+                progress=(backfill.get("progress_pct") or 0.0) * _PCT_TO_FRACTION,
             )
         if candidate_model:
             return _tile(

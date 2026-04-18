@@ -11,6 +11,12 @@ from .text_tokens import TOKEN_RE
 
 ContentKey: TypeAlias = tuple[int, str]
 
+# Minimum number of ContentItem rows that must be present before a
+# site-wide term-frequency baseline is considered stable enough to run
+# the Kullback-Leibler divergence comparison. Below this, the detector
+# returns a neutral score instead of producing spurious penalties.
+_MIN_BASELINE_DOCS = 100
+
 
 @dataclass(frozen=True, slots=True)
 class KeywordStuffingSettings:
@@ -87,7 +93,7 @@ def evaluate_keyword_stuffing(
         diagnostics["stuffing_state"] = "disabled"
         return KeywordStuffingEvaluation(0.5, 0.0, diagnostics)
 
-    if baseline.doc_count < 100 or baseline.total_terms <= 0:
+    if baseline.doc_count < _MIN_BASELINE_DOCS or baseline.total_terms <= 0:
         diagnostics["stuffing_state"] = "no_baseline"
         return KeywordStuffingEvaluation(0.5, 0.0, diagnostics)
 

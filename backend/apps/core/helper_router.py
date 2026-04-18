@@ -24,6 +24,10 @@ logger = logging.getLogger(__name__)
 # A helper is considered alive if its heartbeat is newer than this.
 HEARTBEAT_FRESH_SECONDS = 120
 
+# Percent-to-fraction conversion used when turning cpu_cap_pct /
+# ram_cap_pct / gpu_util_pct into usable-resource multipliers.
+_PCT_TO_FRACTION = 0.01
+
 
 def select_best_helper_node(
     *,
@@ -226,10 +230,10 @@ def _projected_routing_score(
 
     caps = node.capabilities or {}
     usable_cpu = _float_or(caps.get("cpu_cores"), 0.0) * (
-        max(float(node.cpu_cap_pct or 0), 0.0) / 100.0
+        max(float(node.cpu_cap_pct or 0), 0.0) * _PCT_TO_FRACTION
     )
     usable_ram = _float_or(caps.get("ram_gb"), 0.0) * (
-        max(float(node.ram_cap_pct or 0), 0.0) / 100.0
+        max(float(node.ram_cap_pct or 0), 0.0) * _PCT_TO_FRACTION
     )
     usable_gpu = _float_or(caps.get("gpu_vram_gb"), 0.0)
 
@@ -245,7 +249,9 @@ def _projected_routing_score(
     ram_pressure = float(node.ram_pct or 0.0) / max(float(node.ram_cap_pct or 1), 1.0)
     gpu_pressure = 0.0
     if node.gpu_util_pct is not None:
-        gpu_pressure = max(gpu_pressure, float(node.gpu_util_pct or 0.0) / 100.0)
+        gpu_pressure = max(
+            gpu_pressure, float(node.gpu_util_pct or 0.0) * _PCT_TO_FRACTION
+        )
     if node.gpu_vram_used_mb and node.gpu_vram_total_mb:
         gpu_pressure = max(
             gpu_pressure,
