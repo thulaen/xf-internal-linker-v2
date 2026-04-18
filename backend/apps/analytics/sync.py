@@ -1057,14 +1057,35 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     """Compute raw engagement quality from a single telemetry aggregate row.
 
     Returns None when data is insufficient.
+
+    Phase 3b extension: adds two bounded adjustments from Phase 2 telemetry —
+    a ``+0.05 * dwell_60s_rate`` credit and a ``-0.05 * quick_exit_rate``
+    penalty — on top of the existing 0.50/0.30/0.20 core weights. Both terms
+    are zero when the Phase 2 event columns are zero, so pre-Phase-2 sites
+    see no behaviour change (neutral fallback). Final result clamped to
+    ``[0.0, 1.0]`` so extreme inputs cannot push the score beyond the
+    historical range.
+
+    # Source: Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to
+    # predict click-level satisfaction" (WSDM). Coefficients match the
+    # modest 0.05 weight used in the Phase 3a ``compute_content_value_raw``
+    # extension for cross-signal consistency — conservative starting values
+    # per BLC §1.3, tunable later by FR-018 auto-tuner.
     """
     dest_views = int(telemetry.get("destination_views") or 0)
     engaged = int(telemetry.get("engaged_sessions") or 0)
     bounced = int(telemetry.get("bounce_sessions") or 0)
     total_time = float(telemetry.get("total_engagement_time") or 0.0)
     sessions = int(telemetry.get("sessions") or 0)
+    quick_exit_sessions = int(telemetry.get("quick_exit_sessions") or 0)
+    dwell_60s_sessions = int(telemetry.get("dwell_60s_sessions") or 0)
 
-    if dest_views == 0 and sessions == 0:
+    if (
+        dest_views == 0
+        and sessions == 0
+        and quick_exit_sessions == 0
+        and dwell_60s_sessions == 0
+    ):
         return None
 
     engagement_rate = engaged / max(dest_views, 1)
@@ -1072,8 +1093,18 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
     bounce_rate = bounced / max(sessions, 1)
     inverse_bounce = 1.0 - min(bounce_rate, 1.0)
+    dwell_60s_rate = min(dwell_60s_sessions / max(dest_views, 1), 1.0)
+    quick_exit_rate = min(quick_exit_sessions / max(dest_views, 1), 1.0)
 
-    return 0.50 * engagement_rate + 0.30 * normalized_time + 0.20 * inverse_bounce
+    raw = (
+        0.50 * engagement_rate
+        + 0.30 * normalized_time
+        + 0.20 * inverse_bounce
+        # Phase 3b — bounded +/-0.05 adjustments (Kim et al. WSDM 2014).
+        + 0.05 * dwell_60s_rate
+        - 0.05 * quick_exit_rate
+    )
+    return max(0.0, min(1.0, raw))
 
 
 def _refresh_engagement_quality_scores(
@@ -1111,6 +1142,10 @@ def _refresh_engagement_quality_scores(
             bounce_sessions=Sum("bounce_sessions"),
             total_engagement_time=Sum("total_engagement_time_seconds"),
             sessions=Sum("sessions"),
+            # Phase 3b — dwell-60s credit + quick-exit penalty in
+            # _compute_engagement_raw_score.
+            quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )
     telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}

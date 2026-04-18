@@ -444,6 +444,48 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 3b: engagement_quality_score learns from Phase 2 engagement signals (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 3a shipped the Phase 2 extension into `content_value_score`. Phase 3b mirrors the exact same approach into its sibling `engagement_quality_score`. Same academic source, same neutral-fallback semantics, same benchmark approach. Keeps the two scoring surfaces consistent — operators don't have to reason about "which signal learned from dwell/quick-exit and which didn't."
+- **What was done:**
+  - **Extended `_compute_engagement_raw_score`** in `analytics/sync.py` with `quick_exit_sessions` and `dwell_60s_sessions` inputs. Core weights `0.50 / 0.30 / 0.20` untouched; two new additive terms `+0.05 * dwell_60s_rate` and `-0.05 * quick_exit_rate` sit on top. Final result clamped to `[0.0, 1.0]` so extreme Phase 2 inputs cannot push the score outside the historical range. Neutral-fallback guard extended — function returns `None` only when ALL inputs (dest_views, sessions, quick_exit, dwell_60s) are zero.
+  - **Extended `_refresh_engagement_quality_scores` aggregation** with two more `Sum()` annotations (same pattern as Phase 3a).
+  - **Updated `ContentItem.engagement_quality_score` help_text** to document the new extension + clamp + neutral fallback. Migration `0022_engagement_quality_help_text_phase3b.py` (metadata-only, no data change).
+  - **6 new unit tests** (`ComputeEngagementRawScoreTests` in `apps/analytics/tests.py`, `SimpleTestCase` — no DB): empty dict returns None; zero-only fields return None; dwell credit; quick-exit penalty; mirror cancellation; clamp-to-[0,1] for both extremes.
+  - **Benchmark at 3 input sizes** in `backend/benchmarks/test_bench_engagement_quality.py` (100 / 1_000 / 5_000 rows). Mirrors the Phase 3a benchmark structure.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/sync.py` (extended helper + aggregation)
+  - `backend/apps/analytics/tests.py` (+6 new tests in a new `ComputeEngagementRawScoreTests` class)
+  - `backend/apps/content/models.py` (expanded help_text)
+  - `backend/apps/content/migrations/0022_engagement_quality_help_text_phase3b.py` (new, metadata-only)
+  - `backend/benchmarks/test_bench_engagement_quality.py` (new)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** existing `_compute_engagement_raw_score` function (extended signature), existing `_refresh_engagement_quality_scores` aggregation plumbing, existing `_ENGAGEMENT_TIME_CAP_SECONDS` constant, existing benchmark conftest + Django bootstrap. Mirrors Phase 3a's `compute_content_value_raw` pattern. No new endpoint, no new table, no frontend change — extended score automatically surfaces via the existing serializer field.
+
+- **BLC gate compliance (cleared by symmetry with Phase 3a):**
+  - **§0 Drift Rejection** — same extension pattern as Phase 3a: named inputs, primary source (Kim WSDM 2014), neutral fallback, reviewer-visible via existing `engagement_quality_score` field.
+  - **§1.1/1.3** — source + coefficients match the Phase 3a choices for cross-signal consistency.
+  - **§1.4 Benchmark** — 3 input sizes present; mirrors Phase 3a bench file.
+  - **§2.1/2.4/2.6** — inline source comment, division-by-zero guard via `max(..., 1)`, clamped result, no safety-invariant bypass.
+  - **§3 Operator diagnostics** — `engagement_quality_score` remains visible via the ContentItem serializer; help_text documents the new terms.
+  - **§5 CI** — no new magic numbers (0.05 coefficient matches Phase 3a's paired tier).
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics.tests.ComputeEngagementRawScoreTests` — 6/6 pass.
+  - `docker compose exec backend python manage.py test` — **331 tests pass**, 1 skipped, 0 failures (full backend suite; +6 new vs prior 325).
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected" after migration.
+  - `docker compose exec backend python -m ruff format .` — 2 files auto-formatted preemptively to avoid pre-push hook ping-pong.
+
+- **What was deliberately NOT done (and why):**
+  - Did not rebalance the core `0.50/0.30/0.20` weights — additive extension preserves pre-Phase-2 behaviour for sites without telemetry.
+  - Did not extract `_compute_engagement_raw_score` to a new public name — the function was already well-shaped as a pure helper; only its signature grew.
+  - Did not touch `content_value_score` logic again — Phase 3a shipped that.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 3a: content_value_score learns from Phase 2 engagement signals (Claude)
 
 - **AI/tool:** Claude

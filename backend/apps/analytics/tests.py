@@ -1716,6 +1716,120 @@ class ComputeContentValueRawTests(SimpleTestCase):
         self.assertIsNotNone(result)
 
 
+class ComputeEngagementRawScoreTests(SimpleTestCase):
+    """Phase 3b — unit tests for the engagement-quality helper's Phase 2
+    extension. Same pattern as ComputeContentValueRawTests.
+    """
+
+    def test_returns_none_when_all_inputs_zero(self) -> None:
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        self.assertIsNone(_compute_engagement_raw_score({}))
+
+    def test_returns_none_when_only_unrelated_fields_present(self) -> None:
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        self.assertIsNone(
+            _compute_engagement_raw_score(
+                {
+                    "destination_views": 0,
+                    "sessions": 0,
+                    "quick_exit_sessions": 0,
+                    "dwell_60s_sessions": 0,
+                }
+            )
+        )
+
+    def test_dwell_60s_adds_positive_contribution(self) -> None:
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 40,
+            "bounce_sessions": 10,
+            "total_engagement_time": 50.0,
+            "sessions": 100,
+            "quick_exit_sessions": 0,
+        }
+        without_dwell = _compute_engagement_raw_score({**base, "dwell_60s_sessions": 0})
+        with_dwell = _compute_engagement_raw_score({**base, "dwell_60s_sessions": 80})
+        assert without_dwell is not None
+        assert with_dwell is not None
+        self.assertGreater(with_dwell, without_dwell)
+
+    def test_quick_exit_subtracts_contribution(self) -> None:
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 40,
+            "bounce_sessions": 10,
+            "total_engagement_time": 50.0,
+            "sessions": 100,
+            "dwell_60s_sessions": 0,
+        }
+        without_quick_exit = _compute_engagement_raw_score(
+            {**base, "quick_exit_sessions": 0}
+        )
+        with_quick_exit = _compute_engagement_raw_score(
+            {**base, "quick_exit_sessions": 80}
+        )
+        assert without_quick_exit is not None
+        assert with_quick_exit is not None
+        self.assertLess(with_quick_exit, without_quick_exit)
+
+    def test_mirrored_dwell_and_quick_exit_net_to_zero(self) -> None:
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 40,
+            "bounce_sessions": 10,
+            "total_engagement_time": 50.0,
+            "sessions": 100,
+        }
+        baseline = _compute_engagement_raw_score(
+            {**base, "quick_exit_sessions": 0, "dwell_60s_sessions": 0}
+        )
+        mirrored = _compute_engagement_raw_score(
+            {**base, "quick_exit_sessions": 30, "dwell_60s_sessions": 30}
+        )
+        assert baseline is not None
+        assert mirrored is not None
+        self.assertAlmostEqual(baseline, mirrored, places=9)
+
+    def test_result_is_clamped_to_unit_interval(self) -> None:
+        """Extreme Phase 2 counts cannot push the score above 1.0 or below 0."""
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 100,
+            "bounce_sessions": 0,
+            "total_engagement_time": 100_000.0,
+            "sessions": 100,
+        }
+        # Already-perfect score + max dwell should still land <= 1.0.
+        max_score = _compute_engagement_raw_score(
+            {**base, "quick_exit_sessions": 0, "dwell_60s_sessions": 100}
+        )
+        assert max_score is not None
+        self.assertLessEqual(max_score, 1.0)
+        # Worst case: zero engagement + full quick-exit should still land >= 0.
+        worst_base = {
+            "destination_views": 100,
+            "engaged_sessions": 0,
+            "bounce_sessions": 100,
+            "total_engagement_time": 0.0,
+            "sessions": 100,
+        }
+        min_score = _compute_engagement_raw_score(
+            {**worst_base, "quick_exit_sessions": 100, "dwell_60s_sessions": 0}
+        )
+        assert min_score is not None
+        self.assertGreaterEqual(min_score, 0.0)
+
+
 class EngagementSignalsSnippetTests(APITestCase):
     """Verify the browser snippet wires the 3 new Phase 2 events."""
 

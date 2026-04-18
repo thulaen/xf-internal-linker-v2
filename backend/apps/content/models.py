@@ -281,7 +281,12 @@ class ContentItem(TimestampedModel):
         help_text=(
             "GA4 engagement quality: 0.50*engaged_session_rate + "
             "0.30*normalized_avg_engagement_time + 0.20*inverse_bounce_rate. "
-            "0.5 = neutral. Written by analytics sync layer."
+            "Phase 3b extension adds a bounded +0.05*dwell_60s_rate credit "
+            "and a -0.05*quick_exit_rate penalty (Kim et al. WSDM 2014). "
+            "Final result clamped to [0.0, 1.0]. 0.5 = neutral (no data). "
+            "Phase 2 terms are zero when their source columns are zero, so "
+            "pre-Phase-2 sites see no behaviour change. Written by "
+            "analytics sync layer."
         ),
     )
     click_distance_score = models.FloatField(
