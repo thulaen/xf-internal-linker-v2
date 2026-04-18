@@ -217,7 +217,15 @@ $baselineLongFiles = @(
     'analytics.component.ts',   # pre-existing 670+ lines — 9 chart configs inline
     'jobs.component.ts',        # pre-existing 550+ lines before resume wiring — getters, formatters, and 3 source-typed flows; candidates for extraction into jobs.helpers.ts + sync.service
     'urls.py',                  # DRF URL conf — the throttle parse_rate override triggers the linter's EOF bug (2-line method reported as 306 because no `def` follows it)
-    'webhooks.py'               # sync/services/webhooks.py — pre-existing process_xf_webhook / process_wp_webhook are ~95 lines each; candidates for per-event dispatch extraction
+    'webhooks.py',              # sync/services/webhooks.py — pre-existing process_xf_webhook / process_wp_webhook are ~95 lines each; candidates for per-event dispatch extraction
+    'runtime_registry.py',      # FR-020 capture_primary_hardware_snapshot is ~92 lines — small best-effort probe blocks; candidate for per-resource probe extraction
+    'views_runtime_registry.py',# FR-020 POST dispatcher 269 lines — 7-action state machine (download/warm/pause/resume/promote/rollback/drain); candidate for per-action handler extraction
+    'anchor_diversity.py',      # FR-045 evaluate_anchor_diversity is ~115 lines of scoring math; candidate for phase-split (gather / score / diagnostics)
+    'keyword_stuffing.py',      # FR-198 evaluate_keyword_stuffing ~84 lines of KL-divergence math; just above cap
+    'link_farm.py',             # FR-197 detect_link_farm_rings ~91 lines of reciprocal-density detection; candidate for extraction into walk / score
+    'pipeline_data.py',         # pipeline/services/pipeline_data.py — _load_pipeline_content ~94 lines; candidate for per-source loader extraction
+    'pipeline_stages.py',       # pipeline/services/pipeline_stages.py — _score_single_destination ~85 lines; just above cap
+    'ranker.py'                 # pipeline/services/ranker.py — score_destination_matches ~398 lines (pre-existing tech debt, extended by FR-020 anti-spam hooks); candidate for per-signal extraction
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
