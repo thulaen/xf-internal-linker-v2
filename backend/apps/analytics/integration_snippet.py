@@ -26,11 +26,17 @@ import json
 from ._bridge_js_template import BRIDGE_JS_TEMPLATE
 
 #: Time after view beyond which a session no longer counts as a quick-exit.
-QUICK_EXIT_THRESHOLD_MS = 5000
+QUICK_EXIT_THRESHOLD_MS = 5_000  # ms
 
 #: Dwell checkpoint delays fired after view if the user is still on the page.
-DWELL_30S_THRESHOLD_MS = 30000
-DWELL_60S_THRESHOLD_MS = 60000
+DWELL_30S_THRESHOLD_MS = 30_000  # ms
+DWELL_60S_THRESHOLD_MS = 60_000  # ms
+
+#: Fallback impression visibility threshold when GA4 settings do not set one.
+DEFAULT_IMPRESSION_MIN_MS = 1_000  # ms
+
+#: Minutes-to-milliseconds conversion factor — one minute in milliseconds.
+_MS_PER_MINUTE = 60_000  # ms
 
 
 def _js_bool(value: bool) -> str:
@@ -72,7 +78,9 @@ def build_browser_bridge_snippet(
         "impressionVisibleRatio": impression_visible_ratio,
         "impressionMinMs": impression_min_ms,
         "engagedMinSeconds": engaged_min_seconds,
-        "sessionTtlMinutes": session_ttl_minutes,
+        # Pre-computed as milliseconds so the JS bridge avoids a raw
+        # minute->ms multiplication inside its string literal.
+        "sessionTtlMs": session_ttl_minutes * _MS_PER_MINUTE,
         "ga4MeasurementId": ga4_measurement_id,
         "ga4Enabled": ga4_enabled,
         "matomoEnabled": matomo_enabled,
@@ -111,7 +119,9 @@ def build_integration_payload(
         impression_visible_ratio=float(
             ga4_settings.get("impression_visible_ratio") or 0.5
         ),
-        impression_min_ms=int(ga4_settings.get("impression_min_ms") or 1000),
+        impression_min_ms=int(
+            ga4_settings.get("impression_min_ms") or DEFAULT_IMPRESSION_MIN_MS
+        ),
         engaged_min_seconds=int(ga4_settings.get("engaged_min_seconds") or 10),
         ga4_measurement_id=measurement_id,
         ga4_enabled=ga4_enabled,

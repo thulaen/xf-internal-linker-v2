@@ -1,11 +1,11 @@
 """Module-scope JS template for the FR-016 browser bridge.
 
-Kept in its own file so that `integration_snippet.py` doesn't carry a
-~180-line string constant between its Python helpers. The project-wide
-function-length linter (80-line cap, see AGENTS.md §CI-and-Testing / rule 4)
-counts lines between top-level ``def`` statements, and a long constant
-between two short helpers would cause one of them to blow the cap even
-though no actual function body is that long.
+Kept in its own file so that `integration_snippet.py` doesn't carry a long
+string constant between its Python helpers. The project-wide function-length
+linter (80-line cap, see AGENTS.md §CI-and-Testing / rule 4) counts lines
+between top-level ``def`` statements, and a long constant between two short
+helpers would cause one of them to blow the cap even though no actual
+function body is that long.
 
 The template uses ``str.format`` slots (``{config_json}``), so every JS
 literal brace is doubled (``{{``, ``}}``).
@@ -60,7 +60,7 @@ BRIDGE_JS_TEMPLATE = """<script>
 +    const stored = {{
 +      ...payload,
 +      saved_at: Date.now(),
-+      expires_at: Date.now() + config.sessionTtlMinutes * 60 * 1000,
++      expires_at: Date.now() + config.sessionTtlMs,
 +    }};
 +    sessionStorage.setItem(storageKey, JSON.stringify(stored));
 +  }}
