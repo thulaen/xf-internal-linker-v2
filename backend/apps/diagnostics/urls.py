@@ -17,6 +17,13 @@ urlpatterns = [
     path("features/", views.FeatureReadinessView.as_view(), name="feature-readiness"),
     path("resources/", views.ResourceUsageView.as_view(), name="resource-usage"),
     path("weights/", views.WeightDiagnosticsView.as_view(), name="weight-diagnostics"),
+    # Phase 1v — suppressed-pair counter for the Diagnostics page (Phase 1
+    # negative memory visibility).
+    path(
+        "suppressed-pairs/",
+        views.NegativeMemoryDiagnosticsView.as_view(),
+        name="suppressed-pairs",
+    ),
     # Phase GT Step 5 — operator intelligence endpoints
     path(
         "runtime-context/",

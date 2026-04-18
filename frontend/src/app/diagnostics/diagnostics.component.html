@@ -402,6 +402,51 @@
       </div>
     </section>
 
+    <!-- Phase 1v — negative-memory counter (suppressed pairs). -->
+    <section class="suppressed-pairs-section" *ngIf="suppressedPairs">
+      <div class="section-heading">
+        <h2>Suppressed pairs (negative memory)</h2>
+        <p>
+          Rejected (host, destination) pairs the ranker is currently skipping.
+          Each reject adds to this list for
+          {{ suppressedPairs.active_suppression_window_days }} days so you don't
+          see the same bad match twice.
+        </p>
+      </div>
+      <div class="suppressed-pairs-grid">
+        <div class="suppressed-tile">
+          <div class="suppressed-tile__value">{{ suppressedPairs.active_suppressed_pairs }}</div>
+          <div class="suppressed-tile__label">Active suppressions</div>
+          <div class="suppressed-tile__sub">Within the {{ suppressedPairs.active_suppression_window_days }}-day window</div>
+        </div>
+        <div class="suppressed-tile">
+          <div class="suppressed-tile__value">{{ suppressedPairs.total_rejected_pairs }}</div>
+          <div class="suppressed-tile__label">Total pairs on record</div>
+          <div class="suppressed-tile__sub">All time, including expired entries</div>
+        </div>
+        <div class="suppressed-tile">
+          <div class="suppressed-tile__value">{{ suppressedPairs.total_rejections_lifetime }}</div>
+          <div class="suppressed-tile__label">Total rejections</div>
+          <div class="suppressed-tile__sub">Sum across every pair's reject counter</div>
+        </div>
+        <div class="suppressed-tile">
+          <div class="suppressed-tile__value">
+            <ng-container *ngIf="suppressedPairs.most_recent_rejection_at; else noRecent">
+              {{ suppressedPairs.most_recent_rejection_at | date:'mediumDate' }}
+            </ng-container>
+            <ng-template #noRecent>—</ng-template>
+          </div>
+          <div class="suppressed-tile__label">Most recent reject</div>
+          <div class="suppressed-tile__sub">
+            <ng-container *ngIf="suppressedPairs.most_recent_rejection_at">
+              {{ suppressedPairs.most_recent_rejection_at | date:'shortTime' }}
+            </ng-container>
+            <ng-container *ngIf="!suppressedPairs.most_recent_rejection_at">No rejections yet</ng-container>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="runtime-lanes-section" *ngIf="runtimeLaneCards.length > 0">
       <div class="section-heading">
         <h2>Heavy Runtime Owners</h2>

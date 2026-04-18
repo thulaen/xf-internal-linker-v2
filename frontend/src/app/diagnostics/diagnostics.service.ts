@@ -89,6 +89,18 @@ export interface ResourceUsage {
   disk_usage_percent: number | 'unavailable';
 }
 
+/**
+ * Phase 1v — summary of the RejectedPair negative-memory table for the
+ * Diagnostics page. See backend NegativeMemoryDiagnosticsView.
+ */
+export interface SuppressedPairsDiagnostics {
+  active_suppression_window_days: number;
+  active_suppressed_pairs: number;
+  total_rejected_pairs: number;
+  total_rejections_lifetime: number;
+  most_recent_rejection_at: string | null;
+}
+
 export interface DiagnosticsOverview {
   summary: {
     healthy: number;
@@ -327,6 +339,16 @@ export class DiagnosticsService {
     return this.http.get<WeightDiagnosticsResponse>(`${this.baseUrl}/weights/`).pipe(
       catchError(err => throwError(() => err))
     );
+  }
+
+  /**
+   * Phase 1v — counts for the Phase 1 negative-memory (RejectedPair) table.
+   * Backed by NegativeMemoryDiagnosticsView.
+   */
+  getSuppressedPairs(): Observable<SuppressedPairsDiagnostics> {
+    return this.http
+      .get<SuppressedPairsDiagnostics>(`${this.baseUrl}/suppressed-pairs/`)
+      .pipe(catchError(err => throwError(() => err)));
   }
 
   getMetaTournament(): Observable<MetaTournamentResponse> {

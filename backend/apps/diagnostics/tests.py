@@ -139,3 +139,69 @@ class SignalContractTests(SimpleTestCase):
             + len(signals_by_status("deprecated"))
         )
         self.assertEqual(status_sum, len(SIGNALS))
+
+
+class NegativeMemoryDiagnosticsViewTests(TestCase):
+    """Phase 1v — GET /api/diagnostics/suppressed-pairs/ surfaces RejectedPair
+    counters for the Diagnostics page.
+    """
+
+    def setUp(self) -> None:
+        from django.contrib.auth import get_user_model
+
+        self.client = APIClient()
+        user = get_user_model().objects.create_user(
+            username="diag-user", password="pass"
+        )
+        self.client.force_authenticate(user=user)
+
+    def test_empty_table_returns_zero_counts(self) -> None:
+        response = self.client.get("/api/system/status/suppressed-pairs/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["active_suppressed_pairs"], 0)
+        self.assertEqual(payload["total_rejected_pairs"], 0)
+        self.assertEqual(payload["total_rejections_lifetime"], 0)
+        self.assertIsNone(payload["most_recent_rejection_at"])
+        self.assertGreater(payload["active_suppression_window_days"], 0)
+
+    def test_counts_active_pairs_lifetime_rejections_and_most_recent(self) -> None:
+        from datetime import timedelta
+
+        from apps.content.models import ContentItem
+        from apps.suggestions.models import (
+            REJECTED_PAIR_SUPPRESSION_DAYS,
+            RejectedPair,
+        )
+        from django.utils import timezone
+
+        host = ContentItem.objects.create(
+            content_id=4001, content_type="thread", title="H"
+        )
+        dest_active = ContentItem.objects.create(
+            content_id=4002, content_type="thread", title="DA"
+        )
+        dest_stale = ContentItem.objects.create(
+            content_id=4003, content_type="thread", title="DS"
+        )
+
+        # Active pair: rejected 3 times, latest just now.
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_active.pk)
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_active.pk)
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_active.pk)
+
+        # Stale pair: rejected once but past the suppression window.
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_stale.pk)
+        stale_ts = timezone.now() - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS + 5)
+        RejectedPair.objects.filter(destination_id=dest_stale.pk).update(
+            last_rejected_at=stale_ts
+        )
+
+        response = self.client.get("/api/system/status/suppressed-pairs/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["active_suppressed_pairs"], 1)
+        self.assertEqual(payload["total_rejected_pairs"], 2)
+        # 3 rejections on the active pair + 1 on the stale pair.
+        self.assertEqual(payload["total_rejections_lifetime"], 4)
+        self.assertIsNotNone(payload["most_recent_rejection_at"])

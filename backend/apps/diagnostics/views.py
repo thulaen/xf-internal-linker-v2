@@ -61,6 +61,63 @@ class DiagnosticsOverviewView(views.APIView):
         )
 
 
+class NegativeMemoryDiagnosticsView(views.APIView):
+    """Phase 1v — small Diagnostics-page surface for the ``RejectedPair``
+    negative-memory table.
+
+    Exposed at ``GET /api/system/status/suppressed-pairs/`` via the
+    ``apps.diagnostics`` URL include. Answers the operator's "is my negative
+    memory doing anything right now?" question with three counts and a
+    recency timestamp:
+
+    - ``active_suppressed_pairs`` — rows whose ``last_rejected_at`` falls
+      within the suppression window (see ``REJECTED_PAIR_SUPPRESSION_DAYS``).
+      These (host, destination) pairs are currently being skipped by the
+      candidate generator.
+    - ``total_rejected_pairs`` — total row count, including rows past the
+      suppression window that haven't been pruned yet.
+    - ``total_rejections_lifetime`` — sum of ``rejection_count`` across all
+      rows; each reject increments its pair's counter.
+    - ``most_recent_rejection_at`` — ISO-8601 timestamp of the freshest
+      rejection on record, or ``null`` if the table is empty.
+
+    Read-only and cheap (3 aggregations, no joins). Frontend polls at page
+    load; no WebSocket needed.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from django.db.models import Max, Sum
+
+        from apps.suggestions.models import (
+            REJECTED_PAIR_SUPPRESSION_DAYS,
+            RejectedPair,
+        )
+
+        threshold = timezone.now() - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS)
+        active_count = RejectedPair.objects.filter(
+            last_rejected_at__gte=threshold
+        ).count()
+        total_count = RejectedPair.objects.count()
+        totals = RejectedPair.objects.aggregate(
+            lifetime=Sum("rejection_count"),
+            most_recent=Max("last_rejected_at"),
+        )
+        most_recent = totals["most_recent"]
+        return response.Response(
+            {
+                "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
+                "active_suppressed_pairs": active_count,
+                "total_rejected_pairs": total_count,
+                "total_rejections_lifetime": int(totals["lifetime"] or 0),
+                "most_recent_rejection_at": (
+                    most_recent.isoformat() if most_recent is not None else None
+                ),
+            }
+        )
+
+
 class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ServiceStatusSnapshot.objects.exclude(service_name="http_worker")
     serializer_class = ServiceStatusSerializer

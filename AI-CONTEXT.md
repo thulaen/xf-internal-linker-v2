@@ -444,6 +444,58 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-18 — Phase 1v: Suppressed-pair counter on the Diagnostics page (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 1 shipped `RejectedPair` negative memory (a55e30b) but the operator had no way to see how many pairs were currently being suppressed. User said "proceed but avoid duplication" — I ran an Explore-agent duplicate-check across three candidate slices and picked this one because the check came back **CLEAR**: no existing Diagnostics card or endpoint aggregates `PipelineDiagnostic` by `skip_reason`, and no surface exposes `RejectedPair` stats.
+- **What was done:**
+  - **New backend endpoint** `GET /api/system/status/suppressed-pairs/` → `NegativeMemoryDiagnosticsView` in `apps/diagnostics/views.py`. Returns 4 fields: `active_suppressed_pairs` (within the 90-day window), `total_rejected_pairs` (all-time row count), `total_rejections_lifetime` (sum of `rejection_count`), `most_recent_rejection_at` (ISO-8601 or null). Three aggregates via `RejectedPair.objects.filter/aggregate` — no joins, cheap.
+  - **URL route** added alongside the other diagnostics paths in `apps/diagnostics/urls.py`.
+  - **Frontend service method** `DiagnosticsService.getSuppressedPairs()` + `SuppressedPairsDiagnostics` interface in `diagnostics.service.ts`.
+  - **Component state** — `suppressedPairs: SuppressedPairsDiagnostics | null` on `DiagnosticsComponent`; added to the `loadData()` `forkJoin` with per-call `catchError → of(null)` so a failed endpoint hides the card rather than blocking the page.
+  - **New card** on the Diagnostics page between the Resource Metrics bar and the Runtime Lanes section. Four KPI tiles: Active suppressions, Total pairs on record, Total rejections, Most recent reject (date + time split). Plain-English heading explains the 90-day window.
+  - **SCSS** — new `.suppressed-pairs-section` block with 4-column responsive grid (collapses to 2 cols at 960px); all spacing + color via `--space-*` and `--color-*` tokens, no hex.
+
+- **Intentional files changed:**
+  - `backend/apps/diagnostics/views.py` (+56 lines for `NegativeMemoryDiagnosticsView`)
+  - `backend/apps/diagnostics/urls.py` (+6 lines for the route)
+  - `backend/apps/diagnostics/tests.py` (+73 lines for `NegativeMemoryDiagnosticsViewTests` — 2 tests: empty table + populated counts)
+  - `frontend/src/app/diagnostics/diagnostics.service.ts` (+1 interface, +1 method)
+  - `frontend/src/app/diagnostics/diagnostics.component.ts` (+1 property, +1 forkJoin entry)
+  - `frontend/src/app/diagnostics/diagnostics.component.html` (+44-line section)
+  - `frontend/src/app/diagnostics/diagnostics.component.scss` (+66 lines for the section styling)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** existing `RejectedPair` model + constants (`REJECTED_PAIR_SUPPRESSION_DAYS`), existing diagnostics URL include pattern, existing `DiagnosticsService` baseUrl + `forkJoin` + `catchError → of(null)` per-stream error-isolation pattern (matches how `runtimeCtx`, `nodes`, `pipelineGate` already degrade gracefully), existing `mat-card` / `.section-heading` / token-based layout conventions on the Diagnostics page.
+
+- **Duplicate-check evidence** (this is why the slice was safe):
+  - `DiagnosticsOverviewView` counts `ServiceStatusSnapshot`, not `PipelineDiagnostic` — different surface.
+  - No existing endpoint groups `PipelineDiagnostic.skip_reason` anywhere in `backend/apps/diagnostics/` or `backend/apps/suggestions/`.
+  - No existing frontend card reads skip_reason aggregates.
+  - The `diagnostics.component.html` focuses on service status and conflicts — no overlap with negative-memory visibility.
+
+- **Session Gate compliance:**
+  - Continuation of 2026-04-18 session — gate reads (AI-CONTEXT, REPORT-REGISTRY, BLC, PYTHON-RULES, FRONTEND-RULES, AGENTS, PERFORMANCE) all still in context.
+  - BLC §0 AI Drift Rejection: pure visibility feature, no scoring, no new signal, no new table — just a new read endpoint + card on an existing page.
+  - FRONTEND-RULES: Material Angular pattern, token-only styling, no hex, 4px grid (all gaps and padding are 4/8/12/16/24px).
+  - PYTHON-RULES: typed function signature, exception-safe aggregate (no division), explicit `most_recent.isoformat()` handling for the None case.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.diagnostics.tests.NegativeMemoryDiagnosticsViewTests` — 2/2 pass.
+  - `docker compose exec backend python manage.py test apps.diagnostics` — full diagnostics suite passes.
+  - `docker compose exec backend python manage.py test` — **full backend suite passes, 0 failures** (333 tests now, +2 vs prior 331).
+  - `cd frontend && npm run test:ci` — **25 frontend tests pass** (no frontend spec for DiagnosticsComponent yet; no mock to update).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - `docker compose exec backend python -m ruff format apps/diagnostics/views.py apps/diagnostics/tests.py apps/diagnostics/urls.py` — 2 files reformatted preemptively (import grouping fixes).
+  - No migration drift — new endpoint reads existing tables.
+
+- **What was deliberately NOT done (and why):**
+  - Did not list the actual suppressed pairs — just counts. Listing them would be a separate UX slice (with host/destination lookup joins).
+  - Did not add a "clear suppression" action — operator removing a suppression is a separate feature that needs its own audit entry.
+  - Did not add WebSocket live updates — the card is informational; polling at page load is enough.
+
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-18 — Phase 3b: engagement_quality_score learns from Phase 2 engagement signals (Claude)
 
 - **AI/tool:** Claude
