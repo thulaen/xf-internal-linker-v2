@@ -225,7 +225,11 @@ $baselineLongFiles = @(
     'link_farm.py',             # FR-197 detect_link_farm_rings ~91 lines of reciprocal-density detection; candidate for extraction into walk / score
     'pipeline_data.py',         # pipeline/services/pipeline_data.py — _load_pipeline_content ~94 lines; candidate for per-source loader extraction
     'pipeline_stages.py',       # pipeline/services/pipeline_stages.py — _score_single_destination ~85 lines; just above cap
-    'ranker.py'                 # pipeline/services/ranker.py — score_destination_matches ~398 lines (pre-existing tech debt, extended by FR-020 anti-spam hooks); candidate for per-signal extraction
+    'ranker.py',                # pipeline/services/ranker.py — score_destination_matches ~398 lines (pre-existing tech debt, extended by FR-020 anti-spam hooks); candidate for per-signal extraction
+    'signal_registry.py',       # diagnostics/signal_registry.py — 1218 lines, ~70 commented-out forward-declared FR stubs dominate the size; candidate for forward_declared_signals.py split
+    'helpers-settings.component.ts',     # FR-020 helper-node configuration surface — 598 lines; candidate for per-helper-card component extraction
+    'performance-settings.component.ts', # FR-020 runtime model/backfill/audit UI — 851 lines; candidate for per-section extraction (runtime / backfill / audit)
+    'silo-settings.service.ts'           # FR-005 + FR-020 silo + runtime service — 826 lines; candidate for silo-only and runtime-only service split
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
