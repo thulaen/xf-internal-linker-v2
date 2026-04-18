@@ -7,6 +7,7 @@ database live here.
 
 from __future__ import annotations
 
+from dataclasses import dataclass, field
 from typing import Any
 
 from django.db import transaction
@@ -22,6 +23,64 @@ from .ranker import (
 # ---------------------------------------------------------------------------
 # Persist suggestions
 # ---------------------------------------------------------------------------
+
+
+@dataclass(slots=True)
+class _CandidatePartition:
+    """Result of splitting candidates into valid vs suppressed."""
+
+    valid_candidates: list[ScoredCandidate] = field(default_factory=list)
+    content_item_ids: set[int] = field(default_factory=set)
+    sentence_ids: set[int] = field(default_factory=set)
+    destination_ids_to_replace: set[int] = field(default_factory=set)
+    suppressed_diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = field(
+        default_factory=list
+    )
+
+
+def _partition_candidates(
+    *,
+    selected_candidates: list[ScoredCandidate],
+    content_records: dict[ContentKey, ContentRecord],
+    sentence_records: dict[int, SentenceRecord],
+    suppressed_pairs: set[tuple[int, int]],
+    rerun_mode: str,
+    suppression_days: int,
+) -> _CandidatePartition:
+    """Split candidates into valid vs negative-memory-suppressed.
+
+    Skips candidates whose destination or sentence record is missing, and
+    those whose ``(host_id, destination_id)`` is in ``suppressed_pairs``. For
+    suppressed pairs, records a diagnostic tuple so the caller can emit a
+    ``PipelineDiagnostic`` row with ``skip_reason="rejected_recently"``.
+    """
+    out = _CandidatePartition()
+    for candidate in selected_candidates:
+        dest_record = content_records.get(candidate.destination_key)
+        sentence_record = sentence_records.get(candidate.host_sentence_id)
+        if dest_record is None or sentence_record is None:
+            continue
+        pair_id = (candidate.host_content_id, candidate.destination_content_id)
+        if pair_id in suppressed_pairs:
+            out.suppressed_diagnostics.append(
+                (
+                    candidate.destination_content_id,
+                    candidate.destination_content_type,
+                    "rejected_recently",
+                    {
+                        "host_content_id": candidate.host_content_id,
+                        "suppression_days": suppression_days,
+                    },
+                )
+            )
+            continue
+        out.valid_candidates.append(candidate)
+        out.content_item_ids.add(candidate.destination_content_id)
+        out.content_item_ids.add(candidate.host_content_id)
+        out.sentence_ids.add(candidate.host_sentence_id)
+        if rerun_mode == "full_regenerate":
+            out.destination_ids_to_replace.add(candidate.destination_content_id)
+    return out
 
 
 def _persist_suggestions(
@@ -58,55 +117,29 @@ def _persist_suggestions(
 
     # Load the suppression set once per pipeline run. Empty set when the
     # RejectedPair table is empty → behaviour identical to pre-feature.
-    suppressed_pairs = RejectedPair.get_suppressed_pair_ids()
-
-    valid_candidates: list[ScoredCandidate] = []
-    suppressed_diagnostics: list[tuple[int, str, str, dict[str, Any] | None]] = []
-    content_item_ids: set[int] = set()
-    sentence_ids: set[int] = set()
-    destination_ids_to_replace: set[int] = set()
-
-    for candidate in selected_candidates:
-        dest_key = candidate.destination_key
-        dest_record = content_records.get(dest_key)
-        sentence_record = sentence_records.get(candidate.host_sentence_id)
-        if dest_record is None or sentence_record is None:
-            continue
-        pair_id = (candidate.host_content_id, candidate.destination_content_id)
-        if pair_id in suppressed_pairs:
-            suppressed_diagnostics.append(
-                (
-                    candidate.destination_content_id,
-                    candidate.destination_content_type,
-                    "rejected_recently",
-                    {
-                        "host_content_id": candidate.host_content_id,
-                        "suppression_days": REJECTED_PAIR_SUPPRESSION_DAYS,
-                    },
-                )
-            )
-            continue
-        valid_candidates.append(candidate)
-        content_item_ids.add(candidate.destination_content_id)
-        content_item_ids.add(candidate.host_content_id)
-        sentence_ids.add(candidate.host_sentence_id)
-        if rerun_mode == "full_regenerate":
-            destination_ids_to_replace.add(candidate.destination_content_id)
+    parts = _partition_candidates(
+        selected_candidates=selected_candidates,
+        content_records=content_records,
+        sentence_records=sentence_records,
+        suppressed_pairs=RejectedPair.get_suppressed_pair_ids(),
+        rerun_mode=rerun_mode,
+        suppression_days=REJECTED_PAIR_SUPPRESSION_DAYS,
+    )
 
     # Emit negative-memory diagnostics even if no valid candidates remain, so
     # operators can see suppression counts in the explorer.
-    if suppressed_diagnostics:
-        _persist_diagnostics(run_id=run_id, diagnostics=suppressed_diagnostics)
+    if parts.suppressed_diagnostics:
+        _persist_diagnostics(run_id=run_id, diagnostics=parts.suppressed_diagnostics)
 
-    if not valid_candidates:
+    if not parts.valid_candidates:
         return 0
 
-    content_items = ContentItem.objects.in_bulk(content_item_ids)
-    sentences = Sentence.objects.in_bulk(sentence_ids)
+    content_items = ContentItem.objects.in_bulk(parts.content_item_ids)
+    sentences = Sentence.objects.in_bulk(parts.sentence_ids)
 
     to_create = _build_suggestion_records(
         run=run,
-        valid_candidates=valid_candidates,
+        valid_candidates=parts.valid_candidates,
         content_items=content_items,
         sentences=sentences,
     )
@@ -115,9 +148,9 @@ def _persist_suggestions(
     # left in a state where old suggestions are deleted but new ones
     # failed to insert.
     with transaction.atomic():
-        if destination_ids_to_replace:
+        if parts.destination_ids_to_replace:
             Suggestion.objects.filter(
-                destination_id__in=destination_ids_to_replace,
+                destination_id__in=parts.destination_ids_to_replace,
                 status__in=["pending", "superseded"],
             ).delete()
 
