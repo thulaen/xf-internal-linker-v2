@@ -123,49 +123,88 @@ def _time_policy_ok(policy: str, now) -> bool:
     return True
 
 
+# Keys that describe a job's resource DEMAND, not a capability floor the
+# helper must satisfy. ``_capabilities_ok`` skips these so the caller can
+# use the same dict for both capability matching and load projection.
+_DEMAND_KEYS: frozenset[str] = frozenset(
+    {"demand_cpu", "demand_ram_gb", "demand_gpu_vram_gb"}
+)
+
+
+def _check_warmed_model_key(have: dict[str, Any], required: Any) -> bool:
+    return required in have["warmed_model_keys"]
+
+
+def _check_gpu_required(have: dict[str, Any], required: Any) -> bool:
+    if not bool(required):
+        return True
+    return bool(have.get("gpu_vram_gb"))
+
+
+def _check_native_kernels_healthy(have: dict[str, Any], required: Any) -> bool:
+    return bool(have.get("native_kernels_healthy")) == bool(required)
+
+
+def _check_max_network_rtt_ms(have: dict[str, Any], required: Any) -> bool:
+    value = have.get("network_rtt_ms")
+    if value is None:
+        return False
+    try:
+        return float(value) <= float(required)
+    except (TypeError, ValueError):
+        return False
+
+
+# Explicit handlers for capability keys whose comparison is not a simple
+# "have >= required" floor. Keys NOT in this map fall through to
+# ``_check_floor``. Adding a new custom capability check means adding a
+# row here; keeping the dispatcher flat keeps the main function cheap.
+_CAPABILITY_HANDLERS: dict[str, Any] = {
+    "warmed_model_key": _check_warmed_model_key,
+    "gpu_required": _check_gpu_required,
+    "native_kernels_healthy": _check_native_kernels_healthy,
+    "max_network_rtt_ms": _check_max_network_rtt_ms,
+}
+
+
+def _check_floor(have: dict[str, Any], key: str, required: Any) -> bool:
+    """Default rule: numeric ``have[key]`` must be >= ``required``.
+
+    Falls back to equality for non-numeric values so tag-style capability
+    requirements (e.g., ``"gpu_class": "A100"``) still work.
+    """
+    value = have.get(key)
+    if value is None:
+        return False
+    try:
+        return float(value) >= float(required)
+    except (TypeError, ValueError):
+        return value == required
+
+
 def _capabilities_ok(*, node, need: dict[str, Any]) -> bool:
-    """All required capability floors must be satisfied."""
+    """All required capability floors must be satisfied.
+
+    Dispatches per-key into ``_CAPABILITY_HANDLERS`` for capabilities
+    with custom comparison rules; any key not in that map uses
+    ``_check_floor`` (numeric >= with equality fallback). This keeps
+    the per-capability logic as named one-liners and keeps this main
+    function's branching flat.
+    """
     have = dict(node.capabilities or {})
     have["network_rtt_ms"] = node.network_rtt_ms
     have["native_kernels_healthy"] = node.native_kernels_healthy
     have["warmed_model_keys"] = node.warmed_model_keys or []
 
     for key, required in need.items():
-        if key in {"demand_cpu", "demand_ram_gb", "demand_gpu_vram_gb"}:
+        if key in _DEMAND_KEYS:
             continue
-        if key == "warmed_model_key":
-            if required not in have["warmed_model_keys"]:
+        handler = _CAPABILITY_HANDLERS.get(key)
+        if handler is not None:
+            if not handler(have, required):
                 return False
-            continue
-        if key == "gpu_required":
-            gpu_vram = have.get("gpu_vram_gb")
-            if bool(required) and not gpu_vram:
-                return False
-            continue
-        if key == "native_kernels_healthy":
-            if bool(have.get("native_kernels_healthy")) != bool(required):
-                return False
-            continue
-        if key == "max_network_rtt_ms":
-            value = have.get("network_rtt_ms")
-            if value is None:
-                return False
-            try:
-                if float(value) > float(required):
-                    return False
-            except (TypeError, ValueError):
-                return False
-            continue
-
-        value = have.get(key)
-        if value is None:
+        elif not _check_floor(have, key, required):
             return False
-        try:
-            if float(value) < float(required):
-                return False
-        except (TypeError, ValueError):
-            if value != required:
-                return False
     return True
 
 
