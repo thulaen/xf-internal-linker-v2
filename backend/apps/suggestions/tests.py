@@ -907,9 +907,7 @@ class RejectedPairModelTests(TestCase):
         RejectedPair.record_rejection(
             host_id=self.host.pk, destination_id=self.destination.pk
         )
-        pair = RejectedPair.objects.get(
-            host=self.host, destination=self.destination
-        )
+        pair = RejectedPair.objects.get(host=self.host, destination=self.destination)
         self.assertEqual(pair.rejection_count, 1)
         self.assertIsNotNone(pair.first_rejected_at)
         self.assertIsNotNone(pair.last_rejected_at)
@@ -926,9 +924,7 @@ class RejectedPairModelTests(TestCase):
         RejectedPair.record_rejection(
             host_id=self.host.pk, destination_id=self.destination.pk
         )
-        pair = RejectedPair.objects.get(
-            host=self.host, destination=self.destination
-        )
+        pair = RejectedPair.objects.get(host=self.host, destination=self.destination)
         self.assertEqual(pair.rejection_count, 3)
 
     def test_get_suppressed_pair_ids_within_window(self) -> None:
@@ -952,9 +948,7 @@ class RejectedPairModelTests(TestCase):
             host_id=self.host.pk, destination_id=self.destination.pk
         )
         # Push last_rejected_at past the suppression window.
-        stale_ts = timezone.now() - timedelta(
-            days=REJECTED_PAIR_SUPPRESSION_DAYS + 1
-        )
+        stale_ts = timezone.now() - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS + 1)
         RejectedPair.objects.filter(
             host_id=self.host.pk, destination_id=self.destination.pk
         ).update(last_rejected_at=stale_ts)
@@ -983,16 +977,10 @@ class PruneRejectedPairsTaskTests(TestCase):
         dest_stale = ContentItem.objects.create(
             content_id=9103, content_type="thread", title="DS"
         )
-        RejectedPair.record_rejection(
-            host_id=host.pk, destination_id=dest_fresh.pk
-        )
-        RejectedPair.record_rejection(
-            host_id=host.pk, destination_id=dest_stale.pk
-        )
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_fresh.pk)
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest_stale.pk)
         # Age the stale row past the prune threshold.
-        stale_ts = timezone.now() - timedelta(
-            days=REJECTED_PAIR_PRUNE_AFTER_DAYS + 1
-        )
+        stale_ts = timezone.now() - timedelta(days=REJECTED_PAIR_PRUNE_AFTER_DAYS + 1)
         RejectedPair.objects.filter(destination_id=dest_stale.pk).update(
             last_rejected_at=stale_ts
         )
