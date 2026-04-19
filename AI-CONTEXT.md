@@ -494,7 +494,52 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Did not re-balance the existing `0.50/0.30/0.20` core engagement weights or the `0.40/0.20/0.20/0.10/0.05/0.05` content-value weights — keeping Phase 3c additive preserves pre-Phase-3c behaviour for sites without telemetry.
   - Did not touch frontend diagnostics — the dwell-gradient is surfaced via the existing `content_value_score` and `engagement_quality_score` fields already reviewer-visible.
 
-- **Commit/push state:** Pending — about to commit. The uncommitted Codex 2026-04-19 Docker-prune note already in the working tree from a prior session is NOT included in this commit (per the AI-CONTEXT.md hygiene rule "stage only the intended files for the current slice").
+- **Commit/push state:** Pending — about to commit. The uncommitted Codex 2026-04-19 Docker-prune note below is NOT included in this commit (per the AI-CONTEXT.md hygiene rule "stage only the intended files for the current slice").
+
+### 2026-04-19 - Safe Docker prune run + compaction guard check (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked to safely free Docker disk space and compact Docker storage without risking the database, volumes, or other persisted app data.
+- **What was done:**
+  - Confirmed Docker Desktop was initially stopped, then re-checked after the user started it.
+  - Measured current Docker usage with `docker system df` and confirmed 9 active containers via `docker ps`.
+  - Ran the repo's safe cleanup helper `docker_cleanup.ps1`, which prunes only unused Docker build cache and dangling images.
+  - Verified the cleanup result: Docker build cache dropped from `2.607 GB` to `0 B`; image prune reclaimed `0 B`; image size moved from `80.59 GB` to `78.63 GB`.
+  - Ran `docker_compact_vhd.ps1` as a guard check. It correctly skipped VHD compaction because Docker still had running containers.
+  - After the user fully closed Docker Desktop, re-ran `docker_compact_vhd.ps1` via an admin-elevated PowerShell prompt so `diskpart` could execute. The log recorded `DiskPart successfully compacted the virtual disk file.` at `2026-04-19 19:18`.
+  - Restarted Docker Desktop and inspected the detailed live disk breakdown with `docker system df -v`. The real active footprint is much smaller than the earlier headline number suggested: named images total about `18.25 GB`, build cache is `0 B`, and named data volumes are small (`pgdata` about `102 MB`, `redis-data` under `1 MB`, `staticfiles` about `6 MB`, `media_files` `0 B`).
+  - Safely removed 12 stopped containers with `docker container prune -f` and one orphaned unused volume (`b90c3c...`) with `docker volume prune -f`, reclaiming about `325 MB` more without touching live Postgres, Redis, media, or static volumes.
+  - Hardened the automatic reclaim path so Windows has a better chance of getting free space back without manual intervention. Updated `register_cleanup_task.ps1` to register Docker disk compaction with `RunLevel Highest`, moved the main compaction schedule from every 2 days at `10:00 AM` to daily at `3:00 AM`, and added a new highest-privilege backup task `XF Linker V2 - Backup Compaction on Login`.
+  - Further updated the task registration so compaction also runs at Windows startup via a new highest-privilege task `XF Linker V2 - Startup Compaction`, which gives the machine another idle chance to hand free Docker space back to Windows even when the overnight run is missed.
+  - Re-registered the Docker maintenance tasks on the local machine and verified the updated compaction task plus the new logon fallback were both present and ready.
+- **Intentional files changed:**
+  - `register_cleanup_task.ps1`
+  - `AI-CONTEXT.md` (this note)
+- **Verification that passed:**
+  - `docker system df` before cleanup
+  - `docker ps --format "table {{.Names}}\t{{.Status}}\t{{.Image}}"`
+  - `powershell -ExecutionPolicy Bypass -File .\docker_cleanup.ps1`
+  - `docker system df` after cleanup
+  - `powershell -ExecutionPolicy Bypass -File .\docker_compact_vhd.ps1` (safe skip with running containers)
+  - `Start-Process -FilePath powershell.exe -ArgumentList '-ExecutionPolicy Bypass -File "C:\Users\goldm\Dev\xf-internal-linker-v2\docker_compact_vhd.ps1"' -Verb RunAs -Wait`
+  - `Get-Content .\docker_cleanup.log | Select-Object -Last 30`
+  - `docker system df -v`
+  - `docker container prune -f`
+  - `docker network prune -f`
+  - `docker volume prune -f`
+  - `docker image prune -a -f`
+  - PowerShell parser check for `register_cleanup_task.ps1`
+  - `Start-Process -FilePath powershell.exe -ArgumentList '-ExecutionPolicy Bypass -File "C:\Users\goldm\Dev\xf-internal-linker-v2\register_cleanup_task.ps1"' -Verb RunAs -Wait`
+  - Scheduled-task verification for:
+    - `XF Linker V2 - Docker Disk Compaction`
+    - `XF Linker V2 - Backup Compaction on Login`
+    - `XF Linker V2 - Startup Compaction`
+    - `XF Linker V2 - Docker Cleanup Every 2 Days`
+    - `XF Linker V2 - Backup Cleanup on Login`
+- **Noted but NOT changed:**
+  - Docker VHD compaction still requires a window with no running containers. I did not stop the active stack automatically because that would interrupt the running app/services.
+- **Commit/push state:**
+  - Changes are currently uncommitted.
 
 ### 2026-04-18 — Phase 1v: Suppressed-pair counter on the Diagnostics page (Claude)
 

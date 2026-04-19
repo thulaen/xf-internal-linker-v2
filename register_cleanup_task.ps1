@@ -3,6 +3,8 @@
 
 $cleanupTaskName = "XF Linker V2 - Docker Cleanup Every 2 Days"
 $compactTaskName = "XF Linker V2 - Docker Disk Compaction"
+$backupCompactTaskName = "XF Linker V2 - Backup Compaction on Login"
+$startupCompactTaskName = "XF Linker V2 - Startup Compaction"
 $backupTaskName = "XF Linker V2 - Backup Cleanup on Login"
 $cleanupScriptPath = Join-Path $PSScriptRoot "docker_cleanup.ps1"
 $compactScriptPath = Join-Path $PSScriptRoot "docker_compact_vhd.ps1"
@@ -32,11 +34,19 @@ $backupAction = New-ScheduledTaskAction `
     -Execute "powershell.exe" `
     -Argument $cleanupArgument
 
+$backupCompactAction = New-ScheduledTaskAction `
+    -Execute "powershell.exe" `
+    -Argument $compactArgument
+
 $cleanupTrigger = New-ScheduledTaskTrigger -Daily -DaysInterval 2 -At 9:00am
 
-$compactTrigger = New-ScheduledTaskTrigger -Daily -DaysInterval 2 -At 10:00am
+$compactTrigger = New-ScheduledTaskTrigger -Daily -At 3:00am
 
 $backupTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+
+$backupCompactTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
+
+$startupCompactTrigger = New-ScheduledTaskTrigger -AtStartup
 
 $cleanupSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
@@ -50,6 +60,14 @@ $backupSettings = New-ScheduledTaskSettingsSet `
     -ExecutionTimeLimit (New-TimeSpan -Minutes 10) `
     -StartWhenAvailable
 
+$backupCompactSettings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 20) `
+    -StartWhenAvailable
+
+$startupCompactSettings = New-ScheduledTaskSettingsSet `
+    -ExecutionTimeLimit (New-TimeSpan -Minutes 20) `
+    -StartWhenAvailable
+
 Register-ScheduledTask `
     -TaskName    $cleanupTaskName `
     -Description "Removes old Docker build cache and dangling images every 2 days. Safe - never touches volumes." `
@@ -61,11 +79,11 @@ Register-ScheduledTask `
 
 Register-ScheduledTask `
     -TaskName    $compactTaskName `
-    -Description "Compacts Docker's virtual disk every 2 days, but only if no containers are running. Safe - never touches volumes." `
+    -Description "Compacts Docker's virtual disk daily at 3:00 AM, but only if no containers are running. Safe - never touches volumes." `
     -Action      $compactAction `
     -Trigger     $compactTrigger `
     -Settings    $compactSettings `
-    -RunLevel    Limited `
+    -RunLevel    Highest `
     -Force | Out-Null
 
 Register-ScheduledTask `
@@ -77,8 +95,28 @@ Register-ScheduledTask `
     -RunLevel    Limited `
     -Force | Out-Null
 
+Register-ScheduledTask `
+    -TaskName    $backupCompactTaskName `
+    -Description "Backup compaction on login. Runs only when no containers are active, then safely compacts Docker's virtual disk." `
+    -Action      $backupCompactAction `
+    -Trigger     $backupCompactTrigger `
+    -Settings    $backupCompactSettings `
+    -RunLevel    Highest `
+    -Force | Out-Null
+
+Register-ScheduledTask `
+    -TaskName    $startupCompactTaskName `
+    -Description "Startup compaction. Runs when the laptop starts, but only compacts if Docker is idle and no containers are active." `
+    -Action      $backupCompactAction `
+    -Trigger     $startupCompactTrigger `
+    -Settings    $startupCompactSettings `
+    -RunLevel    Highest `
+    -Force | Out-Null
+
 Write-Host ""
 Write-Host "Done! Docker maintenance tasks registered." -ForegroundColor Green
 Write-Host "Docker build cache cleanup will run every 2 days at 9:00 AM." -ForegroundColor Cyan
-Write-Host "Docker disk compaction will run every 2 days at 10:00 AM, but only when no containers are active." -ForegroundColor Cyan
+Write-Host "Docker disk compaction will run daily at 3:00 AM with highest privileges, but only when no containers are active." -ForegroundColor Cyan
 Write-Host "Backup cleanup on login is also registered in case the daytime schedule was missed." -ForegroundColor Cyan
+Write-Host "Backup compaction on login is also registered in case the overnight compaction window was missed." -ForegroundColor Cyan
+Write-Host "Startup compaction is also registered so the laptop can try compaction when Windows starts." -ForegroundColor Cyan
