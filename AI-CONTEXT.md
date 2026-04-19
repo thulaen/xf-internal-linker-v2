@@ -444,6 +444,29 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-19 — Root-cause fix for flaky `test_probe_urls_semaphore_and_perf` (Claude)
+
+- **AI/tool:** Claude
+- **Why:** The previous entry (reschedule, commit `d1b238f`) flagged `apps.pipeline.services.test_async_http.AsyncHttpTests.test_probe_urls_semaphore_and_perf` as a pre-existing flake (41 s > 30 s budget under Docker+dev load). User asked to fix it properly, not widen the budget blindly.
+- **What was done (after diagnosis):**
+  - Profiled `probe_urls` with 1 000 URLs through the same `MockTransport` in **three harnesses**:
+    - Raw `asyncio.run()` → **0.12 s**
+    - Plain `unittest.IsolatedAsyncioTestCase` → **12.9 s** (Python's asyncio itself warned `Task-2 took 6.269 seconds`)
+    - Django's test runner → **41 s**
+  - Diagnosis: production `probe_urls` is fine. The test harness's event loop adds ~100× per-task overhead with 1 000 concurrent tasks. The 1 000 URL count was arbitrary in the original test; the semaphore bound only needs enough URLs to make the bound observable.
+  - **Fix:** reduced URL count from 1 000 → 200 (still 4 full 50-concurrency batches; still races to `max_active = 50`), tightened wall-clock budget from 30 s → 10 s. Added a multi-line comment recording the measured numbers so a future maintainer doesn't "helpfully" bump it back to 1 000.
+- **Intentional files changed:**
+  - `backend/apps/pipeline/services/test_async_http.py` — URL count + budget + explanatory comment
+  - `AI-CONTEXT.md` — this note
+- **Duplicate check:** `grep -r probe_urls backend/` returned only one test file + the production module + the Celery task that consumes `probe_urls`. No parallel perf test to update.
+- **Verification:**
+  - `docker compose exec backend python manage.py test apps.pipeline.services.test_async_http --noinput` — **2/2 pass in 4.3 s** (was 41 s failure).
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **337 pass, 1 skipped, 0 failures** in 59.5 s (full suite 10 % faster because the fixed test now does 5× less work).
+- **What was deliberately NOT done:**
+  - Did not silence the wall-clock assertion entirely — it still catches serialization-regression bugs, just with a realistic tolerance for test-harness overhead.
+  - Did not change production `probe_urls` — 1 000 URLs really does run in 0.12 s there; no bug to fix in production.
+- **Commit/push state:** Pending — about to commit as a follow-up `fix:` slice.
+
 ### 2026-04-19 — Scheduled-task reschedule: overnight tasks moved to afternoon window (Claude, follow-on to user commit 2b5d46e)
 
 - **AI/tool:** Claude (documentation + session-note commit only; the code moves landed via the user's manual commit `2b5d46e`)
