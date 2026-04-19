@@ -30,6 +30,14 @@ import {
   GSCImpactSnapshot,
   SearchImpactDetailResponse,
 } from './analytics.service';
+import { FilterPersistenceService } from '../core/services/filter-persistence.service';
+
+const TOGGLE_STORAGE_PAGE_ID = 'analytics-filters';
+
+interface AnalyticsToggleSnapshot {
+  engagementWindowDays: 7 | 14 | 30;
+  topSuggestionsOrder: 'clicks' | 'quick_exit';
+}
 import { EngagementMixComponent } from './engagement-mix/engagement-mix.component';
 import { ImpactDiaryComponent } from './impact-diary/impact-diary.component';
 import { UnderLinkedComponent } from './under-linked/under-linked.component';
@@ -65,6 +73,7 @@ export class AnalyticsComponent implements OnInit {
   private analyticsSvc = inject(AnalyticsService);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
+  private togglePersistence = inject(FilterPersistenceService);
 
   loading = true;
   error = '';
@@ -272,8 +281,43 @@ export class AnalyticsComponent implements OnInit {
   };
 
   ngOnInit(): void {
+    this.restoreToggleStateFromStorage();
     this.loadData();
     this.loadSearchImpacts();
+  }
+
+  /**
+   * Rehydrate the engagement-window + top-suggestions-order toggles from
+   * localStorage before the first data load so the restored values flow
+   * straight into loadData() without a second round-trip. Validates the
+   * stored values against the allowed enums so a stale or tampered
+   * snapshot from an older build falls back to the component defaults.
+   */
+  private restoreToggleStateFromStorage(): void {
+    const snapshot = this.togglePersistence.read<AnalyticsToggleSnapshot>(
+      TOGGLE_STORAGE_PAGE_ID,
+    );
+    if (!snapshot) return;
+    if (
+      snapshot.engagementWindowDays === 7 ||
+      snapshot.engagementWindowDays === 14 ||
+      snapshot.engagementWindowDays === 30
+    ) {
+      this.engagementWindowDays = snapshot.engagementWindowDays;
+    }
+    if (
+      snapshot.topSuggestionsOrder === 'clicks' ||
+      snapshot.topSuggestionsOrder === 'quick_exit'
+    ) {
+      this.topSuggestionsOrder = snapshot.topSuggestionsOrder;
+    }
+  }
+
+  private persistToggleState(): void {
+    this.togglePersistence.write(TOGGLE_STORAGE_PAGE_ID, {
+      engagementWindowDays: this.engagementWindowDays,
+      topSuggestionsOrder: this.topSuggestionsOrder,
+    });
   }
 
   loadSearchImpacts(): void {
@@ -370,6 +414,7 @@ export class AnalyticsComponent implements OnInit {
     const value = Number(event.value);
     if (value === 7 || value === 14 || value === 30) {
       this.engagementWindowDays = value;
+      this.persistToggleState();
     }
     // EngagementMixComponent consumes this via an input signal and
     // re-fetches itself on change — no page-level reload needed.
@@ -380,6 +425,7 @@ export class AnalyticsComponent implements OnInit {
       return;
     }
     this.topSuggestionsOrder = event.value;
+    this.persistToggleState();
     // Reload only the top-suggestions card rather than the whole page.
     this.analyticsSvc
       .getTopSuggestions(this.selectedSource, 30, this.topSuggestionsOrder)

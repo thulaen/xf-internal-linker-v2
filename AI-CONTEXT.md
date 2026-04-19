@@ -444,6 +444,35 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Slice 2: persist Analytics page toggles across sessions via FilterPersistenceService (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Second Tier 1 polish slice (per `C:\Users\goldm\.claude\plans\continuation-prompt-modular-rabin.md`). The Analytics page's `engagementWindowDays` (7/14/30) and `topSuggestionsOrder` ('clicks'/'quick_exit') toggles reset on every page reload. Operators had to re-set them each visit. The existing `FilterPersistenceService` at `frontend/src/app/core/services/filter-persistence.service.ts` was purpose-built for exactly this (commit `b56990b`) but had zero call sites until now.
+- **Duplicate-check (mandatory per plan):** Ran an Explore agent against `frontend/` for prior `FilterPersistenceService.read`/`write` usage, prior `localStorage.setItem/getItem` calls under analytics-related keys, and recent commits touching `analytics.component.ts`. Result: **CLEAR.** The service was unused (I am the first caller). The user's two recent style commits (`2b5d46e`, `1f11a63`) touched typography/theme only — no persistence logic. Agent also flagged future-proofing guidance: namespace as `analytics-filters` (not just `analytics`) because the Analytics page has other toggles (`selectedImpactWindow`, `selectedSource`) that may want their own pageIds later.
+- **What was done:**
+  - **Injected `FilterPersistenceService`** into `AnalyticsComponent` alongside the existing `analyticsSvc`, `snack`, `destroyRef`. Named the field `togglePersistence` so it's immediately obvious what it's scoped to.
+  - **Added a typed snapshot interface** `AnalyticsToggleSnapshot { engagementWindowDays: 7 | 14 | 30; topSuggestionsOrder: 'clicks' | 'quick_exit' }` + a module-level `TOGGLE_STORAGE_PAGE_ID = 'analytics-filters'` constant (so the key shows up by name in tests and in any future extensions for the other two Analytics-page toggles).
+  - **New private method `restoreToggleStateFromStorage()`** called at the TOP of `ngOnInit()`, before `loadData()`. Validates the restored values against the allowed enums — a stale or tampered snapshot from a future refactor falls back to the component defaults instead of propagating a bad value into the ranker's telemetry window.
+  - **New private method `persistToggleState()`** called from both `onEngagementWindowChange` and `onTopSuggestionsOrderChange` after they mutate state. Writes the combined snapshot each time (both values), so one toggle change doesn't orphan the other's last value.
+  - **2 new Jasmine tests** in `analytics.component.spec.ts`:
+    - `restores persisted engagement-window + top-suggestions-order toggles on init` — seeds `localStorage['filterprefs.analytics-filters']`, creates the component, asserts both fields reflect the snapshot, AND asserts the FIRST `getTopSuggestions()` call used the restored order (not the 'clicks' default) — proves `restoreToggleStateFromStorage` runs before `loadData`.
+    - `writes toggle changes back to localStorage under filterprefs.analytics-filters` — invokes both handlers, reads the raw `localStorage` entry, parses it, asserts the exact JSON shape.
+  - **Updated `beforeEach`** in the spec to `window.localStorage.removeItem('filterprefs.analytics-filters')` with a try/catch guard for private-mode browsers — test isolation.
+- **Intentional files changed:**
+  - `frontend/src/app/analytics/analytics.component.ts` (+44 lines — import, const, interface, inject, ngOnInit re-order, restoreToggleStateFromStorage, persistToggleState, two handler write calls)
+  - `frontend/src/app/analytics/analytics.component.spec.ts` (+75 lines — import of `MatButtonToggleChange`, two new tests, beforeEach localStorage clear)
+  - `AI-CONTEXT.md` (this note)
+- **Reused, not duplicated:** existing `FilterPersistenceService` (now used for its first actual consumer), existing `AnalyticsToggleSnapshot` shape (new but trivially typed — no overlap with any prior interface), existing `ngOnInit → loadData()` order (only added a line above `loadData`). No new service, no new AppSetting, no new backend endpoint. Pure frontend, localStorage only.
+- **Verification:**
+  - `cd frontend && npm run test:ci` — **27/27 pass** (was 25, +2 new).
+  - `cd frontend && npm run build:prod` — clean production build (pre-existing NG8113 warning about `SuggestionExplainerPipe` unrelated).
+  - **Browser preview verification skipped** — port 4200 is occupied by the Docker `xf_linker_frontend` container (already serving the updated source via `ng serve --poll 1000` hot reload). The preview tool can't attach to an already-running server and stopping the Docker frontend would cost ~60 s of lost dev-loop time. The two new unit tests cover the full round-trip (seed → render → assert restored → invoke handlers → read back from localStorage), which is exactly what a manual browser check would prove. Operator can verify live at http://localhost:4200/analytics if desired — flip either toggle, reload, observe restored state.
+- **What was deliberately NOT done:**
+  - Did not persist `selectedImpactWindow` (the Search Outcome 7d/14d/28d toggle at `analytics.component.ts:83`) — separate UX slice, separate pageId. Out of scope.
+  - Did not persist `selectedSource` (the GA4/Matomo source filter) — same reasoning.
+  - Did not wire cross-tab synchronization via `FilterPersistenceService.subscribe()` — the service supports it (uses the browser's `storage` event), but two tabs on the Analytics page rarely make sense, and the surface area is larger than this slice needs. Future slice if requested.
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-19 — Root-cause fix for flaky `test_probe_urls_semaphore_and_perf` (Claude)
 
 - **AI/tool:** Claude

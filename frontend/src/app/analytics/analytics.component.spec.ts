@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { MatButtonToggleChange } from '@angular/material/button-toggle';
 import { NoopAnimationsModule } from '@angular/platform-browser/animations';
 import { ActivatedRoute } from '@angular/router';
 import { of } from 'rxjs';
@@ -252,6 +253,13 @@ describe('AnalyticsComponent', () => {
   };
 
   beforeEach(() => {
+    // Clear any FilterPersistenceService snapshot left over from a prior
+    // test so toggle-persistence assertions start from a clean slate.
+    try {
+      window.localStorage.removeItem('filterprefs.analytics-filters');
+    } catch {
+      /* private-mode browsers throw — safe to ignore here */
+    }
     analyticsServiceStub.runGa4Sync.calls.reset();
     analyticsServiceStub.runMatomoSync.calls.reset();
     analyticsServiceStub.getFunnel.calls.reset();
@@ -390,5 +398,76 @@ describe('AnalyticsComponent', () => {
     expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith('ga4', 30, 'clicks');
     expect(analyticsServiceStub.getTelemetryByVersion).toHaveBeenCalledWith('ga4');
     expect(analyticsServiceStub.getTelemetryGeoDetail).toHaveBeenCalledWith('ga4');
+  });
+
+  it('restores persisted engagement-window + top-suggestions-order toggles on init', async () => {
+    window.localStorage.setItem(
+      'filterprefs.analytics-filters',
+      JSON.stringify({ engagementWindowDays: 7, topSuggestionsOrder: 'quick_exit' }),
+    );
+
+    await TestBed.configureTestingModule({
+      imports: [AnalyticsComponent, NoopAnimationsModule],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AnalyticsService, useValue: analyticsServiceStub },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParams: {}, fragment: null, data: {}, params: {}, url: [] },
+          },
+        },
+        provideCharts(withDefaultRegisterables()),
+      ],
+    }).compileComponents();
+
+    analyticsServiceStub.getTopSuggestions.calls.reset();
+    const fixture = TestBed.createComponent(AnalyticsComponent);
+    fixture.detectChanges();
+
+    // Component reflects the persisted snapshot.
+    expect(fixture.componentInstance.engagementWindowDays).toBe(7);
+    expect(fixture.componentInstance.topSuggestionsOrder).toBe('quick_exit');
+
+    // loadData() runs after the restore, so the restored order flows
+    // into the first getTopSuggestions call (not the default 'clicks').
+    expect(analyticsServiceStub.getTopSuggestions).toHaveBeenCalledWith(
+      'all',
+      30,
+      'quick_exit',
+    );
+  });
+
+  it('writes toggle changes back to localStorage under filterprefs.analytics-filters', async () => {
+    await TestBed.configureTestingModule({
+      imports: [AnalyticsComponent, NoopAnimationsModule],
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: AnalyticsService, useValue: analyticsServiceStub },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParams: {}, fragment: null, data: {}, params: {}, url: [] },
+          },
+        },
+        provideCharts(withDefaultRegisterables()),
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(AnalyticsComponent);
+    fixture.detectChanges();
+
+    // Change the engagement window, then the sort order.
+    fixture.componentInstance.onEngagementWindowChange({ value: 14 } as unknown as MatButtonToggleChange);
+    fixture.componentInstance.onTopSuggestionsOrderChange({ value: 'quick_exit' } as unknown as MatButtonToggleChange);
+
+    const raw = window.localStorage.getItem('filterprefs.analytics-filters');
+    expect(raw).not.toBeNull();
+    expect(JSON.parse(raw as string)).toEqual({
+      engagementWindowDays: 14,
+      topSuggestionsOrder: 'quick_exit',
+    });
   });
 });
