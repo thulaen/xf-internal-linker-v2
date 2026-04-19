@@ -166,7 +166,7 @@ import { PerfMonitorService } from '../../../core/services/perf-monitor.service'
       color: #e8eaed;
       border-top-left-radius: 8px;
       box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.35);
-      font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+      font-family: var(--font-mono);
       font-size: 11px;
       z-index: 9995;
       display: flex;

@@ -72,8 +72,8 @@ import { MatTooltipModule } from '@angular/material/tooltip';
           <li>
             <mat-icon class="rule-icon">bedtime</mat-icon>
             <span class="rule-text">
-              <strong>Evening window 21:00 \u2013 22:30 UTC</strong> is reserved for Heavy
-              and Medium jobs so daytime Chrome work isn't starved of RAM.
+              <strong>Afternoon window 13:00 \u2013 15:00 UTC</strong> is reserved for Heavy
+              and Medium jobs so they actually run on a laptop that's off overnight.
             </span>
           </li>
           <li>
@@ -158,7 +158,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .rule-text { flex: 1; min-width: 0; }
     .rule-text strong { color: var(--color-text-primary); font-weight: 600; }
     .rule-text code {
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: var(--font-mono);
       font-size: 12px;
       padding: 1px 4px;
       background: var(--color-bg-faint);

@@ -104,7 +104,7 @@ import { FormsModule, ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/f
     .ce-body {
       display: flex;
       align-items: stretch;
-      font-family: var(--font-mono, ui-monospace, SFMono-Regular, monospace);
+      font-family: var(--font-mono);
       font-size: 13px;
       line-height: 1.5;
     }

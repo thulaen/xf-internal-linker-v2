@@ -208,7 +208,7 @@ interface SafePruneStatus {
     .deny-disclosure p {
       margin: var(--space-xs) 0 0;
       color: var(--color-text-secondary);
-      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-family: var(--font-mono);
       font-size: 11px;
       word-break: break-all;
     }

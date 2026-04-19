@@ -71,7 +71,8 @@ All colours, spacing, shadows, fonts, and radius values are defined there as CSS
 - Never use `box-shadow` values outside the token set (`--shadow-sm`, `--shadow-md`, `--shadow-hover`).
 
 ### Typography
-- Font stack: `var(--font-family)` = `-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif`
+- Font stack (Sans): `var(--font-family)` = `system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol'`
+- Font stack (Mono): `var(--font-mono)` = `ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, 'Liberation Mono', monospace`
 - Do not import Google Fonts, Inter, or any external font.
 - Base font size: `13px`.
 

@@ -40,7 +40,7 @@ $backupCompactAction = New-ScheduledTaskAction `
 
 $cleanupTrigger = New-ScheduledTaskTrigger -Daily -DaysInterval 2 -At 9:00am
 
-$compactTrigger = New-ScheduledTaskTrigger -Daily -At 3:00am
+$compactTrigger = New-ScheduledTaskTrigger -Daily -At 2:00pm
 
 $backupTrigger = New-ScheduledTaskTrigger -AtLogOn -User $env:USERNAME
 
@@ -79,7 +79,7 @@ Register-ScheduledTask `
 
 Register-ScheduledTask `
     -TaskName    $compactTaskName `
-    -Description "Compacts Docker's virtual disk daily at 3:00 AM, but only if no containers are running. Safe - never touches volumes." `
+    -Description "Compacts Docker's virtual disk daily at 2:00 PM, but only if no containers are running. Safe - never touches volumes." `
     -Action      $compactAction `
     -Trigger     $compactTrigger `
     -Settings    $compactSettings `
@@ -116,7 +116,7 @@ Register-ScheduledTask `
 Write-Host ""
 Write-Host "Done! Docker maintenance tasks registered." -ForegroundColor Green
 Write-Host "Docker build cache cleanup will run every 2 days at 9:00 AM." -ForegroundColor Cyan
-Write-Host "Docker disk compaction will run daily at 3:00 AM with highest privileges, but only when no containers are active." -ForegroundColor Cyan
+Write-Host "Docker disk compaction will run daily at 2:00 PM with highest privileges, but only when no containers are active." -ForegroundColor Cyan
 Write-Host "Backup cleanup on login is also registered in case the daytime schedule was missed." -ForegroundColor Cyan
-Write-Host "Backup compaction on login is also registered in case the overnight compaction window was missed." -ForegroundColor Cyan
+Write-Host "Backup compaction on login is also registered in case the afternoon compaction window was missed." -ForegroundColor Cyan
 Write-Host "Startup compaction is also registered so the laptop can try compaction when Windows starts." -ForegroundColor Cyan

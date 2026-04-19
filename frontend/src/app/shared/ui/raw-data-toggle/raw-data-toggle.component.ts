@@ -67,7 +67,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
     .rdt-toggle:hover,
     .rdt-toggle:focus-visible { opacity: 1; }
     .rdt-json {
-      font-family: var(--font-family-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 12px;
       padding: 12px;
       margin: 0;

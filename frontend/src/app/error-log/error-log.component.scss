@@ -204,7 +204,7 @@
 .exception-pre {
   background: #263238;
   color: #eeffff;
-  font-family: 'Roboto Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
   padding: var(--space-md);

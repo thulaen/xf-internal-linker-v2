@@ -8,19 +8,24 @@ Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    # ── FR-225 — Meta Rotation Tournament: 03:00 UTC daily (off-peak) ──
-    # Runs after midnight when the system is idle. Sequential evaluation,
-    # no concurrent shadow runs. Peak RAM <= 512 MB.
+    # ── FR-225 — Meta Rotation Tournament: 15:00 UTC daily ──
+    # Moved from 03:00 UTC to 15:00 UTC (= 16:00 BST / 15:00 GMT, inside the
+    # operator's 14:00-17:00 local afternoon window) so the tournament runs
+    # when the laptop is on. Sequential evaluation, no concurrent shadow
+    # runs. Peak RAM <= 512 MB.
     "meta-rotation-tournament": {
         "task": "suggestions.meta_rotation_tournament",
-        "schedule": crontab(hour=3, minute=0),
+        "schedule": crontab(hour=15, minute=0),
         "options": {"queue": "pipeline"},
     },
-    # ── Heavy tasks: 21:00–22:00 UTC evening window ─────────────────
-    # See docs/PERFORMANCE.md §5 for rationale (avoid Chrome/dev contention).
+    # ── Heavy tasks: 13:00–13:30 UTC daytime window ─────────────────
+    # Moved from the 21:00-22:00 UTC evening window to 13:00-13:30 UTC so
+    # tasks actually run on a laptop that's off overnight. Trade-off: heavy
+    # jobs may contend with the operator's Chrome/dev work during the
+    # afternoon; see docs/PERFORMANCE.md §5 for the old rationale.
     "nightly-xenforo-sync": {
         "task": "pipeline.import_content",
-        "schedule": crontab(hour=21, minute=0),
+        "schedule": crontab(hour=13, minute=0),
         "kwargs": {"source": "api", "mode": "full"},
         "options": {"queue": "pipeline"},
     },
@@ -29,58 +34,58 @@ CELERY_BEAT_SCHEDULE = {
     # Separated from monthly-cs-weight-tune to avoid slot collision.
     "monthly-xenforo-full-sync": {
         "task": "pipeline.import_content",
-        "schedule": crontab(hour=21, minute=30, day_of_month="1"),
+        "schedule": crontab(hour=13, minute=30, day_of_month="1"),
         "kwargs": {"source": "api", "mode": "full", "force_reembed": True},
         "options": {"queue": "pipeline"},
     },
     "monthly-wordpress-full-sync": {
         "task": "pipeline.import_content",
-        "schedule": crontab(hour=22, minute=0, day_of_month="1"),
+        "schedule": crontab(hour=14, minute=0, day_of_month="1"),
         "kwargs": {"source": "wp", "mode": "full", "force_reembed": True},
         "options": {"queue": "pipeline"},
     },
-    # ── Medium tasks: 21:30–22:15 UTC ───────────────────────────────
-    # FR-018 — monthly auto-tuner: 21:45 on the first Sunday of every month.
+    # ── Medium tasks: 13:30–13:45 UTC ───────────────────────────────
+    # FR-018 — monthly auto-tuner: 13:45 UTC on the first Sunday of every month.
     "monthly-cs-weight-tune": {
         "task": "pipeline.monthly_weight_tune",
-        "schedule": crontab(hour=21, minute=45, day_of_week=0, day_of_month="1-7"),
+        "schedule": crontab(hour=13, minute=45, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },
-    # FR-025 — weekly session co-occurrence rebuild: Monday 21:30 UTC.
+    # FR-025 — weekly session co-occurrence rebuild: Monday 13:30 UTC.
     "weekly-session-cooccurrence": {
         "task": "cooccurrence.compute_session_cooccurrence",
-        "schedule": crontab(hour=21, minute=30, day_of_week=1),
+        "schedule": crontab(hour=13, minute=30, day_of_week=1),
         "options": {"queue": "default"},
     },
-    # ── Light tasks: 22:00–22:30 UTC ────────────────────────────────
-    # FR-018 — weekly GSC rollback check: Sunday 22:00 UTC.
+    # ── Light tasks: 14:00–14:30 UTC ────────────────────────────────
+    # FR-018 — weekly GSC rollback check: Sunday 14:00 UTC.
     "weekly-weight-rollback-check": {
         "task": "pipeline.check_weight_rollback",
-        "schedule": crontab(hour=22, minute=0, day_of_week=0),
+        "schedule": crontab(hour=14, minute=0, day_of_week=0),
         "options": {"queue": "pipeline"},
     },
-    # Part 7 — nightly data retention: 22:00 UTC daily.
+    # Part 7 — nightly data retention: 14:00 UTC daily.
     "nightly-data-retention": {
         "task": "pipeline.nightly_data_retention",
-        "schedule": crontab(hour=22, minute=0),
+        "schedule": crontab(hour=14, minute=0),
         "options": {"queue": "pipeline"},
     },
-    # Stuck job cleanup: 22:10 UTC daily.
+    # Stuck job cleanup: 14:10 UTC daily.
     "cleanup-stuck-sync-jobs": {
         "task": "pipeline.cleanup_stuck_sync_jobs",
-        "schedule": crontab(hour=22, minute=10),
+        "schedule": crontab(hour=14, minute=10),
         "options": {"queue": "pipeline"},
     },
-    # Part 9 — 12-week self-pruning: Sunday 22:15 UTC.
+    # Part 9 — 12-week self-pruning: Sunday 14:15 UTC.
     "12-week-prune-stale-data": {
         "task": "pipeline.prune_stale_data",
-        "schedule": crontab(hour=22, minute=15, day_of_week=0),
+        "schedule": crontab(hour=14, minute=15, day_of_week=0),
         "options": {"queue": "pipeline", "expires": 3600},
     },
-    # Gap 3 — weekly reviewer scorecard computation: Monday 22:00 UTC.
+    # Gap 3 — weekly reviewer scorecard computation: Monday 14:00 UTC.
     "weekly-reviewer-scorecard": {
         "task": "audit.compute_weekly_reviewer_scorecard",
-        "schedule": crontab(hour=22, minute=0, day_of_week=1),
+        "schedule": crontab(hour=14, minute=0, day_of_week=1),
         "options": {"queue": "default"},
     },
     # Phase GT Step 7 — GlitchTip issue sync every 30 minutes.
@@ -92,26 +97,26 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 1800.0,
         "options": {"queue": "default", "expires": 1700},
     },
-    # OPT-84 — nightly performance benchmarks: 22:15 UTC daily.
+    # OPT-84 — daily performance benchmarks: 14:15 UTC.
     "nightly-benchmarks": {
         "task": "apps.benchmarks.tasks.run_all_benchmarks",
-        "schedule": crontab(hour=22, minute=15),
+        "schedule": crontab(hour=14, minute=15),
         "kwargs": {"trigger": "scheduled"},
         "options": {"queue": "default"},
     },
-    # Crawler auto-prune: first Sunday 22:20 UTC.
+    # Crawler auto-prune: first Sunday 14:20 UTC.
     "crawler-auto-prune": {
         "task": "crawler.auto_prune",
-        "schedule": crontab(hour=22, minute=20, day_of_week=0, day_of_month="1-7"),
+        "schedule": crontab(hour=14, minute=20, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},
     },
-    # Rejected-pair negative-memory prune: every Sunday 22:25 UTC.
+    # Rejected-pair negative-memory prune: every Sunday 14:25 UTC.
     # Keeps RejectedPair table bounded by deleting rows past the 365-day
     # prune-after threshold (well beyond the 90-day suppression window).
     # See BUSINESS-LOGIC-CHECKLIST §6.3.
     "weekly-prune-rejected-pairs": {
         "task": "suggestions.prune_rejected_pairs",
-        "schedule": crontab(hour=22, minute=25, day_of_week=0),
+        "schedule": crontab(hour=14, minute=25, day_of_week=0),
         "options": {"queue": "default"},
     },
     # ── Daytime / frequent tasks (unchanged) ────────────────────────
@@ -154,22 +159,22 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
         "options": {"queue": "default", "expires": 290},
     },
-    # Plan item 19 — prune stale SyncJob checkpoint metadata at 22:25 UTC
-    # nightly.  Clears completed checkpoints >24h old and failed/paused >48h
+    # Plan item 19 — prune stale SyncJob checkpoint metadata at 14:25 UTC
+    # daily.  Clears completed checkpoints >24h old and failed/paused >48h
     # old.  Light task: bulk UPDATE, no file I/O today (scratch-file pruning
     # ships once we have a canonical scratch directory).
     "prune-stale-checkpoints": {
         "task": "core.prune_stale_checkpoints",
-        "schedule": crontab(hour=22, minute=25),
+        "schedule": crontab(hour=14, minute=25),
         "options": {"queue": "default"},
     },
     # Plan item 20 — prune superseded embedding archives older than 7 days
     # that have a verified replacement.  Unverified rows stay so operators
     # retain a rollback path if a bad embedding sneaks through.  Runs at
-    # 22:50 UTC nightly to stay clear of the 22:00-22:45 alert check band.
+    # 14:50 UTC daily to stay clear of the 14:00-14:45 alert check band.
     "prune-superseded-embeddings": {
         "task": "core.prune_superseded_embeddings",
-        "schedule": crontab(hour=22, minute=50),
+        "schedule": crontab(hour=14, minute=50),
         "options": {"queue": "default"},
     },
     # Plan item 30 — laptop-sleep-safe resume sweeper every 5 minutes.
@@ -180,25 +185,25 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": 300.0,
         "options": {"queue": "default", "expires": 290},
     },
-    # ── Stage 9 alert rules: 22:30–22:45 UTC ────────────────────
+    # ── Stage 9 alert rules: 14:30–14:45 UTC ────────────────────
     "check-silent-failure": {
         "task": "notifications.check_silent_failure",
-        "schedule": crontab(hour=22, minute=30),
+        "schedule": crontab(hour=14, minute=30),
         "options": {"queue": "default"},
     },
     "check-zero-suggestion-run": {
         "task": "notifications.check_zero_suggestion_run",
-        "schedule": crontab(hour=22, minute=35),
+        "schedule": crontab(hour=14, minute=35),
         "options": {"queue": "default"},
     },
     "check-post-link-regression": {
         "task": "notifications.check_post_link_regression",
-        "schedule": crontab(hour=22, minute=40),
+        "schedule": crontab(hour=14, minute=40),
         "options": {"queue": "default"},
     },
     "check-autotune-status": {
         "task": "notifications.check_autotune_status",
-        "schedule": crontab(hour=22, minute=45),
+        "schedule": crontab(hour=14, minute=45),
         "options": {"queue": "default"},
     },
 }

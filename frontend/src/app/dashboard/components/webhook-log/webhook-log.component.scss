@@ -72,7 +72,7 @@
 }
 
 .event-type {
-  font-family: 'Roboto Mono', monospace;
+  font-family: var(--font-mono);
   font-size: 11px;
   background: var(--color-bg-faint);
   padding: 2px 4px;

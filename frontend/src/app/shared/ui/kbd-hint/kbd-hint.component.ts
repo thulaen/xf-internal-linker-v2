@@ -39,7 +39,7 @@ import { A11yPrefsService } from '../../../core/services/a11y-prefs.service';
       pointer-events: none;
     }
     .kbd-hint {
-      font-family: var(--font-family-mono, monospace);
+      font-family: var(--font-mono);
       font-size: 0.85em;
       padding: 1px 6px;
       background: var(--color-bg-faint, #f1f3f4);
