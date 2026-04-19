@@ -911,6 +911,7 @@ def compute_content_value_raw(
     conversions: int,
     telemetry_clicks: int,
     quick_exit_sessions: int = 0,
+    dwell_30s_sessions: int = 0,
     dwell_60s_sessions: int = 0,
 ) -> float | None:
     """Compute the raw (pre-normalisation) content-value score for one item.
@@ -918,17 +919,20 @@ def compute_content_value_raw(
     Returns ``None`` when every input is zero (the neutral-fallback branch
     that keeps the field at its 0.5 default for items with no activity).
 
-    Phase 3a extension: two new terms derived from Phase 2 engagement events.
+    Phase 3a/3c extension: three terms derived from Phase 2 engagement events.
 
     # Source: Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to
-    # predict click-level satisfaction" (WSDM). Dwell-60s is a strong
-    # positive satisfaction signal; quick-exit is its strong-negative
-    # counterpart. Both coefficients are ``0.05`` — matching the modest
-    # weight of ``conversion_rate`` and ``click_rate`` (conservative
-    # starting values per BLC §1.3, tunable later by FR-018 auto-tuner).
-    # Neutral fallback: if both new counts are zero (no telemetry wired
-    # yet or no Phase 2 events fired) the two terms add to 0, leaving
-    # the pre-Phase 3a formula intact.
+    # predict click-level satisfaction" (WSDM). Dwell time is modelled as a
+    # satisfaction gradient, not a single threshold: the 30-second mark is
+    # a partial-confidence positive signal and the 60-second mark is the
+    # strong positive. Quick-exit is the strong-negative counterpart.
+    # Coefficients: dwell-60s and quick-exit at ``0.05`` (Phase 3a, paired
+    # with conversion_rate and click_rate tiers); dwell-30s at ``0.025``
+    # (Phase 3c, half-weight — conservative starting value per BLC §1.3,
+    # tunable later by FR-018 auto-tuner).
+    # Neutral fallback: if all three new counts are zero (no telemetry
+    # wired yet or no Phase 2 events fired) all three terms add to 0,
+    # leaving the pre-Phase 3a formula intact.
     """
     if not any(
         [
@@ -939,6 +943,7 @@ def compute_content_value_raw(
             conversions,
             telemetry_clicks,
             quick_exit_sessions,
+            dwell_30s_sessions,
             dwell_60s_sessions,
         ]
     ):
@@ -947,6 +952,7 @@ def compute_content_value_raw(
     engagement_rate = engaged_sessions / max(destination_views, 1)
     conversion_rate = conversions / max(destination_views, 1)
     click_rate = telemetry_clicks / max(destination_views, 1)
+    dwell_30s_rate = dwell_30s_sessions / max(destination_views, 1)
     dwell_60s_rate = dwell_60s_sessions / max(destination_views, 1)
     quick_exit_rate = quick_exit_sessions / max(destination_views, 1)
 
@@ -957,7 +963,8 @@ def compute_content_value_raw(
         + (0.10 * engagement_rate * 10.0)
         + (0.05 * conversion_rate * 10.0)
         + (0.05 * click_rate * 10.0)
-        # Phase 3a — dwell credit + quick-exit penalty (Kim et al. WSDM 2014).
+        # Phase 3a/3c — dwell-gradient credits + quick-exit penalty (Kim et al. WSDM 2014).
+        + (0.025 * dwell_30s_rate * 10.0)
         + (0.05 * dwell_60s_rate * 10.0)
         - (0.05 * quick_exit_rate * 10.0)
     )
@@ -988,9 +995,10 @@ def _refresh_content_value_scores(
             destination_views=Sum("destination_views"),
             engaged_sessions=Sum("engaged_sessions"),
             conversions=Sum("conversions"),
-            # Phase 3a — dwell-60s credit + quick-exit penalty in
-            # compute_content_value_raw.
+            # Phase 3a/3c — dwell-30s + dwell-60s credits + quick-exit penalty
+            # in compute_content_value_raw.
             quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_30s_sessions=Sum("dwell_30s_sessions"),
             dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )
@@ -1022,6 +1030,7 @@ def _refresh_content_value_scores(
             conversions=int(telemetry.get("conversions") or 0),
             telemetry_clicks=int(telemetry.get("clicks") or 0),
             quick_exit_sessions=int(telemetry.get("quick_exit_sessions") or 0),
+            dwell_30s_sessions=int(telemetry.get("dwell_30s_sessions") or 0),
             dwell_60s_sessions=int(telemetry.get("dwell_60s_sessions") or 0),
         )
         if raw is not None:
@@ -1058,19 +1067,22 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
 
     Returns None when data is insufficient.
 
-    Phase 3b extension: adds two bounded adjustments from Phase 2 telemetry —
-    a ``+0.05 * dwell_60s_rate`` credit and a ``-0.05 * quick_exit_rate``
-    penalty — on top of the existing 0.50/0.30/0.20 core weights. Both terms
-    are zero when the Phase 2 event columns are zero, so pre-Phase-2 sites
-    see no behaviour change (neutral fallback). Final result clamped to
-    ``[0.0, 1.0]`` so extreme inputs cannot push the score beyond the
-    historical range.
+    Phase 3b/3c extension: adds three bounded adjustments from Phase 2
+    telemetry — ``+0.025 * dwell_30s_rate`` (Phase 3c, half-weight),
+    ``+0.05 * dwell_60s_rate`` (Phase 3b, full-weight) credits, and a
+    ``-0.05 * quick_exit_rate`` penalty — on top of the existing
+    0.50/0.30/0.20 core weights. All three terms are zero when the Phase 2
+    event columns are zero, so pre-Phase-2 sites see no behaviour change
+    (neutral fallback). Final result clamped to ``[0.0, 1.0]`` so extreme
+    inputs cannot push the score beyond the historical range.
 
     # Source: Kim, Hassan, White & Zitouni (2014) "Modeling dwell time to
-    # predict click-level satisfaction" (WSDM). Coefficients match the
-    # modest 0.05 weight used in the Phase 3a ``compute_content_value_raw``
-    # extension for cross-signal consistency — conservative starting values
-    # per BLC §1.3, tunable later by FR-018 auto-tuner.
+    # predict click-level satisfaction" (WSDM). Dwell is modelled as a
+    # satisfaction gradient — the 30-second mark is a partial positive
+    # signal and the 60-second mark is the strong positive. Coefficients
+    # mirror the Phase 3a/3c ``compute_content_value_raw`` extension for
+    # cross-signal consistency — conservative starting values per BLC §1.3,
+    # tunable later by FR-018 auto-tuner.
     """
     dest_views = int(telemetry.get("destination_views") or 0)
     engaged = int(telemetry.get("engaged_sessions") or 0)
@@ -1078,12 +1090,14 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     total_time = float(telemetry.get("total_engagement_time") or 0.0)
     sessions = int(telemetry.get("sessions") or 0)
     quick_exit_sessions = int(telemetry.get("quick_exit_sessions") or 0)
+    dwell_30s_sessions = int(telemetry.get("dwell_30s_sessions") or 0)
     dwell_60s_sessions = int(telemetry.get("dwell_60s_sessions") or 0)
 
     if (
         dest_views == 0
         and sessions == 0
         and quick_exit_sessions == 0
+        and dwell_30s_sessions == 0
         and dwell_60s_sessions == 0
     ):
         return None
@@ -1093,6 +1107,7 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
     bounce_rate = bounced / max(sessions, 1)
     inverse_bounce = 1.0 - min(bounce_rate, 1.0)
+    dwell_30s_rate = min(dwell_30s_sessions / max(dest_views, 1), 1.0)
     dwell_60s_rate = min(dwell_60s_sessions / max(dest_views, 1), 1.0)
     quick_exit_rate = min(quick_exit_sessions / max(dest_views, 1), 1.0)
 
@@ -1100,7 +1115,9 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
         0.50 * engagement_rate
         + 0.30 * normalized_time
         + 0.20 * inverse_bounce
-        # Phase 3b — bounded +/-0.05 adjustments (Kim et al. WSDM 2014).
+        # Phase 3b/3c — bounded dwell-gradient credits + quick-exit penalty
+        # (Kim et al. WSDM 2014).
+        + 0.025 * dwell_30s_rate
         + 0.05 * dwell_60s_rate
         - 0.05 * quick_exit_rate
     )
@@ -1142,9 +1159,10 @@ def _refresh_engagement_quality_scores(
             bounce_sessions=Sum("bounce_sessions"),
             total_engagement_time=Sum("total_engagement_time_seconds"),
             sessions=Sum("sessions"),
-            # Phase 3b — dwell-60s credit + quick-exit penalty in
-            # _compute_engagement_raw_score.
+            # Phase 3b/3c — dwell-30s + dwell-60s credits + quick-exit penalty
+            # in _compute_engagement_raw_score.
             quick_exit_sessions=Sum("quick_exit_sessions"),
+            dwell_30s_sessions=Sum("dwell_30s_sessions"),
             dwell_60s_sessions=Sum("dwell_60s_sessions"),
         )
     )

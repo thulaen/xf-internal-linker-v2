@@ -1,4 +1,4 @@
-"""Benchmarks for ``_compute_engagement_raw_score`` (Phase 3b).
+"""Benchmarks for ``_compute_engagement_raw_score`` (Phase 3b/3c).
 
 Measures the per-item formula that computes the raw engagement-quality
 score from an aggregated telemetry dict. The benchmark calls the pure
@@ -12,7 +12,7 @@ function in a tight loop to reflect the inner cost of
 Run with:
     pytest backend/benchmarks/test_bench_engagement_quality.py --benchmark-only
 
-Academic source for the Phase 3b extension: Kim, Hassan, White & Zitouni
+Academic source for the Phase 3b/3c extension: Kim, Hassan, White & Zitouni
 (2014) "Modeling dwell time to predict click-level satisfaction" (WSDM).
 """
 
@@ -51,6 +51,7 @@ def _make_telemetry_rows(n: int) -> list[dict[str, int | float]]:
                 "total_engagement_time": float(views * 2),
                 "sessions": sessions,
                 "quick_exit_sessions": views // 10,
+                "dwell_30s_sessions": views // 3,
                 "dwell_60s_sessions": views // 4,
             }
         )

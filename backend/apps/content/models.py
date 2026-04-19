@@ -269,9 +269,10 @@ class ContentItem(TimestampedModel):
             "GA4 + Matomo + GSC composite score for linking value. 0.5 = "
             "neutral (no activity in the lookback window). Written by "
             "analytics.sync._refresh_content_value_scores via the pure "
-            "formula compute_content_value_raw. Phase 3a extension credits "
-            "dwell-60s reach and penalises quick-exit rate per Kim et al. "
-            "WSDM 2014 — both new terms are zero when Phase 2 telemetry is "
+            "formula compute_content_value_raw. Phase 3a/3c extension "
+            "credits the dwell gradient (half-weight dwell-30s + full-weight "
+            "dwell-60s) and penalises quick-exit rate per Kim et al. WSDM "
+            "2014 — all three terms are zero when Phase 2 telemetry is "
             "unavailable, so pre-Phase 3a sites see no behaviour change."
         ),
     )
@@ -281,12 +282,12 @@ class ContentItem(TimestampedModel):
         help_text=(
             "GA4 engagement quality: 0.50*engaged_session_rate + "
             "0.30*normalized_avg_engagement_time + 0.20*inverse_bounce_rate. "
-            "Phase 3b extension adds a bounded +0.05*dwell_60s_rate credit "
-            "and a -0.05*quick_exit_rate penalty (Kim et al. WSDM 2014). "
-            "Final result clamped to [0.0, 1.0]. 0.5 = neutral (no data). "
-            "Phase 2 terms are zero when their source columns are zero, so "
-            "pre-Phase-2 sites see no behaviour change. Written by "
-            "analytics sync layer."
+            "Phase 3b/3c extension adds bounded +0.025*dwell_30s_rate and "
+            "+0.05*dwell_60s_rate credits and a -0.05*quick_exit_rate "
+            "penalty (Kim et al. WSDM 2014). Final result clamped to "
+            "[0.0, 1.0]. 0.5 = neutral (no data). Phase 2 terms are zero "
+            "when their source columns are zero, so pre-Phase-2 sites see "
+            "no behaviour change. Written by analytics sync layer."
         ),
     )
     click_distance_score = models.FloatField(

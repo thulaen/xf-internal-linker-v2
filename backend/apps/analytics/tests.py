@@ -1649,6 +1649,66 @@ class ComputeContentValueRawTests(SimpleTestCase):
         assert with_dwell is not None
         self.assertGreater(with_dwell, without_dwell)
 
+    def test_dwell_30s_adds_positive_contribution(self) -> None:
+        """Phase 3c — dwell-30s is a partial-confidence positive signal.
+
+        Same shape as dwell-60s test but isolates the 30s term.
+        """
+        from apps.analytics.sync import compute_content_value_raw
+
+        base_kwargs = dict(
+            gsc_clicks=5,
+            gsc_ctr=0.1,
+            gsc_impressions=100,
+            destination_views=50,
+            engaged_sessions=20,
+            conversions=2,
+            telemetry_clicks=10,
+            quick_exit_sessions=0,
+            dwell_60s_sessions=0,
+        )
+        without_dwell_30s = compute_content_value_raw(
+            **base_kwargs, dwell_30s_sessions=0
+        )
+        with_dwell_30s = compute_content_value_raw(**base_kwargs, dwell_30s_sessions=25)
+        assert without_dwell_30s is not None
+        assert with_dwell_30s is not None
+        self.assertGreater(with_dwell_30s, without_dwell_30s)
+
+    def test_dwell_30s_has_half_the_weight_of_dwell_60s(self) -> None:
+        """Phase 3c — dwell-30s coefficient is deliberately half of dwell-60s
+        (0.025 vs 0.05) per Kim et al. WSDM 2014's satisfaction gradient.
+        Equal session counts at each milestone should yield a 30s-delta that
+        is exactly half the 60s-delta.
+        """
+        from apps.analytics.sync import compute_content_value_raw
+
+        base_kwargs = dict(
+            gsc_clicks=5,
+            gsc_ctr=0.1,
+            gsc_impressions=100,
+            destination_views=50,
+            engaged_sessions=20,
+            conversions=2,
+            telemetry_clicks=10,
+            quick_exit_sessions=0,
+        )
+        baseline = compute_content_value_raw(
+            **base_kwargs, dwell_30s_sessions=0, dwell_60s_sessions=0
+        )
+        only_30s = compute_content_value_raw(
+            **base_kwargs, dwell_30s_sessions=10, dwell_60s_sessions=0
+        )
+        only_60s = compute_content_value_raw(
+            **base_kwargs, dwell_30s_sessions=0, dwell_60s_sessions=10
+        )
+        assert baseline is not None
+        assert only_30s is not None
+        assert only_60s is not None
+        delta_30s = only_30s - baseline
+        delta_60s = only_60s - baseline
+        self.assertAlmostEqual(delta_30s * 2.0, delta_60s, places=9)
+
     def test_quick_exit_subtracts_contribution(self) -> None:
         from apps.analytics.sync import compute_content_value_raw
 
@@ -1756,6 +1816,60 @@ class ComputeEngagementRawScoreTests(SimpleTestCase):
         assert without_dwell is not None
         assert with_dwell is not None
         self.assertGreater(with_dwell, without_dwell)
+
+    def test_dwell_30s_adds_positive_contribution(self) -> None:
+        """Phase 3c — dwell-30s mirror of the dwell-60s test."""
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 40,
+            "bounce_sessions": 10,
+            "total_engagement_time": 50.0,
+            "sessions": 100,
+            "quick_exit_sessions": 0,
+            "dwell_60s_sessions": 0,
+        }
+        without_dwell_30s = _compute_engagement_raw_score(
+            {**base, "dwell_30s_sessions": 0}
+        )
+        with_dwell_30s = _compute_engagement_raw_score(
+            {**base, "dwell_30s_sessions": 80}
+        )
+        assert without_dwell_30s is not None
+        assert with_dwell_30s is not None
+        self.assertGreater(with_dwell_30s, without_dwell_30s)
+
+    def test_dwell_30s_has_half_the_weight_of_dwell_60s(self) -> None:
+        """Phase 3c — dwell-30s coefficient (0.025) is half of dwell-60s
+        (0.05). Same Kim et al. WSDM 2014 gradient argument as the content
+        value test.
+        """
+        from apps.analytics.sync import _compute_engagement_raw_score
+
+        base = {
+            "destination_views": 100,
+            "engaged_sessions": 40,
+            "bounce_sessions": 10,
+            "total_engagement_time": 50.0,
+            "sessions": 100,
+            "quick_exit_sessions": 0,
+        }
+        baseline = _compute_engagement_raw_score(
+            {**base, "dwell_30s_sessions": 0, "dwell_60s_sessions": 0}
+        )
+        only_30s = _compute_engagement_raw_score(
+            {**base, "dwell_30s_sessions": 40, "dwell_60s_sessions": 0}
+        )
+        only_60s = _compute_engagement_raw_score(
+            {**base, "dwell_30s_sessions": 0, "dwell_60s_sessions": 40}
+        )
+        assert baseline is not None
+        assert only_30s is not None
+        assert only_60s is not None
+        delta_30s = only_30s - baseline
+        delta_60s = only_60s - baseline
+        self.assertAlmostEqual(delta_30s * 2.0, delta_60s, places=9)
 
     def test_quick_exit_subtracts_contribution(self) -> None:
         from apps.analytics.sync import _compute_engagement_raw_score

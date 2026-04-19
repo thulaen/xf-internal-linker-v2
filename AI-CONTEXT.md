@@ -444,6 +444,58 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-19 — Phase 3c: dwell_30s credit in content_value + engagement_quality scores (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phases 3a and 3b (shipped 2026-04-18) taught both ranking scores to learn from `dwell_60s_sessions` and `quick_exit_sessions`. Phase 3c completes the satisfaction gradient with the 30-second checkpoint — Kim et al. WSDM 2014 models dwell time as a gradient (not a single threshold), so a half-weight positive at 30 s and a full-weight positive at 60 s is the research-supported shape. First slice of the Tier 1 continuation (plan at `C:\Users\goldm\.claude\plans\continuation-prompt-modular-rabin.md`).
+- **What was done:**
+  - **Extended `compute_content_value_raw`** in `analytics/sync.py` with a new `dwell_30s_sessions: int = 0` kwarg, a derived `dwell_30s_rate`, and a new `+ (0.025 * dwell_30s_rate * 10.0)` additive term. The `any(...)` neutral-fallback guard now also covers `dwell_30s_sessions`. Coefficient is deliberately half the dwell-60s term (0.025 vs 0.05) per the Kim et al. gradient argument.
+  - **Extended `_compute_engagement_raw_score`** with the same `dwell_30s_sessions` extraction from the telemetry dict, extended the 5-way zero-guard, added `+ 0.025 * dwell_30s_rate` inside the clamp-to-`[0,1]`. Same coefficient, same rationale, symmetrical with Phase 3b.
+  - **Extended both `_refresh_*` aggregation blocks** (`_refresh_content_value_scores` and `_refresh_engagement_quality_scores`) to annotate `dwell_30s_sessions=Sum("dwell_30s_sessions")` alongside the existing `dwell_60s_sessions` and `quick_exit_sessions` annotations, and thread the value through to the pure helpers. No schema change — the column on `SuggestionTelemetryDaily` already exists and is already populated by the Matomo + GA4 sync paths.
+  - **Updated `help_text`** on both `ContentItem.content_value_score` and `ContentItem.engagement_quality_score` to document the extended formula (dwell gradient + clamp + neutral fallback). Django `makemigrations` auto-generated `0023_phase3c_dwell_30s_help_text.py` — single metadata-only migration covering both fields, no data change.
+  - **4 new unit tests** — 2 per test class, mirroring the Phase 3a/3b pattern:
+    - `ComputeContentValueRawTests.test_dwell_30s_adds_positive_contribution`
+    - `ComputeContentValueRawTests.test_dwell_30s_has_half_the_weight_of_dwell_60s` (confirms the `delta_30s * 2 == delta_60s` invariant)
+    - `ComputeEngagementRawScoreTests.test_dwell_30s_adds_positive_contribution`
+    - `ComputeEngagementRawScoreTests.test_dwell_30s_has_half_the_weight_of_dwell_60s`
+  - **Extended both benchmarks** — `test_bench_content_value_score.py` and `test_bench_engagement_quality.py` now include a `dwell_30s_sessions` key in the input-row builder. 3-size sweep (100 / 1 000 / 5 000) preserved.
+
+- **Intentional files changed:**
+  - `backend/apps/analytics/sync.py` (extended two pure helpers + two `_refresh_*` aggregations)
+  - `backend/apps/analytics/tests.py` (+4 new tests)
+  - `backend/apps/content/models.py` (help_text on both fields)
+  - `backend/apps/content/migrations/0023_phase3c_dwell_30s_help_text.py` (new, metadata-only)
+  - `backend/benchmarks/test_bench_content_value_score.py` (extended builder)
+  - `backend/benchmarks/test_bench_engagement_quality.py` (extended builder)
+  - `AI-CONTEXT.md` (this note)
+
+- **Reused, not duplicated:** existing `compute_content_value_raw` and `_compute_engagement_raw_score` pure helpers (extended signatures, not forked), existing `_refresh_content_value_scores` and `_refresh_engagement_quality_scores` aggregation plumbing, existing `SuggestionTelemetryDaily.dwell_30s_sessions` column (already populated by Matomo + GA4 sync paths in `sync.py`), existing benchmark conftest + Django bootstrap. No new endpoint, no new table, no frontend change — extended scores surface automatically via the existing `ContentItem` serializer and the ranker's `score_ga4_gsc` component.
+
+- **BLC gate compliance (cleared openly):**
+  - **§0 Drift Rejection** — extension of existing Phase 3a/3b formula, not a duplicate; same primary source (Kim et al. WSDM 2014); same named inputs; same neutral-fallback shape; reviewer-visible via existing help_text + serializer.
+  - **§1.1 Source binding** — inline comment cites Kim et al. WSDM 2014 alongside the existing dwell-60s + quick-exit comment.
+  - **§1.2 Duplicate check** — CLEAR per the continuation prompt; no fork of `_refresh_*` helpers; extended existing pure helpers.
+  - **§1.3 Researched defaults** — `0.025` is the half-weight position between zero and the existing `0.05` dwell-60s term, per the Kim et al. satisfaction gradient. Conservative per BLC §1.3, tunable later by FR-018 auto-tuner.
+  - **§1.4 Benchmark** — 3 input sizes present, extending existing bench files to include `dwell_30s_sessions`.
+  - **§2.1/§2.4/§2.6** — formula lineage commented; division-by-zero guarded by existing `max(..., 1)`; clamp preserved on engagement; no auto-apply.
+  - **§3 Operator diagnostics** — `content_value_score` and `engagement_quality_score` remain reviewer-visible; help_text rewrites cover the new term.
+  - **§5 CI** — `0.025` and `0.05` coefficients are paired tier values; magic-number detector passed Phase 3a/3b with 0.05 and should pass 0.025 on the same grounds. Pre-push hooks will confirm.
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py test apps.analytics.tests.ComputeContentValueRawTests apps.analytics.tests.ComputeEngagementRawScoreTests` — 15/15 pass (all 4 new Phase 3c tests among them).
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **337 tests pass**, 1 skipped, 0 failures (full backend suite; +4 new vs prior 333).
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected" after migration applied.
+  - `docker compose exec backend python -m ruff format apps/analytics apps/content benchmarks` — 2 files reformatted preemptively to avoid pre-push ping-pong.
+  - `cd frontend && npm run test:ci` — 25 frontend tests pass (no frontend change this slice).
+  - `cd frontend && npm run build:prod` — clean production build (pre-existing NG8113 warning about `SuggestionExplainerPipe` unrelated to this slice).
+
+- **What was deliberately NOT done (and why):**
+  - Did not add a 10-second or 120-second tier — Phase 2 only emits events at 30 s and 60 s; adding a new threshold would require a corresponding browser-snippet event first.
+  - Did not re-balance the existing `0.50/0.30/0.20` core engagement weights or the `0.40/0.20/0.20/0.10/0.05/0.05` content-value weights — keeping Phase 3c additive preserves pre-Phase-3c behaviour for sites without telemetry.
+  - Did not touch frontend diagnostics — the dwell-gradient is surfaced via the existing `content_value_score` and `engagement_quality_score` fields already reviewer-visible.
+
+- **Commit/push state:** Pending — about to commit. The uncommitted Codex 2026-04-19 Docker-prune note already in the working tree from a prior session is NOT included in this commit (per the AI-CONTEXT.md hygiene rule "stage only the intended files for the current slice").
+
 ### 2026-04-18 — Phase 1v: Suppressed-pair counter on the Diagnostics page (Claude)
 
 - **AI/tool:** Claude

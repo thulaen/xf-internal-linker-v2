@@ -1,4 +1,4 @@
-"""Benchmarks for ``compute_content_value_raw`` (Phase 3a).
+"""Benchmarks for ``compute_content_value_raw`` (Phase 3a/3c).
 
 Measures the per-item formula that computes the raw content-value score
 from aggregated GA4/Matomo/GSC signals. The benchmark calls the pure
@@ -12,7 +12,7 @@ function in a tight loop to reflect the inner cost of
 Run with:
     pytest backend/benchmarks/test_bench_content_value_score.py --benchmark-only
 
-Academic source for the Phase 3a extension: Kim, Hassan, White & Zitouni
+Academic source for the Phase 3a/3c extension: Kim, Hassan, White & Zitouni
 (2014) "Modeling dwell time to predict click-level satisfaction" (WSDM).
 """
 
@@ -52,6 +52,7 @@ def _make_inputs(n: int) -> list[dict[str, int | float]]:
                 "conversions": i % 7,
                 "telemetry_clicks": i % 40,
                 "quick_exit_sessions": views // 10,
+                "dwell_30s_sessions": views // 4,
                 "dwell_60s_sessions": views // 5,
             }
         )
