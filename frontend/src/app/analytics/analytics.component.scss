@@ -19,15 +19,15 @@
 }
 
 .inline-page-header {
-  margin-bottom: 28px;
-  padding-bottom: 24px;
-  border-bottom: 0.8px solid var(--color-border);
+  margin-bottom: var(--space-xl);
+  padding-bottom: var(--space-lg);
+  border-bottom: var(--card-border);
 
   .page-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    margin: 0 0 6px;
+    gap: var(--space-sm);
+    margin: 0 0 var(--space-xs);
     font-size: var(--page-title-size);
     font-weight: var(--page-title-weight);
     color: var(--color-text-primary);
@@ -51,7 +51,7 @@
 }
 
 .toolbar {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-lg);
   display: flex;
   justify-content: flex-end;
 }
@@ -60,19 +60,11 @@
   background: var(--color-bg-white);
   border-radius: var(--radius-sm) !important;
   box-shadow: none;
-  border: 0.8px solid var(--color-border) !important;
+  border: var(--card-border) !important;
 }
 
-// Shared 3-col grid (see frontend/src/styles/_grid.scss)
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  align-items: start;
+#analytics-stats {
   margin-bottom: 32px;
-
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 
 .stat-card {
@@ -99,7 +91,7 @@
   &__content {
     display: flex;
     flex-direction: column;
-    padding: 24px;
+    padding: var(--spacing-card);
   }
 
   &__label {
@@ -108,7 +100,7 @@
     text-transform: uppercase;
     letter-spacing: 0.1em;
     color: var(--color-text-secondary);
-    margin-bottom: 8px;
+    margin-bottom: var(--space-sm);
   }
 
   &__value {
@@ -116,7 +108,7 @@
     font-weight: 800;
     color: var(--color-text-primary);
     line-height: 1.1;
-    margin-bottom: 8px;
+    margin-bottom: var(--space-sm);
   }
 
   &__subtext {
@@ -126,15 +118,15 @@
 }
 
 .engagement-mix-slot {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-lg);
 }
 
 .engagement-mix-controls {
   display: flex;
   align-items: center;
-  gap: var(--space-sm, 8px);
-  margin-bottom: var(--space-sm, 8px);
-  padding-left: var(--space-md, 16px);
+  gap: var(--space-sm);
+  margin-bottom: var(--space-sm);
+  padding-left: var(--space-md);
 
   &__label {
     font-size: 12px;
@@ -150,13 +142,13 @@
 }
 
 .report-card {
-  margin-bottom: 24px;
+  margin-bottom: var(--space-lg);
   border-radius: var(--card-border-radius) !important;
   border: var(--card-border) !important;
   box-shadow: none !important;
 
   mat-card-header {
-    padding: 24px 24px 8px;
+    padding: var(--spacing-card) var(--spacing-card) var(--space-sm);
     
     mat-card-title {
       font-size: 1.25rem;
@@ -171,15 +163,15 @@
   }
 
   mat-card-content {
-    padding: 16px 24px 24px;
+    padding: var(--space-md) var(--spacing-card) var(--spacing-card);
   }
 }
 
 .health-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 24px;
-  margin: 1rem 0 2rem;
+  gap: var(--space-lg);
+  margin: var(--space-md) 0 var(--space-xl);
 
   @media (max-width: 1000px) {
     grid-template-columns: repeat(2, 1fr);
@@ -191,12 +183,12 @@
 }
 
 .health-metric {
-  padding: 24px;
+  padding: var(--spacing-card);
   background: var(--color-bg-faint);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--space-xs);
   border: 1px solid transparent;
   transition: border-color 0.2s;
 
@@ -228,30 +220,30 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-top: 2rem;
-  padding-top: 1.5rem;
+  margin-top: var(--space-xl);
+  padding-top: var(--space-md);
   border-top: 1px solid var(--color-border);
 
   @media (max-width: 600px) {
     flex-direction: column;
-    gap: 16px;
+    gap: var(--space-md);
     align-items: flex-start;
   }
 }
 
 .day-tracker {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-sm);
 }
 
 .day-badge {
-  padding: 6px 12px;
-  border-radius: 20px;
+  padding: var(--space-xs) var(--spacing-sm);
+  border-radius: var(--radius-pill);
   font-size: 0.85rem;
   font-weight: 600;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-sm);
   background: var(--color-border);
   color: var(--color-text-secondary);
 
@@ -273,16 +265,16 @@
 
 .source-breakdown {
   display: flex;
-  gap: 32px;
+  gap: var(--space-xl);
   justify-content: center;
-  margin-top: 1rem;
+  margin-top: var(--space-sm);
 }
 
 .breakdown-item {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
 
   &__name {
     font-size: 0.75rem;
@@ -306,7 +298,7 @@
 
   th {
     text-align: left;
-    padding: 16px;
+    padding: var(--space-md);
     font-size: 0.75rem;
     font-weight: 700;
     text-transform: uppercase;
@@ -314,12 +306,12 @@
     background: var(--color-bg-faint);
     border-bottom: 2px solid var(--color-border);
     
-    &:first-child { border-top-left-radius: 8px; }
-    &:last-child { border-top-right-radius: 8px; }
+    &:first-child { border-top-left-radius: var(--radius-md); }
+    &:last-child { border-top-right-radius: var(--radius-md); }
   }
 
   td {
-    padding: 16px;
+    padding: var(--space-md);
     border-bottom: 1px solid var(--color-border);
     vertical-align: middle;
   }
@@ -429,7 +421,7 @@
 
   &__metrics {
     display: flex;
-    gap: 2rem;
+    gap: var(--space-xl);
   }
 }
 

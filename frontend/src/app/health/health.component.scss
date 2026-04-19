@@ -3,17 +3,7 @@
 // ── Config Tier Tabs (Stage 4) ──────────────────────────────────
 .tier-section {
   margin-bottom: var(--space-lg);
-}
-// Shared 3-col grid (see frontend/src/styles/_grid.scss)
-.tier-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
-  align-items: start;
   padding: var(--space-md) 0;
-
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
 }
 .tier-card {
   border: var(--card-border);
@@ -33,16 +23,6 @@
 
 // ── Disk & GPU Section ──────────────────────────────────────────
 .disk-gpu-section { margin-bottom: var(--space-lg); }
-// Shared 3-col grid (see frontend/src/styles/_grid.scss)
-.disk-gpu-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--space-md);
-  align-items: start;
-
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
-}
 .info-card {
   border: var(--card-border);
   box-shadow: none;
@@ -59,7 +39,7 @@
 .metric-row .warn { color: var(--color-error); font-weight: 600; }
 
 .health-container {
-  padding: 24px;
+  padding: var(--spacing-card);
   background-color: var(--color-bg-faint);
   min-height: calc(100vh - 64px);
 
@@ -67,7 +47,7 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 24px;
+    margin-bottom: var(--space-lg);
 
     .header-content {
       h1 {
@@ -90,12 +70,12 @@
     border: var(--card-border);
     border-radius: var(--card-border-radius);
     box-shadow: none;
-    margin-bottom: 24px;
-    padding: 16px;
+    margin-bottom: var(--space-lg);
+    padding: var(--space-md);
 
     .summary-content {
       display: flex;
-      gap: 32px;
+      gap: var(--space-xl);
       flex-wrap: wrap;
 
       .summary-stat {
@@ -156,19 +136,19 @@
 
   // ── Setup Checklist ─────────────────────────────────────────────
   .checklist-section {
-    margin-bottom: 32px;
+    margin-bottom: var(--space-xl);
 
     .checklist-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 16px;
+      gap: var(--space-md);
     }
 
     .checklist-card {
       border: var(--card-border);
       border-radius: var(--card-border-radius);
       box-shadow: none;
-      padding: 16px;
+      padding: var(--space-md);
 
       &:hover {
         box-shadow: var(--shadow-md);
@@ -232,13 +212,13 @@
 
   // ── Active Jobs ──────────────────────────────────────────────────
   .jobs-section {
-    margin-bottom: 32px;
+    margin-bottom: var(--space-xl);
 
     .jobs-card {
       border: var(--card-border);
       border-radius: var(--card-border-radius);
       box-shadow: none;
-      padding: 16px;
+      padding: var(--space-md);
 
       &.jobs-empty {
         display: flex;
@@ -246,7 +226,7 @@
         gap: 8px;
         color: var(--color-text-secondary);
         font-size: 13px;
-        padding: 16px;
+        padding: var(--space-md);
 
         mat-icon {
           color: var(--color-success);
@@ -328,7 +308,7 @@
 
       .job-meta {
         display: flex;
-        gap: 16px;
+        gap: var(--space-md);
         margin-top: 8px;
         font-size: 11px;
         color: var(--color-text-secondary);
@@ -338,13 +318,13 @@
 
   // ── All Services grid ────────────────────────────────────────────
   .services-section {
-    margin-bottom: 32px;
+    margin-bottom: var(--space-xl);
   }
 
   .health-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 16px;
+    gap: var(--space-md);
   }
 
   .service-card {
@@ -354,7 +334,7 @@
     transition: box-shadow 0.2s ease;
     display: flex;
     flex-direction: column;
-    padding: 16px;
+    padding: var(--space-md);
 
     &:hover {
       box-shadow: var(--shadow-md);
@@ -465,9 +445,9 @@
 
     .metadata-box {
       border-top: 1px solid var(--color-border-faint);
-      padding: 12px 0;
+      padding: var(--space-xs) 0;
       display: flex;
-      gap: 24px;
+      gap: var(--space-lg);
       flex-wrap: wrap;
 
       .metric {

@@ -238,6 +238,31 @@ mat-sidenav.app-sidenav,
   background-color: var(--color-bg-white) !important;
   color: var(--color-text-primary) !important;
   border-right: 1px solid var(--color-border) !important;
+
+  // GSC-style: show scrollbar thumb only on hover
+  .mat-drawer-inner-container {
+    scrollbar-width: thin;
+    scrollbar-color: transparent transparent;
+    transition: scrollbar-color 0.2s ease;
+
+    &:hover {
+      scrollbar-color: var(--color-border) transparent;
+    }
+
+    &::-webkit-scrollbar {
+      width: 6px;
+    }
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    &::-webkit-scrollbar-thumb {
+      background: transparent;
+      border-radius: 10px;
+    }
+    &:hover::-webkit-scrollbar-thumb {
+      background: var(--color-border);
+    }
+  }
 }
 
 // Elevated surfaces (cards, inputs, filters) should be White

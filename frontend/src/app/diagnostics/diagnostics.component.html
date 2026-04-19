@@ -125,7 +125,7 @@
               <span class="node-name">{{ n.node_id }}</span>
               <span class="node-role">{{ n.node_role }}</span>
               <span class="node-count">
-                {{ n.unacknowledged }} unack · {{ n.total }} total
+                {{ n.unacknowledged }} unack • {{ n.total }} total
               </span>
               @if (n.last_seen) {
                 <span class="node-seen">last: {{ n.last_seen | date: 'short' }}</span>
@@ -195,7 +195,7 @@
               {{ e.severity ? (e.severity | titlecase) : 'Medium' }}
             </span>
             <span class="error-location" [matTooltip]="e.step">
-              {{ e.job_type }} · {{ e.step }}
+              {{ e.job_type }} • {{ e.step }}
             </span>
             @if (e.node_id) {
               <span class="lane-badge node-badge"
@@ -277,7 +277,7 @@
               <ul>
                 @for (rel of relatedErrors(e); track trackErrorId($index, rel)) {
                   <li>
-                    <span class="related-loc">{{ rel.job_type }} · {{ rel.step }}</span>
+                    <span class="related-loc">{{ rel.job_type }} • {{ rel.step }}</span>
                     <span class="related-msg">{{ rel.error_message }}</span>
                   </li>
                 }
@@ -365,7 +365,7 @@
                 <span class="lane-badge tone-good">
                   {{ e.source === 'glitchtip' ? 'GlitchTip' : 'Internal' }}
                 </span>
-                <span class="error-location">{{ e.job_type }} · {{ e.step }}</span>
+                <span class="error-location">{{ e.job_type }} • {{ e.step }}</span>
                 @if (e.node_id) {
                   <span class="lane-badge node-badge">{{ e.node_id }}</span>
                 }
@@ -453,7 +453,7 @@
         <p>These cards show who owns each big lane right now.</p>
       </div>
 
-      <div class="runtime-lane-grid">
+      <div class="page-cards-grid">
         <article
           class="runtime-lane-card"
           *ngFor="let lane of runtimeLaneCards; trackBy: runtimeLaneTrackBy"
@@ -498,7 +498,7 @@
         <p>These cards show where C++ and Python runtimes are healthy, falling back, or failing.</p>
       </div>
 
-      <div class="runtime-lane-grid">
+      <div class="page-cards-grid">
         <article
           class="runtime-lane-card runtime-execution-card"
           *ngFor="let card of runtimeExecutionCards; trackBy: runtimeExecutionTrackBy"
@@ -545,7 +545,7 @@
                 <span class="native-module-benchmark">
                   {{ module.proof_available ? ((module.speedup_vs_python ?? 0).toFixed(2) + 'x') : (module.benchmark_status || 'Not benchmarked') }}
                   @if (module.proof_available) {
-                    · {{ module.cpp_ms?.toFixed(2) }} ms
+                    • {{ module.cpp_ms?.toFixed(2) }} ms
                   }
                 </span>
               </div>

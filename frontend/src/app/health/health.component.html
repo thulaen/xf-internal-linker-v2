@@ -69,7 +69,7 @@
     <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
     <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
       <mat-tab *ngFor="let tier of tiers" [label]="tierLabels[tier]">
-        <div class="tier-grid">
+        <div class="page-cards-grid">
           <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]" [ngClass]="'tier-status-' + s.status">
             <div class="tier-card-header">
               <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
@@ -87,7 +87,7 @@
 
   <!-- ── Disk & GPU (Stage 4) ─────────────────────────────────── -->
   <section class="disk-gpu-section" *ngIf="diskHealth || gpuHealth">
-    <div class="disk-gpu-grid">
+    <div class="page-cards-grid">
       <mat-card class="info-card" *ngIf="diskHealth">
         <mat-card-header>
           <mat-icon mat-card-avatar>storage</mat-icon>

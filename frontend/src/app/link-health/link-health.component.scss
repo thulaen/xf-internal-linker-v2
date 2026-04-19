@@ -2,7 +2,7 @@
 
 .header-actions {
   display: flex;
-  gap: 12px;
+  gap: var(--spacing-sm);
   flex-wrap: wrap;
   align-items: center;
 }
@@ -25,8 +25,8 @@
   mat-card-content {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 24px !important;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-card) !important;
   }
 }
 
@@ -34,7 +34,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--spacing-sm);
 }
 
 .scan-label {
@@ -98,8 +98,8 @@
   mat-card-content {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 24px 32px;
+    gap: var(--space-sm);
+    padding: var(--spacing-card) var(--space-xl);
   }
 
   &:hover {
@@ -245,7 +245,7 @@
 .source-url,
 .redirect-hint {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: var(--font-size-xs, 12px);
 }
 
 .url-link {

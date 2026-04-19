@@ -27,7 +27,7 @@
       </mat-button-toggle-group>
     </div>
 
-    <div class="overview-grid" id="analytics-stats">
+    <div class="page-cards-grid" id="analytics-stats">
       <mat-card class="stat-card">
         <mat-icon class="stat-card__icon icon-lg">database</mat-icon>
         <mat-card-content class="stat-card__content">
@@ -151,7 +151,7 @@
                           <td>
                             <div class="version-info">
                               <span class="version-info__slug">{{ row.version_slug }}</span>
-                              <span class="version-info__meta">{{ row.clicks }} clicks / {{ row.impressions }} views</span>
+                              <span class="version-info__meta">{{ row.clicks }} clicks • {{ row.impressions }} views</span>
                             </div>
                           </td>
                           <td class="text-right"><strong>{{ formatPercent(row.ctr) }}</strong></td>

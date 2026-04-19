@@ -1,32 +1,32 @@
 .diagnostics-page {
-  padding: 32px 48px;
+  padding: var(--space-xl) var(--spacing-page-side, 48px);
   max-width: var(--layout-max-width, 1440px);
   margin: 0;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: var(--space-xl);
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: 8px;
+  margin-bottom: var(--space-sm);
 
   .title-section {
-    h1 { margin: 0; font-size: 24px; font-weight: 700; color: var(--color-text-primary); letter-spacing: -0.01em; }
-    .subtitle { margin: 4px 0 0; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }
+    h1 { margin: 0; font-size: var(--font-size-2xl, 24px); font-weight: 700; color: var(--color-text-primary); letter-spacing: -0.01em; }
+    .subtitle { margin: var(--space-xs) 0 0; color: var(--color-text-muted); font-size: 13px; font-weight: 400; }
   }
 
   .btn-refresh {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: var(--space-sm);
     background: var(--color-primary);
     color: var(--color-bg-white);
     border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
+    padding: var(--space-sm) var(--space-md);
+    border-radius: var(--radius-sm);
     font-weight: 600;
     font-size: 13px;
     cursor: pointer;
@@ -63,10 +63,10 @@
 
 .metrics-bar {
   display: flex;
-  gap: 32px;
+  gap: var(--space-xl);
   background: var(--color-bg-white);
-  padding: 24px;
-  border-radius: 4px;
+  padding: var(--spacing-card);
+  border-radius: var(--radius-sm);
   border: 1px solid var(--color-border);
   box-shadow: none;
 
@@ -74,14 +74,14 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: var(--spacing-sm);
 
     label { font-size: 11px; font-weight: 700; text-transform: uppercase; color: var(--color-text-muted); letter-spacing: 0.08em; }
     
     .metric-value {
       display: flex;
       align-items: center;
-      gap: 16px;
+      gap: var(--space-md);
       .value { font-size: 24px; font-weight: 700; color: var(--color-text-primary); }
       
       .mini-progress {
@@ -99,12 +99,12 @@
 .suppressed-pairs-section {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-md);
 
   .section-heading {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-xs);
 
     h2 {
       font-size: 16px;
@@ -123,7 +123,7 @@
   .suppressed-pairs-grid {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 16px;
+    gap: var(--space-md);
 
     @media (max-width: 960px) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -134,10 +134,10 @@
     background: var(--color-bg-white);
     border: var(--card-border);
     border-radius: var(--card-border-radius, 8px);
-    padding: 16px;
+    padding: var(--space-md);
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: var(--space-xs);
 
     &__value {
       font-size: 24px;
@@ -163,12 +163,12 @@
 .runtime-lanes-section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--space-lg);
 
   .section-heading {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: var(--space-xs);
 
     h2 {
       margin: 0;
@@ -185,26 +185,17 @@
   }
 }
 
-// Shared 3-col grid (see frontend/src/styles/_grid.scss)
-.runtime-lane-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  align-items: start;
 
-  @media (max-width: 1024px) { grid-template-columns: repeat(2, 1fr); }
-  @media (max-width: 640px) { grid-template-columns: 1fr; }
-}
 
 .runtime-lane-card {
   background: var(--color-bg-white);
-  border: 1px solid var(--color-border);
+  border: var(--card-border);
   border-left: 6px solid var(--color-border);
-  border-radius: 4px;
-  padding: 24px;
+  border-radius: var(--radius-sm);
+  padding: var(--spacing-card);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--spacing-sm);
 
   &.state-healthy {
     border-left-color: var(--color-success);
@@ -255,8 +246,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 4px 8px;
-  border-radius: 999px;
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-pill);
   background: var(--color-bg-faint);
   color: var(--color-text-muted);
   font-size: 12px;
@@ -286,10 +277,10 @@
 .lane-badge {
   display: inline-flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
   min-width: 110px;
-  padding: 8px 8px;
-  border-radius: 999px;
+  padding: var(--space-sm);
+  border-radius: var(--radius-pill);
   border: 1px solid var(--color-border);
   background: var(--color-bg-faint);
 
@@ -325,7 +316,7 @@
 
 .lane-next-step {
   margin-top: auto;
-  padding-top: 12px;
+  padding-top: var(--spacing-sm);
   border-top: 1px solid var(--color-bg-faint);
 
   label {
@@ -442,7 +433,7 @@
 .main-grid {
   display: grid;
   grid-template-columns: 1fr 400px;
-  gap: 32px;
+  gap: var(--space-xl);
   align-items: flex-start;
 
   @media (max-width: 1200px) {
@@ -700,6 +691,7 @@
   flex-wrap: wrap;
   gap: var(--space-sm, 8px);
   margin-bottom: var(--space-md, 16px);
+  padding-left: var(--space-md); // Rule A
 }
 
 .node-filter-chip {
