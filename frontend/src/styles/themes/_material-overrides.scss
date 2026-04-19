@@ -7,7 +7,7 @@
 // ── Global overlay-panel background (dropdowns, menus, autocomplete) ─
 // Backstop for Material versions that haven't yet wired the M3 tokens
 // pinned in default-theme.scss. The token `--color-dropdown-bg`
-// (#f0f4f9, Gemini-style) is the single source of truth.
+// (#f8f9fa, Gemini-style) is the single source of truth.
 .mat-mdc-select-panel,
 .mat-mdc-menu-panel,
 .mat-mdc-autocomplete-panel {

@@ -44,7 +44,7 @@
   --color-border-dark:  #b6b6b6;
 
   --color-bg-white:   #ffffff;
-  --color-bg-page:    #f0f4f9;
+  --color-bg-page:    #f8f9fa;
   --color-bg-faint:   #f8f9fa;
   --color-bg-alt-1:   #ffffff;
   --color-bg-alt-2:   #f8f9fa;
@@ -55,7 +55,7 @@
   // Subtle Gemini-style surface. One token, used across every
   // transient surface (dropdowns, menus, autocomplete, tooltips) so
   // the whole app has one unified popover colour.
-  --color-surface-subtle: #f0f4f9;
+  --color-surface-subtle: #f8f9fa;
 
   // Aliases kept for older call sites; both point at the same palette
   // entry above so overlays and tooltips can never drift apart.
