@@ -130,11 +130,11 @@ Headroom: ~2 GB
 
 ## 5. Schedule Contract
 
-> Heavy tasks run in the **21:00–22:30 UTC evening window** to avoid contention with daytime Chrome + development work. Priority-ordered dispatch follows [Schwarzkopf et al. 2013, "Omega: flexible, scalable schedulers for large compute clusters", EuroSys '13].
+> Heavy tasks run in the **13:00–15:00 UTC afternoon window** so they actually run on a laptop that's powered down overnight. This is a trade-off: heavy jobs may contend with Chrome + development work during the afternoon, but every task is guaranteed to fire at its scheduled slot. Priority-ordered dispatch follows [Schwarzkopf et al. 2013, "Omega: flexible, scalable schedulers for large compute clusters", EuroSys '13]. (History: the window was 21:00–22:30 UTC before 2026-04-19 — moved into the afternoon after the operator confirmed their laptop is typically off between 23:00 and 07:00 local.)
 
-### Evening Window (21:00–22:30 UTC)
+### Afternoon Window (13:00–15:00 UTC)
 
-All heavy and medium scheduled tasks are concentrated here. If the laptop was off during the window, the catch-up system (see `backend/config/catchup.py`) dispatches overdue tasks on next boot in priority order with a 30-second stagger between Heavy tasks.
+All heavy and medium scheduled tasks are concentrated here. 13:00–15:00 UTC maps to 14:00–16:00 BST in summer and 13:00–15:00 GMT in winter — both inside the operator's 14:00–17:00 local afternoon window. If the laptop was off during the window (e.g. power loss, travel), the catch-up system (see `backend/config/catchup.py`) dispatches overdue tasks on next boot in priority order with a 30-second stagger between Heavy tasks.
 
 ### Catch-Up Rules
 

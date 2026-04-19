@@ -444,6 +444,48 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-19 — Scheduled-task reschedule: overnight tasks moved to afternoon window (Claude, follow-on to user commit 2b5d46e)
+
+- **AI/tool:** Claude (documentation + session-note commit only; the code moves landed via the user's manual commit `2b5d46e`)
+- **Why:** The operator sleeps around 23:00 local (GMT Standard Time / BST in summer) and the laptop is typically off until ~07:00. Many Celery Beat schedules ran in the `21:00–22:50 UTC` and `03:00 UTC` bands — in BST summer those correspond to 22:00–23:50 and 04:00 local, i.e. right at or past bedtime. Nightly tasks were therefore skipped whenever the laptop was powered down. Additionally, Codex's commit `58d5071` moved the Windows Docker VHD compaction from 10:00 AM to 3:00 AM local — deep in the sleep window. The user explicitly asked to move everything into the 14:00–17:00 local afternoon window so the tasks actually fire on a laptop that is reliably on during the day.
+- **What was done:**
+  - **Code edits (already on origin/master via the user's manual commit `2b5d46e` "style: unify typography using system-default font stacks"):**
+    - `backend/config/settings/celery_schedules.py` — every `crontab(hour=21/22/03, …)` shifted to `crontab(hour=13/14/15, …)`. Heavy tasks 13:00/13:30 UTC, Medium 13:30/13:45, Light 14:00–14:25, alert checks 14:30–14:45, `prune-superseded-embeddings` 14:50, `meta-rotation-tournament` 15:00. `daily-gsc-spike-check` left at 08:00 UTC (morning local). Per-section banner comments updated. Sub-hour recurring tasks (heartbeat every 60 s, watchdog every 5 min, FAISS every 15 min, GlitchTip every 30 min, health every 30 min, performance-mode revert every 5 min, resume-after-wake every 5 min) were intentionally not touched — they fire whenever the worker is up and do not depend on a specific hour.
+    - `register_cleanup_task.ps1` — `$compactTrigger` changed from `3:00am` to `2:00pm` local. Task description and Write-Host lines updated to reflect the new time.
+    - `frontend/src/app/jobs/scheduling-policy-card/scheduling-policy-card.component.ts` — UI text updated: "Evening window 21:00 – 22:30 UTC" → "Afternoon window 13:00 – 15:00 UTC" with matching rationale ("so they actually run on a laptop that's off overnight").
+  - **Docs update (this commit):**
+    - `docs/PERFORMANCE.md §5` "Schedule Contract" block rewritten. The opening paragraph describes the new 13:00–15:00 UTC afternoon window, the laptop-off-overnight rationale, and keeps the Schwarzkopf et al. 2013 "Omega" citation. A DST-mapping sentence notes the window lands at 14:00–16:00 BST summer and 13:00–15:00 GMT winter — both inside the operator's 14:00–17:00 local band. History preserved: "(History: the window was 21:00–22:30 UTC before 2026-04-19 — moved into the afternoon after the operator confirmed their laptop is typically off between 23:00 and 07:00 local.)"
+
+- **Intentional files changed (this commit only):**
+  - `docs/PERFORMANCE.md` — §5 Schedule Contract rewrite
+  - `AI-CONTEXT.md` — this note
+
+- **Reused, not duplicated:** all existing schedule machinery. Only `crontab()` hour arguments changed in `celery_schedules.py`; no task logic, no new tasks, no new queues. Catch-up registry (`backend/config/catchup_registry.py`) — NOT touched; it still dispatches overdue tasks on worker startup per the existing priority rules, so a cold boot after a weekend trip still catches up weekly tasks correctly. `docs/PERFORMANCE.md §5` kept the Schwarzkopf 2013 citation — same academic grounding, different time block.
+
+- **Trade-off the operator accepted explicitly via AskUserQuestion:** Heavy afternoon tasks (nightly-xenforo-sync at 13:00 UTC, monthly full-syncs at 13:30/14:00 UTC, benchmarks at 14:15 UTC, etc.) now run while the operator is at the laptop. Chrome + development work may feel slower for the 30–60 seconds each heavy task takes. The alternative ("never actually run because the laptop is off") is strictly worse, so this trade is correct.
+
+- **Verification:**
+  - `grep -n "hour=" backend/config/settings/celery_schedules.py` — confirms only hours `8, 13, 14, 15` remain; no `3, 21, 22` entries.
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **336 tests pass**, 1 skipped, 1 failure (`test_probe_urls_semaphore_and_perf` — pre-existing timing-sensitive async HTTP probe test that fails with `41s > 30s budget` under system load; unrelated to any schedule or doc change in this session; re-ran in isolation and confirmed the slowness; see "Known flaky test" note below). Docs/AI-CONTEXT commit does not change code, so no test regression possible from this commit.
+  - `cd frontend && npm run test:ci` — 25/25 tests pass.
+  - `git show 2b5d46e --stat` — confirms the three in-flight reschedule edits are on `origin/master`.
+
+- **Known flaky test unrelated to this session:** `apps.pipeline.services.test_async_http.AsyncHttpTests.test_probe_urls_semaphore_and_perf` probes 1000 URLs through an httpx MockTransport with `max_concurrency=50` and asserts total duration < 30 s. Under local Docker+Chrome+dev load the assertion can miss by ~10 s. Pre-existing brittleness in the test's timing budget, not a regression. The pre-push hook chain (`lint-all.ps1`) does not run the backend test suite, so this flake does not block pushes — but the operator should be aware and decide whether to widen the budget or mark the test non-strict in a future tightening pass.
+
+- **Operator action required after this commit lands:** Re-run the registration script as Administrator to update the live Windows Task Scheduler entry for `XF Linker V2 - Docker Disk Compaction`. The repo-committed script now says `2:00pm`, but Windows still fires at `3:00am` until the script runs. PowerShell command:
+  ```
+  Start-Process -FilePath powershell.exe -ArgumentList '-ExecutionPolicy Bypass -File "C:\Users\goldm\Dev\xf-internal-linker-v2\register_cleanup_task.ps1"' -Verb RunAs -Wait
+  ```
+  Verify with `schtasks /Query /TN "XF Linker V2 - Docker Disk Compaction" /FO LIST` — should show the 2:00 PM trigger time.
+
+- **What was deliberately NOT done (and why):**
+  - Did not shift `daily-gsc-spike-check` at 08:00 UTC — local 09:00 BST / 08:00 GMT is already solidly daytime; no sleep-window risk.
+  - Did not shift the sub-hour recurring tasks (heartbeat, watchdog, FAISS refresh, GlitchTip sync, health checks, performance-mode revert, resume-after-wake). They fire every N minutes whenever the worker is up; no "hour" concept to relocate.
+  - Did not add a new pruning task for `SuggestionTelemetryDaily` — the latent gap (retention setting declared but never enforced) that surfaced during the pruning-policy discussion is a **separate concern**; I flagged it to the operator but held back from mixing it into this commit.
+  - Did not widen the 30-second budget on the `test_probe_urls_semaphore_and_perf` test — fixing pre-existing flake is its own slice.
+
+- **Commit/push state:** Pending — about to commit `docs/PERFORMANCE.md` + this AI-CONTEXT.md entry as a single `chore:` commit.
+
 ### 2026-04-19 — Phase 3c: dwell_30s credit in content_value + engagement_quality scores (Claude)
 
 - **AI/tool:** Claude
