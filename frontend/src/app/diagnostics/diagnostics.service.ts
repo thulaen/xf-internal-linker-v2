@@ -101,6 +101,35 @@ export interface SuppressedPairsDiagnostics {
   most_recent_rejection_at: string | null;
 }
 
+/**
+ * Tier 2 slice 4 — single row in the suppressed-pair drilldown. Returned by
+ * NegativeMemoryListView. Host + destination titles are included so the
+ * table doesn't need a second round-trip.
+ */
+export interface SuppressedPairListItem {
+  id: number;
+  host: { id: number; title: string; content_type: string };
+  destination: { id: number; title: string; content_type: string };
+  first_rejected_at: string;
+  last_rejected_at: string;
+  rejection_count: number;
+  days_since_last: number;
+  within_suppression_window: boolean;
+}
+
+export interface SuppressedPairListResponse {
+  total: number;
+  page: number;
+  page_size: number;
+  active_suppression_window_days: number;
+  items: SuppressedPairListItem[];
+}
+
+export interface SuppressedPairClearResponse {
+  detail: string;
+  cleared_pair_id: number;
+}
+
 export interface DiagnosticsOverview {
   summary: {
     healthy: number;
@@ -348,6 +377,35 @@ export class DiagnosticsService {
   getSuppressedPairs(): Observable<SuppressedPairsDiagnostics> {
     return this.http
       .get<SuppressedPairsDiagnostics>(`${this.baseUrl}/suppressed-pairs/`)
+      .pipe(catchError(err => throwError(() => err)));
+  }
+
+  /**
+   * Tier 2 slice 4 — paginated list of suppressed pairs for the Diagnostics
+   * drilldown. Newest first.
+   */
+  getSuppressedPairsList(page = 1, pageSize = 25): Observable<SuppressedPairListResponse> {
+    const params = new URLSearchParams({
+      page: String(page),
+      page_size: String(pageSize),
+    });
+    return this.http
+      .get<SuppressedPairListResponse>(
+        `${this.baseUrl}/suppressed-pairs/list/?${params.toString()}`,
+      )
+      .pipe(catchError(err => throwError(() => err)));
+  }
+
+  /**
+   * Tier 2 slice 4 — manual clear. Deletes the RejectedPair row and writes
+   * an AuditEntry so the action is visible on the Audit page.
+   */
+  clearSuppressedPair(pairId: number): Observable<SuppressedPairClearResponse> {
+    return this.http
+      .post<SuppressedPairClearResponse>(
+        `${this.baseUrl}/suppressed-pairs/${pairId}/clear/`,
+        {},
+      )
       .pipe(catchError(err => throwError(() => err)));
   }
 

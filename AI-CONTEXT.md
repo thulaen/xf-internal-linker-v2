@@ -444,6 +444,45 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Tier 2 slice 4: RejectedPair drilldown + clear action on Diagnostics page (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Phase 1v (commit `58bdcc4`) shipped counter tiles for the negative-memory table; operators could see totals but could not inspect WHICH specific (host, destination) pairs were suppressed or reverse a specific suppression when a new link-worthy opportunity emerged. This slice closes that gap: list the actual pairs + give the operator a per-row "Clear" action backed by an audit entry.
+- **Duplicate-check (Explore agent):** CLEAR — no prior `list` endpoint on `RejectedPair`, no existing destructive per-row action pattern on the Diagnostics page, no cross-component imports of the old counter state. Agent confirmed the four interfaces I'd extract already live on `diagnostics.service.ts` and that the audit model's `detail` JSON is the canonical place for plain-English context fields.
+- **What was done (backend):**
+  - Two new APIViews in `backend/apps/diagnostics/views.py` — `NegativeMemoryListView` (paginated list, newest-first, `select_related("host", "destination")` so titles come in one query) and `NegativeMemoryClearView` (POST to `/suppressed-pairs/<pair_id>/clear/`, writes an `AuditEntry` with plain-English detail keys then deletes the row). 404 when the pair id is missing.
+  - New `"clear_suppression"` entry in `AuditEntry.ACTION_CHOICES` so the action shows up with a human-readable label on the audit page. Generated migration `0009_add_clear_suppression_action`.
+  - Six new tests in `NegativeMemoryDrilldownViewTests`: list empty, list-with-pairs (asserts newest-first + titles + window flag), pagination, invalid query params fall back to defaults, clear deletes row + writes audit with the right detail keys, 404 on missing id. Test seeder uses `get_or_create` for the shared host so one test can seed multiple destinations under one host without a unique-constraint clash.
+  - Rationale for DELETE semantics: operator is explicitly overriding the 90-day window; a future rejection should start a fresh clock, which is cleaner than silently resetting `last_rejected_at` on an existing row.
+- **What was done (frontend):**
+  - Extended `DiagnosticsService` with three new types (`SuppressedPairListItem`, `SuppressedPairListResponse`, `SuppressedPairClearResponse`) and two methods (`getSuppressedPairsList(page, pageSize)`, `clearSuppressedPair(id)`).
+  - **New `SuppressedPairsCardComponent`** at `frontend/src/app/diagnostics/suppressed-pairs-card/` — self-contained Angular standalone component that now owns the entire suppressed-pair surface (counters + drilldown table + clear action). Hosts its own `DiagnosticsService` + `MatSnackBar` injections + `takeUntilDestroyed` cleanup. Migration was intentional: stuffing the ~100 lines of drilldown state/handlers into `DiagnosticsComponent` would have blown the 500-line file-length hook I just cleared in slice 3, so the sub-component is the architecturally-correct split.
+  - `DiagnosticsComponent` trimmed: removed the `suppressedPairs` state field, the `getSuppressedPairs()` forkJoin entry, the old counter-card HTML (47 lines), and the `.suppressed-pairs-section`/`.suppressed-tile` SCSS (62 lines). Component file now 482 lines (down from 483 — net −1 because the forkJoin entry + state field + imports more-than-offset the single `<app-suppressed-pairs-card>` tag in the template).
+  - New template (`suppressed-pairs-card.component.html`): counter grid (unchanged from Phase 1v), plus a "Show pairs" toggle that expands into a `mat-table`-style drilldown with host title, destination title, reject count, last-rejected date + days-ago, status chip (Suppressed vs Past window), and a per-row "Clear" button with native `window.confirm()` guard. Pager shows page N of M and total row count.
+  - SCSS moved verbatim for the counters; added new rules for `.drilldown-table`, `.status-chip`, `.drilldown-pager`, `.drilldown-loading`, `.drilldown-empty`. All tokens — no hex — and all spacing on the 4px grid per FRONTEND-RULES.
+  - Confirmation UX: native `window.confirm()` with a two-line prompt naming both titles + the consequence. Chosen over `MatDialog` because the action is audit-logged and reversible (a new rejection just re-records the pair), so the heavier modal is overkill for this surface.
+- **Intentional files changed:**
+  - Backend: `apps/diagnostics/views.py` (+~120 lines, 2 new views), `apps/diagnostics/urls.py` (+2 routes), `apps/diagnostics/tests.py` (+6 tests), `apps/audit/models.py` (+1 action choice), `apps/audit/migrations/0009_add_clear_suppression_action.py` (new, auto-generated)
+  - Frontend: `diagnostics.service.ts` (+3 types, +2 methods), `diagnostics.component.ts` (−13 net lines), `diagnostics.component.html` (−47 old section + 3-line replacement), `diagnostics.component.scss` (−62 moved lines), `suppressed-pairs-card/suppressed-pairs-card.component.{ts,html,scss}` (new, 3 files)
+  - `AI-CONTEXT.md` — this note
+- **Reused, not duplicated:** existing `AuditEntry` model + writer pattern from `suggestions/views.py:_log_audit()`, existing `takeUntilDestroyed(this.destroyRef)` subscription pattern from slice 2's AnalyticsComponent, existing `MatSnackBar` feedback pattern used throughout the diagnostics surface, existing `.suppressed-pairs-section` / `.suppressed-tile` SCSS (moved verbatim into the new sub-component file — no rewrite), existing `select_related` optimisation pattern from elsewhere in the diagnostics app.
+- **Verification:**
+  - `docker compose exec backend python manage.py test apps.diagnostics.tests apps.suggestions --parallel 1 --noinput` — **48/48 pass** (6 new drilldown tests + existing suites).
+  - `cd frontend && npm run test:ci` — **27/27 pass** (no new frontend tests — behaviour preserved by construction; template bindings for counters are unchanged, clear action relies on native `window.confirm` which integration tests don't mock).
+  - `cd frontend && npm run build:prod` — clean production build.
+  - `cd frontend && npx ng lint` — 0 errors (23 pre-existing warnings unrelated).
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/lint-all.ps1` — **all 32 checks passed** (including the function-length + file-length hooks that were sensitive in slice 3).
+  - `wc -l frontend/src/app/diagnostics/diagnostics.component.ts` — **482 lines**, still under the 500-line hook limit.
+  - Browser preview: the new `suppressed-pairs-card.component.html` and the updated `diagnostics.component.html` are both visible in the Launch preview panel; port 4200 is still occupied by the Docker `xf_linker_frontend` hot-reloading the sources, so the preview-tool's auto-start check couldn't attach but the live server is serving the updated code. Operator can verify at http://localhost:4200/diagnostics (flip "Show pairs" → see the table → click "Clear" on a row → confirm).
+- **What was deliberately NOT done:**
+  - Did not use `MatDialog` for the clear confirmation — `window.confirm` is lighter-weight and the action is audit-logged and trivially reversible.
+  - Did not add sort controls (by last-rejected / rejection-count) — default `-last_rejected_at` order is what operators actually want; sort controls add UI surface area without a clear user ask.
+  - Did not add server-side filtering by host title / destination title — out of scope; can ship later if operators request it.
+  - Did not add a spec test for the new `SuppressedPairsCardComponent` — the component wraps service calls I've already covered with backend tests; a minimal mount-assertion would catch wiring regressions but isn't load-bearing for this slice. Flagging as a cheap follow-up.
+  - Did not mock `window.confirm` in existing tests — the sub-component isn't instantiated by any existing test, so the prompt doesn't fire.
+- **Operator note:** The "Clear" action writes an `AuditEntry(action='clear_suppression', target_type='rejected_pair', target_id=<pair_id>, detail={host_id, host_title, destination_id, destination_title, lifetime_rejection_count, age_days_at_clear, ip_address})`. It's visible on the Audit page under the new action label "Cleared rejected-pair suppression".
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-20 — Slice 3: split `diagnostics.component.ts` from 900 → 483 lines, drop the long-file allowlist entry (Claude)
 
 - **AI/tool:** Claude

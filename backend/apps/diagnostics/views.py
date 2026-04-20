@@ -118,6 +118,138 @@ class NegativeMemoryDiagnosticsView(views.APIView):
         )
 
 
+_SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT = 25
+_SUPPRESSED_PAIRS_PAGE_SIZE_MAX = 100
+
+
+class NegativeMemoryListView(views.APIView):
+    """Tier 2 slice 4 — paginated list of individual ``RejectedPair`` rows
+    for the Diagnostics page drilldown.
+
+    Exposed at ``GET /api/system/status/suppressed-pairs/list/``. Complements
+    the counter endpoint by letting operators inspect which specific
+    (host, destination) pairs are currently being suppressed, sorted newest
+    first. Includes both the host and destination's human-readable title so
+    the UI doesn't need a second round-trip.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.suggestions.models import (
+            REJECTED_PAIR_SUPPRESSION_DAYS,
+            RejectedPair,
+        )
+
+        try:
+            page = max(1, int(request.query_params.get("page", 1)))
+        except (TypeError, ValueError):
+            page = 1
+        try:
+            page_size = int(
+                request.query_params.get(
+                    "page_size", _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT
+                )
+            )
+        except (TypeError, ValueError):
+            page_size = _SUPPRESSED_PAIRS_PAGE_SIZE_DEFAULT
+        page_size = max(1, min(_SUPPRESSED_PAIRS_PAGE_SIZE_MAX, page_size))
+
+        now = timezone.now()
+        window_start = now - timedelta(days=REJECTED_PAIR_SUPPRESSION_DAYS)
+
+        qs = RejectedPair.objects.select_related("host", "destination").order_by(
+            "-last_rejected_at"
+        )
+        total = qs.count()
+        offset = (page - 1) * page_size
+        rows = qs[offset : offset + page_size]
+
+        items = []
+        for row in rows:
+            age_seconds = (now - row.last_rejected_at).total_seconds()
+            items.append(
+                {
+                    "id": row.pk,
+                    "host": {
+                        "id": row.host_id,
+                        "title": row.host.title,
+                        "content_type": row.host.content_type,
+                    },
+                    "destination": {
+                        "id": row.destination_id,
+                        "title": row.destination.title,
+                        "content_type": row.destination.content_type,
+                    },
+                    "first_rejected_at": row.first_rejected_at.isoformat(),
+                    "last_rejected_at": row.last_rejected_at.isoformat(),
+                    "rejection_count": row.rejection_count,
+                    "days_since_last": int(age_seconds // 86400),
+                    "within_suppression_window": row.last_rejected_at >= window_start,
+                }
+            )
+
+        return response.Response(
+            {
+                "total": total,
+                "page": page,
+                "page_size": page_size,
+                "active_suppression_window_days": REJECTED_PAIR_SUPPRESSION_DAYS,
+                "items": items,
+            }
+        )
+
+
+class NegativeMemoryClearView(views.APIView):
+    """Tier 2 slice 4 — manual clear action for a single ``RejectedPair``.
+
+    ``POST /api/system/status/suppressed-pairs/<int:pair_id>/clear/``.
+    Deletes the row outright so a future rejection starts a fresh
+    90-day suppression window (rather than silently resetting an
+    existing row) and writes an ``AuditEntry`` so the operator's action
+    is visible on the Audit page. 404 if the pair does not exist.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pair_id: int):
+        from apps.audit.models import AuditEntry
+        from apps.suggestions.models import RejectedPair
+
+        try:
+            pair = RejectedPair.objects.select_related("host", "destination").get(
+                pk=pair_id
+            )
+        except RejectedPair.DoesNotExist:
+            return response.Response(
+                {"detail": "Suppressed pair not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        age_seconds = (timezone.now() - pair.last_rejected_at).total_seconds()
+        detail_payload = {
+            "host_id": pair.host_id,
+            "host_title": pair.host.title,
+            "destination_id": pair.destination_id,
+            "destination_title": pair.destination.title,
+            "lifetime_rejection_count": pair.rejection_count,
+            "age_days_at_clear": int(age_seconds // 86400),
+        }
+        AuditEntry.objects.create(
+            action="clear_suppression",
+            target_type="rejected_pair",
+            target_id=str(pair.pk),
+            detail=detail_payload,
+            ip_address=request.META.get("REMOTE_ADDR"),
+        )
+        pair.delete()
+
+        return response.Response(
+            {"detail": "Suppression cleared.", "cleared_pair_id": pair_id},
+            status=status.HTTP_200_OK,
+        )
+
+
 class ServiceStatusViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = ServiceStatusSnapshot.objects.exclude(service_name="http_worker")
     serializer_class = ServiceStatusSerializer

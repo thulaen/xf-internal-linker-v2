@@ -31,6 +31,7 @@ class AuditEntry(models.Model):
         ("pipeline_complete", "Pipeline run completed"),
         ("sync_start", "Sync started"),
         ("sync_complete", "Sync completed"),
+        ("clear_suppression", "Cleared rejected-pair suppression"),
     ]
 
     action = models.CharField(

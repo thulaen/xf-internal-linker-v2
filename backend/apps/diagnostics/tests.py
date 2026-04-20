@@ -205,3 +205,119 @@ class NegativeMemoryDiagnosticsViewTests(TestCase):
         # 3 rejections on the active pair + 1 on the stale pair.
         self.assertEqual(payload["total_rejections_lifetime"], 4)
         self.assertIsNotNone(payload["most_recent_rejection_at"])
+
+
+class NegativeMemoryDrilldownViewTests(TestCase):
+    """Tier 2 slice 4 — list + clear endpoints for RejectedPair drilldown."""
+
+    def setUp(self) -> None:
+        from django.contrib.auth import get_user_model
+
+        self.client = APIClient()
+        user = get_user_model().objects.create_user(
+            username="drilldown-user", password="pass"
+        )
+        self.client.force_authenticate(user=user)
+
+    def _seed_pair(self, host_cid: int, dest_cid: int, dest_title: str = "D"):
+        from apps.content.models import ContentItem
+        from apps.suggestions.models import RejectedPair
+
+        host, _ = ContentItem.objects.get_or_create(
+            content_id=host_cid,
+            content_type="thread",
+            defaults={"title": f"H{host_cid}"},
+        )
+        dest = ContentItem.objects.create(
+            content_id=dest_cid, content_type="thread", title=dest_title
+        )
+        RejectedPair.record_rejection(host_id=host.pk, destination_id=dest.pk)
+        return (
+            host,
+            dest,
+            RejectedPair.objects.get(host_id=host.pk, destination_id=dest.pk),
+        )
+
+    def test_list_empty_returns_zero_total(self) -> None:
+        response = self.client.get("/api/system/status/suppressed-pairs/list/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 0)
+        self.assertEqual(payload["items"], [])
+        self.assertEqual(payload["page"], 1)
+        self.assertGreater(payload["active_suppression_window_days"], 0)
+
+    def test_list_returns_pairs_newest_first_with_titles(self) -> None:
+        self._seed_pair(5001, 5002, "DestOne")
+        self._seed_pair(5001, 5003, "DestTwo")
+
+        response = self.client.get("/api/system/status/suppressed-pairs/list/")
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 2)
+        self.assertEqual(len(payload["items"]), 2)
+        # Newest pair landed last, so it is first in the ordered list.
+        self.assertEqual(payload["items"][0]["destination"]["title"], "DestTwo")
+        self.assertEqual(payload["items"][1]["destination"]["title"], "DestOne")
+        # Shape sanity: host + destination titles, counts, flags.
+        first = payload["items"][0]
+        self.assertIn("host", first)
+        self.assertIn("title", first["host"])
+        self.assertEqual(first["rejection_count"], 1)
+        self.assertTrue(first["within_suppression_window"])
+
+    def test_list_respects_page_size_and_page(self) -> None:
+        for i in range(5):
+            self._seed_pair(6000 + i, 7000 + i, f"D{i}")
+
+        response = self.client.get(
+            "/api/system/status/suppressed-pairs/list/?page=2&page_size=2"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["total"], 5)
+        self.assertEqual(payload["page"], 2)
+        self.assertEqual(payload["page_size"], 2)
+        self.assertEqual(len(payload["items"]), 2)
+
+    def test_list_invalid_page_params_fall_back_to_defaults(self) -> None:
+        self._seed_pair(6500, 6600)
+        response = self.client.get(
+            "/api/system/status/suppressed-pairs/list/?page=not-a-number&page_size=xyz"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["page"], 1)
+        self.assertEqual(payload["page_size"], 25)
+        self.assertEqual(payload["total"], 1)
+
+    def test_clear_deletes_row_and_writes_audit_entry(self) -> None:
+        from apps.audit.models import AuditEntry
+        from apps.suggestions.models import RejectedPair
+
+        _, _, pair = self._seed_pair(8001, 8002, "ClearableDest")
+        pair_id = pair.pk
+
+        response = self.client.post(
+            f"/api/system/status/suppressed-pairs/{pair_id}/clear/"
+        )
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["cleared_pair_id"], pair_id)
+
+        self.assertFalse(RejectedPair.objects.filter(pk=pair_id).exists())
+
+        audit = AuditEntry.objects.get(
+            action="clear_suppression", target_id=str(pair_id)
+        )
+        self.assertEqual(audit.target_type, "rejected_pair")
+        self.assertEqual(audit.detail["destination_title"], "ClearableDest")
+        self.assertEqual(audit.detail["lifetime_rejection_count"], 1)
+        self.assertIn("age_days_at_clear", audit.detail)
+
+    def test_clear_missing_pair_returns_404(self) -> None:
+        response = self.client.post(
+            "/api/system/status/suppressed-pairs/9999999/clear/"
+        )
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("detail", response.json())

@@ -24,6 +24,17 @@ urlpatterns = [
         views.NegativeMemoryDiagnosticsView.as_view(),
         name="suppressed-pairs",
     ),
+    # Tier 2 slice 4 — drilldown list + manual clear action.
+    path(
+        "suppressed-pairs/list/",
+        views.NegativeMemoryListView.as_view(),
+        name="suppressed-pairs-list",
+    ),
+    path(
+        "suppressed-pairs/<int:pair_id>/clear/",
+        views.NegativeMemoryClearView.as_view(),
+        name="suppressed-pairs-clear",
+    ),
     # Phase GT Step 5 — operator intelligence endpoints
     path(
         "runtime-context/",

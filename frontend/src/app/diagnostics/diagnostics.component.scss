@@ -96,69 +96,8 @@
   }
 }
 
-.suppressed-pairs-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-md);
-
-  .section-heading {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-
-    h2 {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--color-text-primary);
-      margin: 0;
-    }
-
-    p {
-      font-size: 13px;
-      color: var(--color-text-secondary);
-      margin: 0;
-    }
-  }
-
-  .suppressed-pairs-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: var(--space-md);
-
-    @media (max-width: 960px) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-    }
-  }
-
-  .suppressed-tile {
-    background: var(--color-bg-white);
-    border: var(--card-border);
-    border-radius: var(--card-border-radius, 8px);
-    padding: var(--space-md);
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-xs);
-
-    &__value {
-      font-size: 24px;
-      font-weight: 500;
-      color: var(--color-text-primary);
-      line-height: 1.1;
-    }
-
-    &__label {
-      font-size: 12px;
-      color: var(--color-text-secondary);
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-    }
-
-    &__sub {
-      font-size: 11px;
-      color: var(--color-text-muted);
-    }
-  }
-}
+// .suppressed-pairs-section styles moved to suppressed-pairs-card.component.scss
+// as part of Tier 2 slice 4 (drilldown extraction into a dedicated sub-component).
 
 .runtime-lanes-section {
   display: flex;

@@ -14,12 +14,12 @@ import {
   RuntimeContext,
   NodeSummary,
   PipelineGate,
-  SuppressedPairsDiagnostics,
 } from './diagnostics.service';
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { MetaTournamentComponent } from './meta-tournament/meta-tournament.component';
+import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
 import {
   RuntimeLaneCard,
   RuntimeExecutionCard,
@@ -71,6 +71,7 @@ const RUNTIME_SUMMARY_SERVICES = new Set([
     ConflictListComponent,
     ReadinessMatrixComponent,
     MetaTournamentComponent,
+    SuppressedPairsCardComponent,
   ],
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss']
@@ -108,7 +109,6 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
    * "Suppressed pairs" card. Null when the endpoint errors — the card hides
    * itself rather than showing zeros that might be mistaken for real data.
    */
-  suppressedPairs: SuppressedPairsDiagnostics | null = null;
 
   /** One row per known node, populated by /api/system/status/nodes/ (GT-G13).
    *  Only rendered when length > 1 — a single-host install keeps it quiet. */
@@ -207,7 +207,6 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       runtimeCtx: this.diagnosticsService.getRuntimeContext().pipe(catchError(() => of<RuntimeContext | null>(null))),
       nodes: this.diagnosticsService.getNodes().pipe(catchError(() => of<NodeSummary[]>([]))),
       pipelineGate: this.diagnosticsService.getPipelineGate().pipe(catchError(() => of<PipelineGate | null>(null))),
-      suppressedPairs: this.diagnosticsService.getSuppressedPairs().pipe(catchError(() => of<SuppressedPairsDiagnostics | null>(null))),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.services = data.services;
@@ -219,7 +218,6 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         this.runtimeCtx = data.runtimeCtx;
         this.nodes = data.nodes;
         this.pipelineGate = data.pipelineGate;
-        this.suppressedPairs = data.suppressedPairs;
         this.loading = false;
       },
       error: (err) => {
