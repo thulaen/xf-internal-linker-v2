@@ -4,6 +4,8 @@
 
 Global Material overrides live in `src/styles.scss`. Never duplicate them in a component.
 
+**For commenting rules, see `AGENTS.md § Code Quality Mandate > Comments & Documentation — All Languages`. Rules in this file extend that rule set; they do not replace it.**
+
 ---
 
 ## Spacing -- Hard Rules

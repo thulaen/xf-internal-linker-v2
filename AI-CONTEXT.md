@@ -444,6 +444,36 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Codify a strict Comments & Documentation rule for every AI agent (Claude)
+
+- **AI/tool:** Claude
+- **Why:** The repo had no consolidated rule about when to comment, how to phrase comments, or what to do with comments when the code changes. Rules that existed were scattered: CPP-RULES had strong "why not what" rules (PARITY tags, safety casts, atomic ordering), AGENTS.md had two narrow rules (zero-padding comment, raw-hex comment), FEATURE-REQUESTS asked for "why" comments on weight values, but `PYTHON-RULES.md` and `FRONTEND-RULES.md` contained **nothing** on commenting philosophy. The Session Gate did not reference commenting at all. Result: different agents (Claude, Codex, Gemini) and any human contributor would comment inconsistently, leave stale comments behind, and write WHAT-comments that just translate code into English. Stale comments are actively harmful because they mislead the next reader.
+- **Plan file:** `C:\Users\goldm\.claude\plans\do-we-have-a-dreamy-hamster.md` (approved by user before implementation).
+- **Duplicate-check (mandatory):** Ran an Explore agent against `AI-CONTEXT.md`, `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, `frontend/FRONTEND-RULES.md`, `backend/PYTHON-RULES.md`, `backend/extensions/CPP-RULES.md`, and all `*.md` files in the repo for any existing commenting rule block. Result: **scattered partial coverage only.** No consolidated rule existed. User's four principles (self-documenting, accuracy over time, right audience, why-not-what) were missing, partial, not-codified, and partially-covered respectively. Report Registry (`docs/reports/REPORT-REGISTRY.md`) also grepped — no OPEN finding overlaps this surface.
+- **What was done:**
+  - **AGENTS.md § Code Quality Mandate — new sub-section "Comments & Documentation — All Languages"** inserted after the "Never do" block (line 45 onward). Covers all four principles with a hard trigger for rule 1 ("if you are writing a comment longer than one line to explain a block, extract that block into a well-named function instead"). Adds a mandatory 4-item Pre-finish comment check that mirrors the existing Pre-Commit Layout Check. Explicit that the rule applies to Claude, Codex, Gemini, and every language in the repo (Python, C++, TypeScript/Angular, SCSS, shell).
+  - **One-line cross-reference** added to the top of `backend/PYTHON-RULES.md`, `frontend/FRONTEND-RULES.md`, and `backend/extensions/CPP-RULES.md` pointing back to the new AGENTS.md section. CPP-RULES cross-reference explicitly notes that its existing PARITY/safety-cast/atomic-ordering rules **extend** the general rule set rather than duplicate it.
+  - **No Session Gate change** — every agent already reads `AGENTS.md § Code Quality Mandate` before writing code (item 6 in the MUST READ table at `AI-CONTEXT.md:46`). The new sub-section is picked up automatically with zero extra reading.
+- **Intentional files changed:**
+  - `AGENTS.md` (+38 lines — new "Comments & Documentation — All Languages" sub-section)
+  - `backend/PYTHON-RULES.md` (+2 lines — cross-reference)
+  - `frontend/FRONTEND-RULES.md` (+2 lines — cross-reference)
+  - `backend/extensions/CPP-RULES.md` (+2 lines — cross-reference)
+  - `AI-CONTEXT.md` — this note
+- **Reused, not duplicated:** no new top-level rules file, no new Session Gate entry, no duplicate rule text in language-specific files. CPP-RULES's existing PARITY/safety-cast/atomic-ordering comments stay where they are and now have a clear home ("extends" the general rule). Mirrors the existing "Pre-Commit Layout Check" pattern from AGENTS.md line 198–203 so agents recognise the shape.
+- **Verification:**
+  - `Grep "Comments & Documentation" AGENTS.md` — **1 hit at line 45** ✓
+  - `Grep "Comments & Documentation" PYTHON-RULES.md FRONTEND-RULES.md CPP-RULES.md` — **3 hits, one per file** ✓
+  - `Grep "Code Quality Mandate" AI-CONTEXT.md` — **line 46 unchanged** (MUST READ row intact) ✓
+  - Read-through of AGENTS.md lines 40–90 — new block reads cleanly in plain English, no broken Markdown, Design System section picks up correctly after the trailing `---`.
+  - No code changed — `docker-compose build` is skipped per the Session Gate "docs-only" rule.
+- **What was deliberately NOT done:**
+  - Did not add `docs/COMMENTING-RULES.md` as a standalone file (user chose "inside AGENTS.md §Code Quality Mandate" via AskUserQuestion — keeps it DRY, zero extra Session Gate reads).
+  - Did not modify the Session Gate MUST READ table in `AI-CONTEXT.md`. No change needed — agents already read the Code Quality Mandate via item 6.
+  - Did not rewrite CPP-RULES' existing comment rules (PARITY tags, safety-cast rationale, atomic-ordering rationale). They are more specific than the general rule and remain as C++-only extensions.
+  - Did not touch the un-related uncommitted `frontend/src/styles/_grid.scss` modification that was in the worktree at session start — per Session Gate "do not assume dirty changes are yours", left alone.
+- **Commit/push state:** Pending — about to commit as `docs: codify Comments & Documentation rule for all AI agents and languages`.
+
 ### 2026-04-20 — Slice 2: persist Analytics page toggles across sessions via FilterPersistenceService (Claude)
 
 - **AI/tool:** Claude

@@ -4,6 +4,8 @@ Every AI agent (Claude, Codex, Gemini, etc.) writing Python in this repo must fo
 
 **Before any Python backend work, read this file top to bottom.**
 
+**For commenting rules, see `AGENTS.md § Code Quality Mandate > Comments & Documentation — All Languages`. Rules in this file extend that rule set; they do not replace it.**
+
 **Project context:** Django 5.2 + DRF, Celery 5.4, PostgreSQL 17 + pgvector, Redis, Django Channels, pybind11 C++ extensions, numpy 1.26, pandas 2.2, scikit-learn, requests, google-api-python-client. Python 3.12 runtime. Deployed in Docker.
 
 ---

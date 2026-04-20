@@ -4,6 +4,8 @@ Every AI agent (Claude, Codex, Gemini, etc.) writing C++ in this repo must follo
 
 **Before writing any C++ extension, read this file top to bottom.**
 
+**For commenting rules, see `AGENTS.md § Code Quality Mandate > Comments & Documentation — All Languages`. Rules in this file (PARITY tags, safety-cast comments, atomic-ordering comments, etc.) extend that rule set; they do not replace it.**
+
 ---
 
 ## 1. Mandatory Compiler Flags

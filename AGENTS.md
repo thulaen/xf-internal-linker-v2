@@ -42,6 +42,40 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - Do not silently change behaviour while "cleaning up" — correctness always comes first.
 - Do not introduce new abstractions, helpers, or utilities for a one-time use case.
 
+### Comments & Documentation — All Languages
+
+Applies to every agent (Claude, Codex, Gemini) and every language in this repo (Python, C++, TypeScript/Angular, SCSS, shell). Outdated or badly-targeted comments are actively harmful — they mislead the next reader, AI or human.
+
+**The four rules.**
+
+1. **Prefer self-documenting code.** Clear names replace most comments. **If you are writing a comment longer than one line to explain a block of code, extract that block into a well-named function instead.** A long explanatory comment is a signal that the code should be split, not that a comment is needed. Use descriptive names for variables, functions, and classes so the code reads like prose.
+
+2. **Keep comments accurate — treat them as code.** When you change code, update or delete the comments next to it in the same edit. A comment that no longer matches the code below it is a bug. If a comment no longer describes what the code does or why, rewrite it or delete it — never leave it stale.
+
+3. **Write for the right audience.**
+   - **Inline comments** are for developers (or future you) actively modifying the code. They may reference technical context, warnings about fragile parts, or non-obvious invariants.
+   - **API documentation / docstrings** are for developers *consuming* the code as a tool. They describe what the function does, what it returns, and what its contract is — not how the internals work.
+   Do not mix the two. Do not put internal reasoning in an API docstring; do not put consumer-facing contract language in an inline comment.
+
+4. **Focus on WHY, not WHAT.** The code already says *what* it does and *how*. Good comments explain *why*:
+   - why this approach was chosen over a more obvious one
+   - why this edge case needs special handling
+   - why a specific constant value was picked (cite the source — benchmark, patent, measurement, spec section)
+   - why a bug fix is shaped the way it is
+
+   Do not translate code into English. A comment like `// increment the counter` above `counter += 1` is forbidden.
+
+**Pre-finish comment check (mandatory before any commit).**
+
+Before finishing any code task, scan every comment you added or touched and confirm:
+
+1. **No WHAT-comments** that just translate code into English — delete them.
+2. **No stale comments** next to code you changed — rewrite or delete them.
+3. **Would a better name remove this comment?** If yes, rename the variable/function and delete the comment.
+4. **Every remaining comment explains WHY**, not WHAT — if one doesn't, rewrite it.
+
+This check applies to every language. It mirrors the existing Pre-Commit Layout Check for frontend work.
+
 ---
 
 ## Design System - GA4 Visual Identity
