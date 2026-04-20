@@ -381,8 +381,13 @@ REST_FRAMEWORK = {
         "rest_framework.throttling.UserRateThrottle",
     ],
     "DEFAULT_THROTTLE_RATES": {
-        "anon": "100/hour",
-        "user": "1000/hour",
+        # Realtime ops dashboard: a single logged-in operator easily makes
+        # 200-500 req/hour under normal use (timer polls + page loads +
+        # realtime widgets). Anonymous traffic during startup is a burst
+        # of checks before login resolves, so anon also needs headroom.
+        # Per-endpoint scoped throttles below still cap abusive actions.
+        "anon": "2000/hour",
+        "user": "20000/hour",
         # Per-endpoint scoped rates (see apps/api/throttles.py)
         "graph_rebuild": "6/hour",
         "weight_recalc": "12/hour",

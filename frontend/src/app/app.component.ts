@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { filter, map, startWith, timer, switchMap } from 'rxjs';
+import { EMPTY, filter, map, startWith, timer, switchMap } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -406,13 +406,21 @@ export class AppComponent implements OnInit {
     // Phase RC / Gap 139 — heartbeat presence to other tabs.
     this.presence.start();
 
+    // Every authenticated pollers below gate on isLoggedIn$: while the
+    // user is signed out (login page, startup token check) the timer is
+    // replaced by EMPTY so we don't hammer the server with 403s. On login
+    // the timer (re)starts from 0; on logout it cancels cleanly.
+    const whileLoggedIn = <T>(seed: () => import('rxjs').Observable<T>) =>
+      this.auth.isLoggedIn$.pipe(
+        switchMap((loggedIn) => (loggedIn ? seed() : EMPTY)),
+      );
+
     // Performance Mode: prime the global chip on boot, and refresh every 2 minutes
     // as a safety net in case the mode is changed in another tab or from the API.
-    timer(0, 2 * 60 * 1000)
-      .pipe(
-        switchMap(() => this.perfMode.refresh()),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    whileLoggedIn(() =>
+      timer(0, 2 * 60 * 1000).pipe(switchMap(() => this.perfMode.refresh())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((rt) => {
         // Plan item 28 — hydrate master_pause from the same endpoint every 2 min.
         const anyRt = rt as any;
@@ -427,8 +435,8 @@ export class AppComponent implements OnInit {
       .subscribe((data: DashboardData | null) => {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
       });
-    
-    this.dashboardSvc.refresh()
+
+    whileLoggedIn(() => this.dashboardSvc.refresh())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         error: () => {
@@ -438,11 +446,10 @@ export class AppComponent implements OnInit {
 
     // Fetch health summary for status dot plus 30-minute heart beat.
     // Store the full summary so the click-to-expand popover can show stats.
-    timer(0, 30 * 60 * 1000)
-      .pipe(
-        switchMap(() => this.healthService.getSummary()),
-        takeUntilDestroyed(this.destroyRef)
-      )
+    whileLoggedIn(() =>
+      timer(0, 30 * 60 * 1000).pipe(switchMap(() => this.healthService.getSummary())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (summary: HealthSummary) => {
           this.systemStatus = summary.system_status;
@@ -460,11 +467,10 @@ export class AppComponent implements OnInit {
       .subscribe((p) => (this.pulse = p));
 
     // Freshness ribbon: refresh every 15 minutes
-    timer(0, 15 * 60 * 1000)
-      .pipe(
-        switchMap(() => this.dashboardSvc.refresh()),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    whileLoggedIn(() =>
+      timer(0, 15 * 60 * 1000).pipe(switchMap(() => this.dashboardSvc.refresh())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (d: DashboardData) => {
           this.lastSyncAt = d.last_sync_at ?? null;
@@ -475,11 +481,10 @@ export class AppComponent implements OnInit {
       });
 
     // Nav badge: pending suggestions count, refreshed every 5 minutes
-    timer(0, 5 * 60 * 1000)
-      .pipe(
-        switchMap(() => this.suggestionSvc.getPendingCount()),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    whileLoggedIn(() =>
+      timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.suggestionSvc.getPendingCount())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (count: number) => this.pendingSuggestionCount = count,
         error: () => this.pendingSuggestionCount = 0,
@@ -490,11 +495,10 @@ export class AppComponent implements OnInit {
     // does not fire on ErrorLog rows (only ServiceStatusSnapshot +
     // SystemConflict), so keep the poll until a dedicated
     // `errors.log` topic is added as a follow-up.
-    timer(0, 5 * 60 * 1000)
-      .pipe(
-        switchMap(() => this.diagnosticsSvc.getErrors()),
-        takeUntilDestroyed(this.destroyRef),
-      )
+    whileLoggedIn(() =>
+      timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.diagnosticsSvc.getErrors())),
+    )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (errors) => {
           this.unacknowledgedErrorCount = Array.isArray(errors)

@@ -11,13 +11,30 @@
 
 import { HttpErrorResponse, HttpInterceptorFn } from '@angular/common/http';
 import { inject } from '@angular/core';
-import { MatSnackBar } from '@angular/material/snack-bar';
+import { MatSnackBar, MatSnackBarRef } from '@angular/material/snack-bar';
 import { catchError, retry, throwError, timer } from 'rxjs';
 
 import {
   RateLimitSnackbarComponent,
   RateLimitSnackbarData,
 } from './rate-limit-snackbar.component';
+
+/**
+ * Singleton ref to the currently-open rate-limit snackbar so a burst of
+ * 429s (e.g. a forkJoin hitting the limiter) opens ONE toast, not N.
+ * Cleared when the toast dismisses itself so the next real rate-limit
+ * event reopens it.
+ */
+let activeRateLimitSnackbar: MatSnackBarRef<RateLimitSnackbarComponent> | null = null;
+
+/**
+ * Upper bound on the countdown we show. The server may set Retry-After
+ * to the full hourly-window remainder (thousands of seconds) — that's a
+ * hostile UX. Cap the VISIBLE countdown; the server still rejects until
+ * its real cooldown elapses, but the user stops staring at a 35-minute
+ * timer. 90s matches a typical operator's retry cadence.
+ */
+const MAX_VISIBLE_RETRY_SECONDS = 90;
 
 /**
  * Phase E2 / Gap 43 — parse the RFC 7231 Retry-After header.
@@ -83,18 +100,28 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       // Gap 43 — 429 gets a live countdown snackbar instead of a flat toast.
       if (status === 429) {
-        const seconds = parseRetryAfter(error);
-        snack.openFromComponent<RateLimitSnackbarComponent, RateLimitSnackbarData>(
-          RateLimitSnackbarComponent,
-          {
-            // Keep the snackbar open for the full window + 1s, capped so a
-            // hostile server can't freeze the toast forever. The component
-            // self-dismisses when the countdown hits zero.
-            duration: (seconds + 1) * 1000,
-            data: { seconds },
-            panelClass: ['rate-limit-snackbar'],
-          },
-        );
+        const rawSeconds = parseRetryAfter(error);
+        const seconds = Math.min(rawSeconds, MAX_VISIBLE_RETRY_SECONDS);
+
+        // Dedupe: if a rate-limit toast is already up, don't stack. A
+        // single burst (forkJoin of 27 settings) can emit N 429s at once
+        // — stacking N snackbars would bury real UI for minutes.
+        if (!activeRateLimitSnackbar) {
+          activeRateLimitSnackbar = snack.openFromComponent<
+            RateLimitSnackbarComponent,
+            RateLimitSnackbarData
+          >(
+            RateLimitSnackbarComponent,
+            {
+              duration: (seconds + 1) * 1000,
+              data: { seconds },
+              panelClass: ['rate-limit-snackbar'],
+            },
+          );
+          activeRateLimitSnackbar.afterDismissed().subscribe(() => {
+            activeRateLimitSnackbar = null;
+          });
+        }
         return throwError(() => error);
       }
 

@@ -3,6 +3,7 @@ import { BehaviorSubject, Observable, Subject } from 'rxjs';
 import { filter } from 'rxjs/operators';
 
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 import {
   ConnectionStatus,
   IncomingFrame,
@@ -37,14 +38,21 @@ import {
 @Injectable({ providedIn: 'root' })
 export class RealtimeService implements OnDestroy {
   private readonly zone = inject(NgZone);
+  private readonly auth = inject(AuthService);
 
   // ── Connection state ─────────────────────────────────────────────
   private socket: WebSocket | null = null;
   private destroyed = false;
+  /** Auth gate. Server rejects the socket with 403 when false, so we
+   *  simply don't dial until a valid session exists. */
+  private loggedIn = false;
 
   /** Exponential-backoff state. Reset on successful open. */
   private reconnectAttempt = 0;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  /** After this many consecutive failed handshakes we stop dialling so
+   *  a persistently broken socket doesn't burn the backend with 403s. */
+  private readonly MAX_RETRIES = 6;
   /** Heartbeat ping so idle corporate proxies don't silently drop the socket. */
   private pingTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -64,6 +72,38 @@ export class RealtimeService implements OnDestroy {
     // Lazy connect — the socket opens on the first subscribe() call.
     // Doing it in the constructor would open a socket even on pages that
     // never use realtime (e.g. /login).
+    //
+    // Auth awareness: even with lazy connect, pre-login components (e.g.
+    // presence heartbeat, status pill) call subscribeTopic() before auth
+    // resolves, which dialled the socket and ate a 403 with a reconnect
+    // loop. Track loggedIn state so ensureSocketOpen() can defer the
+    // handshake until there's a real session, and tear down on logout.
+    this.auth.isLoggedIn$.subscribe((loggedIn) => {
+      this.loggedIn = loggedIn;
+      if (loggedIn) {
+        // Fresh session → allow the retry budget to start over.
+        this.reconnectAttempt = 0;
+        if (this.refCounts.size > 0) {
+          this.ensureSocketOpen();
+        }
+      } else {
+        this.teardownOnLogout();
+      }
+    });
+  }
+
+  private teardownOnLogout(): void {
+    this.clearReconnectTimer();
+    this.clearPingTimer();
+    if (this.socket) {
+      try {
+        this.socket.close();
+      } catch {
+        // ignore
+      }
+      this.socket = null;
+    }
+    this._status$.next('offline');
   }
 
   // ── Public API ───────────────────────────────────────────────────
@@ -184,6 +224,11 @@ export class RealtimeService implements OnDestroy {
 
   private ensureSocketOpen(): void {
     if (this.destroyed) return;
+    // Don't dial a socket the server will reject with 403. Pre-login
+    // subscribers still enqueue their topic ref-count; when isLoggedIn$
+    // flips to true the constructor subscription calls ensureSocketOpen
+    // again and catches them up.
+    if (!this.loggedIn) return;
     if (this.socket && this.socket.readyState <= WebSocket.OPEN) {
       // Either CONNECTING (0) or OPEN (1) — nothing to do.
       return;
@@ -237,7 +282,10 @@ export class RealtimeService implements OnDestroy {
       ws.onclose = () => {
         this.clearPingTimer();
         this.socket = null;
-        if (!this.destroyed && this.refCounts.size > 0) {
+        // Only retry while the session is still valid. On logout we
+        // deliberately close() and `loggedIn` is false — don't hammer
+        // the server with 403s.
+        if (!this.destroyed && this.loggedIn && this.refCounts.size > 0) {
           this._status$.next('reconnecting');
           this.scheduleReconnect();
         } else {
@@ -251,6 +299,12 @@ export class RealtimeService implements OnDestroy {
 
   private scheduleReconnect(): void {
     if (this.destroyed) return;
+    // Give up after MAX_RETRIES consecutive failures — the next login
+    // resets the counter, so the user can recover by signing out and in.
+    if (this.reconnectAttempt >= this.MAX_RETRIES) {
+      this._status$.next('offline');
+      return;
+    }
     this.clearReconnectTimer();
     // Exponential 1s, 2s, 4s, 8s, 16s, 30s cap. Small jitter so N tabs
     // don't stampede the server after a network blip.

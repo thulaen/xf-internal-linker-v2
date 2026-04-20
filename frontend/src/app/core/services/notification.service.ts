@@ -20,6 +20,7 @@ import {
   tap,
 } from 'rxjs';
 import { environment } from '../../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface OperatorAlert {
   id: number;
@@ -78,6 +79,7 @@ export interface NotificationPreferences {
 @Injectable({ providedIn: 'root' })
 export class NotificationService implements OnDestroy {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
 
   private _unreadCount$ = new BehaviorSubject<number>(0);
   private _newAlert$ = new Subject<OperatorAlert>();
@@ -91,10 +93,50 @@ export class NotificationService implements OnDestroy {
   private ws: WebSocket | null = null;
   private destroyed = false;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private loggedIn = false;
+  /** Consecutive onclose-without-onopen events. Resets on a successful
+   *  handshake. After MAX_RETRIES we stop dialling so a persistently
+   *  broken socket (e.g. server-side auth misconfig) doesn't flood the
+   *  backend with 403s every 5 seconds. */
+  private consecutiveFailures = 0;
+  private readonly MAX_RETRIES = 6;
 
   constructor() {
-    this.loadSummary();
-    this.connectWebSocket();
+    // Only talk to authenticated endpoints once the user is signed in.
+    // Without this gate the constructor would fire loadSummary() and open
+    // a WebSocket on app boot — both rejected with 403 until login —
+    // and the 5-second reconnect loop would hammer the server forever.
+    this.auth.isLoggedIn$.subscribe((loggedIn) => {
+      this.loggedIn = loggedIn;
+      if (loggedIn) {
+        this.loadSummary();
+        // Fresh session → allow the retry budget to start over.
+        this.consecutiveFailures = 0;
+        this.connectWebSocket();
+      } else {
+        this.disconnectWebSocket();
+        this._unreadCount$.next(0);
+      }
+    });
+  }
+
+  private disconnectWebSocket(): void {
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      // Null out onclose before close() so the async close event can't
+      // schedule another reconnect after we deliberately disconnected.
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      try {
+        this.ws.close();
+      } catch {
+        // ignore
+      }
+      this.ws = null;
+    }
   }
 
   // ── REST helpers ──────────────────────────────────────────────────
@@ -177,13 +219,15 @@ export class NotificationService implements OnDestroy {
   // ── WebSocket ─────────────────────────────────────────────────────
 
   private connectWebSocket(): void {
-    if (this.destroyed) return;
+    if (this.destroyed || !this.loggedIn) return;
+    if (this.consecutiveFailures >= this.MAX_RETRIES) return;
     const url = `${environment.wsBaseUrl}/notifications/`;
     try {
       this.ws = new WebSocket(url);
 
       this.ws.onopen = () => {
-        // Connected — clear any pending reconnect timer
+        // Connected — reset retry budget and clear any pending timer.
+        this.consecutiveFailures = 0;
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
@@ -203,34 +247,30 @@ export class NotificationService implements OnDestroy {
       };
 
       this.ws.onclose = () => {
-        if (!this.destroyed) {
-          this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
+        if (this.destroyed || !this.loggedIn) return;
+        this.consecutiveFailures += 1;
+        if (this.consecutiveFailures >= this.MAX_RETRIES) {
+          // Give up — the server is consistently rejecting us. Next login
+          // cycle resets the counter, so the user can recover by signing
+          // out and back in.
+          return;
         }
+        this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
       };
 
       this.ws.onerror = () => {
         this.ws?.close();
       };
     } catch {
-      if (!this.destroyed) {
-        this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
-      }
+      if (this.destroyed || !this.loggedIn) return;
+      this.consecutiveFailures += 1;
+      if (this.consecutiveFailures >= this.MAX_RETRIES) return;
+      this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
     }
   }
 
   ngOnDestroy(): void {
     this.destroyed = true;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-    if (this.ws) {
-      // Null out onclose before calling close() so the async close event
-      // cannot schedule a reconnect after the service has been destroyed.
-      this.ws.onclose = null;
-      this.ws.onerror = null;
-      this.ws.close();
-      this.ws = null;
-    }
+    this.disconnectWebSocket();
   }
 }
