@@ -49,26 +49,15 @@ class FeedbackRerankService:
         self._global_total_samples = 0
 
     def load_historical_stats(self) -> None:
-        """Fetch and aggregate approval rates for (host_scope, destination_scope) pairs.
+        """Aggregate approval rates per (host_scope, destination_scope) pair.
 
-        For each pair, computes an ``observation_confidence`` = reviewed-count /
-        presented-count. Pairs with many impressions-to-reviews converge
-        toward 1.0; thinly-observed pairs stay closer to 0.0. This
-        confidence value feeds the linear blend in
-        ``calculate_rerank_factor`` below — it is NOT an inverse-propensity
-        weight in the statistical sense (see RPT-001 Finding 2, resolved
-        2026-04-20, for the gap analysis).
-
-        Falls back to generated-count as the denominator when no
-        presentation data exists (new deployment, or before exposure
-        logging was added).
-
-        Related: Joachims, Swaminathan & Schnabel (2017) "Unbiased
-        Learning-to-Rank with Biased Feedback" (WSDM, DOI
-        10.1145/3077136.3080756) describes a rigorous per-event IPS
-        estimator using position bias. This service uses a cheaper
-        per-pair confidence blend that trades that unbiasedness guarantee
-        for lower storage cost; the citation is kept as inspiration only.
+        For each pair computes ``observation_confidence`` = reviews /
+        presentations (falls back to generated-count when no presentation
+        data exists). This is a per-pair linear confidence blend, NOT an
+        inverse-propensity estimator — see RPT-001 Finding 2 (resolved
+        2026-04-20) for the gap analysis. Joachims, Swaminathan & Schnabel
+        (2017) WSDM (DOI 10.1145/3077136.3080756) describes a rigorous
+        per-event IPS estimator; kept as inspiration only.
         """
         from apps.suggestions.models import Suggestion, SuggestionPresentation
 
@@ -135,17 +124,10 @@ class FeedbackRerankService:
     ) -> tuple[float, dict[str, Any]]:
         """Compute the Explore/Exploit multiplier for a candidate pair.
 
-        Blends the pair's Bayesian-smoothed acceptance rate (the exploit
-        score) toward the neutral value 0.5 based on
-        ``observation_confidence`` = reviews / impressions. Pairs seen by
-        many users get closer to the raw empirical rate; thinly-seen pairs
-        get pulled toward neutral.
-
-        NOTE: this is a per-pair linear confidence blend, NOT an
-        inverse-propensity estimator. RPT-001 Finding 2 (resolved
-        2026-04-20) documents the gap between "IPS" naming and actual
-        mechanics; ``observation_confidence`` replaces the earlier
-        ``exposure_prob`` name to keep the label honest.
+        Blends the pair's Bayesian-smoothed acceptance rate toward neutral
+        0.5 based on ``observation_confidence`` = reviews / impressions.
+        This is a per-pair linear confidence blend, NOT an inverse-propensity
+        estimator (see RPT-001 Finding 2, resolved 2026-04-20).
         """
         if not self.settings.enabled:
             return 1.0, {"status": "disabled"}
@@ -164,24 +146,16 @@ class FeedbackRerankService:
 
         n_total = stats["total"]
         n_success = stats["successes"]
-        observation_confidence = stats.get("observation_confidence", 0.0)
+        oc = stats.get("observation_confidence", 0.0)
 
-        # 1. Exploit: Bayesian-Smoothed Acceptance Rate (per-pair).
-        # mu = (success + alpha) / (total + alpha + beta)
-        # Then blend toward the neutral 0.5 based on observation_confidence:
-        # high-confidence pairs trust the empirical rate, low-confidence
-        # pairs stay closer to neutral. This is a linear confidence blend,
-        # NOT an inverse-propensity estimator (see RPT-001 Finding 2).
+        # 1. Exploit: Bayesian-Smoothed Acceptance Rate blended toward 0.5
+        # by observation_confidence. Linear confidence blend, NOT IPS
+        # (see RPT-001 Finding 2).
         exploit_denom = n_total + self.settings.alpha_prior + self.settings.beta_prior
         score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
             exploit_denom, 1e-9
         )
-        # Blend toward neutral (0.5) when observation_confidence is low.
-        # confidence=1.0 → full exploit signal; confidence=0.0 → neutral 0.5
-        score_exploit = (
-            observation_confidence * score_exploit_raw
-            + (1.0 - observation_confidence) * 0.5
-        )
+        score_exploit = oc * score_exploit_raw + (1.0 - oc) * 0.5
 
         # 2. Explore: UCB1 Confidence Bound
         # Boost = k * sqrt(ln(N_global) / (n_pair + 1))
@@ -190,13 +164,10 @@ class FeedbackRerankService:
             math.log(n_global + 1.0) / (n_total + 1.0)
         )
 
-        # 3. Combined rerank factor
-        # Initial score is multiplied by (1.0 + weight * (exploit + explore - 0.5))
-        # 0.5 is subtracted because a neutral explore/exploit score is 0.5
+        # 3. Combined rerank factor. Subtract 0.5 because that is the
+        # neutral explore/exploit baseline; clamp to [0.5, 2.0] swings.
         raw_modifier = (score_exploit + score_explore) - 0.5
         factor = 1.0 + (self.settings.ranking_weight * raw_modifier)
-
-        # Clamp factor to avoid excessive swings (e.g. 0.5x to 2.0x)
         factor = max(0.5, min(2.0, factor))
 
         diagnostics = {
@@ -204,7 +175,7 @@ class FeedbackRerankService:
             "n_success": n_success,
             "n_presented": stats.get("presented", 0),
             "n_generated": stats.get("generated", 0),
-            "observation_confidence": round(observation_confidence, 4),
+            "observation_confidence": round(oc, 4),
             "n_global": n_global,
             "score_exploit_raw": round(score_exploit_raw, 4),
             "score_exploit": round(score_exploit, 4),
