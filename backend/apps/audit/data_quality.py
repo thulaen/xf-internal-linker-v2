@@ -16,6 +16,7 @@ from typing import TypedDict
 from django.db.models import Count, Max
 from django.utils import timezone
 
+_SEARCH_METRIC_SOURCES = ("gsc", "ga4", "matomo")
 _SOURCE_COMPLETENESS_TARGET = 30.0
 _FULL_ACCURACY_PCT = 100.0
 _PERCENT_SCALE = 100.0
@@ -57,11 +58,17 @@ def scorecard() -> list[SourceScorecard]:
     from apps.content.models import ContentItem
 
     out: list[SourceScorecard] = []
-    # GSC / GA4 / Matomo — reuse SearchMetric rows.
-    for source in ("gsc", "ga4", "matomo"):
-        latest = (
-            SearchMetric.objects.filter(source=source).aggregate(m=Max("date")).get("m")
+    source_rows = {
+        row["source"]: row
+        for row in SearchMetric.objects.values("source").annotate(
+            latest=Max("date"),
+            sample=Count("id"),
         )
+    }
+    # GSC / GA4 / Matomo — reuse SearchMetric rows.
+    for source in _SEARCH_METRIC_SOURCES:
+        source_row = source_rows.get(source, {})
+        latest = source_row.get("latest")
         last_dt = (
             timezone.make_aware(
                 timezone.datetime.combine(latest, timezone.datetime.min.time())
@@ -69,7 +76,7 @@ def scorecard() -> list[SourceScorecard]:
             if latest
             else None
         )
-        sample = SearchMetric.objects.filter(source=source).count()
+        sample = int(source_row.get("sample") or 0)
         freshness = None
         if last_dt:
             freshness = (timezone.now() - last_dt).total_seconds() / 3600
@@ -136,14 +143,19 @@ def volume_trend(
 
     cutoff = (timezone.now() - timedelta(days=days)).date()
     out: dict[str, list[VolumePoint]] = {}
-    for source in ("gsc", "ga4", "matomo"):
-        rows = (
-            SearchMetric.objects.filter(source=source, date__gte=cutoff)
-            .values("date")
-            .annotate(n=Count("id"))
-            .order_by("date")
-        )
-        day_map = {r["date"].isoformat(): r["n"] for r in rows}
+    source_day_maps = {source: {} for source in _SEARCH_METRIC_SOURCES}
+    search_rows = (
+        SearchMetric.objects.filter(source__in=_SEARCH_METRIC_SOURCES, date__gte=cutoff)
+        .values("source", "date")
+        .annotate(n=Count("id"))
+        .order_by("source", "date")
+    )
+    for row in search_rows:
+        source_day_maps.setdefault(row["source"], {})[row["date"].isoformat()] = row[
+            "n"
+        ]
+    for source in _SEARCH_METRIC_SOURCES:
+        day_map = source_day_maps.get(source, {})
         out[source] = _densify(cutoff, days, day_map)
 
     # ContentItem imports — approximate via created_at by day.
