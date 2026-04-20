@@ -513,14 +513,17 @@ def _get_setting_datetime(AppSettingModel, key: str):
 
 
 def _humanize_ago(delta: timedelta) -> str:
+    seconds_per_minute = 60
+    seconds_per_hour = 3600
+    seconds_per_day = 86400
     total_seconds = int(delta.total_seconds())
-    if total_seconds < 60:
+    if total_seconds < seconds_per_minute:
         return f"{total_seconds}s ago"
-    if total_seconds < 3600:
-        return f"{total_seconds // 60}m ago"
-    if total_seconds < 86400:
-        return f"{total_seconds // 3600}h ago"
-    return f"{total_seconds // 86400}d ago"
+    if total_seconds < seconds_per_hour:
+        return f"{total_seconds // seconds_per_minute}m ago"
+    if total_seconds < seconds_per_day:
+        return f"{total_seconds // seconds_per_hour}h ago"
+    return f"{total_seconds // seconds_per_day}d ago"
 
 
 __all__ = [
