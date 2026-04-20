@@ -184,7 +184,7 @@ class NegativeMemoryListView(views.APIView):
                     "first_rejected_at": row.first_rejected_at.isoformat(),
                     "last_rejected_at": row.last_rejected_at.isoformat(),
                     "rejection_count": row.rejection_count,
-                    "days_since_last": int(age_seconds // 86400),
+                    "days_since_last": int(age_seconds // _SECONDS_PER_DAY),
                     "within_suppression_window": row.last_rejected_at >= window_start,
                 }
             )
@@ -207,7 +207,8 @@ class NegativeMemoryClearView(views.APIView):
     Deletes the row outright so a future rejection starts a fresh
     90-day suppression window (rather than silently resetting an
     existing row) and writes an ``AuditEntry`` so the operator's action
-    is visible on the Audit page. 404 if the pair does not exist.
+    is visible on the Audit page. Returns HTTP ``not found`` if the
+    pair id is missing.
     """
 
     permission_classes = [IsAuthenticated]
@@ -233,7 +234,7 @@ class NegativeMemoryClearView(views.APIView):
             "destination_id": pair.destination_id,
             "destination_title": pair.destination.title,
             "lifetime_rejection_count": pair.rejection_count,
-            "age_days_at_clear": int(age_seconds // 86400),
+            "age_days_at_clear": int(age_seconds // _SECONDS_PER_DAY),
         }
         AuditEntry.objects.create(
             action="clear_suppression",
