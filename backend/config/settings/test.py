@@ -45,6 +45,7 @@ PASSWORD_HASHERS = [
 ]
 
 EMAIL_BACKEND = "django.core.mail.backends.locmem.EmailBackend"
+EMBEDDING_MODEL = "BAAI/bge-m3"
 
 # Keep expected 4xx validation responses from cluttering test output while still
 # surfacing actual server-side failures.

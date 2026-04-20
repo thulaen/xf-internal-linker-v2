@@ -35,9 +35,19 @@ from .rare_term_propagation import build_rare_term_profiles
 logger = logging.getLogger(__name__)
 
 try:
-    from .embeddings import EMBEDDING_DIM
+    from .embeddings import (
+        EMBEDDING_DIM,
+        get_current_embedding_dimension,
+        get_current_embedding_filter,
+    )
 except ImportError:
     EMBEDDING_DIM = 1024  # RANGE: default BGE-M3 embedding dimension
+
+    def get_current_embedding_dimension(*, model=None, model_name=None):
+        return EMBEDDING_DIM
+
+    def get_current_embedding_filter(*, prefix="", model=None, model_name=None):
+        return {}
 
 # Iterator / fetch batch sizes
 _CONTENT_ITERATOR_CHUNK = 500  # maxsize for ContentItem iterator
@@ -512,12 +522,13 @@ def _load_destination_embeddings(
         )
     ]
     if not candidate_keys:
-        return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+        return (), np.empty((0, get_current_embedding_dimension()), dtype=np.float32)
 
     pks = [pk for pk, _ in candidate_keys]
     qs = ContentItem.objects.filter(
         pk__in=pks,
         embedding__isnull=False,
+        **get_current_embedding_filter(),
     ).values_list("pk", "content_type", "embedding")
 
     found: dict[ContentKey, np.ndarray] = {}
@@ -527,7 +538,7 @@ def _load_destination_embeddings(
 
     valid_keys = [key for key in candidate_keys if key in found]
     if not valid_keys:
-        return (), np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+        return (), np.empty((0, get_current_embedding_dimension()), dtype=np.float32)
 
     matrix = np.vstack([found[key] for key in valid_keys]).astype(
         np.float32, copy=False
@@ -543,7 +554,7 @@ def _load_sentence_embeddings(
 
     content_pks = sorted({pk for pk, _ in content_keys})
     if not content_pks:
-        return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+        return [], np.empty((0, get_current_embedding_dimension()), dtype=np.float32)
 
     in_clause, params = _sql_in_clause_params(content_pks)
     query = f"""
@@ -552,13 +563,21 @@ def _load_sentence_embeddings(
         WHERE content_item_id IN ({in_clause})
           AND word_position <= %s
           AND embedding IS NOT NULL
+          AND embedding_model_version = %s
         ORDER BY id
     """
     ids: list[int] = []
     vectors: list[list[float]] = []
 
     with connection.cursor() as cursor:
-        cursor.execute(query, [*params, settings.HOST_SCAN_WORD_LIMIT])
+        cursor.execute(
+            query,
+            [
+                *params,
+                settings.HOST_SCAN_WORD_LIMIT,
+                get_current_embedding_filter()["embedding_model_version"],
+            ],
+        )
         while True:
             rows = cursor.fetchmany(_EMBEDDING_FETCH_BATCH)
             if not rows:
@@ -568,6 +587,6 @@ def _load_sentence_embeddings(
                 vectors.append(_coerce_embedding_vector(embedding))
 
     if not ids:
-        return [], np.empty((0, EMBEDDING_DIM), dtype=np.float32)
+        return [], np.empty((0, get_current_embedding_dimension()), dtype=np.float32)
 
     return ids, np.vstack(vectors).astype(np.float32, copy=False)

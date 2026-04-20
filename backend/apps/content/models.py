@@ -2,7 +2,7 @@
 Content models — XenForo threads, resources, posts, and sentences.
 
 ContentItem is the core entity: anything that can be a link destination or host.
-pgvector VectorField stores 1024-dimension embeddings for semantic similarity search.
+pgvector VectorField stores semantic embeddings for the currently active model.
 """
 
 from django.db import models
@@ -151,8 +151,8 @@ class ContentItem(TimestampedModel):
     Each ContentItem can be both a DESTINATION (the page being linked to)
     and a HOST (the page that will contain a new link in one of its sentences).
 
-    The embedding column stores a 1024-dimension vector from the
-    BAAI/bge-m3 model, used for cosine similarity search via pgvector.
+    The embedding column stores the current model's vector and is tagged by
+    embedding_model_version so future model swaps can coexist safely.
     """
 
     CONTENT_TYPE_CHOICES = [
@@ -362,12 +362,11 @@ class ContentItem(TimestampedModel):
         help_text="Whether this is the preferred version for linking within its cluster.",
     )
 
-    # pgvector embedding (1024 dims = BAAI/bge-m3)
+    # pgvector embedding for the active model/runtime signature
     embedding = VectorField(
-        dimensions=1024,
         null=True,
         blank=True,
-        help_text="1024-dimension sentence embedding for semantic similarity search via pgvector.",
+        help_text="Semantic embedding for the active model. Pair with embedding_model_version when reading.",
     )
 
     # Engagement metrics (mirrored from XenForo)
@@ -492,7 +491,7 @@ class Sentence(models.Model):
 
     Each sentence can be a candidate HOST for a link insertion.
     The pipeline scans only sentences within the HOST_SCAN_WORD_LIMIT.
-    The embedding column stores a 1024-dimension vector for per-sentence similarity.
+    The embedding column stores the current model's vector for per-sentence similarity.
     """
 
     content_item = models.ForeignKey(
@@ -527,13 +526,21 @@ class Sentence(models.Model):
         help_text="Word offset of the sentence start in the post. "
         "Sentences with word_position > HOST_SCAN_WORD_LIMIT are excluded from host scanning.",
     )
+    embedding_model_version = models.CharField(
+        max_length=64,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Model + preprocessing version that produced the current sentence embedding. "
+            "Used to keep stage-2 similarity aligned with the active embedding model."
+        ),
+    )
 
-    # pgvector per-sentence embedding (1024 dims = BAAI/bge-m3)
+    # pgvector per-sentence embedding for the active model/runtime signature
     embedding = VectorField(
-        dimensions=1024,
         null=True,
         blank=True,
-        help_text="1024-dimension sentence embedding. Used in stage-2 similarity ranking.",
+        help_text="Sentence embedding for the active model. Used in stage-2 similarity ranking.",
     )
 
     class Meta:
@@ -614,7 +621,7 @@ class SupersededEmbedding(models.Model):
         stay untouched even if disk pressure grows.  Old unverified copies
         are a feature, not a leak.
 
-    Disk footprint: ~4 KB per 1024-dim float32 vector + row overhead. At
+    Disk footprint: vector bytes scale with the active model dimension. At
     typical sync volumes this is bounded by the 7-day retention; steady-state
     disk usage at 90 days is effectively zero because everything past 7 days
     that was verified has been pruned.
@@ -627,10 +634,9 @@ class SupersededEmbedding(models.Model):
         help_text="The content item whose embedding was replaced.",
     )
     embedding = VectorField(
-        dimensions=1024,
         null=True,
         blank=True,
-        help_text="The old 1024-dim vector that was replaced.",
+        help_text="The old embedding vector that was replaced.",
     )
     embedding_model_version = models.CharField(
         max_length=64,

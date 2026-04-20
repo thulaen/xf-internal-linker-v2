@@ -130,6 +130,7 @@ def _prereq_embeddings() -> dict:
     """Embeddings complete for in-scope content."""
     try:
         from apps.content.models import ContentItem
+        from apps.pipeline.services.embeddings import get_current_embedding_filter
 
         total_queryset = ContentItem.objects.all()
         total = total_queryset.count()
@@ -144,7 +145,11 @@ def _prereq_embeddings() -> dict:
                 "progress": 1.0,
                 "affects": [],
             }
-        missing = total_queryset.filter(embedding__isnull=True).count()
+        ready_queryset = total_queryset.filter(
+            embedding__isnull=False,
+            **get_current_embedding_filter(),
+        )
+        missing = total - ready_queryset.count()
         if missing == 0:
             return {
                 "id": "embeddings",

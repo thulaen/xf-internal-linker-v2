@@ -173,10 +173,15 @@ def _retrigger_embedding_for_failed() -> dict:
     dropping verified rows.  Return a structured pending marker today.
     """
     from apps.content.models import ContentItem
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
 
     # Count items that look like they need an embedding but don't have one.
     # This is a READ-only count; the actual queueing is deferred to item 20 work.
-    missing = ContentItem.objects.filter(embedding__isnull=True).count()
+    total = ContentItem.objects.count()
+    missing = total - ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).count()
     return {
         "ok": True,
         "action": "preview_only",

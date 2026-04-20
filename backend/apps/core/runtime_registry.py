@@ -13,9 +13,8 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Default embedding-vector dimension for BGE-M3 (also the historical
-# default for the nomic-embed-text-v1.5 legacy runtime). Used when
-# seeding a new RuntimeModelRegistry row for the embedding task.
+# Default embedding-vector dimension for the seeded BGE-M3 champion.
+# Used when seeding a new RuntimeModelRegistry row for the embedding task.
 _EMBEDDING_DIM_DEFAULT = 1024
 
 # How many most-recent audit rows to retain after every insert. Older

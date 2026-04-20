@@ -1039,6 +1039,7 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
     """Run a batch clustering pass over all ContentItems with embeddings."""
     from apps.content.models import ContentItem
     from apps.content.services.clustering import ClusteringService
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
 
     if not job_id:
         job_id = f"clustering_{int(time.time())}"
@@ -1047,9 +1048,10 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
     _publish_progress(job_id, "running", 0.0, "Starting batch clustering pass...")
 
     # Filter items that have embeddings
-    items = ContentItem.objects.filter(embedding__isnull=False).only(
-        "id", "embedding", "cluster_id"
-    )
+    items = ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).only("id", "embedding", "cluster_id")
     total = items.count()
 
     if total == 0:

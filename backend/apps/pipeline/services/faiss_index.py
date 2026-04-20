@@ -25,6 +25,11 @@ import threading
 
 import numpy as np
 
+from apps.pipeline.services.embeddings import (
+    get_current_embedding_dimension,
+    get_current_embedding_filter,
+)
+
 try:
     import faiss
 
@@ -82,9 +87,10 @@ def build_faiss_index() -> None:
 
     performance_mode = getattr(settings, "ML_PERFORMANCE_MODE", "STANDARD")
 
-    qs = ContentItem.objects.filter(embedding__isnull=False).values_list(
-        "pk", "content_type", "embedding"
-    )
+    qs = ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).values_list("pk", "content_type", "embedding")
 
     pks: list[int] = []
     content_types: list[str] = []
@@ -199,7 +205,9 @@ def get_faiss_status() -> dict:
         device = "unknown"
         on_gpu = False
 
-    vram_mb = round(n * 1024 * 4 / (1024**2)) if on_gpu else 0
+    vram_mb = round(
+        n * get_current_embedding_dimension() * 4 / (1024**2)
+    ) if on_gpu else 0
 
     return {
         "active": True,

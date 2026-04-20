@@ -87,7 +87,12 @@ def scorecard() -> list[SourceScorecard]:
 
     # ContentItem — completeness = embedded-of-total, freshness = most-recent created.
     total = ContentItem.objects.count()
-    embedded = ContentItem.objects.exclude(embedding__isnull=True).count()
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
+
+    embedded = ContentItem.objects.filter(
+        embedding__isnull=False,
+        **get_current_embedding_filter(),
+    ).count()
     latest_ci = ContentItem.objects.aggregate(m=Max("created_at")).get("m")
     freshness = None
     if latest_ci:

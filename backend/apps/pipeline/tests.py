@@ -38,6 +38,7 @@ from apps.pipeline.services.feedback_rerank import (
     FeedbackRerankSettings,
 )
 from apps.core.models import AppSetting
+from apps.core.runtime_models import RuntimeModelRegistry
 from apps.graph.models import BrokenLink, ExistingLink
 from apps.sync.models import SyncJob
 from apps.pipeline.services.field_aware_relevance import (
@@ -68,6 +69,7 @@ from apps.pipeline.services.rare_term_propagation import (
 from apps.pipeline.services.pipeline import (
     DEFAULT_WEIGHTS,
     PipelineResult,
+    _load_destination_embeddings,
     _load_sentence_embeddings,
     _load_sentence_records,
     _load_weights,
@@ -488,6 +490,7 @@ class PipelineLoaderTests(TestCase):
             end_char=15,
             word_position=5,
             embedding=[0.25] * 1024,
+            embedding_model_version="BAAI/bge-m3:1024",
         )
         Sentence.objects.create(
             content_item=content,
@@ -499,6 +502,7 @@ class PipelineLoaderTests(TestCase):
             end_char=41,
             word_position=50,
             embedding=[0.75] * 1024,
+            embedding_model_version="BAAI/bge-m3:1024",
         )
 
         content_keys = {(content.pk, content.content_type)}
@@ -4143,6 +4147,281 @@ class PipelineSettingsFallbackLoggingTests(TestCase):
 
         self.assertEqual(weights, DEFAULT_WEIGHTS)
         log_exception.assert_called_once()
+
+
+class EmbeddingRuntimeSafetyTests(TestCase):
+    def setUp(self):
+        self.scope = ScopeItem.objects.create(
+            scope_id=999,
+            scope_type="node",
+            title="Embedding Scope",
+        )
+
+    def _create_content_items(self, count: int) -> list[ContentItem]:
+        items = []
+        for idx in range(count):
+            items.append(
+                ContentItem.objects.create(
+                    content_id=10_000 + idx,
+                    content_type="thread",
+                    title=f"Title {idx}",
+                    distilled_text=f"Body {idx}",
+                    scope=self.scope,
+                )
+            )
+        return items
+
+    def _create_sentence(self, content_item: ContentItem, *, text: str = "Host sentence") -> Sentence:
+        post = Post.objects.create(
+            content_item=content_item,
+            raw_bbcode=text,
+            clean_text=text,
+            char_count=len(text),
+        )
+        return Sentence.objects.create(
+            content_item=content_item,
+            post=post,
+            text=text,
+            position=0,
+            char_count=len(text),
+            start_char=0,
+            end_char=len(text),
+            word_position=1,
+        )
+
+    def test_content_embeddings_retry_with_smaller_batch_after_oom(self):
+        from apps.pipeline.services import embeddings as embeddings_service
+
+        items = self._create_content_items(17)
+        job = SyncJob.objects.create(source="api", mode="full", status="running")
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 1024
+        encode_calls: list[tuple[int, int]] = []
+
+        def _encode(texts, batch_size, show_progress_bar, convert_to_numpy):
+            encode_calls.append((len(texts), batch_size))
+            if batch_size == 16 and len(encode_calls) == 1:
+                raise RuntimeError("CUDA out of memory while allocating tensor")
+            return np.ones((len(texts), 1024), dtype=np.float32)
+
+        fake_model.encode.side_effect = _encode
+
+        with (
+            patch.object(embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"),
+            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(embeddings_service, "_get_batch_size", return_value=16),
+            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
+            patch.object(embeddings_service, "_emit_model_alert"),
+            patch.object(embeddings_service, "_clear_embedding_runtime_memory"),
+            patch.object(pipeline_tasks, "_publish_progress"),
+        ):
+            stats = embeddings_service.generate_content_item_embeddings(
+                [item.pk for item in items],
+                job_id=str(job.job_id),
+            )
+
+        self.assertEqual(stats, {"embedded": 17, "skipped": 0})
+        self.assertEqual(encode_calls[0], (16, 16))
+        self.assertIn((8, 8), encode_calls)
+        self.assertEqual(
+            ContentItem.objects.filter(pk__in=[item.pk for item in items], embedding__isnull=False).count(),
+            17,
+        )
+        job.refresh_from_db()
+        self.assertTrue(job.is_resumable)
+        self.assertEqual(job.checkpoint_stage, "embed")
+        self.assertIn("retrying with 8", job.message)
+
+    def test_pause_flushes_pending_content_embeddings_before_raising(self):
+        from apps.core.pause_contract import JobPaused
+        from apps.pipeline.services import embeddings as embeddings_service
+
+        items = self._create_content_items(3)
+        job = SyncJob.objects.create(source="api", mode="full", status="running")
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 1024
+        fake_model.encode.side_effect = (
+            lambda texts, batch_size, show_progress_bar, convert_to_numpy: np.ones(
+                (len(texts), 1024), dtype=np.float32
+            )
+        )
+
+        with (
+            patch.object(embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"),
+            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(embeddings_service, "_get_batch_size", return_value=1),
+            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
+            patch.object(embeddings_service, "_emit_model_alert"),
+            patch.object(
+                embeddings_service,
+                "_get_embedding_pause_reason",
+                side_effect=[None, None, "operator pause"],
+            ),
+            patch.object(pipeline_tasks, "_publish_progress"),
+        ):
+            with self.assertRaises(JobPaused):
+                embeddings_service.generate_content_item_embeddings(
+                    [item.pk for item in items],
+                    job_id=str(job.job_id),
+                )
+
+        job.refresh_from_db()
+        self.assertEqual(job.status, "paused")
+        self.assertTrue(job.is_resumable)
+        self.assertEqual(job.checkpoint_stage, "embed")
+        self.assertEqual(
+            ContentItem.objects.filter(pk__in=[item.pk for item in items], embedding__isnull=False).count(),
+            2,
+        )
+
+    def test_content_embeddings_reembed_stale_signature_and_stamp_current_signature(self):
+        from apps.pipeline.services import embeddings as embeddings_service
+
+        stale_item, fresh_item = self._create_content_items(2)
+        stale_item.embedding = [0.25] * 1024
+        stale_item.embedding_model_version = "legacy/model:1024"
+        stale_item.save(update_fields=["embedding", "embedding_model_version"])
+        fresh_item.embedding = [0.5] * 1536
+        fresh_item.embedding_model_version = "future/model:1536"
+        fresh_item.save(update_fields=["embedding", "embedding_model_version"])
+
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 1536
+        fake_model.encode.return_value = np.ones((1, 1536), dtype=np.float32)
+
+        with (
+            patch.object(embeddings_service, "_get_model_name", return_value="future/model"),
+            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(embeddings_service, "_get_batch_size", return_value=8),
+            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
+            patch.object(embeddings_service, "_emit_model_alert"),
+        ):
+            stats = embeddings_service.generate_content_item_embeddings(
+                [stale_item.pk, fresh_item.pk]
+            )
+
+        self.assertEqual(stats, {"embedded": 1, "skipped": 0})
+        stale_item.refresh_from_db()
+        fresh_item.refresh_from_db()
+        self.assertEqual(stale_item.embedding_model_version, "future/model:1536")
+        self.assertEqual(len(stale_item.embedding), 1536)
+        self.assertEqual(fresh_item.embedding_model_version, "future/model:1536")
+        fake_model.encode.assert_called_once()
+
+    def test_sentence_embeddings_reembed_stale_signature_and_stamp_current_signature(self):
+        from apps.pipeline.services import embeddings as embeddings_service
+
+        stale_item, fresh_item = self._create_content_items(2)
+        stale_sentence = self._create_sentence(stale_item, text="Stale sentence")
+        fresh_sentence = self._create_sentence(fresh_item, text="Fresh sentence")
+        stale_sentence.embedding = [0.25] * 1024
+        stale_sentence.embedding_model_version = "legacy/model:1024"
+        stale_sentence.save(update_fields=["embedding", "embedding_model_version"])
+        fresh_sentence.embedding = [0.5] * 1536
+        fresh_sentence.embedding_model_version = "future/model:1536"
+        fresh_sentence.save(update_fields=["embedding", "embedding_model_version"])
+
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 1536
+        fake_model.encode.return_value = np.ones((1, 1536), dtype=np.float32)
+
+        with (
+            patch.object(embeddings_service, "_get_model_name", return_value="future/model"),
+            patch.object(embeddings_service, "_load_model", return_value=fake_model),
+            patch.object(embeddings_service, "_get_batch_size", return_value=8),
+            patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
+            patch.object(embeddings_service, "_emit_model_alert"),
+        ):
+            stats = embeddings_service.generate_sentence_embeddings(
+                [stale_item.pk, fresh_item.pk]
+            )
+
+        self.assertEqual(stats, {"embedded": 1, "skipped": 0})
+        stale_sentence.refresh_from_db()
+        fresh_sentence.refresh_from_db()
+        self.assertEqual(stale_sentence.embedding_model_version, "future/model:1536")
+        self.assertEqual(len(stale_sentence.embedding), 1536)
+        self.assertEqual(fresh_sentence.embedding_model_version, "future/model:1536")
+        fake_model.encode.assert_called_once()
+
+    def test_pipeline_embedding_loaders_only_return_current_signature_rows(self):
+        AppSetting.objects.update_or_create(
+            key="embedding_model",
+            defaults={
+                "value": "future/model",
+                "value_type": "str",
+                "category": "ml",
+                "description": "Embedding model",
+            },
+        )
+        RuntimeModelRegistry.objects.create(
+            task_type="embedding",
+            model_name="future/model",
+            dimension=1536,
+            role="champion",
+            status="ready",
+        )
+
+        current_item, stale_item = self._create_content_items(2)
+        current_item.embedding = [0.1] * 1536
+        current_item.embedding_model_version = "future/model:1536"
+        current_item.save(update_fields=["embedding", "embedding_model_version"])
+        stale_item.embedding = [0.2] * 1024
+        stale_item.embedding_model_version = "legacy/model:1024"
+        stale_item.save(update_fields=["embedding", "embedding_model_version"])
+
+        current_sentence = self._create_sentence(current_item, text="Current sentence")
+        stale_sentence = self._create_sentence(stale_item, text="Stale sentence")
+        current_sentence.embedding = [0.3] * 1536
+        current_sentence.embedding_model_version = "future/model:1536"
+        current_sentence.save(update_fields=["embedding", "embedding_model_version"])
+        stale_sentence.embedding = [0.4] * 1024
+        stale_sentence.embedding_model_version = "legacy/model:1024"
+        stale_sentence.save(update_fields=["embedding", "embedding_model_version"])
+
+        content_records = {
+            (current_item.pk, current_item.content_type): _content_record(
+                content_id=current_item.pk,
+                silo_group_id=None,
+            ),
+            (stale_item.pk, stale_item.content_type): _content_record(
+                content_id=stale_item.pk,
+                silo_group_id=None,
+            ),
+        }
+
+        destination_keys, destination_embeddings = _load_destination_embeddings(
+            content_records,
+            pending_destinations=set(),
+        )
+        sentence_ids, sentence_embeddings = _load_sentence_embeddings(
+            set(content_records.keys())
+        )
+
+        self.assertEqual(destination_keys, ((current_item.pk, current_item.content_type),))
+        self.assertEqual(destination_embeddings.shape, (1, 1536))
+        self.assertEqual(sentence_ids, [current_sentence.pk])
+        self.assertEqual(sentence_embeddings.shape, (1, 1536))
+
+    def test_model_status_exposes_dimension_compatibility(self):
+        from apps.pipeline.services import embeddings as embeddings_service
+
+        fake_model = MagicMock()
+        fake_model.get_sentence_embedding_dimension.return_value = 1536
+
+        with (
+            patch.dict(embeddings_service._model_cache, {"custom/model": fake_model}, clear=True),
+            patch.object(embeddings_service, "_get_model_name", return_value="custom/model"),
+            patch.object(embeddings_service, "_resolve_device", return_value="cpu"),
+            patch.object(embeddings_service, "_get_configured_batch_size", return_value=32),
+        ):
+            status = embeddings_service.get_model_status()
+
+        self.assertEqual(status["embedding_dim"], 1536)
+        self.assertEqual(status["active_signature"], "custom/model:1536")
+        self.assertEqual(status["storage_dimension_cap"], 16000)
+        self.assertTrue(status["dimension_compatible"])
+        self.assertEqual(status["configured_batch_size"], 32)
 
 
 # ---------------------------------------------------------------------------

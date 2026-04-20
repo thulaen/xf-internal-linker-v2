@@ -7,7 +7,8 @@ loaded once and cached in process.
 
 Performance mode is controlled by ML_PERFORMANCE_MODE env var:
   BALANCED (default) — CPU only, batch_size=32
-  HIGH_PERFORMANCE  — GPU if CUDA available, batch_size=128
+  HIGH_PERFORMANCE  — GPU if CUDA available, batch_size starts at 128
+                       and backs off automatically if memory pressure is hit
 """
 
 from __future__ import annotations
@@ -32,6 +33,7 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_MODEL_NAME = "BAAI/bge-m3"
 EMBEDDING_DIM = 1024
+STORAGE_VECTOR_MAX_DIM = 16_000
 
 _model_cache: dict[str, Any] = {}
 
@@ -189,30 +191,12 @@ def _thermal_guard_before_gpu_batch() -> None:
         _wait_for_gpu_cooldown()
 
 
-def _pause_guard_before_embedding_batch(job_id: str | None) -> None:
-    """Stop at embedding batch boundaries when master or per-job pause is set."""
-    if not job_id:
-        return
-
-    from apps.core.pause_contract import JobPaused, should_pause_now
-    from apps.sync.models import SyncJob
-
-    should_pause, reason = should_pause_now(job_type="embeddings", job_id=job_id)
-    if not should_pause:
-        return
-
-    SyncJob.objects.filter(job_id=job_id).update(
-        status="paused",
-        is_resumable=True,
-        message=f"Paused at embedding checkpoint: {reason}",
-    )
-    raise JobPaused(reason)
-
-
 def _flush_embeddings_slice(
     model_class: type,
     pks_slice: list[int],
     raw_vectors_list: list,
+    *,
+    embedding_signature: str | None = None,
 ) -> None:
     """L2-normalise accumulated vectors and bulk_update the given PK slice.
 
@@ -223,12 +207,36 @@ def _flush_embeddings_slice(
     if not raw_vectors_list:
         return
     normalised = _l2_normalize(np.vstack(raw_vectors_list))
+    fields = ["embedding"]
+    supports_model_version = False
+    try:
+        model_class._meta.get_field("embedding_model_version")
+        supports_model_version = True
+    except Exception:
+        supports_model_version = False
     model_class.objects.bulk_update(
         [
-            model_class(pk=pk, embedding=vec.tolist())
+            model_class(
+                **(
+                    {
+                        "pk": pk,
+                        "embedding": vec.tolist(),
+                        **(
+                            {"embedding_model_version": embedding_signature}
+                            if supports_model_version and embedding_signature
+                            else {}
+                        ),
+                    }
+                )
+            )
             for pk, vec in zip(pks_slice, normalised, strict=True)
         ],
-        fields=["embedding"],
+        fields=fields
+        + (
+            ["embedding_model_version"]
+            if supports_model_version and embedding_signature
+            else []
+        ),
         batch_size=500,
     )
     raw_vectors_list.clear()
@@ -311,6 +319,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     start = time.monotonic()
     try:
         model = SentenceTransformer(model_name, device=device, trust_remote_code=True)
+        profile = _assert_model_dimension_supported(model_name, model)
     except Exception as exc:
         _emit_model_alert(
             "model.load_failed",
@@ -330,6 +339,14 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
             logger.debug(
                 "fp16 conversion not supported for model '%s', using fp32", model_name
             )
+    if profile["recommended_batch_size"] < profile["configured_batch_size"]:
+        logger.info(
+            "Model '%s' recommends batch size %d instead of configured %d because it reports %d dimensions.",
+            model_name,
+            profile["recommended_batch_size"],
+            profile["configured_batch_size"],
+            profile["embedding_dim"],
+        )
     _model_cache[model_name] = model
     _emit_model_alert(
         "model.ready",
@@ -370,10 +387,140 @@ _BATCH_SIZE_MIN = 8
 _BATCH_SIZE_MAX = 128
 _BATCH_SIZE_HIGH = _BATCH_SIZE_MAX
 _BATCH_SIZE_DEFAULT = 32
+_OOM_ERROR_MARKERS = (
+    "out of memory",
+    "cuda out of memory",
+    "cublas_status_alloc_failed",
+    "mps backend out of memory",
+    "can't allocate memory",
+    "std::bad_alloc",
+)
 
 
-def _get_batch_size() -> int:
-    """Resolve the embedding batch size.
+def _get_model_embedding_dimension(model: Any | None) -> int | None:
+    """Read the embedding dimension reported by the loaded model when available."""
+    if model is None:
+        return None
+    get_dimension = getattr(model, "get_sentence_embedding_dimension", None)
+    if not callable(get_dimension):
+        return None
+    try:
+        value = get_dimension()
+    except Exception:
+        logger.debug("Model did not expose embedding dimension cleanly", exc_info=True)
+        return None
+    try:
+        return int(value) if value is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
+def _get_runtime_registry_dimension(model_name: str | None = None) -> int | None:
+    """Return the last known registered dimension for the active embedding runtime."""
+    try:
+        from apps.core.runtime_models import RuntimeModelRegistry
+
+        query = RuntimeModelRegistry.objects.filter(task_type="embedding")
+        if model_name:
+            query = query.filter(model_name=model_name)
+        registry_row = (
+            query.exclude(dimension__isnull=True)
+            .exclude(status="deleted")
+            .order_by("-promoted_at", "-id")
+            .first()
+        )
+        if registry_row and registry_row.dimension:
+            return int(registry_row.dimension)
+    except Exception:
+        logger.debug("Runtime registry dimension lookup unavailable", exc_info=True)
+    return None
+
+
+def get_current_embedding_dimension(
+    *, model: Any | None = None, model_name: str | None = None
+) -> int:
+    """Return the active embedding dimension for loaders, status, and sizing."""
+    resolved_model_name = model_name or _get_model_name()
+    return (
+        _get_model_embedding_dimension(model)
+        or _get_runtime_registry_dimension(resolved_model_name)
+        or EMBEDDING_DIM
+    )
+
+
+def get_current_embedding_signature(
+    *, model: Any | None = None, model_name: str | None = None
+) -> str:
+    """Return the active model signature stored alongside embeddings."""
+    resolved_model_name = model_name or _get_model_name()
+    dimension = get_current_embedding_dimension(
+        model=model,
+        model_name=resolved_model_name,
+    )
+    return f"{resolved_model_name}:{dimension}"
+
+
+def get_current_embedding_filter(
+    *, prefix: str = "", model: Any | None = None, model_name: str | None = None
+) -> dict[str, str]:
+    """Return ORM filters that scope queries to the active embedding signature."""
+    return {
+        f"{prefix}embedding_model_version": get_current_embedding_signature(
+            model=model,
+            model_name=model_name,
+        )
+    }
+
+
+def _describe_model_runtime(
+    *,
+    model_name: str,
+    configured_batch_size: int,
+    model: Any | None = None,
+) -> dict[str, Any]:
+    """Summarize the runtime assumptions for the configured embedding model."""
+    embedding_dim = get_current_embedding_dimension(
+        model=model,
+        model_name=model_name,
+    )
+    dimension_compatible = 0 < embedding_dim <= STORAGE_VECTOR_MAX_DIM
+    recommended_batch_size = configured_batch_size
+    if embedding_dim > EMBEDDING_DIM:
+        scaled = int(configured_batch_size * EMBEDDING_DIM / max(embedding_dim, 1))
+        recommended_batch_size = max(_BATCH_SIZE_MIN, min(configured_batch_size, scaled))
+    return {
+        "model_name": model_name,
+        "embedding_dim": embedding_dim,
+        "active_signature": get_current_embedding_signature(
+            model=model,
+            model_name=model_name,
+        ),
+        "storage_dimension_cap": STORAGE_VECTOR_MAX_DIM,
+        "dimension_compatible": dimension_compatible,
+        "configured_batch_size": configured_batch_size,
+        "recommended_batch_size": recommended_batch_size,
+    }
+
+
+def _assert_model_dimension_supported(model_name: str, model: Any) -> dict[str, Any]:
+    """Fail fast when the configured model exceeds generic-vector storage limits."""
+    profile = _describe_model_runtime(
+        model_name=model_name,
+        configured_batch_size=_get_configured_batch_size(),
+        model=model,
+    )
+    if profile["dimension_compatible"]:
+        return profile
+
+    raise ValueError(
+        f"Embedding model '{model_name}' outputs {profile['embedding_dim']} dimensions, "
+        f"which exceeds the storage cap of {profile['storage_dimension_cap']} dimensions. "
+        "Choose a smaller model or raise the storage contract before promoting it."
+    )
+
+
+def _get_configured_batch_size() -> int:
+    """Resolve the configured embedding batch size before model-aware tuning.
 
     Priority: AppSetting override (key=system.embedding_batch_size, set by the
     noob-friendly slider in Settings > Performance) → performance mode default.
@@ -396,6 +543,109 @@ def _get_batch_size() -> int:
 
     mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
     return _BATCH_SIZE_HIGH if mode == "HIGH_PERFORMANCE" else _BATCH_SIZE_DEFAULT
+
+
+def _get_batch_size(model: Any | None = None) -> int:
+    """Resolve the effective embedding batch size for the current model."""
+    configured_batch_size = _get_configured_batch_size()
+    if model is None:
+        return configured_batch_size
+    profile = _describe_model_runtime(
+        model_name=_get_model_name(),
+        configured_batch_size=configured_batch_size,
+        model=model,
+    )
+    return int(profile["recommended_batch_size"])
+
+
+def _is_embedding_oom_error(exc: Exception) -> bool:
+    """Detect OOM-style failures from either CUDA or CPU allocators."""
+    message = str(exc).lower()
+    return any(marker in message for marker in _OOM_ERROR_MARKERS)
+
+
+def _clear_embedding_runtime_memory() -> None:
+    """Best-effort memory cleanup after an OOM before retrying."""
+    try:
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            try:
+                torch.cuda.ipc_collect()
+            except Exception:
+                logger.debug("torch.cuda.ipc_collect unavailable", exc_info=True)
+    except Exception:
+        logger.debug("Runtime memory cleanup skipped", exc_info=True)
+
+
+def _next_retry_batch_size(current_batch_size: int) -> int:
+    """Return the next smaller retry size without dropping below the floor."""
+    if current_batch_size <= _BATCH_SIZE_MIN:
+        return current_batch_size
+    reduced = max(_BATCH_SIZE_MIN, current_batch_size // 2)
+    if reduced == current_batch_size and current_batch_size > _BATCH_SIZE_MIN:
+        reduced = current_batch_size - 1
+    return max(_BATCH_SIZE_MIN, reduced)
+
+
+def _get_embedding_pause_reason(job_id: str | None) -> str | None:
+    """Read the current pause contract without raising so callers can checkpoint first."""
+    if not job_id:
+        return None
+    from apps.core.pause_contract import should_pause_now
+
+    should_pause, reason = should_pause_now(job_type="embeddings", job_id=job_id)
+    if should_pause:
+        return reason
+    return None
+
+
+def _mark_embedding_job_paused(job_id: str | None, reason: str) -> None:
+    """Persist a pause state after the caller flushed any pending checkpoints."""
+    if not job_id:
+        return
+    from apps.sync.models import SyncJob
+
+    SyncJob.objects.filter(job_id=job_id).update(
+        status="paused",
+        is_resumable=True,
+        checkpoint_stage="embed",
+        message=f"Paused at embedding checkpoint: {reason}",
+    )
+
+
+def _record_embedding_backoff(
+    *,
+    job_id: str | None,
+    model_name: str,
+    failed_batch_size: int,
+    retry_batch_size: int,
+    exc: Exception,
+) -> None:
+    """Record an OOM backoff event in logs, alerts, and the SyncJob row."""
+    message = (
+        f"Embedding batch hit memory pressure at batch size {failed_batch_size}; "
+        f"retrying with {retry_batch_size} for model '{model_name}'."
+    )
+    logger.warning("%s Error: %s", message, exc)
+    _emit_model_alert(
+        "model.oom_backoff",
+        "warning",
+        "Embedding batch size reduced after memory pressure",
+        message,
+        model_name,
+    )
+    if not job_id:
+        return
+
+    from apps.sync.models import SyncJob
+
+    SyncJob.objects.filter(job_id=job_id).update(
+        is_resumable=True,
+        checkpoint_stage="embed",
+        message=message,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -445,14 +695,21 @@ def generate_content_item_embeddings(
 
     model_name = _get_model_name()
     model = _load_model(model_name)
-    batch_size = _get_batch_size()
+    embedding_signature = get_current_embedding_signature(
+        model=model,
+        model_name=model_name,
+    )
+    batch_size = _get_batch_size(model)
 
     qs = ContentItem.objects.filter(is_deleted=False)
     if content_item_ids is not None:
         qs = qs.filter(pk__in=content_item_ids)
 
     if not force_reembed:
-        qs = qs.filter(embedding__isnull=True)
+        qs = qs.exclude(
+            embedding__isnull=False,
+            embedding_model_version=embedding_signature,
+        )
 
     qs = qs.values_list("pk", "title", "distilled_text")
 
@@ -494,19 +751,52 @@ def generate_content_item_embeddings(
 
     batch_num = 0
     flushed_count = 0  # how many items already persisted to DB
-    for i in range(0, total_items, batch_size):
-        batch_texts = texts[i : i + batch_size]
+    cursor = 0
+    while cursor < total_items:
+        pause_reason = _get_embedding_pause_reason(job_id)
+        if pause_reason:
+            _flush_embeddings_slice(
+                ContentItem,
+                pks[flushed_count:cursor],
+                raw_vectors_list,
+                embedding_signature=embedding_signature,
+            )
+            flushed_count = cursor
+            _mark_embedding_job_paused(job_id, pause_reason)
+            from apps.core.pause_contract import JobPaused
+
+            raise JobPaused(pause_reason)
+
+        batch_texts = texts[cursor : cursor + batch_size]
         _thermal_guard_before_gpu_batch()
-        _pause_guard_before_embedding_batch(job_id)
-        batch_vectors = model.encode(
-            batch_texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
+        try:
+            batch_vectors = model.encode(
+                batch_texts,
+                batch_size=batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
+        except Exception as exc:
+            if not _is_embedding_oom_error(exc):
+                raise
+            retry_batch_size = _next_retry_batch_size(batch_size)
+            if retry_batch_size >= batch_size:
+                raise
+            _clear_embedding_runtime_memory()
+            _record_embedding_backoff(
+                job_id=job_id,
+                model_name=model_name,
+                failed_batch_size=batch_size,
+                retry_batch_size=retry_batch_size,
+                exc=exc,
+            )
+            batch_size = retry_batch_size
+            continue
+
         raw_vectors_list.append(batch_vectors)
         batch_num += 1
-        processed = min(i + batch_size, total_items)
+        cursor += len(batch_texts)
+        processed = cursor
 
         # Report progress
         if job_id:
@@ -531,10 +821,13 @@ def generate_content_item_embeddings(
 
         # Checkpoint flush every 5 batches — same cadence as the progress save above.
         # If the worker dies mid-run, items already flushed have embeddings persisted
-        # and the resume run skips them via the `embedding__isnull=True` filter above.
+        # and the resume run skips them once their embedding_model_version matches.
         if batch_num % 5 == 0:
             _flush_embeddings_slice(
-                ContentItem, pks[flushed_count:processed], raw_vectors_list
+                ContentItem,
+                pks[flushed_count:processed],
+                raw_vectors_list,
+                embedding_signature=embedding_signature,
             )
             flushed_count = processed
 
@@ -544,7 +837,12 @@ def generate_content_item_embeddings(
 
     # Tail flush — any batches since the last checkpoint flush. Helper no-ops
     # if the buffer is empty, so no call-site guard needed.
-    _flush_embeddings_slice(ContentItem, pks[flushed_count:], raw_vectors_list)
+    _flush_embeddings_slice(
+        ContentItem,
+        pks[flushed_count:],
+        raw_vectors_list,
+        embedding_signature=embedding_signature,
+    )
 
     elapsed = time.monotonic() - start
     logger.info("Encoded %d items in %.2fs.", len(texts), elapsed)
@@ -573,7 +871,11 @@ def generate_sentence_embeddings(
 
     model_name = _get_model_name()
     model = _load_model(model_name)
-    batch_size = _get_batch_size()
+    embedding_signature = get_current_embedding_signature(
+        model=model,
+        model_name=model_name,
+    )
+    batch_size = _get_batch_size(model)
 
     qs = Sentence.objects.filter(
         content_item__is_deleted=False,
@@ -582,7 +884,10 @@ def generate_sentence_embeddings(
         qs = qs.filter(content_item__pk__in=content_item_ids)
 
     if not force_reembed:
-        qs = qs.filter(embedding__isnull=True)
+        qs = qs.exclude(
+            embedding__isnull=False,
+            embedding_model_version=embedding_signature,
+        )
 
     # Only embed sentences within the HOST_SCAN_WORD_LIMIT window
     qs = qs.filter(word_position__lte=settings.HOST_SCAN_WORD_LIMIT).values_list(
@@ -614,19 +919,52 @@ def generate_sentence_embeddings(
 
     batch_num = 0
     flushed_count = 0  # how many sentences already persisted to DB
-    for i in range(0, total_sentences, batch_size):
-        batch_texts = texts[i : i + batch_size]
+    cursor = 0
+    while cursor < total_sentences:
+        pause_reason = _get_embedding_pause_reason(job_id)
+        if pause_reason:
+            _flush_embeddings_slice(
+                SentenceModel,
+                pks[flushed_count:cursor],
+                raw_vectors_list,
+                embedding_signature=embedding_signature,
+            )
+            flushed_count = cursor
+            _mark_embedding_job_paused(job_id, pause_reason)
+            from apps.core.pause_contract import JobPaused
+
+            raise JobPaused(pause_reason)
+
+        batch_texts = texts[cursor : cursor + batch_size]
         _thermal_guard_before_gpu_batch()
-        _pause_guard_before_embedding_batch(job_id)
-        batch_vectors = model.encode(
-            batch_texts,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
+        try:
+            batch_vectors = model.encode(
+                batch_texts,
+                batch_size=batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
+        except Exception as exc:
+            if not _is_embedding_oom_error(exc):
+                raise
+            retry_batch_size = _next_retry_batch_size(batch_size)
+            if retry_batch_size >= batch_size:
+                raise
+            _clear_embedding_runtime_memory()
+            _record_embedding_backoff(
+                job_id=job_id,
+                model_name=model_name,
+                failed_batch_size=batch_size,
+                retry_batch_size=retry_batch_size,
+                exc=exc,
+            )
+            batch_size = retry_batch_size
+            continue
+
         raw_vectors_list.append(batch_vectors)
         batch_num += 1
-        processed = min(i + batch_size, total_sentences)
+        cursor += len(batch_texts)
+        processed = cursor
 
         # Report progress
         if job_id:
@@ -645,15 +983,23 @@ def generate_sentence_embeddings(
 
         # Checkpoint flush every 5 batches — if the worker dies mid-run, items
         # already flushed have embeddings persisted and the resume run skips them
-        # via the `embedding__isnull=True` filter above.
+        # once their embedding_model_version matches the active signature.
         if batch_num % 5 == 0:
             _flush_embeddings_slice(
-                SentenceModel, pks[flushed_count:processed], raw_vectors_list
+                SentenceModel,
+                pks[flushed_count:processed],
+                raw_vectors_list,
+                embedding_signature=embedding_signature,
             )
             flushed_count = processed
 
     # Tail flush — helper no-ops on empty buffer.
-    _flush_embeddings_slice(SentenceModel, pks[flushed_count:], raw_vectors_list)
+    _flush_embeddings_slice(
+        SentenceModel,
+        pks[flushed_count:],
+        raw_vectors_list,
+        embedding_signature=embedding_signature,
+    )
 
     elapsed = time.monotonic() - start
     logger.info("Encoded %d sentences in %.2fs.", len(texts), elapsed)
@@ -689,13 +1035,23 @@ def get_model_status() -> dict[str, Any]:
     model_name = _get_model_name()
     loaded = model_name in _model_cache
     device = _resolve_device()
+    model = _model_cache.get(model_name)
+    profile = _describe_model_runtime(
+        model_name=model_name,
+        configured_batch_size=_get_configured_batch_size(),
+        model=model,
+    )
     return {
         "model_name": model_name,
         "loaded": loaded,
         "device": device,
         "fp16": device == "cuda",
         "mode": os.environ.get("ML_PERFORMANCE_MODE", "BALANCED"),
-        "batch_size": _get_batch_size(),
-        "embedding_dim": EMBEDDING_DIM,
+        "batch_size": _get_batch_size(model),
+        "configured_batch_size": profile["configured_batch_size"],
+        "embedding_dim": profile["embedding_dim"],
+        "active_signature": profile["active_signature"],
+        "storage_dimension_cap": profile["storage_dimension_cap"],
+        "dimension_compatible": profile["dimension_compatible"],
         "checked_at": datetime.now(timezone.utc).isoformat(),
     }

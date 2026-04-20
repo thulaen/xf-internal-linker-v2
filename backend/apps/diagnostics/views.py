@@ -1201,7 +1201,13 @@ def _embeddings_tile() -> dict:
                 "IDLE",
                 f"No in-scope content yet. Active model: {model_label}.",
             )
-        missing = ContentItem.objects.filter(embedding__isnull=True).count()
+        from apps.pipeline.services.embeddings import get_current_embedding_filter
+
+        ready_count = ContentItem.objects.filter(
+            embedding__isnull=False,
+            **get_current_embedding_filter(model_name=model_name),
+        ).count()
+        missing = total - ready_count
         if missing == 0:
             return _tile(
                 "embeddings",
@@ -1213,7 +1219,7 @@ def _embeddings_tile() -> dict:
                 ),
                 progress=1.0,
             )
-        done = total - missing
+        done = ready_count
         return _tile(
             "embeddings",
             "Embeddings",

@@ -143,11 +143,13 @@ def _stage1_numpy_fallback(
 ) -> dict[ContentKey, list[int]]:
     """NumPy cosine-similarity fallback when FAISS is not installed."""
     from apps.content.models import ContentItem
+    from apps.pipeline.services.embeddings import get_current_embedding_filter
 
     host_pks_list = [pk for pk, _ in host_keys]
     host_emb_qs = ContentItem.objects.filter(
         pk__in=host_pks_list,
         embedding__isnull=False,
+        **get_current_embedding_filter(),
     ).values_list("pk", "content_type", "embedding")
 
     host_emb_map: dict[ContentKey, np.ndarray] = {

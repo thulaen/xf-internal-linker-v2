@@ -1,6 +1,7 @@
 import logging
 from django.db import transaction, connection
 from apps.content.models import ContentItem, ContentCluster
+from apps.pipeline.services.embeddings import get_current_embedding_filter
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,10 @@ class ClusteringService:
 
     def run_clustering_pass(self):
         """Batch job to cluster all items that are currently unclustered."""
-        unclustered = ContentItem.objects.filter(cluster__isnull=True).only(
-            "id", "embedding"
-        )
+        unclustered = ContentItem.objects.filter(
+            cluster__isnull=True,
+            **get_current_embedding_filter(),
+        ).only("id", "embedding", "embedding_model_version")
         count = unclustered.count()
         logger.info(f"Starting clustering pass for {count} unclustered items.")
 
@@ -39,15 +41,19 @@ class ClusteringService:
 
         if item.embedding is None:
             return
+        current_signature = get_current_embedding_filter()["embedding_model_version"]
+        if item.embedding_model_version != current_signature:
+            return
 
         # 1. Find neighbors within threshold (excluding self)
         # We use a raw SQL query here to avoid RecursionError in some psycopg versions
-        # when dealing with large 1024-dimension float arrays in ORM annotations.
+        # when dealing with large embedding arrays in ORM annotations.
         query = """
             SELECT id, cluster_id 
             FROM content_contentitem 
             WHERE id != %s 
               AND embedding IS NOT NULL
+              AND embedding_model_version = %s
               AND embedding <=> %s::vector < %s
         """
         # Convert embedding to list to ensure it's serializable if it's a Vector or array
@@ -58,7 +64,10 @@ class ClusteringService:
         )
 
         with connection.cursor() as cursor:
-            cursor.execute(query, [item.id, emb_list, self.similarity_threshold])
+            cursor.execute(
+                query,
+                [item.id, current_signature, emb_list, self.similarity_threshold],
+            )
             rows = cursor.fetchall()
 
         neighbor_ids = [r[0] for r in rows]

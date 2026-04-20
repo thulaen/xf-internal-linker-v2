@@ -1,3 +1,4 @@
+import importlib
 from unittest.mock import patch
 
 from django.contrib.auth import get_user_model
@@ -866,3 +867,111 @@ class ValueModelEngagementSettingsTests(APITestCase):
         response = self.client.put("/api/settings/value-model/", payload, format="json")
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["engagement_lookback_days"], 1)
+
+
+@override_settings(EMBEDDING_MODEL="BAAI/bge-m3")
+class EmbeddingModelDefaultTests(APITestCase):
+    def setUp(self):
+        user = get_user_model().objects.create_user(
+            username="runtime-default-user", password="pass"
+        )
+        self.client.force_authenticate(user=user)
+
+    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_balanced_mode(
+        self,
+    ):
+        AppSetting.objects.filter(key="embedding_model").delete()
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode",
+            defaults={
+                "value": "balanced",
+                "value_type": "str",
+                "category": "performance",
+                "description": "Current performance mode",
+            },
+        )
+
+        from apps.core.runtime_registry import get_current_embedding_model_name
+
+        self.assertEqual(get_current_embedding_model_name(), "BAAI/bge-m3")
+
+    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_high_mode(self):
+        AppSetting.objects.filter(key="embedding_model").delete()
+        AppSetting.objects.update_or_create(
+            key="system.performance_mode",
+            defaults={
+                "value": "high",
+                "value_type": "str",
+                "category": "performance",
+                "description": "Current performance mode",
+            },
+        )
+
+        from apps.core.runtime_registry import summarize_model_registry
+
+        summary = summarize_model_registry()
+        self.assertEqual(summary["active_model"]["model_name"], "BAAI/bge-m3")
+
+    def test_seed_default_embedding_model_migration_creates_missing_setting(self):
+        AppSetting.objects.filter(key="embedding_model").delete()
+        migration = importlib.import_module(
+            "apps.core.migrations.0011_seed_default_embedding_model"
+        )
+
+        migration.seed_default_embedding_model(apps=None, schema_editor=None)
+
+        setting = AppSetting.objects.get(key="embedding_model")
+        self.assertEqual(setting.value, "BAAI/bge-m3")
+        self.assertEqual(setting.value_type, "str")
+        self.assertEqual(setting.category, "ml")
+
+    def test_seed_default_embedding_model_migration_preserves_existing_custom_model(self):
+        AppSetting.objects.update_or_create(
+            key="embedding_model",
+            defaults={
+                "value": "custom/local-model",
+                "value_type": "str",
+                "category": "ml",
+                "description": "Operator-selected embedding model",
+            },
+        )
+        migration = importlib.import_module(
+            "apps.core.migrations.0011_seed_default_embedding_model"
+        )
+
+        migration.seed_default_embedding_model(apps=None, schema_editor=None)
+
+        self.assertEqual(
+            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+        )
+
+    def test_runtime_switch_does_not_mutate_embedding_model(self):
+        AppSetting.objects.update_or_create(
+            key="embedding_model",
+            defaults={
+                "value": "custom/local-model",
+                "value_type": "str",
+                "category": "ml",
+                "description": "Operator-selected embedding model",
+            },
+        )
+
+        high_response = self.client.post(
+            "/api/settings/runtime/switch/",
+            {"mode": "high"},
+            format="json",
+        )
+        self.assertEqual(high_response.status_code, 200)
+        self.assertEqual(
+            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+        )
+
+        balanced_response = self.client.post(
+            "/api/settings/runtime/switch/",
+            {"mode": "balanced"},
+            format="json",
+        )
+        self.assertEqual(balanced_response.status_code, 200)
+        self.assertEqual(
+            AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
+        )
