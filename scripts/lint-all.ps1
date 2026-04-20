@@ -216,6 +216,7 @@ $baselineLongFiles = @(
     'explainability-tooltip.component.ts', # two components in one file (tooltip + dialog)
     'analytics.component.ts',   # pre-existing 670+ lines — 9 chart configs inline
     'jobs.component.ts',        # pre-existing 550+ lines before resume wiring — getters, formatters, and 3 source-typed flows; candidates for extraction into jobs.helpers.ts + sync.service
+    'app.component.ts',         # pre-existing 620+ lines — shell component holds toolbar state, nav config, 5 polling timers, hotkey bindings; candidates for extraction into AppShellService + NavConfigService + HotkeyService
     'urls.py',                  # DRF URL conf — the throttle parse_rate override triggers the linter's EOF bug (2-line method reported as 306 because no `def` follows it)
     'webhooks.py',              # sync/services/webhooks.py — pre-existing process_xf_webhook / process_wp_webhook are ~95 lines each; candidates for per-event dispatch extraction
     'runtime_registry.py',      # FR-020 capture_primary_hardware_snapshot is ~92 lines — small best-effort probe blocks; candidate for per-resource probe extraction
