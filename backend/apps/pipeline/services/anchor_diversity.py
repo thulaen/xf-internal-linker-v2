@@ -229,7 +229,7 @@ def _build_diagnostics_base(
     settings: AnchorDiversitySettings,
 ) -> dict[str, object]:
     """Initialise the diagnostics dict shared by both per-candidate and
-    batch paths. Mirrors the dict built at line 123 of
+    batch paths. Mirrors the dict built at the top of
     ``evaluate_anchor_diversity``.
     """
     return {
