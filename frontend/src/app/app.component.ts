@@ -3,7 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
 import { CommonModule } from '@angular/common';
-import { EMPTY, filter, map, startWith, timer, switchMap } from 'rxjs';
+import { EMPTY, filter, map, Observable, startWith, timer, switchMap } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -406,47 +406,42 @@ export class AppComponent implements OnInit {
     // Phase RC / Gap 139 — heartbeat presence to other tabs.
     this.presence.start();
 
-    // Every authenticated pollers below gate on isLoggedIn$: while the
-    // user is signed out (login page, startup token check) the timer is
-    // replaced by EMPTY so we don't hammer the server with 403s. On login
-    // the timer (re)starts from 0; on logout it cancels cleanly.
-    const whileLoggedIn = <T>(seed: () => import('rxjs').Observable<T>) =>
-      this.auth.isLoggedIn$.pipe(
-        switchMap((loggedIn) => (loggedIn ? seed() : EMPTY)),
-      );
+    this.startAuthenticatedPolls();
+  }
 
-    // Performance Mode: prime the global chip on boot, and refresh every 2 minutes
-    // as a safety net in case the mode is changed in another tab or from the API.
-    whileLoggedIn(() =>
+  /**
+   * Pollers that hit authenticated endpoints. Split from ngOnInit so each
+   * method stays under the 80-line cap. All timers gate on isLoggedIn$:
+   * while signed out (login page, startup token check) the timer is
+   * replaced by EMPTY; on login the timer (re)starts from 0; on logout
+   * it cancels cleanly so the server never sees a 403 storm.
+   */
+  private startAuthenticatedPolls(): void {
+    // Toolbar performance-mode chip (2 min) + master-pause hydrate.
+    this.whileLoggedIn(() =>
       timer(0, 2 * 60 * 1000).pipe(switchMap(() => this.perfMode.refresh())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((rt) => {
-        // Plan item 28 — hydrate master_pause from the same endpoint every 2 min.
         const anyRt = rt as any;
         if (typeof anyRt?.master_pause === 'boolean') {
           this.masterPause = anyRt.master_pause;
         }
       });
 
-    // Fetch broken links count for badge
+    // Broken-links badge — fed by the shared dashboard data$ subject.
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data: DashboardData | null) => {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
       });
 
-    whileLoggedIn(() => this.dashboardSvc.refresh())
+    this.whileLoggedIn(() => this.dashboardSvc.refresh())
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        error: () => {
-          this.openBrokenLinks = 0;
-        },
-      });
+      .subscribe({ error: () => { this.openBrokenLinks = 0; } });
 
-    // Fetch health summary for status dot plus 30-minute heart beat.
-    // Store the full summary so the click-to-expand popover can show stats.
-    whileLoggedIn(() =>
+    // System-health summary for the status dot (30 min heartbeat).
+    this.whileLoggedIn(() =>
       timer(0, 30 * 60 * 1000).pipe(switchMap(() => this.healthService.getSummary())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -461,13 +456,12 @@ export class AppComponent implements OnInit {
         },
       });
 
-    // Subscribe to the real-time pulse for toolbar indicator.
     this.pulseService.pulse$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((p) => (this.pulse = p));
 
-    // Freshness ribbon: refresh every 15 minutes
-    whileLoggedIn(() =>
+    // Freshness ribbon (15 min).
+    this.whileLoggedIn(() =>
       timer(0, 15 * 60 * 1000).pipe(switchMap(() => this.dashboardSvc.refresh())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -480,8 +474,17 @@ export class AppComponent implements OnInit {
         },
       });
 
-    // Nav badge: pending suggestions count, refreshed every 5 minutes
-    whileLoggedIn(() =>
+    this.startNavBadgePolls();
+  }
+
+  /**
+   * Phase GT Step 12 — sidenav badges for pending suggestions and
+   * unacknowledged ErrorLog rows. Both poll every 5 minutes; the
+   * realtime `diagnostics` topic doesn't fire on ErrorLog rows so we
+   * keep the poll until a dedicated `errors.log` topic lands.
+   */
+  private startNavBadgePolls(): void {
+    this.whileLoggedIn(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.suggestionSvc.getPendingCount())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -490,12 +493,7 @@ export class AppComponent implements OnInit {
         error: () => this.pendingSuggestionCount = 0,
       });
 
-    // Phase GT Step 12 — Nav badge: unacknowledged ErrorLog rows.
-    // Polled every 5 minutes; Phase R1's realtime `diagnostics` topic
-    // does not fire on ErrorLog rows (only ServiceStatusSnapshot +
-    // SystemConflict), so keep the poll until a dedicated
-    // `errors.log` topic is added as a follow-up.
-    whileLoggedIn(() =>
+    this.whileLoggedIn(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.diagnosticsSvc.getErrors())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -507,7 +505,17 @@ export class AppComponent implements OnInit {
         },
         error: () => { this.unacknowledgedErrorCount = 0; },
       });
+  }
 
+  /**
+   * Shared gate: replace `seed()` with EMPTY while the user is signed
+   * out. On login the caller's timer re-emits from zero; on logout the
+   * switchMap cancels it cleanly.
+   */
+  private whileLoggedIn<T>(seed: () => Observable<T>): Observable<T> {
+    return this.auth.isLoggedIn$.pipe(
+      switchMap((loggedIn) => (loggedIn ? seed() : EMPTY)),
+    );
   }
 
   getRouteAnimationData(): string {
