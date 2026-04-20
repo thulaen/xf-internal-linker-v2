@@ -970,6 +970,134 @@ def compute_content_value_raw(
     )
 
 
+def compute_content_value_breakdown(
+    *,
+    gsc_clicks: int,
+    gsc_ctr: float,
+    gsc_impressions: int,
+    destination_views: int,
+    engaged_sessions: int,
+    conversions: int,
+    telemetry_clicks: int,
+    quick_exit_sessions: int = 0,
+    dwell_30s_sessions: int = 0,
+    dwell_60s_sessions: int = 0,
+) -> dict:
+    """Tier 2 slice 5 — per-term decomposition of ``compute_content_value_raw``.
+
+    Mirrors the additive formula exactly (Kim et al. WSDM 2014 for the
+    dwell-gradient and quick-exit terms). Returns a dict shaped as::
+
+        {
+            "raw": float,          # sum of all ``contribution`` values
+            "terms": [
+                {"name": str, "value": float, "weight": float,
+                 "contribution": float, "sign": "+" | "-"},
+                ...
+            ],
+            "has_data": bool,      # mirrors the any(...) guard on the raw formula
+        }
+
+    Empty ``terms`` and ``has_data=False`` when no telemetry is available,
+    so the detail dialog can show "no data yet" instead of a zero-filled
+    table. No formula change — this is purely a visibility helper.
+    """
+    has_data = any(
+        [
+            gsc_clicks,
+            gsc_impressions,
+            destination_views,
+            engaged_sessions,
+            conversions,
+            telemetry_clicks,
+            quick_exit_sessions,
+            dwell_30s_sessions,
+            dwell_60s_sessions,
+        ]
+    )
+    if not has_data:
+        return {"raw": 0.0, "terms": [], "has_data": False}
+
+    engagement_rate = engaged_sessions / max(destination_views, 1)
+    conversion_rate = conversions / max(destination_views, 1)
+    click_rate = telemetry_clicks / max(destination_views, 1)
+    dwell_30s_rate = dwell_30s_sessions / max(destination_views, 1)
+    dwell_60s_rate = dwell_60s_sessions / max(destination_views, 1)
+    quick_exit_rate = quick_exit_sessions / max(destination_views, 1)
+
+    # Each term mirrors one line of the return expression in
+    # compute_content_value_raw above. "value" is the raw signal (what the
+    # operator actually measured); "contribution" is the signed number that
+    # goes into the final sum.
+    terms = [
+        {
+            "name": "gsc_clicks",
+            "value": float(gsc_clicks),
+            "weight": 0.40,
+            "contribution": 0.40 * math.log1p(gsc_clicks),
+            "sign": "+",
+        },
+        {
+            "name": "gsc_ctr",
+            "value": float(gsc_ctr),
+            "weight": 0.20,
+            "contribution": 0.20 * gsc_ctr * 100.0,
+            "sign": "+",
+        },
+        {
+            "name": "destination_views",
+            "value": float(destination_views),
+            "weight": 0.20,
+            "contribution": 0.20 * math.log1p(destination_views),
+            "sign": "+",
+        },
+        {
+            "name": "engagement_rate",
+            "value": engagement_rate,
+            "weight": 0.10,
+            "contribution": 0.10 * engagement_rate * 10.0,
+            "sign": "+",
+        },
+        {
+            "name": "conversion_rate",
+            "value": conversion_rate,
+            "weight": 0.05,
+            "contribution": 0.05 * conversion_rate * 10.0,
+            "sign": "+",
+        },
+        {
+            "name": "click_rate",
+            "value": click_rate,
+            "weight": 0.05,
+            "contribution": 0.05 * click_rate * 10.0,
+            "sign": "+",
+        },
+        {
+            "name": "dwell_30s_rate",
+            "value": dwell_30s_rate,
+            "weight": 0.025,
+            "contribution": 0.025 * dwell_30s_rate * 10.0,
+            "sign": "+",
+        },
+        {
+            "name": "dwell_60s_rate",
+            "value": dwell_60s_rate,
+            "weight": 0.05,
+            "contribution": 0.05 * dwell_60s_rate * 10.0,
+            "sign": "+",
+        },
+        {
+            "name": "quick_exit_rate",
+            "value": quick_exit_rate,
+            "weight": 0.05,
+            "contribution": -0.05 * quick_exit_rate * 10.0,
+            "sign": "-",
+        },
+    ]
+    raw = sum(term["contribution"] for term in terms)
+    return {"raw": raw, "terms": terms, "has_data": True}
+
+
 def _refresh_content_value_scores(
     *, destination_ids: set[int] | None = None, lookback_days: int = 28
 ) -> int:
@@ -1018,25 +1146,28 @@ def _refresh_content_value_scores(
     gsc_map = {int(row["content_item_id"]): row for row in gsc_rows}
 
     raw_scores: dict[int, float] = {}
+    breakdowns: dict[int, dict] = {}
     for item_id in item_ids:
         telemetry = telemetry_map.get(item_id, {})
         gsc = gsc_map.get(item_id, {})
-        raw = compute_content_value_raw(
-            gsc_clicks=int(gsc.get("clicks") or 0),
-            gsc_ctr=float(gsc.get("ctr") or 0.0),
-            gsc_impressions=int(gsc.get("impressions") or 0),
-            destination_views=int(telemetry.get("destination_views") or 0),
-            engaged_sessions=int(telemetry.get("engaged_sessions") or 0),
-            conversions=int(telemetry.get("conversions") or 0),
-            telemetry_clicks=int(telemetry.get("clicks") or 0),
-            quick_exit_sessions=int(telemetry.get("quick_exit_sessions") or 0),
-            dwell_30s_sessions=int(telemetry.get("dwell_30s_sessions") or 0),
-            dwell_60s_sessions=int(telemetry.get("dwell_60s_sessions") or 0),
-        )
+        kwargs = {
+            "gsc_clicks": int(gsc.get("clicks") or 0),
+            "gsc_ctr": float(gsc.get("ctr") or 0.0),
+            "gsc_impressions": int(gsc.get("impressions") or 0),
+            "destination_views": int(telemetry.get("destination_views") or 0),
+            "engaged_sessions": int(telemetry.get("engaged_sessions") or 0),
+            "conversions": int(telemetry.get("conversions") or 0),
+            "telemetry_clicks": int(telemetry.get("clicks") or 0),
+            "quick_exit_sessions": int(telemetry.get("quick_exit_sessions") or 0),
+            "dwell_30s_sessions": int(telemetry.get("dwell_30s_sessions") or 0),
+            "dwell_60s_sessions": int(telemetry.get("dwell_60s_sessions") or 0),
+        }
+        raw = compute_content_value_raw(**kwargs)
         if raw is not None:
             raw_scores[item_id] = raw
+            breakdowns[item_id] = compute_content_value_breakdown(**kwargs)
 
-    item_qs.update(content_value_score=0.5)
+    item_qs.update(content_value_score=0.5, content_value_diagnostics={})
     if not raw_scores:
         return 0
 
@@ -1050,11 +1181,19 @@ def _refresh_content_value_scores(
         else:
             score = 0.75
         item.content_value_score = round(score, 6)
+        # Tier 2 slice 5 — store the per-term decomposition alongside the
+        # normalized score so the suggestion-detail dialog can render the
+        # "why this score" breakdown without recomputing.
+        breakdown = breakdowns[item.pk]
+        breakdown["normalized"] = item.content_value_score
+        item.content_value_diagnostics = breakdown
         updates.append(item)
 
     if updates:
         ContentItem.objects.bulk_update(
-            updates, ["content_value_score"], batch_size=500
+            updates,
+            ["content_value_score", "content_value_diagnostics"],
+            batch_size=500,
         )
     return len(updates)
 
@@ -1124,6 +1263,95 @@ def _compute_engagement_raw_score(telemetry: dict) -> float | None:
     return max(0.0, min(1.0, raw))
 
 
+def compute_engagement_quality_breakdown(telemetry: dict) -> dict:
+    """Tier 2 slice 5 — per-term decomposition of ``_compute_engagement_raw_score``.
+
+    Mirrors the six-term additive formula exactly. Returns the same shape
+    as ``compute_content_value_breakdown``::
+
+        {"raw": float, "terms": [...], "has_data": bool}
+
+    ``has_data=False`` when every input is zero; the caller should treat
+    this as "no telemetry yet" and hide the breakdown in the UI. Before the
+    final clamp the raw sum can sit outside [0, 1]; the refresh layer
+    stores the clamped ``normalized`` alongside the per-term contributions
+    so the dialog can show both numbers.
+    """
+    dest_views = int(telemetry.get("destination_views") or 0)
+    engaged = int(telemetry.get("engaged_sessions") or 0)
+    bounced = int(telemetry.get("bounce_sessions") or 0)
+    total_time = float(telemetry.get("total_engagement_time") or 0.0)
+    sessions = int(telemetry.get("sessions") or 0)
+    quick_exit_sessions = int(telemetry.get("quick_exit_sessions") or 0)
+    dwell_30s_sessions = int(telemetry.get("dwell_30s_sessions") or 0)
+    dwell_60s_sessions = int(telemetry.get("dwell_60s_sessions") or 0)
+
+    if (
+        dest_views == 0
+        and sessions == 0
+        and quick_exit_sessions == 0
+        and dwell_30s_sessions == 0
+        and dwell_60s_sessions == 0
+    ):
+        return {"raw": 0.0, "terms": [], "has_data": False}
+
+    engagement_rate = engaged / max(dest_views, 1)
+    avg_time = total_time / max(sessions, 1)
+    normalized_time = min(avg_time / _ENGAGEMENT_TIME_CAP_SECONDS, 1.0)
+    bounce_rate = bounced / max(sessions, 1)
+    inverse_bounce = 1.0 - min(bounce_rate, 1.0)
+    dwell_30s_rate = min(dwell_30s_sessions / max(dest_views, 1), 1.0)
+    dwell_60s_rate = min(dwell_60s_sessions / max(dest_views, 1), 1.0)
+    quick_exit_rate = min(quick_exit_sessions / max(dest_views, 1), 1.0)
+
+    terms = [
+        {
+            "name": "engagement_rate",
+            "value": engagement_rate,
+            "weight": 0.50,
+            "contribution": 0.50 * engagement_rate,
+            "sign": "+",
+        },
+        {
+            "name": "normalized_engagement_time",
+            "value": normalized_time,
+            "weight": 0.30,
+            "contribution": 0.30 * normalized_time,
+            "sign": "+",
+        },
+        {
+            "name": "inverse_bounce",
+            "value": inverse_bounce,
+            "weight": 0.20,
+            "contribution": 0.20 * inverse_bounce,
+            "sign": "+",
+        },
+        {
+            "name": "dwell_30s_rate",
+            "value": dwell_30s_rate,
+            "weight": 0.025,
+            "contribution": 0.025 * dwell_30s_rate,
+            "sign": "+",
+        },
+        {
+            "name": "dwell_60s_rate",
+            "value": dwell_60s_rate,
+            "weight": 0.05,
+            "contribution": 0.05 * dwell_60s_rate,
+            "sign": "+",
+        },
+        {
+            "name": "quick_exit_rate",
+            "value": quick_exit_rate,
+            "weight": 0.05,
+            "contribution": -0.05 * quick_exit_rate,
+            "sign": "-",
+        },
+    ]
+    raw = sum(term["contribution"] for term in terms)
+    return {"raw": raw, "terms": terms, "has_data": True}
+
+
 def _refresh_engagement_quality_scores(
     *, destination_ids: set[int] | None = None, lookback_days: int = 28
 ) -> int:
@@ -1169,14 +1397,16 @@ def _refresh_engagement_quality_scores(
     telemetry_map = {int(row["destination_id"]): row for row in telemetry_rows}
 
     raw_scores: dict[int, float] = {}
+    breakdowns: dict[int, dict] = {}
     for item_id in item_ids:
         telemetry = telemetry_map.get(item_id)
         if telemetry is not None:
             score = _compute_engagement_raw_score(telemetry)
             if score is not None:
                 raw_scores[item_id] = score
+                breakdowns[item_id] = compute_engagement_quality_breakdown(telemetry)
 
-    item_qs.update(engagement_quality_score=0.5)
+    item_qs.update(engagement_quality_score=0.5, engagement_quality_diagnostics={})
     if not raw_scores:
         return 0
 
@@ -1189,11 +1419,19 @@ def _refresh_engagement_quality_scores(
         else:
             score = 0.60
         item.engagement_quality_score = round(score, 6)
+        # Tier 2 slice 5 — store the per-term decomposition alongside the
+        # clamped score so the suggestion-detail dialog renders "why this
+        # score" without a second API round-trip.
+        breakdown = breakdowns[item.pk]
+        breakdown["normalized"] = item.engagement_quality_score
+        item.engagement_quality_diagnostics = breakdown
         updates.append(item)
 
     if updates:
         ContentItem.objects.bulk_update(
-            updates, ["engagement_quality_score"], batch_size=500
+            updates,
+            ["engagement_quality_score", "engagement_quality_diagnostics"],
+            batch_size=500,
         )
     logger_local.info("Refreshed engagement_quality_score for %s items", len(updates))
     return len(updates)

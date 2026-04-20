@@ -444,6 +444,59 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Tier 2 slice 5: per-term breakdown of content_value + engagement_quality scores in the suggestion-detail dialog (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Reviewers saw a single composite number for the destination's `content_value_score` and `engagement_quality_score` with no way to answer "which signal drove it?" The continuation prompt explicitly flagged this slice as **OVERLAP — extend the existing `signal_registry` / `WeightDiagnosticsView` pipeline, do NOT fork.** This slice follows that constraint by extending the established `*_diagnostics` JSONField pattern (already used by 13 signals: `phrase_match_diagnostics`, `learned_anchor_diagnostics`, `anchor_diversity_diagnostics`, etc.) rather than inventing a parallel endpoint or a new data path.
+- **Duplicate-check (Explore agent):** CLEAR with clear extension path. Key findings: (1) `WeightDiagnosticsView` is a system-wide aggregate endpoint — wrong scope for per-suggestion data; (2) `signal_registry` describes signals but has no composite→sub-signal mapping; (3) the suggestion-detail dialog already renders 13 `*_diagnostics` JSON blobs inline, so two more fit the pattern; (4) composite scores live on `ContentItem` not `Suggestion`, so the breakdown belongs on `ContentItem` too and flows through the detail serializer via `source="destination.*"`.
+- **BLC gates (cleared openly — ranker-touching slice):**
+  - **§0 Drift Rejection** — NOT a new signal. The additive formulas in `compute_content_value_raw` (9 terms) and `_compute_engagement_raw_score` (6 terms) are unchanged; the new helpers just walk those same formulas and emit a per-term record. Primary source remains Kim, Hassan, White & Zitouni (WSDM 2014) — already cited in-tree. Neutral fallback: `has_data=False` when all inputs are zero, so pre-Phase-2 destinations render nothing. Reviewer-visible by design (that's the whole point). User harm prevented: "unexplainable score" — reviewers can now defend or overturn a composite number with the exact sub-signal decomposition.
+  - **§1.1 Source binding** — new helpers have inline comments naming the Kim et al. 2014 paper.
+  - **§1.2 Duplicate check** — CLEAR per agent; extends existing `*_diagnostics` pattern, no parallel data path.
+  - **§1.3 Researched defaults** — no new tunable weights; mirrors existing coefficients.
+  - **§1.4 Benchmark** — new code is O(9) arithmetic per destination per daily refresh; trivially dominated by the existing score computation. No new benchmark needed per BLC §1.4 (not a hot-path function).
+  - **§2.1/§2.4/§2.6** — formula lineage commented; division-by-zero guarded by existing `max(..., 1)`; feature does not auto-apply links, does not bypass any checks.
+  - **§3 Operator diagnostics** — the feature IS the diagnostic surface.
+  - **§5 CI** — no new magic numbers (coefficients mirror the formula; `_SECONDS_PER_DAY` pattern not relevant).
+- **What was done (backend):**
+  - Added two JSONFields on `ContentItem`: `content_value_diagnostics` and `engagement_quality_diagnostics`. Generated migration `0024_slice5_score_diagnostics`.
+  - Added two pure helper functions in `apps/analytics/sync.py`:
+    - `compute_content_value_breakdown(**kwargs) -> dict` — 9 terms matching `compute_content_value_raw`'s formula (gsc_clicks, gsc_ctr, destination_views, engagement_rate, conversion_rate, click_rate, dwell_30s_rate, dwell_60s_rate, quick_exit_rate). Each term records `{name, value, weight, contribution, sign}`. Returns `{raw, terms, has_data}`.
+    - `compute_engagement_quality_breakdown(telemetry: dict) -> dict` — 6 terms matching `_compute_engagement_raw_score` (engagement_rate, normalized_engagement_time, inverse_bounce, dwell_30s_rate, dwell_60s_rate, quick_exit_rate). Same output shape.
+  - Extended `_refresh_content_value_scores` and `_refresh_engagement_quality_scores` to compute the breakdown for every destination during the nightly refresh and store it on the model. `item_qs.update(..._diagnostics={})` resets the field for no-data destinations. Stored breakdown includes `normalized` (the clamped final score) so the UI shows both raw and final numbers.
+  - Extended `SuggestionDetailSerializer` with four new read-only fields: `destination_content_value_score`, `destination_engagement_quality_score`, `destination_content_value_diagnostics`, `destination_engagement_quality_diagnostics` — all use `source="destination.*"` so they flow through Django's existing FK traversal.
+  - **4 new unit tests** in `ScoreBreakdownHelperTests` (SimpleTestCase): (1) content_value breakdown returns `has_data=False` on zero inputs, (2) content_value breakdown sum exactly matches `compute_content_value_raw` output, (3) engagement breakdown returns `has_data=False` on zero inputs, (4) engagement breakdown sum matches the raw formula (handled separately because `_compute_engagement_raw_score` clamps to [0,1] while the breakdown doesn't — test handles both cases).
+- **What was done (frontend):**
+  - Extended `SuggestionDetail` interface in `suggestion.service.ts` with the four new fields + two new types: `ScoreBreakdown` + `ScoreBreakdownTerm`.
+  - **Rendered two breakdown cards in `suggestion-detail-dialog.component.html` WITHOUT touching the 561-line TS file.** Each card shows: title + final score + raw score, then a 4-column table (Signal, Value, Weight, Contribution) with the quick-exit row tinted red via a `.negative` class. Wrapped in `@if (detail.destination_*_diagnostics?.has_data)` so destinations without telemetry see nothing.
+  - Added matching SCSS for `.score-breakdown-section`, `.breakdown-card`, `.breakdown-header`, `.breakdown-table` — token-based, tabular-nums, negative-row tint via `var(--color-error-dark)`.
+- **Why "zero-touch on the .ts":** the detail dialog is 561 lines (over the 500-line hook), grandfathered by its pre-existing size — it's only flagged on change. Changing the HTML alone lets slice 5 ship without touching the TS, avoiding a scope-creep refactor on a file the slice doesn't need to restructure.
+- **Intentional files changed:**
+  - Backend: `apps/content/models.py` (2 new JSONFields), `apps/content/migrations/0024_slice5_score_diagnostics.py` (new), `apps/analytics/sync.py` (2 new helpers + 2 refresh updates), `apps/analytics/tests.py` (4 new tests in `ScoreBreakdownHelperTests`), `apps/suggestions/serializers.py` (4 new read-only fields in both `fields` and `read_only_fields`)
+  - Frontend: `review/suggestion.service.ts` (extended `SuggestionDetail` + 2 new interfaces), `review/suggestion-detail-dialog.component.html` (new `.score-breakdown-section` block), `review/suggestion-detail-dialog.component.scss` (new styles)
+  - `AI-CONTEXT.md` — this note
+- **Reused, not duplicated:**
+  - Existing `*_diagnostics` JSONField pattern (13 prior examples) — matched exactly.
+  - Existing `source="destination.X"` serializer pattern — matched exactly.
+  - Existing Kim et al. WSDM 2014 source comment — no new citation needed.
+  - Existing `_refresh_*_scores` bulk_update mechanism — extended in-place.
+  - No new services, no new endpoints, no new database tables.
+- **Verification:**
+  - `docker compose exec backend python manage.py test apps.analytics.tests.ScoreBreakdownHelperTests` — **4/4 pass in 0.001 s**.
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **347 tests pass**, 1 skipped, 0 fail (+4 new vs prior 343).
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run` — "No changes detected" after 0024 applied.
+  - `docker compose exec backend python -m ruff format apps/analytics apps/content apps/suggestions` — 1 file reformatted preemptively.
+  - `cd frontend && npm run test:ci` — 27/27 pass.
+  - `cd frontend && npm run build:prod` — clean prod build.
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/lint-all.ps1` — **all 32 checks passed** (magic-number, function-length, file-length, cyclomatic-complexity, SCSS unused-class, etc.).
+  - Diagnostic-dialog `.ts` still **561 lines, unchanged** (ship-and-move-on: a future slice can refactor it below the 500-line hook).
+- **What was deliberately NOT done:**
+  - Did not re-fetch the breakdown lazily on dialog open — the data is cheap to compute during the nightly refresh pass and cheap to serialize (9 + 6 small dicts), so caching it on the model is simpler than an on-demand API.
+  - Did not add a frontend test for the breakdown template — `SuggestionDetailDialogComponent` has no existing spec file, so adding one just for this slice would be its own refactor.
+  - Did not extract the breakdown render into a sub-component (unlike slice 4's SuppressedPairsCardComponent) — two inline `@if` blocks with a shared table layout is smaller and doesn't trip the 500-line rule because the slice touches only the HTML, not the TS.
+  - Did not expose the breakdown on the list endpoint — only the detail view needs it.
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-20 — Tier 2 slice 4: RejectedPair drilldown + clear action on Diagnostics page (Claude)
 
 - **AI/tool:** Claude

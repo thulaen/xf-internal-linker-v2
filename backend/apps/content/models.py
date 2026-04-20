@@ -290,6 +290,29 @@ class ContentItem(TimestampedModel):
             "no behaviour change. Written by analytics sync layer."
         ),
     )
+    # Tier 2 slice 5 — per-term decomposition of the two composite scores for
+    # operator visibility in the suggestion-detail dialog. JSON shape:
+    # {"raw": float, "normalized": float, "terms": [{"name", "value", "weight",
+    # "contribution"}]}. Empty dict when the destination has no telemetry.
+    content_value_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Tier 2 slice 5 — per-term breakdown of compute_content_value_raw "
+            "captured during _refresh_content_value_scores so the suggestion-"
+            "detail dialog can show operators exactly which signal drove the "
+            "composite. Kim et al. WSDM 2014 formula, not a new signal."
+        ),
+    )
+    engagement_quality_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text=(
+            "Tier 2 slice 5 — per-term breakdown of _compute_engagement_raw_"
+            "score captured during _refresh_engagement_quality_scores. Same "
+            "shape as content_value_diagnostics."
+        ),
+    )
     click_distance_score = models.FloatField(
         default=0.5,
         db_index=True,

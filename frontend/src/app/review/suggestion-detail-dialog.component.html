@@ -469,6 +469,99 @@
       </section>
     }
 
+    <!-- Tier 2 slice 5 — per-term breakdown of the destination's two
+         composite scores. Each row shows the signal, the measured value,
+         the coefficient, and the signed contribution. Rendered only when
+         the daily refresh pass captured data. -->
+    @if (
+      (detail.destination_content_value_diagnostics?.has_data) ||
+      (detail.destination_engagement_quality_diagnostics?.has_data)
+    ) {
+      <section class="score-breakdown-section">
+        <h3 class="section-title">
+          <mat-icon class="icon-sm">insights</mat-icon>
+          Why this destination scored what it did
+        </h3>
+        <p class="meta-line">
+          Per-term breakdown of <code>content_value_score</code> and
+          <code>engagement_quality_score</code>. Source:
+          Kim, Hassan, White &amp; Zitouni (WSDM 2014).
+        </p>
+
+        @if (detail.destination_content_value_diagnostics?.has_data) {
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <span class="breakdown-title">Content value</span>
+              <span class="breakdown-score">
+                Score: {{ (detail.destination_content_value_score ?? 0.5) | number:'1.2-2' }}
+                <span class="breakdown-raw">
+                  (raw {{ detail.destination_content_value_diagnostics?.raw | number:'1.2-3' }})
+                </span>
+              </span>
+            </div>
+            <table class="breakdown-table">
+              <thead>
+                <tr>
+                  <th>Signal</th>
+                  <th class="num">Value</th>
+                  <th class="num">Weight</th>
+                  <th class="num">Contribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (term of detail.destination_content_value_diagnostics?.terms ?? []; track term.name) {
+                  <tr [class.negative]="term.sign === '-'">
+                    <td>{{ term.name }}</td>
+                    <td class="num">{{ term.value | number:'1.2-3' }}</td>
+                    <td class="num">{{ term.weight | number:'1.2-3' }}</td>
+                    <td class="num">
+                      {{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number:'1.2-3' }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        @if (detail.destination_engagement_quality_diagnostics?.has_data) {
+          <div class="breakdown-card">
+            <div class="breakdown-header">
+              <span class="breakdown-title">Engagement quality</span>
+              <span class="breakdown-score">
+                Score: {{ (detail.destination_engagement_quality_score ?? 0.5) | number:'1.2-2' }}
+                <span class="breakdown-raw">
+                  (raw {{ detail.destination_engagement_quality_diagnostics?.raw | number:'1.2-3' }})
+                </span>
+              </span>
+            </div>
+            <table class="breakdown-table">
+              <thead>
+                <tr>
+                  <th>Signal</th>
+                  <th class="num">Value</th>
+                  <th class="num">Weight</th>
+                  <th class="num">Contribution</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (term of detail.destination_engagement_quality_diagnostics?.terms ?? []; track term.name) {
+                  <tr [class.negative]="term.sign === '-'">
+                    <td>{{ term.name }}</td>
+                    <td class="num">{{ term.value | number:'1.2-3' }}</td>
+                    <td class="num">{{ term.weight | number:'1.2-3' }}</td>
+                    <td class="num">
+                      {{ term.sign }}{{ (term.contribution < 0 ? -term.contribution : term.contribution) | number:'1.2-3' }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+      </section>
+    }
+
   }
 
 </mat-dialog-content>

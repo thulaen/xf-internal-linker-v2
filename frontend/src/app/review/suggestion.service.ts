@@ -79,7 +79,28 @@ export interface SuggestionDetail extends Suggestion {
   score_value_model?: number | null;
   value_model_diagnostics?: ValueModelDiagnostics;
   graph_walk_diagnostics?: GraphWalkDiagnostics;
+  // Tier 2 slice 5 — per-term decomposition of the destination's two
+  // composite scores. Empty object when the destination has no telemetry.
+  destination_content_value_score?: number;
+  destination_engagement_quality_score?: number;
+  destination_content_value_diagnostics?: ScoreBreakdown | Record<string, never>;
+  destination_engagement_quality_diagnostics?: ScoreBreakdown | Record<string, never>;
   updated_at: string;
+}
+
+export interface ScoreBreakdownTerm {
+  name: string;
+  value: number;
+  weight: number;
+  contribution: number;
+  sign: '+' | '-';
+}
+
+export interface ScoreBreakdown {
+  raw: number;
+  normalized?: number;
+  has_data: boolean;
+  terms: ScoreBreakdownTerm[];
 }
 
 export interface SuggestionTelemetryInstrumentation {

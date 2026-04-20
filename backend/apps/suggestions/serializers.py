@@ -216,6 +216,25 @@ class SuggestionDetailSerializer(
     same_silo = serializers.SerializerMethodField()
     link_freshness_diagnostics = serializers.SerializerMethodField()
     telemetry_instrumentation = serializers.SerializerMethodField()
+    # Tier 2 slice 5 — per-term decomposition of the destination's two
+    # composite scores so the reviewer can see which signal drove the
+    # number. Read-only; written by the daily refresh pass in analytics.sync.
+    destination_content_value_diagnostics = serializers.JSONField(
+        source="destination.content_value_diagnostics",
+        read_only=True,
+        default=dict,
+    )
+    destination_engagement_quality_diagnostics = serializers.JSONField(
+        source="destination.engagement_quality_diagnostics",
+        read_only=True,
+        default=dict,
+    )
+    destination_content_value_score = serializers.FloatField(
+        source="destination.content_value_score", read_only=True, default=0.5
+    )
+    destination_engagement_quality_score = serializers.FloatField(
+        source="destination.engagement_quality_score", read_only=True, default=0.5
+    )
 
     class Meta:
         model = Suggestion
@@ -291,6 +310,10 @@ class SuggestionDetailSerializer(
             "value_model_diagnostics",
             "graph_walk_diagnostics",
             "telemetry_instrumentation",
+            "destination_content_value_score",
+            "destination_engagement_quality_score",
+            "destination_content_value_diagnostics",
+            "destination_engagement_quality_diagnostics",
             "created_at",
             "updated_at",
         ]
@@ -360,6 +383,10 @@ class SuggestionDetailSerializer(
             "value_model_diagnostics",
             "graph_walk_diagnostics",
             "telemetry_instrumentation",
+            "destination_content_value_score",
+            "destination_engagement_quality_score",
+            "destination_content_value_diagnostics",
+            "destination_engagement_quality_diagnostics",
             "created_at",
             "updated_at",
         ]

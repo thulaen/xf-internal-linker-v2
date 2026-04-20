@@ -1944,6 +1944,115 @@ class ComputeEngagementRawScoreTests(SimpleTestCase):
         self.assertGreaterEqual(min_score, 0.0)
 
 
+class ScoreBreakdownHelperTests(SimpleTestCase):
+    """Tier 2 slice 5 — per-term decomposition helpers.
+
+    These helpers must mirror the raw-score formulas exactly (no new
+    weights, no new terms) so the suggestion-detail dialog can show
+    operators which signal drove the composite. Each test asserts the
+    identity ``sum(contribution) == compute_..._raw(...)``.
+    """
+
+    def test_content_value_breakdown_empty_returns_no_data(self) -> None:
+        from apps.analytics.sync import compute_content_value_breakdown
+
+        result = compute_content_value_breakdown(
+            gsc_clicks=0,
+            gsc_ctr=0.0,
+            gsc_impressions=0,
+            destination_views=0,
+            engaged_sessions=0,
+            conversions=0,
+            telemetry_clicks=0,
+            quick_exit_sessions=0,
+            dwell_30s_sessions=0,
+            dwell_60s_sessions=0,
+        )
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["terms"], [])
+
+    def test_content_value_breakdown_sum_matches_raw(self) -> None:
+        from apps.analytics.sync import (
+            compute_content_value_breakdown,
+            compute_content_value_raw,
+        )
+
+        kwargs = {
+            "gsc_clicks": 12,
+            "gsc_ctr": 0.08,
+            "gsc_impressions": 320,
+            "destination_views": 180,
+            "engaged_sessions": 95,
+            "conversions": 6,
+            "telemetry_clicks": 40,
+            "quick_exit_sessions": 7,
+            "dwell_30s_sessions": 35,
+            "dwell_60s_sessions": 20,
+        }
+        raw = compute_content_value_raw(**kwargs)
+        breakdown = compute_content_value_breakdown(**kwargs)
+
+        assert raw is not None
+        self.assertTrue(breakdown["has_data"])
+        # 9 terms: 6 core + dwell-30 + dwell-60 + quick-exit (Phase 3a/3c).
+        self.assertEqual(len(breakdown["terms"]), 9)
+        # Sum of per-term contributions must equal the raw-score formula.
+        self.assertAlmostEqual(breakdown["raw"], raw, places=9)
+        # Quick-exit is the only negative contributor.
+        signs = {term["name"]: term["sign"] for term in breakdown["terms"]}
+        self.assertEqual(signs["quick_exit_rate"], "-")
+        self.assertEqual(signs["dwell_30s_rate"], "+")
+        self.assertEqual(signs["dwell_60s_rate"], "+")
+
+    def test_engagement_breakdown_empty_returns_no_data(self) -> None:
+        from apps.analytics.sync import compute_engagement_quality_breakdown
+
+        result = compute_engagement_quality_breakdown({})
+        self.assertFalse(result["has_data"])
+        self.assertEqual(result["terms"], [])
+
+    def test_engagement_breakdown_sum_matches_raw(self) -> None:
+        from apps.analytics.sync import (
+            _compute_engagement_raw_score,
+            compute_engagement_quality_breakdown,
+        )
+
+        telemetry = {
+            "destination_views": 100,
+            "engaged_sessions": 60,
+            "bounce_sessions": 20,
+            "total_engagement_time": 6000.0,
+            "sessions": 80,
+            "quick_exit_sessions": 5,
+            "dwell_30s_sessions": 30,
+            "dwell_60s_sessions": 18,
+        }
+        raw = _compute_engagement_raw_score(telemetry)
+        breakdown = compute_engagement_quality_breakdown(telemetry)
+
+        assert raw is not None
+        self.assertTrue(breakdown["has_data"])
+        # 6 terms: 3 core (0.50/0.30/0.20) + dwell-30 + dwell-60 + quick-exit.
+        self.assertEqual(len(breakdown["terms"]), 6)
+        # The raw-score formula clamps to [0,1]; the breakdown does not.
+        # Before clamp, the sum matches the pre-clamp formula. Using the
+        # unclamped identity: sum(contribution) == pre_clamp_sum, and
+        # raw == clamp(pre_clamp_sum). So if raw == 1.0 we can only
+        # assert >= 1.0; otherwise equal.
+        unclamped_sum = breakdown["raw"]
+        if raw == 1.0:
+            self.assertGreaterEqual(unclamped_sum, raw)
+        elif raw == 0.0:
+            self.assertLessEqual(unclamped_sum, raw)
+        else:
+            self.assertAlmostEqual(unclamped_sum, raw, places=9)
+        # The three Phase-2 Kim-et-al terms are present.
+        names = {term["name"] for term in breakdown["terms"]}
+        self.assertIn("dwell_30s_rate", names)
+        self.assertIn("dwell_60s_rate", names)
+        self.assertIn("quick_exit_rate", names)
+
+
 class EngagementSignalsSnippetTests(APITestCase):
     """Verify the browser snippet wires the 3 new Phase 2 events."""
 
