@@ -895,7 +895,9 @@ class EmbeddingModelDefaultTests(APITestCase):
 
         self.assertEqual(get_current_embedding_model_name(), "BAAI/bge-m3")
 
-    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_high_mode(self):
+    def test_runtime_registry_defaults_to_bge_m3_when_setting_missing_in_high_mode(
+        self,
+    ):
         AppSetting.objects.filter(key="embedding_model").delete()
         AppSetting.objects.update_or_create(
             key="system.performance_mode",
@@ -925,7 +927,9 @@ class EmbeddingModelDefaultTests(APITestCase):
         self.assertEqual(setting.value_type, "str")
         self.assertEqual(setting.category, "ml")
 
-    def test_seed_default_embedding_model_migration_preserves_existing_custom_model(self):
+    def test_seed_default_embedding_model_migration_preserves_existing_custom_model(
+        self,
+    ):
         AppSetting.objects.update_or_create(
             key="embedding_model",
             defaults={

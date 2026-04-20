@@ -205,9 +205,9 @@ def get_faiss_status() -> dict:
         device = "unknown"
         on_gpu = False
 
-    vram_mb = round(
-        n * get_current_embedding_dimension() * 4 / (1024**2)
-    ) if on_gpu else 0
+    vram_mb = (
+        round(n * get_current_embedding_dimension() * 4 / (1024**2)) if on_gpu else 0
+    )
 
     return {
         "active": True,

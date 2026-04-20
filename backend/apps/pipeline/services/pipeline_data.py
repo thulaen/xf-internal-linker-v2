@@ -49,6 +49,7 @@ except ImportError:
     def get_current_embedding_filter(*, prefix="", model=None, model_name=None):
         return {}
 
+
 # Iterator / fetch batch sizes
 _CONTENT_ITERATOR_CHUNK = 500  # maxsize for ContentItem iterator
 _SENTENCE_FETCH_BATCH = 2000  # maxsize for sentence cursor fetch

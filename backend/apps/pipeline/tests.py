@@ -4171,7 +4171,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
             )
         return items
 
-    def _create_sentence(self, content_item: ContentItem, *, text: str = "Host sentence") -> Sentence:
+    def _create_sentence(
+        self, content_item: ContentItem, *, text: str = "Host sentence"
+    ) -> Sentence:
         post = Post.objects.create(
             content_item=content_item,
             raw_bbcode=text,
@@ -4207,7 +4209,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         fake_model.encode.side_effect = _encode
 
         with (
-            patch.object(embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"),
+            patch.object(
+                embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"
+            ),
             patch.object(embeddings_service, "_load_model", return_value=fake_model),
             patch.object(embeddings_service, "_get_batch_size", return_value=16),
             patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
@@ -4224,7 +4228,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         self.assertEqual(encode_calls[0], (16, 16))
         self.assertIn((8, 8), encode_calls)
         self.assertEqual(
-            ContentItem.objects.filter(pk__in=[item.pk for item in items], embedding__isnull=False).count(),
+            ContentItem.objects.filter(
+                pk__in=[item.pk for item in items], embedding__isnull=False
+            ).count(),
             17,
         )
         job.refresh_from_db()
@@ -4247,7 +4253,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         )
 
         with (
-            patch.object(embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"),
+            patch.object(
+                embeddings_service, "_get_model_name", return_value="BAAI/bge-m3"
+            ),
             patch.object(embeddings_service, "_load_model", return_value=fake_model),
             patch.object(embeddings_service, "_get_batch_size", return_value=1),
             patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
@@ -4270,11 +4278,15 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         self.assertTrue(job.is_resumable)
         self.assertEqual(job.checkpoint_stage, "embed")
         self.assertEqual(
-            ContentItem.objects.filter(pk__in=[item.pk for item in items], embedding__isnull=False).count(),
+            ContentItem.objects.filter(
+                pk__in=[item.pk for item in items], embedding__isnull=False
+            ).count(),
             2,
         )
 
-    def test_content_embeddings_reembed_stale_signature_and_stamp_current_signature(self):
+    def test_content_embeddings_reembed_stale_signature_and_stamp_current_signature(
+        self,
+    ):
         from apps.pipeline.services import embeddings as embeddings_service
 
         stale_item, fresh_item = self._create_content_items(2)
@@ -4290,7 +4302,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         fake_model.encode.return_value = np.ones((1, 1536), dtype=np.float32)
 
         with (
-            patch.object(embeddings_service, "_get_model_name", return_value="future/model"),
+            patch.object(
+                embeddings_service, "_get_model_name", return_value="future/model"
+            ),
             patch.object(embeddings_service, "_load_model", return_value=fake_model),
             patch.object(embeddings_service, "_get_batch_size", return_value=8),
             patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
@@ -4308,7 +4322,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         self.assertEqual(fresh_item.embedding_model_version, "future/model:1536")
         fake_model.encode.assert_called_once()
 
-    def test_sentence_embeddings_reembed_stale_signature_and_stamp_current_signature(self):
+    def test_sentence_embeddings_reembed_stale_signature_and_stamp_current_signature(
+        self,
+    ):
         from apps.pipeline.services import embeddings as embeddings_service
 
         stale_item, fresh_item = self._create_content_items(2)
@@ -4326,7 +4342,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         fake_model.encode.return_value = np.ones((1, 1536), dtype=np.float32)
 
         with (
-            patch.object(embeddings_service, "_get_model_name", return_value="future/model"),
+            patch.object(
+                embeddings_service, "_get_model_name", return_value="future/model"
+            ),
             patch.object(embeddings_service, "_load_model", return_value=fake_model),
             patch.object(embeddings_service, "_get_batch_size", return_value=8),
             patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
@@ -4398,7 +4416,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
             set(content_records.keys())
         )
 
-        self.assertEqual(destination_keys, ((current_item.pk, current_item.content_type),))
+        self.assertEqual(
+            destination_keys, ((current_item.pk, current_item.content_type),)
+        )
         self.assertEqual(destination_embeddings.shape, (1, 1536))
         self.assertEqual(sentence_ids, [current_sentence.pk])
         self.assertEqual(sentence_embeddings.shape, (1, 1536))
@@ -4410,10 +4430,18 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         fake_model.get_sentence_embedding_dimension.return_value = 1536
 
         with (
-            patch.dict(embeddings_service._model_cache, {"custom/model": fake_model}, clear=True),
-            patch.object(embeddings_service, "_get_model_name", return_value="custom/model"),
+            patch.dict(
+                embeddings_service._model_cache,
+                {"custom/model": fake_model},
+                clear=True,
+            ),
+            patch.object(
+                embeddings_service, "_get_model_name", return_value="custom/model"
+            ),
             patch.object(embeddings_service, "_resolve_device", return_value="cpu"),
-            patch.object(embeddings_service, "_get_configured_batch_size", return_value=32),
+            patch.object(
+                embeddings_service, "_get_configured_batch_size", return_value=32
+            ),
         ):
             status = embeddings_service.get_model_status()
 

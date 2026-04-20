@@ -487,7 +487,9 @@ def _describe_model_runtime(
     recommended_batch_size = configured_batch_size
     if embedding_dim > EMBEDDING_DIM:
         scaled = int(configured_batch_size * EMBEDDING_DIM / max(embedding_dim, 1))
-        recommended_batch_size = max(_BATCH_SIZE_MIN, min(configured_batch_size, scaled))
+        recommended_batch_size = max(
+            _BATCH_SIZE_MIN, min(configured_batch_size, scaled)
+        )
     return {
         "model_name": model_name,
         "embedding_dim": embedding_dim,
