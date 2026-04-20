@@ -919,8 +919,8 @@ class FeedRerankExtensionTests(TestCase):
             [np.random.randint(0, int(total) + 1) for total in n_totals],
             dtype=np.int32,
         )
-        # Use random exposure_prob values in [0.1, 1.0] to cover the partial-exposure path.
-        exposure_prob_vals = np.random.uniform(0.1, 1.0, size=100)
+        # Use random observation_confidence values in [0.1, 1.0] to cover the partial-exposure path.
+        observation_confidence_vals = np.random.uniform(0.1, 1.0, size=100)
         n_global = 250
         alpha = 1.0
         beta = 1.0
@@ -944,7 +944,7 @@ class FeedRerankExtensionTests(TestCase):
                 "total": total,
                 "successes": successes,
                 "generated": total,
-                "exposure_prob": float(exposure_prob_vals[i]),
+                "observation_confidence": float(observation_confidence_vals[i]),
             }
             service._global_total_samples = n_global
             factor, _ = service.calculate_rerank_factor(1, 1)
@@ -953,7 +953,7 @@ class FeedRerankExtensionTests(TestCase):
         cpp_result = feedrerank_ext.calculate_rerank_factors_batch(
             n_successes,
             n_totals,
-            np.asarray(exposure_prob_vals, dtype=np.float64),
+            np.asarray(observation_confidence_vals, dtype=np.float64),
             n_global,
             alpha,
             beta,
@@ -3007,12 +3007,12 @@ class FeedbackRerankServiceTests(TestCase):
         self.assertEqual(diags["score_exploit"], 0.5)
 
         # 10/10 with full exposure -> exploit_raw = (10+1)/(10+2) = 0.9167
-        # exposure_prob=1.0 means full exploit signal, no blending toward 0.5
+        # observation_confidence=1.0 means full exploit signal, no blending toward 0.5
         self.service._pair_stats[(1, 1)] = {
             "total": 10,
             "successes": 10,
             "generated": 10,
-            "exposure_prob": 1.0,
+            "observation_confidence": 1.0,
         }
         self.service._global_total_samples = 10
         factor, diags = self.service.calculate_rerank_factor(1, 1)
@@ -3023,28 +3023,28 @@ class FeedbackRerankServiceTests(TestCase):
             "total": 10,
             "successes": 0,
             "generated": 10,
-            "exposure_prob": 1.0,
+            "observation_confidence": 1.0,
         }
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.0833, places=4)
 
-        # 10/10 with exposure_prob=0.5 -> 0.5*0.9167 + 0.5*0.5 = 0.7083
+        # 10/10 with observation_confidence=0.5 -> 0.5*0.9167 + 0.5*0.5 = 0.7083
         self.service._pair_stats[(1, 1)] = {
             "total": 10,
             "successes": 10,
             "generated": 10,
-            "exposure_prob": 0.5,
+            "observation_confidence": 0.5,
         }
         self.service._global_total_samples = 10
         _, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.7083, places=4)
 
-        # 10/10 with exposure_prob=0.2 -> 0.2*0.9167 + 0.8*0.5 = 0.5833
+        # 10/10 with observation_confidence=0.2 -> 0.2*0.9167 + 0.8*0.5 = 0.5833
         self.service._pair_stats[(1, 1)] = {
             "total": 10,
             "successes": 10,
             "generated": 10,
-            "exposure_prob": 0.2,
+            "observation_confidence": 0.2,
         }
         _, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertAlmostEqual(diags["score_exploit"], 0.5833, places=4)
@@ -3060,7 +3060,7 @@ class FeedbackRerankServiceTests(TestCase):
             "total": 100,
             "successes": 50,
             "generated": 100,
-            "exposure_prob": 1.0,
+            "observation_confidence": 1.0,
         }
         factor, diags = self.service.calculate_rerank_factor(1, 1)
         self.assertLess(diags["score_explore"], 0.3)
@@ -3073,7 +3073,7 @@ class FeedbackRerankServiceTests(TestCase):
             "total": 100,
             "successes": 100,
             "generated": 100,
-            "exposure_prob": 1.0,
+            "observation_confidence": 1.0,
         }
         self.service._global_total_samples = 100
 

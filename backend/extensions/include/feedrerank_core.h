@@ -4,7 +4,10 @@
 
 void rerank_factors_core(
     const int32_t* successes, const int32_t* totals,
-    const double* exposure_probs,  // per-item exposure probability; nullptr = treat all as 1.0
+    // Per-pair observation_confidence (reviews / impressions), NOT an
+    // inverse-propensity weight — see RPT-001 Finding 2. Nullptr = treat
+    // every pair as confidence 1.0 (full-trust the empirical rate).
+    const double* observation_confidences,
     size_t count, int n_global, double alpha, double beta, double weight, double exploration_rate,
     double* out_factors);
 

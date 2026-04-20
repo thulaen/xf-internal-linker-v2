@@ -59,7 +59,7 @@ def _make_service(n: int) -> FeedbackRerankService:
             "successes": 30,
             "presented": 50,
             "generated": 50,
-            "exposure_prob": 0.6,
+            "observation_confidence": 0.6,
         }
     svc._global_total_samples = n * 50
     return svc

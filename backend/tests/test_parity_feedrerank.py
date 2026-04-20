@@ -2,14 +2,13 @@
 
 Verifies that ``feedrerank.calculate_rerank_factors_batch`` (C++) produces
 numerically identical results to the pure-Python reference formula in
-``feedback_rerank.py`` (lines 151–177).
+``feedback_rerank.py``.
 
-Tolerance: 1e-6 absolute.  Five edge-case scenarios cover the surfaces where
-FTZ/DAZ floating-point mode differences are most likely to manifest.
-
-Reference: Joachims, Swaminathan & Schnabel 2017
-    "Unbiased Learning-to-Rank with Biased Feedback"
-    DOI 10.1145/3077136.3080756, eq. 4
+Tolerance: 1e-6 absolute.  Six edge-case scenarios cover the surfaces where
+FTZ/DAZ floating-point mode differences are most likely to manifest,
+including the zero-priors denominator guard (RPT-001 Finding 3) and the
+linear observation_confidence blend toward neutral 0.5 (RPT-001 Finding 2,
+resolved 2026-04-20 — this is NOT an inverse-propensity estimator).
 """
 
 from __future__ import annotations
@@ -28,13 +27,13 @@ except ImportError:
     HAS_CPP_EXT = False
 
 
-# ── Pure-Python reference (mirrors feedback_rerank.py lines 151-177) ────────
+# ── Pure-Python reference (mirrors feedback_rerank.py) ──────────────────────
 
 
 def _python_rerank_factor(
     n_success: int,
     n_total: int,
-    exposure_prob: float,
+    observation_confidence: float,
     n_global: int,
     alpha: float,
     beta: float,
@@ -46,8 +45,13 @@ def _python_rerank_factor(
     exploit_denom = n_total + alpha + beta
     score_exploit_raw = (n_success + alpha) / max(exploit_denom, 1e-9)
 
-    # PARITY: matches feedback_rerank.py line 161 — exposure discount
-    score_exploit = exposure_prob * score_exploit_raw + (1.0 - exposure_prob) * 0.5
+    # PARITY: matches feedback_rerank.py line 161 — linear observation_confidence
+    # blend toward neutral 0.5. This is NOT an inverse-propensity estimator
+    # (see RPT-001 Finding 2 resolved 2026-04-20).
+    score_exploit = (
+        observation_confidence * score_exploit_raw
+        + (1.0 - observation_confidence) * 0.5
+    )
 
     # PARITY: matches feedback_rerank.py line 166 — UCB1 explore
     score_explore = exploration_rate * math.sqrt(
@@ -73,7 +77,7 @@ class Scenario(NamedTuple):
     name: str
     successes: list[int]
     totals: list[int]
-    exposure_probs: list[float]
+    observation_confidences: list[float]
     n_global: int
     alpha: float
     beta: float
@@ -86,7 +90,7 @@ SCENARIOS: list[Scenario] = [
         name="normal_distribution",
         successes=[10, 25, 0, 50, 5],
         totals=[20, 50, 10, 100, 30],
-        exposure_probs=[0.8, 0.6, 0.3, 1.0, 0.5],
+        observation_confidences=[0.8, 0.6, 0.3, 1.0, 0.5],
         n_global=10000,
         alpha=1.0,
         beta=1.0,
@@ -97,7 +101,7 @@ SCENARIOS: list[Scenario] = [
         name="near_zero_totals",
         successes=[0, 0, 1, 0, 0],
         totals=[0, 0, 1, 0, 0],
-        exposure_probs=[0.0, 0.001, 0.5, 1e-10, 0.0],
+        observation_confidences=[0.0, 0.001, 0.5, 1e-10, 0.0],
         n_global=1,
         alpha=1.0,
         beta=1.0,
@@ -108,7 +112,7 @@ SCENARIOS: list[Scenario] = [
         name="cold_start_no_history",
         successes=[0, 0, 0],
         totals=[0, 0, 0],
-        exposure_probs=[0.0, 0.0, 0.0],
+        observation_confidences=[0.0, 0.0, 0.0],
         n_global=0,
         alpha=1.0,
         beta=1.0,
@@ -119,7 +123,7 @@ SCENARIOS: list[Scenario] = [
         name="single_observation",
         successes=[1],
         totals=[1],
-        exposure_probs=[1.0],
+        observation_confidences=[1.0],
         n_global=1,
         alpha=1.0,
         beta=1.0,
@@ -130,7 +134,7 @@ SCENARIOS: list[Scenario] = [
         name="max_values_stress",
         successes=[999, 500, 0, 1000],
         totals=[1000, 1000, 1000, 1000],
-        exposure_probs=[1.0, 0.999, 0.001, 1.0],
+        observation_confidences=[1.0, 0.999, 0.001, 1.0],
         n_global=100000,
         alpha=1.0,
         beta=1.0,
@@ -147,7 +151,7 @@ SCENARIOS: list[Scenario] = [
         name="zero_priors_denominator_guard",
         successes=[5, 0, 2, 3],
         totals=[0, 0, 0, 0],
-        exposure_probs=[1.0, 1.0, 0.5, 0.8],
+        observation_confidences=[1.0, 1.0, 0.5, 0.8],
         n_global=1000,
         alpha=0.0,
         beta=0.0,
@@ -169,7 +173,7 @@ def test_feedrerank_parity(scenario: Scenario) -> None:
             _python_rerank_factor(
                 n_success=scenario.successes[i],
                 n_total=scenario.totals[i],
-                exposure_prob=scenario.exposure_probs[i],
+                observation_confidence=scenario.observation_confidences[i],
                 n_global=scenario.n_global,
                 alpha=scenario.alpha,
                 beta=scenario.beta,
@@ -184,7 +188,7 @@ def test_feedrerank_parity(scenario: Scenario) -> None:
     cpp_factors = feedrerank.calculate_rerank_factors_batch(
         np.array(scenario.successes, dtype=np.int32),
         np.array(scenario.totals, dtype=np.int32),
-        np.array(scenario.exposure_probs, dtype=np.float64),
+        np.array(scenario.observation_confidences, dtype=np.float64),
         scenario.n_global,
         scenario.alpha,
         scenario.beta,
@@ -214,12 +218,12 @@ def test_feedrerank_factor_bounds() -> None:
     # Extreme inputs designed to push factor outside clamp range
     successes = np.array([0, 1000, 0, 500], dtype=np.int32)
     totals = np.array([1000, 1000, 0, 500], dtype=np.int32)
-    exposure_probs = np.array([1.0, 1.0, 0.0, 0.5], dtype=np.float64)
+    observation_confidences = np.array([1.0, 1.0, 0.0, 0.5], dtype=np.float64)
 
     factors = feedrerank.calculate_rerank_factors_batch(
         successes,
         totals,
-        exposure_probs,
+        observation_confidences,
         100000,
         1.0,
         1.0,

@@ -25,8 +25,9 @@ namespace py = pybind11;
 #include "include/feedrerank_core.h"
 
 void rerank_factors_core(const int32_t* successes, const int32_t* totals,
-                         const double* exposure_probs, size_t count, int n_global, double alpha,
-                         double beta, double weight, double exploration_rate, double* out_factors) {
+                         const double* observation_confidences, size_t count, int n_global,
+                         double alpha, double beta, double weight, double exploration_rate,
+                         double* out_factors) {
     auto compute_one = [&](size_t index) {
         // PARITY: matches feedback_rerank.py line 155-158 — Bayesian exploit
         // numerator with 1e-9 denominator guard. The guard is dormant under
@@ -37,11 +38,15 @@ void rerank_factors_core(const int32_t* successes, const int32_t* totals,
         const double exploit_denom = static_cast<double>(totals[index]) + alpha + beta;
         const double score_exploit_raw =
             (static_cast<double>(successes[index]) + alpha) / std::max(exploit_denom, 1e-9);
-        // PARITY: matches feedback_rerank.py line 161 — exposure discount
-        // Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4):
-        // blend toward neutral 0.5 for under-exposed pairs (low exposure_prob).
-        const double ep = exposure_probs ? exposure_probs[index] : 1.0;
-        const double score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5;
+        // PARITY: matches feedback_rerank.py lines 177-181 — linear
+        // observation_confidence blend toward neutral 0.5. This is NOT
+        // an inverse-propensity estimator (see RPT-001 Finding 2 resolved
+        // 2026-04-20). Joachims, Swaminathan & Schnabel 2017 (DOI
+        // 10.1145/3077136.3080756) is kept as inspiration only; a per-event
+        // propensity model would require per-event impression storage the
+        // system does not currently maintain.
+        const double oc = observation_confidences ? observation_confidences[index] : 1.0;
+        const double score_exploit = oc * score_exploit_raw + (1.0 - oc) * 0.5;
         // PARITY: matches feedback_rerank.py line 166 — UCB1 explore
         const double score_explore =
             exploration_rate * std::sqrt(std::log(static_cast<double>(n_global) + 1.0) /
@@ -125,11 +130,11 @@ void mmr_scores_core(const double* relevance, size_t candidate_count, const doub
 py::array_t<double> calculate_rerank_factors_batch(
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_successes,
     py::array_t<int32_t, py::array::c_style | py::array::forcecast> n_totals,
-    py::array_t<double, py::array::c_style | py::array::forcecast> exposure_probs, int n_global,
-    double alpha, double beta, double weight, double exploration_rate) {
+    py::array_t<double, py::array::c_style | py::array::forcecast> observation_confidences,
+    int n_global, double alpha, double beta, double weight, double exploration_rate) {
     auto successes_buf = n_successes.request();
     auto totals_buf = n_totals.request();
-    auto exposure_probs_buf = exposure_probs.request();
+    auto observation_confidences_buf = observation_confidences.request();
 
     if (successes_buf.ndim != 1 || totals_buf.ndim != 1) {
         throw std::runtime_error("n_successes and n_totals must be 1D int32 arrays");
@@ -137,9 +142,11 @@ py::array_t<double> calculate_rerank_factors_batch(
     if (successes_buf.shape[0] != totals_buf.shape[0]) {
         throw std::runtime_error("n_successes and n_totals must have the same length");
     }
-    if (exposure_probs_buf.ndim != 1 || exposure_probs_buf.shape[0] != successes_buf.shape[0]) {
+    if (observation_confidences_buf.ndim != 1 ||
+        observation_confidences_buf.shape[0] != successes_buf.shape[0]) {
         throw std::runtime_error(
-            "exposure_probs must be a 1D float64 array with the same length as n_successes");
+            "observation_confidences must be a 1D float64 array with the same length as "
+            "n_successes");
     }
 
     const size_t count = static_cast<size_t>(successes_buf.shape[0]);
@@ -150,8 +157,8 @@ py::array_t<double> calculate_rerank_factors_batch(
         py::gil_scoped_release release;
         rerank_factors_core(static_cast<const int32_t*>(successes_buf.ptr),
                             static_cast<const int32_t*>(totals_buf.ptr),
-                            static_cast<const double*>(exposure_probs_buf.ptr), count, n_global,
-                            alpha, beta, weight, exploration_rate,
+                            static_cast<const double*>(observation_confidences_buf.ptr), count,
+                            n_global, alpha, beta, weight, exploration_rate,
                             static_cast<double*>(factors_buf.ptr));
     }
 
@@ -205,9 +212,13 @@ py::tuple calculate_mmr_scores_batch(
 
 PYBIND11_MODULE(feedrerank, m) {
     m.def("calculate_rerank_factors_batch", &calculate_rerank_factors_batch,
-          "Calculate rerank factors for aligned success/total/exposure_prob arrays. "
-          "exposure_probs must be float64 in [0,1]; 1.0=full signal, 0.0=blend to neutral 0.5 "
-          "(Joachims, Swaminathan & Schnabel 2017, DOI 10.1145/3077136.3080756)");
+          "Calculate rerank factors for aligned "
+          "(n_successes, n_totals, observation_confidences) arrays. "
+          "observation_confidences must be float64 in [0,1]; 1.0=full exploit signal, "
+          "0.0=blend to neutral 0.5. This is a linear confidence blend — NOT an "
+          "inverse-propensity estimator (see RPT-001 Finding 2). Joachims, Swaminathan "
+          "& Schnabel 2017 (DOI 10.1145/3077136.3080756) inspired the naming but the "
+          "per-event IPS guarantee is not implemented.");
     m.def("calculate_mmr_scores_batch", &calculate_mmr_scores_batch,
           "Calculate FR-015 MMR scores and max similarities for a candidate batch");
 }

@@ -443,6 +443,57 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Tier 3 slice 8: close RPT-001 Finding 2 (feedrerank IPS-claim honesty rename) (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Tier 3 second slice. `docs/reports/REPORT-REGISTRY.md` RPT-001 Finding 2 was OPEN and marked HIGH: "Feedback reranker's inverse-propensity claim unsupported by stored signal granularity". Slice 7 closed the sibling Finding 3 (numerical denominator guard); Finding 2 is the semantic sibling — the code's docstrings and pybind11 module doc explicitly invoke Joachims, Swaminathan & Schnabel 2017 "Unbiased Learning-to-Rank with Biased Feedback" (WSDM, DOI `10.1145/3077136.3080756`) and call the mechanism "inverse-propensity weighting". The actual mechanism is a **per-pair linear confidence blend** of the shape `oc * score_exploit_raw + (1 - oc) * 0.5` where `oc = reviews / impressions` aggregated to the `(host_scope, destination_scope)` level — NOT IPS. `SuggestionPresentation` stores `(suggestion, user, presented_date)` with daily dedup; no `position_in_slate`, no `slate_size`, no device/context features, and no click-model service exists. The Joachims citation is aspirational, not implemented.
+- **Three fix paths considered:**
+  - **Path A — Strengthen the data** (2–3 weeks): add position + slate size to `SuggestionPresentation`, build a position-bias click model, rewrite the reranker to apply `1/propensity`. Fragile; requires retroactive propensity estimation for historical rows; creates a new service dependency.
+  - **Path B — Weaken the claim (CHOSEN)** (~1–2 days): rename `exposure_prob`/`exposure_probs` → `observation_confidence`/`observation_confidences` throughout, rewrite docstrings to accurately describe the linear confidence blend, retain Joachims 2017 as "inspiration only" with an explicit note that the per-event IPS guarantee is NOT implemented. Honest, surgical, zero math change, zero new test failures.
+  - **Path C — Build offline IPS from existing aggregates** (3–4 weeks): add a click-model service that fits `P(click | position, scope_pair)` from existing presentation/click aggregates and exposes per-suggestion propensity at query time. Defers to a future session when operators can be surveyed on whether true IPS is actually needed for ranking quality.
+- **User-confirmed sub-decision (AskUserQuestion answered 2026-04-20):** full rename — the JSON diagnostic key `explore_exploit_diagnostics.exposure_prob` renames to `observation_confidence` too, alongside the internal Python/C++ variables. Turned out the frontend `FeedbackRerankDiagnostics` interface at `frontend/src/app/review/suggestion.service.ts` never declared an `exposure_prob` field — the interface was already out of sync with the backend's actual `score_exploit`/`score_explore`/etc. keys, so no frontend edit was required in this slice. (That interface-vs-dict drift is a pre-existing gap; flagged as a potential follow-up but out of scope here.)
+- **BLC gates (cleared openly — ranker-touching slice):**
+  - **§0 Drift Rejection** — not a new signal; docstring + naming correction of existing FR-013 explore/exploit reranker. Primary source unchanged (Joachims 2017 now cited as "inspiration only"). Neutral fallback preserved (linear blend still blends toward 0.5). Reviewer-visible via existing `explore_exploit_diagnostics`. User harm prevented: mislabelled mechanism that a future reviewer might rely on for statistical guarantees the code does not provide.
+  - **§1.1 Source binding** — the Joachims citation survives as "inspired by" with explicit note that the IPS guarantee is NOT implemented.
+  - **§1.2 Duplicate check** — CLEAR; slice 7 just closed Finding 3 on the same files, and no parallel rename is underway.
+  - **§1.3/§1.4** — no new weights, no new magic numbers, no benchmark regressions (zero math change).
+  - **§2.1/§2.4/§2.6** — formula untouched; every clamp + guard preserved (including the `1e-9` denominator guard added in slice 7).
+  - **§3 Operator diagnostics** — `explore_exploit_diagnostics.observation_confidence` continues to surface the same numeric value, just under an honest name.
+  - **§5 CI** — no new magic numbers, no new large literals.
+- **What was done:**
+  - **`backend/apps/pipeline/services/feedback_rerank.py`** — rewrote 3 docstrings (`load_historical_stats`, `calculate_rerank_factor`, `_rerank_cpp_batch`) to describe the linear confidence blend; dropped "inverse-propensity" framing; retained Joachims 2017 as a "Related: …" soft-cite pointing at RPT-001 Finding 2. Renamed `exposure_prob` → `observation_confidence` in the `_pair_stats` dict key, local variables, diagnostics dict key, and `_collect_pair_arrays` return tuple element. Renamed `_rerank_cpp_batch` parameter + inner variable `ep` → `oc`. Updated `rerank_candidates` call site.
+  - **`backend/extensions/feedrerank.cpp`** — renamed core function parameter `exposure_probs` → `observation_confidences`; inner variable `ep` → `oc`; rewrote PARITY comments at lines 41–47 to explicitly state "this is NOT an inverse-propensity estimator" with the RPT-001 Finding 2 reference. Renamed pybind11 wrapper parameter + rewrote module docstring at `m.def("calculate_rerank_factors_batch", …)` to drop the IPS framing and cite Joachims 2017 as "inspired the naming but the per-event IPS guarantee is not implemented."
+  - **`backend/extensions/include/feedrerank_core.h`** — renamed parameter with a comment block explaining the rename and linking RPT-001 Finding 2.
+  - **`backend/tests/test_parity_feedrerank.py`** — renamed `Scenario.exposure_probs` → `observation_confidences` (all 6 scenario entries updated); renamed `_python_rerank_factor(exposure_prob=…)` → `_python_rerank_factor(observation_confidence=…)`; rewrote module header docstring to drop the Joachims-first citation and flag RPT-001 Finding 2 resolution.
+  - **`backend/extensions/benchmarks/bench_feedrerank.cpp`** — renamed local `exposure_probs` variable; renamed RNG output + comment.
+  - **`backend/benchmarks/test_bench_feedback_rerank.py`** — `_make_service` pair-stat dict key `exposure_prob` → `observation_confidence`.
+  - **`backend/benchmarks/test_bench_misc.py`** — renamed `exposure_probs` local in three rerank-factor bench functions.
+  - **`backend/apps/pipeline/tests.py`** — renamed 10 `exposure_prob` / `exposure_prob_vals` references (both the parity-style integration test at line 915 and the unit-test `_pair_stats` dict keys in `FeedbackRerankServiceTests`). Code paths unchanged.
+  - **`docs/reports/REPORT-REGISTRY.md`** — RPT-001 Finding 2 moved from OPEN → RESOLVED 2026-04-20 with full closure paragraph explaining Path B, the rename scope, and what was consciously not built (per-event storage + IPS estimator). RPT-001 header updated from "4 of 5 findings unresolved" to "3 of 5 findings unresolved". Finding 3 closure paragraph softened to drop the "exposure-propensity blend" language (the very thing Finding 2 is correcting).
+  - **Frontend:** no change — `FeedbackRerankDiagnostics` interface in `suggestion.service.ts` doesn't declare `exposure_prob`, and no template binds to it. (Pre-existing interface-vs-backend drift flagged as follow-up; out of scope.)
+- **Intentional files changed:**
+  - `backend/apps/pipeline/services/feedback_rerank.py`
+  - `backend/extensions/feedrerank.cpp`
+  - `backend/extensions/include/feedrerank_core.h`
+  - `backend/extensions/benchmarks/bench_feedrerank.cpp`
+  - `backend/tests/test_parity_feedrerank.py`
+  - `backend/benchmarks/test_bench_feedback_rerank.py`
+  - `backend/benchmarks/test_bench_misc.py`
+  - `backend/apps/pipeline/tests.py`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md` (this note)
+- **Reused, not duplicated:** existing `_python_rerank_factor` reference, existing PARITY comment convention per CPP-RULES §25, existing `Scenario` NamedTuple + SCENARIOS list pattern, existing pybind11 module-docstring style. Zero new abstractions, zero new functions, zero new files.
+- **Verification:**
+  - Rebuilt feedrerank C++ extension in Docker: clean build, no warnings.
+  - `docker compose exec backend python -m pytest tests/test_parity_feedrerank.py -v` — **7/7 pass** (6 parity scenarios including `zero_priors_denominator_guard` + 1 `test_feedrerank_factor_bounds`). Zero math change confirmed at `atol=1e-6, rtol=0`.
+  - Full Django test suite + lint-all pending at time of this note; will be re-posted once the commit is staged.
+- **What was deliberately NOT done:**
+  - Did **not** add `position_in_slate` / `slate_size` to `SuggestionPresentation` (Path A). No migration, no new telemetry writer, no click-model service.
+  - Did **not** build an offline click-model fitter (Path C). Honest rename deferred that work until operators specifically request IPS-grade ranking quality.
+  - Did **not** rename the frontend `FeedbackRerankDiagnostics` interface — it was already drifted from the backend dict shape pre-existingly and needed no `exposure_prob`-specific edit. The broader interface-sync work is its own separate slice.
+  - Did **not** address RPT-001 Findings 1, 4, 5 — checking in with the user before continuing Tier 3.
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-20 — Tier 3 slice 7: close RPT-001 Finding 3 (feedrerank C++/Python denominator-guard parity) (Claude)
 
 - **AI/tool:** Claude

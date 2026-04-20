@@ -51,13 +51,24 @@ class FeedbackRerankService:
     def load_historical_stats(self) -> None:
         """Fetch and aggregate approval rates for (host_scope, destination_scope) pairs.
 
-        Uses presentation counts (how many times a suggestion was shown in
-        the review list) rather than generated counts for inverse-propensity
-        weighting.  Falls back to generated counts when no presentation data
-        exists (new deployment, or before exposure logging was added).
+        For each pair, computes an ``observation_confidence`` = reviewed-count /
+        presented-count. Pairs with many impressions-to-reviews converge
+        toward 1.0; thinly-observed pairs stay closer to 0.0. This
+        confidence value feeds the linear blend in
+        ``calculate_rerank_factor`` below — it is NOT an inverse-propensity
+        weight in the statistical sense (see RPT-001 Finding 2, resolved
+        2026-04-20, for the gap analysis).
 
-        Joachims, Swaminathan & Schnabel (2017) show that using
-        presented-count as the exposure denominator removes position-bias.
+        Falls back to generated-count as the denominator when no
+        presentation data exists (new deployment, or before exposure
+        logging was added).
+
+        Related: Joachims, Swaminathan & Schnabel (2017) "Unbiased
+        Learning-to-Rank with Biased Feedback" (WSDM, DOI
+        10.1145/3077136.3080756) describes a rigorous per-event IPS
+        estimator using position bias. This service uses a cheaper
+        per-pair confidence blend that trades that unbiasedness guarantee
+        for lower storage cost; the citation is kept as inspiration only.
         """
         from apps.suggestions.models import Suggestion, SuggestionPresentation
 
@@ -109,13 +120,13 @@ class FeedbackRerankService:
             pair = (row["host__scope_id"], row["destination__scope_id"])
             # Prefer presented count; fall back to generated count
             n_exposure = presented_map.get(pair, generated_map.get(pair, row["total"]))
-            exposure_prob = row["total"] / max(n_exposure, 1)
+            observation_confidence = row["total"] / max(n_exposure, 1)
             self._pair_stats[pair] = {
                 "total": row["total"],
                 "successes": row["successes"],
                 "presented": presented_map.get(pair, 0),
                 "generated": generated_map.get(pair, 0),
-                "exposure_prob": exposure_prob,
+                "observation_confidence": observation_confidence,
             }
             self._global_total_samples += row["total"]
 
@@ -124,10 +135,17 @@ class FeedbackRerankService:
     ) -> tuple[float, dict[str, Any]]:
         """Compute the Explore/Exploit multiplier for a candidate pair.
 
-        Uses inverse-propensity weighting to correct for exposure bias:
-        pairs that were reviewed more often relative to how many were generated
-        get a more reliable exploit score, while under-exposed pairs lean more
-        on exploration (Joachims, Swaminathan & Schnabel).
+        Blends the pair's Bayesian-smoothed acceptance rate (the exploit
+        score) toward the neutral value 0.5 based on
+        ``observation_confidence`` = reviews / impressions. Pairs seen by
+        many users get closer to the raw empirical rate; thinly-seen pairs
+        get pulled toward neutral.
+
+        NOTE: this is a per-pair linear confidence blend, NOT an
+        inverse-propensity estimator. RPT-001 Finding 2 (resolved
+        2026-04-20) documents the gap between "IPS" naming and actual
+        mechanics; ``observation_confidence`` replaces the earlier
+        ``exposure_prob`` name to keep the label honest.
         """
         if not self.settings.enabled:
             return 1.0, {"status": "disabled"}
@@ -140,25 +158,30 @@ class FeedbackRerankService:
                 "successes": 0,
                 "presented": 0,
                 "generated": 0,
-                "exposure_prob": 0.0,
+                "observation_confidence": 0.0,
             },
         )
 
         n_total = stats["total"]
         n_success = stats["successes"]
-        exposure_prob = stats.get("exposure_prob", 0.0)
+        observation_confidence = stats.get("observation_confidence", 0.0)
 
-        # 1. Exploit: Bayesian-Smoothed Acceptance Rate with exposure discount.
+        # 1. Exploit: Bayesian-Smoothed Acceptance Rate (per-pair).
         # mu = (success + alpha) / (total + alpha + beta)
-        # Discounted by exposure_prob: low-exposure pairs get less exploitation
-        # benefit because their approval signal is unreliable.
+        # Then blend toward the neutral 0.5 based on observation_confidence:
+        # high-confidence pairs trust the empirical rate, low-confidence
+        # pairs stay closer to neutral. This is a linear confidence blend,
+        # NOT an inverse-propensity estimator (see RPT-001 Finding 2).
         exploit_denom = n_total + self.settings.alpha_prior + self.settings.beta_prior
         score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
             exploit_denom, 1e-9
         )
-        # Blend toward neutral (0.5) based on how little of the pair was reviewed.
-        # exposure_prob=1.0 → full exploit signal; exposure_prob=0.0 → neutral 0.5
-        score_exploit = exposure_prob * score_exploit_raw + (1.0 - exposure_prob) * 0.5
+        # Blend toward neutral (0.5) when observation_confidence is low.
+        # confidence=1.0 → full exploit signal; confidence=0.0 → neutral 0.5
+        score_exploit = (
+            observation_confidence * score_exploit_raw
+            + (1.0 - observation_confidence) * 0.5
+        )
 
         # 2. Explore: UCB1 Confidence Bound
         # Boost = k * sqrt(ln(N_global) / (n_pair + 1))
@@ -181,7 +204,7 @@ class FeedbackRerankService:
             "n_success": n_success,
             "n_presented": stats.get("presented", 0),
             "n_generated": stats.get("generated", 0),
-            "exposure_prob": round(exposure_prob, 4),
+            "observation_confidence": round(observation_confidence, 4),
             "n_global": n_global,
             "score_exploit_raw": round(score_exploit_raw, 4),
             "score_exploit": round(score_exploit, 4),
@@ -198,10 +221,12 @@ class FeedbackRerankService:
         host_scope_id_map: dict[int, int],
         destination_scope_id_map: dict[int, int],
     ) -> tuple[list[int], list[int], list[float]]:
-        """Build per-candidate success/total/exposure_prob arrays from pair stats."""
+        """Build per-candidate success / total / observation_confidence arrays
+        from pair stats for the C++ batch reranker.
+        """
         n_successes: list[int] = []
         n_totals: list[int] = []
-        exposure_probs: list[float] = []
+        observation_confidences: list[float] = []
         for c in candidates:
             host_scope = host_scope_id_map.get(c.host_content_id, 0)
             dest_scope = destination_scope_id_map.get(c.destination_content_id, 0)
@@ -210,15 +235,17 @@ class FeedbackRerankService:
             )
             n_successes.append(int(stats["successes"]))
             n_totals.append(int(stats["total"]))
-            exposure_probs.append(float(stats.get("exposure_prob", 1.0)))
-        return n_successes, n_totals, exposure_probs
+            observation_confidences.append(
+                float(stats.get("observation_confidence", 1.0))
+            )
+        return n_successes, n_totals, observation_confidences
 
     def _rerank_cpp_batch(
         self,
         candidates: list[ScoredCandidate],
         n_successes: list[int],
         n_totals: list[int],
-        exposure_probs: list[float],
+        observation_confidences: list[float],
     ) -> list[ScoredCandidate]:
         """C++ accelerated batch reranking with per-candidate diagnostics."""
         from dataclasses import replace
@@ -226,7 +253,7 @@ class FeedbackRerankService:
         factors = feedrerank.calculate_rerank_factors_batch(
             np.asarray(n_successes, dtype=np.int32),
             np.asarray(n_totals, dtype=np.int32),
-            np.asarray(exposure_probs, dtype=np.float64),
+            np.asarray(observation_confidences, dtype=np.float64),
             max(1, self._global_total_samples),
             float(self.settings.alpha_prior),
             float(self.settings.beta_prior),
@@ -234,8 +261,13 @@ class FeedbackRerankService:
             float(self.settings.exploration_rate),
         )
         reranked = []
-        for c, factor, n_success, n_total, ep in zip(
-            candidates, factors, n_successes, n_totals, exposure_probs, strict=True
+        for c, factor, n_success, n_total, oc in zip(
+            candidates,
+            factors,
+            n_successes,
+            n_totals,
+            observation_confidences,
+            strict=True,
         ):
             n_global = max(1, self._global_total_samples)
             # 1e-9 denominator guard mirrors calculate_rerank_factor (line 156).
@@ -247,8 +279,12 @@ class FeedbackRerankService:
             score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
                 exploit_denom, 1e-9
             )
-            # Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4)
-            score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5
+            # Linear observation_confidence blend toward neutral 0.5.
+            # See RPT-001 Finding 2 — this is a per-pair confidence blend,
+            # NOT an inverse-propensity estimator. Joachims, Swaminathan &
+            # Schnabel 2017 (DOI 10.1145/3077136.3080756) describes the
+            # rigorous per-event IPS alternative; kept as inspiration only.
+            score_exploit = oc * score_exploit_raw + (1.0 - oc) * 0.5
             score_explore = self.settings.exploration_rate * math.sqrt(
                 math.log(n_global + 1.0) / (n_total + 1.0)
             )
@@ -257,7 +293,7 @@ class FeedbackRerankService:
                 "n_pair": n_total,
                 "n_success": n_success,
                 "n_global": n_global,
-                "exposure_prob": round(ep, 4),
+                "observation_confidence": round(oc, 4),
                 "score_exploit_raw": round(score_exploit_raw, 4),
                 "score_exploit": round(score_exploit, 4),
                 "score_explore": round(score_explore, 4),
@@ -284,11 +320,11 @@ class FeedbackRerankService:
             return candidates
 
         if HAS_CPP_EXT:
-            n_successes, n_totals, exposure_probs = self._collect_pair_arrays(
+            n_successes, n_totals, observation_confidences = self._collect_pair_arrays(
                 candidates, host_scope_id_map, destination_scope_id_map
             )
             return self._rerank_cpp_batch(
-                candidates, n_successes, n_totals, exposure_probs
+                candidates, n_successes, n_totals, observation_confidences
             )
 
         from dataclasses import replace

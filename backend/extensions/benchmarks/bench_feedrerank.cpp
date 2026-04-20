@@ -11,16 +11,16 @@ void BM_RerankFactors(benchmark::State& state) {
     const auto count = static_cast<size_t>(state.range(0));
     auto successes = xf_bench::random_int32s(count, 0, 100, 42);
     auto totals = xf_bench::random_int32s(count, 1, 200, 43);
-    // Map random_doubles [-1,1] → [0,1] for valid exposure probability values
-    auto raw_ep = xf_bench::random_doubles(count, 44);
-    std::vector<double> exposure_probs(count);
+    // Map random_doubles [-1,1] → [0,1] for valid observation_confidence values
+    auto raw_oc = xf_bench::random_doubles(count, 44);
+    std::vector<double> observation_confidences(count);
     for (std::size_t i = 0; i < count; ++i)
-        exposure_probs[i] = (raw_ep[i] + 1.0) / 2.0;
+        observation_confidences[i] = (raw_oc[i] + 1.0) / 2.0;
     std::vector<double> out(count);
 
     for (auto _ : state) {
-        rerank_factors_core(successes.data(), totals.data(), exposure_probs.data(), count, 10000,
-                            1.0, 1.0, 0.3, 0.1, out.data());
+        rerank_factors_core(successes.data(), totals.data(), observation_confidences.data(), count,
+                            10000, 1.0, 1.0, 0.3, 0.1, out.data());
         benchmark::DoNotOptimize(out.data());
     }
     state.SetItemsProcessed(state.iterations() * static_cast<int64_t>(count));
