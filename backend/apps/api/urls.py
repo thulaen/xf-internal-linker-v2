@@ -90,6 +90,7 @@ from apps.sync.views import (
     WordPressWebhookView,
     WebhookReceiptViewSet,
 )
+from django.conf import settings
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.throttling import AnonRateThrottle
 
@@ -108,6 +109,14 @@ class _LoginRateThrottle(AnonRateThrottle):
 
     def parse_rate(self, rate):
         return (10, 10)
+
+    def allow_request(self, request, view):
+        # Skip in DEBUG so a few mistyped passwords can't lock the local
+        # operator out of their own dev stack. Production (DEBUG=False)
+        # keeps the brute-force guard.
+        if settings.DEBUG:
+            return True
+        return super().allow_request(request, view)
 
 
 class _CsrfFreeObtainAuthToken(ObtainAuthToken):
