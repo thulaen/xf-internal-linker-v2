@@ -235,11 +235,17 @@ function buildSimpleExecutionCard(
 }
 
 function asRuntime(value: unknown): RuntimeExecutionCard['runtime'] {
-  return value === 'cpp' || value === 'python' || value === 'mixed' ? value : 'unknown';
+  if (value === 'cpp' || value === 'python' || value === 'mixed') {
+    return value;
+  }
+  return 'unknown';
 }
 
 function asCardState(value: string): RuntimeExecutionCard['state'] {
-  return value === 'healthy' || value === 'degraded' || value === 'failed' ? value : 'degraded';
+  if (value === 'healthy' || value === 'degraded' || value === 'failed') {
+    return value;
+  }
+  return 'degraded';
 }
 
 function booleanBadge(label: string, value: boolean | undefined, truthyGood: boolean): RuntimeLaneBadge {
@@ -258,11 +264,17 @@ function detail(label: string, value: string): { label: string; value: string } 
 
 function displayRuntime(value: unknown): string {
   const runtime = asRuntime(value);
-  return runtime === 'unknown' ? 'Unknown' : runtime.toUpperCase();
+  if (runtime === 'unknown') {
+    return 'Unknown';
+  }
+  return runtime.toUpperCase();
 }
 
 function displayCount(value: unknown): string {
-  return typeof value === 'number' ? String(value) : 'Unknown';
+  if (typeof value !== 'number') {
+    return 'Unknown';
+  }
+  return String(value);
 }
 
 function displayBenchmark(status: unknown, speedup: unknown): string {
@@ -273,5 +285,8 @@ function displayBenchmark(status: unknown, speedup: unknown): string {
 }
 
 function displayMilliseconds(value: unknown): string {
-  return typeof value === 'number' ? `${value.toFixed(2)} ms` : 'Not captured yet';
+  if (typeof value !== 'number') {
+    return 'Not captured yet';
+  }
+  return `${value.toFixed(2)} ms`;
 }
