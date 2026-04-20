@@ -2,6 +2,9 @@
      while the user scrolls, matching the pattern of Gemini / YouTube /
      GA4 where global search is always reachable without scrolling. -->
 <app-quick-search-bar class="d3-block" />
+<div class="desk-row">
+  <app-system-metrics />
+</div>
 
 <!-- ── Phase MC — Mission Critical section. First substantive block
      so the operator immediately sees a health glance of every
@@ -158,11 +161,6 @@
     @if (whatChanged) {
       <app-what-changed [changes]="whatChanged" />
     }
-  </div>
-
-  <!-- ── Operating Desk: Live System Load ─────────────────────────── -->
-  <div class="desk-row">
-    <app-system-metrics />
   </div>
 
   <!-- ── Operating Desk: Row 2 ──────────────────────────────────── -->
