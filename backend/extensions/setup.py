@@ -95,6 +95,13 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17"],
     ),
+    Pybind11Extension(
+        "anchor_diversity",
+        ["anchor_diversity.cpp"],
+        extra_compile_args=["-O3", "-std=c++17"]
+        if sys.platform != "win32"
+        else ["/O2", "/std:c++17"],
+    ),
 ]
 
 setup(

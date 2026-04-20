@@ -81,6 +81,9 @@ add_bench(rareterm    "${EXT_ROOT}/rareterm.cpp")
 # Category E: class-based
 add_bench(pulse_metrics "${EXT_ROOT}/pulse_metrics.cpp")
 
+# FR-045 C++ batch fast path — pure-STL core, no TBB.
+add_bench(anchor_diversity "${EXT_ROOT}/anchor_diversity.cpp")
+
 # ── Edge-case unit test executables ──
 function(add_edge_test NAME)
     set(SOURCES ${ARGN})

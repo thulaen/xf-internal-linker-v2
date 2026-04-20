@@ -89,7 +89,7 @@ If you decide not to fix that finding in the current session, you must do both:
 - Redis 7.4
 - Celery 5.4 + Celery Beat
 - Django Channels 4.2 + Daphne
-- nomic-ai/nomic-embed-text-v1.5 with 768 dimensions
+- BAAI/bge-m3 with 1024 dimensions
 - Existing ML_PERFORMANCE_MODE behavior still supports CPU-safe and GPU-capable execution
 - Roadmap libraries: `google-api-python-client`, `pandas`, `statsmodels`, `networkx`
 
@@ -296,28 +296,27 @@ Last verified against code: 2026-04-08
 
 | Category            | Done | Partial | Pending | Cancelled | Total |
 |---------------------|------|---------|---------|-----------|-------|
-| Feature Requests (FR-001..FR-098) |   31 |       6 |      60 |         1 |    98 |
+| Feature Requests (FR-001..FR-098) |   32 |       5 |      60 |         1 |    98 |
 | Feature Requests (FR-099..FR-224 — Phase 2 forward-declared) |    0 |       0 |     126 |         0 |   126 |
 | (Note: FR-023 is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry — it was part of Phase 26)
 | C++ META extensions (META-01..META-39) |    0 |       0 |      36 |         0 |    36 |
 | C++ META extensions (META-40..META-249 — Phase 2 forward-declared) |    0 |       0 |     210 |         0 |   210 |
 | C++ OPT extensions  |    0 |       0 |      92 |         0 |    92 |
-| **All work items**  | **31** | **6** | **524** | **1** | **562** |
+| **All work items**  | **32** | **5** | **524** | **1** | **562** |
 
-**Completed FRs (31):**
+**Completed FRs (32):**
 FR-001, FR-002, FR-003, FR-004, FR-005, FR-006, FR-007, FR-008, FR-009, FR-010,
 FR-011, FR-012, FR-013, FR-014, FR-015, FR-016, FR-017, FR-018, FR-019, FR-021,
 FR-022, FR-024, FR-025, FR-026, FR-028, FR-029, FR-030, FR-031, FR-032,
-FR-033, FR-035
+FR-033, FR-035, FR-045
 (Plus FR-023 which is complete in the Execution Ledger but has no separate FEATURE-REQUESTS.md entry)
 
-**Partial (6 — scaffolding exists, core logic missing; or core logic ships but perf/bench path missing):**
+**Partial (5 — scaffolding exists, core logic missing; or core logic ships but perf/bench path missing):**
 - FR-034: link parser and context scoring refs exist, audit dashboard/trail UI missing
 - FR-037: silo tracking (_same_silo) exists, leakage map visualization component missing
 - FR-040: config keys in migration 0019 exist, ContentItem field and scoring service missing
 - FR-042: config keys in migration 0019 exist, score field and scoring logic missing
 - FR-044: config keys in migration 0019 exist, score field and analytics aggregation missing
-- FR-045: Python reference scorer + `score_anchor_diversity` field + settings + migrations 0031/0032 all ship; C++ batch fast path AND pytest benchmark pending (spec line 1244 mandates both for a hot-path signal; AGENTS.md §34 + BLC §1.4)
 
 **Pending FRs (59):**
 FR-020, FR-036, FR-038, FR-039, FR-041, FR-043, FR-046, FR-047, FR-048,
@@ -443,6 +442,217 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+### 2026-04-20 - Make embedding storage dimension-agnostic for future larger models (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked to remove the remaining hard 1024-dimension pgvector contract so future larger embedding models can work without schema breakage.
+- **Relevant open finding disclosed before edits:** `ISS-019` is still marked `OPEN` in `docs/reports/REPORT-REGISTRY.md` for the embeddings/settings area. I told the user before editing. I kept this slice focused on dimension-safe storage/runtime behavior and did **not** retag the registry entry because the tree already contains unrelated uncommitted registry edits.
+- **What was done:**
+  - Added `backend/apps/content/migrations/0025_generic_vector_storage_and_sentence_model_version.py` to:
+    - change `ContentItem.embedding`, `Sentence.embedding`, and `SupersededEmbedding.embedding` from fixed `vector(1024)` storage to generic `vector`
+    - add `Sentence.embedding_model_version`
+    - backfill blank `embedding_model_version` values for current `ContentItem`, `Sentence`, and `SupersededEmbedding` rows using the active embedding signature
+    - drop the old fixed-dimension HNSW indexes so mixed-dimension storage cannot be paired with stale pgvector index assumptions
+  - Updated `backend/apps/content/models.py` help text and model fields so the schema now describes embeddings as model-signature-tagged vectors instead of `1024`-only vectors.
+  - Reworked `backend/apps/pipeline/services/embeddings.py` so:
+    - embedding writes stamp `embedding_model_version` on both content items and sentences
+    - non-forced runs automatically re-embed stale rows whose signature no longer matches the active model
+    - runtime status reports a generic storage cap (`16000`) plus the active signature instead of pretending storage is fixed at `1024`
+  - Updated all read/query paths that previously treated `embedding__isnull=False` as “current” to filter by the active embedding signature instead:
+    - `backend/apps/pipeline/services/pipeline_data.py`
+    - `backend/apps/pipeline/services/pipeline_stages.py`
+    - `backend/apps/pipeline/services/faiss_index.py`
+    - `backend/apps/content/services/clustering.py`
+    - `backend/apps/pipeline/tasks.py`
+    - `backend/apps/suggestions/readiness.py`
+    - `backend/apps/diagnostics/views.py`
+    - `backend/apps/health/views.py`
+    - `backend/apps/audit/data_quality.py`
+    - `backend/apps/core/views_runbooks.py`
+  - Added focused backend coverage in `backend/apps/pipeline/tests.py` for:
+    - stale `ContentItem` embeddings being re-generated and re-stamped with the new signature
+    - stale `Sentence` embeddings being re-generated and re-stamped with the new signature
+    - destination/sentence loaders ignoring stale-signature rows and returning the active dimension
+    - runtime status exposing the new signature-aware compatibility contract
+- **Intentional files changed:**
+  - `backend/apps/content/models.py`
+  - `backend/apps/content/services/clustering.py`
+  - `backend/apps/content/migrations/0025_generic_vector_storage_and_sentence_model_version.py`
+  - `backend/apps/pipeline/services/embeddings.py`
+  - `backend/apps/pipeline/services/pipeline_data.py`
+  - `backend/apps/pipeline/services/pipeline_stages.py`
+  - `backend/apps/pipeline/services/faiss_index.py`
+  - `backend/apps/pipeline/tasks.py`
+  - `backend/apps/suggestions/readiness.py`
+  - `backend/apps/diagnostics/views.py`
+  - `backend/apps/health/views.py`
+  - `backend/apps/audit/data_quality.py`
+  - `backend/apps/core/views_runbooks.py`
+  - `backend/apps/pipeline/tests.py`
+  - `AI-CONTEXT.md`
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker compose exec backend python manage.py migrate --noinput`
+  - `docker compose exec backend python manage.py test --noinput apps.pipeline.tests.EmbeddingRuntimeSafetyTests apps.pipeline.tests.PipelineLoaderTests`
+  - `docker compose exec backend python manage.py test --noinput`
+  - final `docker compose exec backend python manage.py showmigrations`
+  - final `docker compose exec backend python manage.py makemigrations --check --dry-run`
+- **Important handoff:**
+  - The worktree was already dirty before this slice with unrelated backend, docs, and frontend changes from other in-flight sessions. I did not revert or mix those files into this work.
+  - I did **not** commit or push. Committing now would have mixed this slice with unrelated uncommitted work already present on `master`.
+
+### 2026-04-20 - Add embedding OOM backoff, pause-safe checkpoint flushes, and model-dimension safety checks (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked for a safer embedding runtime that retries with smaller batches instead of failing on OOM, preserves pause/resume behavior, and moves the model path a step closer to future-model safety.
+- **Relevant open finding disclosed before edits:** `ISS-019` is still marked `OPEN` in `docs/reports/REPORT-REGISTRY.md` for the same embeddings/settings area. I told the user before editing. I did **not** retag the registry entry in this slice because the requested work was runtime safety, not report-registry housekeeping, and the tree already contains unrelated uncommitted report-registry edits.
+- **What was done:**
+  - Reworked `backend/apps/pipeline/services/embeddings.py` so content and sentence embedding loops now retry the same batch with a smaller batch size after OOM-style failures instead of crashing immediately.
+  - Added best-effort memory cleanup plus operator/job logging around OOM backoff events, and persisted the backoff note onto the `SyncJob` row with `is_resumable=True` and `checkpoint_stage="embed"`.
+  - Changed pause handling at embedding batch boundaries so pending vectors are flushed to pgvector before raising `JobPaused`, which keeps resume behavior intact even when the pause arrives before the normal every-5-batch checkpoint boundary.
+  - Added model-runtime introspection helpers that report the loaded model's embedding dimension, expose whether it matches the current 1024-dim storage contract, and fail fast with a clear error if an incompatible-dimension model is loaded.
+  - Extended `get_model_status()` with `configured_batch_size`, `storage_embedding_dim`, and `dimension_compatible` so the runtime tells the truth about future-model compatibility instead of assuming every model is silently safe.
+
+- **Intentional files changed:**
+  - `backend/apps/pipeline/services/embeddings.py`
+  - `backend/apps/pipeline/tests.py`
+  - `AI-CONTEXT.md`
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker compose exec backend python manage.py test apps.pipeline.tests.EmbeddingRuntimeSafetyTests`
+  - `docker compose exec backend python manage.py test apps.core.tests.EmbeddingModelDefaultTests apps.pipeline.tests.EmbeddingRuntimeSafetyTests`
+  - `docker compose exec backend python manage.py test`
+  - Final `docker compose exec backend python manage.py showmigrations`
+  - Final `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\prune-verification-artifacts.ps1`
+
+- **Verification outcome note:**
+  - The full backend suite now passes in this environment: `355` tests passed, `1` skipped.
+
+- **Commit/push state:**
+  - Not committed or pushed in this session.
+  - Reason: the worktree is still dirty with unrelated uncommitted changes from other slices, so a clean ownership-preserving commit is not possible without mixing work.
+
+### 2026-04-20 - Remove stale embedding runtime entries and make `BAAI/bge-m3` the live champion (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked to delete the stale `BAAI/bge-small-en-v1.5` / Nomic embedding runtime presence and make `BAAI/bge-m3` the active champion, not just the persisted default.
+- **What was done:**
+  - Verified `AppSetting(key="embedding_model")` is `BAAI/bge-m3`.
+  - Removed the stale embedding runtime registry row for `BAAI/bge-small-en-v1.5`.
+  - Ensured the only remaining embedding `RuntimeModelRegistry` row is `BAAI/bge-m3` with `role="champion"`, `status="ready"`, `dimension=1024`, `algorithm_version="fr020-v1"`, `device_target="cuda"`, and `batch_size=32`.
+  - Preloaded `BAAI/bge-m3` through the backend runtime so the container now has a concrete Hugging Face cache entry for that model under `/tmp/.cache/huggingface/hub/models--BAAI--bge-m3`.
+  - Searched common backend-container cache locations for `*bge-small-en-v1.5*` and `*nomic*` artifacts and found none, so there was no on-disk stale cache to delete beyond removing the stale registry row.
+
+- **Intentional files changed:**
+  - `AI-CONTEXT.md`
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py shell -c \"... RuntimeModelRegistry ... runtime_summary_payload ...\"`
+  - Verified runtime summary reports `active_model.model_name = \"BAAI/bge-m3\"`, `candidate_model = None`, and `hot_swap_safe = True`.
+  - `docker compose exec backend sh -lc \"find /tmp/.cache /root/.cache /app ...\"`
+  - Verified the only discovered matching cache artifact is `/tmp/.cache/huggingface/hub/models--BAAI--bge-m3`.
+
+- **Commit/push state:**
+  - Not committed or pushed in this session.
+  - Reason: the worktree is still dirty with unrelated uncommitted changes owned by other slices, so committing this operational cleanup would mix responsibilities.
+
+### 2026-04-20 — Persist `BAAI/bge-m3` as the default embedding model for Balanced + High Performance (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked to make `BAAI/bge-m3` the explicit default embedding model for both `balanced` and `high` performance modes without tying model choice to the mode toggle itself.
+- **What was done:**
+  - Added `backend/apps/core/migrations/0011_seed_default_embedding_model.py` to create `AppSetting(key="embedding_model") = "BAAI/bge-m3"` only when the key is missing. Existing operator-selected models are preserved.
+  - Added focused backend coverage in `backend/apps/core/tests.py` for:
+    - fallback/default model resolves to `BAAI/bge-m3` when `embedding_model` is absent in `balanced`
+    - fallback/default model resolves to `BAAI/bge-m3` when `embedding_model` is absent in `high`
+    - migration helper creates the missing default row
+    - migration helper does not overwrite an existing custom model
+    - `POST /api/settings/runtime/switch/` does not mutate `embedding_model`
+  - Updated `backend/config/settings/test.py` so the test harness explicitly matches the repo default (`EMBEDDING_MODEL = "BAAI/bge-m3"`), instead of inheriting a local/container env override during verification.
+  - Cleaned stale repo truth in `AI-CONTEXT.md` from the old Nomic default to `BAAI/bge-m3` / 1024 dimensions.
+  - Reworded the misleading legacy comment in `backend/apps/core/runtime_registry.py` so it no longer claims the seeded default dimension is for the old Nomic runtime.
+
+- **Intentional files changed:**
+  - `backend/apps/core/migrations/0011_seed_default_embedding_model.py` (new)
+  - `backend/apps/core/tests.py`
+  - `backend/config/settings/test.py`
+  - `backend/apps/core/runtime_registry.py`
+  - `AI-CONTEXT.md`
+
+- **Verification that passed:**
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py migrate --noinput`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker compose exec backend python manage.py test apps.core.tests.EmbeddingModelDefaultTests`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\build-frontend.ps1`
+  - `docker compose build`
+  - `docker image prune -f`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\prune-verification-artifacts.ps1`
+
+- **Verification blocker / note:**
+  - `docker compose exec backend python manage.py test` still has one unrelated failing test outside this slice:
+    - `apps.pipeline.services.test_async_http.AsyncHttpTests.test_probe_urls_semaphore_and_perf`
+    - failure: runtime threshold assertion (`18.33s` vs expected `< 10.0s`)
+  - This slice does not touch `apps/pipeline/services/test_async_http.py` or the async HTTP probe implementation.
+
+- **Migration status at finish:**
+  - `core.0011_seed_default_embedding_model` applied successfully.
+  - Final `showmigrations` confirmed all tracked migrations are applied in the backend container, including the pre-existing `content.0024_slice5_score_diagnostics`.
+
+- **Commit/push state:**
+  - Not committed or pushed in this session.
+  - Reason: the worktree was already dirty before this slice (`AI-CONTEXT.md`, `FEATURE-REQUESTS.md`, anchor-diversity C++/benchmark files, report registry, and others), and `AI-CONTEXT.md` already contained unrelated uncommitted edits. Mixing this fix into that broader uncommitted state would muddy ownership and audit history.
+
+### 2026-04-20 — Tier 2 slice 6: FR-045 C++ batch fast path + parity test + benchmark; FR-045 Partial → Done (Claude)
+
+- **AI/tool:** Claude
+- **Why:** FR-045 had been held at **Partial** by ISS-020 since 2026-04-18: the Python reference scorer + `score_anchor_diversity` field + migrations all shipped, but the spec's hot-path rule ("Python reference + C++ batch fast path with parity tests") and BLC §1.4 / AGENTS.md §34 (3-input-size benchmark) remained unmet. This slice closes both gaps, validates parity at 1e-6 across every state branch, and moves FR-045 from Partial (6) → Done (32) in the dashboard.
+- **Duplicate-check (Explore agent):** CLEAR. No prior C++ `anchor_diversity` module; no parallel port underway. feedrerank is the exemplar pattern (core-in-header + pybind11-in-cpp + `XF_BENCH_MODE` gate, parity test at `atol=1e-6`, pytest benchmark at 3 sizes, Google Benchmark at 3 sizes). All matched.
+- **BLC gates (cleared openly in the commit message — ranker-touching):**
+  - **§0 Drift Rejection** — NOT a new signal. C++ port of the existing FR-045 arithmetic; primary source unchanged (Google Search Central + US20110238644A1, already cited in the spec). Named inputs. Neutral fallback preserved (Python path still runs when the extension isn't compiled; `HAS_CPP_EXT` guard). Reviewer-visible via existing `score_anchor_diversity` + `anchor_diversity_diagnostics`.
+  - **§1.1 Source binding** — every formula line in `backend/extensions/anchor_diversity.cpp` has a `// PARITY: matches anchor_diversity.py line N` comment per CPP-RULES §25.
+  - **§1.2 Duplicate check** — CLEAR per agent.
+  - **§1.3 Researched defaults** — none changed; C++ consumes the same `AnchorDiversitySettings` dataclass values.
+  - **§1.4 Benchmark** — 3 sizes in both the pytest benchmark (100 / 1 000 / 5 000 candidates) AND the Google Benchmark (100 / 5 000 / 50 000 candidates).
+  - **§2.1/§2.4/§2.6** — formula lineage commented; `std::max(denominator, epsilon)` and `std::max(denominator, 1)` mirror the Python `max(..., 1)` / `max(..., 1e-9)` patterns; hard-cap block decision preserved; no auto-apply invariants touched.
+  - **§2.3 Architecture lane** — Hot-path scoring (>1k candidates per pipeline run) → C++ is the correct lane per BLC.
+  - **§3 Operator diagnostics** — diagnostics dict unchanged; new `runtime_path` key ("cpp" vs "python") added so operators can see which path ran.
+  - **§5 CI** — every numeric constant in the C++ core is a named `constexpr` (`SHARE_WEIGHT`, `COUNT_WEIGHT`, `NEUTRAL_SCORE`, `SPAM_RISK_CEILING`, `SCORE_SLOPE`, `MIN_COUNT_DENOMINATOR`, `SHARE_DENOMINATOR_EPSILON`). Magic-number detector passes.
+- **What was done:**
+  - **`backend/extensions/include/anchor_diversity_core.h`** (new) — pure-C++ declaration of `evaluate_anchor_diversity_core(...)` with 8 parallel output buffers (projected_count, projected_share, share_overflow, count_overflow_norm, spam_risk, score, state_index, would_block). State index encoding documented in the header.
+  - **`backend/extensions/anchor_diversity.cpp`** (new) — core implementation + pybind11 binding (`PYBIND11_MODULE(anchor_diversity, m)`). Each state branch mirrors the Python `evaluate_anchor_diversity` line-for-line with `PARITY:` comments. **Python-side rounding** (`round(..., 6)`) stays authoritative for diagnostics parity — C++ returns raw doubles. **GIL-safe** — all output `buffer_info`s are resolved BEFORE `py::gil_scoped_release` (fixed a segfault caught during dev). XF_BENCH_MODE gate lets the core compile into the Google Benchmark binary without pybind11.
+  - **`backend/extensions/setup.py`** — added `Pybind11Extension("anchor_diversity", ["anchor_diversity.cpp"])` to the ext_modules list. No TBB needed (per-candidate work is ~10 arithmetic ops; amortisation is via the batch call itself).
+  - **`backend/extensions/benchmarks/bench_anchor_diversity.cpp`** (new) — Google Benchmark at 100 / 5 000 / 50 000 candidates, covers every state branch via seeded pseudo-random inputs. Registered in `benchmarks/CMakeLists.txt`.
+  - **`backend/apps/pipeline/services/anchor_diversity.py`** — added `HAS_CPP_EXT` import guard + new public function `evaluate_anchor_diversity_batch(...)` that delegates to C++ when available, falls back to a pure-Python loop (`_arithmetic_via_python`) otherwise. Two helpers `_arithmetic_via_cpp` and `_arithmetic_via_python` share a dict-returning interface so the composition layer stays identical across paths. The per-candidate `evaluate_anchor_diversity(...)` is **unchanged** for maximum parity safety — the ranker still calls it, and the C++ path activates through the new batch entry point (which a future ranker slice can wire into `score_destination_matches`). Every `*_diagnostics` field flows through the same `round(..., 6)` in Python, guaranteeing byte-identical diagnostics JSON across paths.
+  - **`backend/tests/test_parity_anchor_diversity.py`** (new) — 5 parametrised scenarios (neutral_no_history, neutral_below_threshold, penalized_exact_share, penalized_exact_count, blocked_exact_count) × 2 test functions = 10 test runs total. First function asserts C++ and Python paths agree at `atol=1e-6, rtol=0` on every numeric field (skipif not HAS_CPP_EXT). Second function asserts the Python-fallback batch path matches the per-candidate `evaluate_anchor_diversity` reference exactly (always runs). **10/10 pass.**
+  - **`backend/benchmarks/test_bench_anchor_diversity.py`** (new) — parametrised pytest-benchmark at 100 / 1 000 / 5 000 candidates, separate test functions for cpp path and python path so both can be compared in one run via `pytest --benchmark-only`.
+  - **Dashboards:** FR-045 moved from Partial (6) → Done (32) in `AI-CONTEXT.md`. ISS-020 status in `docs/reports/REPORT-REGISTRY.md` updated with a "Follow-up closed 2026-04-20" block naming every file that landed. `FEATURE-REQUESTS.md` FR-045 status line changed from Partial to ✅ Complete.
+- **Intentional files changed:**
+  - C++: `backend/extensions/include/anchor_diversity_core.h` (new), `backend/extensions/anchor_diversity.cpp` (new), `backend/extensions/setup.py`, `backend/extensions/benchmarks/bench_anchor_diversity.cpp` (new), `backend/extensions/benchmarks/CMakeLists.txt`
+  - Python: `backend/apps/pipeline/services/anchor_diversity.py`
+  - Tests + benchmarks: `backend/tests/test_parity_anchor_diversity.py` (new), `backend/benchmarks/test_bench_anchor_diversity.py` (new)
+  - Dashboards: `AI-CONTEXT.md`, `docs/reports/REPORT-REGISTRY.md`, `FEATURE-REQUESTS.md`
+- **Reused, not duplicated:** feedrerank exemplar pattern (core header + cpp + benchmark + parity test), existing `py::gil_scoped_release` around core calls, existing `XF_BENCH_MODE` gate, existing `from extensions import X; HAS_CPP_EXT = True` import guard pattern, existing `AnchorDiversitySettings` dataclass, existing `normalize_anchor_text` regex (stays in Python — Unicode \w semantics), existing `round(..., 6)` calls in the Python composition layer. **No new abstractions.**
+- **Verification:**
+  - `docker compose exec backend bash -c "cd /app/extensions && python setup.py build_ext --inplace"` — new extension compiles clean (one warning-free g++ invocation).
+  - `docker compose exec backend python -c "from extensions import anchor_diversity"` — module loads, exposes `evaluate_batch`.
+  - `docker compose exec backend python -m pytest tests/test_parity_anchor_diversity.py -v` — **10/10 pass** (5 scenarios × 2 test functions). Initial run segfaulted because `.request()` was being called inside `gil_scoped_release` — fixed by resolving all output `buffer_info`s before the release.
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **347 Django tests pass**, 1 skipped, 0 failures (parity test is pytest-only, doesn't count here).
+  - `docker compose exec backend python -m ruff format apps/pipeline/services benchmarks tests` — 3 files reformatted preemptively.
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/lint-all.ps1` — **all 32 checks passed** (magic-number, function-length, file-length, cyclomatic-complexity, ruff format, SCSS unused-class, etc.).
+  - `wc -l backend/apps/pipeline/services/anchor_diversity.py` — 482 lines, under the 500-line hook.
+- **What was deliberately NOT done:**
+  - Did not wire the ranker (`ranker.py:538`) to use the new `evaluate_anchor_diversity_batch`. The per-candidate `evaluate_anchor_diversity` stays the call site. The batch fast path is infrastructure; a future slice can refactor the ranker loop to collect candidates and call the batch (that's where the throughput win realises in production). Flagged as a follow-up.
+  - Did not port `normalize_anchor_text` to C++. The regex uses `\w` which covers Unicode word characters via Python's regex engine; `std::regex` is slow and a handwritten ASCII scanner would diverge on accented anchors. User confirmed in the plan's AskUserQuestion that Python stays authoritative for normalization.
+  - Did not add Google Benchmark to CI (out of scope; existing benches are not CI-wired either).
+  - Did not add TBB parallelisation. Per-candidate work is ~10 arithmetic ops; TBB overhead would dominate. Single-threaded `-O3 -march=native` is the right shape.
+- **Operator-visible change:** new `runtime_path` key on `anchor_diversity_diagnostics` ("cpp" when the C++ extension ran, "python" when the fallback ran). Surfaces automatically via the existing serializer.
+- **Commit/push state:** Pending — about to commit as a single `feat:` commit per plan.
 
 ### 2026-04-20 — Tier 2 slice 5: per-term breakdown of content_value + engagement_quality scores in the suggestion-detail dialog (Claude)
 
@@ -2626,7 +2836,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 | XenForo base URL + API key | live XenForo sync and verification | Already wired; operator must supply real values in env/settings |
 | WordPress base URL + optional username/app password | live WordPress sync; private content requires Application Password auth | UI/API shipped; operator must supply real values in env/settings |
 | Local runtimes | build/test execution | Direct installed Python 3.12.10 and direct Node paths work for verification; the usual `py`/`python` launcher aliases and `.venv` launcher still need cleanup if a future session wants the shorter commands |
-| **Storage & RAM** | Performance guardrails | **Postponed GPU inference (FR-029 fp16, FR-030 FAISS-GPU)** due to 16GB RAM / 40GB Disk constraints. FR-020 (Zero-Downtime Model Switching, Hot Swap & Runtime Registry) is separately queued and is not a GPU resource constraint. Current stack (Nomic embed-text-v1.5) is safe for 74k items (~2-3GB storage). |
+| **Storage & RAM** | Performance guardrails | **Postponed GPU inference (FR-029 fp16, FR-030 FAISS-GPU)** due to 16GB RAM / 40GB Disk constraints. FR-020 (Zero-Downtime Model Switching, Hot Swap & Runtime Registry) is separately queued and is not a GPU resource constraint. Current stack (`BAAI/bge-m3`) is safe for 74k items (~2-3GB storage). |
 | **ImpactReport retention** | Data hygiene guardrail | Filter expired rows using `created_at` (the only timestamp on the model). There is no separate `date` field. Any retention query must use: `ImpactReport.objects.filter(created_at__lt=cutoff).delete()` |
 
 ## Docker Build Context and .dockerignore Files
@@ -2668,7 +2878,7 @@ context.
 - Destination = title + distilled body text
 - Host = sentence-level body text within first 600 words
 - Hybrid scoring = semantic + keyword + node affinity + quality + PageRank + velocity
-- Embedding model fallback/default = `nomic-ai/nomic-embed-text-v1.5` with 768 dimensions
+- Embedding model fallback/default = `BAAI/bge-m3` with 1024 dimensions
 - Existing mode-selection behavior still supports both CPU-safe and GPU-capable operation through `ML_PERFORMANCE_MODE`
 - pgvector is the embeddings source of truth
 
