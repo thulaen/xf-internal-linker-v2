@@ -34,8 +34,8 @@ This file is the single index of all audit reports and individual issues found b
 
 ### RPT-001 — Research-Backed Business Logic Audit (2026-04-11)
 
-- **Status:** OPEN (5 of 5 findings unresolved)
-- **Report file:** [`repo-business-logic-audit-2026-04-11.md`](repo-business-logic-audit-2026-04-11.md)
+- **Status:** OPEN (4 of 5 findings unresolved)
+- **Report file:** [`repo-business-logic-audit-2026-04-11.md`](repo-business-logic-audit-2026-04-11.md) — never written; findings re-derived from the code in subsequent sessions.
 - **Scope:** Import, ranking, reranking, attribution, and weight auto-tuning logic
 - **Summary:** Five logic-quality gaps in shipped code paths. All fixable by extending existing FR-013, FR-017, and FR-018 implementations in place.
 
@@ -43,9 +43,11 @@ This file is the single index of all audit reports and individual issues found b
 |---|---------|----------|----------------|--------|
 | 1 | C# import lane hardcoded 5-page cap creates silent corpus bias | high | `PipelineServices.cs` | OPEN |
 | 2 | Feedback reranker's inverse-propensity claim unsupported by stored signal granularity | high | `feedback_rerank.py`, `models.py` | OPEN |
-| 3 | C++ fast path and Python reference path compute different math in feedback reranker | critical | `feedrerank.cpp`, `feedback_rerank.py` | OPEN |
+| 3 | C++ fast path and Python reference path compute different math in feedback reranker | critical | `feedrerank.cpp`, `feedback_rerank.py` | RESOLVED 2026-04-20 |
 | 4 | Attribution mixes two incompatible counterfactual models | high | `impact_engine.py`, `GSCAttributionService.cs` | OPEN |
 | 5 | Auto-tuning optimizes a 4-number global summary instead of ranking quality | medium | `WeightObjectiveFunction.cs`, `WeightTunerService.cs` | OPEN |
+
+**Finding 3 closure (2026-04-20):** Re-investigation showed the core math divergence was fixed in commit `ca5071e` (2026-04-11) — both paths now apply the Joachims/Swaminathan/Schnabel 2017 exposure-propensity blend (`ep * score_exploit_raw + (1 - ep) * 0.5`) identically. However two defensive `1e-9` denominator guards remained missing: one in C++ `rerank_factors_core` and one in Python `_rerank_cpp_batch` diagnostics recomputation. Both are dormant under the default `alpha=beta=1` priors (denom ≥ 2) but would emit Infinity/NaN if an operator zeroed both priors AND `n_total=0`. Closed by commit [TBD — this slice] which (a) adds `std::max(denom, 1e-9)` to `feedrerank.cpp:rerank_factors_core`, (b) adds `max(denom, 1e-9)` to `feedback_rerank.py:_rerank_cpp_batch` diagnostics, and (c) adds a `zero_priors_denominator_guard` scenario to `test_parity_feedrerank.py` covering `alpha=0, beta=0, n_total=0, n_success=0` — which pre-fix C++ would emit as NaN → clamped to 2.0 while Python emitted 0.85, producing a clear parity test failure. Service-level orchestration (`FeedbackRerankService.rerank_candidates` C++-vs-Python equivalence) remains covered only indirectly by the full-suite tests; adding a dedicated integration test is a cheap follow-up.
 
 ---
 

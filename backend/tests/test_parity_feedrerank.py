@@ -137,6 +137,23 @@ SCENARIOS: list[Scenario] = [
         weight=0.5,
         exploration_rate=0.2,
     ),
+    # RPT-001 Finding 3 — the exploit denominator guard. Python uses
+    # max(denom, 1e-9) to avoid division-by-zero; pre-fix C++ did the
+    # division without the guard and emitted Infinity/NaN. With
+    # alpha=beta=0 and total=0 the denominator is zero, so the guard
+    # is exercised. Kept as its own scenario so a future refactor
+    # cannot drop the guard without this test failing.
+    Scenario(
+        name="zero_priors_denominator_guard",
+        successes=[5, 0, 2, 3],
+        totals=[0, 0, 0, 0],
+        exposure_probs=[1.0, 1.0, 0.5, 0.8],
+        n_global=1000,
+        alpha=0.0,
+        beta=0.0,
+        weight=0.3,
+        exploration_rate=0.1,
+    ),
 ]
 
 

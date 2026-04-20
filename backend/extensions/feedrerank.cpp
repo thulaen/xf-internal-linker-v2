@@ -28,9 +28,15 @@ void rerank_factors_core(const int32_t* successes, const int32_t* totals,
                          const double* exposure_probs, size_t count, int n_global, double alpha,
                          double beta, double weight, double exploration_rate, double* out_factors) {
     auto compute_one = [&](size_t index) {
-        // PARITY: matches feedback_rerank.py line 156 — Bayesian exploit numerator
-        const double score_exploit_raw = (static_cast<double>(successes[index]) + alpha) /
-                                         (static_cast<double>(totals[index]) + alpha + beta);
+        // PARITY: matches feedback_rerank.py line 155-158 — Bayesian exploit
+        // numerator with 1e-9 denominator guard. The guard is dormant under
+        // the default alpha=beta=1 priors (denom >= 2) but activates when an
+        // operator zeroes both priors AND totals is zero: without it the
+        // division produces NaN/Infinity and the C++ factor diverges from the
+        // Python reference. Closes RPT-001 Finding 3.
+        const double exploit_denom = static_cast<double>(totals[index]) + alpha + beta;
+        const double score_exploit_raw =
+            (static_cast<double>(successes[index]) + alpha) / std::max(exploit_denom, 1e-9);
         // PARITY: matches feedback_rerank.py line 161 — exposure discount
         // Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4):
         // blend toward neutral 0.5 for under-exposed pairs (low exposure_prob).

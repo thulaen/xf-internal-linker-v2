@@ -442,6 +442,49 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 ## Pending Configuration
 
 ## Current Session Note
+
+### 2026-04-20 — Tier 3 slice 7: close RPT-001 Finding 3 (feedrerank C++/Python denominator-guard parity) (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Tier 3 opener. `docs/reports/REPORT-REGISTRY.md` RPT-001 Finding 3 was OPEN and marked CRITICAL: "C++ fast path and Python reference path compute different math in feedback reranker". Interesting wrinkle: the parity test `backend/tests/test_parity_feedrerank.py` passed at `atol=1e-6, rtol=0` across 5 scenarios — so the finding was either stale or narrowly-scoped to an unexercised code path. Re-investigated from scratch because the detailed audit report file (`docs/reports/repo-business-logic-audit-2026-04-11.md`) was never written.
+- **Diagnosis via Explore agent:**
+  - The **core formula divergence** was already fixed by commit `ca5071e` (2026-04-11) which added `exposure_prob` blending to both paths. The parity test validates this.
+  - Two **dormant defensive guards** remained asymmetric:
+    1. `feedrerank.cpp:rerank_factors_core` computed `(n_success + alpha) / (n_total + alpha + beta)` without a `1e-9` denominator guard.
+    2. `feedback_rerank.py:_rerank_cpp_batch` diagnostics recomputation (lines 241-243) similarly omitted the guard.
+  - In Python's `calculate_rerank_factor` (the per-candidate fallback) the guard **does** exist: `score_exploit_raw = (n_success + alpha) / max(exploit_denom, 1e-9)`.
+  - Under default `alpha=beta=1.0` the denominator is always ≥ 2, so the guard is a no-op and the parity test's 5 scenarios never exercised the divergence. But if an operator set `alpha=0, beta=0, n_total=0`, the C++ path would emit Infinity/NaN while Python would emit a very large but finite number — and for `n_success=0` specifically, Python gets `0 / 1e-9 = 0.0` (final factor 0.85 after clamp) while C++ gets `0/0 = NaN` (final factor 2.0 after clamp handling of NaN). Real parity bug, silently dormant.
+- **BLC gates (cleared openly — ranker-touching slice):**
+  - **§0 Drift Rejection** — defensive guard addition, not a new signal. Primary source unchanged (Joachims, Swaminathan & Schnabel 2017 WSDM, already cited). Named inputs. Neutral fallback preserved (factor clamps to [0.5, 2.0]). Reviewer-visible via existing `explore_exploit_diagnostics`.
+  - **§1.1 Source binding** — C++ guard carries a multi-line comment explaining the dormant nature + referencing RPT-001 Finding 3 + citing the Python reference line numbers.
+  - **§1.2 Duplicate check** — CLEAR; fix is surgical, extends the existing guard-pattern from Python's `calculate_rerank_factor` into the two asymmetric sites.
+  - **§1.3 Researched defaults** — none changed; `1e-9` epsilon matches Python.
+  - **§1.4 Benchmark** — existing benches (Google Benchmark, pytest benchmark) still apply; `std::max` adds one comparison per candidate on the hot path, well below measurement noise.
+  - **§2.1/§2.4/§2.6** — formula lineage + dormancy commented; division-by-zero guarded; clamp preserved; no auto-apply.
+  - **§3 Operator diagnostics** — `explore_exploit_diagnostics.score_exploit_raw` no longer emits NaN/Infinity under zero-prior config; finite numeric value matches Python.
+  - **§5 CI** — `1e-9` matches the established pattern; no new magic numbers.
+- **What was done:**
+  - **`backend/extensions/feedrerank.cpp`** — added `const double exploit_denom = …; … / std::max(exploit_denom, 1e-9)` with PARITY comment referencing `feedback_rerank.py:155-158` and a dormancy note.
+  - **`backend/apps/pipeline/services/feedback_rerank.py`** — added the mirror guard to `_rerank_cpp_batch`'s diagnostics recomputation with a matching comment.
+  - **`backend/tests/test_parity_feedrerank.py`** — new `zero_priors_denominator_guard` scenario: `alpha=0, beta=0, totals=[0,0,0,0], successes=[5, 0, 2, 3]`. The `n_success=0` entry is the key: pre-fix C++ emits NaN (final factor 2.0 after clamp); Python emits 0.0 (final factor 0.85 after clamp). Post-fix both paths produce 0.85. Test would fail at `atol=1e-6` without the fix.
+  - **`docs/reports/REPORT-REGISTRY.md`** — RPT-001 Finding 3 moved from OPEN → RESOLVED 2026-04-20 with a full closure note. RPT-001 header updated to "4 of 5 findings unresolved".
+- **Intentional files changed:**
+  - `backend/extensions/feedrerank.cpp`
+  - `backend/apps/pipeline/services/feedback_rerank.py`
+  - `backend/tests/test_parity_feedrerank.py`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md` (this note)
+- **Reused, not duplicated:** existing `_python_rerank_factor` reference in the parity test (which already carries the guard), existing PARITY: comment convention per CPP-RULES §25, existing `Scenario` NamedTuple + SCENARIOS list pattern. Zero new abstractions.
+- **Verification:**
+  - Rebuilt feedrerank C++ extension in Docker: clean build, no warnings.
+  - `docker compose exec backend python -m pytest tests/test_parity_feedrerank.py tests/test_parity_anchor_diversity.py` — **17/17 pass** (6 feedrerank scenarios including the new one + 5 anchor_diversity × 2 test functions + 1 `test_feedrerank_factor_bounds`).
+  - `docker compose exec backend python manage.py test --parallel 1 --noinput` — **358 Django tests pass**, 1 skipped, 0 failures.
+  - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/lint-all.ps1` — **all 32 checks pass**.
+- **What was deliberately NOT done:**
+  - Did not add a service-level integration test comparing `FeedbackRerankService.rerank_candidates()` with `HAS_CPP_EXT=True` vs `HAS_CPP_EXT=False` end-to-end. Per-function parity is now tight; orchestration equivalence is implicit via shared code paths. Flagged as a follow-up slice if the user wants stricter coverage.
+  - Did not address Findings 1, 2, 4, 5 (they're Tier 3's remaining scope). Checking in with the user before tackling Finding 2 (high) and Finding 4 (high).
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-20 - Make embedding storage dimension-agnostic for future larger models (Codex)
 
 - **AI/tool:** Codex

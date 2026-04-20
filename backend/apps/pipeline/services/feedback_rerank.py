@@ -238,8 +238,14 @@ class FeedbackRerankService:
             candidates, factors, n_successes, n_totals, exposure_probs, strict=True
         ):
             n_global = max(1, self._global_total_samples)
-            score_exploit_raw = (n_success + self.settings.alpha_prior) / (
+            # 1e-9 denominator guard mirrors calculate_rerank_factor (line 156).
+            # Prevents Infinity/NaN in the diagnostics when an operator zeroes
+            # both priors AND n_total is zero. Closes RPT-001 Finding 3.
+            exploit_denom = (
                 n_total + self.settings.alpha_prior + self.settings.beta_prior
+            )
+            score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
+                exploit_denom, 1e-9
             )
             # Joachims, Swaminathan & Schnabel 2017 (DOI 10.1145/3077136.3080756, eq. 4)
             score_exploit = ep * score_exploit_raw + (1.0 - ep) * 0.5
