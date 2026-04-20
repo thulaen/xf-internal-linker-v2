@@ -280,7 +280,8 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private rebuildRuntimeCards(): void {
-    this.rebuildRuntimeCards();
+    this.runtimeLaneCards = buildRuntimeLaneCards(this.services);
+    this.runtimeExecutionCards = buildRuntimeExecutionCards(this.services);
   }
 
   private upsertService(next: ServiceStatus): void {
