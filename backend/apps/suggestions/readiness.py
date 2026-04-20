@@ -38,6 +38,9 @@ from apps.pipeline.services.task_lock import get_active_locks
 _MATH_MAX_STALE_MINUTES = 60
 _ATTRIBUTION_MAX_STALE_HOURS = 6
 _COOCCURRENCE_MAX_STALE_HOURS = 24
+_SECONDS_PER_MINUTE = 60
+_SECONDS_PER_HOUR = 3600
+_SECONDS_PER_DAY = 86400
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -513,17 +516,14 @@ def _get_setting_datetime(AppSettingModel, key: str):
 
 
 def _humanize_ago(delta: timedelta) -> str:
-    seconds_per_minute = 60
-    seconds_per_hour = 3600
-    seconds_per_day = 86400
     total_seconds = int(delta.total_seconds())
-    if total_seconds < seconds_per_minute:
+    if total_seconds < _SECONDS_PER_MINUTE:
         return f"{total_seconds}s ago"
-    if total_seconds < seconds_per_hour:
-        return f"{total_seconds // seconds_per_minute}m ago"
-    if total_seconds < seconds_per_day:
-        return f"{total_seconds // seconds_per_hour}h ago"
-    return f"{total_seconds // seconds_per_day}d ago"
+    if total_seconds < _SECONDS_PER_HOUR:
+        return f"{total_seconds // _SECONDS_PER_MINUTE}m ago"
+    if total_seconds < _SECONDS_PER_DAY:
+        return f"{total_seconds // _SECONDS_PER_HOUR}h ago"
+    return f"{total_seconds // _SECONDS_PER_DAY}d ago"
 
 
 __all__ = [
