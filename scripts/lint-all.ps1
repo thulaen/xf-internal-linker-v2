@@ -229,7 +229,6 @@ $baselineLongFiles = @(
     'signal_registry.py',       # diagnostics/signal_registry.py — 1218 lines, ~70 commented-out forward-declared FR stubs dominate the size; candidate for forward_declared_signals.py split
     'helpers-settings.component.ts',     # FR-020 helper-node configuration surface — 598 lines; candidate for per-helper-card component extraction
     'performance-settings.component.ts', # FR-020 runtime model/backfill/audit UI — 851 lines; candidate for per-section extraction (runtime / backfill / audit)
-    'diagnostics.component.ts', # pre-existing 798+ lines before Phase 1v — 6 forkJoin streams + realtime + error-log poll + error rerun + runtime-lane + execution-card builders; candidate for per-surface helper extraction
     'silo-settings.service.ts'           # FR-005 + FR-020 silo + runtime service — 826 lines; candidate for silo-only and runtime-only service split
 )
 

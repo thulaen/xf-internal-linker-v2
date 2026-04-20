@@ -10,7 +10,6 @@ import {
   SystemConflict,
   FeatureReadiness,
   ResourceUsage,
-  NativeModuleStatus,
   ErrorLogEntry,
   RuntimeContext,
   NodeSummary,
@@ -21,6 +20,33 @@ import { ServiceCardComponent } from './service-card/service-card.component';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { MetaTournamentComponent } from './meta-tournament/meta-tournament.component';
+import {
+  RuntimeLaneCard,
+  RuntimeExecutionCard,
+  buildRuntimeLaneCards,
+  buildRuntimeExecutionCards,
+} from './diagnostics.runtime-cards';
+import {
+  ErrorGroup,
+  groupErrors,
+  uniqueNodeIds,
+  maxTrendCount as maxTrendCountFn,
+  relatedErrors as relatedErrorsFn,
+  trendLabel as trendLabelFn,
+  trackGroupFingerprint as trackGroupFingerprintFn,
+  trackErrorId as trackErrorIdFn,
+  trackNodeId as trackNodeIdFn,
+  trackTrendDate as trackTrendDateFn,
+  buildAIPromptForError,
+  diffErrorSnapshot,
+} from './diagnostics.error-log';
+import {
+  dispatchRealtimeUpdate,
+  upsertServiceInto,
+  removeServiceFrom,
+  upsertConflictInto,
+  removeConflictFrom,
+} from './diagnostics.realtime';
 import { forkJoin, Subject, catchError, of, takeUntil, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { RealtimeService } from '../core/services/realtime.service';
@@ -28,51 +54,10 @@ import { ScrollAttentionService } from '../core/services/scroll-attention.servic
 import { TopicUpdate } from '../core/services/realtime.types';
 import { environment } from '../../environments/environment';
 
-// ────────────────────────────────────────────────────────────────────
-// Phase GT Step 11 — Error Log section types
-// ────────────────────────────────────────────────────────────────────
-
-/**
- * A fingerprint-grouped bucket of errors rendered as a single row in the
- * Error Log. The representative row carries the display fields; totalCount
- * is the sum of `occurrence_count` across the bucket so the UI can show
- * an accurate multiplier badge without scanning the list every render.
- */
-interface ErrorGroup {
-  fingerprint: string;
-  representative: ErrorLogEntry;
-  totalCount: number;
-}
-
-interface RuntimeLaneCard {
-  id: 'broken_link_scan' | 'graph_sync' | 'import' | 'pipeline';
-  title: string;
-  owner: 'celery' | 'unknown';
-  state: 'healthy' | 'degraded' | 'failed';
-  statusLine: string;
-  explanation: string;
-  nextStep: string;
-  badges: RuntimeLaneBadge[];
-}
-
-interface RuntimeLaneBadge {
-  label: string;
-  value: string;
-  tone: 'good' | 'warn' | 'bad';
-}
-
-interface RuntimeExecutionCard {
-  id: 'native_scoring' | 'slate_diversity_runtime' | 'embedding_specialist' | 'scheduler_lane';
-  title: string;
-  runtime: 'cpp' | 'python' | 'mixed' | 'unknown';
-  state: 'healthy' | 'degraded' | 'failed';
-  statusLine: string;
-  explanation: string;
-  nextStep: string;
-  badges: RuntimeLaneBadge[];
-  details: Array<{ label: string; value: string }>;
-  moduleStatuses: NativeModuleStatus[];
-}
+const RUNTIME_SUMMARY_SERVICES = new Set([
+  'runtime_lanes', 'native_scoring', 'slate_diversity_runtime',
+  'embedding_specialist', 'scheduler_lane',
+]);
 
 @Component({
   selector: 'app-diagnostics',
@@ -194,43 +179,25 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
    * counts/messages in place.
    */
   private reconcileErrorSnapshot(next: ErrorLogEntry[]): void {
-    const previousIds = new Set(this.errors.map((e) => e.id));
-    const nextUnack = next.filter((e) => !e.acknowledged);
-    const nextAck = next.filter((e) => e.acknowledged);
-
-    this.errors = nextUnack;
-    this.acknowledgedErrors = nextAck;
-
-    // Find rows that are new in this snapshot AND critical/high.
-    const arrivals = nextUnack.filter(
-      (e) =>
-        !previousIds.has(e.id) &&
-        (e.severity === 'critical' || e.severity === 'high'),
-    );
-    if (arrivals.length === 0) return;
-
-    // Pulse the most recent critical arrival (or the most recent high if
-    // no critical is present). Single pulse — Scroll-to-Attention dedups
-    // via its built-in dismiss-before-draw pattern.
-    const priorityTarget =
-      arrivals.find((e) => e.severity === 'critical') ?? arrivals[0];
+    const diff = diffErrorSnapshot(this.errors, next);
+    this.errors = diff.unack;
+    this.acknowledgedErrors = diff.ack;
+    if (!diff.priorityArrival) return;
+    const target = diff.priorityArrival;
     // Defer one tick so Angular has rendered the new <article id="error-{id}">
     // by the time we call scrollIntoView.
     window.setTimeout(() => {
-      this.scrollAttention.drawTo(`#error-${priorityTarget.id}`, {
+      this.scrollAttention.drawTo(`#error-${target.id}`, {
         priority: 'urgent',
-        announce: `New ${priorityTarget.severity} error in ${priorityTarget.job_type}.`,
+        announce: `New ${target.severity} error in ${target.job_type}.`,
       });
     }, 0);
   }
 
   loadData(): void {
     this.loading = true;
-    // Phase GT Step 11 — each of the four new endpoints is wrapped in
-    // catchError → `of(<safe default>)` so a single failing endpoint cannot
-    // block the whole page. This is important because runtime-context
-    // transiently returns 500 during worker restarts, and we'd rather show
-    // a page without the GPU strip than a blank Diagnostics screen.
+    // Per-stream catchError prevents a single failing endpoint from
+    // blanking the page — critical during worker restarts.
     forkJoin({
       services: this.diagnosticsService.getServices(),
       conflicts: this.diagnosticsService.getConflicts(),
@@ -247,8 +214,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         this.conflicts = data.conflicts;
         this.features = data.features;
         this.resources = data.resources;
-        this.runtimeLaneCards = this.buildRuntimeLaneCards(data.services);
-        this.runtimeExecutionCards = this.buildRuntimeExecutionCards(data.services);
+        this.rebuildRuntimeCards();
         this.applyErrorsSnapshot(data.errors);
         this.runtimeCtx = data.runtimeCtx;
         this.nodes = data.nodes;
@@ -305,78 +271,42 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private handleRealtimeUpdate(update: TopicUpdate): void {
-    switch (update.event) {
-      case 'service.status.created':
-      case 'service.status.updated':
-        this.upsertService(update.payload as ServiceStatus);
-        break;
-      case 'service.status.deleted':
-        this.removeService((update.payload as { id: number }).id);
-        break;
-      case 'conflict.created':
-      case 'conflict.updated':
-        this.upsertConflict(update.payload as SystemConflict);
-        break;
-      case 'conflict.deleted':
-        this.removeConflict((update.payload as { id: number }).id);
-        break;
-      // Unknown events are ignored intentionally — future-proof against new
-      // event names being added to the signals.py emitter.
-    }
+    dispatchRealtimeUpdate(update, {
+      onServiceUpsert: next => this.upsertService(next),
+      onServiceRemove: id => this.removeService(id),
+      onConflictUpsert: next => this.upsertConflict(next),
+      onConflictRemove: id => this.removeConflict(id),
+    });
+  }
+
+  private rebuildRuntimeCards(): void {
+    this.rebuildRuntimeCards();
   }
 
   private upsertService(next: ServiceStatus): void {
-    const prev = this.services.find((s) => s.id === next.id);
-    const wasHealthy = prev ? prev.state === 'healthy' : true;
-    const nowFailed = next.state === 'failed';
-
-    if (prev) {
-      this.services = this.services.map((s) => (s.id === next.id ? next : s));
-    } else {
-      this.services = [...this.services, next];
-    }
-
-    // Rebuild derived cards so tiles reflect the new state instantly.
-    this.runtimeLaneCards = this.buildRuntimeLaneCards(this.services);
-    this.runtimeExecutionCards = this.buildRuntimeExecutionCards(this.services);
-
-    // Pulse-scroll into view when a service newly failed — this is why the
-    // cross-cutting scroll-to-attention service exists (Phase GB / Gap 148).
-    if (wasHealthy && nowFailed) {
-      this.scrollAttention.drawTo(`#service-${next.id}`, {
-        priority: 'urgent',
-        announce: `${next.service_name} just failed.`,
-      });
+    const { services, pulse } = upsertServiceInto(this.services, next);
+    this.services = services;
+    this.rebuildRuntimeCards();
+    if (pulse) {
+      this.scrollAttention.drawTo(pulse.selector, { priority: 'urgent', announce: pulse.announce });
     }
   }
 
   private removeService(id: number): void {
-    this.services = this.services.filter((s) => s.id !== id);
-    this.runtimeLaneCards = this.buildRuntimeLaneCards(this.services);
-    this.runtimeExecutionCards = this.buildRuntimeExecutionCards(this.services);
+    this.services = removeServiceFrom(this.services, id);
+    this.rebuildRuntimeCards();
   }
 
   private upsertConflict(next: SystemConflict): void {
-    const prev = this.conflicts.find((c) => c.id === next.id);
-    const wasResolved = prev ? prev.resolved : true;
-    const nowUnresolved = !next.resolved;
-
-    if (prev) {
-      this.conflicts = this.conflicts.map((c) => (c.id === next.id ? next : c));
-    } else {
-      this.conflicts = [...this.conflicts, next];
-    }
-
-    if (wasResolved && nowUnresolved && (next.severity === 'high' || next.severity === 'critical')) {
-      this.scrollAttention.drawTo(`#conflict-${next.id}`, {
-        priority: 'urgent',
-        announce: `New ${next.severity} conflict: ${next.title}.`,
-      });
+    const { conflicts, pulse } = upsertConflictInto(this.conflicts, next);
+    this.conflicts = conflicts;
+    if (pulse) {
+      this.scrollAttention.drawTo(pulse.selector, { priority: 'urgent', announce: pulse.announce });
     }
   }
 
   private removeConflict(id: number): void {
-    this.conflicts = this.conflicts.filter((c) => c.id !== id);
+    this.conflicts = removeConflictFrom(this.conflicts, id);
   }
 
   onResolveConflict(id: number): void {
@@ -390,31 +320,13 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     this.destroy$.complete();
   }
 
-  getHealthyCount(): number {
-    return this.services.filter(s => s.state === 'healthy').length;
-  }
-
-  runtimeLaneTrackBy(_index: number, lane: RuntimeLaneCard): string {
-    return lane.id;
-  }
-
-  runtimeExecutionTrackBy(_index: number, card: RuntimeExecutionCard): string {
-    return card.id;
-  }
+  getHealthyCount(): number { return this.services.filter(s => s.state === 'healthy').length; }
+  runtimeLaneTrackBy(_i: number, lane: RuntimeLaneCard): string { return lane.id; }
+  runtimeExecutionTrackBy(_i: number, card: RuntimeExecutionCard): string { return card.id; }
+  trackServiceName(_i: number, s: ServiceStatus): string { return s.service_name; }
 
   get coreServices(): ServiceStatus[] {
-    const runtimeSummaryServices = new Set([
-      'runtime_lanes',
-      'native_scoring',
-      'slate_diversity_runtime',
-      'embedding_specialist',
-      'scheduler_lane',
-    ]);
-    return this.services.filter(service => !runtimeSummaryServices.has(service.service_name));
-  }
-
-  trackServiceName(_index: number, service: ServiceStatus): string {
-    return service.service_name;
+    return this.services.filter(s => !RUNTIME_SUMMARY_SERVICES.has(s.service_name));
   }
 
   // ────────────────────────────────────────────────────────────────
@@ -432,92 +344,29 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
    * the Error Log pagination is designed for.
    */
   get groupedErrors(): ErrorGroup[] {
-    const filtered = this.filterNodeId
-      ? this.errors.filter((e) => e.node_id === this.filterNodeId)
-      : this.errors;
-
-    const buckets = new Map<string, ErrorLogEntry[]>();
-    for (const e of filtered) {
-      const key = e.fingerprint ?? `unique-${e.id}`;
-      const existing = buckets.get(key);
-      if (existing) {
-        existing.push(e);
-      } else {
-        buckets.set(key, [e]);
-      }
-    }
-
-    const result: ErrorGroup[] = [];
-    buckets.forEach((entries, fingerprint) => {
-      // Sum occurrence_count across bucket, defaulting to entries.length
-      // when a row is missing the field (old snapshots).
-      const totalCount = entries.reduce(
-        (sum, e) => sum + (e.occurrence_count ?? 1),
-        0,
-      );
-      result.push({
-        fingerprint,
-        representative: entries[0],
-        totalCount,
-      });
-    });
-    return result;
+    return groupErrors(this.errors, this.filterNodeId);
   }
 
-  /** Unique node ids seen in the current error list — powers the filter
-   *  chip bar. Returned in first-seen order so the chip layout is stable
-   *  across re-renders. */
   uniqueNodes(): string[] {
-    const seen: string[] = [];
-    const set = new Set<string>();
-    for (const e of this.errors) {
-      const id = e.node_id;
-      if (id && !set.has(id)) {
-        set.add(id);
-        seen.push(id);
-      }
-    }
-    return seen;
+    return uniqueNodeIds(this.errors);
   }
 
-  /** Peak value in a 7-day sparkline — used to scale bar heights. Floor
-   *  of 1 so the bars never `Infinity / 0`. */
   maxTrendCount(trend: { count: number }[] | undefined): number {
-    if (!trend || trend.length === 0) return 1;
-    return Math.max(1, ...trend.map((t) => t.count));
+    return maxTrendCountFn(trend);
   }
 
-  /** Other errors within the ±5-minute window the backend pre-computed.
-   *  Constrained to the current unack list so acknowledged rows don't
-   *  appear as "related" noise. */
   relatedErrors(e: ErrorLogEntry): ErrorLogEntry[] {
-    const ids = new Set(e.related_error_ids ?? []);
-    if (ids.size === 0) return [];
-    return this.errors.filter((x) => ids.has(x.id));
+    return relatedErrorsFn(e, this.errors);
   }
 
-  /** Text-only ISO date rendered in sparkline tooltip. Split so the HTML
-   *  template stays lean and the slice matches exactly one bar. */
   trendLabel(trend: { date: string; count: number }[] | undefined): string {
-    if (!trend || trend.length === 0) return '';
-    return `Last 7 days: total ${trend.reduce((s, t) => s + t.count, 0)}`;
+    return trendLabelFn(trend);
   }
 
-  trackGroupFingerprint(_index: number, group: ErrorGroup): string {
-    return group.fingerprint;
-  }
-
-  trackErrorId(_index: number, error: ErrorLogEntry): number {
-    return error.id;
-  }
-
-  trackNodeId(_index: number, node: NodeSummary): string {
-    return node.node_id;
-  }
-
-  trackTrendDate(_index: number, point: { date: string }): string {
-    return point.date;
-  }
+  trackGroupFingerprint = trackGroupFingerprintFn;
+  trackErrorId = trackErrorIdFn;
+  trackNodeId = trackNodeIdFn;
+  trackTrendDate = trackTrendDateFn;
 
   // ────────────────────────────────────────────────────────────────
   // Phase GT Step 11 — Error Log event handlers
@@ -587,22 +436,12 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       });
   }
 
-  /** Only one details panel open at a time (see `expandedErrorId`). */
-  toggleExpand(id: number): void {
-    this.expandedErrorId = this.expandedErrorId === id ? null : id;
-  }
-
-  /** Click-to-filter on a node card in the GT-G13 strip. Clicking the same
-   *  card toggles the filter off. */
-  toggleNodeFilter(nodeId: string | null): void {
-    this.filterNodeId = this.filterNodeId === nodeId ? null : nodeId;
-  }
-
-  /** Open the Django Admin in a new tab. `noopener` is mandatory per the
-   *  privacy-protection rules (no window.opener leakage). */
-  openDjangoAdmin(): void {
-    window.open(this.adminUrl, '_blank', 'noopener,noreferrer');
-  }
+  /** Details-panel toggle (only one open at a time), node-card filter toggle,
+   *  and Django Admin shortcut. `noopener,noreferrer` on the admin window
+   *  is mandatory per the privacy-protection rules. */
+  toggleExpand(id: number): void { this.expandedErrorId = this.expandedErrorId === id ? null : id; }
+  toggleNodeFilter(nodeId: string | null): void { this.filterNodeId = this.filterNodeId === nodeId ? null : nodeId; }
+  openDjangoAdmin(): void { window.open(this.adminUrl, '_blank', 'noopener,noreferrer'); }
 
   /**
    * GT-G2 — build an AI-ready prompt for the error and copy to clipboard.
@@ -612,29 +451,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
    * picture without leaking secrets beyond what's already in the error.
    */
   copyForAI(e: ErrorLogEntry): void {
-    const ctx = e.runtime_context ?? {};
-    const lines: string[] = [];
-    lines.push('## Error Report');
-    lines.push(`**Job:** ${e.job_type} · ${e.step}`);
-    lines.push(`**Node:** ${e.node_id ?? 'unknown'} (${e.node_role ?? 'unknown'})`);
-    lines.push(`**Severity:** ${e.severity ?? 'medium'}`);
-    lines.push(`**What happened:** ${e.error_message}`);
-    if (e.why) lines.push(`**Why:** ${e.why}`);
-    if (e.how_to_fix) lines.push(`**Suggested fix:** ${e.how_to_fix}`);
-    lines.push(
-      `**Runtime at time of error:** GPU=${ctx.gpu_available ? 'yes' : 'no'} · ` +
-        `embedding=${ctx.embedding_model ?? 'unknown'} · ` +
-        `spaCy=${ctx.spacy_model ?? 'missing'} · ` +
-        `python=${ctx.python_version ?? 'unknown'}`,
-    );
-    if (e.raw_exception) {
-      lines.push('', '**Traceback:**', '```', e.raw_exception, '```');
-    }
-    if (e.glitchtip_url) {
-      lines.push('', `**GlitchTip:** ${e.glitchtip_url}`);
-    }
-    const prompt = lines.join('\n');
-
+    const prompt = buildAIPromptForError(e);
     const onSuccess = () => {
       this.copyFeedbackId = e.id;
       this.snack.open('Copied AI-ready prompt to clipboard.', 'Dismiss', { duration: 2000 });
@@ -645,7 +462,6 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     const onFail = () => {
       this.snack.open('Could not access the clipboard.', 'Dismiss', { duration: 4000 });
     };
-
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(prompt).then(onSuccess).catch(onFail);
     } else {
@@ -653,246 +469,13 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
     }
   }
 
-  /** Is the error row actionable via Rerun? Centralised so the template
-   *  stays readable and new job types are trivial to add. */
-  canRerun(e: ErrorLogEntry): boolean {
-    return ['pipeline', 'sync', 'import'].includes(e.job_type);
-  }
-
-  /** CSS class for the severity stripe on the left edge of each row. */
-  severityClass(e: ErrorLogEntry): string {
-    return `severity-${e.severity ?? 'medium'}`;
-  }
-
-  /** Tone class for the node card — green when clean, yellow when there
-   *  are unacknowledged errors but nothing critical, red when any critical
-   *  entry exists on that node. */
+  /** Rerun eligibility, severity stripe, and node-card tone — centralised
+   *  so the template stays readable and new job types are trivial to add. */
+  canRerun(e: ErrorLogEntry): boolean { return ['pipeline', 'sync', 'import'].includes(e.job_type); }
+  severityClass(e: ErrorLogEntry): string { return `severity-${e.severity ?? 'medium'}`; }
   nodeToneClass(n: NodeSummary): string {
     if (n.worst_severity === 'critical') return 'tone-bad';
-    if (n.unacknowledged > 0) return 'tone-warn';
-    return 'tone-good';
-  }
-
-  private buildRuntimeLaneCards(services: ServiceStatus[]): RuntimeLaneCard[] {
-    const runtimeService = services.find(service => service.service_name === 'runtime_lanes');
-    const celeryWorkerService = services.find(service => service.service_name === 'celery_worker');
-
-    const metadata = runtimeService?.metadata ?? {};
-
-    return [
-      this.buildLaneCard('broken_link_scan', 'Broken Link Scan', metadata.broken_link_scan_owner, celeryWorkerService),
-      this.buildLaneCard('graph_sync', 'Graph Sync', metadata.graph_sync_owner, celeryWorkerService),
-      this.buildLaneCard('import', 'Import', metadata.import_owner, celeryWorkerService),
-      this.buildLaneCard('pipeline', 'Pipeline', metadata.pipeline_owner, celeryWorkerService),
-    ];
-  }
-
-  private buildLaneCard(
-    id: RuntimeLaneCard['id'],
-    title: string,
-    rawOwner: unknown,
-    celeryWorkerService?: ServiceStatus,
-  ): RuntimeLaneCard {
-    const owner = rawOwner === 'celery' ? 'celery' : 'unknown';
-
-    if (owner === 'celery') {
-      const workerHealthy = celeryWorkerService?.state === 'healthy';
-      return {
-        id,
-        title,
-        owner,
-        state: workerHealthy ? 'healthy' : celeryWorkerService?.state === 'failed' ? 'failed' : 'degraded',
-        statusLine: workerHealthy ? 'Celery owns this lane and the worker is healthy.' : 'Celery owns this lane but the worker needs attention.',
-        explanation: 'This heavy path is handled by the native Python/C++ runtime.',
-        nextStep: workerHealthy ? 'No action needed.' : (celeryWorkerService?.next_action_step || 'Check the Celery worker health.'),
-        badges: this.buildBadges(owner, workerHealthy),
-      };
-    }
-
-    return {
-      id,
-      title,
-      owner,
-      state: 'failed',
-      statusLine: 'The active owner for this lane is unknown.',
-      explanation: 'Diagnostics did not return a trustworthy runtime owner for this path.',
-      nextStep: 'Refresh diagnostics and check the backend runtime-lane snapshot.',
-      badges: this.buildBadges(owner, false),
-    };
-  }
-
-  private buildBadges(
-    owner: RuntimeLaneCard['owner'],
-    workerAlive: boolean,
-  ): RuntimeLaneBadge[] {
-    return [
-      {
-        label: 'Worker Alive',
-        value: workerAlive ? 'Yes' : 'No',
-        tone: workerAlive ? 'good' : 'bad',
-      },
-      {
-        label: 'Owner',
-        value: owner === 'unknown' ? 'Unknown' : owner.toUpperCase(),
-        tone: owner === 'celery' ? 'good' : 'bad',
-      },
-    ];
-  }
-
-  private buildRuntimeExecutionCards(services: ServiceStatus[]): RuntimeExecutionCard[] {
-    const byName = new Map(services.map(service => [service.service_name, service]));
-    const cards: RuntimeExecutionCard[] = [];
-
-    const nativeScoring = byName.get('native_scoring');
-    if (nativeScoring) {
-      const moduleStatuses = Array.isArray(nativeScoring.metadata?.module_statuses)
-        ? nativeScoring.metadata.module_statuses
-        : [];
-      cards.push({
-        id: 'native_scoring',
-        title: 'C++ Hot Path',
-        runtime: this.asRuntime(nativeScoring.metadata?.runtime_path),
-        state: this.asCardState(nativeScoring.state),
-        statusLine: nativeScoring.explanation,
-        explanation: nativeScoring.metadata?.fallback_reason
-          ? `Fallback reason: ${nativeScoring.metadata.fallback_reason}`
-          : 'This summarizes the native C++ kernels used for scoring, search, parsing, and reranking.',
-        nextStep: nativeScoring.next_action_step,
-        badges: [
-          this.booleanBadge('Compiled', nativeScoring.metadata?.compiled, true),
-          this.booleanBadge('Importable', nativeScoring.metadata?.importable, true),
-          this.booleanBadge('Safe To Use', nativeScoring.metadata?.safe_to_use, true),
-          this.booleanBadge('Fallback Active', nativeScoring.metadata?.fallback_active, false),
-        ],
-        details: [
-          this.detail('Runtime', this.displayRuntime(nativeScoring.metadata.runtime_path)),
-          this.detail('Healthy Modules', this.displayCount(nativeScoring.metadata.healthy_module_count)),
-          this.detail('Degraded Modules', this.displayCount(nativeScoring.metadata.degraded_module_count)),
-          this.detail('Benchmark', this.displayBenchmark(nativeScoring.metadata.benchmark_status, nativeScoring.metadata.speedup_vs_python)),
-          this.detail('C++ Time', this.displayMilliseconds(nativeScoring.metadata.last_benchmark_ms)),
-          this.detail('Python Time', this.displayMilliseconds(nativeScoring.metadata.python_benchmark_ms)),
-        ],
-        moduleStatuses,
-      });
-    }
-
-    const slateRuntime = byName.get('slate_diversity_runtime');
-    if (slateRuntime) {
-      cards.push(this.buildSimpleExecutionCard(
-        'slate_diversity_runtime',
-        'C++ Slate Diversity',
-        slateRuntime,
-        [
-          this.booleanBadge('C++ Active', slateRuntime.metadata.cpp_fast_path_active, true),
-          this.booleanBadge('Fallback Active', slateRuntime.metadata.fallback_active, false),
-          this.booleanBadge('Safe To Use', slateRuntime.metadata.safe_to_use, true),
-        ],
-      ));
-    }
-
-    const embeddingSpecialist = byName.get('embedding_specialist');
-    if (embeddingSpecialist) {
-      cards.push(this.buildSimpleExecutionCard(
-        'embedding_specialist',
-        'Python Specialist Lane',
-        embeddingSpecialist,
-        [
-          this.booleanBadge('Python Active', embeddingSpecialist.metadata?.runtime_path === 'python', true),
-          this.booleanBadge('Fallback Active', embeddingSpecialist.metadata?.fallback_active, false),
-          this.booleanBadge('Safe To Use', embeddingSpecialist.metadata?.safe_to_use, true),
-        ],
-      ));
-    }
-
-    const schedulerLane = byName.get('scheduler_lane');
-    if (schedulerLane) {
-      cards.push(this.buildSimpleExecutionCard(
-        'scheduler_lane',
-        'Task Scheduler',
-        schedulerLane,
-        [
-          this.booleanBadge('Fallback Active', schedulerLane.metadata?.fallback_active, false),
-          this.booleanBadge('Safe To Use', schedulerLane.metadata?.safe_to_use, true),
-          {
-            label: 'Mode',
-            value: String(schedulerLane.metadata.scheduler_mode || 'Unknown'),
-            tone: schedulerLane.metadata.scheduler_mode === 'active'
-              ? 'good'
-              : schedulerLane.metadata.scheduler_mode === 'shadow'
-                ? 'warn'
-                : 'bad',
-          },
-        ],
-      ));
-    }
-
-    return cards;
-  }
-
-  private buildSimpleExecutionCard(
-    id: RuntimeExecutionCard['id'],
-    title: string,
-    service: ServiceStatus,
-    badges: RuntimeLaneBadge[],
-  ): RuntimeExecutionCard {
-    return {
-      id,
-      title,
-      runtime: this.asRuntime(service.metadata?.runtime_path),
-      state: this.asCardState(service.state),
-      statusLine: service.explanation,
-      explanation: String(service.metadata?.fallback_reason || 'This runtime is tracked through the existing diagnostics system.'),
-      nextStep: service.next_action_step,
-      badges,
-      details: [
-        this.detail('Runtime', this.displayRuntime(service.metadata?.runtime_path)),
-        this.detail('Owner', String(service.metadata?.owner_selected || 'Tracked by service health')),
-        this.detail('Last Error', String(service.metadata?.last_error_summary || 'None reported')),
-      ],
-      moduleStatuses: [],
-    };
-  }
-
-  private asRuntime(value: unknown): RuntimeExecutionCard['runtime'] {
-    return value === 'cpp' || value === 'python' || value === 'mixed' ? value : 'unknown';
-  }
-
-  private asCardState(value: string): RuntimeExecutionCard['state'] {
-    return value === 'healthy' || value === 'degraded' || value === 'failed' ? value : 'degraded';
-  }
-
-  private booleanBadge(label: string, value: boolean | undefined, truthyGood: boolean): RuntimeLaneBadge {
-    const boolValue = !!value;
-    const good = truthyGood ? boolValue : !boolValue;
-    return {
-      label,
-      value: boolValue ? 'Yes' : 'No',
-      tone: good ? 'good' : 'bad',
-    };
-  }
-
-  private detail(label: string, value: string): { label: string; value: string } {
-    return { label, value };
-  }
-
-  private displayRuntime(value: unknown): string {
-    const runtime = this.asRuntime(value);
-    return runtime === 'unknown' ? 'Unknown' : runtime.toUpperCase();
-  }
-
-  private displayCount(value: unknown): string {
-    return typeof value === 'number' ? String(value) : 'Unknown';
-  }
-
-  private displayBenchmark(status: unknown, speedup: unknown): string {
-    if (typeof speedup === 'number') {
-      return `${speedup.toFixed(2)}x vs Python`;
-    }
-    return String(status || 'Not captured yet').replace(/_/g, ' ');
-  }
-
-  private displayMilliseconds(value: unknown): string {
-    return typeof value === 'number' ? `${value.toFixed(2)} ms` : 'Not captured yet';
+    return n.unacknowledged > 0 ? 'tone-warn' : 'tone-good';
   }
 
   trackByIndex(index: number): number { return index; }

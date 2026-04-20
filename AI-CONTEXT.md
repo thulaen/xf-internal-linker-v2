@@ -444,6 +444,38 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-20 — Slice 3: split `diagnostics.component.ts` from 900 → 483 lines, drop the long-file allowlist entry (Claude)
+
+- **AI/tool:** Claude
+- **Why:** Third Tier 1 polish slice. `diagnostics.component.ts` was baseline-exempted (commit `767b7ff`) from the 500-line TS file-length hook at 798+ lines. The plan required splitting pure helpers into sibling `.ts` modules and removing the allowlist entry in the same commit so the codebase establishes a sustainable `.ts`-helper pattern (no `.helpers.ts` precedent existed before this slice).
+- **Duplicate-check:** Explore agent confirmed CLEAR — no existing sibling files in `frontend/src/app/diagnostics/` export any of the planned function/interface names, no other component imports from `diagnostics.component.ts`, the user's recent style commits (`2b5d46e`, `1f11a63`, `e1c98d2`) touched only `.html`/`.scss` (zero TS changes), and no prior `.helpers.ts` precedent. This slice establishes the first sibling-module helper pattern in the frontend.
+- **What was done:**
+  - **New sibling helper `diagnostics.runtime-cards.ts`** — exports the three runtime-card interfaces (`RuntimeLaneCard`, `RuntimeLaneBadge`, `RuntimeExecutionCard`) and two public entrypoints (`buildRuntimeLaneCards`, `buildRuntimeExecutionCards`). All internal helpers (`buildLaneCard`, `buildBadges`, `buildSimpleExecutionCard`, `asRuntime`, `asCardState`, `booleanBadge`, `detail`, `displayRuntime`, `displayCount`, `displayBenchmark`, `displayMilliseconds`) are module-local — no pollution of the component's public API.
+  - **New sibling helper `diagnostics.error-log.ts`** — exports `ErrorGroup` + the error-log pure helpers (`groupErrors`, `uniqueNodeIds`, `maxTrendCount`, `relatedErrors`, `trendLabel`, trackBy functions, `buildAIPromptForError`, `diffErrorSnapshot` + its `ErrorSnapshotDiff` return type).
+  - **New sibling helper `diagnostics.realtime.ts`** — exports the state-diff helpers for the websocket dispatch (`upsertServiceInto`, `removeServiceFrom`, `upsertConflictInto`, `removeConflictFrom`) plus `dispatchRealtimeUpdate` and the `PulseTarget`/`RealtimeHandlers` types. Each pure function returns the new state array plus an optional `PulseTarget` describing a scroll-to-attention pulse; the component owns the Angular side effects (calling `scrollAttention.drawTo`).
+  - **Component rewrite** — all of the extracted logic in `diagnostics.component.ts` replaced by thin wrappers that call into the helpers. Error-log methods are aliased imports (e.g. `maxTrendCountFn`) to avoid recursive-shadow bugs on method names. `handleRealtimeUpdate` now delegates to `dispatchRealtimeUpdate(update, {onServiceUpsert, onServiceRemove, onConflictUpsert, onConflictRemove})`. Realtime mutators (`upsertService`, etc.) call the helper then call a new single-line `rebuildRuntimeCards()` private so the card-refresh path is DRY. `RUNTIME_SUMMARY_SERVICES` constant moved to module scope so the `coreServices` getter is a one-liner. Short methods (`getHealthyCount`, trackBys, `toggleExpand`, `toggleNodeFilter`, `openDjangoAdmin`, `canRerun`, `severityClass`, `nodeToneClass`) collapsed to single-line bodies.
+  - **Allowlist entry removed** — `scripts/lint-all.ps1` no longer lists `diagnostics.component.ts` under `baselineLongFiles`. The 500-line hook will now catch this file on any future bloat.
+- **Result:** `diagnostics.component.ts` dropped from **900 → 483 lines**. Behaviour preserved — all template bindings still call the same method/getter names on the component.
+- **Intentional files changed:**
+  - `frontend/src/app/diagnostics/diagnostics.runtime-cards.ts` (new)
+  - `frontend/src/app/diagnostics/diagnostics.error-log.ts` (new)
+  - `frontend/src/app/diagnostics/diagnostics.realtime.ts` (new)
+  - `frontend/src/app/diagnostics/diagnostics.component.ts` (−417 lines)
+  - `scripts/lint-all.ps1` (allowlist entry removed)
+  - `AI-CONTEXT.md` (this note)
+- **Reused, not duplicated:** all three helpers consume existing types from `diagnostics.service.ts` (`ServiceStatus`, `SystemConflict`, `ErrorLogEntry`, `NativeModuleStatus`, `NodeSummary`) and from `../core/services/realtime.types` (`TopicUpdate`). No new services, no new DI, no backend changes. The four interfaces that used to live in the component (`ErrorGroup`, `RuntimeLaneCard`, `RuntimeLaneBadge`, `RuntimeExecutionCard`) now live where they're owned.
+- **Verification:**
+  - `cd frontend && npm run test:ci` — **27/27 pass** (same count as before this slice; no test changes).
+  - `cd frontend && npm run build:prod` — clean production build (pre-existing NG8113 warning about `SuggestionExplainerPipe` unrelated).
+  - `wc -l frontend/src/app/diagnostics/diagnostics.component.ts` — **483 lines**, below the 500-line hook limit.
+  - Browser preview: skipped for the same reason as slice 2 (port 4200 occupied by the Docker `xf_linker_frontend` hot-reloading the updated source; preview tool can't attach to an already-running server). Behaviour is preserved by construction — template bindings unchanged, wrapper methods call through to pure helpers with identical semantics. Operator can verify live at http://localhost:4200/diagnostics if desired.
+- **What was deliberately NOT done:**
+  - Did not extract the error-log event handlers (`onAcknowledgeError`, `onRerunError`) — they're tightly coupled to `this.diagnosticsService`, `this.snack`, and component state mutations. Extracting them cleanly would require a service, which is out of scope for a pure-helper refactor.
+  - Did not extract the websocket subscription itself (`subscribeToRealtimeUpdates`, `startErrorLogPoll`) — they manage Angular DI (`this.realtime`, `this.destroy$`, the 30-second timer) so they belong in the component.
+  - Did not add dedicated spec files for the new helper modules — pure-function extraction preserves behaviour and the existing component tests exercise the public surface end-to-end. A follow-up slice could add tight golden-input tests per helper for extra rigour.
+  - Did not touch the template, styles, or service file. Zero surface-area change for template readers.
+- **Commit/push state:** Pending — about to commit.
+
 ### 2026-04-20 — Codify a strict Comments & Documentation rule for every AI agent (Claude)
 
 - **AI/tool:** Claude
