@@ -18,7 +18,6 @@ import { catchError, EMPTY, finalize } from 'rxjs';
 
 import {
   HelperNodeSettingsRecord,
-  RuntimeConfig,
   RuntimeModelPlacement,
   RuntimeModelRegistryEntry,
   RuntimeSummaryPayload,
