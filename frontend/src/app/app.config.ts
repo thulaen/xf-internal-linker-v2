@@ -6,7 +6,7 @@
  */
 
 import { ApplicationConfig, ErrorHandler, provideZonelessChangeDetection, isDevMode } from '@angular/core';
-import { provideRouter, withInMemoryScrolling, withRouterConfig } from '@angular/router';
+import { provideRouter, withInMemoryScrolling, withRouterConfig, withViewTransitions } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -45,6 +45,12 @@ export const appConfig: ApplicationConfig = {
       // because the NavigationEnd event never fires and the fragment
       // scroller in GlobalLinkInterceptorService never runs.
       withRouterConfig({ onSameUrlNavigation: 'reload' }),
+      // Phase F1 / Gap 79 — native View Transitions API for route
+      // crossfades. Angular's built-in helper handles the race
+      // conditions (skipTransition on rapid navigation, cleanup on
+      // NavigationCancel/Error) that our custom service got wrong.
+      // No-op on browsers without the API (Firefox, older Safari).
+      withViewTransitions({ skipInitialTransition: true }),
     ),
     provideHttpClient(
       // traceparent must run BEFORE auth so the header shows up in

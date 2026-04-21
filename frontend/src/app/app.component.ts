@@ -41,7 +41,6 @@ import { RealtimeService } from './core/services/realtime.service';
 import { SessionTimeoutService } from './core/services/session-timeout.service';
 import { DialogRouterService } from './core/services/dialog-router.service';
 import { WebVitalsService } from './core/services/web-vitals.service';
-import { ViewTransitionsService } from './core/services/view-transitions.service';
 import { BackgroundSyncService } from './core/services/background-sync.service';
 import { reportPlatformFeatures } from './core/util/platform-features';
 import { A11yPrefsService } from './core/services/a11y-prefs.service';
@@ -169,7 +168,6 @@ export class AppComponent implements OnInit {
   private sessionTimeout = inject(SessionTimeoutService);
   private dialogRouter = inject(DialogRouterService);
   private webVitals = inject(WebVitalsService);
-  private viewTransitions = inject(ViewTransitionsService);
   private bgSync = inject(BackgroundSyncService);
   // Phase A1 — accessibility + locale services. Services
   // self-initialise on first inject (effects in their constructors
@@ -396,10 +394,6 @@ export class AppComponent implements OnInit {
     // Phase D2 / Gap 73 — record first daily route visits so the
     // Behavioral Nudge card can suggest a typical starting page.
     this.behaviorTracker.start();
-    // Phase F1 / Gap 79 — wrap Angular router navigations in the
-    // native View Transitions API so supported browsers crossfade
-    // routes. Safe no-op on Firefox/Safari (no API).
-    this.viewTransitions.start();
     // Phase F1 / Gap 88 — wire the offline write queue. When the
     // browser comes back online, queued POSTs are drained in FIFO.
     this.bgSync.start();
