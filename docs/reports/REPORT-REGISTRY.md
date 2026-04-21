@@ -190,6 +190,28 @@ _(None yet. When all findings in a report are resolved, move the report entry he
 
 ## Resolved Individual Issues
 
+### ISS-023 - Repo launcher scripts failed before Docker startup because PowerShell mis-parsed docker-safe arguments (2026-04-21)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `scripts/start.ps1`, `scripts/stop.ps1`
+- **Description:** The repo's own `scripts/start.ps1` and `scripts/stop.ps1` called `docker-safe.ps1` as `& ... compose up -d` / `compose down`. In PowerShell, that call shape let `-d` get parsed as a script parameter instead of a Docker argument, which caused startup to fail with `Missing an argument for parameter 'DockerArgs'` before Docker Compose could run. The result for operators was a misleading "localhost refused to connect" because the app stack never actually started.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-21
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-21
+- **Regression watch:** When calling wrapper scripts that use `ValueFromRemainingArguments`, pass Docker arguments explicitly as an array (for example `-DockerArgs @("compose", "up", "-d")`) so PowerShell does not steal flag-style tokens like `-d`.
+
+### ISS-022 - Dashboard performance-mode card used a JS-style comment inside inline CSS and broke the frontend build (2026-04-20)
+
+- **Found by:** Codex
+- **Severity:** high
+- **Affected files:** `frontend/src/app/dashboard/performance-mode/performance-mode.component.ts`
+- **Description:** The dashboard `PerformanceModeComponent` had a `// 24px above accordion ...` comment inside its inline `styles: [\`...\`]` CSS block. Angular treats inline component styles as CSS, not SCSS or TypeScript, so the `//` token breaks stylesheet parsing and can stop the frontend from building or loading correctly.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-20
+- **Fixed in:** Codex session note in `AI-CONTEXT.md` dated 2026-04-20
+- **Regression watch:** Inline component styles in `.component.ts` files must use valid CSS comments (`/* ... */`) or no comment at all. `//` comments are only safe in SCSS files, not in Angular inline style strings.
+
 ### ISS-001 â€” Backend container could miss required `drf_spectacular` dependency and fail at startup (2026-04-12)
 
 - **Found by:** Codex

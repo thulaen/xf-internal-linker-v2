@@ -1,0 +1,59 @@
+<!-- 
+  GA4 STANDARD DASHBOARD CARD TEMPLATE
+  
+  Use this structure for all new dashboard widgets to ensure they align
+  perfectly with the master masonry grid and share a consistent
+  vertical baseline.
+  
+  Pre-requisites:
+  - Class: .ga4-card on the <mat-card>
+  - Class: .ga4-action-row on the <mat-card-actions>
+  - Spacing: Use ga4-field-row / ga4-field-stack for internal layout
+-->
+
+<mat-card class="ga4-card" id="widget-unique-id">
+  
+  <!-- Header: Enforced 16px bottom margin, zero padding -->
+  <mat-card-header>
+    <mat-icon mat-card-avatar>category</mat-icon>
+    <mat-card-title>Widget Title</mat-card-title>
+    <mat-card-subtitle>Optional subtitle describing the data</mat-card-subtitle>
+  </mat-card-header>
+
+  <!-- Content: flex: 1 1 auto; pushes the footer to the bottom -->
+  <mat-card-content>
+    
+    <!-- Use .ga4-field-stack for vertical data rows -->
+    <div class="ga4-field-stack">
+      <div class="ga4-field-row">
+        <span class="label text-muted">Field Label</span>
+        <span class="value font-medium">Value</span>
+      </div>
+      
+      <div class="ga4-field-row">
+        <span class="label text-muted">Another Field</span>
+        <span class="value font-medium">1,234</span>
+      </div>
+    </div>
+
+    <!-- For sparse cards, use .ga4-card-centred to visually balance content -->
+    <!--
+    <div class="ga4-card-centred">
+      <mat-icon class="icon-lg text-muted">auto_awesome</mat-icon>
+      <p>Clean info message</p>
+    </div>
+    -->
+
+  </mat-card-content>
+
+  <!-- Actions: Right-aligned, standard 12px gap, 120px min-width buttons -->
+  <mat-card-actions class="ga4-action-row">
+    <button mat-stroked-button type="button">
+      Secondary Action
+    </button>
+    <button mat-flat-button color="primary" type="button">
+      Primary Action
+    </button>
+  </mat-card-actions>
+
+</mat-card>
