@@ -1,5 +1,6 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
+import { silentHttpErrors } from '../interceptors/http-context';
 import { firstValueFrom } from 'rxjs';
 
 /**
@@ -142,8 +143,15 @@ export class PasskeyService {
 
   private async beginLogin(): Promise<PublicKeyCredentialRequestOptions | null> {
     try {
+      // Silent: on installs without passkey support the backend 404s,
+      // and the caller already treats a null return as "not available".
+      // Suppress the global "Resource not found" toast — the user is
+      // just trying to sign in, a passkey capability probe is not their
+      // problem.
       const raw = await firstValueFrom(
-        this.http.post<unknown>('/api/auth/passkey/login/begin/', {}),
+        this.http.post<unknown>('/api/auth/passkey/login/begin/', {}, {
+          context: silentHttpErrors(),
+        }),
       );
       return this.decodeRequestOptions(raw);
     } catch {

@@ -493,6 +493,10 @@ export class GraphComponent implements OnInit {
     return topic.id;
   }
 
+  trackByArticleId(_i: number, a: ContentItemSummary): number {
+    return a.id;
+  }
+
   // ── Network Visualization ─────────────────────────────────────────
 
   private _loadTopology(onLoaded?: () => void, at?: string): void {

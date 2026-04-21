@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { Subscription, catchError, of, switchMap, tap, timer } from 'rxjs';
 import { VisibilityGateService } from '../util/visibility-gate.service';
+import { silentHttpErrors } from '../interceptors/http-context';
 
 /**
  * Phase MX3 / Gap 344 — Maintenance mode toggle.
@@ -73,8 +74,14 @@ export class MaintenanceModeService {
   }
 
   refresh() {
+    // The backend endpoint is not always deployed (feature-flagged).
+    // Request silently so a 404 does not spam the global "Resource
+    // not found" toast every 30 seconds — local `catchError` still
+    // preserves the last-known state.
     return this.http
-      .get<MaintenanceModeState>('/api/settings/maintenance-mode/')
+      .get<MaintenanceModeState>('/api/settings/maintenance-mode/', {
+        context: silentHttpErrors(),
+      })
       .pipe(
         tap((s) => this._state.set(s)),
         catchError(() => of(this._state())),
@@ -82,11 +89,15 @@ export class MaintenanceModeService {
   }
 
   setEnabled(enabled: boolean, message = '') {
+    // POST is silent too — operators toggling the banner from a stub
+    // backend should not see an error toast for an endpoint that may
+    // not exist yet.
     return this.http
-      .post<MaintenanceModeState>('/api/settings/maintenance-mode/', {
-        enabled,
-        message,
-      })
+      .post<MaintenanceModeState>(
+        '/api/settings/maintenance-mode/',
+        { enabled, message },
+        { context: silentHttpErrors() },
+      )
       .pipe(tap((s) => this._state.set(s)));
   }
 }

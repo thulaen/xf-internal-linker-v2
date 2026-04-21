@@ -508,7 +508,7 @@
           <div class="lane-badges">
             <div
               class="lane-badge"
-              *ngFor="let badge of card.badges"
+              *ngFor="let badge of card.badges; trackBy: trackByLabel"
               [class.tone-good]="badge.tone === 'good'"
               [class.tone-warn]="badge.tone === 'warn'"
               [class.tone-bad]="badge.tone === 'bad'">

@@ -202,7 +202,7 @@
                 <mat-label>Helper node</mat-label>
                 <mat-select [(ngModel)]="registration.helper_id">
                   <mat-option [value]="null">Choose helper</mat-option>
-                  <mat-option *ngFor="let helper of helpers()" [value]="helper.id">{{ helper.name }}</mat-option>
+                  <mat-option *ngFor="let helper of helpers(); trackBy: trackByHelperId" [value]="helper.id">{{ helper.name }}</mat-option>
                 </mat-select>
               </mat-form-field>
             </div>
@@ -223,7 +223,7 @@
                 </div>
               } @else {
                 <div class="placement-list">
-                  <div class="placement-row" *ngFor="let placement of runtime.model_runtime.placements">
+                  <div class="placement-row" *ngFor="let placement of runtime.model_runtime.placements; trackBy: trackByPlacementId">
                     <div class="placement-copy">
                       <strong>{{ placement.model_name }}</strong>
                       <span>
@@ -257,7 +257,7 @@
                 </div>
               } @else {
                 <div class="audit-list">
-                  <div class="audit-row" *ngFor="let entry of runtime.model_runtime.recent_audit_log">
+                  <div class="audit-row" *ngFor="let entry of runtime.model_runtime.recent_audit_log; trackBy: trackByAuditEntryId">
                     <div class="audit-time">{{ entry.created_at | date:'MMM d, HH:mm' }}</div>
                     <div class="audit-message">{{ entry.message }}</div>
                   </div>

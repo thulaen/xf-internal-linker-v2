@@ -18,6 +18,7 @@ import {
   RateLimitSnackbarComponent,
   RateLimitSnackbarData,
 } from './rate-limit-snackbar.component';
+import { SILENT_HTTP_ERRORS } from './http-context';
 
 /**
  * Singleton ref to the currently-open rate-limit snackbar so a burst of
@@ -122,6 +123,15 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
             activeRateLimitSnackbar = null;
           });
         }
+        return throwError(() => error);
+      }
+
+      // Silent opt-out — callers that expect a not-yet-deployed or
+      // feature-flagged endpoint to fail can set the
+      // `SILENT_HTTP_ERRORS` context token on the request. The error
+      // still bubbles up so local `catchError` can fall back; only
+      // the snackbar is suppressed.
+      if (req.context.get(SILENT_HTTP_ERRORS)) {
         return throwError(() => error);
       }
 

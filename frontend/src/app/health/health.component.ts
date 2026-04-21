@@ -378,5 +378,6 @@ export class HealthComponent implements OnInit, OnDestroy {
 
   trackByLabel(_: number, group: ChecklistGroup): string { return group.label; }
   trackByServiceKey(_: number, s: ServiceHealth): string { return s.service_key; }
+  trackByTier(_: number, tier: ConfigTier): string { return tier; }
   trackByIndex(index: number): number { return index; }
 }

@@ -18,6 +18,7 @@ import { catchError, EMPTY, finalize } from 'rxjs';
 
 import {
   HelperNodeSettingsRecord,
+  RuntimeAuditEntry,
   RuntimeModelPlacement,
   RuntimeModelRegistryEntry,
   RuntimeSummaryPayload,
@@ -306,4 +307,8 @@ export class PerformanceSettingsComponent implements OnInit {
   }
 
   labelWithMb = (v: number): string => `${v}`;
+
+  trackByHelperId = (_: number, h: HelperNodeSettingsRecord): number => h.id;
+  trackByPlacementId = (_: number, p: RuntimeModelPlacement): number => p.id;
+  trackByAuditEntryId = (_: number, e: RuntimeAuditEntry): number => e.id;
 }

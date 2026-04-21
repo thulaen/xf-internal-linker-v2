@@ -68,9 +68,9 @@
     </h2>
     <!-- Phase NV / Gap 145 — appPersistTab remembers the last-viewed tier. -->
     <mat-tab-group animationDuration="200ms" appPersistTab="health.tiers">
-      <mat-tab *ngFor="let tier of tiers" [label]="tierLabels[tier]">
+      <mat-tab *ngFor="let tier of tiers; trackBy: trackByTier" [label]="tierLabels[tier]">
         <div class="page-cards-grid">
-          <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]" [ngClass]="'tier-status-' + s.status">
+          <mat-card class="tier-card" *ngFor="let s of tierGroups[tier]; trackBy: trackByServiceKey" [ngClass]="'tier-status-' + s.status">
             <div class="tier-card-header">
               <mat-icon [ngClass]="getStatusClass(s.status)">{{ getStatusIcon(s.status) }}</mat-icon>
               <span class="tier-card-name">{{ getServiceName(s) }}</span>

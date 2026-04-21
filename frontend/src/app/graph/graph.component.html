@@ -834,7 +834,7 @@
             (input)="onFromInput($event)"
             placeholder="Search by title…" />
           <mat-autocomplete #fromAuto="matAutocomplete" (optionSelected)="onFromSelected($event)">
-            <mat-option *ngFor="let a of fromResults" [value]="a">
+            <mat-option *ngFor="let a of fromResults; trackBy: trackByArticleId" [value]="a">
               {{ a.title }}
             </mat-option>
           </mat-autocomplete>
@@ -852,7 +852,7 @@
             (input)="onToInput($event)"
             placeholder="Search by title…" />
           <mat-autocomplete #toAuto="matAutocomplete" (optionSelected)="onToSelected($event)">
-            <mat-option *ngFor="let a of toResults" [value]="a">
+            <mat-option *ngFor="let a of toResults; trackBy: trackByArticleId" [value]="a">
               {{ a.title }}
             </mat-option>
           </mat-autocomplete>
