@@ -31,7 +31,6 @@ import {
   DialogResult,
 } from './suggestion-detail-dialog.component';
 import { ConfidenceBadgeComponent } from '../shared/confidence-badge/confidence-badge.component';
-import { SuggestionExplainerPipe } from './pipes/suggestion-explainer.pipe';
 // Phase SR — readiness gate. The page holds rendering until the
 // readiness service reports every prerequisite ready, unless the user
 // has manually overridden via the "Show me anyway" button.
@@ -68,7 +67,6 @@ interface StatusTab {
     MatTooltipModule,
     HighlightPipe,
     ConfidenceBadgeComponent,
-    SuggestionExplainerPipe,
     // Phase SR — panel shown when the readiness gate reports a block.
     PreparingSuggestionsComponent,
   ],

@@ -4,12 +4,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatTooltipModule } from '@angular/material/tooltip';
-import { FreshnessBadgeComponent } from '../../shared/freshness-badge/freshness-badge.component';
 
 @Component({
   selector: 'app-ready-to-run',
   standalone: true,
-  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatTooltipModule, FreshnessBadgeComponent],
+  imports: [RouterLink, MatCardModule, MatIconModule, MatButtonModule, MatTooltipModule],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <mat-card id="ready-to-run">

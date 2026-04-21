@@ -67,7 +67,7 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
                 <mat-icon class="sa-row-icon sa-running">play_circle</mat-icon>
                 <span class="sa-row-text">
                   <strong>{{ sourceLabel(j.source) }}</strong>
-                  · {{ j.mode || 'sync' }} · {{ j.items_synced ?? 0 }} items so far
+                  · {{ j.mode || 'sync' }} · {{ j.items_synced }} items so far
                 </span>
               </li>
             }

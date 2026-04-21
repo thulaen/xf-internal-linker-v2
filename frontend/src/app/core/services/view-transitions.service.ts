@@ -1,6 +1,12 @@
 import { DestroyRef, Injectable, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { NavigationEnd, NavigationStart, Router } from '@angular/router';
+import {
+  NavigationCancel,
+  NavigationEnd,
+  NavigationError,
+  NavigationStart,
+  Router,
+} from '@angular/router';
 
 /**
  * Phase F1 / Gap 79 + 81 — View Transitions API integration.
@@ -20,22 +26,41 @@ import { NavigationEnd, NavigationStart, Router } from '@angular/router';
  * just fall through to a normal synchronous navigation.
  *
  * Implementation:
- *   - On NavigationStart, if the API is available, we grab a deferred
- *     transition callback and wait on the router's NavigationEnd to
- *     resolve it. The browser keeps the "from" snapshot around until
- *     our callback finishes, so Angular has time to render the new
- *     route before the crossfade starts.
- *   - Honours `prefers-reduced-motion: reduce` — skips the transition
- *     entirely on that setting.
+ *   - On NavigationStart, if the API is available and no transition is
+ *     currently in-flight, we grab a deferred transition callback and
+ *     wait on the router's NavigationEnd to resolve it. The browser
+ *     keeps the "from" snapshot around until our callback finishes,
+ *     so Angular has time to render the new route before the
+ *     crossfade starts.
+ *   - If a previous transition is still active when a new navigation
+ *     starts, skip the new one rather than calling the API recursively
+ *     — the browser throws `InvalidStateError` in that case and leaves
+ *     the old transition's promise dangling.
+ *   - NavigationCancel and NavigationError both release the pending
+ *     transition so a cancelled nav never pins the snapshot.
+ *   - Honours `prefers-reduced-motion: reduce` — skips entirely.
  *
  * Call `start()` once from app bootstrap. Safe no-op on unsupported
  * browsers; safe to call repeatedly.
  */
+
+interface ViewTransitionLike {
+  skipTransition(): void;
+  finished: Promise<void>;
+}
+
+type StartViewTransition = (cb: () => Promise<unknown>) => ViewTransitionLike;
+
 @Injectable({ providedIn: 'root' })
 export class ViewTransitionsService {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private started = false;
+
+  /** Resolves the current transition's "finished" promise. */
+  private endTransition: ((_: unknown) => void) | null = null;
+  /** Handle to the in-flight ViewTransition object, if any. */
+  private activeTransition: ViewTransitionLike | null = null;
 
   start(): void {
     if (this.started) return;
@@ -43,43 +68,68 @@ export class ViewTransitionsService {
     if (!this.supported()) return;
     if (this.reducedMotion()) return;
 
-    let endTransition: ((_: unknown) => void) | null = null;
-
     this.router.events
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((e) => {
         if (e instanceof NavigationStart) {
-          // `startViewTransition` accepts a callback that runs the DOM
-          // change. We defer the actual "finished" signal until
-          // NavigationEnd by returning a promise that the NavigationEnd
-          // branch resolves.
+          // If a transition is already in-flight (slow route resolve,
+          // rapid click-through), skip rather than chain. The browser
+          // throws `InvalidStateError` when `startViewTransition` is
+          // called while another transition is pending — the old
+          // transition's promise would then dangle forever.
+          if (this.activeTransition) {
+            this.release();
+          }
           try {
-            const doc = document as unknown as {
-              startViewTransition?: (cb: () => Promise<unknown>) => unknown;
-            };
-            doc.startViewTransition?.(() => {
-              return new Promise((resolve) => {
-                endTransition = resolve;
-              });
-            });
+            const fn = (document as unknown as { startViewTransition?: StartViewTransition })
+              .startViewTransition;
+            if (!fn) return;
+            this.activeTransition = fn.call(document, () =>
+              new Promise<void>((resolve) => {
+                this.endTransition = resolve as (_: unknown) => void;
+              }),
+            );
           } catch {
-            // Safari sometimes throws when a transition is already in
-            // flight — swallow and let navigation proceed normally.
+            // Some browsers still throw on edge cases (page hidden,
+            // document frozen). Swallow — navigation proceeds normally.
+            this.release();
           }
         } else if (e instanceof NavigationEnd) {
-          if (endTransition) {
+          if (this.endTransition) {
             // Give Angular one frame to paint the new route before
             // resolving; otherwise the crossfade fires too early and
             // looks like no transition at all.
+            const end = this.endTransition;
             requestAnimationFrame(() => {
-              if (endTransition) {
-                endTransition(undefined);
-                endTransition = null;
+              end(undefined);
+              if (this.endTransition === end) {
+                this.endTransition = null;
+                this.activeTransition = null;
               }
             });
           }
+        } else if (e instanceof NavigationCancel || e instanceof NavigationError) {
+          this.release();
         }
       });
+  }
+
+  /**
+   * Abort any in-flight transition cleanly: skip the animation, resolve
+   * the pending promise so the browser's internal state machine moves
+   * on, and drop our references.
+   */
+  private release(): void {
+    try {
+      this.activeTransition?.skipTransition();
+    } catch {
+      // `skipTransition` throws if already finished — safe to ignore.
+    }
+    if (this.endTransition) {
+      this.endTransition(undefined);
+      this.endTransition = null;
+    }
+    this.activeTransition = null;
   }
 
   private supported(): boolean {

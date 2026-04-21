@@ -127,7 +127,7 @@
 <!-- ── Fix Runbooks Strip (hidden when healthy) ──────────────── -->
 @if (!loading && data) {
   <app-fix-runbooks-strip
-    [healthStatus]="data.system_health?.status"
+    [healthStatus]="data.system_health.status"
     [openQuarantineCount]="0"
   />
 }
@@ -143,7 +143,7 @@
     <app-priority-action-queue [actions]="todayActions" />
     <app-health-score-dial
       [data]="data"
-      [openBrokenLinks]="data.open_broken_links ?? 0"
+      [openBrokenLinks]="data.open_broken_links"
       [urgentAlertCount]="0"
     />
   </div>
@@ -154,7 +154,7 @@
   <app-trend-deltas
     class="d1-block"
     [data]="data"
-    [openBrokenLinks]="data.open_broken_links ?? 0"
+    [openBrokenLinks]="data.open_broken_links"
   />
 }
 
