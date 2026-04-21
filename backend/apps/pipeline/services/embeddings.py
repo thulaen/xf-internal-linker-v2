@@ -39,6 +39,7 @@ _model_cache: dict[str, Any] = {}
 _CPU_THREAD_HEADROOM = 2
 _GPU_RESUME_DELTA_C = 10
 _GPU_TEMP_RESUME_FLOOR_C = 50
+_PERCENT_TO_FRACTION = 100.0
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +183,7 @@ def _get_gpu_memory_budget_fraction() -> float:
         maximum=80,
     )
     if raw_budget_pct:
-        return raw_budget_pct / 100.0
+        return raw_budget_pct / _PERCENT_TO_FRACTION
     if _get_performance_mode() in {"HIGH", "HIGH_PERFORMANCE"}:
         return getattr(settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
     return getattr(settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
