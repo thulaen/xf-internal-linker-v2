@@ -123,7 +123,13 @@ services:
   nginx:
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
-      - frontend_dist:/usr/share/nginx/html:ro
+      # `frontend_dist` is mounted RW (not `:ro`) because the child
+      # volumes below sit on top of subdirectories inside this tree,
+      # and Docker cannot create a mountpoint inside a read-only
+      # parent mount (OCI runtime refuses with EROFS). Nginx itself
+      # runs as an unprivileged user that has no write permission
+      # on the files, so there's no real-world write risk.
+      - frontend_dist:/usr/share/nginx/html
       - staticfiles:/usr/share/nginx/html/static:ro
       - media_files:/usr/share/nginx/html/media:ro
     depends_on:
