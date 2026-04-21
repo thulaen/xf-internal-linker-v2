@@ -16,7 +16,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { interval, merge, of, startWith, switchMap } from 'rxjs';
+import { asyncScheduler, interval, merge, of, startWith, switchMap, throttleTime } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
@@ -345,6 +345,13 @@ export class MissionCriticalComponent implements OnInit {
       realtimeNudge$,
     )
       .pipe(
+        // A burst of realtime pushes can fire one refresh per event.
+        // `throttleTime` with leading + trailing surfaces the first
+        // event immediately, suppresses the flood, then fires one
+        // trailing refresh so the UI never gets stuck on stale data.
+        // `debounceTime` would delay every refresh by 300 ms even when
+        // events are rare — wrong shape. See docs/PERFORMANCE.md §13.
+        throttleTime(300, asyncScheduler, { leading: true, trailing: true }),
         switchMap(() => {
           this.loading.set(true);
           return this.http

@@ -1,6 +1,8 @@
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { DestroyRef, Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of, tap } from 'rxjs';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
+import { Subscription, catchError, of, switchMap, tap, timer } from 'rxjs';
+import { VisibilityGateService } from '../util/visibility-gate.service';
 
 /**
  * Phase MX3 / Gap 344 — Maintenance mode toggle.
@@ -20,9 +22,17 @@ export interface MaintenanceModeState {
   started_at: string | null;
 }
 
+const POLL_INTERVAL_MS = 30_000;
+
 @Injectable({ providedIn: 'root' })
 export class MaintenanceModeService {
-  private http = inject(HttpClient);
+  private readonly http = inject(HttpClient);
+  private readonly visibilityGate = inject(VisibilityGateService);
+  // DestroyRef is taken at class-field init time, which is an injection
+  // context — safe to pass into `takeUntilDestroyed` below from outside
+  // one. A root service's DestroyRef fires on app shutdown, which is the
+  // right lifetime for this poll.
+  private readonly destroyRef = inject(DestroyRef);
 
   private readonly _state = signal<MaintenanceModeState>({
     enabled: false,
@@ -38,10 +48,28 @@ export class MaintenanceModeService {
     return s.message || 'The system is in maintenance mode — writes are disabled.';
   });
 
+  private pollSub: Subscription | null = null;
+
+  /**
+   * Idempotent. Safe to call multiple times — the second call returns
+   * without opening a second poll. Call once from `AppComponent.ngOnInit`
+   * so the maintenance banner reflects backend state throughout the
+   * session. The poll pauses while the tab is hidden or the user is
+   * signed out. See docs/PERFORMANCE.md §13.
+   */
   start(): void {
-    this.refresh().subscribe();
-    // 30 s poll — cheap, and maintenance mode toggles are rare.
-    setInterval(() => this.refresh().subscribe(), 30_000);
+    if (this.pollSub) return;
+    this.pollSub = this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, POLL_INTERVAL_MS).pipe(switchMap(() => this.refresh())),
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
+  stop(): void {
+    this.pollSub?.unsubscribe();
+    this.pollSub = null;
   }
 
   refresh() {

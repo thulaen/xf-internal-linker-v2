@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, NgZone, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MAT_SNACK_BAR_DATA, MatSnackBarRef } from '@angular/material/snack-bar';
 import { MatButtonModule } from '@angular/material/button';
@@ -75,6 +75,7 @@ export class RateLimitSnackbarComponent implements OnInit {
   private readonly data = inject<RateLimitSnackbarData>(MAT_SNACK_BAR_DATA);
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
 
   remainingSeconds = Math.max(0, Math.floor(this.data.seconds));
 
@@ -95,15 +96,22 @@ export class RateLimitSnackbarComponent implements OnInit {
       this.snackRef.dismiss();
       return;
     }
-    interval(1000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.remainingSeconds = Math.max(0, this.remainingSeconds - 1);
-        if (this.remainingSeconds <= 0) {
-          this.snackRef.dismiss();
-        } else {
-          this.cdr.markForCheck();
-        }
-      });
+    // Run the 1-second countdown OUTSIDE the Angular zone so each tick
+    // does not schedule global change detection. The snackbar is OnPush,
+    // so we explicitly `markForCheck` to paint the new value. `dismiss()`
+    // stays on the zone path (it's an event-driven signal, not a tick).
+    // See docs/PERFORMANCE.md §13.
+    this.ngZone.runOutsideAngular(() => {
+      interval(1000)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          this.remainingSeconds = Math.max(0, this.remainingSeconds - 1);
+          if (this.remainingSeconds <= 0) {
+            this.ngZone.run(() => this.snackRef.dismiss());
+          } else {
+            this.cdr.markForCheck();
+          }
+        });
+    });
   }
 }

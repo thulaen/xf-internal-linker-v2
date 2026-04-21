@@ -444,6 +444,63 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-21 — Frontend sluggishness audit → whole-stack prod-mode profile + zone/polling/helper fixes (Claude)
+
+- **AI/tool:** Claude
+- **Why:** User reported the frontend feels slow and sluggish and asked (1) to find the main culprits without touching look or layout, (2) to check that Angular build budgets and config are set properly, and (3) to set the *whole stack* to production mode when building the app so future sessions (and future AI agents) aren't blindsided by "dev mode" performance surprises. Root cause of the felt sluggishness: the entire Docker stack runs in dev mode (`ng serve`, uvicorn `--reload`, Django `DEBUG=True`, Celery `--loglevel=info`), and ~20 polling timers plus 3 mousemove `@HostListener`s keep Angular change detection churning even when the tab is idle. The plan bundled the fix into two sequential commits.
+- **Relevant open findings disclosed in chat before touching code:** None in the frontend-performance / docker-compose / docs area. The open registry items (`ISS-003` FAISS startup, `RPT-001` ranking math, `RPT-002` forward-declared backlog) are all unrelated to this session.
+- **Scope:**
+  - **Commit 1 — whole-stack production profile (infra + rule):** gives the user (and every future AI) a single canonical way to run the stack in true production mode, and bakes the rule into the repo so dev-mode numbers never masquerade as prod numbers again.
+  - **Commit 2 — zone / polling / helper (app code):** the code-level fixes that flatten the idle-CD churn.
+- **What landed in Commit 1 (`8af63cd`):**
+  - New files: `docker-compose.prod.yml`, `frontend/Dockerfile.prod`, `nginx/nginx.prod.conf`, `.env.prod.example`.
+  - `docker-compose.prod.yml` overrides backend to `config.settings.production` + `DEBUG=False`, removes uvicorn `--reload`, drops Celery to `--loglevel=warning`, disables the Angular dev server (`frontend` under `profiles: ["__disabled__"]`), adds a one-shot `frontend-build` service that compiles the Angular prod bundle into the shared `frontend_dist` volume, swaps nginx to serve static with long-cache headers on hashed assets, and puts `glitchtip` / `glitchtip-worker` under `profiles: ["debug"]` so they are opt-in.
+  - `frontend/Dockerfile.prod` — multi-stage (`node:22-slim` → `ng build --configuration=production` → `alpine:3.20` that copies to `/dist`).
+  - `nginx/nginx.prod.conf` — serves `/usr/share/nginx/html` statically, `Cache-Control: public, max-age=31536000, immutable` on hashed Angular assets, `no-cache` on `index.html`, gzip + rate-limit + security headers kept identical to the dev config.
+  - `.env.prod.example` — small template with only the prod-deltas (`DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, HTTPS-hardening toggles defaulted to False so a local prod run over plain HTTP still works).
+  - `backend/config/settings/production.py` — `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD` are now `env.bool(...)` / `env.int(...)` driven (defaults kept True/long-HSTS for real HTTPS deployments; `docker-compose.prod.yml` sets them to False/0 so `localhost` over HTTP still lets login + CSRF work).
+  - `docs/PERFORMANCE.md` — new **§13 "Performance Verification in Production Mode — Mandatory Rule"** spelling out the canonical command, when it applies, when it does not, and the reporting requirements ("state which profile produced the numbers").
+  - `CLAUDE.md` — one-line rule pointing at §13, with the canonical command inline.
+  - `AGENTS.md` § `Performance is correctness` — one-line rule pointing at §13.
+  - `AI-CONTEXT.md` — Session Gate MUST-READ table now lists `docs/PERFORMANCE.md` §13 as required for any performance session.
+- **What landed in Commit 2 (this commit):**
+  - New: `frontend/src/app/core/util/visibility-gate.service.ts` — `VisibilityGateService` exposes `whileLoggedIn<T>(seed)` and `whileLoggedInAndVisible<T>(seed)`. Single home for the pattern — previously inlined in `app.component.ts:542-554`.
+  - `frontend/src/app/app.config.ts` — `provideZoneChangeDetection({ eventCoalescing: true, runCoalescing: true })`. Free win on Angular 18+.
+  - `frontend/src/app/app.component.ts` — refactored to inject `VisibilityGateService` and call `this.visibilityGate.whileLoggedInAndVisible(...)` at the five existing call sites. Removed the private `pageVisible$` / `whileLoggedIn` / `whileLoggedInAndVisible` methods. Wired `this.maintenanceMode.start()` into `ngOnInit` (the service was `providedIn: 'root'` but `start()` had never been called from anywhere — dormant landmine). Cleaned out now-unused rxjs imports (`EMPTY`, `distinctUntilChanged`, `fromEvent`, `Observable`).
+  - `frontend/src/app/dashboard/personal-bar/personal-bar.component.ts` — `interval(1000)` for the live clock now runs inside `ngZone.runOutsideAngular(...)` and calls `cdr.markForCheck()` on each tick. Stops the 1 Hz full-tree CD storm on every dashboard visit.
+  - `frontend/src/app/core/interceptors/rate-limit-snackbar.component.ts` — same treatment for the 1 s countdown; `snackRef.dismiss()` stays inside the zone via `ngZone.run(...)`.
+  - `frontend/src/app/core/services/session-timeout-warning-dialog.component.ts` — same treatment for the 1 s countdown; `dialogRef.close(...)` stays inside the zone via `ngZone.run(...)`.
+  - `frontend/src/app/shared/directives/card-spotlight.directive.ts` — `@HostListener('mousemove')` replaced with `Renderer2.listen(host, 'mousemove', ...)` inside `ngZone.runOutsideAngular(...)` because `@HostListener` is registered through Angular's event manager and always re-enters the zone. Style writes only, no Angular state, so no re-entry needed.
+  - `frontend/src/app/shared/directives/magnetic-button.directive.ts` — same pattern.
+  - `frontend/src/app/shared/ui/live-cursors/live-cursors.component.ts` — same pattern for the `document:mousemove` listener; handler only mutates local fields and schedules a throttled WS publish, so no zone re-entry needed.
+  - `frontend/src/app/core/services/maintenance-mode.service.ts` — replaced the orphan `setInterval(..., 30_000)` (no stored handle, no visibility gate) with an RxJS `timer(0, 30_000)` gated by `VisibilityGateService.whileLoggedInAndVisible(...)` and attached via `takeUntilDestroyed(this.destroyRef)`. `start()` is now idempotent. `stop()` added for completeness.
+  - `frontend/src/app/core/services/realtime.service.ts` — 25 s WebSocket ping now skips `this.send({action:'ping'})` when `document.visibilityState === 'hidden'`. The `setInterval` already ran outside the zone (line 246 block), so no wrapper change needed.
+  - `frontend/src/app/dashboard/mission-critical/mission-critical.component.ts` — `throttleTime(300, asyncScheduler, { leading: true, trailing: true })` added after `merge(interval(30_000), realtimeNudge$)`. `throttleTime` not `debounceTime` so realtime bursts surface immediately then suppress the flood.
+- **Verification:**
+  - `cd frontend && npx ng build --configuration=production` — clean build in 67.985 s. Initial raw bundle ~1.7 MB, transfer ~0.45 MB — well under the existing 2 MB warning / 3 MB error budgets. No new warnings from edited files; pre-existing NG8102 / NG8113 / NG8107 template lints in `dashboard.component.html`, `ready-to-run.component.ts`, `sync-activity.component.ts`, `review.component.ts` are untouched by this session.
+  - `cd frontend && npm run test:ci` — 27/27 SUCCESS on Chrome Headless 147 (2.5 s total).
+  - `docker compose config --quiet` — dev composition (base + override) still parses clean.
+  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet` — prod composition parses clean. `config --services` returns: postgres, redis, backend, celery-beat, celery-worker-default, celery-worker-pipeline, frontend-build, nginx. No `frontend` (profiled out), no `glitchtip*` (behind `--profile debug`).
+  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml build` — all three prod images built cleanly: `xf-linker-backend:latest`, `xf-linker-frontend-prod:latest` (19.5 MB), `xf-internal-linker-v2-nginx` (73.6 MB).
+- **Deferred to Tier 2 / Tier 3 follow-up slices (out of scope for this commit pair, per the approved plan):**
+  - Delete the unused `three` + `@types/three` dep from `package.json`.
+  - Tighten Angular budgets to realistic values just above the real prod-bundle size.
+  - Apply `VisibilityGateService.whileLoggedInAndVisible` to the remaining polling pages (crawler, error-log, system-metrics, diagnostics, jobs, presence, soft-lock, schedule-widget, quiet-hours).
+  - Add `trackBy` to the largest `*ngFor` loops (starting with `/review`).
+  - Fix link-health fallback polling — stop `setInterval` in WS `onopen`.
+  - Migrate to zoneless change detection (`provideZonelessChangeDetection`).
+  - Wrap heaviest lazy-page sub-components in `@defer (on viewport)`.
+  - Rewrite the suggestion-detail dialog template to use `computed()` signals instead of 28 template function calls.
+- **Session Gate compliance:**
+  - Read `AI-CONTEXT.md` Session Gate, `docs/reports/REPORT-REGISTRY.md` (no overlapping OPEN findings in the frontend-performance / docker-compose / docs area), `frontend/FRONTEND-RULES.md`, `docs/PERFORMANCE.md`, `AGENTS.md § Code Quality Mandate`, `CLAUDE.md`.
+  - Posted the 4-part Session Start Snapshot in chat before writing any code.
+  - Every decision point during planning was raised via `AskUserQuestion` (PR scope choice, budget-tighten timing); plan approved via `ExitPlanMode` with the "update other-agents rules" scope explicitly added by the user after plan approval.
+  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml build` ran and succeeded before either commit — both backend Python settings (`production.py`) and frontend app code were touched, so the build gate applied.
+  - Stayed on `master` (paramount branch-transparency rule — user did not ask for a branch, so no branch was created).
+  - Split into two commits: PR 1 infra + rule (`8af63cd`) first, PR 2 app code second (this commit).
+
+---
+
 ### 2026-04-21 — Three-slice close-out: stale-embedding guard + Glitchtip tab + hardware tuning / worker split (Codex, finished by Claude)
 
 - **AI/tool:** Codex (implementation + verification), Claude (diff audit, session note, commit split, `/error-log` extension)

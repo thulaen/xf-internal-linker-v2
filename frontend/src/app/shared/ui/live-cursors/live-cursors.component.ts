@@ -2,9 +2,10 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  HostListener,
   Input,
+  NgZone,
   OnInit,
+  Renderer2,
   computed,
   inject,
   signal,
@@ -111,6 +112,8 @@ export class LiveCursorsComponent implements OnInit {
   private readonly realtime = inject(RealtimeService);
   private readonly presence = inject(PresenceService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
+  private readonly renderer = inject(Renderer2);
 
   private myUsername = '';
   private myConnectionId = '';
@@ -159,15 +162,24 @@ export class LiveCursorsComponent implements OnInit {
         });
         this._cursors.set(next);
       });
-  }
 
-  @HostListener('document:mousemove', ['$event'])
-  onMove(event: MouseEvent): void {
-    if (!this.myUsername || !this.topic) return;
-    this.pendingX = event.clientX;
-    this.pendingY = event.clientY;
-    this.hasPending = true;
-    this.scheduleSend();
+    // Listen for cursor moves OUTSIDE the Angular zone. A
+    // `@HostListener('document:mousemove')` is registered through
+    // Angular's event manager which re-enters the zone on every
+    // emission — at ~100 events/sec that pins change detection to
+    // the mouse. The handler here only mutates local fields and
+    // schedules a throttled WebSocket publish, so it never needs
+    // to touch Angular state. See docs/PERFORMANCE.md §13.
+    this.ngZone.runOutsideAngular(() => {
+      const off = this.renderer.listen('document', 'mousemove', (event: MouseEvent) => {
+        if (!this.myUsername || !this.topic) return;
+        this.pendingX = event.clientX;
+        this.pendingY = event.clientY;
+        this.hasPending = true;
+        this.scheduleSend();
+      });
+      this.destroyRef.onDestroy(off);
+    });
   }
 
   // ── helpers ────────────────────────────────────────────────────────

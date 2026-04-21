@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, Host
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
-import { EMPTY, distinctUntilChanged, filter, fromEvent, map, Observable, startWith, switchMap, timer } from 'rxjs';
+import { filter, map, startWith, switchMap, timer } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -78,6 +78,8 @@ import { FaqService } from './shared/ui/faq-drawer/faq.service';
 import { GuidedTourService, DASHBOARD_TOUR } from './core/services/guided-tour.service';
 import { GuidedTourComponent } from './shared/ui/guided-tour/guided-tour.component';
 import { BehaviorTrackerService } from './core/services/behavior-tracker.service';
+import { VisibilityGateService } from './core/util/visibility-gate.service';
+import { MaintenanceModeService } from './core/services/maintenance-mode.service';
 import { EscapeHatchComponent } from './shared/ui/escape-hatch/escape-hatch.component';
 import { HelpChatbotComponent } from './shared/ui/help-chatbot/help-chatbot.component';
 import { routeTransitionAnimation } from './shared/animations/route-transition.animation';
@@ -181,6 +183,8 @@ export class AppComponent implements OnInit {
   private featureFlags = inject(FeatureFlagsService);
   // Phase RC / Gap 139 — real-time presence of other operators.
   private presence = inject(PresenceService);
+  // Phase MX3 / Gap 344 — maintenance-mode banner poll (30 s, visibility-gated).
+  private maintenanceMode = inject(MaintenanceModeService);
   // Phase NV / Gap 146 — auto-records every NavigationEnd; injection
   // alone is enough to keep the menu's history fresh.
   private recentPages = inject(RecentPagesService);
@@ -212,11 +216,7 @@ export class AppComponent implements OnInit {
   private userActivity = inject(UserActivityService);
   private http = inject(HttpClient);
   private contexts = inject(ChildrenOutletContexts);
-  private readonly pageVisible$ = fromEvent(this.document, 'visibilitychange').pipe(
-    startWith(null),
-    map(() => this.document.visibilityState === 'visible'),
-    distinctUntilChanged(),
-  );
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   /** Gap 38 — WS connection status dot. Bound to the toolbar pill. */
   readonly wsStatus: ReturnType<typeof toSignal<ConnectionStatus>> =
@@ -413,6 +413,10 @@ export class AppComponent implements OnInit {
     this.featureFlags.start();
     // Phase RC / Gap 139 — heartbeat presence to other tabs.
     this.presence.start();
+    // Phase MX3 / Gap 344 — maintenance-mode banner poll. Idempotent
+    // and visibility-gated via `VisibilityGateService`, so hidden tabs
+    // do not pound the API. See docs/PERFORMANCE.md §13.
+    this.maintenanceMode.start();
 
     this.startAuthenticatedPolls();
   }
@@ -426,7 +430,7 @@ export class AppComponent implements OnInit {
    */
   private startAuthenticatedPolls(): void {
     // Toolbar performance-mode chip (2 min) + master-pause hydrate.
-    this.whileLoggedInAndVisible(() =>
+    this.visibilityGate.whileLoggedInAndVisible(() =>
       timer(0, 2 * 60 * 1000).pipe(switchMap(() => this.perfMode.refresh())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -451,7 +455,7 @@ export class AppComponent implements OnInit {
         this.cdr.markForCheck();
       });
 
-    this.whileLoggedInAndVisible(() =>
+    this.visibilityGate.whileLoggedInAndVisible(() =>
       timer(0, 15 * 60 * 1000).pipe(switchMap(() => this.dashboardSvc.refresh())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -474,7 +478,7 @@ export class AppComponent implements OnInit {
       });
 
     // System-health summary for the status dot (30 min heartbeat).
-    this.whileLoggedInAndVisible(() =>
+    this.visibilityGate.whileLoggedInAndVisible(() =>
       timer(0, 30 * 60 * 1000).pipe(switchMap(() => this.healthService.getSummary())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -501,7 +505,7 @@ export class AppComponent implements OnInit {
    * keep the poll until a dedicated `errors.log` topic lands.
    */
   private startNavBadgePolls(): void {
-    this.whileLoggedInAndVisible(() =>
+    this.visibilityGate.whileLoggedInAndVisible(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.suggestionSvc.getPendingCount())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -516,7 +520,7 @@ export class AppComponent implements OnInit {
         },
       });
 
-    this.whileLoggedInAndVisible(() =>
+    this.visibilityGate.whileLoggedInAndVisible(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.diagnosticsSvc.getErrors())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -532,25 +536,6 @@ export class AppComponent implements OnInit {
           this.cdr.markForCheck();
         },
       });
-  }
-
-  /**
-   * Shared gate: replace `seed()` with EMPTY while the user is signed
-   * out. On login the caller's timer re-emits from zero; on logout the
-   * switchMap cancels it cleanly.
-   */
-  private whileLoggedIn<T>(seed: () => Observable<T>): Observable<T> {
-    return this.auth.isLoggedIn$.pipe(
-      switchMap((loggedIn) => (loggedIn ? seed() : EMPTY)),
-    );
-  }
-
-  private whileLoggedInAndVisible<T>(seed: () => Observable<T>): Observable<T> {
-    return this.whileLoggedIn(() =>
-      this.pageVisible$.pipe(
-        switchMap((visible) => (visible ? seed() : EMPTY)),
-      ),
-    );
   }
 
   getRouteAnimationData(): string {

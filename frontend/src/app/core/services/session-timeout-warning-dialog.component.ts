@@ -1,4 +1,4 @@
-import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, NgZone, OnInit, inject } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
@@ -136,6 +136,7 @@ export class SessionTimeoutWarningDialogComponent implements OnInit {
   );
   private readonly cdr = inject(ChangeDetectorRef);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
   private readonly data = inject<SessionTimeoutWarningData>(MAT_DIALOG_DATA);
 
   private readonly expiresAt = this.data.expiresAt;
@@ -158,15 +159,23 @@ export class SessionTimeoutWarningDialogComponent implements OnInit {
 
   ngOnInit(): void {
     this.tick();
-    interval(1000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.tick());
+    // Run the 1-second countdown OUTSIDE the Angular zone so each tick
+    // does not schedule global change detection. OnPush dialog: we
+    // explicitly `markForCheck` inside `tick()` to paint the new value.
+    // `dialogRef.close()` must run INSIDE the zone so the post-close
+    // logic (router navigation, subscriptions on afterClosed) fires
+    // the expected change-detection pass.
+    this.ngZone.runOutsideAngular(() => {
+      interval(1000)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.tick());
+    });
   }
 
   private tick(): void {
     this.remainingMs = Math.max(0, this.expiresAt - Date.now());
     if (this.remainingMs <= 0) {
-      this.dialogRef.close({ choice: 'expired' });
+      this.ngZone.run(() => this.dialogRef.close({ choice: 'expired' }));
       return;
     }
     this.cdr.markForCheck();

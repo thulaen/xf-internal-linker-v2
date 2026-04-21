@@ -1,7 +1,9 @@
 import {
   ChangeDetectionStrategy,
+  ChangeDetectorRef,
   Component,
   DestroyRef,
+  NgZone,
   OnInit,
   inject,
   signal,
@@ -169,6 +171,8 @@ interface VisitDetail {
 export class PersonalBarComponent implements OnInit {
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly ngZone = inject(NgZone);
+  private readonly cdr = inject(ChangeDetectorRef);
 
   readonly now = signal<Date>(new Date());
   readonly username = signal<string>('');
@@ -176,10 +180,21 @@ export class PersonalBarComponent implements OnInit {
   readonly lastVisitLabel = signal<string>('');
 
   ngOnInit(): void {
-    // Live-tick the clock once per second.
-    interval(1000)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.now.set(new Date()));
+    // Live-tick the clock once per second. Runs OUTSIDE the Angular
+    // zone so the tick itself does not schedule a global change-detection
+    // pass across every `OnPush` sibling on the dashboard. We still need
+    // the view to update, so we `markForCheck` after the signal set —
+    // this asks Angular to re-check only this component's path on the
+    // next CD pass (which is piggy-backed on any other event already in
+    // flight). See docs/PERFORMANCE.md §13.
+    this.ngZone.runOutsideAngular(() => {
+      interval(1000)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe(() => {
+          this.now.set(new Date());
+          this.cdr.markForCheck();
+        });
+    });
 
     this.auth.currentUser$
       .pipe(takeUntilDestroyed(this.destroyRef))

@@ -31,7 +31,7 @@ const errorHandlerProviders = environment.glitchtipDsn
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true }),
+    provideZoneChangeDetection({ eventCoalescing: true, runCoalescing: true }),
     provideRouter(
       routes,
       // Disable Angular's built-in anchor scrolling — our GlobalLinkInterceptorService

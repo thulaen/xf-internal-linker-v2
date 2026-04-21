@@ -336,7 +336,13 @@ export class RealtimeService implements OnDestroy {
   private startPingTimer(): void {
     this.clearPingTimer();
     // 25s is under the 30s default proxy idle timeout most setups use.
+    // Skip the ping when the tab is hidden — the browser itself will
+    // throttle or tear down the socket, and there is no operator
+    // waiting for an update. See docs/PERFORMANCE.md §13.
     this.pingTimer = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       this.send({ action: 'ping' });
     }, 25_000);
   }
