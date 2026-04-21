@@ -443,6 +443,152 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-21 — Three-slice close-out: stale-embedding guard + Glitchtip tab + hardware tuning / worker split (Codex, finished by Claude)
+
+- **AI/tool:** Codex (implementation + verification), Claude (diff audit, session note, commit split, `/error-log` extension)
+- **Why:** user asked for three slices in one session:
+  1) stale embedding signature bug fixes
+  2) Glitchtip diagnostics tab
+  3) hardware tuning UI + real worker split
+  Mid-handoff the user also flagged that the dedicated `/error-log` page had no Glitchtip tab (only `/diagnostics` did), so Claude added the same tab pattern there as a Slice 2 extension.
+- **Relevant open findings disclosed in chat before touching code:**
+  - `ISS-003` — FAISS startup index build still hits the DB during app init
+  - `ISS-021` — token-auth WebSocket handshake still rejects with 403
+- **Slice 1 — stale embedding signature guard**
+  - `backend/apps/content/serializers.py` — `get_has_embedding` now requires `embedding_model_version == get_current_embedding_signature()`
+  - `backend/apps/content/signals.py` — clustering trigger skips stale-signature items
+  - `backend/apps/pipeline/tests.py` — OOM test asserts `_clear_embedding_runtime_memory` was called
+  - `backend/apps/content/tests.py` — stale/current signature branches + signal trigger
+- **Slice 2 — Glitchtip tab on `/diagnostics` and `/error-log`**
+  - Backend: `GlitchtipEventsView` at `/api/glitchtip/events/` wired before the router include in `backend/apps/api/urls.py`; `release=APP_VERSION` added to `sentry_sdk.init()` in `backend/config/settings/base.py`; endpoint tests in `backend/apps/diagnostics/tests.py`
+  - Frontend: new `frontend/src/app/core/services/glitchtip.service.ts`; `glitchtipBaseUrl` added to `frontend/src/environments/environment.ts` and `environment.production.ts`
+  - Frontend `/diagnostics`: Internal / Glitchtip / All tabs in the Error Log section, fragment-aware polling, `openGlitchtip()` action, toolbar + tab styles
+  - Frontend `/error-log` (extension after user feedback "i cant see it"): pre-existing `ErrorLogComponent` updated with the same Internal / Glitchtip / All tabs; Glitchtip tab polls `/api/glitchtip/events/` every 30s, shows "Last synced" + "Visit Glitchtip" toolbar, and hides Job-Type / Status filters while active; existing virtual-scroll error list stays intact for Internal and All tabs
+- **Slice 3 — hardware tuning UI + real worker split**
+  - Backend: `RuntimeConfigView` expanded with `gpu_memory_budget_pct`, `gpu_temp_pause_c`, `cpu_encode_threads`, `default_queue_concurrency`, `aggressive_oom_backoff`; validation ranges; restart flags; legacy `celery_concurrency` alias preserved; `_upsert_setting` now writes `description`; robust bool parsing so `"false"` stays false
+  - Backend: new management command `backend/apps/core/management/commands/print_default_queue_concurrency.py`
+  - Backend: `backend/apps/pipeline/services/embeddings.py` now reads GPU budget / GPU temp pause+resume / CPU thread cap / OOM backoff from `AppSetting` at runtime; CPU `torch.set_num_threads()` uses the runtime value
+  - Backend: new tests — `backend/apps/core/test_runtime_controls.py`, `backend/apps/pipeline/test_runtime_tuning.py`
+  - Backend: `backend/apps/health/services.py` help text updated for split workers
+  - Frontend: `frontend/src/app/settings/silo-settings.service.ts` owns typed `RuntimeConfig` load/save; `performance-settings` component split into real `.ts` / `.html` / `.scss` files with a Hardware Tuning card (GPU budget, GPU temp pause, CPU threads, default-queue concurrency, aggressive-OOM toggle, FAISS single-worker note); `frontend/src/app/health/health.component.ts` restart guidance updated for split worker names
+  - Infra: `docker-compose.yml` replaces the single `celery-worker` with `celery-worker-default` (concurrency resolved from `AppSetting` at boot) and `celery-worker-pipeline` (fixed 1)
+  - Docs: `docs/PERFORMANCE.md` memory/service table + queue model updated
+- **Verification that passed (run by Codex before handoff):**
+  - `python -m py_compile` on touched backend files
+  - `.\.venv\Scripts\python.exe backend\manage.py test apps.core.test_runtime_controls apps.pipeline.test_runtime_tuning --settings=config.settings.test`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1`
+  - frontend production build
+  - `docker compose build`; `docker compose config`; `docker compose up -d --remove-orphans postgres redis backend celery-worker-default celery-worker-pipeline celery-beat`
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `docker compose exec backend python manage.py migrate --noinput`
+  - `docker compose exec backend python manage.py test` — 371 tests, `OK (skipped=1)`
+  - `docker image prune -f`; `scripts\prune-verification-artifacts.ps1`
+- **Verification that passed for the `/error-log` extension (Claude):**
+  - Docker frontend HMR rebuilt the error-log bundle successfully after the edit (40.01 kB, no compile errors)
+- **Verification caveat (already-open ISS-003):** backend management-command / test startup still emits the FAISS-build / DB-access-during-app-init warning. Not caused by this session; intentionally not fixed here.
+- **Open issues intentionally not fixed in this batch:**
+  - `ISS-003` (FAISS startup DB access)
+  - `ISS-021` (token-auth WebSocket handshake)
+  - Frontend Glitchtip DSN / API-token operator setup (manual post-merge step, below)
+- **Manual post-merge operator setup still required for Slice 2:**
+  1) create Glitchtip project at `http://localhost:1337`
+  2) copy DSN into backend env (`TRACKING_DSN` / `SENTRY_DSN` as configured in `base.py`)
+  3) copy the same DSN into frontend environment (glitchtip config)
+  4) create a Glitchtip API token and add backend env vars so `GlitchtipEventsView` can pull events
+  5) restart `backend` + `celery-worker-default` + `celery-worker-pipeline` + `celery-beat`
+- **Commit/push state:** three commits created on `master` (Slices 1, 2, 3). Nothing pushed. Tree intentionally dirty in unrelated files listed below.
+- **Intentionally left uncommitted (documented for the next agent):**
+  - `backend/apps/pipeline/services/feedback_rerank.py` — docstring/comment-only follow-up after commits `475f4d3` / `8007157`, not part of today's slices
+  - `docs/reports/REPORT-REGISTRY.md` — `ISS-022` / `ISS-023` entries for already-landed commits `00c7ae6` / `e0f011e` (documentation catch-up)
+  - `frontend/docs/templates/standard-card.html` — belongs to the recent dashboard GA4 layout work, not today's slices
+  - `backend/apps/content/models.py`, `backend/apps/health/views.py`, `backend/apps/pipeline/tasks.py` — line-ending-only warnings, no real content change; not staged
+
+### 2026-04-21 - Runtime fix: repair launcher scripts and bring localhost back up (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User still got `ERR_CONNECTION_REFUSED` on `localhost` after the earlier frontend checks. Runtime diagnosis showed the backend/frontend code was not the immediate blocker; the repo's own launcher script was failing before Docker Compose could start the app.
+- **Relevant open findings disclosed in chat before touching code:**
+  - `ISS-003` — FAISS startup index build still touches the database too early during backend startup.
+  - `ISS-021` — token-auth WebSockets still reject with 403 in the realtime path.
+- **Intentional files changed:**
+  - `scripts/start.ps1`
+  - `scripts/stop.ps1`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md`
+- **What changed:**
+  - Fixed `scripts/start.ps1` to call `docker-safe.ps1` with `-DockerArgs @("compose", "up", "-d")` so PowerShell stops mis-parsing `-d`.
+  - Fixed `scripts/stop.ps1` to call `docker-safe.ps1` with `-DockerArgs @("compose", "down")` for the same reason.
+  - Logged the launcher-script bug as resolved `ISS-023` in `docs/reports/REPORT-REGISTRY.md`.
+  - Started the full Docker app stack successfully after the script fix.
+- **Verification that passed:**
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\start.ps1` — stack started successfully.
+  - `docker compose ps` via `docker-safe.ps1` — backend, worker, beat, nginx, frontend, postgres, and redis all up; backend/nginx healthy.
+  - `Invoke-WebRequest http://localhost` — `200`
+  - `Invoke-WebRequest http://localhost:4200` — `200`
+  - `Invoke-WebRequest http://localhost:8000/api/system/health/` — `200`
+- **Important runtime note:**
+  - Nginx briefly returned `502` while the frontend container was still compiling. Frontend logs showed one early `Killed` during the first build, then a successful rebuild; once Angular finished, both `http://localhost` and `http://localhost:4200` returned `200`.
+- **Open issues intentionally not fixed in this slice:**
+  - `ISS-003` still reproduces as backend startup noise during management-command/test startup.
+  - `ISS-021` still exists for token-auth WebSockets; not part of this runtime-start slice.
+- **Commit/push state:**
+  - Changes are currently uncommitted.
+  - No commit was created because the worktree already contains unrelated in-progress backend/frontend changes.
+
+### 2026-04-21 - Backend/frontend verification pass only (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User asked to check whether both the backend and frontend currently have issues. This was a read-only verification pass; no product code changes were made.
+- **Relevant open findings disclosed in chat before work:**
+  - `ISS-003` — FAISS startup index build hits the database during app initialization.
+  - `ISS-021` — token-auth WebSockets still reject with 403 in the current realtime setup.
+- **Intentional files changed:**
+  - `AI-CONTEXT.md`
+- **What was checked:**
+  - Backend test suite from the `backend/` directory using the repo virtual environment and test settings.
+  - Backend migration drift with `makemigrations --check --dry-run`.
+  - Frontend unit tests via `scripts/test-frontend.ps1`.
+  - Frontend production build via `scripts/build-frontend.ps1`.
+- **Verification that passed:**
+  - `..\ .venv\Scripts\python.exe manage.py test apps.content apps.core apps.crawler apps.diagnostics apps.graph apps.pipeline apps.suggestions apps.sync --settings=config.settings.test` from `backend/` — 219 tests passed, 1 skipped.
+  - `..\ .venv\Scripts\python.exe manage.py makemigrations --check --dry-run --settings=config.settings.test` from `backend/` — `No changes detected`.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1` — 27 / 27 frontend unit tests passed.
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\build-frontend.ps1` — frontend production build succeeded.
+- **Issues confirmed during verification:**
+  - Backend still triggers startup-time database access during management commands via `backend/apps/pipeline/apps.py` calling into FAISS build paths. The warning and fallback traces match already-open `ISS-003`.
+  - Backend startup also logs fallback traces from runtime-registry and embedding-model-version lookups before the test database is ready; these appear as a consequence of the same early-startup FAISS path rather than a separate failing test.
+  - Frontend has no hard test/build failure right now, but the production build still emits Angular compiler warnings about unused imports/components and redundant `?.` / `??` operators.
+  - `ISS-021` remains open and was not retested end-to-end in this slice because this pass focused on build/test health rather than live socket auth.
+- **Verification blockers / notes:**
+  - The frontend production build required elevated access because the sandbox cannot execute the local Node runtime directly.
+  - The repo worktree was already dirty in unrelated backend/frontend files before this verification pass; those files were not modified.
+- **Commit/push state:**
+  - Changes are currently uncommitted.
+  - No commit was created because this session was a verification pass only and the worktree already contains unrelated in-progress changes.
+
+### 2026-04-20 - Frontend hotfix: remove invalid inline CSS comment from dashboard performance-mode card (Codex)
+
+- **AI/tool:** Codex
+- **Why:** The user reported "frontend not working". There was an existing open frontend-adjacent registry issue (`ISS-021`, token-auth WebSockets 403/retry loop), so that overlap was disclosed in chat before touching code. Reproduction/investigation showed the immediate failure for this slice was separate: `frontend/src/app/dashboard/performance-mode/performance-mode.component.ts` contained a JavaScript-style `//` comment inside an Angular inline `styles: [\`...\`]` block. Angular parses inline component styles as CSS, so that comment can break the frontend build/load path.
+- **Intentional files changed:**
+  - `frontend/src/app/dashboard/performance-mode/performance-mode.component.ts`
+  - `docs/reports/REPORT-REGISTRY.md`
+  - `AI-CONTEXT.md`
+- **What changed:**
+  - Removed the invalid `//` inline-style comment from `.card-actions` in `PerformanceModeComponent`, leaving the layout change intact but restoring valid CSS syntax.
+  - Logged the bug as resolved `ISS-022` in `docs/reports/REPORT-REGISTRY.md` so future frontend sessions know that Angular inline style strings cannot use `//` comments.
+  - Left the separate open WebSocket auth issue (`ISS-021`) untouched because it was not the blocker behind this frontend failure.
+- **Verification that passed:**
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1` - 27 / 27 frontend unit tests passed
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\build-frontend.ps1` - production Angular build passed after escalating outside the sandbox because the sandbox cannot execute the local Node runtime
+- **Verification blockers / notes:**
+  - The non-escalated/sandboxed build wrapper failed with `Node.js is installed ... but this shell is not allowed to execute it`, so the final build verification had to be rerun with elevated access.
+  - The repo still has unrelated pre-existing dirty files in backend/frontend/docs; this hotfix intentionally did not modify or revert them.
+- **Commit/push state:**
+  - Changes are currently uncommitted.
+  - No commit was created because the worktree was already dirty in unrelated files and the touched frontend file already contained in-progress edits not authored in this session.
+
 ### 2026-04-20 — Tier 3 slice 8: close RPT-001 Finding 2 (feedrerank IPS-claim honesty rename) (Claude)
 
 - **AI/tool:** Claude

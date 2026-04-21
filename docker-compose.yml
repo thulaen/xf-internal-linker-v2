@@ -99,14 +99,14 @@ services:
              python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload --workers 2"
 
   # ─────────────────────────────────────────────
-  # Celery worker — CPU-bound ML jobs (default)
-  # Handles: import, embed, pipeline, ranking
+  # Celery worker - default queue only
+  # Handles: light background jobs that are safe to parallelise
   # ─────────────────────────────────────────────
-  celery-worker:
+  celery-worker-default:
     image: xf-linker-backend:latest
-    container_name: xf_linker_celery_worker
+    container_name: xf_linker_celery_worker_default
     restart: always
-    mem_limit: 3g
+    mem_limit: 1536m
     env_file: .env
     deploy:
       resources:
@@ -124,7 +124,7 @@ services:
       - ./backend:/app
       - .:/repo:ro
     healthcheck:
-      test: ["CMD-SHELL", "celery -A config.celery inspect ping -t 10 2>&1 | grep -q pong"]
+      test: ["CMD-SHELL", "celery -A config.celery inspect ping -d celery@$$HOSTNAME -t 10 2>&1 | grep -q pong"]
       interval: 30s
       timeout: 20s
       retries: 3
@@ -136,7 +136,47 @@ services:
         condition: service_healthy
     command: >
       sh -c "python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=info --concurrency=${CELERY_WORKER_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default,pipeline,embeddings"
+             DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
+             celery -A config.celery worker --loglevel=info --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default"
+
+  # Celery worker - pipeline + embeddings queues only
+  # Handles: heavy serial work that must stay single-process for FAISS correctness
+  celery-worker-pipeline:
+    image: xf-linker-backend:latest
+    container_name: xf_linker_celery_worker_pipeline
+    restart: always
+    mem_limit: 2g
+    env_file: .env
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.development
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+      CELERY_WORKER_CONCURRENCY: 1
+    volumes:
+      - ./backend:/app
+      - .:/repo:ro
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A config.celery inspect ping -d celery@$$HOSTNAME -t 10 2>&1 | grep -q pong"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+      start_period: 120s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: >
+      sh -c "python -c 'import drf_spectacular' &&
+             celery -A config.celery worker --loglevel=info --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)

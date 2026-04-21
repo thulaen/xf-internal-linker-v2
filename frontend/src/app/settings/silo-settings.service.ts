@@ -467,6 +467,34 @@ export interface RuntimeSummaryPayload {
   recommended_profile: RuntimeProfileRecommendation;
 }
 
+export interface RuntimeConfig {
+  embedding_batch_size: number;
+  gpu_memory_budget_pct: number;
+  gpu_temp_pause_c: number;
+  cpu_encode_threads: number;
+  default_queue_concurrency: number;
+  celery_concurrency: number;
+  aggressive_oom_backoff: boolean;
+  embedding_batch_size_range: [number, number];
+  gpu_memory_budget_pct_range: [number, number];
+  gpu_temp_pause_c_range: [number, number];
+  cpu_encode_threads_range: [number, number];
+  default_queue_concurrency_range: [number, number];
+  celery_concurrency_range: [number, number];
+  default_queue_concurrency_requires_restart: boolean;
+  celery_concurrency_requires_restart: boolean;
+}
+
+export type RuntimeConfigUpdate = Partial<{
+  embedding_batch_size: number;
+  gpu_memory_budget_pct: number;
+  gpu_temp_pause_c: number;
+  cpu_encode_threads: number;
+  default_queue_concurrency: number;
+  celery_concurrency: number;
+  aggressive_oom_backoff: boolean;
+}>;
+
 export interface RuntimeModelRegistrationPayload {
   task_type?: string;
   model_name: string;
@@ -843,6 +871,14 @@ export class SiloSettingsService {
 
   updateLinkFarmSettings(payload: LinkFarmSettings): Observable<LinkFarmSettings> {
     return this.http.put<LinkFarmSettings>('/api/settings/link-farm/', payload);
+  }
+
+  getRuntimeConfig(): Observable<RuntimeConfig> {
+    return this.http.get<RuntimeConfig>('/api/settings/runtime-config/');
+  }
+
+  updateRuntimeConfig(payload: RuntimeConfigUpdate): Observable<{ updated: Record<string, unknown>; errors?: unknown }> {
+    return this.http.post<{ updated: Record<string, unknown>; errors?: unknown }>('/api/settings/runtime-config/', payload);
   }
 
   getRuntimeSummary(): Observable<RuntimeSummaryPayload> {

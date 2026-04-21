@@ -65,18 +65,19 @@ Each helper node reports its own capabilities via `POST /api/settings/helpers/{i
 | postgres | 2 GB | PostgreSQL 17 + pgvector | Grows with index count. Monitor `shared_buffers`. |
 | redis | 640 MB | Celery broker + cache + channels | Steady-state. Increase only if cache hit rate drops below 90%. |
 | backend | 2.56 GB | Django + Daphne ASGI (2 workers) | Scales with concurrent HTTP connections. |
-| celery-worker | 3 GB | Task execution (2 workers) | Largest consumer. Heavy tasks peak here. |
+| celery-worker-default | 1.5 GB | Light/default-queue background work | Operator-tunable concurrency (1-6). Restart required after changes. |
+| celery-worker-pipeline | 2 GB | Pipeline + embeddings queues | Fixed at concurrency 1 because the FAISS index is process-local. |
 | celery-beat | 128 MB | Scheduler only | Minimal. No scaling needed. |
 | nginx | 128 MB | Reverse proxy + static files | Minimal. |
 | frontend | 1 GB | Angular dev server (dev profile only) | Only when `--profile dev` is active. |
 | glitchtip | 256 MB × 2 | Error tracking (debug profile only) | Only when `--profile debug` is active. |
 
-**Current total (default profile):** ~8.4 GB committed to Docker.
+**Current total (default profile):** ~9.0 GB committed to Docker.
 
 **Full equation:**
 ```
-Docker (~8.4 GB) + Chrome (~200 MB/tab × 15 tabs = 3 GB) + Windows kernel (~2.5 GB) ≈ 14 GB
-Headroom: ~2 GB
+Docker (~9.0 GB) + Chrome (~200 MB/tab x 15 tabs = 3 GB) + Windows kernel (~2.5 GB) ~= 14.5 GB
+Headroom: ~1.5 GB
 ```
 
 ---
@@ -122,9 +123,9 @@ Headroom: ~2 GB
 
 | Queue | Accepts | Notes |
 |-------|---------|-------|
-| `pipeline` | Heavy + Medium tasks | Main work queue. Lock-guarded. |
-| `embeddings` | Heavy embedding work | Separate queue for GPU-bound work. |
-| `default` | Light tasks | No lock required. |
+| `pipeline` | Heavy + Medium tasks | Runs on `celery-worker-pipeline`, fixed at concurrency 1 and lock-guarded. |
+| `embeddings` | Heavy embedding work | Shares `celery-worker-pipeline` and stays at concurrency 1 for FAISS correctness. |
+| `default` | Light tasks | Runs on `celery-worker-default`, with operator-tunable concurrency from `system.default_queue_concurrency`. |
 
 ---
 
@@ -219,15 +220,15 @@ Headroom = Total RAM - Total
 
 | Component | Memory | Notes |
 |-----------|--------|-------|
-| Docker (default profile) | ~8.4 GB | 6 services |
+| Docker (default profile) | ~9.0 GB | 7 services |
 | Chrome (15 tabs) | ~3.0 GB | Estimated. Varies by page complexity. |
 | Windows 11 kernel | ~2.5 GB | Includes WSL 2 overhead. |
-| **Total** | **~14 GB** | |
-| **Headroom** | **~2 GB** | Tight. Triggers swap if Chrome is heavy. |
+| **Total** | **~14.5 GB** | |
+| **Headroom** | **~1.5 GB** | Tight. Triggers swap if Chrome is heavy. |
 
 ### With Helper Nodes
 
-When a helper node handles Heavy GPU work, the primary node's celery-worker can reduce its memory limit, freeing headroom for more Chrome tabs. Recalculate this formula when adding a helper.
+When a helper node handles Heavy GPU work, the primary node's `celery-worker-pipeline` can reduce its memory limit, freeing headroom for more Chrome tabs. Recalculate this formula when adding a helper.
 
 ---
 

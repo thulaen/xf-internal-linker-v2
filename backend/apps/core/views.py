@@ -3891,65 +3891,192 @@ class SystemMetricsView(APIView):
 
 
 class RuntimeConfigView(APIView):
-    """GET/POST /api/settings/runtime-config/ — runtime tunables that a noob user may safely adjust.
-
-    Currently exposes:
-      - system.embedding_batch_size  (int, 8..128)  — live; read at each pipeline run.
-      - system.celery_concurrency    (int, 1..8)    — stored; applies after container restart.
-
-    Stored in AppSetting (category="performance"). The performance-mode switch lives at
-    /api/settings/runtime/ — this endpoint is a separate namespace for tunables.
-    """
+    """GET/POST /api/settings/runtime-config/ — operator-safe runtime tunables."""
 
     permission_classes = [IsAuthenticated]
 
     BATCH_SIZE_MIN = 8
     BATCH_SIZE_MAX = 128
-    CONCURRENCY_MIN = 1
-    CONCURRENCY_MAX = 8
+    GPU_MEMORY_BUDGET_MIN = 25
+    GPU_MEMORY_BUDGET_MAX = 80
+    GPU_TEMP_PAUSE_MIN = 75
+    GPU_TEMP_PAUSE_MAX = 95
+    DEFAULT_QUEUE_CONCURRENCY_MIN = 1
+    DEFAULT_QUEUE_CONCURRENCY_MAX = 6
+    CPU_THREAD_DEFAULT = 4
+    TRUE_VALUES = {"1", "true", "yes", "on"}
+    FALSE_VALUES = {"0", "false", "no", "off"}
+    SETTING_DEFINITIONS = {
+        "system.embedding_batch_size": {
+            "value_type": "int",
+            "description": "Embedding batch size used by the pipeline runtime.",
+        },
+        "system.gpu_memory_budget_pct": {
+            "value_type": "int",
+            "description": "Maximum GPU memory budget percentage for embeddings.",
+        },
+        "system.gpu_temp_pause_c": {
+            "value_type": "int",
+            "description": "GPU temperature threshold that pauses embedding work.",
+        },
+        "system.cpu_encode_threads": {
+            "value_type": "int",
+            "description": "CPU thread cap for CPU-side embedding inference.",
+        },
+        "system.default_queue_concurrency": {
+            "value_type": "int",
+            "description": "Worker concurrency for the default Celery queue.",
+        },
+        "system.aggressive_oom_backoff": {
+            "value_type": "bool",
+            "description": "Whether embedding OOM errors automatically retry with smaller batches.",
+        },
+    }
 
-    def _read_int(self, key, default):
+    def _read_text(self, key, default=None):
         from apps.core.models import AppSetting
 
-        val = AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
-        if val is None:
+        value = AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
+        if value in (None, ""):
+            return default
+        return str(value)
+
+    def _read_int(self, key, default):
+        value = self._read_text(key, None)
+        if value is None:
             return default
         try:
-            return int(val)
+            return int(value)
         except (TypeError, ValueError):
             return default
+
+    def _read_bool(self, key, default):
+        value = self._read_text(key, None)
+        if value is None:
+            return default
+        lowered = value.strip().lower()
+        if lowered in self.TRUE_VALUES:
+            return True
+        if lowered in self.FALSE_VALUES:
+            return False
+        return default
+
+    def _parse_bool(self, value):
+        if isinstance(value, bool):
+            return value
+        lowered = str(value).strip().lower()
+        if lowered in self.TRUE_VALUES:
+            return True
+        if lowered in self.FALSE_VALUES:
+            return False
+        raise ValueError("Must be a boolean.")
+
+    def _upsert_setting(self, *, key, value):
+        from apps.core.models import AppSetting
+
+        definition = self.SETTING_DEFINITIONS[key]
+        AppSetting.objects.update_or_create(
+            key=key,
+            defaults={
+                "value": str(value),
+                "value_type": definition["value_type"],
+                "category": "performance",
+                "description": definition["description"],
+            },
+        )
+
+    def _cpu_thread_cap(self):
+        import os
+
+        logical_processors = os.cpu_count() or self.CPU_THREAD_DEFAULT
+        return max(1, logical_processors - 2)
+
+    def _default_gpu_memory_budget_pct(self, django_conf):
+        mode = str(
+            self._read_text(
+                "system.performance_mode",
+                getattr(django_conf, "ML_PERFORMANCE_MODE", "BALANCED"),
+            )
+        ).strip()
+        if mode.lower() in {"high", "high_performance"}:
+            fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_HIGH", 0.80)
+        else:
+            fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
+        return int(round(fraction * 100))
+
+    def _default_queue_concurrency(self, django_conf):
+        legacy = self._read_int("system.celery_concurrency", None)
+        if legacy is not None:
+            return legacy
+        value = int(getattr(django_conf, "CELERY_WORKER_CONCURRENCY", 2) or 2)
+        return min(
+            self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+            max(self.DEFAULT_QUEUE_CONCURRENCY_MIN, value),
+        )
 
     def get(self, request):
         from django.conf import settings as django_conf
 
         default_batch = int(getattr(django_conf, "EMBEDDING_BATCH_SIZE", 32) or 32)
-        default_conc = int(getattr(django_conf, "CELERY_WORKER_CONCURRENCY", 2) or 2)
+        default_queue_concurrency = self._default_queue_concurrency(django_conf)
+        cpu_thread_cap = self._cpu_thread_cap()
+        default_cpu_threads = min(self.CPU_THREAD_DEFAULT, cpu_thread_cap)
+        default_gpu_budget = self._default_gpu_memory_budget_pct(django_conf)
+        default_gpu_pause = int(getattr(django_conf, "GPU_TEMP_CEILING_C", 90) or 90)
+        queue_concurrency = self._read_int(
+            "system.default_queue_concurrency",
+            default_queue_concurrency,
+        )
         return Response(
             {
                 "embedding_batch_size": self._read_int(
                     "system.embedding_batch_size", default_batch
                 ),
-                "celery_concurrency": self._read_int(
-                    "system.celery_concurrency", default_conc
+                "gpu_memory_budget_pct": self._read_int(
+                    "system.gpu_memory_budget_pct", default_gpu_budget
+                ),
+                "gpu_temp_pause_c": self._read_int(
+                    "system.gpu_temp_pause_c", default_gpu_pause
+                ),
+                "cpu_encode_threads": self._read_int(
+                    "system.cpu_encode_threads", default_cpu_threads
+                ),
+                "default_queue_concurrency": queue_concurrency,
+                "celery_concurrency": queue_concurrency,
+                "aggressive_oom_backoff": self._read_bool(
+                    "system.aggressive_oom_backoff", True
                 ),
                 "embedding_batch_size_range": [
                     self.BATCH_SIZE_MIN,
                     self.BATCH_SIZE_MAX,
                 ],
-                "celery_concurrency_range": [
-                    self.CONCURRENCY_MIN,
-                    self.CONCURRENCY_MAX,
+                "gpu_memory_budget_pct_range": [
+                    self.GPU_MEMORY_BUDGET_MIN,
+                    self.GPU_MEMORY_BUDGET_MAX,
                 ],
+                "gpu_temp_pause_c_range": [
+                    self.GPU_TEMP_PAUSE_MIN,
+                    self.GPU_TEMP_PAUSE_MAX,
+                ],
+                "cpu_encode_threads_range": [1, cpu_thread_cap],
+                "default_queue_concurrency_range": [
+                    self.DEFAULT_QUEUE_CONCURRENCY_MIN,
+                    self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+                ],
+                "celery_concurrency_range": [
+                    self.DEFAULT_QUEUE_CONCURRENCY_MIN,
+                    self.DEFAULT_QUEUE_CONCURRENCY_MAX,
+                ],
+                "default_queue_concurrency_requires_restart": True,
                 "celery_concurrency_requires_restart": True,
             }
         )
 
     def post(self, request):
-        from apps.core.models import AppSetting
-
         updated = {}
         errors = {}
         data = request.data or {}
+        cpu_thread_cap = self._cpu_thread_cap()
 
         if "embedding_batch_size" in data:
             try:
@@ -3962,36 +4089,108 @@ class RuntimeConfigView(APIView):
                         f"Must be between {self.BATCH_SIZE_MIN} and {self.BATCH_SIZE_MAX}."
                     )
                 else:
-                    AppSetting.objects.update_or_create(
+                    self._upsert_setting(
                         key="system.embedding_batch_size",
-                        defaults={
-                            "value": str(bs),
-                            "value_type": "int",
-                            "category": "performance",
-                        },
+                        value=bs,
                     )
                     updated["embedding_batch_size"] = bs
 
-        if "celery_concurrency" in data:
+        if "gpu_memory_budget_pct" in data:
             try:
-                cc = int(data["celery_concurrency"])
+                budget = int(data["gpu_memory_budget_pct"])
             except (TypeError, ValueError):
-                errors["celery_concurrency"] = "Must be an integer."
+                errors["gpu_memory_budget_pct"] = "Must be an integer."
             else:
-                if not (self.CONCURRENCY_MIN <= cc <= self.CONCURRENCY_MAX):
-                    errors["celery_concurrency"] = (
-                        f"Must be between {self.CONCURRENCY_MIN} and {self.CONCURRENCY_MAX}."
+                if not (
+                    self.GPU_MEMORY_BUDGET_MIN
+                    <= budget
+                    <= self.GPU_MEMORY_BUDGET_MAX
+                ):
+                    errors["gpu_memory_budget_pct"] = (
+                        f"Must be between {self.GPU_MEMORY_BUDGET_MIN} and "
+                        f"{self.GPU_MEMORY_BUDGET_MAX}."
                     )
                 else:
-                    AppSetting.objects.update_or_create(
-                        key="system.celery_concurrency",
-                        defaults={
-                            "value": str(cc),
-                            "value_type": "int",
-                            "category": "performance",
-                        },
+                    self._upsert_setting(
+                        key="system.gpu_memory_budget_pct",
+                        value=budget,
                     )
-                    updated["celery_concurrency"] = cc
+                    updated["gpu_memory_budget_pct"] = budget
+
+        if "gpu_temp_pause_c" in data:
+            try:
+                pause_temp = int(data["gpu_temp_pause_c"])
+            except (TypeError, ValueError):
+                errors["gpu_temp_pause_c"] = "Must be an integer."
+            else:
+                if not (
+                    self.GPU_TEMP_PAUSE_MIN
+                    <= pause_temp
+                    <= self.GPU_TEMP_PAUSE_MAX
+                ):
+                    errors["gpu_temp_pause_c"] = (
+                        f"Must be between {self.GPU_TEMP_PAUSE_MIN} and "
+                        f"{self.GPU_TEMP_PAUSE_MAX}."
+                    )
+                else:
+                    self._upsert_setting(
+                        key="system.gpu_temp_pause_c",
+                        value=pause_temp,
+                    )
+                    updated["gpu_temp_pause_c"] = pause_temp
+
+        if "cpu_encode_threads" in data:
+            try:
+                cpu_threads = int(data["cpu_encode_threads"])
+            except (TypeError, ValueError):
+                errors["cpu_encode_threads"] = "Must be an integer."
+            else:
+                if not (1 <= cpu_threads <= cpu_thread_cap):
+                    errors["cpu_encode_threads"] = (
+                        f"Must be between 1 and {cpu_thread_cap}."
+                    )
+                else:
+                    self._upsert_setting(
+                        key="system.cpu_encode_threads",
+                        value=cpu_threads,
+                    )
+                    updated["cpu_encode_threads"] = cpu_threads
+
+        if "default_queue_concurrency" in data or "celery_concurrency" in data:
+            raw_value = data.get("default_queue_concurrency", data.get("celery_concurrency"))
+            try:
+                queue_concurrency = int(raw_value)
+            except (TypeError, ValueError):
+                errors["default_queue_concurrency"] = "Must be an integer."
+            else:
+                if not (
+                    self.DEFAULT_QUEUE_CONCURRENCY_MIN
+                    <= queue_concurrency
+                    <= self.DEFAULT_QUEUE_CONCURRENCY_MAX
+                ):
+                    errors["default_queue_concurrency"] = (
+                        f"Must be between {self.DEFAULT_QUEUE_CONCURRENCY_MIN} and "
+                        f"{self.DEFAULT_QUEUE_CONCURRENCY_MAX}."
+                    )
+                else:
+                    self._upsert_setting(
+                        key="system.default_queue_concurrency",
+                        value=queue_concurrency,
+                    )
+                    updated["default_queue_concurrency"] = queue_concurrency
+                    updated["celery_concurrency"] = queue_concurrency
+
+        if "aggressive_oom_backoff" in data:
+            try:
+                oom_backoff = self._parse_bool(data["aggressive_oom_backoff"])
+            except ValueError:
+                errors["aggressive_oom_backoff"] = "Must be true or false."
+            else:
+                self._upsert_setting(
+                    key="system.aggressive_oom_backoff",
+                    value=str(oom_backoff).lower(),
+                )
+                updated["aggressive_oom_backoff"] = oom_backoff
 
         if errors:
             return Response({"errors": errors, "updated": updated}, status=400)

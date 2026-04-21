@@ -188,7 +188,7 @@ def check_celery_health() -> ServiceHealthResult:
                 status=ServiceHealthRecord.STATUS_DOWN,
                 status_label="No active Celery workers found.",
                 issue_description="Background tasks cannot run because no workers are listening to the queue.",
-                suggested_fix="Restart the 'celery-worker' container/service.",
+                suggested_fix="Restart the 'celery-worker-default' and 'celery-worker-pipeline' containers/services.",
                 last_error_at=timezone.now(),
             )
 

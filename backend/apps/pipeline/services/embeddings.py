@@ -36,6 +36,9 @@ EMBEDDING_DIM = 1024
 STORAGE_VECTOR_MAX_DIM = 16_000
 
 _model_cache: dict[str, Any] = {}
+_CPU_THREAD_HEADROOM = 2
+_GPU_RESUME_DELTA_C = 10
+_GPU_TEMP_RESUME_FLOOR_C = 50
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +108,111 @@ def _emit_gpu_fallback_alert(reason: str) -> None:
         logger.debug("Failed to emit gpu-fallback alert", exc_info=True)
 
 
+def _read_performance_setting(key: str) -> str | None:
+    try:
+        from apps.core.models import AppSetting
+
+        return (
+            AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
+        )
+    except Exception:
+        logger.debug("AppSetting unavailable for %s", key, exc_info=True)
+        return None
+
+
+def _read_performance_int(
+    key: str,
+    default: int,
+    *,
+    minimum: int | None = None,
+    maximum: int | None = None,
+) -> int:
+    value = _read_performance_setting(key)
+    if value in (None, ""):
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return default
+    if minimum is not None and parsed < minimum:
+        return default
+    if maximum is not None and parsed > maximum:
+        return default
+    return parsed
+
+
+def _read_performance_bool(key: str, default: bool) -> bool:
+    value = _read_performance_setting(key)
+    if value is None:
+        return default
+    lowered = str(value).strip().lower()
+    if lowered in {"1", "true", "yes", "on"}:
+        return True
+    if lowered in {"0", "false", "no", "off"}:
+        return False
+    return default
+
+
+def _get_performance_mode() -> str:
+    mode = _read_performance_setting("system.performance_mode")
+    if mode:
+        return str(mode).strip().upper()
+    return os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
+
+
+def _get_cpu_thread_cap() -> int:
+    logical_processors = os.cpu_count() or 4
+    return max(1, logical_processors - _CPU_THREAD_HEADROOM)
+
+
+def _get_cpu_encode_threads() -> int:
+    return _read_performance_int(
+        "system.cpu_encode_threads",
+        default=min(4, _get_cpu_thread_cap()),
+        minimum=1,
+        maximum=_get_cpu_thread_cap(),
+    )
+
+
+def _get_gpu_memory_budget_fraction() -> float:
+    raw_budget_pct = _read_performance_int(
+        "system.gpu_memory_budget_pct",
+        default=0,
+        minimum=25,
+        maximum=80,
+    )
+    if raw_budget_pct:
+        return raw_budget_pct / 100.0
+    if _get_performance_mode() in {"HIGH", "HIGH_PERFORMANCE"}:
+        return getattr(settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
+    return getattr(settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
+
+
+def _get_gpu_temp_pause_c() -> int:
+    return _read_performance_int(
+        "system.gpu_temp_pause_c",
+        default=getattr(settings, "GPU_TEMP_CEILING_C", 90),
+        minimum=75,
+        maximum=95,
+    )
+
+
+def _get_gpu_temp_resume_c() -> int:
+    configured_pause = _read_performance_int(
+        "system.gpu_temp_pause_c",
+        default=0,
+        minimum=75,
+        maximum=95,
+    )
+    if not configured_pause:
+        return getattr(settings, "GPU_TEMP_RESUME_C", 80)
+    return max(_GPU_TEMP_RESUME_FLOOR_C, configured_pause - _GPU_RESUME_DELTA_C)
+
+
+def _aggressive_oom_backoff_enabled() -> bool:
+    return _read_performance_bool("system.aggressive_oom_backoff", True)
+
+
 def _apply_vram_fraction() -> None:
     """Set per-process VRAM cap based on current performance mode.
 
@@ -116,29 +224,8 @@ def _apply_vram_fraction() -> None:
     """
     try:
         import torch
-        from django.conf import settings as django_settings
-
-        # Read current performance mode from AppSetting if available,
-        # fall back to env var.
-        perf_mode = "balanced"
-        try:
-            from apps.core.models import AppSetting
-
-            perf_mode = (
-                AppSetting.objects.filter(key="system.performance_mode")
-                .values_list("value", flat=True)
-                .first()
-                or "balanced"
-            )
-        except Exception:
-            logger.debug(
-                "AppSetting table not available, using default performance mode for VRAM fraction"
-            )
-
-        if perf_mode.lower() in ("high", "high_performance"):
-            fraction = getattr(django_settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
-        else:
-            fraction = getattr(django_settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
+        perf_mode = _get_performance_mode()
+        fraction = _get_gpu_memory_budget_fraction()
 
         torch.cuda.set_per_process_memory_fraction(fraction)
         logger.info(
@@ -163,9 +250,7 @@ def _check_gpu_temperature() -> bool:
         temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
         pynvml.nvmlShutdown()
 
-        from django.conf import settings as django_settings
-
-        ceiling = getattr(django_settings, "GPU_TEMP_CEILING_C", 90)
+        ceiling = _get_gpu_temp_pause_c()
 
         if temp >= ceiling:
             logger.warning(
@@ -249,9 +334,7 @@ def _wait_for_gpu_cooldown() -> None:
     """
     import time
 
-    from django.conf import settings as django_settings
-
-    resume_temp = getattr(django_settings, "GPU_TEMP_RESUME_C", 80)
+    resume_temp = _get_gpu_temp_resume_c()
     max_wait = 300  # 5 minutes max wait
 
     for _ in range(max_wait // 5):
@@ -359,7 +442,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
         try:
             import torch
 
-            torch.set_num_threads(4)
+            torch.set_num_threads(_get_cpu_encode_threads())
         except Exception:
             logger.debug("torch not available, skipping CPU thread limit")
     return model
@@ -581,6 +664,27 @@ def _clear_embedding_runtime_memory() -> None:
         logger.debug("Runtime memory cleanup skipped", exc_info=True)
 
 
+def _get_retry_batch_size_after_oom(
+    *,
+    job_id: str | None,
+    model_name: str,
+    failed_batch_size: int,
+    exc: Exception,
+) -> int | None:
+    retry_batch_size = _next_retry_batch_size(failed_batch_size)
+    _clear_embedding_runtime_memory()
+    if not _aggressive_oom_backoff_enabled() or retry_batch_size >= failed_batch_size:
+        return None
+    _record_embedding_backoff(
+        job_id=job_id,
+        model_name=model_name,
+        failed_batch_size=failed_batch_size,
+        retry_batch_size=retry_batch_size,
+        exc=exc,
+    )
+    return retry_batch_size
+
+
 def _next_retry_batch_size(current_batch_size: int) -> int:
     """Return the next smaller retry size without dropping below the floor."""
     if current_batch_size <= _BATCH_SIZE_MIN:
@@ -781,17 +885,14 @@ def generate_content_item_embeddings(
         except Exception as exc:
             if not _is_embedding_oom_error(exc):
                 raise
-            retry_batch_size = _next_retry_batch_size(batch_size)
-            if retry_batch_size >= batch_size:
-                raise
-            _clear_embedding_runtime_memory()
-            _record_embedding_backoff(
+            retry_batch_size = _get_retry_batch_size_after_oom(
                 job_id=job_id,
                 model_name=model_name,
                 failed_batch_size=batch_size,
-                retry_batch_size=retry_batch_size,
                 exc=exc,
             )
+            if retry_batch_size is None:
+                raise
             batch_size = retry_batch_size
             continue
 
@@ -949,17 +1050,14 @@ def generate_sentence_embeddings(
         except Exception as exc:
             if not _is_embedding_oom_error(exc):
                 raise
-            retry_batch_size = _next_retry_batch_size(batch_size)
-            if retry_batch_size >= batch_size:
-                raise
-            _clear_embedding_runtime_memory()
-            _record_embedding_backoff(
+            retry_batch_size = _get_retry_batch_size_after_oom(
                 job_id=job_id,
                 model_name=model_name,
                 failed_batch_size=batch_size,
-                retry_batch_size=retry_batch_size,
                 exc=exc,
             )
+            if retry_batch_size is None:
+                raise
             batch_size = retry_batch_size
             continue
 
