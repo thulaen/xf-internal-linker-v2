@@ -31,6 +31,12 @@ export interface RunningTask {
             icon="pause_circle"
             heading="No tasks running"
             body="Everything is idle. Use the Run Pipeline button at the top of the page to start, or open Jobs to queue a sync." />
+          <div class="idle-actions">
+            <a mat-stroked-button routerLink="/jobs">
+              <mat-icon>open_in_new</mat-icon>
+              Open Jobs
+            </a>
+          </div>
         } @else {
           @for (task of activeTasks; track task.name) {
             <div class="task-row">
@@ -46,16 +52,6 @@ export interface RunningTask {
           }
         }
       </mat-card-content>
-      @if (activeTasks.length === 0) {
-        <!-- Secondary link only. The primary Run Pipeline CTA lives in the page
-             header; repeating it here creates a duplicate-buttons UI bug. -->
-        <mat-card-actions align="end" class="secondary-actions dashboard-action-row">
-          <a mat-stroked-button routerLink="/jobs">
-            <mat-icon>open_in_new</mat-icon>
-            Open Jobs
-          </a>
-        </mat-card-actions>
-      }
     </mat-card>
   `,
   styles: [`
@@ -71,12 +67,7 @@ export interface RunningTask {
     .task-name { font-weight: 500; font-size: 13px; color: var(--color-text-primary); }
     .task-eta { font-size: 12px; color: var(--color-text-muted); }
     .task-message { font-size: 12px; color: var(--color-text-secondary); }
-    mat-card-actions { padding: var(--space-md); }
-    .secondary-actions a[mat-stroked-button] {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-xs);
-    }
+    .idle-actions { display: flex; justify-content: center; margin-top: var(--space-md); }
   `],
 })
 export class RunningNowComponent {

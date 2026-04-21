@@ -58,10 +58,10 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
         </mat-card-subtitle>
       </mat-card-header>
       <mat-card-content>
-        @if (running().length > 0) {
+        @if (runningVisible().length > 0) {
           <h3 class="sa-sub">Running</h3>
           <ul class="sa-list">
-            @for (j of running(); track j.job_id) {
+            @for (j of runningVisible(); track j.job_id) {
               <li class="sa-row">
                 <mat-icon class="sa-row-icon sa-running">play_circle</mat-icon>
                 <span class="sa-row-text">
@@ -71,11 +71,16 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
               </li>
             }
           </ul>
+          @if (runningOverflow() > 0) {
+            <p class="sa-overflow">
+              + {{ runningOverflow() }} more running — see Jobs page
+            </p>
+          }
         }
-        @if (stuck().length > 0) {
+        @if (stuckVisible().length > 0) {
           <h3 class="sa-sub sa-sub-warn">Blocked / stuck</h3>
           <ul class="sa-list">
-            @for (j of stuck(); track j.job_id) {
+            @for (j of stuckVisible(); track j.job_id) {
               <li class="sa-row">
                 <mat-icon class="sa-row-icon sa-stuck">error</mat-icon>
                 <span class="sa-row-text">
@@ -96,8 +101,13 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
               </li>
             }
           </ul>
+          @if (stuckOverflow() > 0) {
+            <p class="sa-overflow">
+              + {{ stuckOverflow() }} more blocked — fix on Jobs page
+            </p>
+          }
         }
-        @if (running().length === 0 && stuck().length === 0) {
+        @if (runningVisible().length === 0 && stuckVisible().length === 0) {
           <p class="sa-empty">
             <mat-icon class="sa-row-icon sa-clear">check_circle</mat-icon>
             No active syncs and nothing stuck. Quiet on the queue.
@@ -168,12 +178,24 @@ import { SyncJob, SyncService } from '../../jobs/sync.service';
       font-size: 13px;
       color: var(--color-text-secondary);
     }
+    .sa-overflow {
+      margin: 4px 0 0;
+      font-size: 12px;
+      color: var(--color-text-muted);
+      font-style: italic;
+    }
   `],
 })
 export class SyncActivityComponent implements OnInit {
   private readonly sync = inject(SyncService);
   private readonly snack = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
+
+  // Cap the dashboard widget so it stays glanceable. Full history lives
+  // on the Jobs page (link is in mat-card-actions). Audit finding C2
+  // — before this cap the component was 3,653px tall on a 15,206px page.
+  private static readonly MAX_RUNNING = 4;
+  private static readonly MAX_STUCK = 6;
 
   readonly jobs = signal<readonly SyncJob[]>([]);
   readonly busyJob = signal<string | null>(null);
@@ -199,6 +221,19 @@ export class SyncActivityComponent implements OnInit {
       return false;
     });
   });
+
+  readonly runningVisible = computed(() =>
+    this.running().slice(0, SyncActivityComponent.MAX_RUNNING),
+  );
+  readonly stuckVisible = computed(() =>
+    this.stuck().slice(0, SyncActivityComponent.MAX_STUCK),
+  );
+  readonly runningOverflow = computed(() =>
+    Math.max(0, this.running().length - SyncActivityComponent.MAX_RUNNING),
+  );
+  readonly stuckOverflow = computed(() =>
+    Math.max(0, this.stuck().length - SyncActivityComponent.MAX_STUCK),
+  );
 
   ngOnInit(): void {
     timer(0, 30_000)

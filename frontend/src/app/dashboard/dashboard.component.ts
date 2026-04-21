@@ -69,7 +69,6 @@ import { DashboardModeTogglesComponent } from './dashboard-mode-toggles/dashboar
 import { SyncActivityComponent } from './sync-activity/sync-activity.component';
 import { ScheduleWidgetComponent } from './schedule-widget/schedule-widget.component';
 import { EmergencyStopComponent } from './emergency-stop/emergency-stop.component';
-import { WelcomeCardComponent } from './welcome-card/welcome-card.component';
 import { FlowDiagramComponent } from './flow-diagram/flow-diagram.component';
 import { GoalTrackerComponent } from './goal-tracker/goal-tracker.component';
 import { Eli5CardComponent } from './eli5-card/eli5-card.component';
@@ -141,7 +140,6 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
     SyncActivityComponent,
     ScheduleWidgetComponent,
     EmergencyStopComponent,
-    WelcomeCardComponent,
     FlowDiagramComponent,
     GoalTrackerComponent,
     Eli5CardComponent,

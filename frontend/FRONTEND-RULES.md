@@ -1,6 +1,7 @@
 # Frontend Visual Quality Rules
 
 **Read `src/styles/_theme-vars.scss` before writing any SCSS. It is the single source of truth.**
+**Read `DESIGN-PATTERNS.md` (sibling of this file) before touching any component — it is the authoritative GA4 design language reference (extracted 2026-04-20). Covers card anatomy, co-location rules, button sizing, spacing tokens, and the 11 anti-patterns that contaminate layouts. `_theme-vars.scss` is the token file; `DESIGN-PATTERNS.md` is the pattern file.**
 
 Global Material overrides live in `src/styles.scss`. Never duplicate them in a component.
 

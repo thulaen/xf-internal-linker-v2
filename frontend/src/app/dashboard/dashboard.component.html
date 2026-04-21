@@ -2,34 +2,18 @@
      while the user scrolls, matching the pattern of Gemini / YouTube /
      GA4 where global search is always reachable without scrolling. -->
 <app-quick-search-bar class="d3-block" />
-<div class="desk-row">
-  <app-system-metrics />
-</div>
 
-<!-- ── Phase MC — Mission Critical section. First substantive block
-     so the operator immediately sees a health glance of every
-     component that has to be working. Tiles dedup by root cause;
-     the Algorithms group collapses when everything is healthy. -->
-<app-mission-critical class="d3-block" />
-
-<!-- ── Phase D3 / Gaps 152-187 — Top-of-dashboard noob strip ────── -->
+<!-- ── Phase D3 / Gaps 152-187 — Top-of-dashboard noob strip ──────
+     Moved above system metrics and Mission Critical so the user sees
+     personal context and the page title BEFORE raw infrastructure
+     telemetry. (Audit finding C1 / M7 / P1 — 2026-04-20.) -->
 <app-personal-bar class="d3-block" />
-<app-you-are-here class="d3-inline" />
-<app-welcome-card class="d3-block" />
+<app-you-are-here class="d3-block" />
 <app-whats-new class="d3-block" />
 
-<div class="d3-row d3-row-actions">
-  <app-dashboard-mode-toggles class="d3-flex" />
-  <app-emergency-stop class="d3-action" />
-</div>
-
-<app-metric-ticker
-  class="d3-block"
-  [data]="data"
-  [openBrokenLinks]="data?.open_broken_links ?? 0"
-  [urgentAlertCount]="0"
-/>
-
+<!-- Page hero: title + primary actions (Run Pipeline / Import Data).
+     Moved up from position #10 to sit right under the greeting so
+     primary CTAs are above the fold. -->
 <section class="dashboard-hero">
   <div class="dashboard-hero-copy">
     <span class="dashboard-kicker">Operations snapshot</span>
@@ -77,7 +61,35 @@
       Import Data
     </button>
   </div>
+
+  <!-- Audit P4 (2026-04-20): metric ticker lives inside the hero now
+       so the "Active issues: N" chip reads alongside the page title
+       and Run Pipeline button as one unified header. Previously it sat
+       33px tall floating between the hero and the page body, visually
+       orphaned. -->
+  <app-metric-ticker
+    class="hero-ticker"
+    [data]="data"
+    [openBrokenLinks]="data?.open_broken_links ?? 0"
+    [urgentAlertCount]="0"
+  />
 </section>
+
+<!-- Global mode toggles + emergency stop live just below the ticker.
+     Keeping them above raw system metrics so operators reach them fast. -->
+<div class="d3-row d3-row-actions">
+  <app-dashboard-mode-toggles class="d3-flex" />
+  <app-emergency-stop class="d3-action" />
+</div>
+
+<!-- Infrastructure telemetry: system metrics + Mission Critical grid.
+     Pushed below hero/ticker/actions so the page starts with context,
+     not raw CPU/RAM/GPU numbers. (Audit finding C1 — 2026-04-20.) -->
+<div class="desk-row">
+  <app-system-metrics />
+</div>
+
+<app-mission-critical class="d3-block" />
 
 @if (loading) {
   <div class="center-spinner">
@@ -85,8 +97,20 @@
   </div>
 }
 
-<!-- ── Phase D1 / Gap 61 — Mission Brief (pinned at very top) ─── -->
+<!-- ── Right Now section header ───────────────────────────
+     Audit P2 (2026-04-20): five separate components (Mission Brief,
+     Status Story, Today Focus, Pick Up, Running Now) all show
+     variations of "what's happening now" but were scattered across
+     the page with no grouping. Adding a single header here signals
+     that every row below (up to the Operating Desk divider) belongs
+     to one conceptual block: the live operational view. -->
 @if (!loading) {
+  <header class="dashboard-section-header">
+    <mat-icon class="dashboard-section-icon">visibility</mat-icon>
+    <h2 class="dashboard-section-heading">Right now</h2>
+    <span class="dashboard-section-kicker">What's happening this minute</span>
+  </header>
+
   <app-tutorial-callout
     cardId="mission-brief"
     title="Mission Brief"

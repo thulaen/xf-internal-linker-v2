@@ -36,7 +36,11 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
   private destroyRef = inject(DestroyRef);
 
   receipts: WebhookReceipt[] = [];
-  displayedColumns: string[] = ['created_at', 'source', 'event_type', 'status'];
+  /* Audit M4 (2026-04-20): added `detail` column so the table fills
+     the full card width instead of leaving the right ~35% blank.
+     The detail column shows the error message when present, otherwise
+     a human-readable "last seen" or a quiet dash. */
+  displayedColumns: string[] = ['created_at', 'source', 'event_type', 'detail', 'status'];
 
   private readonly MAX_ROWS = 10;
   private refreshInterval: any;

@@ -189,6 +189,30 @@ a[href]:not(.no-min-target) {
   .material-icons { font-size: 18px; }
 }
 
+// ── Dashboard card action rows ────────────────────────────────────
+// Single source of truth for all mat-card-actions footers on the
+// dashboard. Apply .dashboard-action-row to mat-card-actions.
+// Replaces per-component padding overrides — never override locally.
+// Values sourced from live GA4 extraction 2026-04-20.
+.dashboard-action-row {
+  display: flex !important;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);                                  // 8px — GA4 button gap
+  flex-wrap: wrap;
+  padding: var(--space-sm) var(--space-md) !important;   // 8px 16px
+  border-top: var(--card-border);                        // 0.8px solid #dadce0
+  min-height: 52px;                                      // consistent footer height
+}
+
+// Uniform stroked-button width inside action rows.
+// Prevents "Safe Boot on Restart" and "Reset to Balanced" from
+// being different widths just because their labels differ.
+.dashboard-action-row button[mat-stroked-button],
+.dashboard-action-row a[mat-stroked-button] {
+  min-width: 140px;
+}
+
 // Phase FR / Gap 113 — Inline valid checkmark.
 .valid-checkmark {
   display: none;

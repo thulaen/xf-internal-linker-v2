@@ -2,6 +2,7 @@
 
 **Before suggesting new features, check `AI-CONTEXT.md` § Deduplication & Overlap Rules.**
 **Before any frontend work, read `frontend/FRONTEND-RULES.md` first.**
+**Before any frontend work, also read `frontend/DESIGN-PATTERNS.md` — the authoritative GA4 design language reference (extracted 2026-04-20). Card anatomy, co-location rules, button sizing, spacing tokens, and the 11 anti-patterns that contaminate layouts.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**

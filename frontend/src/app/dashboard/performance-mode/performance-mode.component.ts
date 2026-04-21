@@ -193,7 +193,6 @@ const MODES: PerformanceOption[] = [
   styles: [`
     mat-card { padding: var(--spacing-card); }
     mat-card-header { margin-bottom: var(--space-md); }
-    mat-card-actions { padding: var(--space-md) 0 0 0; }
     .mode-options { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
     .mode-button {
       flex: 1; min-width: 120px;
@@ -249,11 +248,7 @@ const MODES: PerformanceOption[] = [
       line-height: 1.5;
     }
     .card-actions {
-      padding: var(--space-md) 0 0 0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: var(--space-xs);
-      justify-content: flex-end;
+      margin-top: var(--space-lg);
     }
     /* Time-bound auto-revert chip row — shown only for High Performance mode. */
     .expiry-row {

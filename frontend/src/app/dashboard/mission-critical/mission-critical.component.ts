@@ -87,7 +87,10 @@ const PRIMARY_TILE_IDS = ['pipeline', 'signals', 'embeddings', 'cpp_hot_path'] a
                 <span class="mc-stat-dot" [ngClass]="'mc-dot-' + tile.state.toLowerCase()"></span>
                 <div class="mc-stat-body">
                   <span class="mc-stat-name">{{ tile.name }}</span>
-                  <span class="mc-stat-msg">{{ tile.plain_english }}</span>
+                  <span
+                    class="mc-stat-msg"
+                    [matTooltip]="tile.plain_english.length > 120 ? tile.plain_english : ''"
+                  >{{ shortMsg(tile.plain_english) }}</span>
                   @if (tile.id === 'cpp_hot_path') {
                     <button
                       mat-button
@@ -223,6 +226,12 @@ const PRIMARY_TILE_IDS = ['pipeline', 'signals', 'embeddings', 'cpp_hot_path'] a
       font-size: 11px;
       color: var(--color-text-secondary);
       line-height: 1.4;
+      /* Safety net in case shortMsg() can't run (e.g. server-side
+         render) — cap at 3 visible lines, the rest is in the tooltip. */
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
     }
     .mc-kernels-btn {
       font-size: 11px;
@@ -377,6 +386,21 @@ export class MissionCriticalComponent implements OnInit {
       'OK',
       { duration: 3500 },
     );
+  }
+
+  /**
+   * Keep the inline summary-card stat tiles compact. The C++ hot path's
+   * explanation can include every kernel name — without capping, the
+   * .mc-stat-tile grows vertically to hundreds of pixels.
+   */
+  shortMsg(msg: string | null | undefined): string {
+    if (!msg) return '';
+    const LIMIT = 120;
+    if (msg.length <= LIMIT) return msg;
+    const hardCut = msg.slice(0, LIMIT);
+    const lastSpace = hardCut.lastIndexOf(' ');
+    const cut = lastSpace > LIMIT - 30 ? hardCut.slice(0, lastSpace) : hardCut;
+    return cut.trim() + ' …';
   }
 
   relative(ts: string): string {

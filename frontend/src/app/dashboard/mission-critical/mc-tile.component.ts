@@ -51,7 +51,13 @@ import { McTile } from './mc-types';
         </span>
       </mat-card-header>
       <mat-card-content>
-        <p class="mc-msg">{{ tile.plain_english }}</p>
+        <!-- Long explanations (e.g. the C++ hot path tile can inline
+             80+ kernel names when degraded) would blow the card up to
+             ~1,700px otherwise. Cap the visible message and keep the
+             full text in a tooltip. Audit finding C3 — 2026-04-20. -->
+        <p class="mc-msg" [matTooltip]="tile.plain_english.length > 180 ? tile.plain_english : ''">
+          {{ truncateMsg(tile.plain_english) }}
+        </p>
         @if (tile.progress !== null && tile.progress !== undefined) {
           <mat-progress-bar
             mode="determinate"
@@ -274,6 +280,24 @@ export class McTileComponent {
 
   affectedSummary(deps: McTile[]): string {
     return deps.map((d) => d.name).join(', ');
+  }
+
+  /**
+   * Cap overly long backend explanations. Some checks (e.g. C++ hot path
+   * when many kernels degrade) embed the full kernel list inside
+   * plain_english, turning a tile into a 1,500px wall of comma-separated
+   * text. Keep the first ~180 chars, collapse the rest behind an ellipsis,
+   * and expose the full text via a tooltip (see the template).
+   */
+  truncateMsg(msg: string | null | undefined): string {
+    if (!msg) return '';
+    const LIMIT = 180;
+    if (msg.length <= LIMIT) return msg;
+    // Try to cut at a word boundary to avoid mid-word truncation.
+    const hardCut = msg.slice(0, LIMIT);
+    const lastSpace = hardCut.lastIndexOf(' ');
+    const cut = lastSpace > LIMIT - 40 ? hardCut.slice(0, lastSpace) : hardCut;
+    return cut.trim() + ' …';
   }
 
   /** Phase MX1 / Gap 255 — compact ETA formatter ("2m 14s" / "~1h"). */

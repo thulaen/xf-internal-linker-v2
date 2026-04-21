@@ -6,7 +6,7 @@
  */
 
 import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection, isDevMode } from '@angular/core';
-import { provideRouter, withInMemoryScrolling } from '@angular/router';
+import { provideRouter, withInMemoryScrolling, withRouterConfig } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -38,6 +38,13 @@ export const appConfig: ApplicationConfig = {
       // replaces it with smooth scroll + highlight. scrollPositionRestoration: 'top'
       // ensures fresh page navigations always start at the top.
       withInMemoryScrolling({ anchorScrolling: 'disabled', scrollPositionRestoration: 'top' }),
+      // Without onSameUrlNavigation:'reload' the router silently drops
+      // any routerLink whose URL matches the current URL — even when
+      // the fragment differs. That breaks every in-page anchor on the
+      // dashboard (Runtime "Adjust Mode" → #performance-mode, etc.)
+      // because the NavigationEnd event never fires and the fragment
+      // scroller in GlobalLinkInterceptorService never runs.
+      withRouterConfig({ onSameUrlNavigation: 'reload' }),
     ),
     provideHttpClient(
       // traceparent must run BEFORE auth so the header shows up in

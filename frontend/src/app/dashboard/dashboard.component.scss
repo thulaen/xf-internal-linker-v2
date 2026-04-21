@@ -27,6 +27,35 @@
 .d1-noob-helpers {
   margin-top: var(--space-lg);
 }
+
+/* Audit P2 (2026-04-20): shared section-header style for grouping
+   multi-component blocks ("Right now", "Learn & navigate", etc.).
+   Gives each block a clear title + kicker so the five "now" widgets
+   read as one coherent section instead of competing islands. */
+.dashboard-section-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-sm);
+  margin: var(--space-lg) 0 var(--space-sm);
+}
+.dashboard-section-icon {
+  color: var(--color-primary);
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  align-self: center;
+}
+.dashboard-section-heading {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+.dashboard-section-kicker {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: italic;
+}
 .d1-section-title {
   display: flex;
   align-items: center;
@@ -90,21 +119,44 @@
   height: 22px;
 }
 
-/* ── Operating Desk Grid ─────────────────────────────── */
+/* ── Operating Desk Grid ──────────────────────────────
+ *  Audit finding M1 (2026-04-20): .desk-row used to have
+ *  `padding: 0 var(--space-md)` that no other row class had.
+ *  That offset pushed operating-desk cards 16px inside all
+ *  other rows, creating misaligned left edges down the whole
+ *  page. Padding is now handled by the page shell wrapper
+ *  so every row (.d1-row, .d3-row, .desk-row) shares the
+ *  same left edge.
+ */
 .desk-row {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: var(--space-md);
   margin-bottom: var(--space-md);
-  padding: 0 var(--space-md);
 }
 .desk-row-top {
-  grid-template-columns: repeat(4, 1fr);
+  /* Four operating-desk cards — Ready-to-Run, Performance Mode,
+     Runtime, What Changed — share this row. At a typical content
+     width of ~1265px, 4 columns gave each card ~300px which was too
+     tight: Runtime's chip+button row overlapped, Pipeline Readiness'
+     status line wrapped to 3 lines, and Performance Mode's 3-button
+     stack dominated. Now the grid uses 2 columns by default (2x2),
+     and only promotes to 4 columns at ≥1600px viewport where there's
+     genuine room. (User feedback 2026-04-20.) minmax(0, 1fr) remains
+     critical so content can't blow tracks open.
+  */
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-@media (max-width: 1024px) {
+@media (min-width: 1600px) {
   .desk-row-top {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .desk-row-top {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -239,6 +291,9 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
+    /* Audit M5 (2026-04-20): explicit full-width so each step row fills
+       the card instead of collapsing around the step-content text. */
+    width: 100%;
   }
 
   .checklist-step {
@@ -246,6 +301,7 @@
     align-items: center;
     gap: 12px;
     padding: 12px 16px;
+    width: 100%;
     border-radius: var(--card-border-radius);
     transition: background 0.15s ease;
 
@@ -310,7 +366,13 @@
   box-shadow: none;
 
   .dashboard-hero-copy {
-    max-width: 720px;
+    /* Audit M3 (2026-04-20): removed max-width: 720px. At 1141px
+       content width the description "Keep an eye on suggestion flow,
+       content imports, and link health from one place." broke onto a
+       second line with just two words. The flex layout already yields
+       the right side to .header-actions, so no cap is needed. */
+    flex: 1;
+    min-width: 0;
   }
 
   .page-title {
@@ -349,7 +411,10 @@
   }
 
   .dashboard-summary {
-    max-width: 58ch;
+    /* Audit M3 (2026-04-20): was max-width: 58ch — at ~13px font size
+       that's only ~406px, causing the 72-char single sentence to wrap
+       to a second line with just two words. Uncapping lets it read on
+       one line at full content width. */
     margin: 0;
     color: var(--color-text-secondary);
     font-size: 13px;
@@ -387,6 +452,18 @@
     align-items: center;
     justify-content: flex-end;
   }
+
+  /* Audit P4 (2026-04-20): the metric ticker is now a full-width row
+     at the bottom of the hero. flex-basis 100% makes it wrap below
+     the hero-copy / header-actions row instead of competing with them. */
+  .hero-ticker {
+    display: block;
+    flex: 1 0 100%;
+    width: 100%;
+    margin-top: var(--space-md);
+    padding-top: var(--space-md);
+    border-top: 1px solid var(--color-border);
+  }
 }
 
 .center-spinner {
@@ -407,14 +484,14 @@
 }
 
 .stat-grid {
+  /* Audit M6 (2026-04-20): was locked to repeat(4, 1fr), but the
+     template can render 5 cards (open-broken-links + 4 regular).
+     Auto-fit lets 5 cards sit on a single row at full width and
+     degrades gracefully to 4/3/2/1 as the viewport narrows. */
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: var(--spacing-md);
   margin-bottom: var(--spacing-md);
-
-  @media (max-width: 1280px) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
 
   @media (max-width: 640px) {
     grid-template-columns: 1fr;

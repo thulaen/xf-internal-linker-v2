@@ -39,6 +39,24 @@
             </td>
           </ng-container>
 
+          <!-- Detail column — fills the horizontal space that was blank
+               before. Shows the error message on failed receipts, or a
+               "last seen" timestamp otherwise. Audit M4. -->
+          <ng-container matColumnDef="detail">
+            <th mat-header-cell *matHeaderCellDef>Detail</th>
+            <td mat-cell *matCellDef="let r" class="detail-cell">
+              @if (r.error_message) {
+                <span class="detail-error" [matTooltip]="r.error_message">
+                  {{ r.error_message }}
+                </span>
+              } @else if (r.last_seen_at && r.last_seen_at !== r.created_at) {
+                <span class="detail-muted">last seen {{ r.last_seen_at | date:'shortTime' }}</span>
+              } @else {
+                <span class="detail-muted">—</span>
+              }
+            </td>
+          </ng-container>
+
           <ng-container matColumnDef="status">
             <th mat-header-cell *matHeaderCellDef>Status</th>
             <td mat-cell *matCellDef="let r">

@@ -14,7 +14,7 @@
   --mdc-button-label-text-color:  var(--color-primary);
   --mdc-outlined-button-label-text-color: var(--color-primary);
 
-  --color-blue-50:  #c2e7ff;
+  --color-blue-50:  #e8f0fe;  // GA4 active surface tint — extracted 2026-04-20
   --color-blue-100: #c5d9f9;
   --color-blue-200: #1a73e8;
 
@@ -44,7 +44,7 @@
   --color-border-dark:  #b6b6b6;
 
   --color-bg-white:   #ffffff;
-  --color-bg-page:    #f8f9fa;
+  --color-bg-page:    #fafafa;  // GA4 exact page background — extracted 2026-04-20
   --color-bg-faint:   #f8f9fa;
   --color-bg-alt-1:   #ffffff;
   --color-bg-alt-2:   #f8f9fa;
@@ -87,7 +87,7 @@
   --card-shadow:       none;
 
   // ── Active nav ────────────────────────────────────────────────
-  --active-nav-bg:     #c2e7ff;
+  --active-nav-bg:     #e8f0fe;  // GA4 active nav tint — extracted 2026-04-20
   --active-nav-color:  #1967d2;
 
   // ── Radius & Spacing ──────────────────────────────────────────

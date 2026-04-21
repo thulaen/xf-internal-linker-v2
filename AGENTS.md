@@ -10,6 +10,7 @@
 This file applies to every AI agent that works on this repository.
 Read all sections before making any changes to frontend styles.
 **Before any frontend styling work, also read `frontend/FRONTEND-RULES.md`.**
+**Before any frontend work, also read `frontend/DESIGN-PATTERNS.md` — the authoritative GA4 design language reference (extracted 2026-04-20). Card anatomy, co-location rules, button sizing, spacing tokens, and the 11 anti-patterns that contaminate layouts.**
 
 ---
 

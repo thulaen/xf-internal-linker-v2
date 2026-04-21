@@ -17,11 +17,14 @@ import { MatChipsModule } from '@angular/material/chips';
         <mat-card-title>Ranking Strategy</mat-card-title>
       </mat-card-header>
       <mat-card-content>
-        <div class="strategy-info">
+        <div class="strategy-header">
           <mat-chip class="engine-chip" disableRipple>
             <mat-icon matChipAvatar>psychology</mat-icon>
             Auto-tuner (Python L-BFGS)
           </mat-chip>
+          <a mat-stroked-button routerLink="/settings" fragment="ranking-weights">
+            <mat-icon>settings</mat-icon> Adjust Weights
+          </a>
         </div>
         @if (challengers.length > 0) {
           <div class="challengers">
@@ -38,17 +41,18 @@ import { MatChipsModule } from '@angular/material/chips';
           <p class="no-challengers">No challengers running. The current weights are stable.</p>
         }
       </mat-card-content>
-      <mat-card-actions align="end" class="dashboard-action-row">
-        <a mat-stroked-button routerLink="/settings" fragment="ranking-weights">
-          <mat-icon>settings</mat-icon> Adjust Weights
-        </a>
-      </mat-card-actions>
     </mat-card>
   `,
   styles: [`
     mat-card { padding: var(--spacing-card); }
     mat-card-header { margin-bottom: var(--space-md); }
-    .strategy-info { margin-bottom: var(--space-md); }
+    .strategy-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+    }
     .engine-chip {
       --mdc-chip-elevated-container-color: var(--color-blue-50);
       --mdc-chip-label-text-color: var(--color-primary);
@@ -68,7 +72,6 @@ import { MatChipsModule } from '@angular/material/chips';
     .challenger-name { flex: 1; font-size: 13px; color: var(--color-text-primary); }
     .challenger-status { font-size: 12px; color: var(--color-text-muted); }
     .no-challengers { font-size: 13px; color: var(--color-text-secondary); margin: 0; }
-    mat-card-actions { padding: var(--space-md); }
   `],
 })
 export class RankingStrategyCardComponent {
