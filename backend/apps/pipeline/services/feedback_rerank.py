@@ -54,10 +54,11 @@ class FeedbackRerankService:
         For each pair computes ``observation_confidence`` = reviews /
         presentations (falls back to generated-count when no presentation
         data exists). This is a per-pair linear confidence blend, NOT an
-        inverse-propensity estimator — see RPT-001 Finding 2 (resolved
-        2026-04-20) for the gap analysis. Joachims, Swaminathan & Schnabel
-        (2017) WSDM (DOI 10.1145/3077136.3080756) describes a rigorous
-        per-event IPS estimator; kept as inspiration only.
+        inverse-propensity estimator — see the feedrerank audit Finding 2
+        (resolved in April 2026) in REPORT-REGISTRY.md for the gap
+        analysis. Joachims, Swaminathan & Schnabel (WSDM paper cited in
+        the pybind11 module docstring) describes a rigorous per-event IPS
+        estimator; kept as inspiration only.
         """
         from apps.suggestions.models import Suggestion, SuggestionPresentation
 
@@ -127,7 +128,7 @@ class FeedbackRerankService:
         Blends the pair's Bayesian-smoothed acceptance rate toward neutral
         0.5 based on ``observation_confidence`` = reviews / impressions.
         This is a per-pair linear confidence blend, NOT an inverse-propensity
-        estimator (see RPT-001 Finding 2, resolved 2026-04-20).
+        estimator (see the feedrerank audit Finding 2 in REPORT-REGISTRY.md).
         """
         if not self.settings.enabled:
             return 1.0, {"status": "disabled"}
@@ -150,7 +151,7 @@ class FeedbackRerankService:
 
         # 1. Exploit: Bayesian-Smoothed Acceptance Rate blended toward 0.5
         # by observation_confidence. Linear confidence blend, NOT IPS
-        # (see RPT-001 Finding 2).
+        # (see the feedrerank audit Finding 2 in REPORT-REGISTRY.md).
         exploit_denom = n_total + self.settings.alpha_prior + self.settings.beta_prior
         score_exploit_raw = (n_success + self.settings.alpha_prior) / max(
             exploit_denom, 1e-9
