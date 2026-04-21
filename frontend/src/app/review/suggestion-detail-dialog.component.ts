@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -46,6 +46,7 @@ export type DialogResult =
   ],
   templateUrl: './suggestion-detail-dialog.component.html',
   styleUrls: ['./suggestion-detail-dialog.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class SuggestionDetailDialogComponent implements OnInit {
   detail: SuggestionDetail | null = null;
@@ -67,6 +68,12 @@ export class SuggestionDetailDialogComponent implements OnInit {
   private snack = inject(MatSnackBar);
   // Phase E2 / Gap 41 — cancel in-flight HTTP if dialog closes first.
   private destroyRef = inject(DestroyRef);
+  // The template has ~60 interpolated expressions. With default CD
+  // every one re-runs on every app-wide tick. OnPush + explicit
+  // markForCheck after each mutation flattens that to "re-run only
+  // when this dialog's state actually changes". See
+  // docs/PERFORMANCE.md §13.
+  private cdr = inject(ChangeDetectorRef);
 
   ngOnInit(): void {
     this.svc.getDetail(this.data.suggestionId)
@@ -77,10 +84,12 @@ export class SuggestionDetailDialogComponent implements OnInit {
         this.anchorEdited = d.anchor_edited || d.anchor_phrase;
         this.reviewerNotes = d.reviewer_notes ?? '';
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.error = 'Failed to load suggestion details.';
         this.loading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -521,37 +530,53 @@ export class SuggestionDetailDialogComponent implements OnInit {
   approve(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
+    this.cdr.markForCheck();
     this.svc.approve(this.detail.suggestion_id, this.anchorEdited, this.reviewerNotes)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: (s) => this.dialogRef.close({ action: 'approved', suggestion: s }),
-      error: () => { this.saving = false; this.error = 'Approve failed.'; },
+      error: () => {
+        this.saving = false;
+        this.error = 'Approve failed.';
+        this.cdr.markForCheck();
+      },
     });
   }
 
   startReject(): void {
     this.rejectionMode = true;
+    this.cdr.markForCheck();
   }
 
   confirmReject(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
+    this.cdr.markForCheck();
     this.svc.reject(this.detail.suggestion_id, this.rejectionReason, this.reviewerNotes)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: (s) => this.dialogRef.close({ action: 'rejected', suggestion: s }),
-      error: () => { this.saving = false; this.error = 'Reject failed.'; },
+      error: () => {
+        this.saving = false;
+        this.error = 'Reject failed.';
+        this.cdr.markForCheck();
+      },
     });
   }
 
   apply(): void {
     if (!this.detail || this.saving) return;
     this.saving = true;
+    this.cdr.markForCheck();
     this.svc.apply(this.detail.suggestion_id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
       next: (s) => this.dialogRef.close({ action: 'applied', suggestion: s }),
-      error: () => { this.saving = false; this.error = 'Apply failed.'; },
+      error: () => {
+        this.saving = false;
+        this.error = 'Apply failed.';
+        this.cdr.markForCheck();
+      },
     });
   }
 

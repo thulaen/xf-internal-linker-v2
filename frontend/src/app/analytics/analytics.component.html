@@ -756,16 +756,36 @@
     </div>
 
     <!-- ── Stage 7: SEO Proof ───────────────────────────────────── -->
+    <!-- Below-the-fold on a tall analytics page. Defer each card's
+         hydration until it scrolls into view so initial paint and
+         API fan-out for this route only pay for what the user sees.
+         See docs/PERFORMANCE.md §13. -->
     <div class="stage7-section">
       <h2 class="section-title">
         <mat-icon>verified</mat-icon>
         SEO Proof & Insights
       </h2>
       <div class="stage7-grid">
-        <app-impact-diary />
-        <app-under-linked />
-        <app-query-mismatch />
-        <app-watched-pages />
+        @defer (on viewport) {
+          <app-impact-diary />
+        } @placeholder {
+          <div class="defer-placeholder" style="min-height: 240px;"></div>
+        }
+        @defer (on viewport) {
+          <app-under-linked />
+        } @placeholder {
+          <div class="defer-placeholder" style="min-height: 240px;"></div>
+        }
+        @defer (on viewport) {
+          <app-query-mismatch />
+        } @placeholder {
+          <div class="defer-placeholder" style="min-height: 240px;"></div>
+        }
+        @defer (on viewport) {
+          <app-watched-pages />
+        } @placeholder {
+          <div class="defer-placeholder" style="min-height: 240px;"></div>
+        }
       </div>
     </div>
   }
