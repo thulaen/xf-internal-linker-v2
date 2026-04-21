@@ -1,0 +1,142 @@
+# ═══════════════════════════════════════════════════════════════════
+# XF Internal Linker V2 — Production compose override
+#
+# HOW TO USE:
+#   docker compose \
+#     --env-file .env \
+#     --env-file .env.prod \
+#     -f docker-compose.yml \
+#     -f docker-compose.prod.yml \
+#     up --build
+#
+# WHAT THIS DOES:
+#   - Flips Django from development settings to config.settings.production
+#     (DEBUG=False, strict ALLOWED_HOSTS, WhiteNoise for static files,
+#     CORS locked down). See backend/config/settings/production.py.
+#   - Removes uvicorn's `--reload` flag (huge per-request overhead in dev).
+#   - Drops Celery workers from --loglevel=info to --loglevel=warning.
+#   - Replaces the Angular dev server (ng serve) with a prebuilt static
+#     bundle served by the existing nginx container. Source is built by
+#     frontend-build (see frontend/Dockerfile.prod) and published to the
+#     shared `frontend_dist` volume; nginx mounts it read-only.
+#   - Swaps nginx's config to `nginx.prod.conf` which serves those static
+#     files with long-cache headers on hashed assets.
+#   - Disables the dev-mode `frontend` service (it is the Angular dev
+#     server and would conflict on port 4200).
+#
+# WHAT THIS DOES NOT CHANGE:
+#   - Postgres (already has a tuned postgresql.conf, shared with dev).
+#   - Redis (eviction policy + mem limits already prod-ready).
+#   - The GlitchTip debug profile (opt-in via `--profile debug`).
+#
+# See docs/PERFORMANCE.md §12 for the full rule: performance work MUST
+# run against this stack, not the dev server.
+# ═══════════════════════════════════════════════════════════════════
+
+services:
+
+  # ── Django backend: prod settings, no --reload ──────────────────
+  backend:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      # The nginx sidecar terminates HTTP on :80. For a local prod run
+      # we are NOT behind HTTPS, so relax the HTTPS-only defaults from
+      # production.py. A real HTTPS deployment should remove these
+      # overrides (or set them to True/longer HSTS) via .env.prod.
+      DJANGO_SECURE_SSL_REDIRECT: "${DJANGO_SECURE_SSL_REDIRECT:-False}"
+      DJANGO_SESSION_COOKIE_SECURE: "${DJANGO_SESSION_COOKIE_SECURE:-False}"
+      DJANGO_CSRF_COOKIE_SECURE: "${DJANGO_CSRF_COOKIE_SECURE:-False}"
+      DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-0}"
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+    command: >
+      sh -c "pip install --no-cache-dir -r requirements.txt &&
+             python -c 'import drf_spectacular' &&
+             (cd extensions && python setup.py build_ext --inplace) &&
+             until python manage.py migrate --noinput; do
+               echo 'Postgres is not ready yet. Waiting 5 seconds...';
+               sleep 5;
+             done &&
+             python manage.py collectstatic --noinput &&
+             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4"
+
+  # ── Celery worker (default queue): quieter logs, prod settings ──
+  celery-worker-default:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+    command: >
+      sh -c "python -c 'import drf_spectacular' &&
+             DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
+             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default"
+
+  # ── Celery worker (pipeline queue): quieter logs, prod settings ─
+  celery-worker-pipeline:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+      CELERY_WORKER_CONCURRENCY: 1
+    command: >
+      sh -c "python -c 'import drf_spectacular' &&
+             celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
+
+  # ── Celery beat: quieter logs, prod settings ────────────────────
+  celery-beat:
+    environment:
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      HOME: /tmp
+      RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
+      REPO_ROOT: /repo
+    command: >
+      sh -c "celery -A config.celery beat --loglevel=warning
+             --scheduler django_celery_beat.schedulers:DatabaseScheduler"
+
+  # ── Dev Angular server: disabled in prod (would clash on :4200) ─
+  frontend:
+    profiles: ["__disabled__"]
+
+  # ── Build the Angular prod bundle once, publish to a volume ─────
+  # Multi-stage Dockerfile compiles with `ng build --configuration=production`
+  # and exits after copying the output to /dist (the shared volume).
+  # Nginx picks it up via `condition: service_completed_successfully`.
+  frontend-build:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    image: xf-linker-frontend-prod:latest
+    container_name: xf_linker_frontend_build
+    restart: "no"
+    mem_limit: 2g
+    volumes:
+      - frontend_dist:/dist
+
+  # ── Nginx: serves the static bundle + keeps /api/ /ws/ proxies ──
+  nginx:
+    volumes:
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      - frontend_dist:/usr/share/nginx/html:ro
+      - staticfiles:/usr/share/nginx/html/static:ro
+      - media_files:/usr/share/nginx/html/media:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+      frontend-build:
+        condition: service_completed_successfully
+
+  # ── GlitchTip: opt-in only in prod via `--profile debug` ────────
+  # By default a prod-mode run should not start the error-tracker.
+  # Operators who want it run `docker compose ... --profile debug up`.
+  glitchtip:
+    profiles: ["debug"]
+
+  glitchtip-worker:
+    profiles: ["debug"]

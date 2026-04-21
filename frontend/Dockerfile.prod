@@ -1,0 +1,52 @@
+# ─────────────────────────────────────────────────────────────────
+# XF Internal Linker V2 — Angular Frontend Dockerfile (Production)
+#
+# Two stages:
+#   1. build   — node:22-slim compiles the Angular app with
+#                `ng build --configuration=production` (AOT, minified,
+#                hashed filenames, no sourcemaps).
+#   2. publish — tiny alpine image that copies the built bundle into a
+#                shared docker volume (frontend_dist) and exits. Nginx
+#                mounts the same volume read-only and serves the files.
+#
+# This is intentionally NOT a long-running container. It runs once per
+# `docker compose up --build`, publishes the bundle, and exits. Nginx
+# depends on this service with `condition: service_completed_successfully`.
+#
+# To run the prod stack:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up --build
+#
+# See docs/PERFORMANCE.md §12 for why production mode matters.
+# ─────────────────────────────────────────────────────────────────
+
+# ── Stage 1: build ─────────────────────────────────────────────────
+FROM node:22-slim AS build
+
+ENV CI=true \
+    NODE_OPTIONS=--max-old-space-size=2048
+
+WORKDIR /app
+
+# Install dependencies first for better layer caching.
+COPY package*.json ./
+RUN npm ci --legacy-peer-deps
+
+# Copy the source and build.
+COPY . .
+RUN npx ng build --configuration=production
+
+# ── Stage 2: publish to shared volume ──────────────────────────────
+FROM alpine:3.20 AS publish
+
+RUN apk add --no-cache coreutils
+
+WORKDIR /dist
+
+# Copy the built bundle into a staging location inside the image. At
+# runtime the container copies this into /dist (the mounted volume)
+# and then exits so nginx can serve the files.
+COPY --from=build /app/dist/xf-internal-linker-frontend/browser/ /tmp/bundle/
+
+# The mounted volume is wiped-then-filled so we never serve stale files
+# from a previous build.
+CMD ["sh", "-c", "rm -rf /dist/* /dist/.[!.]* 2>/dev/null; cp -a /tmp/bundle/. /dist/ && echo 'frontend bundle published to /dist' && ls -la /dist"]

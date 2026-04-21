@@ -44,6 +44,7 @@ Before any other work — before reading further files, before writing code, bef
 | 4 | `docs/BUSINESS-LOGIC-CHECKLIST.md` | If touching ranking, scoring, attribution, import, or reranking |
 | 5 | Language-specific rules file for your work area | If touching that language's code |
 | 6 | `AGENTS.md` § Code Quality Mandate | Always — before writing any code |
+| 7 | `docs/PERFORMANCE.md` §13 | Before any performance investigation, benchmark, "feels slow" fix, or optimisation PR |
 
 Language-specific rules files:
 - `frontend/FRONTEND-RULES.md` — before any frontend work

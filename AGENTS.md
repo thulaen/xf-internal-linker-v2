@@ -37,6 +37,7 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - **File performance findings in the Report Registry** (`docs/reports/REPORT-REGISTRY.md`). If you discover a hot-path function running >2× slower than expected, file it as MEDIUM. >5× is HIGH. Incorrect results from an optimisation is CRITICAL.
 - **No feature is "done" if its hot path has no benchmark coverage.** Every hot-path function needs benchmarks at 3 input sizes before merge.
 - **Poor performance in the Report Registry must be resolved** before the affected area is declared Phase-complete.
+- **Performance verification must run against the prod-mode compose stack, not the dev server.** See `docs/PERFORMANCE.md` §13. Dev-mode numbers (`ng serve`, uvicorn `--reload`, `DEBUG=True`, Celery `--loglevel=info`) are not trustworthy — they invent problems that don't exist in prod and hide problems that do. Any "fix" PR or Report Registry finding must state which profile produced the numbers. The canonical prod command is in `docs/PERFORMANCE.md` §13.
 
 ### Never do
 - Do not refactor code outside the scope of the current task without explicit approval.

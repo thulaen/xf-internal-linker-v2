@@ -272,3 +272,67 @@ Three steps:
 | *(none yet)* | — | — | — | — |
 
 **How to add an entry:** Describe the opportunity, estimate the gain (e.g., "3× speedup on embedding batches"), cite the evidence (paper, benchmark result, or profiling data), and set status to `proposed`. The user will review and set status to `accepted`, `rejected`, or `implemented`.
+
+---
+
+## 13. Performance Verification in Production Mode — Mandatory Rule
+
+> **Every AI agent (Claude, Codex, Gemini, and any future model) must read this section before measuring, profiling, benchmarking, or claiming to "fix" a slowness report.**
+
+### The rule
+
+**Performance work MUST run against the production-mode compose stack.** Dev-mode behaviour (`ng serve`, uvicorn `--reload`, Django `DEBUG=True`, Celery `--loglevel=info`, `CHOKIDAR_USEPOLLING=1`) adds per-request overhead at every layer. Numbers taken from a dev stack are misleading — they will either invent problems that do not exist in prod, or hide problems that do.
+
+### What "production mode" means in this repo
+
+The canonical prod-mode command is:
+
+```bash
+cp .env.prod.example .env.prod   # first time only, edit as needed
+docker compose \
+  --env-file .env \
+  --env-file .env.prod \
+  -f docker-compose.yml \
+  -f docker-compose.prod.yml \
+  up --build
+```
+
+Running this launches the stack with:
+
+- `DJANGO_SETTINGS_MODULE=config.settings.production` and `DJANGO_DEBUG=False` on backend + all Celery services.
+- Uvicorn **without** `--reload` and with 4 workers.
+- Celery at `--loglevel=warning`.
+- Angular built once with `ng build --configuration=production` (AOT, minified, hashed, no source maps) by the one-shot `frontend-build` service, then served as static files from the `frontend_dist` volume.
+- Nginx using `nginx/nginx.prod.conf` with long-cache headers on hashed assets, gzip on, API/WS/admin proxies unchanged.
+- GlitchTip behind `--profile debug` (opt-in only).
+
+No code or config is touched by switching profile — the dev flow (`docker compose up`) keeps working exactly as before.
+
+### When this rule applies
+
+- Any "feels slow / sluggish" investigation.
+- Any benchmark, Performance-trace, or Lighthouse run whose numbers are used to justify a code change.
+- Any PR that claims a perf improvement — the "after" numbers must come from the prod profile.
+- Any Report-Registry finding tagged with severity MEDIUM/HIGH/CRITICAL under §1 (2–5× / >5× / incorrect results).
+
+### When this rule does not apply
+
+- Plain functional development where perf is not in scope — dev mode is fine.
+- Unit/integration test runs (`ng test`, `pytest`) — those stay on the dev profile.
+- UI design / layout work — use dev mode for faster iteration.
+
+### Reporting requirements
+
+Any performance claim posted to the user or written into the Report Registry must state **which profile produced the numbers**. Examples:
+
+- ✅ "Dashboard idle scripting time dropped from 34% (prod profile) to 7% (prod profile)."
+- ✅ "Benchmark on the dev profile showed X; re-ran on the prod profile, saw Y. The Y figure is the one I'm quoting."
+- ❌ "The dashboard feels faster now." (No profile stated, no numbers.)
+
+### Cross-references
+
+- `CLAUDE.md` — top-level rule reminder.
+- `AGENTS.md` § Code Quality Mandate > Performance — same rule, worded for all agents.
+- `AI-CONTEXT.md` Session Gate — prod-mode verification is a MUST-READ for any performance session.
+- `docker-compose.prod.yml` — the canonical prod override file.
+- `backend/config/settings/production.py` — Django prod settings (HTTPS-hardening flags are env-driven so a local prod run over plain HTTP still works).

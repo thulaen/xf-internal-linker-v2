@@ -9,6 +9,7 @@
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 **Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**
 **Before any work involving scheduled tasks, resource usage, concurrency, or GPU work, read `docs/PERFORMANCE.md`. This applies to all AI agents (Claude, Codex, Gemini).**
+**For any performance investigation, benchmark, or "feels slow" fix, verify in production mode — see `docs/PERFORMANCE.md` §13. Dev-mode numbers (`ng serve`, uvicorn `--reload`, `DEBUG=True`) are not trustworthy. Prod-mode command: `docker compose --env-file .env --env-file .env.prod -f docker-compose.yml -f docker-compose.prod.yml up --build`.**
 
 # Mandatory Benchmark Rule — All Languages
 
