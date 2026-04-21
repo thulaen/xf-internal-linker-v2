@@ -3531,7 +3531,7 @@ class MissionBriefView(APIView):
 
         if top_alert:
             sentence_watch = (
-                f"Watch: {top_alert.severity} alert — " f'"{top_alert.title[:80]}".'
+                f'Watch: {top_alert.severity} alert — "{top_alert.title[:80]}".'
             )
         else:
             sentence_watch = "Nothing is on fire."
@@ -3936,7 +3936,9 @@ class RuntimeConfigView(APIView):
     def _read_text(self, key, default=None):
         from apps.core.models import AppSetting
 
-        value = AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
+        value = (
+            AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
+        )
         if value in (None, ""):
             return default
         return str(value)
@@ -4102,9 +4104,7 @@ class RuntimeConfigView(APIView):
                 errors["gpu_memory_budget_pct"] = "Must be an integer."
             else:
                 if not (
-                    self.GPU_MEMORY_BUDGET_MIN
-                    <= budget
-                    <= self.GPU_MEMORY_BUDGET_MAX
+                    self.GPU_MEMORY_BUDGET_MIN <= budget <= self.GPU_MEMORY_BUDGET_MAX
                 ):
                     errors["gpu_memory_budget_pct"] = (
                         f"Must be between {self.GPU_MEMORY_BUDGET_MIN} and "
@@ -4124,9 +4124,7 @@ class RuntimeConfigView(APIView):
                 errors["gpu_temp_pause_c"] = "Must be an integer."
             else:
                 if not (
-                    self.GPU_TEMP_PAUSE_MIN
-                    <= pause_temp
-                    <= self.GPU_TEMP_PAUSE_MAX
+                    self.GPU_TEMP_PAUSE_MIN <= pause_temp <= self.GPU_TEMP_PAUSE_MAX
                 ):
                     errors["gpu_temp_pause_c"] = (
                         f"Must be between {self.GPU_TEMP_PAUSE_MIN} and "
@@ -4157,7 +4155,9 @@ class RuntimeConfigView(APIView):
                     updated["cpu_encode_threads"] = cpu_threads
 
         if "default_queue_concurrency" in data or "celery_concurrency" in data:
-            raw_value = data.get("default_queue_concurrency", data.get("celery_concurrency"))
+            raw_value = data.get(
+                "default_queue_concurrency", data.get("celery_concurrency")
+            )
             try:
                 queue_concurrency = int(raw_value)
             except (TypeError, ValueError):

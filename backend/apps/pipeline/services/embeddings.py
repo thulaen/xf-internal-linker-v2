@@ -224,6 +224,7 @@ def _apply_vram_fraction() -> None:
     """
     try:
         import torch
+
         perf_mode = _get_performance_mode()
         fraction = _get_gpu_memory_budget_fraction()
 
