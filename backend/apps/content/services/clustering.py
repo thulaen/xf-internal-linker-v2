@@ -45,7 +45,18 @@ class ClusteringService:
         return item
 
     def _find_neighbor_rows(self, item):
-        """Return nearby items that share the active embedding signature."""
+        """Return nearby items that share the active embedding signature.
+
+        Uses pgvector's cosine-distance operator ``<=>``, which is a
+        PostgreSQL-only extension. On other backends (the sqlite in-memory
+        DB used by the Django test runner in ``config.settings.test``)
+        clustering is a no-op — returns zero neighbors so the caller
+        treats the item as unclustered. Mirrors the vendor guard used by
+        ``apps.content.migrations.0011_hnsw_indexes``.
+        """
+        if connection.vendor != "postgresql":
+            return []
+
         current_signature = get_current_embedding_filter()["embedding_model_version"]
         query = """
             SELECT id, cluster_id
