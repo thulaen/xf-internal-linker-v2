@@ -55,8 +55,15 @@ export class WebhookLogComponent implements OnInit, OnDestroy {
 
     // Defensive safety net: if the WebSocket drops for longer than the
     // reconnect backoff, refresh the list every minute so the table can
-    // never go stale for more than 60s.
-    this.refreshInterval = setInterval(() => this.load(), 60_000);
+    // never go stale for more than 60s. Skip when the tab is hidden
+    // (no operator looking; realtime reconnect will catch up). See
+    // docs/PERFORMANCE.md §13.
+    this.refreshInterval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
+      this.load();
+    }, 60_000);
   }
 
   ngOnDestroy(): void {

@@ -12,6 +12,7 @@ import { CommonModule } from '@angular/common';
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { interval } from 'rxjs';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 /**
  * Phase D3 — combined Today / Coming-Up widget covering:
@@ -229,6 +230,7 @@ const SCHEDULE: readonly ScheduledTask[] = [
 })
 export class ScheduleWidgetComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly now = signal<Date>(new Date());
 
@@ -266,8 +268,11 @@ export class ScheduleWidgetComponent implements OnInit {
 
   ngOnInit(): void {
     // Tick the clock once per minute — rough enough for a countdown
-    // that's measured in minutes-to-hours.
-    interval(60_000)
+    // that's measured in minutes-to-hours. Gated by
+    // `VisibilityGateService` so hidden tabs do not burn
+    // change-detection. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(60_000))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(new Date()));
   }

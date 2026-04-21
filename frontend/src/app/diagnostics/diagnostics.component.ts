@@ -8,6 +8,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { forkJoin, of, Subject, timer } from 'rxjs';
 import { catchError, switchMap, takeUntil } from 'rxjs/operators';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { PersistTabDirective } from '../core/directives/persist-tab.directive';
 import { GlitchtipService } from '../core/services/glitchtip.service';
 import { RealtimeService } from '../core/services/realtime.service';
@@ -50,6 +51,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   private readonly route = inject(ActivatedRoute);
   private readonly scrollAttention = inject(ScrollAttentionService);
   private readonly snack = inject(MatSnackBar);
+  private readonly visibilityGate = inject(VisibilityGateService);
   private readonly destroy$ = new Subject<void>();
 
   services: ServiceStatus[] = [];
@@ -92,23 +94,42 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   }
 
   private startErrorLogPoll(): void {
-    timer(30_000, 30_000).pipe(
-      switchMap(() => this.diagnosticsService.getErrors().pipe(catchError(() => of<ErrorLogEntry[] | null>(null)))),
-      takeUntil(this.destroy$),
-    ).subscribe((next) => {
-      if (next) this.reconcileErrorSnapshot(next);
-    });
+    // Gated by `VisibilityGateService` — hidden tabs / signed-out
+    // sessions skip the poll. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(30_000, 30_000).pipe(
+          switchMap(() =>
+            this.diagnosticsService
+              .getErrors()
+              .pipe(catchError(() => of<ErrorLogEntry[] | null>(null))),
+          ),
+        ),
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((next) => {
+        if (next) this.reconcileErrorSnapshot(next);
+      });
   }
 
   private startGlitchtipPoll(): void {
-    timer(30_000, 30_000).pipe(
-      switchMap(() => this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX
-        ? this.glitchtipService.getRecentEvents().pipe(catchError(() => of<ErrorLogEntry[] | null>(null)))
-        : of<ErrorLogEntry[] | null>(null)),
-      takeUntil(this.destroy$),
-    ).subscribe((next) => {
-      if (next) this.applyGlitchtipSnapshot(next);
-    });
+    // Gated by `VisibilityGateService`.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(30_000, 30_000).pipe(
+          switchMap(() =>
+            this.selectedErrorTabIndex === GLITCHTIP_TAB_INDEX
+              ? this.glitchtipService
+                  .getRecentEvents()
+                  .pipe(catchError(() => of<ErrorLogEntry[] | null>(null)))
+              : of<ErrorLogEntry[] | null>(null),
+          ),
+        ),
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe((next) => {
+        if (next) this.applyGlitchtipSnapshot(next);
+      });
   }
 
   private refreshGlitchtipEvents(): void {

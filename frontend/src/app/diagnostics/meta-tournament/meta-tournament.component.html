@@ -98,7 +98,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let p of slot.promotion_history">
+            <tr *ngFor="let p of slot.promotion_history; trackBy: trackByPromotion">
               <td>{{ p.evaluated_at | date:'dd MMM yy' }}</td>
               <td class="meta-name">{{ p.meta_id }}</td>
               <td>{{ formatNdcg(p.ndcg_at_10) }}</td>

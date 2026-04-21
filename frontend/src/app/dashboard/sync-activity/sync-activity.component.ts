@@ -17,6 +17,7 @@ import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 import { SyncJob, SyncService } from '../../jobs/sync.service';
 
@@ -190,6 +191,7 @@ export class SyncActivityComponent implements OnInit {
   private readonly sync = inject(SyncService);
   private readonly snack = inject(MatSnackBar);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   // Cap the dashboard widget so it stays glanceable. Full history lives
   // on the Jobs page (link is in mat-card-actions). Audit finding C2
@@ -236,13 +238,18 @@ export class SyncActivityComponent implements OnInit {
   );
 
   ngOnInit(): void {
-    timer(0, 30_000)
-      .pipe(
-        switchMap(() =>
-          this.sync.getJobs().pipe(catchError(() => of<SyncJob[]>([]))),
+    // 30-second poll, gated by `VisibilityGateService` so hidden tabs
+    // and signed-out sessions do not pound the API. See
+    // docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 30_000).pipe(
+          switchMap(() =>
+            this.sync.getJobs().pipe(catchError(() => of<SyncJob[]>([]))),
+          ),
         ),
-        takeUntilDestroyed(this.destroyRef),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((jobs) => {
         const arr = Array.isArray(jobs)
           ? jobs

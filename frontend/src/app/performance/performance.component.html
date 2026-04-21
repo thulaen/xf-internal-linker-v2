@@ -104,7 +104,7 @@
             </tr>
           </thead>
           <tbody>
-            <tr *ngFor="let func of uniqueFunctions" [class]="'row-' + func.status">
+            <tr *ngFor="let func of uniqueFunctions; trackBy: trackByFunction" [class]="'row-' + func.status">
               <td class="col-status">
                 <mat-icon [class]="'status-icon status-' + func.status"
                           [matTooltip]="func.status">

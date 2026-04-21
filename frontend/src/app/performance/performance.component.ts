@@ -212,6 +212,9 @@ export class PerformanceComponent implements OnInit {
     );
   }
 
+  trackByFunction = (_: number, f: { extension: string; function_name: string }): string =>
+    `${f.extension}.${f.function_name}`;
+
   get uniqueFunctions(): { extension: string; function_name: string; language: string; status: string }[] {
     const seen = new Set<string>();
     const funcs: { extension: string; function_name: string; language: string; status: string }[] = [];

@@ -489,6 +489,10 @@ export class GraphComponent implements OnInit {
     return node.id;
   }
 
+  trackByTopicId(_i: number, topic: SiloGroupSummary): number {
+    return topic.id;
+  }
+
   // ── Network Visualization ─────────────────────────────────────────
 
   private _loadTopology(onLoaded?: () => void, at?: string): void {

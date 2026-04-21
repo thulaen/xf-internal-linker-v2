@@ -26,6 +26,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatDividerModule } from '@angular/material/divider';
 import { timer } from 'rxjs';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import {
   CrawlerService,
   CrawlSession,
@@ -67,6 +68,7 @@ export class CrawlerComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
   private realtime = inject(RealtimeService);
+  private visibilityGate = inject(VisibilityGateService);
 
   // ── Controls ──────────────────────────────────────────────────
   sitemaps: SitemapConfig[] = [];
@@ -110,8 +112,11 @@ export class CrawlerComponent implements OnInit {
 
     // Fallback poll — only fires when an active session is running and the
     // realtime stream may have missed a transition. Lightweight: single
-    // GET of the one active session, not the list.
-    timer(0, 5000)
+    // GET of the one active session, not the list. Gated by
+    // `VisibilityGateService` so hidden tabs / signed-out sessions skip
+    // it entirely. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => timer(0, 5000))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         if (this.activeSession?.status === 'running' || this.activeSession?.status === 'pending') {

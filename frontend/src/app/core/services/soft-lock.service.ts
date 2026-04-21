@@ -6,6 +6,7 @@ import {
 } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { interval } from 'rxjs';
+import { VisibilityGateService } from '../util/visibility-gate.service';
 
 import { AuthService } from './auth.service';
 import { RealtimeService } from './realtime.service';
@@ -47,6 +48,7 @@ export class SoftLockService {
   private readonly auth = inject(AuthService);
   private readonly realtime = inject(RealtimeService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   private myUsername = '';
   private myConnectionId = '';
@@ -62,8 +64,11 @@ export class SoftLockService {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((u) => (this.myUsername = u?.username ?? ''));
 
-    // Sweep stale entries periodically.
-    interval(HEARTBEAT_MS)
+    // Sweep stale entries periodically. Gated by
+    // `VisibilityGateService` — if the tab is hidden there's no UI to
+    // update. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(HEARTBEAT_MS))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.sweep());
   }
@@ -98,6 +103,12 @@ export class SoftLockService {
 
     const send = () => {
       if (!this.myUsername) return;
+      // Skip when the tab is hidden — the soft-lock naturally expires
+      // after STALE_MS on other tabs, which is the intended UX (lock
+      // follows attention). See docs/PERFORMANCE.md §13.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       this.realtime.publish(topic, 'claim', {
         username: this.myUsername,
         target_type: targetType,

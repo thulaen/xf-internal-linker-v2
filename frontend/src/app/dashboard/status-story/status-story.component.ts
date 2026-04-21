@@ -14,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 import { DashboardService, StatusStory } from '../dashboard.service';
 import { ReadAloudComponent } from '../../shared/ui/read-aloud/read-aloud.component';
@@ -127,23 +128,28 @@ import { ReadAloudComponent } from '../../shared/ui/read-aloud/read-aloud.compon
 export class StatusStoryComponent implements OnInit {
   private readonly dash = inject(DashboardService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly story = signal<StatusStory | null>(null);
   readonly loading = signal(false);
   readonly errored = signal(false);
 
   ngOnInit(): void {
-    // Initial fetch + 5-minute auto-refresh.
-    timer(0, 5 * 60 * 1000)
-      .pipe(
-        switchMap(() => {
-          this.loading.set(true);
-          return this.dash
-            .getStatusStory()
-            .pipe(catchError(() => of<StatusStory | null>(null)));
-        }),
-        takeUntilDestroyed(this.destroyRef),
+    // Initial fetch + 5-minute auto-refresh. Gated by
+    // `VisibilityGateService` so hidden tabs and signed-out sessions
+    // skip the poll. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 5 * 60 * 1000).pipe(
+          switchMap(() => {
+            this.loading.set(true);
+            return this.dash
+              .getStatusStory()
+              .pipe(catchError(() => of<StatusStory | null>(null)));
+          }),
+        ),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((story) => {
         this.loading.set(false);
         if (story) {

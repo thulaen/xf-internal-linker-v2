@@ -18,7 +18,8 @@ import { MatChipsModule } from '@angular/material/chips';
 import { MatDialog, MatDialogModule } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { HttpClient } from '@angular/common/http';
-import { catchError, of, Subject, takeUntil } from 'rxjs';
+import { catchError, of, Subject, takeUntil, timer, switchMap } from 'rxjs';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { SyncService, SyncJob } from './sync.service';
 import { JobDetailDialogComponent, JobDetailDialogResult } from './job-detail-dialog.component';
 import { HealthBannerComponent } from '../shared/health-banner/health-banner.component';
@@ -83,8 +84,6 @@ export class JobsComponent implements OnInit, OnDestroy {
   syncJobs: SyncJob[] = [];
   displayedColumns: string[] = ['created_at', 'source', 'mode', 'status', 'progress', 'duration', 'success_rate', 'actions'];
 
-  private historyInterval: ReturnType<typeof setInterval> | null = null;
-
   jobs: Record<'api' | 'wp' | 'jsonl', SourceJobState> = {
     api:   this.emptyJob(),
     wp:    this.emptyJob(),
@@ -96,6 +95,7 @@ export class JobsComponent implements OnInit, OnDestroy {
   private dialog = inject(MatDialog);
   private snack = inject(MatSnackBar);
   private realtime = inject(RealtimeService);
+  private visibilityGate = inject(VisibilityGateService);
   private destroy$ = new Subject<void>();
 
   // Queue + Quarantine (Stage 5)
@@ -235,7 +235,17 @@ export class JobsComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe((update: TopicUpdate) => this.handleJobsRealtimeUpdate(update));
 
-    this.historyInterval = setInterval(() => this.loadHistory(), 120_000);
+    // 2-minute defensive fallback for `jobs.history` WebSocket drops.
+    // Gated by `VisibilityGateService` — hidden tabs / signed-out
+    // sessions skip the poll. See docs/PERFORMANCE.md §13. The legacy
+    // `historyInterval` setInterval handle is no longer needed; the
+    // RxJS stream is cleaned up by `takeUntil(this.destroy$)`.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(120_000, 120_000).pipe(switchMap(() => of(null))),
+      )
+      .pipe(takeUntil(this.destroy$))
+      .subscribe(() => this.loadHistory());
   }
 
   private handleJobsRealtimeUpdate(update: TopicUpdate): void {
@@ -614,7 +624,6 @@ export class JobsComponent implements OnInit, OnDestroy {
       j.ws?.close();
       this.clearPolling(j);
     });
-    if (this.historyInterval) clearInterval(this.historyInterval);
     this.destroy$.next();
     this.destroy$.complete();
   }

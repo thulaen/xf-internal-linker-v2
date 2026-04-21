@@ -16,6 +16,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { interval } from 'rxjs';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 /**
  * Phase D3 / Gap 182 — Quiet-hours indicator.
@@ -127,6 +128,7 @@ const ENABLED_KEY = 'xfil_quiet_hours_enabled';
 })
 export class QuietHoursIndicatorComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly enabled = signal<boolean>(true);
   readonly start = signal<string>('22:00');
@@ -159,7 +161,11 @@ export class QuietHoursIndicatorComponent implements OnInit {
 
   ngOnInit(): void {
     this.loadFromStorage();
-    interval(60_000)
+    // 60-second local-time tick, gated by `VisibilityGateService` so
+    // hidden tabs do not burn change-detection updating an unseen clock.
+    // See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(60_000))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.now.set(new Date()));
   }

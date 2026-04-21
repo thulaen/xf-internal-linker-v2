@@ -8,6 +8,7 @@ import {
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { NavigationEnd, Router } from '@angular/router';
 import { filter, interval } from 'rxjs';
+import { VisibilityGateService } from '../util/visibility-gate.service';
 
 import { AuthService } from './auth.service';
 import { RealtimeService } from './realtime.service';
@@ -49,6 +50,7 @@ export class PresenceService {
   private readonly router = inject(Router);
   private readonly realtime = inject(RealtimeService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   private currentRoute = '/';
   private myUsername = '';
@@ -118,7 +120,12 @@ export class PresenceService {
         this._peers.set(next);
       });
 
-    interval(HEARTBEAT_MS)
+    // Heartbeat + stale sweep both gated by `VisibilityGateService`:
+    // hidden tabs naturally fade from the presence list (arguably
+    // correct UX — if you're not looking, you're "away"). See
+    // docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(HEARTBEAT_MS))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.heartbeat());
 
@@ -127,7 +134,8 @@ export class PresenceService {
 
     // Periodically sweep stale rows out so the signal computation
     // stays cheap even after long sessions.
-    interval(STALE_AFTER_MS)
+    this.visibilityGate
+      .whileLoggedInAndVisible(() => interval(STALE_AFTER_MS))
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         const cutoff = Date.now() - STALE_AFTER_MS;

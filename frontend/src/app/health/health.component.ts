@@ -217,6 +217,12 @@ export class HealthComponent implements OnInit, OnDestroy {
   private startJobPoll(): void {
     if (this.jobPollInterval) return;
     this.jobPollInterval = setInterval(() => {
+      // Skip the fetch when the tab is hidden — operators aren't
+      // looking and the backend will still be sending WS updates
+      // to the Jobs page if they care. See docs/PERFORMANCE.md §13.
+      if (typeof document !== 'undefined' && document.visibilityState === 'hidden') {
+        return;
+      }
       this.syncService.getJobs()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({

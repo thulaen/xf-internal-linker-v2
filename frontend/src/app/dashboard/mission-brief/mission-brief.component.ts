@@ -14,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 import { DashboardService, MissionBrief } from '../dashboard.service';
 
@@ -157,22 +158,27 @@ import { DashboardService, MissionBrief } from '../dashboard.service';
 export class MissionBriefComponent implements OnInit {
   private readonly dash = inject(DashboardService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly brief = signal<MissionBrief | null>(null);
   readonly loading = signal(false);
 
   ngOnInit(): void {
-    // 15-minute refresh cadence — a brief, not a ticker.
-    timer(0, 15 * 60 * 1000)
-      .pipe(
-        switchMap(() => {
-          this.loading.set(true);
-          return this.dash
-            .getMissionBrief()
-            .pipe(catchError(() => of<MissionBrief | null>(null)));
-        }),
-        takeUntilDestroyed(this.destroyRef),
+    // 15-minute refresh cadence — a brief, not a ticker. Gated by
+    // `VisibilityGateService` so hidden tabs / signed-out sessions
+    // skip the poll. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 15 * 60 * 1000).pipe(
+          switchMap(() => {
+            this.loading.set(true);
+            return this.dash
+              .getMissionBrief()
+              .pipe(catchError(() => of<MissionBrief | null>(null)));
+          }),
+        ),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((b) => {
         this.loading.set(false);
         if (b) this.brief.set(b);

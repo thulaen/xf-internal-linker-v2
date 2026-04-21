@@ -6,7 +6,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { Subject, takeUntil } from 'rxjs';
-import { DiagnosticsService, MetaTournamentResponse, TournamentSlot } from '../diagnostics.service';
+import { DiagnosticsService, MetaTournamentResponse, TournamentPromotion, TournamentSlot } from '../diagnostics.service';
 
 @Component({
   selector: 'app-meta-tournament',
@@ -88,6 +88,10 @@ export class MetaTournamentComponent implements OnInit, OnDestroy {
 
   trackBySlotId(_: number, slot: TournamentSlot): string {
     return slot.slot_id;
+  }
+
+  trackByPromotion(_: number, p: TournamentPromotion): string {
+    return `${p.evaluated_at}:${p.meta_id}`;
   }
 
   formatNdcg(value: number | null | undefined): string {

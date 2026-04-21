@@ -14,6 +14,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 /**
  * Phase OB / Gap 130 — Real User Monitoring summary card.
@@ -166,22 +167,28 @@ const THRESHOLDS: Record<string, { good: number; poor: number; unit: string }> =
 export class RumSummaryComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly summary = signal<RumSummary | null>(null);
   readonly loading = signal(false);
   readonly metricOrder = ['LCP', 'INP', 'CLS', 'FCP', 'TTFB'] as const;
 
   ngOnInit(): void {
-    timer(0, 5 * 60 * 1000)
-      .pipe(
-        switchMap(() => {
-          this.loading.set(true);
-          return this.http
-            .get<RumSummary>('/api/rum/summary/')
-            .pipe(catchError(() => of<RumSummary | null>(null)));
-        }),
-        takeUntilDestroyed(this.destroyRef),
+    // 5-minute poll, gated by `VisibilityGateService` so hidden tabs
+    // and signed-out sessions do not hit the API. See
+    // docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 5 * 60 * 1000).pipe(
+          switchMap(() => {
+            this.loading.set(true);
+            return this.http
+              .get<RumSummary>('/api/rum/summary/')
+              .pipe(catchError(() => of<RumSummary | null>(null)));
+          }),
+        ),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((res) => {
         this.loading.set(false);
         if (res) this.summary.set(res);

@@ -13,6 +13,7 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -111,6 +112,7 @@ export class WhosOnShiftComponent implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   readonly users = signal<readonly ActiveUser[]>([]);
   readonly self = signal<string>('');
@@ -123,15 +125,20 @@ export class WhosOnShiftComponent implements OnInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((u) => this.self.set(u?.username ?? ''));
 
-    timer(0, 60_000)
-      .pipe(
-        switchMap(() =>
-          this.http
-            .get<ActiveUser[]>('/api/auth/active-users/')
-            .pipe(catchError(() => of<ActiveUser[] | null>(null))),
+    // 60-second poll, gated by `VisibilityGateService` so hidden tabs
+    // and signed-out sessions do not pound the API. See
+    // docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 60_000).pipe(
+          switchMap(() =>
+            this.http
+              .get<ActiveUser[]>('/api/auth/active-users/')
+              .pipe(catchError(() => of<ActiveUser[] | null>(null))),
+          ),
         ),
-        takeUntilDestroyed(this.destroyRef),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((list) => {
         if (!Array.isArray(list)) {
           // Endpoint unavailable — hide the card entirely.

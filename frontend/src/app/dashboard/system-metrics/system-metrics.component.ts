@@ -7,6 +7,7 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { catchError, of, switchMap, timer } from 'rxjs';
+import { VisibilityGateService } from '../../core/util/visibility-gate.service';
 
 interface GpuMetrics {
   available: boolean;
@@ -176,6 +177,7 @@ interface SystemMetrics {
 export class SystemMetricsComponent implements OnInit {
   private http = inject(HttpClient);
   private destroyRef = inject(DestroyRef);
+  private visibilityGate = inject(VisibilityGateService);
 
   readonly metrics = signal<SystemMetrics | null>(null);
 
@@ -210,16 +212,20 @@ export class SystemMetricsComponent implements OnInit {
   });
 
   ngOnInit(): void {
-    // Poll every 10 seconds. First sample fires immediately.
-    timer(0, 10_000)
-      .pipe(
-        switchMap(() =>
-          this.http.get<SystemMetrics>('/api/system/metrics/').pipe(
-            catchError(() => of(null)),
+    // Poll every 10 seconds. First sample fires immediately. Gated by
+    // `VisibilityGateService` so hidden tabs / signed-out sessions do
+    // not pound the API. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(0, 10_000).pipe(
+          switchMap(() =>
+            this.http.get<SystemMetrics>('/api/system/metrics/').pipe(
+              catchError(() => of(null)),
+            ),
           ),
         ),
-        takeUntilDestroyed(this.destroyRef),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data) => {
         if (data) {
           this.metrics.set(data);

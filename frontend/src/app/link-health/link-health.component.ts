@@ -275,6 +275,15 @@ export class LinkHealthComponent implements OnInit, OnDestroy {
     const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
     this.ws = new WebSocket(`${protocol}://${location.host}/ws/jobs/${jobId}/`);
 
+    this.ws.onopen = () => {
+      // If a previous connect attempt switched to HTTP polling on
+      // `onerror` / `onclose`, kill that interval now that the socket
+      // is healthy — otherwise we'd poll AND receive WS frames for the
+      // same job during recovery.
+      this.stopPolling();
+      this.errorMessage = '';
+    };
+
     this.ws.onmessage = (event) => {
       let data: Record<string, unknown>;
       try {

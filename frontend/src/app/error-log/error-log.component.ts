@@ -14,6 +14,7 @@ import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 import { timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
+import { VisibilityGateService } from '../core/util/visibility-gate.service';
 import { environment } from '../../environments/environment';
 import { GlitchtipService } from '../core/services/glitchtip.service';
 import {
@@ -67,6 +68,7 @@ export class ErrorLogComponent implements OnInit {
   private cdr = inject(ChangeDetectorRef);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
   private destroyRef = inject(DestroyRef);
+  private visibilityGate = inject(VisibilityGateService);
 
   errors: ErrorLogEntry[] = [];
   glitchtipEvents: ErrorLogEntry[] = [];
@@ -109,11 +111,15 @@ export class ErrorLogComponent implements OnInit {
   }
 
   private startGlitchtipPoll(): void {
-    timer(GLITCHTIP_POLL_MS, GLITCHTIP_POLL_MS)
-      .pipe(
-        switchMap(() => this.glitchtip.getRecentEvents()),
-        takeUntilDestroyed(this.destroyRef),
+    // Gated by `VisibilityGateService` — hidden tabs / signed-out
+    // sessions skip the poll. See docs/PERFORMANCE.md §13.
+    this.visibilityGate
+      .whileLoggedInAndVisible(() =>
+        timer(GLITCHTIP_POLL_MS, GLITCHTIP_POLL_MS).pipe(
+          switchMap(() => this.glitchtip.getRecentEvents()),
+        ),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (events) => {
           this.glitchtipEvents = events;
