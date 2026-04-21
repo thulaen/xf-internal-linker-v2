@@ -638,7 +638,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Did **not** build an offline click-model fitter (Path C). Honest rename deferred that work until operators specifically request IPS-grade ranking quality.
   - Did **not** rename the frontend `FeedbackRerankDiagnostics` interface — it was already drifted from the backend dict shape pre-existingly and needed no `exposure_prob`-specific edit. The broader interface-sync work is its own separate slice.
   - Did **not** address RPT-001 Findings 1, 4, 5 — checking in with the user before continuing Tier 3.
-- **Commit/push state:** Pending — about to commit.
+- **Commit/push state:** Landed on `origin/master` in commits `475f4d3` (main rename) + `8007157` (80-line-cap docstring trim). The magic-number detector fix for the three newly added `RPT-001` docstring references (reworded to "the feedrerank audit Finding 2 in REPORT-REGISTRY.md") was captured in a local follow-up commit `bfcddf0` that was never pushed because it stacked on top of a later set of unrelated Codex commits whose test suite (`EmbeddingRuntimeSafetyTests.test_pipeline_embedding_loaders_only_return_current_signature_rows`) is failing with a pre-existing "no such table: core_runtimemodelregistry" state-leak bug in `TransactionTestCase`-ordered tests. Slice 8 itself is live on origin — the RPT-001 reference wording on origin still says "RPT-001" in the docstrings (that push was not hook-blocked at the time). Reword is safe to re-apply in a future session once the Codex test-ordering bug is resolved.
 
 ### 2026-04-20 — Tier 3 slice 7: close RPT-001 Finding 3 (feedrerank C++/Python denominator-guard parity) (Claude)
 
