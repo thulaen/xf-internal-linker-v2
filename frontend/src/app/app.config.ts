@@ -5,7 +5,7 @@
  * Uses Angular 19 standalone API — no NgModule required.
  */
 
-import { ApplicationConfig, ErrorHandler, provideZoneChangeDetection, isDevMode } from '@angular/core';
+import { ApplicationConfig, ErrorHandler, provideZonelessChangeDetection, isDevMode } from '@angular/core';
 import { provideRouter, withInMemoryScrolling, withRouterConfig } from '@angular/router';
 import { provideHttpClient, withInterceptors, withXsrfConfiguration } from '@angular/common/http';
 import { provideAnimationsAsync } from '@angular/platform-browser/animations/async';
@@ -31,7 +31,7 @@ const errorHandlerProviders = environment.glitchtipDsn
 
 export const appConfig: ApplicationConfig = {
   providers: [
-    provideZoneChangeDetection({ eventCoalescing: true, runCoalescing: true }),
+    provideZonelessChangeDetection(),
     provideRouter(
       routes,
       // Disable Angular's built-in anchor scrolling — our GlobalLinkInterceptorService
