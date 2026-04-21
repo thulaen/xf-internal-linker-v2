@@ -9,31 +9,59 @@
     }
   </div>
 
-  <!-- Filters -->
-  <div class="filter-row">
-    <mat-form-field appearance="outline" class="filter-field">
-      <mat-label>Job Type</mat-label>
-      <mat-select [(ngModel)]="filterJobType">
-        <mat-option value="">All</mat-option>
-        @for (type of uniqueJobTypes; track type) {
-          <mat-option [value]="type">{{ jobTypeLabel(type) }}</mat-option>
-        }
-      </mat-select>
-    </mat-form-field>
+  <mat-tab-group
+    class="error-log-tabs"
+    [selectedIndex]="selectedTabIndex"
+    (selectedIndexChange)="onTabChange($event)"
+    animationDuration="200ms">
+    <mat-tab label="Internal"></mat-tab>
+    <mat-tab label="Glitchtip"></mat-tab>
+    <mat-tab label="All"></mat-tab>
+  </mat-tab-group>
 
-    <mat-form-field appearance="outline" class="filter-field">
-      <mat-label>Status</mat-label>
-      <mat-select [(ngModel)]="filterAcknowledged">
-        <mat-option value="">All</mat-option>
-        <mat-option value="unreviewed">Unreviewed</mat-option>
-        <mat-option value="reviewed">Reviewed</mat-option>
-      </mat-select>
-    </mat-form-field>
+  @if (selectedTabIndex === 1) {
+    <div class="glitchtip-tab-toolbar">
+      <p class="glitchtip-sync-status">
+        Last synced:
+        {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
+      </p>
+      <button type="button"
+              mat-flat-button
+              color="primary"
+              class="glitchtip-visit-button"
+              (click)="openGlitchtip()">
+        <mat-icon>open_in_new</mat-icon>
+        <span>Visit Glitchtip</span>
+      </button>
+    </div>
+  }
 
-    <button mat-icon-button matTooltip="Refresh" (click)="loadErrors()">
-      <mat-icon>refresh</mat-icon>
-    </button>
-  </div>
+  @if (showJobTypeAndStatusFilters) {
+    <div class="filter-row">
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Job Type</mat-label>
+        <mat-select [(ngModel)]="filterJobType">
+          <mat-option value="">All</mat-option>
+          @for (type of uniqueJobTypes; track type) {
+            <mat-option [value]="type">{{ jobTypeLabel(type) }}</mat-option>
+          }
+        </mat-select>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline" class="filter-field">
+        <mat-label>Status</mat-label>
+        <mat-select [(ngModel)]="filterAcknowledged">
+          <mat-option value="">All</mat-option>
+          <mat-option value="unreviewed">Unreviewed</mat-option>
+          <mat-option value="reviewed">Reviewed</mat-option>
+        </mat-select>
+      </mat-form-field>
+
+      <button mat-icon-button matTooltip="Refresh" (click)="loadErrors()">
+        <mat-icon>refresh</mat-icon>
+      </button>
+    </div>
+  }
 
   <!-- Loading -->
   @if (loading) {

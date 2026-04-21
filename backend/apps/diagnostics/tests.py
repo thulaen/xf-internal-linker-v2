@@ -1,8 +1,10 @@
+from datetime import timedelta
 from unittest.mock import patch
 
 from django.test import SimpleTestCase, TestCase, override_settings
 from rest_framework.test import APIClient
 
+from apps.audit.models import ErrorLog
 from apps.diagnostics import health
 
 
@@ -321,3 +323,70 @@ class NegativeMemoryDrilldownViewTests(TestCase):
         )
         self.assertEqual(response.status_code, 404)
         self.assertIn("detail", response.json())
+
+
+class GlitchtipEventsViewTests(TestCase):
+    def setUp(self) -> None:
+        from django.contrib.auth import get_user_model
+
+        self.client = APIClient()
+        user = get_user_model().objects.create_user(
+            username="glitchtip-user", password="pass"
+        )
+        self.client.force_authenticate(user=user)
+
+    def _make_error(self, **overrides):
+        defaults = {
+            "job_type": "pipeline",
+            "step": "glitchtip-sync",
+            "error_message": "Issue imported from GlitchTip",
+            "source": "glitchtip",
+            "severity": "high",
+        }
+        defaults.update(overrides)
+        return ErrorLog.objects.create(**defaults)
+
+    def test_glitchtip_events_returns_newest_unresolved_rows_only(self) -> None:
+        from django.utils import timezone
+
+        newest = self._make_error(glitchtip_issue_id="gt-2")
+        internal = self._make_error(
+            source="internal",
+            glitchtip_issue_id=None,
+            glitchtip_url=None,
+        )
+        acknowledged = self._make_error(
+            glitchtip_issue_id="gt-3",
+            acknowledged=True,
+        )
+        oldest = self._make_error(glitchtip_issue_id="gt-1")
+        ErrorLog.objects.filter(pk=oldest.pk).update(
+            created_at=timezone.now() - timedelta(hours=2)
+        )
+        ErrorLog.objects.filter(pk=newest.pk).update(
+            created_at=timezone.now() - timedelta(minutes=5)
+        )
+
+        response = self.client.get("/api/glitchtip/events/")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual([row["id"] for row in payload], [newest.pk, oldest.pk])
+        self.assertNotIn(internal.pk, [row["id"] for row in payload])
+        self.assertNotIn(acknowledged.pk, [row["id"] for row in payload])
+
+    def test_glitchtip_events_respects_status_and_limit_clamp(self) -> None:
+        first = self._make_error(glitchtip_issue_id="gt-limit-1")
+        second = self._make_error(
+            glitchtip_issue_id="gt-limit-2",
+            acknowledged=True,
+        )
+
+        unresolved = self.client.get("/api/glitchtip/events/?limit=0")
+        all_rows = self.client.get("/api/glitchtip/events/?status=all&limit=999")
+
+        self.assertEqual(unresolved.status_code, 200)
+        self.assertEqual(len(unresolved.json()), 1)
+        self.assertEqual(unresolved.json()[0]["id"], first.pk)
+        self.assertEqual(all_rows.status_code, 200)
+        self.assertEqual([row["id"] for row in all_rows.json()], [second.pk, first.pk])

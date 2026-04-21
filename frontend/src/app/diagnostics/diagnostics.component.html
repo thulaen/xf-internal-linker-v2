@@ -26,8 +26,10 @@
          Runtime (GT-G9), Nodes strip (GT-G13), and the fingerprint-
          grouped error list.
          ════════════════════════════════════════════════════════════════ -->
-    <section class="error-log-section" *ngIf="errors.length > 0 || pipelineGate || runtimeCtx || nodes.length > 1 || acknowledgedErrors.length > 0">
-      <!-- Header row: title, count badge, external links -->
+    <section
+      id="diagnostics-errors"
+      class="error-log-section"
+      *ngIf="errors.length > 0 || pipelineGate || runtimeCtx || nodes.length > 1 || acknowledgedErrors.length > 0">
       <div class="section-heading error-log-heading">
         <div class="error-log-title-group">
           <h2>Error Log</h2>
@@ -40,14 +42,6 @@
           }
         </div>
         <div class="error-log-actions">
-          <a [href]="glitchtipUrl"
-             target="_blank"
-             rel="noopener noreferrer"
-             mat-stroked-button
-             matTooltip="Open GlitchTip dashboard in a new tab">
-            <mat-icon>bug_report</mat-icon>
-            <span>Open GlitchTip</span>
-          </a>
           <button mat-stroked-button
                   (click)="openDjangoAdmin()"
                   matTooltip="Open Django Admin in a new tab">
@@ -163,8 +157,41 @@
         </div>
       }
 
+      <mat-tab-group
+        id="diagnostics-errors-tabs"
+        class="error-log-tabs"
+        [selectedIndex]="selectedErrorTabIndex"
+        (selectedIndexChange)="onErrorTabChange($event)"
+        appPersistTab="diagnostics.errors"
+        animationDuration="200ms">
+        <mat-tab label="Internal"></mat-tab>
+        <mat-tab label="Glitchtip"></mat-tab>
+        <mat-tab label="All"></mat-tab>
+      </mat-tab-group>
+
+      <div
+        class="error-tab-panel"
+        [attr.id]="selectedErrorTabIndex === 0 ? 'internal-errors-tab' : selectedErrorTabIndex === 1 ? 'glitchtip-errors-tab' : 'all-errors-tab'">
+        @if (selectedErrorTabIndex === 1) {
+          <div class="glitchtip-tab-toolbar">
+            <p class="glitchtip-sync-status">
+              Last synced:
+              {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
+            </p>
+            <button
+              type="button"
+              mat-flat-button
+              color="primary"
+              class="glitchtip-visit-button"
+              (click)="openGlitchtip()">
+              <mat-icon>open_in_new</mat-icon>
+              <span>Visit Glitchtip</span>
+            </button>
+          </div>
+        }
+
       <!-- Empty state: no unacknowledged errors. -->
-      @if (errors.length === 0) {
+      @if (activeGroupedErrors.length === 0) {
         <div class="error-empty-state" role="status">
           <mat-icon class="empty-check">check_circle</mat-icon>
           <p>No unacknowledged errors — everything looks healthy.</p>
@@ -174,7 +201,7 @@
       <!-- Fingerprint-grouped error rows. One row per distinct failure.
            Repeats of the same fingerprint collapse into the row's
            occurrence-count badge. -->
-      @for (group of groupedErrors; track trackGroupFingerprint($index, group)) {
+      @for (group of activeGroupedErrors; track trackGroupFingerprint($index, group)) {
         @let e = group.representative;
         <article class="error-row"
                  [ngClass]="severityClass(e)"
@@ -354,7 +381,7 @@
 
       <!-- Acknowledged / Fixed drawer — collapsed by default. Only
            rendered when there's something to show. -->
-      @if (acknowledgedErrors.length > 0) {
+      @if (showAcknowledgedDrawer) {
         <details class="acknowledged-section">
           <summary>
             Acknowledged / Fixed ({{ acknowledgedErrors.length }})
@@ -376,6 +403,7 @@
           }
         </details>
       }
+      </div>
     </section>
 
     <!-- Resource Metrics Bar -->

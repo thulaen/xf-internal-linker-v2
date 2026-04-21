@@ -520,6 +520,7 @@ if _TRACKING_DSN:
 
     sentry_sdk.init(
         dsn=_TRACKING_DSN,
+        release=env("APP_VERSION", default="dev"),
         integrations=[DjangoIntegration(), CeleryIntegration()],
         traces_sample_rate=0.1,
         environment=env("DJANGO_ENV", default="production"),

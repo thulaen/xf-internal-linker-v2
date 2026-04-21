@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
@@ -10,11 +10,20 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatSelectModule } from '@angular/material/select';
+import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { timer } from 'rxjs';
+import { switchMap } from 'rxjs/operators';
+import { environment } from '../../environments/environment';
+import { GlitchtipService } from '../core/services/glitchtip.service';
 import {
   DiagnosticsService,
   ErrorLogEntry,
 } from '../diagnostics/diagnostics.service';
+
+const GLITCHTIP_TAB_INDEX = 1;
+const ALL_TAB_INDEX = 2;
+const GLITCHTIP_POLL_MS = 30_000;
 
 /**
  * Phase E1 / Gap 27 — Virtual scroll applied to the error list.
@@ -46,6 +55,7 @@ import {
     MatIconModule,
     MatProgressSpinnerModule,
     MatSelectModule,
+    MatTabsModule,
     MatTooltipModule,
   ],
   templateUrl: './error-log.component.html',
@@ -53,17 +63,64 @@ import {
 })
 export class ErrorLogComponent implements OnInit {
   private diagnostics = inject(DiagnosticsService);
+  private glitchtip = inject(GlitchtipService);
+  private cdr = inject(ChangeDetectorRef);
   // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
   private destroyRef = inject(DestroyRef);
 
   errors: ErrorLogEntry[] = [];
+  glitchtipEvents: ErrorLogEntry[] = [];
+  glitchtipLastSyncedAt: string | null = null;
   loading = true;
+  selectedTabIndex = 0;
 
   filterJobType = '';
   filterAcknowledged = '';
 
+  readonly glitchtipBaseUrl = environment.glitchtipBaseUrl;
+
   ngOnInit(): void {
     this.loadErrors();
+    this.startGlitchtipPoll();
+  }
+
+  onTabChange(index: number): void {
+    this.selectedTabIndex = index;
+    if (index === GLITCHTIP_TAB_INDEX) {
+      this.loadGlitchtipEvents();
+    }
+  }
+
+  openGlitchtip(): void {
+    if (!this.glitchtipBaseUrl) return;
+    window.open(this.glitchtipBaseUrl, '_blank', 'noopener,noreferrer');
+  }
+
+  loadGlitchtipEvents(): void {
+    this.glitchtip.getRecentEvents()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (events) => {
+          this.glitchtipEvents = events;
+          this.glitchtipLastSyncedAt = new Date().toISOString();
+          this.cdr.markForCheck();
+        },
+      });
+  }
+
+  private startGlitchtipPoll(): void {
+    timer(GLITCHTIP_POLL_MS, GLITCHTIP_POLL_MS)
+      .pipe(
+        switchMap(() => this.glitchtip.getRecentEvents()),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (events) => {
+          this.glitchtipEvents = events;
+          this.glitchtipLastSyncedAt = new Date().toISOString();
+          this.cdr.markForCheck();
+        },
+      });
   }
 
   loadErrors(): void {
@@ -74,15 +131,23 @@ export class ErrorLogComponent implements OnInit {
         next: (data) => {
           this.errors = data;
           this.loading = false;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.loading = false;
+          this.cdr.markForCheck();
         },
       });
   }
 
   get filteredErrors(): ErrorLogEntry[] {
-    return this.errors.filter((e) => {
+    if (this.selectedTabIndex === GLITCHTIP_TAB_INDEX) {
+      return this.glitchtipEvents;
+    }
+    const sourceFiltered = this.selectedTabIndex === ALL_TAB_INDEX
+      ? this.errors
+      : this.errors.filter((e) => e.source !== 'glitchtip');
+    return sourceFiltered.filter((e) => {
       if (this.filterJobType && e.job_type !== this.filterJobType) return false;
       if (this.filterAcknowledged === 'reviewed' && !e.acknowledged) return false;
       if (this.filterAcknowledged === 'unreviewed' && e.acknowledged) return false;
@@ -96,6 +161,10 @@ export class ErrorLogComponent implements OnInit {
 
   get unreviewedCount(): number {
     return this.errors.filter((e) => !e.acknowledged).length;
+  }
+
+  get showJobTypeAndStatusFilters(): boolean {
+    return this.selectedTabIndex !== GLITCHTIP_TAB_INDEX;
   }
 
   acknowledgeError(error: ErrorLogEntry): void {

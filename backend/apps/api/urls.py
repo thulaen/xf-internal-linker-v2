@@ -8,6 +8,7 @@ DRF routers wire viewsets from each app into clean URL patterns.
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
+from apps.diagnostics.views import GlitchtipEventsView
 from apps.health.views import HealthStatusViewSet, HealthDiskView, HealthGpuView
 from apps.content.views import ContentItemViewSet, ScopeItemViewSet, SiloGroupViewSet
 from apps.core.views import (
@@ -183,6 +184,11 @@ urlpatterns = [
         "meta-algorithms/<str:algo_id>/toggle/",
         MetaAlgorithmToggleView.as_view(),
         name="meta-algorithm-toggle",
+    ),
+    path(
+        "glitchtip/events/",
+        GlitchtipEventsView.as_view(),
+        name="glitchtip-events",
     ),
     path("", include(router.urls)),
     path("import/upload/", ImportUploadView.as_view(), name="import-upload"),

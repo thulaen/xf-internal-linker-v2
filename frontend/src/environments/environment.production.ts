@@ -9,6 +9,7 @@ export const environment = {
   adminUrl: `${window.location.origin}/admin/`,
   wsBaseUrl: `wss://${window.location.host}/ws`,
   appVersion: '2.0.0',
+  glitchtipBaseUrl: `${window.location.protocol}//${window.location.hostname}:1337`,
   // Phase GT Step 2 — Sentry/GlitchTip DSN. Set via build-time substitution
   // or runtime config so prod builds don't need source edits. An empty
   // string disables the SDK entirely (no init, no global ErrorHandler

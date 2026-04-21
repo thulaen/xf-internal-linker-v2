@@ -6,6 +6,8 @@ _BYTES_PER_KIB = 1024.0  # bytes per kibibyte
 _SECONDS_PER_HOUR = 3600  # 60 * 60
 _SECONDS_PER_DAY = 86400  # 60 * 60 * 24
 _PCT_TO_FRACTION = 0.01  # percent-to-fraction conversion (e.g. 73% -> 0.73)
+_GLITCHTIP_EVENTS_DEFAULT_LIMIT = 50
+_GLITCHTIP_EVENTS_MAX_LIMIT = 200
 from django.db import connection
 from django.utils import timezone
 from datetime import timedelta
@@ -343,6 +345,30 @@ class SystemErrorViewSet(viewsets.ReadOnlyModelViewSet):
         error.acknowledged = True
         error.save(update_fields=["acknowledged"])
         return response.Response({"status": "queued", "acknowledged": True})
+
+
+class GlitchtipEventsView(views.APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        queryset = ErrorLog.objects.filter(source=ErrorLog.SOURCE_GLITCHTIP).order_by(
+            "-created_at"
+        )
+        if request.query_params.get("status", "unresolved") == "unresolved":
+            queryset = queryset.filter(acknowledged=False)
+
+        serializer = ErrorLogSerializer(
+            queryset[: self._get_limit(request.query_params.get("limit"))],
+            many=True,
+        )
+        return response.Response(serializer.data)
+
+    def _get_limit(self, raw_limit) -> int:
+        try:
+            limit = int(raw_limit or _GLITCHTIP_EVENTS_DEFAULT_LIMIT)
+        except (TypeError, ValueError):
+            limit = _GLITCHTIP_EVENTS_DEFAULT_LIMIT
+        return max(1, min(limit, _GLITCHTIP_EVENTS_MAX_LIMIT))
 
 
 # ── Phase GT Step 5 — operator intelligence endpoints ──────────────────────
