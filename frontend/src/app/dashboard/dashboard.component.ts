@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit, inject } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnInit, inject } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { CommonModule } from '@angular/common';
@@ -36,8 +36,6 @@ import { PerformanceModeComponent } from './performance-mode/performance-mode.co
 import { RuntimeModeComponent } from './runtime-mode/runtime-mode.component';
 import { SystemMetricsComponent } from './system-metrics/system-metrics.component';
 import { RankingStrategyCardComponent } from './ranking-strategy-card/ranking-strategy-card.component';
-import { SuggestionFunnelComponent } from './suggestion-funnel/suggestion-funnel.component';
-import { TopOpportunityPagesComponent } from './top-opportunity-pages/top-opportunity-pages.component';
 import { FixRunbooksStripComponent } from './fix-runbooks-strip/fix-runbooks-strip.component';
 // ── Phase D1 imports (Gaps 53-65) ────────────────────────────────────
 import { StatusStoryComponent } from './status-story/status-story.component';
@@ -108,8 +106,6 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
     RuntimeModeComponent,
     SystemMetricsComponent,
     RankingStrategyCardComponent,
-    SuggestionFunnelComponent,
-    TopOpportunityPagesComponent,
     FixRunbooksStripComponent,
     // Phase D1 / Gaps 53-65 — noob UX components.
     StatusStoryComponent,
@@ -154,6 +150,7 @@ import { MissionCriticalComponent } from './mission-critical/mission-critical.co
   ],
   templateUrl: './dashboard.component.html',
   styleUrls: ['./dashboard.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class DashboardComponent implements OnInit {
   private dashSvc = inject(DashboardService);
@@ -166,6 +163,7 @@ export class DashboardComponent implements OnInit {
   private snack = inject(MatSnackBar);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
   // Phase D3 / Gaps 161 + 167 — modes service exposed for the
   // template's calm-mode `@if` gates.
   modes = inject(DashboardModesService);
@@ -206,7 +204,10 @@ export class DashboardComponent implements OnInit {
     // Subscribe to live activity feed.
     this.pulseService.events$
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((events) => (this.activityEvents = events));
+      .subscribe((events) => {
+        this.activityEvents = events;
+        this.cdr.markForCheck();
+      });
   }
 
   /**
@@ -244,15 +245,24 @@ export class DashboardComponent implements OnInit {
   private loadOperatingDesk(): void {
     this.http.get<TodayAction[]>('/api/dashboard/today-actions/')
       .pipe(catchError(() => of([])), takeUntilDestroyed(this.destroyRef))
-      .subscribe(actions => this.todayActions = actions);
+      .subscribe(actions => {
+        this.todayActions = actions;
+        this.cdr.markForCheck();
+      });
 
     this.http.get<WhatChangedData>('/api/dashboard/what-changed/')
       .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
-      .subscribe(data => this.whatChanged = data);
+      .subscribe(data => {
+        this.whatChanged = data;
+        this.cdr.markForCheck();
+      });
 
     this.http.get<ResumeState>('/api/dashboard/resume-state/')
       .pipe(catchError(() => of(null)), takeUntilDestroyed(this.destroyRef))
-      .subscribe(state => this.resumeState = state);
+      .subscribe(state => {
+        this.resumeState = state;
+        this.cdr.markForCheck();
+      });
 
     this.http.get<{ runtime_mode: string; performance_mode: string }>('/api/settings/runtime/')
       .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced' })), takeUntilDestroyed(this.destroyRef))
@@ -260,6 +270,7 @@ export class DashboardComponent implements OnInit {
         this.runtimeMode = rt.runtime_mode;
         this.performanceMode = rt.performance_mode;
         this.perfModeSvc.setMode(rt.performance_mode);
+        this.cdr.markForCheck();
       });
   }
 
@@ -280,10 +291,12 @@ export class DashboardComponent implements OnInit {
               .pipe(takeUntilDestroyed(this.destroyRef))
               .subscribe(() => this.router.navigate(['/jobs']));
             this.loadOperatingDesk();
+            this.cdr.markForCheck();
           },
           error: (err) => {
             const message = err?.error?.error || 'Could not resume that sync job.';
             this.snack.open(message, 'Dismiss', { duration: 5000 });
+            this.cdr.markForCheck();
           },
         });
       return;
@@ -317,10 +330,12 @@ export class DashboardComponent implements OnInit {
           this.daysSinceLastRun = this.computeDaysSinceLastRun(d.pipeline_runs);
           this.updateSetupChecklist(d);
           this.maybeShowSetupWizard(d);
+          this.cdr.markForCheck();
         },
         error: () => {
           this.loading = false;
           this.snack.open('Failed to load dashboard', 'Dismiss', { duration: 4000 });
+          this.cdr.markForCheck();
         },
       });
   }
@@ -344,6 +359,7 @@ export class DashboardComponent implements OnInit {
           if (calls.length === 0) {
             this.syncing = false;
             this.snack.open('No sources configured', 'Dismiss', { duration: 4000 });
+            this.cdr.markForCheck();
             return;
           }
           let completed = 0;
@@ -360,12 +376,14 @@ export class DashboardComponent implements OnInit {
                       'Dismiss',
                       { duration: 5000 },
                     );
+                    this.cdr.markForCheck();
                   }
                 },
                 error: () => {
                   completed++;
                   if (completed === calls.length) this.syncing = false;
                   this.snack.open(`Failed to sync ${source}`, 'Dismiss', { duration: 4000 });
+                  this.cdr.markForCheck();
                 },
               });
           }
@@ -373,6 +391,7 @@ export class DashboardComponent implements OnInit {
         error: () => {
           this.syncing = false;
           this.snack.open('Failed to check source status', 'Dismiss', { duration: 4000 });
+          this.cdr.markForCheck();
         },
       });
   }
@@ -400,10 +419,12 @@ export class DashboardComponent implements OnInit {
                 { duration: 5000 },
               );
               this.load();
+              this.cdr.markForCheck();
             },
             error: () => {
               this.startingPipeline = false;
               this.snack.open('Failed to start pipeline', 'Dismiss', { duration: 4000 });
+              this.cdr.markForCheck();
             },
           });
       });

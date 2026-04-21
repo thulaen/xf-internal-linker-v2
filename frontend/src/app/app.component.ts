@@ -1,9 +1,9 @@
-import { Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
+import { CommonModule, DOCUMENT } from '@angular/common';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, HostListener, OnInit, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { RouterOutlet, RouterLink, RouterLinkActive, Router, NavigationEnd, ChildrenOutletContexts } from '@angular/router';
-import { CommonModule } from '@angular/common';
-import { EMPTY, filter, map, Observable, startWith, timer, switchMap } from 'rxjs';
+import { EMPTY, distinctUntilChanged, filter, fromEvent, map, Observable, startWith, switchMap, timer } from 'rxjs';
 import { MatSidenavModule } from '@angular/material/sidenav';
 import { MatToolbarModule } from '@angular/material/toolbar';
 import { MatListModule } from '@angular/material/list';
@@ -141,6 +141,7 @@ interface NavSection {
   templateUrl: './app.component.html',
   styleUrls: ['./app.component.scss'],
   animations: [routeTransitionAnimation],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AppComponent implements OnInit {
   appearance = inject(AppearanceService);
@@ -150,6 +151,8 @@ export class AppComponent implements OnInit {
   private dashboardSvc = inject(DashboardService);
   private linkInterceptor = inject(GlobalLinkInterceptorService);
   private destroyRef = inject(DestroyRef);
+  private cdr = inject(ChangeDetectorRef);
+  private document = inject(DOCUMENT);
   private router = inject(Router);
   private pulseService = inject(PulseService);
   private suggestionSvc = inject(SuggestionService);
@@ -209,6 +212,11 @@ export class AppComponent implements OnInit {
   private userActivity = inject(UserActivityService);
   private http = inject(HttpClient);
   private contexts = inject(ChildrenOutletContexts);
+  private readonly pageVisible$ = fromEvent(this.document, 'visibilitychange').pipe(
+    startWith(null),
+    map(() => this.document.visibilityState === 'visible'),
+    distinctUntilChanged(),
+  );
 
   /** Gap 38 — WS connection status dot. Bound to the toolbar pill. */
   readonly wsStatus: ReturnType<typeof toSignal<ConnectionStatus>> =
@@ -418,7 +426,7 @@ export class AppComponent implements OnInit {
    */
   private startAuthenticatedPolls(): void {
     // Toolbar performance-mode chip (2 min) + master-pause hydrate.
-    this.whileLoggedIn(() =>
+    this.whileLoggedInAndVisible(() =>
       timer(0, 2 * 60 * 1000).pipe(switchMap(() => this.perfMode.refresh())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -427,21 +435,46 @@ export class AppComponent implements OnInit {
         if (typeof anyRt?.master_pause === 'boolean') {
           this.masterPause = anyRt.master_pause;
         }
+        this.cdr.markForCheck();
       });
 
-    // Broken-links badge — fed by the shared dashboard data$ subject.
+    // Broken-links badge + freshness ribbon — both read from the shared
+    // dashboard cache so the shell does not fetch the same payload twice.
     this.dashboardSvc.data$
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((data: DashboardData | null) => {
         this.openBrokenLinks = data?.open_broken_links ?? 0;
+        this.lastSyncAt = data?.last_sync_at ?? null;
+        this.lastPipelineAt = data?.last_pipeline_at ?? null;
+        this.lastAnalyticsAt = data?.last_analytics_at ?? null;
+        this.runtimeMode = data?.runtime_mode ?? 'CPU';
+        this.cdr.markForCheck();
       });
 
-    this.whileLoggedIn(() => this.dashboardSvc.refresh())
+    this.whileLoggedInAndVisible(() =>
+      timer(0, 15 * 60 * 1000).pipe(switchMap(() => this.dashboardSvc.refresh())),
+    )
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ error: () => { this.openBrokenLinks = 0; } });
+      .subscribe({
+        error: () => {
+          this.openBrokenLinks = 0;
+          this.lastSyncAt = null;
+          this.lastPipelineAt = null;
+          this.lastAnalyticsAt = null;
+          this.runtimeMode = 'CPU';
+          this.cdr.markForCheck();
+        },
+      });
+
+    this.pulseService.pulse$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((p) => {
+        this.pulse = p;
+        this.cdr.markForCheck();
+      });
 
     // System-health summary for the status dot (30 min heartbeat).
-    this.whileLoggedIn(() =>
+    this.whileLoggedInAndVisible(() =>
       timer(0, 30 * 60 * 1000).pipe(switchMap(() => this.healthService.getSummary())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -449,28 +482,12 @@ export class AppComponent implements OnInit {
         next: (summary: HealthSummary) => {
           this.systemStatus = summary.system_status;
           this.healthSummary = summary;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.systemStatus = 'unknown';
           this.healthSummary = null;
-        },
-      });
-
-    this.pulseService.pulse$
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((p) => (this.pulse = p));
-
-    // Freshness ribbon (15 min).
-    this.whileLoggedIn(() =>
-      timer(0, 15 * 60 * 1000).pipe(switchMap(() => this.dashboardSvc.refresh())),
-    )
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (d: DashboardData) => {
-          this.lastSyncAt = d.last_sync_at ?? null;
-          this.lastPipelineAt = d.last_pipeline_at ?? null;
-          this.lastAnalyticsAt = d.last_analytics_at ?? null;
-          this.runtimeMode = d.runtime_mode ?? 'CPU';
+          this.cdr.markForCheck();
         },
       });
 
@@ -484,16 +501,22 @@ export class AppComponent implements OnInit {
    * keep the poll until a dedicated `errors.log` topic lands.
    */
   private startNavBadgePolls(): void {
-    this.whileLoggedIn(() =>
+    this.whileLoggedInAndVisible(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.suggestionSvc.getPendingCount())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (count: number) => this.pendingSuggestionCount = count,
-        error: () => this.pendingSuggestionCount = 0,
+        next: (count: number) => {
+          this.pendingSuggestionCount = count;
+          this.cdr.markForCheck();
+        },
+        error: () => {
+          this.pendingSuggestionCount = 0;
+          this.cdr.markForCheck();
+        },
       });
 
-    this.whileLoggedIn(() =>
+    this.whileLoggedInAndVisible(() =>
       timer(0, 5 * 60 * 1000).pipe(switchMap(() => this.diagnosticsSvc.getErrors())),
     )
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -502,8 +525,12 @@ export class AppComponent implements OnInit {
           this.unacknowledgedErrorCount = Array.isArray(errors)
             ? errors.filter((e) => !e.acknowledged).length
             : 0;
+          this.cdr.markForCheck();
         },
-        error: () => { this.unacknowledgedErrorCount = 0; },
+        error: () => {
+          this.unacknowledgedErrorCount = 0;
+          this.cdr.markForCheck();
+        },
       });
   }
 
@@ -515,6 +542,14 @@ export class AppComponent implements OnInit {
   private whileLoggedIn<T>(seed: () => Observable<T>): Observable<T> {
     return this.auth.isLoggedIn$.pipe(
       switchMap((loggedIn) => (loggedIn ? seed() : EMPTY)),
+    );
+  }
+
+  private whileLoggedInAndVisible<T>(seed: () => Observable<T>): Observable<T> {
+    return this.whileLoggedIn(() =>
+      this.pageVisible$.pipe(
+        switchMap((visible) => (visible ? seed() : EMPTY)),
+      ),
     );
   }
 
@@ -535,9 +570,11 @@ export class AppComponent implements OnInit {
         next: (res) => {
           this.masterPause = !!res?.master_pause;
           this.masterPauseBusy = false;
+          this.cdr.markForCheck();
         },
         error: () => {
           this.masterPauseBusy = false;
+          this.cdr.markForCheck();
         },
       });
   }

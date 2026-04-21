@@ -221,7 +221,7 @@ export class NotificationService implements OnDestroy {
   private connectWebSocket(): void {
     if (this.destroyed || !this.loggedIn) return;
     if (this.consecutiveFailures >= this.MAX_RETRIES) return;
-    const url = `${environment.wsBaseUrl}/notifications/`;
+    const url = this.buildSocketUrl('/notifications/');
     try {
       this.ws = new WebSocket(url);
 
@@ -267,6 +267,15 @@ export class NotificationService implements OnDestroy {
       if (this.consecutiveFailures >= this.MAX_RETRIES) return;
       this.reconnectTimer = setTimeout(() => this.connectWebSocket(), 5000);
     }
+  }
+
+  private buildSocketUrl(path: string): string {
+    const baseUrl = `${environment.wsBaseUrl}${path}`;
+    const token = this.auth.getToken();
+    if (!token) {
+      return baseUrl;
+    }
+    return `${baseUrl}?token=${encodeURIComponent(token)}`;
   }
 
   ngOnDestroy(): void {

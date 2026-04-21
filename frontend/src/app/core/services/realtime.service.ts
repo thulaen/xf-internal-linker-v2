@@ -238,7 +238,7 @@ export class RealtimeService implements OnDestroy {
 
   private openSocket(): void {
     if (this.destroyed) return;
-    const url = `${environment.wsBaseUrl}/realtime/`;
+    const url = this.buildSocketUrl('/realtime/');
 
     // Run outside Angular so mouse-idle browsers don't pay change-detection
     // tax for every incoming frame. Consumers that need zone-awareness can
@@ -295,6 +295,15 @@ export class RealtimeService implements OnDestroy {
 
       this.socket = ws;
     });
+  }
+
+  private buildSocketUrl(path: string): string {
+    const baseUrl = `${environment.wsBaseUrl}${path}`;
+    const token = this.auth.getToken();
+    if (!token) {
+      return baseUrl;
+    }
+    return `${baseUrl}?token=${encodeURIComponent(token)}`;
   }
 
   private scheduleReconnect(): void {

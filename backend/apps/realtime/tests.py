@@ -17,10 +17,12 @@ from django.test import TestCase, TransactionTestCase, override_settings
 
 from channels.layers import get_channel_layer
 from channels.testing import WebsocketCommunicator
+from rest_framework.authtoken.models import Token
 
 from .consumers import RealtimeConsumer
 from .permissions import can_subscribe
 from .services import broadcast, sanitize_topic
+from config.websocket_token_auth import QueryStringTokenAuthMiddleware
 
 
 # ── Unit tests (sync, fast) ─────────────────────────────────────────
@@ -120,6 +122,7 @@ class RealtimeConsumerTests(TransactionTestCase):
         self.staff_user = User.objects.create_user(
             username="u-staff", password="x", is_staff=True
         )
+        self.plain_token = Token.objects.create(user=self.plain_user)
 
     def _communicator(self, user) -> WebsocketCommunicator:
         comm = WebsocketCommunicator(RealtimeConsumer.as_asgi(), "/ws/realtime/")
@@ -134,6 +137,18 @@ class RealtimeConsumerTests(TransactionTestCase):
 
     async def test_authenticated_sees_connection_established(self):
         comm = self._communicator(self.plain_user)
+        connected, _ = await comm.connect()
+        self.assertTrue(connected)
+        hello = await comm.receive_json_from()
+        self.assertEqual(hello["type"], "connection.established")
+        await comm.disconnect()
+
+    async def test_query_token_authentication_connects(self):
+        app = QueryStringTokenAuthMiddleware(RealtimeConsumer.as_asgi())
+        comm = WebsocketCommunicator(
+            app,
+            f"/ws/realtime/?token={self.plain_token.key}",
+        )
         connected, _ = await comm.connect()
         self.assertTrue(connected)
         hello = await comm.receive_json_from()

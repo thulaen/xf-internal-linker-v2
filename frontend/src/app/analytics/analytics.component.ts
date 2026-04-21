@@ -1,5 +1,5 @@
 import { CommonModule } from '@angular/common';
-import { Component, OnInit, inject, DestroyRef } from '@angular/core';
+import { ChangeDetectionStrategy, ChangeDetectorRef, Component, OnInit, inject, DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
@@ -43,7 +43,6 @@ import { ImpactDiaryComponent } from './impact-diary/impact-diary.component';
 import { UnderLinkedComponent } from './under-linked/under-linked.component';
 import { QueryMismatchComponent } from './query-mismatch/query-mismatch.component';
 import { WatchedPagesComponent } from './watched-pages/watched-pages.component';
-import { TrafficWorkbenchComponent } from './traffic-workbench/traffic-workbench.component';
 
 @Component({
   selector: 'app-analytics',
@@ -64,16 +63,17 @@ import { TrafficWorkbenchComponent } from './traffic-workbench/traffic-workbench
     UnderLinkedComponent,
     QueryMismatchComponent,
     WatchedPagesComponent,
-    TrafficWorkbenchComponent,
   ],
   templateUrl: './analytics.component.html',
   styleUrls: ['./analytics.component.scss'],
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AnalyticsComponent implements OnInit {
   private analyticsSvc = inject(AnalyticsService);
   private snack = inject(MatSnackBar);
   private destroyRef = inject(DestroyRef);
   private togglePersistence = inject(FilterPersistenceService);
+  private cdr = inject(ChangeDetectorRef);
 
   loading = true;
   error = '';
@@ -328,10 +328,12 @@ export class AnalyticsComponent implements OnInit {
         this.loadingImpacts = false;
         this.prepareScatterChart();
         this.prepareCohortData();
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loadingImpacts = false;
         this.snack.open('Could not load Search Impact data.', 'Dismiss', { duration: 3000 });
+        this.cdr.markForCheck();
       }
     });
   }
@@ -433,10 +435,12 @@ export class AnalyticsComponent implements OnInit {
       .subscribe({
         next: (response) => {
           this.topSuggestions = response;
+          this.cdr.markForCheck();
         },
         error: () => {
           // Keep the prior list visible on error; the existing global
           // error handler surfaces the failure to the operator.
+          this.cdr.markForCheck();
         },
       });
   }
@@ -456,10 +460,12 @@ export class AnalyticsComponent implements OnInit {
       next: (res) => {
         this.selectedImpactDetail = res;
         this.loadingDetail = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.loadingDetail = false;
         this.snack.open('Could not load impact details.', 'Dismiss', { duration: 3000 });
+        this.cdr.markForCheck();
       }
     });
   }
@@ -495,10 +501,12 @@ export class AnalyticsComponent implements OnInit {
         
         this.prepareCharts();
         this.loading = false;
+        this.cdr.markForCheck();
       },
       error: () => {
         this.error = 'Could not load telemetry details.';
         this.loading = false;
+        this.cdr.markForCheck();
       },
     });
   }
@@ -818,10 +826,12 @@ export class AnalyticsComponent implements OnInit {
         this.syncingGa4 = false;
         this.snack.open(response.message, undefined, { duration: 3000 });
         this.loadData();
+        this.cdr.markForCheck();
       },
       error: (error) => {
         this.syncingGa4 = false;
         this.snack.open(error?.error?.detail || 'Could not queue the GA4 sync.', 'Dismiss', { duration: 4000 });
+        this.cdr.markForCheck();
       },
     });
   }
@@ -833,10 +843,12 @@ export class AnalyticsComponent implements OnInit {
         this.syncingMatomo = false;
         this.snack.open(response.message, undefined, { duration: 3000 });
         this.loadData();
+        this.cdr.markForCheck();
       },
       error: (error) => {
         this.syncingMatomo = false;
         this.snack.open(error?.error?.detail || 'Could not queue the Matomo sync.', 'Dismiss', { duration: 4000 });
+        this.cdr.markForCheck();
       },
     });
   }

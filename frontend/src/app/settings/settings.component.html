@@ -54,6 +54,7 @@
   <mat-tab-group
     id="settings-tabs"
     [selectedIndex]="selectedTabIndex"
+    [preserveContent]="true"
     (selectedIndexChange)="onTabChange($event)"
     (input)="markDirty()"
     (change)="markDirty()"
@@ -2239,9 +2240,11 @@
         <mat-icon class="tab-label-info icon-sm" [matTooltip]="tip('tabs.diagnostics')" matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
-      <div class="tab-content" id="diagnostics-weights">
-        <app-weight-diagnostics-card></app-weight-diagnostics-card>
-      </div>
+      <ng-template matTabContent>
+        <div class="tab-content" id="diagnostics-weights">
+          <app-weight-diagnostics-card></app-weight-diagnostics-card>
+        </div>
+      </ng-template>
     </mat-tab>
 
     <!-- TAB 6: PERFORMANCE — batch size + worker count -->
@@ -2252,9 +2255,11 @@
         <mat-icon class="tab-label-info icon-sm" matTooltip="Adjust batch size and worker count. Batch size applies instantly; worker count applies after a Docker restart." matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
-      <div class="tab-content" id="performance-tunables">
-        <app-performance-settings></app-performance-settings>
-      </div>
+      <ng-template matTabContent>
+        <div class="tab-content" id="performance-tunables">
+          <app-performance-settings></app-performance-settings>
+        </div>
+      </ng-template>
     </mat-tab>
 
     <!-- TAB 7: HELPERS — helper-node registry (plan item 22) -->
@@ -2265,9 +2270,11 @@
         <mat-icon class="tab-label-info icon-sm" matTooltip="Register secondary helper machines to share heavy jobs. Each helper advertises its CPU, RAM and GPU and only takes work it is allowed to run." matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
-      <div class="tab-content" id="helpers">
-        <app-helpers-settings></app-helpers-settings>
-      </div>
+      <ng-template matTabContent>
+        <div class="tab-content" id="helpers">
+          <app-helpers-settings></app-helpers-settings>
+        </div>
+      </ng-template>
     </mat-tab>
 
     <!-- Phase MS — Meta Algorithms tab. Virtual-scrolled list of every
@@ -2281,9 +2288,11 @@
         <mat-icon class="tab-label-info icon-sm" matTooltip="Enable, disable, run, or inspect any of the 249+ meta-algorithms the ranker knows about. Winners run by default; alternates are pre-filled so you can swap them in." matTooltipClass="setting-tooltip">info_outline</mat-icon>
       </ng-template>
 
-      <div class="tab-content" id="meta-algorithms">
-        <app-meta-algorithms-tab></app-meta-algorithms-tab>
-      </div>
+      <ng-template matTabContent>
+        <div class="tab-content" id="meta-algorithms">
+          <app-meta-algorithms-tab></app-meta-algorithms-tab>
+        </div>
+      </ng-template>
     </mat-tab>
   </mat-tab-group>
 
