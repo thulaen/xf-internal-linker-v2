@@ -416,7 +416,12 @@ def check_asan_ci() -> ServiceHealthResult:
     description="Captures Python and C++ extension errors in real time so AI agents can find and fix them.",
 )
 def check_glitchtip() -> ServiceHealthResult:
-    dsn = os.environ.get("GLITCHTIP_DSN", "").strip()
+    # ERROR_TRACKING_DSN is the canonical env var (matches config/settings/base.py).
+    # GLITCHTIP_DSN is kept as a legacy alias for backward compatibility.
+    dsn = (
+        os.environ.get("ERROR_TRACKING_DSN", "").strip()
+        or os.environ.get("GLITCHTIP_DSN", "").strip()
+    )
     if not dsn:
         return ServiceHealthResult(
             service_key="dev_tools.glitchtip",
@@ -429,7 +434,7 @@ def check_glitchtip() -> ServiceHealthResult:
             ),
             suggested_fix=(
                 "Ask your AI agent to add the GlitchTip Docker service, "
-                "set GLITCHTIP_DSN in .env, and configure sentry-sdk in Django settings."
+                "set ERROR_TRACKING_DSN in .env, and configure sentry-sdk in Django settings."
             ),
         )
     try:
@@ -437,7 +442,11 @@ def check_glitchtip() -> ServiceHealthResult:
         from urllib.parse import urlparse
 
         parsed = urlparse(dsn)
-        base_url = f"{parsed.scheme}://{parsed.netloc}"
+        # Strip the public/secret userinfo prefix — hostname+port only.
+        host_port = parsed.hostname or ""
+        if parsed.port:
+            host_port = f"{host_port}:{parsed.port}"
+        base_url = f"{parsed.scheme}://{host_port}"
         resp = _req.get(f"{base_url}/api/", timeout=5)
         if resp.status_code < 500:
             return ServiceHealthResult(
