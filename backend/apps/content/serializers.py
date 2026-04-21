@@ -8,6 +8,8 @@ to/from JSON for the Angular frontend API.
 from django.utils.text import slugify
 from rest_framework import serializers
 
+from apps.pipeline.services.embeddings import get_current_embedding_signature
+
 from .models import ContentItem, Post, ScopeItem, Sentence, SiloGroup
 from apps.pipeline.services.link_freshness import classify_freshness_bucket
 
@@ -176,7 +178,10 @@ class ContentItemDetailSerializer(serializers.ModelSerializer):
         read_only_fields = fields
 
     def get_has_embedding(self, obj: ContentItem) -> bool:
-        return obj.embedding is not None
+        return (
+            obj.embedding is not None
+            and obj.embedding_model_version == get_current_embedding_signature()
+        )
 
     def get_has_post(self, obj: ContentItem) -> bool:
         return hasattr(obj, "post")

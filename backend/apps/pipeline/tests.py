@@ -4216,7 +4216,9 @@ class EmbeddingRuntimeSafetyTests(TestCase):
             patch.object(embeddings_service, "_get_batch_size", return_value=16),
             patch.object(embeddings_service, "_thermal_guard_before_gpu_batch"),
             patch.object(embeddings_service, "_emit_model_alert"),
-            patch.object(embeddings_service, "_clear_embedding_runtime_memory"),
+            patch.object(
+                embeddings_service, "_clear_embedding_runtime_memory"
+            ) as clear_runtime_memory,
             patch.object(pipeline_tasks, "_publish_progress"),
         ):
             stats = embeddings_service.generate_content_item_embeddings(
@@ -4227,6 +4229,7 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         self.assertEqual(stats, {"embedded": 17, "skipped": 0})
         self.assertEqual(encode_calls[0], (16, 16))
         self.assertIn((8, 8), encode_calls)
+        clear_runtime_memory.assert_called_once()
         self.assertEqual(
             ContentItem.objects.filter(
                 pk__in=[item.pk for item in items], embedding__isnull=False

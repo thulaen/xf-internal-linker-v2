@@ -1,7 +1,11 @@
 from django.contrib.auth import get_user_model
+from django.test import TestCase
 from rest_framework.test import APITestCase
+from unittest.mock import patch
 
+from apps.content.serializers import ContentItemDetailSerializer
 from apps.content.models import ContentItem, ScopeItem, SiloGroup
+from apps.pipeline.services.embeddings import get_current_embedding_signature
 from apps.suggestions.recommended_weights import recommended_float, recommended_str
 
 
@@ -180,3 +184,48 @@ class ContentAuthorityApiTests(APITestCase):
         self.assertEqual(
             [row["id"] for row in stale_only.json()["results"]], [stale.pk]
         )
+
+
+class ContentEmbeddingSignatureTests(TestCase):
+    def setUp(self):
+        self.scope = ScopeItem.objects.create(
+            scope_id=900,
+            scope_type="node",
+            title="Embedding Scope",
+        )
+
+    def _make_item(self, *, content_id: int, version: str) -> ContentItem:
+        return ContentItem.objects.create(
+            content_id=content_id,
+            content_type="thread",
+            title=f"Item {content_id}",
+            scope=self.scope,
+            embedding=[0.1, 0.2, 0.3],
+            embedding_model_version=version,
+        )
+
+    @patch("apps.content.signals.ClusteringService.update_item_cluster")
+    def test_content_serializer_only_reports_current_signature_embeddings(
+        self, _update_cluster
+    ):
+        current_signature = get_current_embedding_signature()
+        stale_item = self._make_item(content_id=901, version="legacy/model:1024")
+        fresh_item = self._make_item(content_id=902, version=current_signature)
+
+        self.assertFalse(ContentItemDetailSerializer(stale_item).data["has_embedding"])
+        self.assertTrue(ContentItemDetailSerializer(fresh_item).data["has_embedding"])
+
+    @patch("apps.content.signals.ClusteringService.update_item_cluster")
+    def test_clustering_signal_skips_stale_signature_embeddings(self, update_cluster):
+        current_signature = get_current_embedding_signature()
+
+        stale_item = self._make_item(content_id=903, version="legacy/model:1024")
+        update_cluster.assert_not_called()
+
+        fresh_item = self._make_item(content_id=904, version=current_signature)
+        update_cluster.assert_called_once_with(fresh_item.id)
+
+        update_cluster.reset_mock()
+        stale_item.embedding_model_version = current_signature
+        stale_item.save(update_fields=["embedding_model_version"])
+        update_cluster.assert_called_once_with(stale_item.id)
