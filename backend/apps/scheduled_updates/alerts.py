@@ -33,6 +33,11 @@ from typing import Iterable
 from django.db import transaction
 from django.utils import timezone
 
+from .broadcasts import (
+    broadcast_alert_acknowledged,
+    broadcast_alert_raised,
+    broadcast_alerts_resolved,
+)
 from .models import (
     ALERT_TYPE_FAILED,
     ALERT_TYPE_MISSED,
@@ -96,6 +101,10 @@ def raise_alert(
             "resolved_at": None,
         },
     )
+    # ``reopened`` tells the WS client whether this is a new row or a
+    # reopened one — the badge may want to bump attention-getting
+    # visuals differently.
+    reopened = (not created) and alert.resolved_at is None
     if created:
         logger.info(
             "scheduled_updates.alert RAISE job=%s type=%s date=%s",
@@ -106,6 +115,7 @@ def raise_alert(
             "scheduled_updates.alert RETRIGGER job=%s type=%s date=%s",
             job_key, alert_type, calendar_date,
         )
+    broadcast_alert_raised(alert, reopened=reopened and not created)
     return alert, created
 
 
@@ -127,6 +137,7 @@ def resolve_open_alerts_for_job(job_key: str, *, now: dt.datetime | None = None)
             "scheduled_updates.alert RESOLVE job=%s count=%s",
             job_key, updated,
         )
+        broadcast_alerts_resolved(job_key, updated)
     return updated
 
 
@@ -139,6 +150,7 @@ def acknowledge(alert_id: int, *, now: dt.datetime | None = None) -> JobAlert | 
     if alert.acknowledged_at is None:
         alert.acknowledged_at = now or timezone.now()
         alert.save(update_fields=["acknowledged_at", "updated_at"])
+        broadcast_alert_acknowledged(alert)
     return alert
 
 

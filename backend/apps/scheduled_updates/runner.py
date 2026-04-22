@@ -39,6 +39,10 @@ from .alerts import (
     raise_alert,
     resolve_open_alerts_for_job,
 )
+from .broadcasts import (
+    broadcast_progress,
+    broadcast_state_change,
+)
 from .lock import (
     acquire_runner_lock,
     current_holder,
@@ -155,6 +159,9 @@ def _make_checkpoint(job: ScheduledJob):
         job.progress_pct = pct
         job.current_message = trimmed_message
 
+        # Best-effort WS fan-out. Helper silently no-ops without Redis.
+        broadcast_progress(job.key, pct, trimmed_message)
+
     return checkpoint
 
 
@@ -183,6 +190,7 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
         current_message="Starting…",
     )
     job.refresh_from_db()
+    broadcast_state_change(job)
 
     checkpoint = _make_checkpoint(job)
 
@@ -199,6 +207,8 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
             finished_at=None,
             current_message=f"Paused: {str(paused)[:200]}",
         )
+        job.refresh_from_db()
+        broadcast_state_change(job)
         return JOB_STATE_PAUSED
     except Exception as exc:
         tb = traceback.format_exc()
@@ -226,6 +236,8 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
             calendar_date=timezone.localtime(failure_ts).date(),
             message=f"{job.display_name or job.key}: {exc.__class__.__name__}: {str(exc)[:240]}",
         )
+        job.refresh_from_db()
+        broadcast_state_change(job)
         return JOB_STATE_FAILED
 
     # Success.
@@ -241,6 +253,8 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
     # Auto-resolve any active alerts the job had accumulated — a clean
     # run after a rough patch silently clears the badge.
     resolve_open_alerts_for_job(job.key, now=finish)
+    job.refresh_from_db()
+    broadcast_state_change(job)
     return JOB_STATE_COMPLETED
 
 
