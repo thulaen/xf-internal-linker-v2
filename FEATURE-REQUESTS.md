@@ -2100,6 +2100,163 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 ---
 
+### FR-230 — 52-pick pipeline roster (Source → Parse → Score → Reviewable + scheduled updates)
+
+**Requested:** 2026-04-22
+**Target phase:** Phases 36–40 (PRs B–P + W1–W4)
+**Status:** In progress — helpers shipped for 26 picks (PRs B, C, D, E, K, L, M, N, O); specs landed for all 52 (G1a–G1e); wiring pending (W1–W4); governance catch-up in progress (G2–G6).
+**Priority:** High — foundational infrastructure covering every stage of the pipeline.
+**Research basis:** See `plans/check-how-many-pending-tidy-iverson.md` for the full decision record and per-pick citations. Every pick is backed by a peer-reviewed paper, IETF RFC, ACM/IEEE standard, or operator-approved patent.
+**Spec:** `docs/specs/scheduled-updates-architecture.md` + per-pick `docs/specs/pick-NN-*.md` (52 files). Template at `docs/specs/_spec-template.md`.
+
+### What's wanted
+- Ship 52 production-grade helpers across the full pipeline: 6 Source, 6 Crawl & Import, 14 Parse & Embed, 13 Score & Rank, 1 Feedback, 6 Training, 2 On-Demand Eval, 3 Reviewable, 1 Auto-Seeder (Gyöngyi §4.1).
+- Add a serial 13:00–23:00-local scheduled-updates runner with pause/resume, deduped missed-job alerts, per-job checkpoints, and a dashboard tab.
+- Add Option B meta-hyperparameter auto-tuning via Optuna TPE (pick #42) so every TPE-tuned hyperparameter across the roster is jointly optimised weekly against offline NDCG.
+- Turn every pick on by default in the Recommended preset with paper-grounded starting values (per operator directive 2026-04-22).
+- Document every pick to the 15-section template in `docs/specs/_spec-template.md` — identity, motivation, academic source, I/O contracts, hyperparameter table (distinguishing TPE-tuned vs fixed), pseudocode, integration points, scheduled-job slot, resource budget, tests, benchmark inputs, edge cases, paired picks, governance checklist.
+
+### Specific controls / behaviour
+- **Enabled by default.** Every pick's `<prefix>.enabled` defaults to `true` in `backend/apps/suggestions/recommended_weights.py`, seeded via a migration.
+- **TPE vs fixed classification.** Each pick spec's §6 table distinguishes TPE-tuned knobs (ranking quality) from fixed knobs (correctness, RFC compliance, Google quota, licensed algorithm parameters). The meta-HPO job only touches TPE-tuned knobs.
+- **Operator approval rail.** HPO proposes; operator accepts via a dashboard "Accept HPO result" card before values are written back to the Recommended preset (pick #42 §15).
+- **On-demand vs scheduled.** Kernel SHAP (pick #47) is explicitly on-demand only. Every periodic pick lands in the 20-job list in `docs/specs/scheduled-updates-architecture.md`.
+- **Per-pick resource budgets** enforced: Source / Crawl / Parse ≤ 128 MB RAM & ≤ 256 MB disk; Auto-Seeder (#51) ≤ 50 MB RAM & ≤ 50 MB disk; ACI (#52) < 1 MB / < 1 MB. FastText LangID (#14) allowed 126 MB disk as specified.
+
+### Roster (summary table)
+
+| # | Pick | Spec | Stage | Status | TPE | New pip dep? |
+|---:|---|---|---|---|---|---|
+| 1 | Token Bucket Rate Limiter | [pick-01](docs/specs/pick-01-token-bucket.md) | Source | Shipped PR-C | partial | — |
+| 2 | Exponential Backoff + Jitter | [pick-02](docs/specs/pick-02-exponential-backoff-jitter.md) | Source | Shipped PR-C | yes | — |
+| 3 | Circuit Breaker | [pick-03](docs/specs/pick-03-circuit-breaker.md) | Source | Reused (existing) | yes | — |
+| 4 | Bloom Filter | [pick-04](docs/specs/pick-04-bloom-filter.md) | Source | Shipped PR-C | no (correctness) | — |
+| 5 | HyperLogLog | [pick-05](docs/specs/pick-05-hyperloglog.md) | Source | Shipped PR-C | no (correctness) | — |
+| 6 | ETag / Conditional GET | [pick-06](docs/specs/pick-06-etag-conditional-get.md) | Source | Shipped PR-C | no (RFC) | — |
+| 7 | Trafilatura | [pick-07](docs/specs/pick-07-trafilatura.md) | Crawl | **Deferred** | yes | `trafilatura` |
+| 8 | URL Canonicalization (RFC 3986) | [pick-08](docs/specs/pick-08-url-canonicalization.md) | Crawl | To-ship | no (RFC) | — |
+| 9 | Robots.txt Parser | [pick-09](docs/specs/pick-09-robots-txt.md) | Crawl | Shipped PR-D | partial | — |
+| 10 | Freshness Crawl Scheduling | [pick-10](docs/specs/pick-10-freshness-scheduler.md) | Crawl | Shipped PR-D | yes | — |
+| 11 | chardet / encoding detect | [pick-11](docs/specs/pick-11-encoding-detect.md) | Crawl | Shipped PR-D | yes | `charset-normalizer` (modern `chardet`) |
+| 12 | SHA-256 Page Fingerprint | [pick-12](docs/specs/pick-12-sha256-page-fingerprint.md) | Crawl | Partial (inline) | partial | — |
+| 13 | NFKC Unicode Normalization | [pick-13](docs/specs/pick-13-nfkc-normalization.md) | Parse | Shipped PR-E | no (UAX) | — |
+| 14 | FastText LangID (`lid.176.bin`) | [pick-14](docs/specs/pick-14-fasttext-langid.md) | Parse | **Deferred** | yes | `fasttext-langdetect` + 126 MB model |
+| 15 | PySBD | [pick-15](docs/specs/pick-15-pysbd.md) | Parse | Reused | no | — |
+| 16 | spaCy `en_core_web_sm` | [pick-16](docs/specs/pick-16-spacy-en-core-web-sm.md) | Parse | Reused | yes | — |
+| 17 | YAKE! | [pick-17](docs/specs/pick-17-yake.md) | Parse | **Deferred** | yes | `yake` |
+| 18 | LDA | [pick-18](docs/specs/pick-18-lda.md) | Parse | **Deferred** | yes | `gensim` |
+| 19 | Readability (Flesch-Kincaid + Gunning Fog) | [pick-19](docs/specs/pick-19-readability.md) | Parse | Shipped PR-E | yes | — |
+| 20 | Product Quantization | [pick-20](docs/specs/pick-20-product-quantization.md) | Embed | Shipped PR-E | yes | (existing `faiss-gpu`) |
+| 21 | Snowball (Porter2) | [pick-21](docs/specs/pick-21-snowball.md) | Parse | **Deferred** | no | `nltk` |
+| 22 | VADER | [pick-22](docs/specs/pick-22-vader.md) | Parse | **Deferred** | yes | `vaderSentiment` |
+| 23 | KenLM trigram | [pick-23](docs/specs/pick-23-kenlm.md) | Parse | **Deferred** | yes | `kenlm` + `lmplz` |
+| 24 | PMI / NPMI Collocations | [pick-24](docs/specs/pick-24-pmi-collocations.md) | Parse | Shipped PR-E | yes | — |
+| 25 | Passage Segmentation (Callan) | [pick-25](docs/specs/pick-25-passage-segmentation.md) | Parse | Shipped PR-E | yes | — |
+| 26 | Entity Salience (Gamon) | [pick-26](docs/specs/pick-26-entity-salience.md) | Parse | Shipped PR-E | yes | — |
+| 27 | BoW-PRF Query Expansion | [pick-27](docs/specs/pick-27-query-expansion-bow.md) | Score | Shipped PR-K | yes | — |
+| 28 | QL + Dirichlet | [pick-28](docs/specs/pick-28-ql-dirichlet.md) | Score | Shipped PR-K | yes | — |
+| 29 | HITS | [pick-29](docs/specs/pick-29-hits.md) | Score | Shipped PR-M | yes | — |
+| 30 | TrustRank | [pick-30](docs/specs/pick-30-trustrank.md) | Score | Shipped PR-M | yes | — |
+| 31 | Reciprocal Rank Fusion | [pick-31](docs/specs/pick-31-rrf.md) | Score | Shipped PR-L | yes | — |
+| 32 | Platt Sigmoid Calibration | [pick-32](docs/specs/pick-32-platt-calibration.md) | Score | Shipped PR-L | yes | — |
+| 33 | Position-Bias IPS | [pick-33](docs/specs/pick-33-ips.md) | Score | Shipped PR-N | yes | — |
+| 34 | Cascade Click Model | [pick-34](docs/specs/pick-34-cascade-click-model.md) | Score | Shipped PR-N | yes | — |
+| 35 | Elo Rating | [pick-35](docs/specs/pick-35-elo.md) | Score | Shipped PR-N | yes | — |
+| 36 | Personalized PageRank | [pick-36](docs/specs/pick-36-personalized-pagerank.md) | Score | Shipped PR-M | yes | — |
+| 37 | Node2Vec | [pick-37](docs/specs/pick-37-node2vec.md) | Embed | **Deferred** | yes | `node2vec` / `gensim` |
+| 38 | BPR | [pick-38](docs/specs/pick-38-bpr.md) | Score | **Deferred** | yes | `implicit` |
+| 39 | Factorization Machines | [pick-39](docs/specs/pick-39-factorization-machines.md) | Score | **Deferred** | yes | `pyfm` / libFM |
+| 40 | EMA Feedback Aggregator | [pick-40](docs/specs/pick-40-ema-aggregator.md) | Feedback | Shipped PR-N | yes | — |
+| 41 | L-BFGS-B | [pick-41](docs/specs/pick-41-lbfgs-b.md) | Training | Reused | partial | — |
+| 42 | TPE (Option B meta-HPO) | [pick-42](docs/specs/pick-42-tpe-optuna.md) | Training | **To ship** | — | `optuna` |
+| 43 | Cosine Annealing | [pick-43](docs/specs/pick-43-cosine-annealing.md) | Training | **Deferred** (no torch loop) | yes | — |
+| 44 | LambdaLoss | [pick-44](docs/specs/pick-44-lambdaloss.md) | Training | **Deferred** (no torch loop) | yes | — |
+| 45 | SWA | [pick-45](docs/specs/pick-45-swa.md) | Training | **Deferred** (no torch loop) | yes | — |
+| 46 | OHEM | [pick-46](docs/specs/pick-46-ohem.md) | Training | **Deferred** (no torch loop) | yes | — |
+| 47 | Kernel SHAP | [pick-47](docs/specs/pick-47-kernel-shap.md) | Eval | Shipped PR-O | no (correctness) | `shap==0.46.0` (approved 2026-04-22) |
+| 48 | Reservoir Sampling | [pick-48](docs/specs/pick-48-reservoir-sampling.md) | Eval | Shipped PR-O | yes | — |
+| 49 | Uncertainty Sampling | [pick-49](docs/specs/pick-49-uncertainty-sampling.md) | Review | **To ship (PR-P)** | yes | — |
+| 50 | Conformal Prediction | [pick-50](docs/specs/pick-50-conformal-prediction.md) | Review | **To ship (PR-P)** | yes | — |
+| 51 | Inverse-PR Auto-Seeder | [pick-51](docs/specs/pick-51-trustrank-auto-seeder.md) | Score | Shipped PR-M | yes | — |
+| 52 | Adaptive Conformal Inference | [pick-52](docs/specs/pick-52-adaptive-conformal-inference.md) | Review | **To ship (PR-P)** | yes | — |
+
+### Scheduled-updates architecture (infra for the roster)
+
+A new Django app `backend/apps/scheduled_updates/` (shipped PR-B) runs
+every periodic pick serially in the 13:00–23:00 local window with:
+- `@scheduled_job(key, cadence_seconds, priority, estimate_seconds, multicore, depends_on)` decorator.
+- Redis `SET NX EX` lock (`scheduled_updates:runner`) enforcing single-writer.
+- Window guard refuses to start jobs that would overflow past 23:00.
+- `JobCheckpoint` contract for per-job progress reporting + pause/resume.
+- Deduped `JobAlert` table with `UNIQUE(job_key, alert_type, calendar_date)`.
+- Django Channels WebSocket frames on group `scheduled_updates` (throttled to 1/500 ms/job).
+- Angular dashboard tab with Alerts banner, Running-now card, Missed-jobs list + Run Now, Schedule calendar, History — all `mat-tab-group` / `mat-card` / `mat-progress-bar` per CLAUDE.md mandatory rules.
+
+### Implementation notes for the AI
+- Every sub-PR lands independently: PR-B scheduler infrastructure, PR-C/D/E/K/L/M/N/O helpers, PR-P reviewable layer (ships Uncertainty + Conformal + ACI).
+- Wiring into production pipelines happens in W1 (register scheduled jobs) → W2 (crawler / import) → W3 (ranker) → W4 (SHAP endpoint + UI).
+- Governance catch-up ships alongside: G1 specs (done 2026-04-22), G2 this FR entry + additional FRs for any pick whose UI surface is large (#42 Option B dashboard, #47 Explain panel), G3 AI-CONTEXT ledger, G4 BUSINESS-LOGIC-CHECKLIST + PERFORMANCE entries, G6 benchmark coverage for all 26 shipped helpers per the CLAUDE.md mandatory-benchmark rule.
+- Phantom-reference CI gate (`backend/scripts/check_phantom_references.py`) prevents the 126 retired pending signals / 184 retired pending meta-algos from being resurrected by a future session.
+
+---
+
+### FR-231 — Dashboard "Accept HPO result" approval card (sub-feature of FR-230 / pick #42)
+
+**Requested:** 2026-04-22
+**Target phase:** W4 (dashboard wiring)
+**Status:** Pending — blocks Option B meta-HPO auto-apply
+**Priority:** High (operator-facing surface for pick #42)
+**Spec:** [docs/specs/pick-42-tpe-optuna.md](docs/specs/pick-42-tpe-optuna.md) §8.
+
+### What's wanted
+- A dashboard card on the Scheduled Updates tab showing the latest `meta_hyperparameter_hpo` study's best trial.
+- Delta-view comparing best-trial params vs currently-applied Recommended preset, highlighting TPE-tuned keys that would change.
+- "Accept HPO result" button that, on click, writes the best-trial params back to `AppSetting` rows for TPE-tuned keys.
+- "Reject" / "Run another study" options for cases where the best-trial NDCG improvement isn't significant.
+- Audit log entry per acceptance: operator, timestamp, delta summary, resulting NDCG@10.
+
+### Specific controls / behaviour
+- Only TPE-tuned keys from each pick spec's §6 table are eligible for the update.
+- Out-of-range values (paper bounds) are clamped before commit.
+- Update is atomic: either all keys change, or none do (DB transaction).
+- Dashboard shows a "Pending HPO result" badge count when a study has finished but not been accepted.
+
+### Implementation notes for the AI
+- Django view: `POST /api/meta-hpo/<study_id>/accept/` with operator auth.
+- Angular component under `frontend/src/app/scheduled-updates/accept-hpo-result/`.
+- Reuses existing weight-preset service API.
+- Must respect the `meta_hpo.auto_apply_best_params=false` safety rail from pick-42 spec — no background auto-apply; always operator-gated.
+
+---
+
+### FR-232 — "Why this score?" Explain panel (sub-feature of FR-230 / pick #47)
+
+**Requested:** 2026-04-22
+**Target phase:** W4 (SHAP endpoint + UI)
+**Status:** Pending — blocks pick #47 end-to-end visibility
+**Priority:** High (operator-facing surface for pick #47)
+**Spec:** [docs/specs/pick-47-kernel-shap.md](docs/specs/pick-47-kernel-shap.md) §8.
+
+### What's wanted
+- REST endpoint `POST /api/suggestions/<id>/explain` that returns an SHAP decomposition of a suggestion's score.
+- Angular "Explain" button on each suggestion card (ranking tab).
+- On click, shows top-5 contributing features with signed bar chart (positive bars green, negative bars red) + numeric values.
+- Loading spinner (Kernel SHAP takes 1-5 s); cancel button.
+- Feature flag `shap_explainer.enabled=true` gates the button's visibility; disabled → tooltip "Kernel SHAP unavailable".
+
+### Specific controls / behaviour
+- The ranker must expose a pure `score_fn(features: np.ndarray) -> np.ndarray` callable — a small refactor of the current pipeline-embedded scorer. Reuses existing feature-vector dataclass.
+- Background sample is the reservoir-sampled daily set (pick #48 output) — same baseline across all Explain calls in a day for consistency.
+- Response cached per-suggestion for 24 h to avoid re-computing on refresh.
+- Max peak RAM per call enforced at 200 MB (pick-47 safety rail).
+
+### Implementation notes for the AI
+- Django view: `apps/suggestions/views.py:explain_suggestion`.
+- Angular: `frontend/src/app/suggestions/explain-panel/`.
+- Uses existing Material components: `mat-card` for the panel, `mat-progress-bar` for load, bar chart via `mat-table` + bespoke bar render (no new chart lib).
+
+---
+
 ### FR-0XX - Add your next request here
 
 Template placeholder only. Not backlog scope.
@@ -2126,4 +2283,4 @@ Template placeholder only. Not backlog scope.
 
 ---
 
-*Last updated: 2026-04-22 (PR-A prune: retired the Phase-2 forward-declared backlog — tournament scheduler, 126 pending ranking signals, 238 pending meta-algo specs, 5 phase-2 weight files, 3 unwired C++ kernels, and their associated FR/OPT specs. See `plans/check-how-many-pending-tidy-iverson.md` for the decision record and `docs/DELETED-FEATURES.md` for the gravestone.)*
+*Last updated: 2026-04-22 (G2 — added FR-230 roster entry for the 52-pick plan with full status table, FR-231 Accept-HPO-result card, FR-232 Explain panel — all referencing per-pick specs under docs/specs/pick-NN-*.md).*
