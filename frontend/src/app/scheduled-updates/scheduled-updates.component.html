@@ -236,10 +236,63 @@
     <!-- Tab 4 — History -->
     <mat-tab label="History">
       <div class="tab-body">
-        <p class="empty-state">
-          History view lands in PR-B.9 — per-job last-20-runs table with
-          duration, final state, and log tail.
+        <p class="empty-state-inline">
+          Per-job last run, last success, and the tail of the most
+          recent log output. A proper 20-run table lands when the
+          JobRun history model is added (follow-up slice).
         </p>
+
+        <p class="empty-state" *ngIf="jobs.length === 0">
+          No jobs registered yet. History will populate once the runner
+          executes its first job.
+        </p>
+
+        <mat-card
+          *ngFor="let job of jobs; trackBy: trackByJobId"
+          class="history-card"
+        >
+          <mat-card-header>
+            <mat-card-title>{{ job.display_name }}</mat-card-title>
+            <mat-card-subtitle>
+              {{ job.key }} · {{ job.state }}
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <dl class="history-meta">
+              <dt>Last run</dt>
+              <dd>
+                {{
+                  job.last_run_at
+                    ? (job.last_run_at | date: 'medium')
+                    : 'never'
+                }}
+              </dd>
+
+              <dt>Last success</dt>
+              <dd>
+                {{
+                  job.last_success_at
+                    ? (job.last_success_at | date: 'medium')
+                    : 'never'
+                }}
+              </dd>
+
+              <dt>Finished</dt>
+              <dd>
+                {{
+                  job.finished_at
+                    ? (job.finished_at | date: 'medium')
+                    : '—'
+                }}
+              </dd>
+            </dl>
+
+            <details *ngIf="job.log_tail" class="log-tail-details">
+              <summary>Log tail ({{ job.log_tail.length }} chars)</summary>
+              <pre class="log-tail">{{ job.log_tail }}</pre>
+            </details>
+          </mat-card-content>
+        </mat-card>
       </div>
     </mat-tab>
   </mat-tab-group>

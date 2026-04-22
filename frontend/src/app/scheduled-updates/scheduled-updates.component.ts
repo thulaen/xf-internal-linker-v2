@@ -28,8 +28,11 @@ import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressBarModule } from '@angular/material/progress-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
+import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+
+import { HttpErrorResponse } from '@angular/common/http';
 
 import {
   JobAlert,
@@ -51,6 +54,7 @@ import {
     MatIconModule,
     MatProgressBarModule,
     MatProgressSpinnerModule,
+    MatSnackBarModule,
     MatTabsModule,
     MatTooltipModule,
   ],
@@ -60,6 +64,7 @@ import {
 export class ScheduledUpdatesComponent implements OnInit, OnDestroy {
   private readonly svc = inject(ScheduledUpdatesService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly snack = inject(MatSnackBar);
 
   jobs: ScheduledJob[] = [];
   alerts: JobAlert[] = [];
@@ -135,10 +140,21 @@ export class ScheduledUpdatesComponent implements OnInit, OnDestroy {
 
   runNow(job: ScheduledJob): void {
     this.svc.runNow(job.id).subscribe({
-      error: (err) => {
-        // Window-guard 409 is expected outside 13:00-23:00; surface it
-        // as an inline message once the alerts-banner card lands (B.8).
-        console.warn('[scheduled-updates] runNow refused', err);
+      next: () => {
+        this.snack.open(
+          `${job.display_name}: queued for the next runner tick.`,
+          'OK',
+          { duration: 4000 },
+        );
+      },
+      error: (err: HttpErrorResponse) => {
+        // 409 CONFLICT is the window-guard / overflow refusal from the
+        // backend. Surface the detail string so the operator knows why.
+        const msg =
+          err?.status === 409 && err.error?.detail
+            ? err.error.detail
+            : `Could not queue ${job.display_name} — ${err?.statusText || 'unknown error'}.`;
+        this.snack.open(msg, 'Dismiss', { duration: 6000 });
       },
     });
   }
