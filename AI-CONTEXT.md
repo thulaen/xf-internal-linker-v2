@@ -1028,7 +1028,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `cd frontend && npx ng lint` — 0 errors (23 pre-existing warnings unrelated).
   - `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/lint-all.ps1` — **all 32 checks passed** (including the function-length + file-length hooks that were sensitive in slice 3).
   - `wc -l frontend/src/app/diagnostics/diagnostics.component.ts` — **482 lines**, still under the 500-line hook limit.
-  - Browser preview: the new `suppressed-pairs-card.component.html` and the updated `diagnostics.component.html` are both visible in the Launch preview panel; port 4200 is still occupied by the Docker `xf_linker_frontend` hot-reloading the sources, so the preview-tool's auto-start check couldn't attach but the live server is serving the updated code. Operator can verify at http://localhost:4200/diagnostics (flip "Show pairs" → see the table → click "Clear" on a row → confirm).
+  - Browser preview: the new `suppressed-pairs-card.component.html` and the updated `diagnostics.component.html` are both visible in the Launch preview panel; port 4200 is still occupied by the Docker the retired dev-frontend container hot-reloading the sources, so the preview-tool's auto-start check couldn't attach but the live server is serving the updated code. Operator can verify at http://localhost:4200/diagnostics (flip "Show pairs" → see the table → click "Clear" on a row → confirm).
 - **What was deliberately NOT done:**
   - Did not use `MatDialog` for the clear confirmation — `window.confirm` is lighter-weight and the action is audit-logged and trivially reversible.
   - Did not add sort controls (by last-rejected / rejection-count) — default `-last_rejected_at` order is what operators actually want; sort controls add UI surface area without a clear user ask.
@@ -1062,7 +1062,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `cd frontend && npm run test:ci` — **27/27 pass** (same count as before this slice; no test changes).
   - `cd frontend && npm run build:prod` — clean production build (pre-existing NG8113 warning about `SuggestionExplainerPipe` unrelated).
   - `wc -l frontend/src/app/diagnostics/diagnostics.component.ts` — **483 lines**, below the 500-line hook limit.
-  - Browser preview: skipped for the same reason as slice 2 (port 4200 occupied by the Docker `xf_linker_frontend` hot-reloading the updated source; preview tool can't attach to an already-running server). Behaviour is preserved by construction — template bindings unchanged, wrapper methods call through to pure helpers with identical semantics. Operator can verify live at http://localhost:4200/diagnostics if desired.
+  - Browser preview: skipped for the same reason as slice 2 (port 4200 was then occupied by the retired Docker dev-frontend container
 - **What was deliberately NOT done:**
   - Did not extract the error-log event handlers (`onAcknowledgeError`, `onRerunError`) — they're tightly coupled to `this.diagnosticsService`, `this.snack`, and component state mutations. Extracting them cleanly would require a service, which is out of scope for a pure-helper refactor.
   - Did not extract the websocket subscription itself (`subscribeToRealtimeUpdates`, `startErrorLogPoll`) — they manage Angular DI (`this.realtime`, `this.destroy$`, the 30-second timer) so they belong in the component.
@@ -1122,7 +1122,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - **Verification:**
   - `cd frontend && npm run test:ci` — **27/27 pass** (was 25, +2 new).
   - `cd frontend && npm run build:prod` — clean production build (pre-existing NG8113 warning about `SuggestionExplainerPipe` unrelated).
-  - **Browser preview verification skipped** — port 4200 is occupied by the Docker `xf_linker_frontend` container (already serving the updated source via `ng serve --poll 1000` hot reload). The preview tool can't attach to an already-running server and stopping the Docker frontend would cost ~60 s of lost dev-loop time. The two new unit tests cover the full round-trip (seed → render → assert restored → invoke handlers → read back from localStorage), which is exactly what a manual browser check would prove. Operator can verify live at http://localhost:4200/analytics if desired — flip either toggle, reload, observe restored state.
+  - **Browser preview verification skipped** — port 4200 is occupied by the retired Docker dev-frontend container. The preview tool can't attach to an already-running server and stopping the Docker frontend would cost ~60 s of lost dev-loop time. The two new unit tests cover the full round-trip (seed → render → assert restored → invoke handlers → read back from localStorage), which is exactly what a manual browser check would prove. Operator can verify live at http://localhost:4200/analytics if desired — flip either toggle, reload, observe restored state.
 - **What was deliberately NOT done:**
   - Did not persist `selectedImpactWindow` (the Search Outcome 7d/14d/28d toggle at `analytics.component.ts:83`) — separate UX slice, separate pageId. Out of scope.
   - Did not persist `selectedSource` (the GA4/Matomo source filter) — same reasoning.

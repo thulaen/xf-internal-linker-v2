@@ -233,7 +233,15 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24
 # Only the prod Angular bundle (xf-linker-frontend-prod) behind nginx is
 # supported now. No ng-serve-based dev frontend, no override/prod compose
 # split. See docs/DELETED-FEATURES.md.
+#
+# Identifiers below include the auto-generated docker-compose image name
+# (`xf-internal-linker-v2-frontend`) and the dev container name
+# (`xf_linker_frontend`) — re-adding a `frontend:` service to docker-compose
+# would regenerate those, and we want the gate to catch that regression
+# even before anyone notices the image on disk.
 frontend-dev
 xf_linker_frontend_dev
+xf_linker_frontend
+xf-internal-linker-v2-frontend
 docker-compose.override.yml
 docker-compose.prod.yml
