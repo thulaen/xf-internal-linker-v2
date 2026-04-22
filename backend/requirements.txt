@@ -55,7 +55,7 @@ sentry-sdk==2.20.0                   # GlitchTip / Sentry-compatible error track
 httpx[http2]==0.28.1                 # Async HTTP client
 scipy==1.15.2                        # L-BFGS optimizer
 beautifulsoup4==4.12.3               # HTML parser for crawler
-lxml==5.3.0                          # High-performance HTML parser back-end
+lxml==6.1.0                          # High-performance HTML parser back-end — 6.1.0 patches CVE-2026-41066
 
 # ── Utilities ────────────────────────────────────────────────────
 Pillow==12.2.0                       # Image handling — 12.2.0 patches CVE-2026-40192
