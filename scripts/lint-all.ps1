@@ -231,7 +231,9 @@ $baselineLongFiles = @(
     'helpers-settings.component.ts',     # FR-020 helper-node configuration surface — 598 lines; candidate for per-helper-card component extraction
     'performance-settings.component.ts', # FR-020 runtime model/backfill/audit UI — 851 lines; candidate for per-section extraction (runtime / backfill / audit)
     'silo-settings.service.ts',          # FR-005 + FR-020 silo + runtime service — 826 lines; candidate for silo-only and runtime-only service split
-    'schedule-widget.component.ts'       # dashboard schedule widget — `nextFireMinutesFromNow` is ~201 lines of per-task cron math; pre-existing, candidate for extraction into a cron-eval helper
+    'schedule-widget.component.ts',      # dashboard schedule widget — `nextFireMinutesFromNow` is ~201 lines of per-task cron math; pre-existing, candidate for extraction into a cron-eval helper
+    'graph.component.ts',                # graph page — 674 lines, 8+ tab modes + d3 network viz interactions; candidate for per-tab component extraction
+    'suggestion-detail-dialog.component.ts' # review dialog — 538 lines of per-signal explanation/formatting helpers; candidate for extraction into suggestion-explainer pipe/service
 )
 
 # ── 8.  Cross-language debug artifact purge ──────────────────────────
