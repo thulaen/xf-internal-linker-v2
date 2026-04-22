@@ -61,6 +61,7 @@ try:
         ResidentKeyRequirement,
         UserVerificationRequirement,
     )
+
     WEBAUTHN_AVAILABLE = True
 except ImportError:  # pragma: no cover - defensive
     WEBAUTHN_AVAILABLE = False
@@ -316,7 +317,9 @@ class PasskeyLoginFinishView(APIView):
                 require_user_verification=False,
             )
         except Exception as exc:
-            logger.warning("passkey login verify failed for user=%s: %s", cred.user_id, exc)
+            logger.warning(
+                "passkey login verify failed for user=%s: %s", cred.user_id, exc
+            )
             return Response(
                 {"detail": f"Login verification failed: {exc}"},
                 status=status.HTTP_400_BAD_REQUEST,

@@ -151,9 +151,9 @@ def test_coverage_scanner_detects_missing_decorator_when_planted():
     funcs = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]
     assert len(funcs) == 1
     f = funcs[0]
-    assert _qualifies_as_signal_task(
-        f
-    ), "Scanner failed to classify decoy as a signal task."
+    assert _qualifies_as_signal_task(f), (
+        "Scanner failed to classify decoy as a signal task."
+    )
     assert not _has_signal_lock(f), "Scanner wrongly reports the decoy has a lock."
 
 

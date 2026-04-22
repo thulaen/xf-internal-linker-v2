@@ -149,12 +149,12 @@ def test_anchor_diversity_cpp_matches_python(scenario: Scenario) -> None:
         rtol=0,
         err_msg=f"[{scenario.name}] score_component divergence",
     )
-    assert (
-        cpp_result.blocked == py_result.blocked
-    ), f"[{scenario.name}] blocked flag divergence"
-    assert (
-        cpp_result.repeated_anchor == py_result.repeated_anchor
-    ), f"[{scenario.name}] repeated_anchor divergence"
+    assert cpp_result.blocked == py_result.blocked, (
+        f"[{scenario.name}] blocked flag divergence"
+    )
+    assert cpp_result.repeated_anchor == py_result.repeated_anchor, (
+        f"[{scenario.name}] repeated_anchor divergence"
+    )
 
     # Every numeric field in the diagnostics dict.
     for key in _NUMERIC_DIAGNOSTIC_KEYS:

@@ -1879,8 +1879,8 @@ def check_gsc_spikes(self) -> dict:
         )
         title = "Google search demand spiked"
         message = (
-            f"'{item.title[:_TITLE_PREVIEW_LEN]}' — impressions: +{imp_delta:.0f} ({imp_lift*_PCT_MULTIPLIER:.0f}%), "
-            f"clicks: +{clk_delta:.0f} ({clk_lift*_PCT_MULTIPLIER:.0f}%). Review the Analytics page."
+            f"'{item.title[:_TITLE_PREVIEW_LEN]}' — impressions: +{imp_delta:.0f} ({imp_lift * _PCT_MULTIPLIER:.0f}%), "
+            f"clicks: +{clk_delta:.0f} ({clk_lift * _PCT_MULTIPLIER:.0f}%). Review the Analytics page."
         )
 
         try:

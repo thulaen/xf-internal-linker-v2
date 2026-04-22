@@ -271,7 +271,7 @@ def detect_traffic_spikes() -> dict[str, int]:
                 title=f"Traffic Spike: {item.title[:40]}...",
                 message=(
                     f"Page '{item.title}' saw {latest_clicks} clicks on {target_date}, "
-                    f"which is {((latest_clicks/avg_clicks)-1)*100:.0f}% above its 7-day average ({avg_clicks:.1f})."
+                    f"which is {((latest_clicks / avg_clicks) - 1) * 100:.0f}% above its 7-day average ({avg_clicks:.1f})."
                 ),
                 source_area=OperatorAlert.AREA_PIPELINE,
                 dedupe_key=f"traffic-spike-{item_id}-{target_date}",

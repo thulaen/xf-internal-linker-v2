@@ -434,9 +434,9 @@ def _load_existing_links() -> set[ExistingLinkKey]:
     }
 
 
-def _load_learned_anchor_rows_by_destination() -> (
-    dict[ContentKey, list[LearnedAnchorInputRow]]
-):
+def _load_learned_anchor_rows_by_destination() -> dict[
+    ContentKey, list[LearnedAnchorInputRow]
+]:
     from apps.graph.models import ExistingLink
 
     rows_by_destination: dict[ContentKey, list[LearnedAnchorInputRow]] = defaultdict(

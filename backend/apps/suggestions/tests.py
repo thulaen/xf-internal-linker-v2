@@ -757,9 +757,9 @@ class TestNdcgFormula(TestCase):
             )
         ]
         ndcg = _evaluate_meta_on_holdout("any_meta", rows)
-        assert (
-            ndcg < 1.0
-        ), f"Expected NDCG < 1 when best item is beyond rank 10, got {ndcg}"
+        assert ndcg < 1.0, (
+            f"Expected NDCG < 1 when best item is beyond rank 10, got {ndcg}"
+        )
         assert ndcg > 0.0, "Expected NDCG > 0 when a grade-1 item is at rank 1"
 
     def test_recency_weight_scales_actual_dcg(self):

@@ -35,7 +35,7 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     # Disabled — alternate factorisation; enable only for parts-based decomp.
     "nmf.enabled": "false",
     "nmf.target_rank_k": "32",
-    "nmf.max_iter": "2" "00",
+    "nmf.max_iter": "200",
     "nmf.tol": "1e-4",
     "nmf.epsilon_guard": "1e-10",
     # META-208 — Probabilistic Matrix Factorisation (PMF)
@@ -54,7 +54,7 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     "bpmf.enabled": "false",
     "bpmf.latent_dim_k": "32",
     "bpmf.burn_in": "50",
-    "bpmf.n_samples": "1" "50",
+    "bpmf.n_samples": "150",
     "bpmf.alpha_obs_precision": "2.0",
     "bpmf.beta0": "2.0",
     "bpmf.nu0": "0.0",
@@ -165,12 +165,12 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     "rfe.target_k": "20",
     "rfe.step_size": "1",
     "rfe.ridge_lambda": "0.01",
-    "rfe.max_iter": "1" "00",
+    "rfe.max_iter": "100",
     # META-225 — Stability Selection
     # LASSO over bootstraps; threshold by selection frequency (MB 2010).
     # Enabled — resampling-based stability panel member.
     "stability_selection.enabled": "true",
-    "stability_selection.num_bootstrap": "1" "00",
+    "stability_selection.num_bootstrap": "100",
     "stability_selection.lasso_lambda": "0.01",
     "stability_selection.pi_threshold": "0.6",
     # META-226 — mRMR (Minimum Redundancy Maximum Relevance)
@@ -209,7 +209,7 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     "boruta.enabled": "true",
     "boruta.max_iter": "50",
     "boruta.alpha": "0.05",
-    "boruta.rf_num_trees": "1" "00",
+    "boruta.rf_num_trees": "100",
     "boruta.rf_max_depth": "8",
     # =====================================================================
     # BLOCK Q21 — DISTANCE METRIC LEARNING (META-232..236)
@@ -244,14 +244,14 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     "itml.upper_bound_u": "1.0",
     "itml.lower_bound_l": "10.0",
     "itml.gamma": "1.0",
-    "itml.max_iters": "1" "00",
+    "itml.max_iters": "100",
     "itml.tol": "1e-4",
     # META-236 — LogDet Metric Learning
     # Bregman divergence primitive (Kulis, Sustik, Dhillon JMLR 2009).
     # Disabled — used as inner divergence by META-235 ITML.
     "logdet_metric.enabled": "false",
     "logdet_metric.tol": "1e-6",
-    "logdet_metric.max_iters": "1" "00",
+    "logdet_metric.max_iters": "100",
     # =====================================================================
     # BLOCK Q22 — ANOMALY DETECTION (META-237..241)
     # ALL ENABLED — each catches a different anomaly type (vote ensemble)
@@ -270,7 +270,7 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     "one_class_svm.gamma": "0.1",
     "one_class_svm.nu": "0.1",
     "one_class_svm.tol": "1e-3",
-    "one_class_svm.max_iters": "1" "000",
+    "one_class_svm.max_iters": "1000",
     # META-239 — Elliptic Envelope (Fast-MCD)
     # Robust covariance + chi^2 thresholding (Rousseeuw & Van Driessen 1999).
     # Enabled — covariance-based detector in the vote ensemble.
@@ -336,8 +336,8 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     # Disabled — streaming clustering; enable when full-batch k-means too slow.
     "minibatch_kmeans.enabled": "false",
     "minibatch_kmeans.k_clusters": "32",
-    "minibatch_kmeans.batch_size": "10" "0",
-    "minibatch_kmeans.max_iters": "1" "00",
+    "minibatch_kmeans.batch_size": "100",
+    "minibatch_kmeans.max_iters": "100",
     "minibatch_kmeans.reassignment_ratio": "0.01",
     "minibatch_kmeans.tol": "1e-4",
     # META-248 — Incremental PCA
@@ -345,12 +345,12 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24: dict[str, str] = {
     # Disabled — streaming decomposition; enable when corpus exceeds RAM.
     "incremental_pca.enabled": "false",
     "incremental_pca.k_components": "32",
-    "incremental_pca.batch_size": "5" "12",
+    "incremental_pca.batch_size": "512",
     # META-249 — Online SVD (Brand's Method)
     # Strict rank-1 update to thin SVD (Brand LAA 2006).
     # Disabled — single-row update path; enable for high-frequency streaming.
     "online_svd_brand.enabled": "false",
     "online_svd_brand.k_rank": "64",
-    "online_svd_brand.qr_refresh_every": "1" "00",
+    "online_svd_brand.qr_refresh_every": "100",
     "online_svd_brand.residual_eps": "1e-10",
 }

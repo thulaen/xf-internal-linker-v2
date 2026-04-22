@@ -258,8 +258,7 @@ class CrawledPageMeta(TimestampedModel):
     )
     consecutive_404_count = models.SmallIntegerField(
         default=0,
-        help_text="Times this URL returned 404 in consecutive crawls. "
-        "Auto-prune at 3.",
+        help_text="Times this URL returned 404 in consecutive crawls. Auto-prune at 3.",
     )
 
     class Meta:
