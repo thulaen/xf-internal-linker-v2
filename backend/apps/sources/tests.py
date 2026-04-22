@@ -700,3 +700,417 @@ class FreshnessSchedulerTests(SimpleTestCase):
             next_refresh_interval_seconds(obs, importance=0)
         with self.assertRaises(ValueError):
             next_refresh_interval_seconds(obs, importance=-1)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# NFKC normalisation (PR-E)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class NfkcNormaliseTests(SimpleTestCase):
+    def test_precomposed_matches_combining(self) -> None:
+        from .normalize import nfkc, is_normalised
+
+        # "café" as U+00E9 vs e + U+0301 combining acute.
+        precomposed = "caf\u00e9"
+        combining = "cafe\u0301"
+        assert precomposed != combining
+        assert nfkc(precomposed) == nfkc(combining)
+        assert is_normalised(nfkc(combining)) is True
+
+    def test_fullwidth_ascii_collapsed(self) -> None:
+        from .normalize import nfkc
+
+        # Fullwidth "ABC" should compress to ASCII "ABC" under NFKC.
+        assert nfkc("\uff21\uff22\uff23") == "ABC"
+
+    def test_empty_and_none_passthrough(self) -> None:
+        from .normalize import nfkc, nfkc_all
+
+        assert nfkc("") == ""
+        assert nfkc_all(["a", "", "b"]) == ["a", "", "b"]
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Collocations PMI (PR-E)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class CollocationsPMITests(SimpleTestCase):
+    def test_independent_pair_near_zero(self) -> None:
+        from .collocations import pmi
+
+        # P(joint) = P(a) * P(b) exactly → PMI = 0.
+        score = pmi(joint_count=10, count_a=100, count_b=100, total=1000)
+        assert abs(score) < 0.05  # floating tolerance
+
+    def test_strong_association_has_positive_pmi(self) -> None:
+        from .collocations import pmi
+
+        # Pair appears 10x more than chance.
+        score = pmi(joint_count=100, count_a=100, count_b=100, total=1000)
+        assert score > 3.0  # log2(10) = 3.32
+
+    def test_never_observed_returns_negative_infinity(self) -> None:
+        from .collocations import pmi
+
+        score = pmi(joint_count=0, count_a=10, count_b=10, total=100)
+        assert score == float("-inf")
+
+    def test_npmi_bounded_negative_one_when_joint_zero(self) -> None:
+        from .collocations import normalised_pmi
+
+        assert normalised_pmi(joint_count=0, count_a=5, count_b=5, total=50) == -1.0
+
+    def test_npmi_stays_in_bounds(self) -> None:
+        from .collocations import normalised_pmi
+
+        for joint, a, b, total in [
+            (5, 10, 10, 100),
+            (50, 100, 100, 200),
+            (1, 1000, 1000, 10_000),
+        ]:
+            score = normalised_pmi(
+                joint_count=joint, count_a=a, count_b=b, total=total
+            )
+            assert -1.0 <= score <= 1.0
+
+    def test_invalid_counts_rejected(self) -> None:
+        from .collocations import pmi
+
+        with self.assertRaises(ValueError):
+            pmi(joint_count=20, count_a=10, count_b=100, total=1000)
+        with self.assertRaises(ValueError):
+            pmi(joint_count=1, count_a=-1, count_b=5, total=100)
+        with self.assertRaises(ValueError):
+            pmi(joint_count=1, count_a=10, count_b=10, total=0)
+        with self.assertRaises(ValueError):
+            pmi(joint_count=1, count_a=200, count_b=5, total=100)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Passage segmentation (PR-E)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class PassageSegmentationTests(SimpleTestCase):
+    def test_short_text_single_passage(self) -> None:
+        from .passages import segment_by_tokens
+
+        passages = segment_by_tokens("only a few words here", window_tokens=150)
+        assert len(passages) == 1
+        assert passages[0].token_count == 5
+
+    def test_empty_text_returns_empty(self) -> None:
+        from .passages import segment_by_tokens
+
+        assert segment_by_tokens("") == []
+        assert segment_by_tokens("   \t\n   ") == []
+
+    def test_windows_have_correct_overlap(self) -> None:
+        from .passages import segment_by_tokens
+
+        # 50 tokens with window=20, overlap=5 → windows of 20, stride 15.
+        tokens = " ".join(f"w{i}" for i in range(50))
+        passages = segment_by_tokens(
+            tokens, window_tokens=20, overlap_tokens=5
+        )
+        assert passages[0].token_start == 0
+        assert passages[0].token_end == 20
+        assert passages[1].token_start == 15
+        assert passages[1].token_end == 35
+        # Overlap tokens match.
+        assert passages[0].text.split()[-5:] == passages[1].text.split()[:5]
+
+    def test_last_passage_ends_at_token_count(self) -> None:
+        from .passages import segment_by_tokens
+
+        tokens = " ".join(str(i) for i in range(47))
+        passages = segment_by_tokens(
+            tokens, window_tokens=20, overlap_tokens=5
+        )
+        assert passages[-1].token_end == 47
+
+    def test_invalid_window_params_rejected(self) -> None:
+        from .passages import segment_by_tokens
+
+        with self.assertRaises(ValueError):
+            segment_by_tokens("hello", window_tokens=0)
+        with self.assertRaises(ValueError):
+            segment_by_tokens("hello", window_tokens=10, overlap_tokens=10)
+        with self.assertRaises(ValueError):
+            segment_by_tokens("hello", window_tokens=10, overlap_tokens=-1)
+
+    def test_sentence_segmentation_groups_into_target_windows(self) -> None:
+        from .passages import segment_from_sentences
+
+        sentences = [
+            "Short one.",
+            "Another short sentence.",
+            "A slightly longer sentence that has a few more words.",
+            "Yet one more.",
+            "Final sentence goes here.",
+        ]
+        passages = segment_from_sentences(
+            sentences, target_window_tokens=8, overlap_sentences=1
+        )
+        assert len(passages) >= 1
+        # Every sentence must be findable somewhere in the output.
+        joined = " ".join(p.text for p in passages)
+        for s in sentences:
+            assert s in joined
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Entity salience (PR-E)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class _FakeSpan:
+    def __init__(self, text: str, label: str, start: int, end: int):
+        self.text = text
+        self.label_ = label
+        self.start_char = start
+        self.end_char = end
+
+
+class _FakeSent:
+    def __init__(self, text: str, start: int, end: int):
+        self.text = text
+        self.start_char = start
+        self.end_char = end
+
+
+class _FakeDoc:
+    def __init__(self, text: str, ents: list, sents: list):
+        self.text = text
+        self.ents = ents
+        self.sents = sents
+
+
+class EntitySalienceTests(SimpleTestCase):
+    def test_first_position_beats_mention_frequency(self) -> None:
+        from .entity_salience import rank_entities
+
+        text = "Acme launched rockets. " + ("Widget Corp " * 10).strip()
+        # Acme appears once early, Widget Corp ten times later.
+        ents = [
+            _FakeSpan("Acme", "ORG", 0, 4),
+            *[
+                _FakeSpan(
+                    "Widget Corp",
+                    "ORG",
+                    text.index("Widget Corp") + i * len("Widget Corp "),
+                    text.index("Widget Corp") + i * len("Widget Corp ") + 11,
+                )
+                for i in range(10)
+            ],
+        ]
+        sents = [_FakeSent(text, 0, len(text))]
+        doc = _FakeDoc(text, ents, sents)
+        ranked = rank_entities(doc)
+        # Default weights put first-position 0.4 vs frequency 0.2, so
+        # Acme's massive first-position advantage should beat Widget's
+        # raw frequency.
+        assert ranked[0].text == "Acme"
+
+    def test_title_match_bumps_salience(self) -> None:
+        from .entity_salience import rank_entities
+
+        text = "Acme made news. Widget Corp also appeared."
+        ents = [
+            _FakeSpan("Acme", "ORG", 0, 4),
+            _FakeSpan("Widget Corp", "ORG", 16, 27),
+        ]
+        sents = [_FakeSent(text, 0, len(text))]
+        doc = _FakeDoc(text, ents, sents)
+        without_title = rank_entities(doc)
+        with_title = rank_entities(doc, title="Acme quarterly results")
+        before = next(r for r in without_title if r.text == "Acme")
+        after = next(r for r in with_title if r.text == "Acme")
+        assert after.salience > before.salience
+
+    def test_top_k_truncation(self) -> None:
+        from .entity_salience import rank_entities
+
+        text = " ".join([f"Ent{i}" for i in range(6)])
+        ents = []
+        pos = 0
+        for i in range(6):
+            name = f"Ent{i}"
+            ents.append(_FakeSpan(name, "PERSON", pos, pos + len(name)))
+            pos += len(name) + 1
+        sents = [_FakeSent(text, 0, len(text))]
+        doc = _FakeDoc(text, ents, sents)
+        ranked = rank_entities(doc, top_k=3)
+        assert len(ranked) == 3
+
+    def test_empty_doc_returns_empty(self) -> None:
+        from .entity_salience import rank_entities
+
+        doc = _FakeDoc("", [], [])
+        assert rank_entities(doc) == []
+
+    def test_min_mention_count_filters(self) -> None:
+        from .entity_salience import rank_entities
+
+        text = "Alpha Beta Alpha"
+        ents = [
+            _FakeSpan("Alpha", "PERSON", 0, 5),
+            _FakeSpan("Beta", "PERSON", 6, 10),
+            _FakeSpan("Alpha", "PERSON", 11, 16),
+        ]
+        sents = [_FakeSent(text, 0, len(text))]
+        doc = _FakeDoc(text, ents, sents)
+        ranked = rank_entities(doc, min_mention_count=2)
+        assert [r.text for r in ranked] == ["Alpha"]
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Readability (PR-E)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class ReadabilityTests(SimpleTestCase):
+    def test_empty_returns_zero_scores(self) -> None:
+        from .readability import score
+
+        s = score("")
+        assert s.word_count == 0
+        assert s.flesch_kincaid_grade == 0.0
+        assert s.gunning_fog == 0.0
+
+    def test_short_simple_sentence_is_low_grade(self) -> None:
+        from .readability import flesch_kincaid_grade, gunning_fog
+
+        text = "The cat sat on the mat. The dog ran fast."
+        # Simple grade-school prose should score well below grade 6.
+        assert flesch_kincaid_grade(text) < 6.0
+        assert gunning_fog(text) < 6.0
+
+    def test_complex_prose_scores_higher(self) -> None:
+        from .readability import flesch_kincaid_grade, gunning_fog
+
+        simple = "The cat sat. The dog ran. It was fun."
+        complex_ = (
+            "Academic investigations demonstrate that multifaceted "
+            "socioeconomic phenomena require interdisciplinary "
+            "methodological frameworks to achieve substantive explanatory "
+            "capacity."
+        )
+        assert flesch_kincaid_grade(complex_) > flesch_kincaid_grade(simple)
+        assert gunning_fog(complex_) > gunning_fog(simple)
+
+    def test_syllable_counter_sanity(self) -> None:
+        from .readability import count_syllables
+
+        # Hand-picked examples; each should match CMU-dict +/- 0.
+        cases = {
+            "cat": 1,
+            "hello": 2,
+            "beautiful": 3,
+            "little": 2,
+            "make": 1,          # silent-e
+            "syllable": 3,
+            "syllables": 3,
+            "simple": 2,
+            "the": 1,
+        }
+        for word, expected in cases.items():
+            assert count_syllables(word) == expected, (
+                f"{word!r}: got {count_syllables(word)}, expected {expected}"
+            )
+
+    def test_score_counts_all_fields(self) -> None:
+        from .readability import score
+
+        s = score("Hello world. This is a short paragraph.")
+        assert s.word_count > 0
+        assert s.sentence_count >= 2
+        assert s.syllable_count >= s.word_count  # every word >= 1 syllable
+        assert s.avg_sentence_length > 0
+        assert s.avg_syllables_per_word >= 1.0
+
+    def test_never_raises_on_weird_input(self) -> None:
+        from .readability import score
+
+        score("123 456 789")   # digits only → zero words
+        score("!!! ??? ...")   # punctuation only
+        score("a")             # single char
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Product Quantization (PR-E) — FAISS-backed
+# ─────────────────────────────────────────────────────────────────────
+
+
+class ProductQuantizationTests(SimpleTestCase):
+    """Smoke tests for the FAISS PQ wrapper.
+
+    We skip every test here when FAISS isn't importable so
+    development-on-non-GPU machines isn't blocked. In CI the FAISS
+    image has it pinned.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        super().setUpClass()
+        try:
+            import faiss  # type: ignore[import-not-found]  # noqa: F401
+            import numpy  # type: ignore[import-not-found]  # noqa: F401
+            cls._faiss_available = True
+        except ImportError:
+            cls._faiss_available = False
+
+    def _skip_without_faiss(self) -> None:
+        if not self._faiss_available:
+            self.skipTest("FAISS not importable in this environment")
+
+    def test_init_validates_params(self) -> None:
+        from .product_quantization import ProductQuantizer
+
+        with self.assertRaises(ValueError):
+            ProductQuantizer(dimension=0)
+        with self.assertRaises(ValueError):
+            ProductQuantizer(dimension=128, m=0)
+        with self.assertRaises(ValueError):
+            # 128 / 7 doesn't divide evenly.
+            ProductQuantizer(dimension=128, m=7)
+        with self.assertRaises(ValueError):
+            ProductQuantizer(dimension=128, m=8, ks=0)
+
+    def test_bytes_per_vector_at_defaults(self) -> None:
+        from .product_quantization import ProductQuantizer
+
+        q = ProductQuantizer(dimension=1024, m=8, ks=256)
+        assert q.bytes_per_vector == 8
+        # Compression ratio: 1024 * 4 bytes = 4096, compressed = 8 →
+        # 512x. Loose bound to handle any rounding.
+        assert q.compression_ratio >= 400
+
+    def test_untrained_encode_raises(self) -> None:
+        from .product_quantization import ProductQuantizer
+
+        q = ProductQuantizer(dimension=8, m=2, ks=16)
+        with self.assertRaises(RuntimeError):
+            q.encode([[0.0] * 8])
+
+    def test_round_trip_reconstruction(self) -> None:
+        self._skip_without_faiss()
+        import numpy as np
+        from .product_quantization import ProductQuantizer
+
+        rng = np.random.default_rng(42)
+        # Use ks=16 → 4 bits/subvector for low RAM + few training rows.
+        q = ProductQuantizer(dimension=32, m=4, ks=16)
+        train = rng.standard_normal((800, 32)).astype("float32")
+        q.fit(train)
+        vectors = rng.standard_normal((5, 32)).astype("float32")
+        codes = q.encode(vectors)
+        decoded = q.decode(codes)
+        assert decoded.shape == (5, 32)
+        # Reconstruction error should be modest — not zero (that's the
+        # whole point of compression) but within a few standard
+        # deviations of the original.
+        err = ((vectors - decoded) ** 2).mean() ** 0.5
+        assert err < 2.0
