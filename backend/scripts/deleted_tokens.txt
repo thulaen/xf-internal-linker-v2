@@ -74,9 +74,12 @@ boolprox
 mrf_per_field
 
 # Block C (FR-116..125) — HITS/TrustRank and graph-authority alternatives
+# NOTE: `trustrank` un-banned 2026-04-22 — PR-M ships
+# apps.pipeline.services.trustrank as the legitimate Gyöngyi 2004 helper
+# (plan pick #30). The banned pending signal of the same name was never
+# implemented; this identifier now means the Gyöngyi VLDB algorithm.
 hits_authority
 hits_hub
-trustrank
 anti_trustrank
 salsa
 simrank
