@@ -35,8 +35,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("rareterm", "evaluate_rare_terms", "Rare-term propagation kernel", False),
     ("linkparse", "find_urls", "Link parser kernel", False),
     ("phrasematch", "longest_contiguous_overlap", "Phrase matching kernel", False),
-    ("strpool", "intern", "String pool kernel", False),
-    ("inv_index", "build_index", "Inverted index kernel", False),
     # ── FR-051/058/053: Patent-backed ranking signal extensions ──
     ("refcontext", "ref_context_score", "FR-051 Reference context scorer", False),
     ("ngramqual", "ngram_score", "FR-058 N-gram quality scorer", False),
@@ -45,8 +43,6 @@ _NATIVE_RUNTIME_MODULES = (
     ("smoothrank", "smoothrank_step", "FR-066 SmoothRank NDCG optimiser", False),
     ("rankagg", "power_iter", "FR-067 Markov rank aggregation", False),
     ("cascade", "stage_score", "FR-068 Cascade re-ranker", False),
-    # ── System pulse metrics (ring buffer) ──
-    ("pulse_metrics", "get_summary", "Pulse metrics ring buffer", False),
     # ── OPT-01 to OPT-06: Initial resource optimisations ──
     ("embpool", "alloc", "OPT-01 Embedding memory pool", False),
     ("vecdeser", "parse_vector", "OPT-02 Fast vector deserialiser", False),

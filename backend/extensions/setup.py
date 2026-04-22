@@ -11,24 +11,12 @@ ext_modules = [
         else ["/O2", "/arch:AVX2"],
     ),
     Pybind11Extension(
-        "strpool",
-        ["strpool.cpp"],
-        extra_compile_args=["-O3"] if sys.platform != "win32" else ["/O2"],
-    ),
-    Pybind11Extension(
         "scoring",
         ["scoring.cpp"],
         extra_compile_args=["-O3", "-std=c++17", "-march=native"]
         if sys.platform != "win32"
         else ["/O2", "/std:c++17", "/arch:AVX2"],
         libraries=["tbb"] if sys.platform != "win32" else [],
-    ),
-    Pybind11Extension(
-        "inv_index",
-        ["inv_index.cpp"],
-        extra_compile_args=["-O3", "-march=native"]
-        if sys.platform != "win32"
-        else ["/O2", "/arch:AVX2"],
     ),
     Pybind11Extension(
         "texttok",
@@ -87,13 +75,6 @@ ext_modules = [
         if sys.platform != "win32"
         else ["/O2", "/std:c++17", "/arch:AVX2"],
         libraries=["tbb"] if sys.platform != "win32" else [],
-    ),
-    Pybind11Extension(
-        "pulse_metrics",
-        ["pulse_metrics.cpp"],
-        extra_compile_args=["-O3", "-std=c++17"]
-        if sys.platform != "win32"
-        else ["/O2", "/std:c++17"],
     ),
     Pybind11Extension(
         "anchor_diversity",

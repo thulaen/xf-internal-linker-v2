@@ -1,51 +1,12 @@
-"""Benchmarks for miscellaneous C++ extensions (strpool, feedrerank, pulse_metrics)."""
+"""Benchmarks for miscellaneous C++ extensions (feedrerank)."""
 
 import numpy as np
-
-
-def _import_strpool():
-    import strpool
-
-    return strpool
 
 
 def _import_feedrerank():
     import feedrerank
 
     return feedrerank
-
-
-def _import_pulse_metrics():
-    import pulse_metrics
-
-    return pulse_metrics
-
-
-# ── String Pool ─────────────────────────────────────────────────
-
-
-def test_bench_strpool_intern_small(benchmark):
-    sp = _import_strpool()
-
-    def run():
-        pool = sp.StringPool()
-        for i in range(1_000):
-            pool.intern(f"token_{i}")
-        return pool
-
-    benchmark(run)
-
-
-def test_bench_strpool_intern_medium(benchmark):
-    sp = _import_strpool()
-
-    def run():
-        pool = sp.StringPool()
-        for i in range(100_000):
-            pool.intern(f"token_{i}")
-        return pool
-
-    benchmark(run)
 
 
 # ── Feed Rerank ─────────────────────────────────────────────────
@@ -126,28 +87,3 @@ def test_bench_mmr_scores_medium(benchmark):
     candidates = rng.standard_normal((n_cand, dim))
     selected = rng.standard_normal((n_sel, dim))
     benchmark(fr.calculate_mmr_scores_batch, relevance, candidates, selected, 0.7)
-
-
-# ── Pulse Metrics ───────────────────────────────────────────────
-
-
-def test_bench_pulse_push(benchmark):
-    pm = _import_pulse_metrics()
-    ts = 1_000_000.0
-
-    def push_batch():
-        nonlocal ts
-        for _ in range(100):
-            pm.push_event(ts, 1, 12.5, 100)
-            ts += 60.0
-
-    benchmark(push_batch)
-
-
-def test_bench_pulse_summary(benchmark):
-    pm = _import_pulse_metrics()
-    ts = 1_000_000.0
-    for i in range(1000):
-        pm.push_event(ts, i % 4, 10.0 + i, i)
-        ts += 3.6
-    benchmark(pm.get_summary)

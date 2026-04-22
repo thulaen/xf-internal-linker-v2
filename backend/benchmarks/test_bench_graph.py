@@ -1,4 +1,4 @@
-"""Benchmarks for graph-related C++ extensions (linkparse, pagerank, inv_index)."""
+"""Benchmarks for graph-related C++ extensions (linkparse, pagerank)."""
 
 import numpy as np
 
@@ -13,12 +13,6 @@ def _import_pagerank():
     import pagerank
 
     return pagerank
-
-
-def _import_inv_index():
-    import inv_index
-
-    return inv_index
 
 
 # ── Link Parsing ────────────────────────────────────────────────
@@ -85,45 +79,3 @@ def test_bench_pagerank_large(benchmark):
     pr = _import_pagerank()
     indptr, indices, data, ranks, dangling = _make_csr_graph(100_000)
     benchmark(pr.pagerank_step, indptr, indices, data, ranks, dangling, 0.85, 100_000)
-
-
-# ── Inverted Index ──────────────────────────────────────────────
-
-
-def test_bench_inv_index_build_small(benchmark):
-    inv = _import_inv_index()
-
-    def build():
-        idx = inv.InvertedIndex()
-        rng = np.random.default_rng(42)
-        for doc_id in range(100):
-            tokens = rng.integers(0, 10000, size=50).tolist()
-            idx.add_document(doc_id, tokens)
-        return idx
-
-    benchmark(build)
-
-
-def test_bench_inv_index_build_medium(benchmark):
-    inv = _import_inv_index()
-
-    def build():
-        idx = inv.InvertedIndex()
-        rng = np.random.default_rng(42)
-        for doc_id in range(10_000):
-            tokens = rng.integers(0, 10000, size=50).tolist()
-            idx.add_document(doc_id, tokens)
-        return idx
-
-    benchmark(build)
-
-
-def test_bench_inv_index_search(benchmark):
-    inv = _import_inv_index()
-    idx = inv.InvertedIndex()
-    rng = np.random.default_rng(42)
-    for doc_id in range(10_000):
-        tokens = rng.integers(0, 10000, size=50).tolist()
-        idx.add_document(doc_id, tokens)
-    query = [int(x) for x in rng.integers(0, 10000, size=10)]
-    benchmark(idx.search, query, 1.5, 0.75)

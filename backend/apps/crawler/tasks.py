@@ -96,15 +96,7 @@ def pulse_heartbeat():
     except Exception as exc:
         checks["cpp_extensions"] = {"ok": False, "error": str(exc)[:_MAX_ERROR_LEN]}
 
-    # Push to C++ ring buffer (if available).
-    severity = 0 if overall_ok else 3
     avg_ms = _avg_latency(checks)
-    try:
-        pulse = load_extension("pulse_metrics", "push_event")
-        if pulse is not None:
-            pulse.push_event(ts, severity, avg_ms, 0)
-    except Exception:
-        logger.debug("Failed to push pulse to C++ ring buffer", exc_info=True)
 
     # Emit SystemEvent for the Dashboard Activity Feed.
     service_summary = ", ".join(

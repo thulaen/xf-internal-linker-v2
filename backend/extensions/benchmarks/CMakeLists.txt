@@ -64,8 +64,6 @@ add_bench(scoring    "${EXT_ROOT}/scoring.cpp")
 
 # Category B: pure STL signatures
 add_bench(phrasematch "${EXT_ROOT}/phrasematch.cpp")
-add_bench(strpool     "${EXT_ROOT}/strpool.cpp")
-add_bench(inv_index   "${EXT_ROOT}/inv_index.cpp")
 add_bench(fieldrel    "${EXT_ROOT}/fieldrel.cpp")
 add_bench(linkparse   "${EXT_ROOT}/linkparse.cpp")
 
@@ -77,9 +75,6 @@ add_bench(pagerank    "${EXT_ROOT}/pagerank.cpp")
 # Category D: extracted core (STL return)
 add_bench(texttok     "${EXT_ROOT}/texttok.cpp")
 add_bench(rareterm    "${EXT_ROOT}/rareterm.cpp")
-
-# Category E: class-based
-add_bench(pulse_metrics "${EXT_ROOT}/pulse_metrics.cpp")
 
 # FR-045 C++ batch fast path — pure-STL core, no TBB.
 add_bench(anchor_diversity "${EXT_ROOT}/anchor_diversity.cpp")
