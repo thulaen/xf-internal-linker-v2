@@ -183,16 +183,6 @@ _FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# Signal-level forward-declared files — included because several of the
-# planned items in the plan text are signals (FR-038..FR-099+). The tab
-# can filter them via the "Signal" family chip.
-_SIGNAL_FILES: tuple[str, ...] = (
-    "recommended_weights_phase2_signals_a_d.py",
-    "recommended_weights_phase2_signals_e_h.py",
-    "recommended_weights_phase2_signals_i_l.py",
-    "recommended_weights_phase2_signals_m_o.py",
-)
-
 _META_COMMENT_RE = re.compile(
     r"""^\s*\#\s*META-(?P<num>\d+)\s*[—\-]\s*(?P<title>[^\[\(]+)""",
     re.MULTILINE,
@@ -295,22 +285,6 @@ def _all_parsed_metas() -> tuple[_ParsedMeta, ...]:
         path = base / filename
         if path.exists():
             out.extend(_parse_meta_file(path))
-    # Signal-level files — tagged with family "signal" so the UI can
-    # group them separately from the META- blocks.
-    for filename in _SIGNAL_FILES:
-        path = base / filename
-        if not path.exists():
-            continue
-        for parsed in _parse_meta_file(path):
-            out.append(
-                _ParsedMeta(
-                    prefix=parsed.prefix,
-                    meta_code=parsed.meta_code or "",
-                    title=parsed.title,
-                    family="signal",
-                    enabled_line_no=parsed.enabled_line_no,
-                )
-            )
     return tuple(out)
 
 

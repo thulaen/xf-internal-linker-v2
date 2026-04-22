@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -107,20 +108,26 @@ def repo_root(start: Path | None = None) -> Path:
     raise SystemExit("phantom-reference gate: cannot locate git repo root")
 
 
-def load_banned_tokens(data_path: Path) -> list[str]:
-    """Read the deleted-tokens list. One token per line; # comments allowed."""
+def load_banned_tokens(data_path: Path) -> list[tuple[str, re.Pattern[str]]]:
+    """Read the deleted-tokens list and compile each entry as a word-boundary regex.
+
+    One token per line; lines starting with # are comments.
+    Matching uses \\b boundaries so short acronyms (e.g. `pmi`) do not produce
+    false positives against unrelated words (`api_pmi_util`).
+    """
     if not data_path.exists():
         print(
             f"phantom-reference gate: data file missing — {data_path}",
             file=sys.stderr,
         )
         raise SystemExit(2)
-    tokens: list[str] = []
+    tokens: list[tuple[str, re.Pattern[str]]] = []
     for line in data_path.read_text(encoding="utf-8").splitlines():
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        tokens.append(stripped)
+        pattern = re.compile(rf"\b{re.escape(stripped)}\b")
+        tokens.append((stripped, pattern))
     if not tokens:
         print(
             f"phantom-reference gate: data file is empty — {data_path}",
@@ -148,14 +155,17 @@ def _should_scan(rel_path: str, basename: str) -> bool:
     return True
 
 
-def scan_file(path: Path, tokens: list[str]) -> list[tuple[str, int, str]]:
+def scan_file(
+    path: Path,
+    tokens: list[tuple[str, re.Pattern[str]]],
+) -> list[tuple[str, int, str]]:
     """Return every (token, line_number, line_text) hit in *path*."""
     hits: list[tuple[str, int, str]] = []
     try:
         with path.open("r", encoding="utf-8", errors="replace") as fh:
             for line_no, line in enumerate(fh, start=1):
-                for tok in tokens:
-                    if tok in line:
+                for tok, pattern in tokens:
+                    if pattern.search(line):
                         hits.append((tok, line_no, line.rstrip("\n")))
                         break  # one hit per line is enough to fail
     except OSError as exc:

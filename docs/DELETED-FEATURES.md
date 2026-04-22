@@ -37,9 +37,28 @@ Gone for good:
 - Spec files: `fr091-cpp-extension-retrofit.md`, `opt-73-abseil-hashmap-inv-index.md`, `opt-75-abseil-hashmap-strpool.md`, `opt-78-abseil-mutex.md`, `opt-89-pipeline-accel.md`.
 - Write-only pulse-metrics push inside `backend/apps/crawler/tasks.py` heartbeat (no consumer ever read the ring-buffer summary).
 
+## 2026-04-22 — PR-A slice 4: 126 pending ranking signals (Block A-O / FR-099..FR-224)
+
+Retired the full Block A-O forward-declared signal library. Every signal in these four files was inert — no production scoring path consumed them — and each one fell into a conflict, overlap, duplicate, or "no-consumer niche" tier per the plan's Part 1 manifest.
+
+Gone for good:
+
+- Weight files:
+    - `backend/apps/suggestions/recommended_weights_phase2_signals_a_d.py` (Block A-D, FR-099..FR-133)
+    - `backend/apps/suggestions/recommended_weights_phase2_signals_e_h.py` (Block E-H, FR-134..FR-169)
+    - `backend/apps/suggestions/recommended_weights_phase2_signals_i_l.py` (Block I-L, FR-170..FR-203)
+    - `backend/apps/suggestions/recommended_weights_phase2_signals_m_o.py` (Block M-O, FR-204..FR-224)
+- Spec files: 126 `docs/specs/fr099-*.md` through `docs/specs/fr224-*.md` (one per signal).
+- Registry wiring: imports removed from `backend/apps/suggestions/recommended_weights.py`; `_SIGNAL_FILES` parser list removed from `backend/apps/suggestions/meta_registry.py` (the settings tab no longer emits phantom "signal" family rows for deleted prefixes).
+- FRs: FR-099 through FR-224 (every feature request in the pending signal range).
+
+All 126 signal prefixes added to `backend/scripts/deleted_tokens.txt` so the gate will fail if any reappears.
+
+Note: the smaller `recommended_weights_forward_settings.py` file (FR-038..FR-090 range) contains a mix of pending signal entries and pipeline-configuration entries. Its cleanup is deferred to slice 5 / slice 6 where each entry is inspected individually.
+
 ## Upcoming entries (reserved)
 
-- PR-A slice 4 — All 161 pending ranking signals (blocks A-O + FR-038..FR-090 forward settings). These fall into conflict/overlap/duplicate/niche tiers per the plan and were never wired.
 - PR-A slice 5 — ~184 pending meta-algos not in the 52-pick roster (META-40..META-249 minus the kept 8 plus new specs).
+- PR-A slice 6 — Doc scrubbing (AI-CONTEXT.md, FEATURE-REQUESTS.md, REPORT-REGISTRY.md, v2-master-plan.md, BUSINESS-LOGIC-CHECKLIST.md, PERFORMANCE.md, signal_registry.py comments).
 
 Each future slice will append its own section here and its banned identifiers to `backend/scripts/deleted_tokens.txt`.

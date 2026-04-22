@@ -2,7 +2,8 @@
 # except in paths listed as exclusions in check_phantom_references.py.
 #
 # Format: one token per line. Blank lines and lines starting with # are ignored.
-# Tokens are matched as plain substrings (case-sensitive).
+# Tokens are matched as word-boundary regex (\btoken\b) so short acronyms
+# like `pmi` do not false-positive on `api_pmi_util` or similar.
 #
 # When a slice deletes a feature, append every surviving identifier that
 # should never be re-introduced. A future AI session scanning the repo will
@@ -45,3 +46,165 @@ OPT-73
 OPT-75
 OPT-78
 OPT-89
+
+# ── PR-A slice 4 — 126 pending ranking signals (Block A-O, FR-099..FR-224) ─
+# 4 phase-2 signal weight files deleted + 126 matching spec files.
+# All were forward-declared, never wired, and fell into one of four
+# conflict/overlap/niche tiers per the plan. See docs/DELETED-FEATURES.md.
+
+# Block A (FR-099..107) — classical IR scoring alternatives to BM25 and QL
+bm25_plus
+bm25l
+dfr_pl2
+dfr_inl2
+dfr_dph
+axiomatic_f2exp
+two_stage_lm
+plm
+rm3
+
+# Block B (FR-108..115) — proximity & dependence models overlapping phrase_relevance
+sdm
+wsdm
+fdm
+bm25tp
+minspan
+osp
+boolprox
+mrf_per_field
+
+# Block C (FR-116..125) — HITS/TrustRank and graph-authority alternatives
+hits_authority
+hits_hub
+trustrank
+anti_trustrank
+salsa
+simrank
+katz
+k_shell
+harmonic_centrality
+leaderrank
+
+# Block D (FR-126..133) — diversification alternatives fighting MMR
+ia_select
+xquad
+pm2
+dpp
+submodular_coverage
+portfolio
+ldm
+quota_diversity
+
+# Block E (FR-134..143) — time-series / change detection (no consumer)
+kleinberg_burst
+pelt_changepoint
+cusum_anomaly
+stl_decomposition
+mann_kendall
+theil_sen
+fourier_periodicity
+acf_lag_k
+pacf_lag_k
+ewma_smoothed
+
+# Block F (FR-144..151) — streaming sketches (duplicates or overlaps)
+hyperloglog
+hyperloglog_pp
+countmin_anchor
+count_sketch
+space_saving
+t_digest
+lossy_counting
+b_bit_minhash
+
+# Block G (FR-152..161) — linguistic/style signals overlapping readability/spaCy
+passive_voice
+nominalization
+hedging
+discourse_conn
+cohesion
+pos_diversity
+sent_variance
+yule_k
+mtld
+punct_entropy
+
+# Block H (FR-162..169) — click-model alternatives fighting Cascade Click
+ccm
+dbn
+ubm
+pbm
+dcm
+ccm_bayes
+click_walk
+reg_em
+
+# Block I (FR-170..177) — query-difficulty predictors overlapping Uncertainty Sampling
+query_clarity
+wig
+nqc
+scs
+query_scope
+query_feedback
+avgictf
+scq
+
+# Block J (FR-178..185) — info-theoretic divergences overlapping PMI/cosine
+pmi
+npmi
+llr
+kl_div
+js_div
+renyi_div
+hellinger
+wmd
+
+# Block K (FR-186..194) — host-level authority variants overlapping PageRank/spam_guard
+site_pagerank
+host_trustrank
+spamrank
+badrank
+host_age
+subdomain_diversity
+doorway_detector
+block_pagerank
+host_cohesion
+
+# Block L (FR-195..203) — anti-spam detectors overlapping META-25 spam_guard.
+# NOTE: `link_farm` and `keyword_stuffing` are NOT banned — those names belong
+# to the live runtime anti-spam signals (see recommended_weights.py). Only the
+# phase-2 duplicates of those names were deleted.
+link_naturalness
+cloaking
+content_spin
+sybil
+astroturf
+clickbait
+content_farm
+
+# Block M (FR-204..212) — author reputation overlapping PageRank/post_quality/LDA
+author_h_index
+co_authorship_pr
+account_age_gravity
+edit_history_density
+mod_endorsement
+rqr
+topic_consistency
+trust_propagation
+eigentrust
+
+# Block N (FR-213..220) — SEO / accessibility metrics (no consumer)
+heading_hierarchy
+alt_text_coverage
+schema_completeness
+open_graph_completeness
+mobile_friendly
+cwv_lcp
+cwv_cls
+cwv_inp
+
+# Block O (FR-221..224) — passage segmentation alternatives fighting Callan 1994
+texttiling
+c99_segmentation
+dotplot_segmentation
+bayesseg

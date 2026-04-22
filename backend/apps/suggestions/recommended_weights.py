@@ -8,18 +8,6 @@ keys.
 from __future__ import annotations
 
 from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
-from .recommended_weights_phase2_signals_a_d import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_D,
-)
-from .recommended_weights_phase2_signals_e_h import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_E_H,
-)
-from .recommended_weights_phase2_signals_i_l import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_I_L,
-)
-from .recommended_weights_phase2_signals_m_o import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_M_O,
-)
 from .recommended_weights_phase2_metas_p1_p6 import (
     FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6,
 )
@@ -90,6 +78,19 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "learned_anchor.minimum_anchor_sources": "2",
     "learned_anchor.minimum_family_support_share": "0.15",
     "learned_anchor.enable_noise_filter": "true",
+    # Runtime anti-spam signals (also seeded into DB by migration 0032).
+    # Both signals are live and read by pipeline/services/pipeline_loaders.py.
+    "keyword_stuffing.enabled": "true",
+    "keyword_stuffing.ranking_weight": "0.04",
+    "keyword_stuffing.alpha": "6.0",
+    "keyword_stuffing.tau": "0.30",
+    "keyword_stuffing.dirichlet_mu": "2000",
+    "keyword_stuffing.top_k_stuff_terms": "5",
+    "link_farm.enabled": "true",
+    "link_farm.ranking_weight": "0.03",
+    "link_farm.min_scc_size": "3",
+    "link_farm.density_threshold": "0.6",
+    "link_farm.lambda": "0.8",
     # Pipeline recall thresholds — tunable to trade recall vs. speed.
     # Research basis: Bruch et al. 2024 and Cormack et al. 2009 recommend
     # tunable fan-out over fixed budgets. These defaults match the original
@@ -99,16 +100,11 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "pipeline.min_semantic_score": "0.25",
 }
 
-# Merge forward-declared FR keys (FR-038 through FR-096 etc.) into the main dict.
+# Merge forward-declared FR keys into the main dict.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
-# Merge Phase 2 forward-declared keys (FR-099 through FR-224, META-40 through META-249).
-# Each signal carries researched starting ranking_weight + algorithm hyperparameters.
-# Each meta carries researched hyperparameters; "winner" metas in their category
-# default enabled=true, alternates default enabled=false (ready for FR-225 rotation).
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_A_D)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_E_H)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_I_L)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_SIGNALS_M_O)
+# Merge Phase 2 forward-declared meta hyperparameters (META-40 through META-249).
+# Each meta carries researched hyperparameters; roster members default
+# enabled=true, others default enabled=false.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6)
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12)
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8)
