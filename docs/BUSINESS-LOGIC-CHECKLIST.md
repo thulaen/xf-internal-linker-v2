@@ -265,3 +265,62 @@ Pruning must never drop below these values. Below the floor, the subsystem must 
 - [ ] The System Health panel shows current Docker volume disk usage and PostgreSQL DB size at all times.
 - [ ] A Celery beat task runs weekly (`disk_space_check`) and emits a health panel warning banner if free disk space drops below 15 GB.
 - [ ] If free disk falls below 15 GB, the operator sees the warning on the Health page — not just in logs.
+
+---
+
+## Section 7 — 52-Pick Roster Governance (FR-230)
+
+The 52-pick plan spans every pipeline stage and ships across 10+ sub-PRs. Each pick has its own spec at `docs/specs/pick-NN-*.md` with a §15 governance checklist. This section records the cross-cutting checks that apply to the roster as a whole — not just per-pick — and must be re-verified in any PR that touches the roster.
+
+### 7.1 Every pick is in the Recommended preset
+
+Operator directive (2026-04-22): "all things need to be turned on with good starting points from sources of truth or specs".
+
+- [ ] Every shipped pick has `<prefix>.enabled=true` seeded in `backend/apps/suggestions/recommended_weights.py`.
+- [ ] A migration upserts those keys into the existing `WeightPreset` row where `is_system=True AND name='Recommended'`.
+- [ ] Every hyperparameter default cites its source section/paragraph in the per-pick spec §6 table.
+- [ ] No pick ships with a "round-number" default that lacks a paper, RFC, patent, or project-decision citation.
+
+### 7.2 Academic source is pinned per pick
+
+- [ ] Each per-pick spec §3 names exactly one primary source (paper DOI, RFC number, patent number, or book ISBN).
+- [ ] "What we faithfully reproduce" and "What we deliberately diverge on" are filled in every spec — no empty sections.
+- [ ] For reused third-party libraries (NetworkX, PySBD, spaCy, FAISS, SHAP, Optuna, etc.), the library version is pinned in `backend/requirements.txt` and the pinned version is cited in the spec §3.
+
+### 7.3 TPE vs fixed classification is locked
+
+Under Option B (approved 2026-04-22, pick #42), meta-HPO auto-tunes only the hyperparameters marked `TPE-tuned = Yes` in each spec §6 table.
+
+- [ ] No correctness-flavoured parameter (Bloom FPR, HLL precision, Kernel SHAP `nsamples`, Conformal target α, RFC-mandated behaviour, Google quota caps) is marked TPE-tuned.
+- [ ] No TPE-tuned parameter's search space exceeds bounds shown in the cited paper.
+- [ ] The `meta_hyperparameter_hpo` job's collected search space (W1 wiring) matches the union of every spec's TPE-tuned rows — no drift.
+
+### 7.4 Scheduled-updates contract is respected
+
+Per `docs/specs/scheduled-updates-architecture.md`:
+
+- [ ] Every periodic pick has a row in the 20-job table matching its spec §9.
+- [ ] Every job function decorated with `@scheduled_job(...)` declares an `estimate_seconds` honest enough that the window guard (13:00–23:00) won't reject reasonable starts.
+- [ ] Every job that runs longer than 30 s calls `report_progress` at least every 10 s and `check_pause_token` at least every 30 s.
+- [ ] No job calls Kernel SHAP (pick #47 is explicitly on-demand only).
+
+### 7.5 Neutral fallbacks exist
+
+Operator directive + system invariant: "the rest of the pipeline must continue as if the feature is absent".
+
+- [ ] Every pick has a documented neutral fallback (per-pick spec §13).
+- [ ] `TrustRank` with no valid seeds falls back to uniform PageRank (reason field surfaced to diagnostics).
+- [ ] `Kernel SHAP` unavailable raises `SHAPUnavailable(RuntimeError)` so callers can branch to a simpler explanation.
+- [ ] `ACI` (#52) warmup keeps the initial α until the rolling window has ≥ 50 % fill — prevents early-life α flapping.
+
+### 7.6 Phantom-reference CI gate
+
+- [ ] `backend/scripts/check_phantom_references.py` runs in every backend PR and fails the build if any retired pending-signal / meta-algo / tournament identifier reappears.
+- [ ] `backend/scripts/deleted_tokens.txt` accurately reflects the live ban list — any re-shipment of a previously-banned identifier (e.g. `pmi`, `hyperloglog`, `trustrank`) must un-ban the token with an explanatory comment in `deleted_tokens.txt`.
+
+### 7.7 Mandatory-benchmark rule (CLAUDE.md)
+
+Every hot-path function needs a pytest-benchmark file with 3 input sizes. **Shipped helpers without benchmarks are a regression.**
+
+- [ ] Benchmark gap for PR-C/D/E/K/L/M/N/O helpers is tracked in G6 — 26 files pending.
+- [ ] No new helper merges without its benchmark file.

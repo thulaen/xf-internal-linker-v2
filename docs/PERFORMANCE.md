@@ -327,3 +327,106 @@ Any performance claim posted to the user or written into the Report Registry mus
 - `AI-CONTEXT.md` Session Gate — prod-stack verification is a MUST-READ for any performance session.
 - `docker-compose.yml` — the single canonical compose stack (no overrides).
 - `backend/config/settings/production.py` — Django prod settings (HTTPS-hardening flags are env-driven so a local run over plain HTTP still works).
+
+---
+
+## 14. 52-Pick Roster Resource Budgets (FR-230)
+
+Every pick in `docs/specs/pick-NN-*.md` has a §10 "Resource budget" table with RAM / disk / CPU limits. This section summarises them so operators have one table to audit at a glance. All values are **per-process** unless noted.
+
+### 14.1 Per-pick resource budgets
+
+| # | Pick | RAM (peak) | Disk (state) | CPU (typical) | Cadence |
+|---|---|---|---|---|---|
+| 1 | Token Bucket | < 1 KB × N origins | — | < 1 µs / consume | inline |
+| 2 | Backoff + Jitter | < 1 KB per retry | — | < 1 µs | inline |
+| 3 | Circuit Breaker | < 1 KB / breaker | — | < 1 µs | inline |
+| 4 | Bloom Filter | 12 MB @ 10 M IDs | 12 MB snapshot | < 2 µs / op | weekly rebuild |
+| 5 | HyperLogLog | ~12 KB @ precision 14 | optional 12 KB | < 2 µs / add | inline |
+| 6 | ETag / Conditional GET | < 1 KB / request | — | < 10 µs | inline |
+| 7 | Trafilatura (deferred) | ~10 MB / process | 10 MB install | 20–100 ms / page | inline |
+| 8 | URL Canonical | < 1 KB | — | < 30 µs / URL | inline |
+| 9 | Robots.txt | ~10 KB / cached origin | — | < 100 µs cache hit | 24-h TTL |
+| 10 | Freshness Scheduler | < 5 MB streaming | 5 MB (`refresh_interval_seconds` col) | < 1 µs / score | daily 13:30 |
+| 11 | Encoding Detect | < 5 MB (charset_normalizer) | 5 MB install | < 10 ms / 32 KB | inline |
+| 12 | SHA-256 | < 1 MB streaming | 64 B / digest | ~0.5 µs / KB | inline |
+| 13 | NFKC | < 2× input | — | ~1 µs / 100 chars | inline |
+| 14 | FastText LangID (deferred) | 15 MB model | 126 MB (`lid.176.bin`) | ~1 ms / call | inline |
+| 15 | PySBD | ~5 MB / language | 5 MB install | ~200 µs / KB | inline |
+| 16 | spaCy sm | ~40 MB loaded | 13 MB (`en_core_web_sm`) | ~5 ms / KB | inline |
+| 17 | YAKE (deferred) | ~5 MB / call | 5 MB install | ~10 ms / article | inline |
+| 18 | LDA (deferred) | 20 MB model + corpus | 20 MB | ~2 ms / doc infer | weekly Tue 15:30 |
+| 19 | Readability | < 100 KB / call | — | ~50 µs / KB | inline |
+| 20 | Product Quantization | 200 MB training; 5 MB / 100k encodes | 1 MB codebook | 30-min monthly refit | monthly |
+| 21 | Snowball (deferred) | ~100 KB / stemmer | ~100 KB | < 5 µs / token | inline |
+| 22 | VADER (deferred) | 30 KB lexicon | 30 KB | < 100 µs / KB | inline |
+| 23 | KenLM (deferred) | ~50 MB loaded model | 50 MB ARPA | ~50 µs / sentence | weekly Wed 15:30 |
+| 24 | PMI Collocations | < 100 KB / call | < 10 MB table | ~100 ns / pair | weekly Fri 15:30 |
+| 25 | Passages | ~2× input | 1 KB × N passages / doc | ~10 µs / KB | inline |
+| 26 | Entity Salience | ~5 MB (spaCy doc) | K × per-doc record | ~500 µs / 1000-word doc | weekly Sat 15:30 |
+| 27 | Query Expansion | ~10 MB / expansion | — | ~5 ms / query | inline |
+| 28 | QL Dirichlet | ~50 MB (collection stats) | 50 MB | ~100 µs / (Q,D) | inline |
+| 29 | HITS | ~10-50 MB / 1 M nodes | N × 16 B | 5 min daily rebuild | daily 14:50 |
+| 30 | TrustRank | same as HITS | N × 16 B | 5 min daily | daily 15:05 |
+| 31 | RRF | few MB / query | — | ~1 µs / (doc, ranker) | inline |
+| 32 | Platt Calibration | < 5 MB / 10k train | 32 B / calibration | < 100 ms fit, < 1 µs predict | weekly Sun 16:00 |
+| 33 | Position-Bias IPS | < 10 MB | single η float | ~50 ms fit, < 1 µs lookup | weekly Sun 18:10 |
+| 34 | Cascade Click | ~10 MB / 100k sessions | relevance table | ~1 ms / 1k sessions | weekly Sun 18:00 |
+| 35 | Elo | ~16 B / rated item | same | < 1 µs / update | on feedback event |
+| 36 | Personalized PageRank | same as HITS | N × 16 B | 8 min daily | daily 14:40 |
+| 37 | Node2Vec (deferred) | ~128 MB @ 1 M nodes | 128-dim × 4 B × N ≈ 500 MB | 20–45 min weekly | weekly Thu 15:30 |
+| 38 | BPR (deferred) | ~128 MB training | factors × 4 B × (N_u+N_i) | 15 min weekly | weekly Sun 18:40 |
+| 39 | Factorization Machines (deferred) | ~128 MB training | rank × N_features × 4 B | 10 min weekly | weekly Sun 18:20 |
+| 40 | EMA | negligible streaming | 8 B / key | < 100 ns / update | daily 13:05 |
+| 41 | L-BFGS-B | O(m · dim) | — | dominated by objective | weekly Sun 16:00 |
+| 42 | TPE (Option B) | ~200 MB peak (one trial) | ~50 MB SQLite after 1 yr | 60–120 min / week | weekly Sun 16:45 |
+| 43 | Cosine Annealing (deferred) | < 1 KB | — | < 1 µs / step | inside training |
+| 44 | LambdaLoss (deferred) | ~4 × batch² | — | torch autograd | inside training |
+| 45 | SWA (deferred) | +1× model | +1× model | negligible | inside training |
+| 46 | OHEM (deferred) | < 1 KB | — | O(n log k) | inside training |
+| 47 | Kernel SHAP | **50–100 MB peak** (on-demand) | 60 MB install (shap + numba + llvmlite) | 1–5 s / explanation | **on-demand only** |
+| 48 | Reservoir Sampling | O(k) = ~1 MB @ k=1000 | k × row | < 2 µs / add | daily 19:00 rotate |
+| 49 | Uncertainty Sampling | O(N) for order | — | O(N) | per-request |
+| 50 | Conformal Prediction | < 1 MB | 8 B (quantile) | O(n log n) fit, O(1) predict | weekly (inside weight_tuner job) |
+| 51 | Auto-Seeder | ≤ 50 MB | ≤ 50 MB seed list + audit | 2 min daily | daily 15:00 |
+| 52 | Adaptive Conformal | < 1 MB (500-bool window) | < 1 MB (90-day log) | < 1 µs / update | on feedback event |
+
+### 14.2 Per-stage caps honoured
+
+Plan §Performance specifies these caps; the table above must stay within them.
+
+| Stage | RAM cap | Disk cap | Exceptions |
+|---|---|---|---|
+| Source (#1-#6) | ≤ 128 MB | ≤ 256 MB | — |
+| Crawl & Import (#7-#12) | ≤ 128 MB | ≤ 256 MB | — |
+| Parse & Embed (#13-#26) | ≤ 128 MB | ≤ 256 MB | #14 FastText LangID allowed 126 MB disk (operator approved full accuracy over quantized model, 2026-04-22) |
+| Score & Rank (#27-#39) | ≤ 256 MB | per-pick varies | #37 Node2Vec 500 MB disk @ 1 M nodes (deferred); flag on approval |
+| Feedback (#40) | < 16 MB | — | — |
+| Training (#41-#46) | ≤ 256 MB | ≤ 50 MB | #42 TPE 50 MB SQLite after 1 year |
+| On-Demand Eval (#47, #48) | #47: 50–100 MB **peak** per call; #48: O(k) | — | #47 explicit exception — on-demand only, never scheduled |
+| Reviewable (#49, #50, #52) | < 5 MB | < 5 MB | — |
+| Auto-Seeder (#51) | ≤ 50 MB | ≤ 50 MB | Plan-specified tighter budget |
+
+### 14.3 Scheduled-updates window accounting
+
+Aggregate wall-clock inside the 13:00–23:00 daily + Sunday-weekly window must not exceed 10 hours. Operator-visible check on the Scheduled Updates dashboard. Summary of scheduler time use at full capacity (all deferred picks enabled):
+
+- **Critical daily jobs** (13:05, 13:10 weekly, 13:15, 13:30): ≤ 60 min
+- **High-priority daily graph + auto-seeder** (14:30–15:05): ≤ 30 min
+- **Weekly Sunday tuning block** (16:00–19:00): ≤ 3 h (weight tuner + meta-HPO + retrain + refit jobs)
+- **Weekly medium re-index jobs** (Tue-Sat 15:30 daily): ≤ 45 min each (parallel-safe)
+- **Monthly PQ refit:** 30 min once/month
+- **Low-priority daily rotate / analytics:** ≤ 10 min total
+
+Worst-day headroom: ~4 hours inside the 10-hour window. A tighter window (12:00–22:00) would be feasible if operator wants.
+
+### 14.4 Picks currently under their budgets
+
+Every *shipped* pick (PR-C/D/E/K/L/M/N/O) currently runs well within its spec'd budget because none of them are wired into production yet — they're library code. Real-world budgets will be re-verified during W1–W4 wiring and written into the Report Registry.
+
+### 14.5 Cross-references
+
+- Every per-pick spec: `docs/specs/pick-NN-*.md` §10.
+- Scheduler architecture: `docs/specs/scheduled-updates-architecture.md`.
+- Monthly PQ refit: scheduler section §4; pick #20 spec §9.
+- Mandatory benchmark rule: CLAUDE.md — every helper must have a pytest-benchmark file with 3 input sizes. Gap tracked in G6.
