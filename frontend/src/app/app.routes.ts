@@ -96,6 +96,15 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'scheduled-updates',
+    loadComponent: () =>
+      import('./scheduled-updates/scheduled-updates.component').then(
+        (m) => m.ScheduledUpdatesComponent,
+      ),
+    title: 'Scheduled Updates — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: 'alerts/:id',
     loadComponent: () =>
       import('./alerts/alert-detail/alert-detail.component').then((m) => m.AlertDetailComponent),

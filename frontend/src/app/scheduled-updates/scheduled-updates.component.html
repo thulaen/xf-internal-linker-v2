@@ -1,0 +1,246 @@
+<section class="scheduled-updates-page" id="scheduled-updates">
+  <header class="page-header">
+    <h1 class="page-title">Scheduled Updates</h1>
+    <p class="page-subtitle">
+      Background refresh jobs run once at a time inside the
+      <strong>1 pm – 11 pm</strong> window. Each job is pausable and
+      resumable. Missed windows surface as deduped alerts.
+    </p>
+
+    <div class="window-status" *ngIf="window">
+      <mat-icon
+        [class.open]="window.is_within_window"
+        [class.closed]="!window.is_within_window"
+        [matTooltip]="
+          window.is_within_window
+            ? 'Window is open — runner will pick up pending jobs.'
+            : 'Window is closed — no new jobs start until 1 pm local.'
+        "
+      >
+        {{ window.is_within_window ? 'schedule' : 'bedtime' }}
+      </mat-icon>
+      <span *ngIf="window.is_within_window" class="status-line">
+        Window open. Closes in
+        {{ (window.seconds_remaining_in_window / 60) | number: '1.0-0' }} min.
+      </span>
+      <span *ngIf="!window.is_within_window" class="status-line">
+        Window closed. Opens in
+        {{ (window.seconds_until_window_opens / 60) | number: '1.0-0' }} min.
+      </span>
+    </div>
+  </header>
+
+  <mat-progress-spinner
+    *ngIf="loading"
+    mode="indeterminate"
+    diameter="48"
+    aria-label="Loading scheduled updates"
+  ></mat-progress-spinner>
+
+  <mat-tab-group
+    *ngIf="!loading"
+    animationDuration="0ms"
+    dynamicHeight="true"
+    class="scheduled-updates-tabs"
+  >
+    <!-- Tab 1 — Alerts -->
+    <mat-tab>
+      <ng-template mat-tab-label>
+        <span
+          matBadge="{{ activeAlertCount }}"
+          matBadgeOverlap="false"
+          matBadgeColor="warn"
+          [matBadgeHidden]="activeAlertCount === 0"
+        >
+          Alerts
+        </span>
+      </ng-template>
+
+      <div class="tab-body">
+        <p class="empty-state" *ngIf="activeAlerts.length === 0">
+          No active alerts. When a job misses its window, fails, or stalls,
+          a deduped alert appears here (one row per job per day).
+        </p>
+
+        <mat-card
+          *ngFor="let alert of activeAlerts; trackBy: trackByAlertId"
+          class="alert-card"
+          [attr.data-alert-type]="alert.alert_type"
+        >
+          <mat-card-header>
+            <mat-card-title>
+              {{ alert.job_key }}
+            </mat-card-title>
+            <mat-card-subtitle>
+              <strong>{{ alert.alert_type }}</strong> ·
+              {{ alert.calendar_date }}
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <p>{{ alert.message || '(no message)' }}</p>
+            <p class="alert-meta">
+              First raised {{ alert.first_raised_at | date: 'medium' }}
+              <span *ngIf="alert.last_seen_at !== alert.first_raised_at">
+                · last seen {{ alert.last_seen_at | date: 'medium' }}
+              </span>
+            </p>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button
+              mat-icon-button
+              (click)="ackAlert(alert)"
+              matTooltip="Acknowledge and hide from active list"
+              aria-label="Acknowledge alert"
+            >
+              <mat-icon>close</mat-icon>
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <!-- Tab 2 — Running now -->
+    <mat-tab label="Running">
+      <div class="tab-body">
+        <p class="empty-state" *ngIf="!runningJob && !pausedJob">
+          No job is currently running or paused. The next tick picks up
+          the highest-priority pending job whose estimate fits the
+          remaining window.
+        </p>
+
+        <mat-card *ngIf="runningJob" class="running-card" data-state="running">
+          <mat-card-header>
+            <mat-card-title>{{ runningJob.display_name }}</mat-card-title>
+            <mat-card-subtitle>
+              {{ runningJob.priority }} · {{ runningJob.key }}
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <mat-progress-bar
+              mode="determinate"
+              [value]="runningJob.progress_pct"
+              aria-label="Job progress"
+            ></mat-progress-bar>
+            <p class="progress-label">
+              {{ runningJob.progress_pct | number: '1.0-1' }}% ·
+              {{ runningJob.current_message || '…' }}
+            </p>
+            <p class="progress-meta">
+              Started {{ runningJob.started_at | date: 'mediumTime' }} ·
+              estimate {{ runningJob.duration_estimate_sec }} s
+            </p>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button mat-stroked-button (click)="pause(runningJob)">
+              <mat-icon>pause</mat-icon>
+              Pause
+            </button>
+            <button mat-stroked-button color="warn" (click)="cancel(runningJob)">
+              <mat-icon>cancel</mat-icon>
+              Cancel
+            </button>
+          </mat-card-actions>
+        </mat-card>
+
+        <mat-card *ngIf="pausedJob" class="running-card" data-state="paused">
+          <mat-card-header>
+            <mat-card-title>{{ pausedJob.display_name }}</mat-card-title>
+            <mat-card-subtitle>
+              Paused at {{ pausedJob.progress_pct | number: '1.0-1' }}% ·
+              {{ pausedJob.key }}
+            </mat-card-subtitle>
+          </mat-card-header>
+          <mat-card-content>
+            <p>{{ pausedJob.current_message }}</p>
+          </mat-card-content>
+          <mat-card-actions align="end">
+            <button mat-raised-button color="primary" (click)="resume(pausedJob)">
+              <mat-icon>play_arrow</mat-icon>
+              Resume
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </div>
+    </mat-tab>
+
+    <!-- Tab 3 — Schedule (missed + pending + upcoming) -->
+    <mat-tab label="Schedule">
+      <div class="tab-body">
+        <section *ngIf="missedJobs.length" class="schedule-section">
+          <h2>Missed</h2>
+          <mat-card
+            *ngFor="let job of missedJobs; trackBy: trackByJobId"
+            class="schedule-card"
+            data-state="missed"
+          >
+            <mat-card-header>
+              <mat-card-title>{{ job.display_name }}</mat-card-title>
+              <mat-card-subtitle>
+                Last success:
+                {{
+                  job.last_success_at
+                    ? (job.last_success_at | date: 'medium')
+                    : 'never'
+                }}
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-actions align="end">
+              <button
+                mat-raised-button
+                color="primary"
+                [disabled]="window && !window.is_within_window"
+                (click)="runNow(job)"
+                [matTooltip]="
+                  window && !window.is_within_window
+                    ? 'Window is closed — try again between 1 pm and 11 pm.'
+                    : 'Queue this job for the next runner tick.'
+                "
+              >
+                <mat-icon>play_arrow</mat-icon>
+                Run Now
+              </button>
+            </mat-card-actions>
+          </mat-card>
+        </section>
+
+        <section *ngIf="pendingJobs.length" class="schedule-section">
+          <h2>Pending</h2>
+          <p class="empty-state-inline">
+            Ordered by priority — the runner picks the top one whose
+            duration estimate fits the window.
+          </p>
+          <mat-card
+            *ngFor="let job of pendingJobs; trackBy: trackByJobId"
+            class="schedule-card"
+            data-state="pending"
+          >
+            <mat-card-header>
+              <mat-card-title>{{ job.display_name }}</mat-card-title>
+              <mat-card-subtitle>
+                Priority {{ job.priority }} · cadence
+                {{ job.cadence_seconds / 3600 | number: '1.0-1' }} h ·
+                estimate {{ job.duration_estimate_sec }} s
+              </mat-card-subtitle>
+            </mat-card-header>
+          </mat-card>
+        </section>
+
+        <p class="empty-state" *ngIf="!missedJobs.length && !pendingJobs.length">
+          No missed or pending jobs. All registered refreshes have either
+          completed recently or are sitting past their cadence without
+          flagging.
+        </p>
+      </div>
+    </mat-tab>
+
+    <!-- Tab 4 — History -->
+    <mat-tab label="History">
+      <div class="tab-body">
+        <p class="empty-state">
+          History view lands in PR-B.9 — per-job last-20-runs table with
+          duration, final state, and log tail.
+        </p>
+      </div>
+    </mat-tab>
+  </mat-tab-group>
+</section>

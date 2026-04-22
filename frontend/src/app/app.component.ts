@@ -325,6 +325,12 @@ export class AppComponent implements OnInit {
           tooltip: 'Operator alert center',
         },
         {
+          label: 'Scheduled Updates',
+          icon: 'schedule',
+          route: '/scheduled-updates',
+          tooltip: 'Background refresh jobs (1 pm – 11 pm serial runner)',
+        },
+        {
           label: 'Web Crawler',
           icon: 'travel_explore',
           route: '/crawler',

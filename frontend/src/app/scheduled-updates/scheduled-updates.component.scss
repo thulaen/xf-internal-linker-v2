@@ -1,0 +1,154 @@
+// Scheduled Updates tab — layout only. Colours, borders, and spacing
+// come from frontend/src/styles/default-theme.scss via CSS variables.
+// Never hard-code hex here (CLAUDE.md design system rule).
+
+.scheduled-updates-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  padding: var(--space-lg);
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 500;
+  margin: 0;
+  color: var(--color-text-primary);
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  max-width: 70ch;
+}
+
+.window-status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  background: var(--color-surface);
+
+  .status-line {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+  }
+
+  mat-icon.open {
+    color: var(--color-primary);
+  }
+
+  mat-icon.closed {
+    color: var(--color-text-secondary);
+  }
+}
+
+.scheduled-updates-tabs {
+  border: var(--card-border);
+  border-radius: var(--card-border-radius);
+  background: var(--color-surface);
+}
+
+.tab-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-lg);
+  min-height: 120px;
+}
+
+.empty-state {
+  margin: 0;
+  padding: var(--space-lg);
+  color: var(--color-text-secondary);
+  text-align: center;
+  font-size: 13px;
+}
+
+.empty-state-inline {
+  margin: 0 0 var(--space-sm);
+  color: var(--color-text-secondary);
+  font-size: 12px;
+}
+
+// ── Alerts tab ────────────────────────────────────────────────────
+
+.alert-card {
+  border: var(--card-border);
+  box-shadow: none;
+
+  &[data-alert-type='failed'] {
+    border-left: 3px solid var(--color-error);
+  }
+  &[data-alert-type='missed'] {
+    border-left: 3px solid var(--color-warn);
+  }
+  &[data-alert-type='stalled'] {
+    border-left: 3px solid var(--color-text-secondary);
+  }
+
+  .alert-meta {
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+}
+
+// ── Running-now tab ───────────────────────────────────────────────
+
+.running-card {
+  border: var(--card-border);
+  box-shadow: none;
+
+  .progress-label {
+    margin: var(--space-sm) 0 0;
+    font-weight: 500;
+  }
+
+  .progress-meta {
+    margin: var(--space-xs) 0 0;
+    font-size: 12px;
+    color: var(--color-text-secondary);
+  }
+
+  mat-card-actions button + button {
+    margin-left: var(--space-sm);
+  }
+
+  &[data-state='paused'] {
+    border-left: 3px solid var(--color-text-secondary);
+  }
+}
+
+// ── Schedule tab ──────────────────────────────────────────────────
+
+.schedule-section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+
+  h2 {
+    font-size: 14px;
+    font-weight: 500;
+    margin: 0 0 var(--space-xs);
+    color: var(--color-text-primary);
+  }
+}
+
+.schedule-card {
+  border: var(--card-border);
+  box-shadow: none;
+
+  &[data-state='missed'] {
+    border-left: 3px solid var(--color-warn);
+  }
+}
