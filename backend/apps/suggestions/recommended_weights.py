@@ -8,21 +8,6 @@ keys.
 from __future__ import annotations
 
 from .recommended_weights_forward_settings import FORWARD_DECLARED_WEIGHTS
-from .recommended_weights_phase2_metas_p1_p6 import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6,
-)
-from .recommended_weights_phase2_metas_p7_p12 import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12,
-)
-from .recommended_weights_phase2_metas_q1_q8 import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8,
-)
-from .recommended_weights_phase2_metas_q9_q16 import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16,
-)
-from .recommended_weights_phase2_metas_q17_q24 import (
-    FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24,
-)
 
 RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "w_semantic": "0.40",
@@ -102,14 +87,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
 
 # Merge forward-declared FR keys into the main dict.
 RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS)
-# Merge Phase 2 forward-declared meta hyperparameters (META-40 through META-249).
-# Each meta carries researched hyperparameters; roster members default
-# enabled=true, others default enabled=false.
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16)
-RECOMMENDED_PRESET_WEIGHTS.update(FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24)
 
 
 def recommended_bool(key: str) -> bool:

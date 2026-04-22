@@ -140,48 +140,9 @@ _ACTIVE_METAS: tuple[dict, ...] = (
 # ─────────────────────────────────────────────────────────────────────
 
 
-# File → family range. Each file covers a contiguous span of block codes.
-_FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {
-    "recommended_weights_phase2_metas_p1_p6.py": ("P1", "P2", "P3", "P4", "P5", "P6"),
-    "recommended_weights_phase2_metas_p7_p12.py": (
-        "P7",
-        "P8",
-        "P9",
-        "P10",
-        "P11",
-        "P12",
-    ),
-    "recommended_weights_phase2_metas_q1_q8.py": (
-        "Q1",
-        "Q2",
-        "Q3",
-        "Q4",
-        "Q5",
-        "Q6",
-        "Q7",
-        "Q8",
-    ),
-    "recommended_weights_phase2_metas_q9_q16.py": (
-        "Q9",
-        "Q10",
-        "Q11",
-        "Q12",
-        "Q13",
-        "Q14",
-        "Q15",
-        "Q16",
-    ),
-    "recommended_weights_phase2_metas_q17_q24.py": (
-        "Q17",
-        "Q18",
-        "Q19",
-        "Q20",
-        "Q21",
-        "Q22",
-        "Q23",
-        "Q24",
-    ),
-}
+# File → family range. Pending Phase-2 meta weight files were removed per
+# PR-A slice 5 — the 52-pick roster gets fresh specs/weights in later PRs.
+_FILE_TO_FAMILY_RANGE: dict[str, tuple[str, ...]] = {}
 
 _META_COMMENT_RE = re.compile(
     r"""^\s*\#\s*META-(?P<num>\d+)\s*[—\-]\s*(?P<title>[^\[\(]+)""",

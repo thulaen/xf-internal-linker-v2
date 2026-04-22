@@ -56,9 +56,25 @@ All 126 signal prefixes added to `backend/scripts/deleted_tokens.txt` so the gat
 
 Note: the smaller `recommended_weights_forward_settings.py` file (FR-038..FR-090 range) contains a mix of pending signal entries and pipeline-configuration entries. Its cleanup is deferred to slice 5 / slice 6 where each entry is inspected individually.
 
+## 2026-04-22 — PR-A slice 5: 238 pending meta-algo specs + 5 phase-2 weight files
+
+Retired the Phase-2 pending meta-algorithm library. Every entry was forward-declared (enabled=false in most cases), never wired, and was only referenced by `recommended_weights.py` merges and the meta_registry parser — no production scorer consumed these keys.
+
+Gone for good:
+
+- Weight files (5 removed):
+    - `backend/apps/suggestions/recommended_weights_phase2_metas_p1_p6.py` (blocks P1..P6, META-40..META-75)
+    - `backend/apps/suggestions/recommended_weights_phase2_metas_p7_p12.py` (blocks P7..P12, META-76..META-105)
+    - `backend/apps/suggestions/recommended_weights_phase2_metas_q1_q8.py` (blocks Q1..Q8)
+    - `backend/apps/suggestions/recommended_weights_phase2_metas_q9_q16.py` (blocks Q9..Q16)
+    - `backend/apps/suggestions/recommended_weights_phase2_metas_q17_q24.py` (blocks Q17..Q24)
+- Spec files (238 removed): `docs/specs/meta-NN-*.md` for every META-04..META-249 except the 8 that map to roster picks (META-43 L-BFGS-B, META-55 TPE, META-77 LambdaLoss, META-87 Platt Scaling, META-91 Cosine Annealing, META-96 SWA, META-102 OHEM, META-103 Reservoir Sampling).
+- Registry wiring: 5 imports + 5 `.update()` calls dropped from `recommended_weights.py`; `_FILE_TO_FAMILY_RANGE` in `meta_registry.py` emptied.
+
+When PR-B through PR-P ship actual implementations for roster picks, they will add fresh settings keys directly to `recommended_weights.py` and write new specs for the implementations.
+
 ## Upcoming entries (reserved)
 
-- PR-A slice 5 — ~184 pending meta-algos not in the 52-pick roster (META-40..META-249 minus the kept 8 plus new specs).
 - PR-A slice 6 — Doc scrubbing (AI-CONTEXT.md, FEATURE-REQUESTS.md, REPORT-REGISTRY.md, v2-master-plan.md, BUSINESS-LOGIC-CHECKLIST.md, PERFORMANCE.md, signal_registry.py comments).
 
 Each future slice will append its own section here and its banned identifiers to `backend/scripts/deleted_tokens.txt`.

@@ -208,3 +208,22 @@ texttiling
 c99_segmentation
 dotplot_segmentation
 bayesseg
+
+# ── PR-A slice 5 — 238 pending meta-algo specs + 5 phase-2 weight files ────
+# All META-40..META-249 spec files removed except the 8 that map to the
+# 52-pick roster (META-43, 55, 77, 87, 91, 96, 102, 103). The 5 phase-2
+# meta weight files (_p1_p6, _p7_p12, _q1_q8, _q9_q16, _q17_q24) deleted.
+# Future PR-B..P will re-seed roster picks with fresh specs and weight
+# entries directly in recommended_weights.py as each is implemented.
+
+# Phase-2 meta weight file stems (removed)
+recommended_weights_phase2_metas_p1_p6
+recommended_weights_phase2_metas_p7_p12
+recommended_weights_phase2_metas_q1_q8
+recommended_weights_phase2_metas_q9_q16
+recommended_weights_phase2_metas_q17_q24
+FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P1_P6
+FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12
+FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8
+FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16
+FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24
