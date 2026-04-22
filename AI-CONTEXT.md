@@ -283,9 +283,37 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 34 | FR-032 | Complete | Automated Orphan & Low-Authority Page Identification |
 | 35 | FR-033 | Complete | Internal PageRank (Structural Equity) Heatmap |
 | 36 | FR-035 | Complete | Link Freshness & Churn Velocity Timeline |
+| 37 | FR-230 | In progress | **52-pick pipeline roster** — see per-sub-PR breakdown below. Spec set (52 files) complete; helpers shipped for 26 picks; wiring (W1–W4) and governance catch-up (G3–G6) pending. FR-230 covers all 52 picks as one logical slice; FR-231 (HPO accept card) and FR-232 (Explain panel) are operator-facing sub-features wired in W4. |
+| 38 | FR-020 | Queued | Zero-Downtime Model Switching, Hot Swap & Runtime Registry (bumped from previous Phase 37) |
 
-- Next exact target: Phase 37 / `FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry`
-- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. The Phase-2 forward-declared library (126 signals + 210 meta-algos + the meta tournament scheduler) was retired in PR-A (2026-04-22) — see `plans/check-how-many-pending-tidy-iverson.md` and `docs/DELETED-FEATURES.md`. A curated 52-pick roster replaces it, landing in PR-B..PR-P.
+**Phase 37 / FR-230 sub-slice breakdown (execution order, 2026-04-22):**
+
+| Sub-slice | Landing | Commit | Content |
+|---|---|---|---|
+| PR-A | done | prior to 2026-04-22 | Tournament teardown: deleted 5 phase-2 weight files, 238 meta specs, 126 fr-099..fr-224 specs, 3 unwired C++ kernels, tournament models + scheduler, dev-only frontend dockerfile + compose overrides. Added phantom-reference CI gate + `deleted_tokens.txt` + `docs/DELETED-FEATURES.md`. Rewrote every existing Celery-Beat entry into the 13:00–23:00 window. |
+| PR-B | done | `798b2ad` / `8ae289f` / `7d511f2` / `b9d6092` | Scheduled Updates app: `ScheduledJob` + `JobAlert` models with `UNIQUE(job_key, alert_type, calendar_date)` dedup, window guard (13:00–23:00), Redis lock, `@scheduled_job` decorator, Django Channels broadcasts, Angular tab + service + history card + inline 409 snackbar. 89 tests. |
+| PR-C | done | `6d925b1` | 6 Source-layer helpers: token bucket, backoff + jitter, circuit-breaker re-export, bloom filter, hyperloglog, conditional GET. |
+| PR-D | done | `f8548e4` | Crawl-layer helpers: robots.txt (stdlib + cache), encoding detect (5-tier cascade), freshness scheduler (Cho-Garcia-Molina). |
+| PR-E | done | `a4771e8` | Parse & Embed: NFKC, PMI collocations, passage segmentation, entity salience, readability, product quantization (FAISS guarded). |
+| PR-K | done | `63a8c1d` | Retrieval: BoW-PRF query expansion + QL Dirichlet scorer. 25 new tests; fixed a flaky PR-E entity-salience test. |
+| PR-L | done | `6cea1ef` | Fusion + calibration: Reciprocal Rank Fusion (k=60), Platt sigmoid calibration via scipy L-BFGS-B. |
+| PR-M | done | `552fdd3` | Graph signals: HITS, Personalized PageRank, TrustRank (delegates to PPR), inverse-PR auto-seeder (#51). |
+| PR-N | done | `879ecc5` | Feedback + click/rating: EMA aggregator, Cascade click model, Position-bias IPS, Elo. BPR + FM deferred on pip-dep approval. |
+| PR-O | done | `f25104a` | Explain + eval: Kernel SHAP (operator-approved `shap==0.46.0` added), Reservoir sampling (Vitter Algorithm R). |
+| G1a–e | done | `d2b1901` / `812be04` / `b53e5d1` / `271c7be` / `ee4d494` | Full 52-pick spec set + spec template + scheduled-updates architecture spec. ~10 000 lines across 54 files. |
+| G2 | done | `a84d5b7` | FR-230 roster entry in `FEATURE-REQUESTS.md` + FR-231 Accept-HPO card + FR-232 Explain panel. |
+| G3 | in progress | this commit | Execution-ledger backfill. |
+| G4 | pending | — | `docs/BUSINESS-LOGIC-CHECKLIST.md` + `docs/PERFORMANCE.md` entries. |
+| G6 | pending | — | 26 benchmark files (pytest-benchmark, 3 input sizes each) — closes the CLAUDE.md mandatory-benchmark gap. |
+| PR-P | pending | — | Reviewable layer: uncertainty sampling (#49), conformal prediction (#50), adaptive conformal inference (#52). |
+| Option B | pending | — | `optuna` pip dep + `meta_hpo.py` wrapper + weekly `meta_hyperparameter_hpo` job + accept-result dashboard card. |
+| W1 | pending | — | Register the 20 scheduled-update jobs (PageRank refresh, Bloom rebuild, HITS, TrustRank + auto-seeder, Cascade EM re-estimate, IPS refit, Elo rollover, reservoir rotate, …) with real entrypoints. |
+| W2 | pending | — | Wire import pipeline: Bloom dedup, HLL counter, ETag/Conditional GET, Robots, Encoding, Freshness, NFKC, URL canonicalisation, SHA-256 read-side dedup. |
+| W3 | pending | — | Wire ranker: RRF fusion of BM25 + QL-Dirichlet + graph signals, Platt calibration on output, HITS/TrustRank/PPR/Cascade/Elo/IPS signal refresh. |
+| W4 | pending | — | FR-232 Explain endpoint + Angular button; FR-231 Accept-HPO card; ranker `score_fn` refactor to a pure callable. |
+
+- Next exact target: **PR-P — ship pick #49 Uncertainty Sampling + #50 Conformal Prediction + #52 Adaptive Conformal Inference** (clean hand-rolled helpers, no new pip deps).
+- Current continuity state: 31 FRs plus FR-230 (in progress) are tracked in the ledger. The Phase-2 forward-declared library (126 signals + 210 meta-algos + the meta tournament scheduler) was retired in PR-A (2026-04-22) — see `plans/check-how-many-pending-tidy-iverson.md` and `docs/DELETED-FEATURES.md`.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
 - Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`. The Phase 2 forward-declared library entries sit at the bottom of `FEATURE-REQUESTS.md` in a compressed table.
