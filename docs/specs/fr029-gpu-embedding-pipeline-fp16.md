@@ -54,7 +54,7 @@ if device == "cuda":
 
 ### 3. Set `ML_PERFORMANCE_MODE=HIGH_PERFORMANCE` in Docker Compose
 
-Add to `docker-compose.yml` (or `docker-compose.override.yml`) for the `backend` and `celery` services:
+Add to `docker-compose.yml` for the `backend` and `celery` services:
 
 ```yaml
 environment:

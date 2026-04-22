@@ -123,7 +123,6 @@ added in this phase:
 Files that were already fully protected (no changes needed):
 
 - `diagnostics/diagnostics.component.ts` (via `destroy$: Subject`)
-- `diagnostics/meta-tournament/meta-tournament.component.ts` (via `destroy$: Subject`)
 
 ## Verification
 

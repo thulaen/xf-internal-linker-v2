@@ -65,7 +65,7 @@ Replace `std::vector<std::string>` with `absl::InlinedVector<std::string, 32>` f
 | 8 | Human reviewer | CPP-RULES.md confirmed |
 
 ## Dependencies
-- Abseil C++ (shared with OPT-73-76, 78-79)
+- Abseil C++
 
 ## Test Plan
 - Correctness: identical output to current std::vector implementation

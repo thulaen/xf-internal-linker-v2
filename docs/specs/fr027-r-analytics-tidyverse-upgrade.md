@@ -34,7 +34,7 @@ now fully covered by C# and D3.js, with lower resource use and no R runtime depe
 ## What was removed from the repo
 
 - `services/r-analytics/` directory deleted in full
-- `docker-compose.override.yml` R service block removed
+- Docker compose R-analytics service block removed (along with the whole override file in a later retirement pass)
 - `AI-CONTEXT.md` tech stack updated
 - `FEATURE-REQUESTS.md` FR-022 health card 5 updated, FR-027 marked cancelled
 - `docs/specs/fr018-auto-tuned-ranking-weights.md` R loop replaced with C# loop

@@ -394,13 +394,8 @@ FORWARD_DECLARED_WEIGHTS: dict[str, str] = {
     "cross_platform_engagement.spike_z_threshold": "2.0",
     "cross_platform_engagement.lookback_days": "30",
     # =====================================================================
-    # OPERATIONAL FEATURES (FR-091 to FR-096)
+    # OPERATIONAL FEATURES (FR-092 to FR-096)
     # =====================================================================
-    # FR-091 — C++ Extension Retrofit
-    "cpp_retrofit.enabled": "true",
-    "cpp_retrofit.nan_check_enabled": "true",
-    "cpp_retrofit.flush_to_zero_enabled": "true",
-    "cpp_retrofit.double_accumulator_enabled": "true",
     # FR-092 — Twice-Monthly Graph Walk Refresh
     "graph_walk_refresh.enabled": "true",
     "graph_walk_refresh.schedule_days": "1,15",

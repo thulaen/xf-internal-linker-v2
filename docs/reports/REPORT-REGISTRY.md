@@ -20,15 +20,11 @@ This file is the single index of all audit reports and individual issues found b
 
 ## Open Reports
 
-### RPT-002 — Phase 2 Forward-Declared Research Library (2026-04-15)
+### RPT-002 — Phase 2 Forward-Declared Research Library (RESOLVED 2026-04-22)
 
-- **Status:** OPEN — 337 forward-declared backlog items (0 of 337 implemented). 2026-04-15 follow-up: recipe completion pass replaced inert weight defaults (462 keys at 0.0/false) with researched starting values and algorithm hyperparameters (1470 keys with paper-cited defaults). FR-225 Meta Rotation Scheduler filed to coordinate the 249 metas without conflicts.
-- **Scope:** 126 new ranking signals (FR-099 … FR-224) + 210 new meta-algorithms (META-40 … META-249) filed as spec stubs at user request. Each has full academic math, paper/patent citation, C++ implementation notes, Python fallback placeholder, benchmark plan, budget, scope-boundary vs existing signals, and test-plan bullets.
-- **Summary:** Research-backed library covering classical IR (Block A), proximity/term-dependence (B), graph centrality (C), diversity rerankers (D), temporal dynamics (E), sketches (F), text structure (G), click models (H), query performance prediction (I), information-theoretic divergences (J), site/host authority (K), anti-spam (L), author reputation (M), structural page-quality/CWV (N), passage segmentation (O). Metas cover second-order optimisers (P1), advanced first-order (P2), Bayesian HPO (P3), multi-objective (P4), metaheuristics (P5), online learning (P6), listwise losses (P7), regularisation (P8), calibration (P9), LR schedules (P10), model averaging (P11), robustness/sampling (P12), MCMC (Q1), VI (Q2), evolutionary (Q3), advanced gradients (Q4), reg/noise (Q5), feature engineering (Q6), dim reduction (Q7), kernels (Q8), info-theoretic model selection (Q9), clustering (Q10), attribution (Q11), active learning (Q12), semi-supervised (Q13), causal (Q14), RL (Q15), contextual bandits (Q16), matrix factorisation (Q17), NN init/norm (Q18), calibration variants (Q19), feature selection (Q20), metric learning (Q21), anomaly detection (Q22), validation/PBT (Q23), streaming trees (Q24).
-- **Spec directory:** `docs/specs/fr099-*.md` … `docs/specs/fr224-*.md` and `docs/specs/meta-40-*.md` … `docs/specs/meta-249-*.md`.
-- **Forward weight keys:** `backend/apps/suggestions/recommended_weights_phase2_forward.py` (inert, disabled at 0.0).
-- **Budget discipline:** Each signal ≤ 32 MB disk, ≤ 512 MB RAM; each meta ≤ 15 MB disk; 66-meta batch (P1-P12) ≤ 128 MB peak RAM sequential; 144-meta batch (Q1-Q24) ≤ 256 MB peak RAM sequential.
-- **Regression watch:** No code changed — specs only. Future implementation sessions must verify no duplicate with existing FR-001..FR-098 or META-01..META-39 (already verified at filing). If overlap is discovered during implementation, supersede per the existing duplication rules in CLAUDE.md and `docs/BUSINESS-LOGIC-CHECKLIST.md`.
+- **Status:** RESOLVED — the 337 forward-declared backlog items were retired as part of PR-A. The meta tournament scheduler (126 pending ranking signals, 238 pending meta-algo specs, 5 phase-2 weight files, 3 unwired C++ kernels, and 5 stale OPT specs) have all been deleted.
+- **Scope:** Original filing covered 126 Block A-O signals plus 210 Block P1-Q24 meta-algorithms filed as spec stubs on 2026-04-15. A decision-record audit on 2026-04-21 showed every entry fell into a conflict / overlap / duplicate / niche tier. None were ever wired.
+- **Resolution:** Deleted in PR-A (commits `3be6ddc`, `48b2bd9`, `74a91df`, `16b8312`, `1538073`). Replaced by a curated 52-pick roster landing in PR-B..PR-P. Decision-record: `plans/check-how-many-pending-tidy-iverson.md`. Gravestone: `docs/DELETED-FEATURES.md`. CI gate: `backend/scripts/check_phantom_references.py`.
 
 ---
 

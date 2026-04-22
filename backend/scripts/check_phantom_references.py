@@ -39,6 +39,11 @@ ALLOWED_PATHS: tuple[str, ...] = (
     "docs/DELETED-FEATURES.md",
     "backend/scripts/deleted_tokens.txt",
     "backend/scripts/check_phantom_references.py",
+    # Authoritative rule files legitimately name retired identifiers in
+    # order to warn future AIs not to resurrect them.
+    "CLAUDE.md",
+    "AGENTS.md",
+    "docker-compose.yml",
     # Django migrations are part of the history chain — the CreateModel that
     # set up a now-dropped table and the DeleteModel that drops it both need
     # to reference the original class name to round-trip correctly.

@@ -65,7 +65,7 @@ Drop-in replace `std::unordered_set<std::string>` (stopword set) with `absl::fla
 | 8 | Human reviewer | CPP-RULES.md confirmed |
 
 ## Dependencies
-- Abseil C++ (shared with OPT-73, 75-79)
+- Abseil C++
 
 ## Test Plan
 - Correctness: tokenized output matches Python reference exactly (frozenset equality)

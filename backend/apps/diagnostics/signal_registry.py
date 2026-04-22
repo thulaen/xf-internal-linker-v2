@@ -1069,15 +1069,7 @@ SIGNALS: list[SignalDefinition] = [
     #     table_name="content_contentitem (cross_platform_score)",
     #     weight_key="cross_platform_engagement.ranking_weight",
     # ),
-    # --- OPERATIONAL FEATURES (FR-091 to FR-096) ---
-    # SignalDefinition(
-    #     id="cpp_retrofit",
-    #     name="C++ Extension Retrofit",
-    #     type="ranking",
-    #     description="FR-091: CPP-RULES.md compliance for all 12 existing extensions.",
-    #     table_name="None (Build System)",
-    #     weight_key="cpp_retrofit.enabled",
-    # ),
+    # --- OPERATIONAL FEATURES (FR-092 to FR-096) ---
     # SignalDefinition(
     #     id="graph_walk_refresh",
     #     name="Twice-Monthly Graph Walk Refresh",

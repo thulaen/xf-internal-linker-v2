@@ -65,7 +65,7 @@ Replace `std::vector<float>` temporary score arrays in calculate_composite_score
 | 8 | Human reviewer | CPP-RULES.md confirmed |
 
 ## Dependencies
-- Abseil C++ (shared with OPT-73-78)
+- Abseil C++
 
 ## Test Plan
 - Correctness: scoring and simsearch output identical to std::vector version

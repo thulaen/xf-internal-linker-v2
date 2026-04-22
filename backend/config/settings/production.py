@@ -21,7 +21,7 @@ X_FRAME_OPTIONS = "DENY"
 
 # HSTS + cookie-secure + SSL redirect default to True (HTTPS-only),
 # but each can be disabled via env for a local prod-mode test over HTTP
-# (e.g. `docker compose -f docker-compose.yml -f docker-compose.prod.yml up`).
+# (e.g. `docker compose --env-file .env up`).
 # A real HTTPS deployment keeps the defaults.
 SECURE_HSTS_SECONDS = env.int("DJANGO_SECURE_HSTS_SECONDS", default=31536000)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(

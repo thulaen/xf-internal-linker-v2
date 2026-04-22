@@ -9,7 +9,7 @@
 
 ## Algorithm
 
-Custom hasher struct wrapping `util::Hash64()` from FarmHash. Used as the Hash template parameter for absl::flat_hash_map/set (OPT-73 to 76) and any future hash containers. FarmHash uses hardware CRC32C instructions when available, falling back to multiply-shift chains. Produces 64-bit hashes with excellent distribution.
+Custom hasher struct wrapping `util::Hash64()` from FarmHash. Used as the Hash template parameter for the absl::flat_hash_map/set retrofits and any future hash containers. FarmHash uses hardware CRC32C instructions when available, falling back to multiply-shift chains. Produces 64-bit hashes with excellent distribution.
 
 ## C++ Interface (pybind11)
 

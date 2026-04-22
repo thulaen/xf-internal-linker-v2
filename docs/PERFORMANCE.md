@@ -285,19 +285,13 @@ Three steps:
 
 ### What "production mode" means in this repo
 
-The canonical prod-mode command is:
+The canonical boot command is:
 
 ```bash
-cp .env.prod.example .env.prod   # first time only, edit as needed
-docker compose \
-  --env-file .env \
-  --env-file .env.prod \
-  -f docker-compose.yml \
-  -f docker-compose.prod.yml \
-  up --build
+docker compose --env-file .env up --build
 ```
 
-Running this launches the stack with:
+That is the **only** boot command. The dual-mode dev/prod compose split (with `-f` overrides) was retired on 2026-04-22 — see `docs/DELETED-FEATURES.md`. Every `docker compose up` now launches the stack with:
 
 - `DJANGO_SETTINGS_MODULE=config.settings.production` and `DJANGO_DEBUG=False` on backend + all Celery services.
 - Uvicorn **without** `--reload` and with 4 workers.
@@ -306,33 +300,30 @@ Running this launches the stack with:
 - Nginx using `nginx/nginx.prod.conf` with long-cache headers on hashed assets, gzip on, API/WS/admin proxies unchanged.
 - GlitchTip behind `--profile debug` (opt-in only).
 
-No code or config is touched by switching profile — the dev flow (`docker compose up`) keeps working exactly as before.
-
 ### When this rule applies
 
 - Any "feels slow / sluggish" investigation.
 - Any benchmark, Performance-trace, or Lighthouse run whose numbers are used to justify a code change.
-- Any PR that claims a perf improvement — the "after" numbers must come from the prod profile.
+- Any PR that claims a perf improvement — the "after" numbers must come from the prod stack.
 - Any Report-Registry finding tagged with severity MEDIUM/HIGH/CRITICAL under §1 (2–5× / >5× / incorrect results).
 
-### When this rule does not apply
+### Test / unit-runner runs
 
-- Plain functional development where perf is not in scope — dev mode is fine.
-- Unit/integration test runs (`ng test`, `pytest`) — those stay on the dev profile.
-- UI design / layout work — use dev mode for faster iteration.
+- Unit/integration test runs (`ng test`, `pytest`) bypass the stack entirely — they use their own SQLite test settings (`config.settings.test`) and don't need docker.
+- UI layout work should still run through the prod stack; rebuild the `frontend-build` image (`docker compose build frontend-build`) and bounce `nginx` to see your change.
 
 ### Reporting requirements
 
-Any performance claim posted to the user or written into the Report Registry must state **which profile produced the numbers**. Examples:
+Any performance claim posted to the user or written into the Report Registry must state **how the numbers were produced**. Examples:
 
-- ✅ "Dashboard idle scripting time dropped from 34% (prod profile) to 7% (prod profile)."
-- ✅ "Benchmark on the dev profile showed X; re-ran on the prod profile, saw Y. The Y figure is the one I'm quoting."
-- ❌ "The dashboard feels faster now." (No profile stated, no numbers.)
+- ✅ "Dashboard idle scripting time dropped from 34% to 7% (prod stack, commit abc123)."
+- ✅ "Benchmark hit 250 ms p95 on the prod stack after rebuilding `frontend-build` and `backend`."
+- ❌ "The dashboard feels faster now." (No numbers, no commit reference.)
 
 ### Cross-references
 
-- `CLAUDE.md` — top-level rule reminder.
+- `CLAUDE.md` — top-level rule reminder (Docker Rules section).
 - `AGENTS.md` § Code Quality Mandate > Performance — same rule, worded for all agents.
-- `AI-CONTEXT.md` Session Gate — prod-mode verification is a MUST-READ for any performance session.
-- `docker-compose.prod.yml` — the canonical prod override file.
-- `backend/config/settings/production.py` — Django prod settings (HTTPS-hardening flags are env-driven so a local prod run over plain HTTP still works).
+- `AI-CONTEXT.md` Session Gate — prod-stack verification is a MUST-READ for any performance session.
+- `docker-compose.yml` — the single canonical compose stack (no overrides).
+- `backend/config/settings/production.py` — Django prod settings (HTTPS-hardening flags are env-driven so a local run over plain HTTP still works).

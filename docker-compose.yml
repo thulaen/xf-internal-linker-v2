@@ -1,3 +1,22 @@
+# ═══════════════════════════════════════════════════════════════════
+# XF Internal Linker V2 — Single prod-only compose stack
+#
+# HOW TO USE:
+#   docker compose --env-file .env up --build
+#
+# WHY NO DEV MODE:
+#   The previous split (dev docker-compose.yml + docker-compose.prod.yml
+#   override) was retired on 2026-04-22. Local development now runs
+#   against the same prod Angular bundle + production Django settings
+#   as a live deployment, so any measurement or screenshot taken while
+#   working matches what operators actually see. See
+#   `docs/PERFORMANCE.md §12` and `docs/DELETED-FEATURES.md` for the
+#   decision record.
+#
+# OPTIONAL PROFILES:
+#   docker compose --profile debug up    → adds GlitchTip error tracking
+# ═══════════════════════════════════════════════════════════════════
+
 services:
 
   # ─────────────────────────────────────────────
@@ -45,8 +64,8 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────────
-  # Django 5.2 LTS backend + Daphne ASGI server
-  # REST API + WebSockets
+  # Django 5.2 LTS backend — production settings + Daphne/uvicorn ASGI
+  # No --reload (per-request overhead), 4 workers.
   # ─────────────────────────────────────────────
   backend:
     build:
@@ -65,7 +84,16 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
+      # The nginx sidecar terminates HTTP on :80. For a local prod run
+      # we are NOT behind HTTPS, so relax the HTTPS-only defaults from
+      # production.py. A real HTTPS deployment should remove these
+      # overrides (or set them to True/longer HSTS) via .env.
+      DJANGO_SECURE_SSL_REDIRECT: "${DJANGO_SECURE_SSL_REDIRECT:-False}"
+      DJANGO_SESSION_COOKIE_SECURE: "${DJANGO_SESSION_COOKIE_SECURE:-False}"
+      DJANGO_CSRF_COOKIE_SECURE: "${DJANGO_CSRF_COOKIE_SECURE:-False}"
+      DJANGO_SECURE_HSTS_SECONDS: "${DJANGO_SECURE_HSTS_SECONDS:-0}"
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
@@ -96,7 +124,7 @@ services:
                sleep 5;
              done &&
              python manage.py collectstatic --noinput &&
-             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --reload --workers 2"
+             python -m uvicorn config.asgi:application --host 0.0.0.0 --port 8000 --workers 4"
 
   # ─────────────────────────────────────────────
   # Celery worker - default queue only
@@ -116,7 +144,8 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
@@ -137,7 +166,7 @@ services:
     command: >
       sh -c "python -c 'import drf_spectacular' &&
              DEFAULT_QUEUE_CONCURRENCY=$$(python manage.py print_default_queue_concurrency) &&
-             celery -A config.celery worker --loglevel=info --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default"
+             celery -A config.celery worker --loglevel=warning --concurrency=$${DEFAULT_QUEUE_CONCURRENCY:-2} --prefetch-multiplier 1 -Q default"
 
   # Celery worker - pipeline + embeddings queues only
   # Handles: heavy serial work that must stay single-process for FAISS correctness
@@ -155,7 +184,8 @@ services:
               count: all
               capabilities: [gpu]
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
@@ -176,7 +206,7 @@ services:
         condition: service_healthy
     command: >
       sh -c "python -c 'import drf_spectacular' &&
-             celery -A config.celery worker --loglevel=info --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
+             celery -A config.celery worker --loglevel=warning --concurrency=1 --prefetch-multiplier 1 -Q pipeline,embeddings"
 
   # ─────────────────────────────────────────────
   # Celery Beat — scheduled tasks (auto-resync, etc.)
@@ -188,7 +218,8 @@ services:
     mem_limit: 128m
     env_file: .env
     environment:
-      DJANGO_SETTINGS_MODULE: config.settings.development
+      DJANGO_SETTINGS_MODULE: config.settings.production
+      DJANGO_DEBUG: "False"
       HOME: /tmp
       RUNTIME_PROGRESS_STREAM_PREFIX: runtime:progress
       REPO_ROOT: /repo
@@ -207,12 +238,29 @@ services:
       redis:
         condition: service_healthy
     command: >
-      sh -c "celery -A config.celery beat --loglevel=info
+      sh -c "celery -A config.celery beat --loglevel=warning
              --scheduler django_celery_beat.schedulers:DatabaseScheduler"
 
   # ─────────────────────────────────────────────
-  # Nginx — serves Angular production build
-  # Proxies /api/ and /ws/ to Django backend
+  # Angular prod bundle build — runs once, publishes to volume, exits
+  # Multi-stage Dockerfile compiles with `ng build --configuration=production`
+  # and copies the output to /dist (the shared `frontend_dist` volume).
+  # Nginx depends on this via service_completed_successfully.
+  # ─────────────────────────────────────────────
+  frontend-build:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+    image: xf-linker-frontend-prod:latest
+    container_name: xf_linker_frontend_build
+    restart: "no"
+    mem_limit: 2g
+    volumes:
+      - frontend_dist:/dist
+
+  # ─────────────────────────────────────────────
+  # Nginx — serves the Angular prod bundle + proxies /api/ and /ws/
+  # Long-cache headers on hashed assets via nginx.prod.conf.
   # ─────────────────────────────────────────────
   nginx:
     build:
@@ -224,7 +272,14 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      # `frontend_dist` mounted RW (not `:ro`) because the child volumes
+      # below sit on subdirectories inside this tree, and Docker cannot
+      # create a mountpoint inside a read-only parent. Nginx runs as an
+      # unprivileged user with no write permission on the files anyway.
+      - frontend_dist:/usr/share/nginx/html
+      - staticfiles:/usr/share/nginx/html/static:ro
+      - media_files:/usr/share/nginx/html/media:ro
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/nginx-health | grep -q ok || exit 1"]
       interval: 30s
@@ -234,37 +289,11 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      frontend-build:
+        condition: service_completed_successfully
 
   # ─────────────────────────────────────────────
-  # Angular Frontend (Development) — Port 4200
-  # Live reload enabled via volume mapping
-  # ─────────────────────────────────────────────
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: Dockerfile
-    container_name: xf_linker_frontend
-    restart: always
-    mem_limit: 1g
-    environment:
-      - CHOKIDAR_USEPOLLING=1
-    ports:
-      - "4200:4200"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    healthcheck:
-      test: ["CMD-SHELL", "node -e \"require('http').get('http://localhost:4200/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""]
-      interval: 30s
-      timeout: 15s
-      retries: 3
-      start_period: 180s
-    depends_on:
-      backend:
-        condition: service_healthy
-
-  # ─────────────────────────────────────────────
-  # GlitchTip — self-hosted error tracking
+  # GlitchTip — self-hosted error tracking (opt-in via --profile debug)
   # Sentry-compatible. Reuses existing postgres + redis.
   # Access the dashboard at http://localhost:1337
   # ─────────────────────────────────────────────
@@ -273,13 +302,22 @@ services:
     container_name: xf_linker_glitchtip
     restart: always
     mem_limit: 256m
+    profiles: ["debug"]
+    # NOTE: do NOT add `env_file: .env` here. The project .env sets
+    # DJANGO_SETTINGS_MODULE for the backend, which would collide with
+    # GlitchTip's own Django settings and crash it with
+    # `ModuleNotFoundError: No module named 'config'`.
+    # GlitchTip runs against its own `/glitchtip` DB, isolated from the
+    # linker's `${POSTGRES_DB}`, so its migrations never touch our tables.
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-xf_linker}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/glitchtip"
       REDIS_URL: redis://redis:6379/4
-      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}
+      SECRET_KEY: "${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}"
       EMAIL_URL: consolemail://
       GLITCHTIP_DOMAIN: http://localhost:1337
       DEFAULT_FROM_EMAIL: glitchtip@localhost
+      ENABLE_USER_REGISTRATION: "true"
+      PORT: "8000"
       CELERY_WORKER_AUTOSCALE: "1,3"
       CELERY_WORKER_MAX_TASKS_PER_CHILD: "10000"
     ports:
@@ -291,19 +329,21 @@ services:
         condition: service_healthy
 
   # ─────────────────────────────────────────────
-  # GlitchTip Worker — processes error events
-  # Required for GlitchTip to handle captured errors
+  # GlitchTip Worker — processes error events (opt-in with GlitchTip)
   # ─────────────────────────────────────────────
   glitchtip-worker:
     image: glitchtip/glitchtip:latest
     container_name: xf_linker_glitchtip_worker
     restart: always
     mem_limit: 256m
+    profiles: ["debug"]
     command: ./bin/run-celery-with-beat.sh
+    # Same env_file caveat as glitchtip above — keep this isolated from
+    # the linker .env. Uses the same `/glitchtip` DB.
     environment:
-      DATABASE_URL: postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/${POSTGRES_DB:-xf_linker}
+      DATABASE_URL: "postgres://${POSTGRES_USER:-xf_linker_user}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}@postgres:5432/glitchtip"
       REDIS_URL: redis://redis:6379/4
-      SECRET_KEY: ${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}
+      SECRET_KEY: "${GLITCHTIP_SECRET_KEY:-change-me-in-production-glitchtip}"
       EMAIL_URL: consolemail://
       GLITCHTIP_DOMAIN: http://localhost:1337
       DEFAULT_FROM_EMAIL: glitchtip@localhost

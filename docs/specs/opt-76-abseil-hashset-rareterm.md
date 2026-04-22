@@ -65,7 +65,7 @@ Drop-in replace `std::unordered_set<std::string>` (host_tokens parameter in eval
 | 8 | Human reviewer | CPP-RULES.md confirmed |
 
 ## Dependencies
-- Abseil C++ (shared with OPT-73-75, 77-79)
+- Abseil C++
 
 ## Test Plan
 - Correctness: (found, score) output matches Python reference within 1e-4

@@ -9,7 +9,7 @@
 
 ## Algorithm
 
-Input: list of text segments (title, headings, body) with position weights. For each segment, extract all n-grams (1 to max_n tokens). Deduplicate across segments, keeping highest position weight. Sort by weight descending. Output: top-K phrases per destination. Uses flat_hash_map for dedup (pairs well with OPT-73 Abseil).
+Input: list of text segments (title, headings, body) with position weights. For each segment, extract all n-grams (1 to max_n tokens). Deduplicate across segments, keeping highest position weight. Sort by weight descending. Output: top-K phrases per destination. Uses flat_hash_map for dedup (pairs well with Abseil).
 
 ## C++ Interface (pybind11)
 
@@ -70,7 +70,7 @@ Input: list of text segments (title, headings, body) with position weights. For 
 | 8 | Human reviewer | CPP-RULES.md confirmed |
 
 ## Dependencies
-- None (standalone, optionally uses Abseil flat_hash_map if OPT-73 is installed)
+- None (standalone, optionally uses Abseil flat_hash_map if available)
 
 ## Test Plan
 - Output matches Python reference within 1e-4 for weights, exact for phrase tokens

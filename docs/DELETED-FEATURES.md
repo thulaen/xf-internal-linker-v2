@@ -73,8 +73,43 @@ Gone for good:
 
 When PR-B through PR-P ship actual implementations for roster picks, they will add fresh settings keys directly to `recommended_weights.py` and write new specs for the implementations.
 
+## 2026-04-22 — PR-A slice 6: doc scrubbing (no new capabilities gone)
+
+House-cleaning pass that drove the phantom-reference gate to 0.
+
+What changed (no feature loss):
+
+- `FEATURE-REQUESTS.md`: hard-deleted the FR-091, FR-225 entries plus the 126 pending-signal rows and 210 pending-meta rows in the Phase-2 Forward-Declared Backlog section. The corresponding specs/code were already gone in slices 1-5; these were dangling pointers.
+- `AI-CONTEXT.md`: removed the phantom-pointing dashboard row, the OPT-73..89 range reference, and the `meta-rotation-tournament` schedule mention. Replaced with a forward pointer to the decision record.
+- `docs/reports/REPORT-REGISTRY.md`: marked RPT-002 as **RESOLVED** (the 337-item backlog was retired in PR-A) with a pointer to `docs/DELETED-FEATURES.md`.
+- `docs/GAP-41-AUDIT.md`: stripped the line pointing to the deleted `diagnostics/meta-tournament/` component.
+- `backend/apps/diagnostics/signal_registry.py`: dropped the commented-out `FR-091 C++ Extension Retrofit` SignalDefinition placeholder.
+- `backend/apps/suggestions/recommended_weights_forward_settings.py`: dropped the inert `cpp_retrofit.*` block tied to FR-091.
+- `docs/specs/opt-74/76/77/79-abseil-*.md` and `opt-83-farmhash-hasher.md` / `opt-88-phrase-inventory.md`: removed the "shared with OPT-73" / "if OPT-73 is installed" citations since OPT-73 (abseil-hashmap-inv-index) was deleted in slice 2.
+
+## 2026-04-22 — PR-A slice 7: dev Angular frontend compose setup retired
+
+Consolidated the compose stack down to a single prod-mode file. Local work now runs against the same Angular production bundle + Django production settings that a live deployment uses, so any measurement or screenshot taken while working matches what operators actually see.
+
+Gone for good:
+
+- `docker-compose.prod.yml` — contents merged into `docker-compose.yml`; the file is deleted.
+- `docker-compose.override.yml` — held the `frontend-dev` HMR profile and the GlitchTip debug-profile overrides. The GlitchTip fix (separate `/glitchtip` DB instead of sharing the linker's DB) was ported into `docker-compose.yml`.
+- `frontend/Dockerfile` — the ng-serve dev Dockerfile. Only `frontend/Dockerfile.prod` survives.
+- Dev-frontend compose service identifiers: `frontend-dev` (override profile name), `xf_linker_frontend_dev` (container name), `xf_linker_frontend` (dev container name — the prod equivalent is `xf_linker_frontend_build`).
+
+Why: per the PERFORMANCE.md rule ("performance work MUST run against this stack, not the dev server"), the dual-mode setup invited measurement skew and tempted future AIs to "just run dev for now." Removing the option removes the temptation.
+
+Replacement workflow for developers:
+
+- `docker compose --env-file .env up --build` — boots the whole stack with the prod Angular bundle behind nginx on port 80.
+- Optional debug profile (GlitchTip): `docker compose --profile debug up`.
+- There is no longer a port-4200 Angular dev server. Frontend iteration means rebuilding the `xf-linker-frontend-prod` image; use `docker compose build frontend-build` and then `docker compose up -d nginx`.
+
+All dev-frontend identifiers added to `backend/scripts/deleted_tokens.txt` so the phantom-reference gate fails if any reappear.
+
 ## Upcoming entries (reserved)
 
-- PR-A slice 6 — Doc scrubbing (AI-CONTEXT.md, FEATURE-REQUESTS.md, REPORT-REGISTRY.md, v2-master-plan.md, BUSINESS-LOGIC-CHECKLIST.md, PERFORMANCE.md, signal_registry.py comments).
+(None currently — PR-A is closing out. PR-B..PR-P will ship features, not retirements.)
 
 Each future slice will append its own section here and its banned identifiers to `backend/scripts/deleted_tokens.txt`.

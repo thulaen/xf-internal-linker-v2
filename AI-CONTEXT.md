@@ -283,10 +283,9 @@ FR IDs are permanent request IDs. Phase numbers below are the execution order.
 | 34 | FR-032 | Complete | Automated Orphan & Low-Authority Page Identification |
 | 35 | FR-033 | Complete | Internal PageRank (Structural Equity) Heatmap |
 | 36 | FR-035 | Complete | Link Freshness & Churn Velocity Timeline |
-| — | FR-099 … FR-225 + META-40 … META-249 | Forward-Declared | Phase 2 Research Library registered 2026-04-15: 126 new ranking signals (Blocks A–O) + 210 new meta-algorithms (Blocks P1–P12 and Q1–Q24) + FR-225 Meta Rotation Scheduler. Each has a full spec with paper/patent math at `docs/specs/fr<NNN>-*.md` or `docs/specs/meta-<NN>-*.md`. **2026-04-15 recipe-completion pass:** replaced inert phase2 weights with researched starting values + algorithm hyperparameters across 9 split files (RECOMMENDED_PRESET_WEIGHTS now 1886 keys end-to-end). Each signal will go live the moment its C++ extension is wired (no second manual weight-flip needed); each meta has researched hyperparameters with one winner per fight-category enabled by default (alternates ready for FR-225 rotation). Details in `docs/reports/REPORT-REGISTRY.md`. |
 
 - Next exact target: Phase 37 / `FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry`
-- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. 336 additional spec stubs (FR-099 … FR-224 + META-40 … META-249) added 2026-04-15 as a forward-declared research library — no implementation yet.
+- Current continuity state: 31 FRs are complete and code-verified as of 2026-04-08. The Phase-2 forward-declared library (126 signals + 210 meta-algos + the meta tournament scheduler) was retired in PR-A (2026-04-22) — see `plans/check-how-many-pending-tidy-iverson.md` and `docs/DELETED-FEATURES.md`. A curated 52-pick roster replaces it, landing in PR-B..PR-P.
 - Scope reminder: do not hide FR-012 structural evidence inside FR-011 or later reranking phases
 - Required continuity rule: keep FR IDs and phase numbers explicitly cross-referenced
 - Future queued backlog phases beyond Phase 37 continue in `FEATURE-REQUESTS.md`. The Phase 2 forward-declared library entries sit at the bottom of `FEATURE-REQUESTS.md` in a compressed table.
@@ -325,16 +324,11 @@ FR-049, FR-050, FR-051, FR-052, FR-053, FR-054, FR-055, FR-056, FR-057, FR-058,
 FR-059, FR-060, FR-061, FR-062, FR-063, FR-064, FR-065, FR-066, FR-067, FR-068,
 FR-069, FR-070, FR-071, FR-072, FR-073, FR-074, FR-075, FR-076, FR-077, FR-078,
 FR-079, FR-080, FR-081, FR-082, FR-083, FR-084, FR-085, FR-086, FR-087, FR-088,
-FR-089, FR-090, FR-091, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097, FR-098
+FR-089, FR-090, FR-092, FR-093, FR-094, FR-095, FR-096, FR-097, FR-098
 
-**C++ META extensions (36 — all pending):**
-meta-04 through meta-39. Full specs in `docs/specs/meta-*.md`.
-
-**C++ OPT extensions (92 — all pending):**
-opt-01 through opt-92. Full specs in `docs/specs/opt-*.md`.
-OPT-73 to OPT-84: Google C++ library integrations (Abseil, Highway, FarmHash, Google Benchmark).
-OPT-85 to OPT-89: New Python C++ extensions (bbcclean, cooccur_matrix, link_reconcile, phrase_inventory, pipeline_accel).
-OPT-90 to OPT-92: New native interop extensions (pixie_walk, dom_extract, bayes_attrib).
+**C++ OPT extensions:**
+Full specs in `docs/specs/opt-*.md`. The 5 OPT specs tied to 3 retired
+C++ kernels were deleted in PR-A slice 2 — see `docs/DELETED-FEATURES.md`.
 
 **Known gaps in completed work:**
 - FR-032: deep-linked discovery (click depth > 5) deferred to Phase 2
@@ -453,12 +447,12 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - **Commit 1 — whole-stack production profile (infra + rule):** gives the user (and every future AI) a single canonical way to run the stack in true production mode, and bakes the rule into the repo so dev-mode numbers never masquerade as prod numbers again.
   - **Commit 2 — zone / polling / helper (app code):** the code-level fixes that flatten the idle-CD churn.
 - **What landed in Commit 1 (`8af63cd`):**
-  - New files: `docker-compose.prod.yml`, `frontend/Dockerfile.prod`, `nginx/nginx.prod.conf`, `.env.prod.example`.
-  - `docker-compose.prod.yml` overrides backend to `config.settings.production` + `DEBUG=False`, removes uvicorn `--reload`, drops Celery to `--loglevel=warning`, disables the Angular dev server (`frontend` under `profiles: ["__disabled__"]`), adds a one-shot `frontend-build` service that compiles the Angular prod bundle into the shared `frontend_dist` volume, swaps nginx to serve static with long-cache headers on hashed assets, and puts `glitchtip` / `glitchtip-worker` under `profiles: ["debug"]` so they are opt-in.
+  - New files: the prod compose override (since retired 2026-04-22), `frontend/Dockerfile.prod`, `nginx/nginx.prod.conf`, `.env.prod.example`.
+  - the prod compose override (since retired 2026-04-22) overrides backend to `config.settings.production` + `DEBUG=False`, removes uvicorn `--reload`, drops Celery to `--loglevel=warning`, disables the Angular dev server (`frontend` under `profiles: ["__disabled__"]`), adds a one-shot `frontend-build` service that compiles the Angular prod bundle into the shared `frontend_dist` volume, swaps nginx to serve static with long-cache headers on hashed assets, and puts `glitchtip` / `glitchtip-worker` under `profiles: ["debug"]` so they are opt-in.
   - `frontend/Dockerfile.prod` — multi-stage (`node:22-slim` → `ng build --configuration=production` → `alpine:3.20` that copies to `/dist`).
   - `nginx/nginx.prod.conf` — serves `/usr/share/nginx/html` statically, `Cache-Control: public, max-age=31536000, immutable` on hashed Angular assets, `no-cache` on `index.html`, gzip + rate-limit + security headers kept identical to the dev config.
   - `.env.prod.example` — small template with only the prod-deltas (`DJANGO_ALLOWED_HOSTS`, `CORS_ALLOWED_ORIGINS`, HTTPS-hardening toggles defaulted to False so a local prod run over plain HTTP still works).
-  - `backend/config/settings/production.py` — `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD` are now `env.bool(...)` / `env.int(...)` driven (defaults kept True/long-HSTS for real HTTPS deployments; `docker-compose.prod.yml` sets them to False/0 so `localhost` over HTTP still lets login + CSRF work).
+  - `backend/config/settings/production.py` — `SECURE_SSL_REDIRECT`, `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, `SECURE_HSTS_SECONDS`, `SECURE_HSTS_INCLUDE_SUBDOMAINS`, `SECURE_HSTS_PRELOAD` are now `env.bool(...)` / `env.int(...)` driven (defaults kept True/long-HSTS for real HTTPS deployments; the prod compose override (since retired 2026-04-22) sets them to False/0 so `localhost` over HTTP still lets login + CSRF work).
   - `docs/PERFORMANCE.md` — new **§13 "Performance Verification in Production Mode — Mandatory Rule"** spelling out the canonical command, when it applies, when it does not, and the reporting requirements ("state which profile produced the numbers").
   - `CLAUDE.md` — one-line rule pointing at §13, with the canonical command inline.
   - `AGENTS.md` § `Performance is correctness` — one-line rule pointing at §13.
@@ -480,8 +474,8 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - `cd frontend && npx ng build --configuration=production` — clean build in 67.985 s. Initial raw bundle ~1.7 MB, transfer ~0.45 MB — well under the existing 2 MB warning / 3 MB error budgets. No new warnings from edited files; pre-existing NG8102 / NG8113 / NG8107 template lints in `dashboard.component.html`, `ready-to-run.component.ts`, `sync-activity.component.ts`, `review.component.ts` are untouched by this session.
   - `cd frontend && npm run test:ci` — 27/27 SUCCESS on Chrome Headless 147 (2.5 s total).
   - `docker compose config --quiet` — dev composition (base + override) still parses clean.
-  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml config --quiet` — prod composition parses clean. `config --services` returns: postgres, redis, backend, celery-beat, celery-worker-default, celery-worker-pipeline, frontend-build, nginx. No `frontend` (profiled out), no `glitchtip*` (behind `--profile debug`).
-  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml build` — all three prod images built cleanly: `xf-linker-backend:latest`, `xf-linker-frontend-prod:latest` (19.5 MB), `xf-internal-linker-v2-nginx` (73.6 MB).
+  - `docker compose -f docker-compose.yml -f the prod compose override (retired) config --quiet` — prod composition parses clean. `config --services` returns: postgres, redis, backend, celery-beat, celery-worker-default, celery-worker-pipeline, frontend-build, nginx. No `frontend` (profiled out), no `glitchtip*` (behind `--profile debug`).
+  - `docker compose -f docker-compose.yml -f the prod compose override (retired) build` — all three prod images built cleanly: `xf-linker-backend:latest`, `xf-linker-frontend-prod:latest` (19.5 MB), `xf-internal-linker-v2-nginx` (73.6 MB).
 - **Deferred to Tier 2 / Tier 3 follow-up slices (out of scope for this commit pair, per the approved plan):**
   - Delete the unused `three` + `@types/three` dep from `package.json`.
   - Tighten Angular budgets to realistic values just above the real prod-bundle size.
@@ -495,7 +489,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
   - Read `AI-CONTEXT.md` Session Gate, `docs/reports/REPORT-REGISTRY.md` (no overlapping OPEN findings in the frontend-performance / docker-compose / docs area), `frontend/FRONTEND-RULES.md`, `docs/PERFORMANCE.md`, `AGENTS.md § Code Quality Mandate`, `CLAUDE.md`.
   - Posted the 4-part Session Start Snapshot in chat before writing any code.
   - Every decision point during planning was raised via `AskUserQuestion` (PR scope choice, budget-tighten timing); plan approved via `ExitPlanMode` with the "update other-agents rules" scope explicitly added by the user after plan approval.
-  - `docker compose -f docker-compose.yml -f docker-compose.prod.yml build` ran and succeeded before either commit — both backend Python settings (`production.py`) and frontend app code were touched, so the build gate applied.
+  - `docker compose -f docker-compose.yml -f the prod compose override (retired) build` ran and succeeded before either commit — both backend Python settings (`production.py`) and frontend app code were touched, so the build gate applied.
   - Stayed on `master` (paramount branch-transparency rule — user did not ask for a branch, so no branch was created).
   - Split into two commits: PR 1 infra + rule (`8af63cd`) first, PR 2 app code second (this commit).
 
@@ -1164,7 +1158,7 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 - **Why:** The operator sleeps around 23:00 local (GMT Standard Time / BST in summer) and the laptop is typically off until ~07:00. Many Celery Beat schedules ran in the `21:00–22:50 UTC` and `03:00 UTC` bands — in BST summer those correspond to 22:00–23:50 and 04:00 local, i.e. right at or past bedtime. Nightly tasks were therefore skipped whenever the laptop was powered down. Additionally, Codex's commit `58d5071` moved the Windows Docker VHD compaction from 10:00 AM to 3:00 AM local — deep in the sleep window. The user explicitly asked to move everything into the 14:00–17:00 local afternoon window so the tasks actually fire on a laptop that is reliably on during the day.
 - **What was done:**
   - **Code edits (already on origin/master via the user's manual commit `2b5d46e` "style: unify typography using system-default font stacks"):**
-    - `backend/config/settings/celery_schedules.py` — every `crontab(hour=21/22/03, …)` shifted to `crontab(hour=13/14/15, …)`. Heavy tasks 13:00/13:30 UTC, Medium 13:30/13:45, Light 14:00–14:25, alert checks 14:30–14:45, `prune-superseded-embeddings` 14:50, `meta-rotation-tournament` 15:00. `daily-gsc-spike-check` left at 08:00 UTC (morning local). Per-section banner comments updated. Sub-hour recurring tasks (heartbeat every 60 s, watchdog every 5 min, FAISS every 15 min, GlitchTip every 30 min, health every 30 min, performance-mode revert every 5 min, resume-after-wake every 5 min) were intentionally not touched — they fire whenever the worker is up and do not depend on a specific hour.
+    - `backend/config/settings/celery_schedules.py` — every `crontab(hour=21/22/03, …)` shifted to `crontab(hour=13/14/15, …)`. Heavy tasks 13:00/13:30 UTC, Medium 13:30/13:45, Light 14:00–14:25, alert checks 14:30–14:45, `prune-superseded-embeddings` 14:50. `daily-gsc-spike-check` left at 08:00 UTC (morning local). Per-section banner comments updated. Sub-hour recurring tasks (heartbeat every 60 s, watchdog every 5 min, FAISS every 15 min, GlitchTip every 30 min, health every 30 min, performance-mode revert every 5 min, resume-after-wake every 5 min) were intentionally not touched — they fire whenever the worker is up and do not depend on a specific hour.
     - `register_cleanup_task.ps1` — `$compactTrigger` changed from `3:00am` to `2:00pm` local. Task description and Write-Host lines updated to reflect the new time.
     - `frontend/src/app/jobs/scheduling-policy-card/scheduling-policy-card.component.ts` — UI text updated: "Evening window 21:00 – 22:30 UTC" → "Afternoon window 13:00 – 15:00 UTC" with matching rationale ("so they actually run on a laptop that's off overnight").
   - **Docs update (this commit):**

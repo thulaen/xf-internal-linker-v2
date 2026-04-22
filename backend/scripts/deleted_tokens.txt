@@ -85,13 +85,14 @@ k_shell
 harmonic_centrality
 leaderrank
 
-# Block D (FR-126..133) — diversification alternatives fighting MMR
+# Block D (FR-126..133) — diversification alternatives fighting MMR.
+# NOTE: `portfolio` is NOT banned — it's a common English word that
+# legitimately appears in anchor-diversity discussions (FR-045 etc.).
 ia_select
 xquad
 pm2
 dpp
 submodular_coverage
-portfolio
 ldm
 quota_diversity
 
@@ -117,12 +118,12 @@ t_digest
 lossy_counting
 b_bit_minhash
 
-# Block G (FR-152..161) — linguistic/style signals overlapping readability/spaCy
+# Block G (FR-152..161) — linguistic/style signals overlapping readability/spaCy.
+# NOTE: `cohesion`, `hedging`, `nominalization` are NOT banned — they're
+# common linguistic/English words that appear in research citations
+# (e.g. LexRank paper's "salience and cohesion") and would false-positive.
 passive_voice
-nominalization
-hedging
 discourse_conn
-cohesion
 pos_diversity
 sent_variance
 yule_k
@@ -227,3 +228,12 @@ FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_P7_P12
 FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q1_Q8
 FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q9_Q16
 FORWARD_DECLARED_WEIGHTS_PHASE2_METAS_Q17_Q24
+
+# ── PR-A slice 7 — dev frontend compose setup retired (2026-04-22) ────
+# Only the prod Angular bundle (xf-linker-frontend-prod) behind nginx is
+# supported now. No ng-serve-based dev frontend, no override/prod compose
+# split. See docs/DELETED-FEATURES.md.
+frontend-dev
+xf_linker_frontend_dev
+docker-compose.override.yml
+docker-compose.prod.yml
