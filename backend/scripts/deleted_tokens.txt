@@ -155,7 +155,10 @@ avgictf
 scq
 
 # Block J (FR-178..185) — info-theoretic divergences overlapping PMI/cosine
-pmi
+# NOTE: `pmi` un-banned 2026-04-22 — PR-E ships apps.sources.collocations.pmi
+# (Church & Hanks 1990) as a legitimate helper. The original pending signal
+# that lived under "pmi" was never implemented; only the Church-Hanks
+# collocation scorer uses this identifier now.
 npmi
 llr
 kl_div

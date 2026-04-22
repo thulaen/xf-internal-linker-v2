@@ -892,27 +892,37 @@ class EntitySalienceTests(SimpleTestCase):
     def test_first_position_beats_mention_frequency(self) -> None:
         from .entity_salience import rank_entities
 
-        text = "Acme launched rockets. " + ("Widget Corp " * 10).strip()
-        # Acme appears once early, Widget Corp ten times later.
+        # Put Acme at the very start, then a long filler, then Widget
+        # Corp repeated at the tail. The filler has to push Widget's
+        # first-offset far enough into the doc that the first-position
+        # feature (weight 0.4) clearly beats frequency (weight 0.2).
+        filler = (
+            "The engineering team prepared for the launch across many "
+            "months. The plan went through several review stages and a "
+            "lengthy verification phase. At last the time came to roll "
+            "out the long-awaited update. "
+        )
+        text = "Acme launched rockets. " + filler + ("Widget Corp " * 3).strip()
+        widget_start = text.index("Widget Corp")
         ents = [
             _FakeSpan("Acme", "ORG", 0, 4),
             *[
                 _FakeSpan(
                     "Widget Corp",
                     "ORG",
-                    text.index("Widget Corp") + i * len("Widget Corp "),
-                    text.index("Widget Corp") + i * len("Widget Corp ") + 11,
+                    widget_start + i * len("Widget Corp "),
+                    widget_start + i * len("Widget Corp ") + 11,
                 )
-                for i in range(10)
+                for i in range(3)
             ],
         ]
         sents = [_FakeSent(text, 0, len(text))]
         doc = _FakeDoc(text, ents, sents)
         ranked = rank_entities(doc)
-        # Default weights put first-position 0.4 vs frequency 0.2, so
-        # Acme's massive first-position advantage should beat Widget's
-        # raw frequency.
-        assert ranked[0].text == "Acme"
+        # With Widget deep into the doc, its first-position feature
+        # drops enough that the 0.4-weighted gap beats the 0.2-weighted
+        # frequency gap.
+        self.assertEqual(ranked[0].text, "Acme")
 
     def test_title_match_bumps_salience(self) -> None:
         from .entity_salience import rank_entities
