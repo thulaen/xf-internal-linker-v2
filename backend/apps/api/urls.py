@@ -37,6 +37,7 @@ from apps.core.views import (
     WeightedAuthoritySettingsView,
     UserMeView,
     UserLogoutView,
+    ActiveUsersView,
     GraphCandidateSettingsView,
     ValueModelSettingsView,
     SpamGuardSettingsView,
@@ -48,6 +49,12 @@ from apps.core.views import (
     WordPressTestConnectionView,
     XenForoSettingsView,
     XenForoTestConnectionView,
+)
+from apps.core.views_passkey import (
+    PasskeyRegisterBeginView,
+    PasskeyRegisterFinishView,
+    PasskeyLoginBeginView,
+    PasskeyLoginFinishView,
 )
 from apps.graph.views import (
     BrokenLinkViewSet,
@@ -158,6 +165,28 @@ urlpatterns = [
     path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
+    path("auth/active-users/", ActiveUsersView.as_view(), name="auth-active-users"),
+    # WebAuthn / Passkey — two ceremonies (register + login), two steps each.
+    path(
+        "auth/passkey/register/begin/",
+        PasskeyRegisterBeginView.as_view(),
+        name="passkey-register-begin",
+    ),
+    path(
+        "auth/passkey/register/finish/",
+        PasskeyRegisterFinishView.as_view(),
+        name="passkey-register-finish",
+    ),
+    path(
+        "auth/passkey/login/begin/",
+        PasskeyLoginBeginView.as_view(),
+        name="passkey-login-begin",
+    ),
+    path(
+        "auth/passkey/login/finish/",
+        PasskeyLoginFinishView.as_view(),
+        name="passkey-login-finish",
+    ),
     path("", include("apps.core.urls")),
     path("analytics/", include("apps.analytics.urls")),
     path("", include("apps.audit.urls")),

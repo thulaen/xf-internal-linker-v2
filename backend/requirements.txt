@@ -73,3 +73,9 @@ faiss-gpu-cu12>=1.8.0               # FR-030: GPU vector search (Linux/CUDA 12 o
 # ── System Monitoring (noob-friendly live metrics) ────────────────
 psutil==6.1.1                        # CPU / RAM sampling for /api/system/metrics/
 pynvml==11.5.3                       # NVIDIA GPU sampling (VRAM, temp, utilization)
+
+# ── Auth / Passkeys (WebAuthn) ─────────────────────────────────────
+# Backs /api/auth/passkey/{register,login}/{begin,finish}/. The library
+# handles attestation, challenge verification, COSE public-key parsing,
+# and sign-counter checks — we only persist credentials + challenges.
+webauthn==2.5.2

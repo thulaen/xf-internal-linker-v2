@@ -14,7 +14,6 @@ import { MatIconModule } from '@angular/material/icon';
 import { catchError, of, timer } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { VisibilityGateService } from '../../core/util/visibility-gate.service';
-import { silentHttpErrors } from '../../core/interceptors/http-context';
 
 import { AuthService } from '../../core/services/auth.service';
 
@@ -129,18 +128,15 @@ export class WhosOnShiftComponent implements OnInit {
     // 60-second poll, gated by `VisibilityGateService` so hidden tabs
     // and signed-out sessions do not pound the API. See
     // docs/PERFORMANCE.md §13.
-    // Silent: the `/api/auth/active-users/` endpoint is not deployed
-    // on every install. When it is missing, the widget hides itself
-    // gracefully (see `hasOthers` below) — there is no operator
-    // action for a 404, so we suppress the global toast.
+    // 60-second poll, gated by `VisibilityGateService` so hidden tabs
+    // and signed-out sessions do not pound the API. See
+    // docs/PERFORMANCE.md §13.
     this.visibilityGate
       .whileLoggedInAndVisible(() =>
         timer(0, 60_000).pipe(
           switchMap(() =>
             this.http
-              .get<ActiveUser[]>('/api/auth/active-users/', {
-                context: silentHttpErrors(),
-              })
+              .get<ActiveUser[]>('/api/auth/active-users/')
               .pipe(catchError(() => of<ActiveUser[] | null>(null))),
           ),
         ),

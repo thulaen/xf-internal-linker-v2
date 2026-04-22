@@ -83,6 +83,10 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    # Rolling per-user "last seen" heartbeat for the dashboard
+    # whos-on-shift widget. Runs after AuthenticationMiddleware so
+    # `request.user` is resolved. Silent no-op for anonymous requests.
+    "apps.core.middleware.UserActivityMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -579,3 +583,16 @@ LOGGING = {
         },
     },
 }
+
+# ── WebAuthn / Passkey ────────────────────────────────────────────
+# RP ID is the domain the browser scopes credentials to. For local
+# development we use "localhost" — browsers allow WebAuthn over plain
+# HTTP only when the origin is localhost. In production this must be
+# the bare hostname (no port, no scheme) of the public site.
+#
+# RP_ORIGIN is the full origin (scheme + host [+ port]) the browser
+# sends on the WebAuthn request. Must match what the user types into
+# the address bar.
+WEBAUTHN_RP_ID = env("WEBAUTHN_RP_ID", default="localhost")
+WEBAUTHN_RP_NAME = env("WEBAUTHN_RP_NAME", default="XF Internal Linker")
+WEBAUTHN_RP_ORIGIN = env("WEBAUTHN_RP_ORIGIN", default="http://localhost")

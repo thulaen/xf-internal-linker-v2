@@ -35,6 +35,7 @@ from .views import (
     RuntimeSwitchStatusView,
     RuntimeActivityResumedView,
     MasterPauseToggleView,
+    MaintenanceModeSettingsView,
     SystemMetricsView,
     RuntimeConfigView,
     SafeModeBootView,
@@ -121,6 +122,12 @@ urlpatterns = [
         "settings/master-pause/",
         MasterPauseToggleView.as_view(),
         name="settings-master-pause",
+    ),
+    # Phase MX3 — maintenance-mode banner (+ future write-gate).
+    path(
+        "settings/maintenance-mode/",
+        MaintenanceModeSettingsView.as_view(),
+        name="settings-maintenance-mode",
     ),
     path(
         "settings/runtime-config/",

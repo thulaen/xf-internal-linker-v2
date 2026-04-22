@@ -3786,6 +3786,107 @@ class MasterPauseToggleView(APIView):
         return Response({"master_pause": desired_bool})
 
 
+class MaintenanceModeSettingsView(APIView):
+    """GET/POST /api/settings/maintenance-mode/ — operator-visible banner toggle.
+
+    Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
+
+        {"enabled": bool, "message": str, "started_at": ISO-8601 | null}
+
+    When ``enabled`` is true the frontend shell shows a persistent amber
+    banner and the active ``message``. ``started_at`` is stamped when the
+    toggle flips from false -> true and cleared when it flips back.
+
+    Kept deliberately minimal — no 503 middleware yet. The frontend half
+    is what ships today; a future slice can add backend write-blocking
+    off the same flag.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    DEFAULT_STATE = {
+        "enabled": False,
+        "message": "",
+        "started_at": None,
+    }
+    _KEY = "system.maintenance_mode"
+
+    def _get_state(self) -> dict:
+        from apps.core.models import AppSetting
+
+        try:
+            setting = AppSetting.objects.get(key=self._KEY)
+            stored = json.loads(setting.value or "{}")
+        except AppSetting.DoesNotExist:
+            stored = {}
+        out = dict(self.DEFAULT_STATE)
+        if isinstance(stored.get("enabled"), bool):
+            out["enabled"] = stored["enabled"]
+        if isinstance(stored.get("message"), str):
+            out["message"] = stored["message"]
+        started = stored.get("started_at")
+        out["started_at"] = started if isinstance(started, str) else None
+        return out
+
+    def _write_state(self, state: dict) -> dict:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key=self._KEY,
+            defaults={
+                "value": json.dumps(state),
+                "value_type": "json",
+                "category": "general",
+                "description": "Maintenance-mode banner + write-gate (managed by UI).",
+                "is_secret": False,
+            },
+        )
+        return state
+
+    def get(self, request):
+        return Response(self._get_state())
+
+    def post(self, request):
+        from django.utils import timezone
+        from rest_framework import status as http_status
+
+        current = self._get_state()
+        body = request.data or {}
+
+        desired_enabled = body.get("enabled", current["enabled"])
+        if not isinstance(desired_enabled, bool):
+            return Response(
+                {"detail": "`enabled` must be a boolean."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        desired_message = body.get("message", current["message"])
+        if not isinstance(desired_message, str):
+            return Response(
+                {"detail": "`message` must be a string."},
+                status=http_status.HTTP_400_BAD_REQUEST,
+            )
+
+        started_at = current["started_at"]
+        if desired_enabled and not current["enabled"]:
+            started_at = timezone.now().isoformat()
+        elif not desired_enabled:
+            started_at = None
+
+        new_state = {
+            "enabled": desired_enabled,
+            "message": desired_message,
+            "started_at": started_at,
+        }
+        self._write_state(new_state)
+        logger.info(
+            "maintenance-mode flipped: enabled=%s message=%r",
+            desired_enabled,
+            desired_message[:80],
+        )
+        return Response(new_state)
+
+
 class RuntimeActivityResumedView(APIView):
     """POST /api/settings/runtime/activity-resumed/ — user is active again.
 
@@ -5509,3 +5610,40 @@ class UserLogoutView(APIView):
         except Exception:
             logger.debug("Auth token delete failed or already gone", exc_info=True)
         return Response({"status": "success"})
+
+
+class ActiveUsersView(APIView):
+    """GET /api/auth/active-users/ — who has made an authenticated request recently.
+
+    Read by the dashboard's "whos on shift" widget. A user is considered
+    active if their last_seen_at is within ``ACTIVE_WINDOW_MIN`` minutes.
+    The caller is never omitted from the list — the frontend decides
+    whether to hide the widget when the only active user is "me".
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    ACTIVE_WINDOW_MIN = 5
+
+    def get(self, request):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from .models import UserActivity
+
+        cutoff = timezone.now() - timedelta(minutes=self.ACTIVE_WINDOW_MIN)
+        rows = (
+            UserActivity.objects.filter(last_seen_at__gte=cutoff)
+            .select_related("user")
+            .order_by("-last_seen_at")
+        )
+        payload = [
+            {
+                "username": r.user.username,
+                "last_seen": r.last_seen_at.isoformat(),
+                "route": r.last_route,
+            }
+            for r in rows
+        ]
+        return Response(payload)

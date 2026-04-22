@@ -298,3 +298,136 @@ from .runtime_models import (  # noqa: E402, F401
     RuntimeModelPlacement,
     RuntimeModelRegistry,
 )
+
+
+class UserActivity(TimestampedModel):
+    """Rolling "last seen" heartbeat for each user.
+
+    Written by a Django signal on every DRF-authenticated request so the
+    ``whos-on-shift`` dashboard widget and presence heuristics know who
+    is active without polling session tables. One row per user.
+
+    Kept small on purpose — no per-request history, no IP, no user-agent.
+    If we need granular history we'll add a separate append-only table.
+    """
+
+    user = models.OneToOneField(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="activity",
+        help_text="User this heartbeat belongs to.",
+    )
+    last_seen_at = models.DateTimeField(
+        db_index=True,
+        help_text="Most recent authenticated request from this user.",
+    )
+    last_route = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="URL path of the most recent request (best-effort).",
+    )
+
+    class Meta:
+        verbose_name = "User activity heartbeat"
+        verbose_name_plural = "User activity heartbeats"
+
+    def __str__(self) -> str:
+        return f"UserActivity<{self.user_id} @ {self.last_seen_at.isoformat()}>"
+
+
+# Phase — passkey / WebAuthn credentials + challenge scratch space.
+# Kept in the same file rather than a new module because both tables
+# are tiny and only ever touched from ``views_passkey.py``.
+
+
+class PasskeyCredential(TimestampedModel):
+    """Stored WebAuthn credential for a user.
+
+    Written on successful ``/api/auth/passkey/register/finish/`` and read
+    on every ``/api/auth/passkey/login/begin|finish/`` roundtrip.
+    """
+
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="passkey_credentials",
+    )
+    credential_id = models.BinaryField(
+        unique=True,
+        help_text="Raw credential-id bytes (opaque, unique per credential).",
+    )
+    public_key = models.BinaryField(
+        help_text="COSE-encoded public key used to verify login assertions.",
+    )
+    sign_count = models.PositiveBigIntegerField(
+        default=0,
+        help_text="Monotonic counter — increments on each successful login.",
+    )
+    transports = models.CharField(
+        max_length=200,
+        blank=True,
+        default="",
+        help_text="Comma-separated transport hints (usb,nfc,ble,internal,hybrid).",
+    )
+    label = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Human label the user gave this credential at register time.",
+    )
+    last_used_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        indexes = [
+            models.Index(fields=["user", "last_used_at"], name="pkc_user_used_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"PasskeyCredential<user={self.user_id} label={self.label!r}>"
+
+
+class PasskeyChallenge(TimestampedModel):
+    """Short-lived challenge issued during register/login begin.
+
+    The ``finish`` step looks up the matching row by ``challenge`` and
+    ``operation_type``, verifies the assertion, and deletes the row.
+    Rows older than 5 minutes are swept by the finish handler.
+    """
+
+    OPERATION_CHOICES = [
+        ("register", "Register"),
+        ("login", "Login"),
+    ]
+
+    user = models.ForeignKey(
+        "auth.User",
+        on_delete=models.CASCADE,
+        related_name="passkey_challenges",
+        null=True,
+        blank=True,
+        help_text="User the challenge was issued to. Null for anonymous login-begin "
+        "(the user is identified by the credential they return).",
+    )
+    operation_type = models.CharField(
+        max_length=20,
+        choices=OPERATION_CHOICES,
+    )
+    challenge = models.BinaryField(
+        help_text="Raw server-generated challenge bytes.",
+    )
+    expires_at = models.DateTimeField(
+        db_index=True,
+        help_text="Challenge expiry timestamp (typically 5 minutes from now).",
+    )
+
+    class Meta:
+        indexes = [
+            models.Index(
+                fields=["operation_type", "expires_at"],
+                name="pkch_op_expires_idx",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"PasskeyChallenge<{self.operation_type} expires={self.expires_at.isoformat()}>"
