@@ -8,6 +8,37 @@ Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
+    # ── Scheduled Updates orchestrator (PR-B) — 1pm-11pm serial runner.
+    # Fires every 5 minutes inside the 13:00-22:59 window. Each tick is
+    # idempotent: if the Redis lock is held or no pending job fits the
+    # window, the task exits silently. The catch-up sweep (which raises
+    # deduped missed-job alerts) runs on every tick — including ticks
+    # that skip because of the window guard — so a job that missed
+    # yesterday's window still surfaces as an alert the moment the
+    # runner wakes up next morning.
+    "scheduled-updates-runner-tick": {
+        "task": "scheduled_updates.run_next_scheduled_job",
+        "schedule": crontab(hour="13-22", minute="*/5"),
+        "options": {"queue": "default", "expires": 290},
+    },
+    # Stalled-job detector: every hour inside the window. Raises a
+    # STALLED alert for any RUNNING job whose started_at is more than
+    # 4 h ago. Does NOT flip state — operator decides whether to
+    # pause/cancel via the API.
+    "scheduled-updates-detect-stalled": {
+        "task": "scheduled_updates.detect_stalled_jobs",
+        "schedule": crontab(hour="13-22", minute=30),
+        "options": {"queue": "default", "expires": 3500},
+    },
+    # Nightly (late-window) prune of resolved JobAlert rows older than
+    # 30 days — keeps the history tab bounded without dropping recent
+    # resolves. Runs at 22:45 so it's the last thing the window does.
+    "scheduled-updates-prune-resolved-alerts": {
+        "task": "scheduled_updates.prune_resolved_alerts",
+        "schedule": crontab(hour=22, minute=45),
+        "options": {"queue": "default"},
+    },
+
     # ── Heavy tasks: 13:00–13:30 UTC daytime window ─────────────────
     # Moved from the 21:00-22:00 UTC evening window to 13:00-13:30 UTC so
     # tasks actually run on a laptop that's off overnight. Trade-off: heavy

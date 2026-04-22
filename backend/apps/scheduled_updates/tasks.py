@@ -14,6 +14,12 @@ from celery import shared_task
 
 from .alerts import detect_stalled_jobs, prune_resolved_alerts
 
+# Import the runner module so its @shared_task (run_next_scheduled_job)
+# registers with the Celery app at autodiscovery time. Celery's
+# autodiscover_tasks() only walks <app>.tasks, so runner.py would
+# otherwise never load until the first HTTP request hit the API.
+from . import runner  # noqa: F401
+
 logger = logging.getLogger(__name__)
 
 
