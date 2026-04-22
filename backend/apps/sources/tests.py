@@ -24,7 +24,22 @@ from .conditional_get import (
     extract_validators,
     is_not_modified,
 )
+from .encoding import (
+    EncodingGuess,
+    decode_with_guess,
+    detect_encoding,
+    parse_content_type_charset,
+)
+from .freshness_scheduler import (
+    CrawlObservation,
+    DEFAULT_BOOTSTRAP_INTERVAL_SECONDS,
+    DEFAULT_MAX_INTERVAL_SECONDS,
+    DEFAULT_MIN_INTERVAL_SECONDS,
+    estimate_change_rate_per_second,
+    next_refresh_interval_seconds,
+)
 from .hyperloglog import HyperLogLog
+from .robots import DEFAULT_USER_AGENT, RobotsChecker
 from .token_bucket import (
     DEFAULT_REGISTRY,
     BucketConfig,
@@ -443,3 +458,245 @@ class ConditionalGetTests(SimpleTestCase):
 
         with self.assertRaises(TypeError):
             is_not_modified(NoStatus())
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Robots.txt parser (PR-D)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class RobotsCheckerTests(SimpleTestCase):
+    _ALLOW_ALL = "User-agent: *\nAllow: /\n"
+    _DENY_ALL = "User-agent: *\nDisallow: /\n"
+    _DENY_SECRET = "User-agent: *\nDisallow: /secret/\n"
+    _CRAWL_DELAY = "User-agent: *\nCrawl-delay: 3\n"
+
+    def _checker(self, body: str | None, *, ttl: int = 3600):
+        class _Clock:
+            def __init__(self) -> None:
+                self.t = 100.0
+
+            def __call__(self) -> float:
+                return self.t
+
+        self._clock = _Clock()
+        fetch_calls: list[str] = []
+
+        def _fetcher(url: str):
+            fetch_calls.append(url)
+            return body
+
+        checker = RobotsChecker(
+            fetcher=_fetcher,
+            cache_ttl_seconds=ttl,
+            clock=self._clock,
+        )
+        self._fetch_calls = fetch_calls
+        return checker
+
+    def test_missing_robots_allows_everything(self) -> None:
+        checker = self._checker(None)
+        assert checker.is_allowed("https://example.com/anything") is True
+
+    def test_deny_all_blocks_any_url(self) -> None:
+        checker = self._checker(self._DENY_ALL)
+        assert checker.is_allowed("https://example.com/index.html") is False
+        assert checker.is_allowed("https://example.com/deep/path") is False
+
+    def test_deny_prefix_allows_other_paths(self) -> None:
+        checker = self._checker(self._DENY_SECRET)
+        assert checker.is_allowed("https://example.com/public/page") is True
+        assert checker.is_allowed("https://example.com/secret/page") is False
+
+    def test_cache_hit_does_not_refetch(self) -> None:
+        checker = self._checker(self._ALLOW_ALL)
+        checker.is_allowed("https://example.com/a")
+        checker.is_allowed("https://example.com/b")
+        checker.is_allowed("https://example.com/c")
+        assert len(self._fetch_calls) == 1
+
+    def test_cache_expires_after_ttl(self) -> None:
+        checker = self._checker(self._ALLOW_ALL, ttl=60)
+        checker.is_allowed("https://example.com/a")
+        self._clock.t += 120
+        checker.is_allowed("https://example.com/a")
+        assert len(self._fetch_calls) == 2
+
+    def test_crawl_delay_returned_when_declared(self) -> None:
+        checker = self._checker(self._CRAWL_DELAY)
+        assert checker.crawl_delay("https://example.com/x") == 3.0
+
+    def test_crawl_delay_none_when_absent(self) -> None:
+        checker = self._checker(self._ALLOW_ALL)
+        assert checker.crawl_delay("https://example.com/x") is None
+
+    def test_malformed_url_returns_allowed(self) -> None:
+        checker = self._checker(self._DENY_ALL)
+        # URL without a scheme can't be resolved to a robots.txt origin;
+        # fail-open keeps the crawler moving.
+        assert checker.is_allowed("no-scheme-here") is True
+
+    def test_default_user_agent_is_public(self) -> None:
+        assert "XFInternalLinker" in DEFAULT_USER_AGENT
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Encoding detection (PR-D)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class EncodingDetectionTests(SimpleTestCase):
+    def test_parse_content_type_charset_happy_path(self) -> None:
+        assert parse_content_type_charset("text/html; charset=UTF-8") == "UTF-8"
+        assert (
+            parse_content_type_charset('text/html; charset="windows-1252"')
+            == "windows-1252"
+        )
+
+    def test_parse_content_type_charset_missing(self) -> None:
+        assert parse_content_type_charset("text/html") is None
+        assert parse_content_type_charset("") is None
+        assert parse_content_type_charset(None) is None
+
+    def test_header_charset_wins(self) -> None:
+        body = "accented".encode("utf-8")
+        guess = detect_encoding(body, content_type="text/html; charset=iso-8859-1")
+        assert guess.encoding == "iso-8859-1"
+        assert guess.source == "header"
+
+    def test_meta_charset_is_used_when_header_absent(self) -> None:
+        body = b'<!DOCTYPE html>\n<meta charset="gb18030">\n<p>hello</p>'
+        guess = detect_encoding(body)
+        assert guess.encoding == "gb18030"
+        assert guess.source == "meta"
+
+    def test_utf8_bom_detected(self) -> None:
+        body = b"\xef\xbb\xbfplain text"
+        guess = detect_encoding(body)
+        assert guess.encoding == "utf-8-sig"
+        assert guess.source == "bom"
+
+    def test_utf16_le_bom_detected(self) -> None:
+        body = b"\xff\xfea\x00"
+        guess = detect_encoding(body)
+        assert guess.encoding == "utf-16-le"
+
+    def test_plain_utf8_body_returns_decodable(self) -> None:
+        body = b"plain ascii and a single char"
+        guess = detect_encoding(body)
+        decoded = body.decode(guess.encoding, errors="replace")
+        assert "plain ascii" in decoded
+
+    def test_empty_body_returns_utf8(self) -> None:
+        guess = detect_encoding(b"")
+        assert guess.encoding == "utf-8"
+        assert guess.source == "empty"
+
+    def test_decode_with_guess_never_raises(self) -> None:
+        body = b"\x80\x81\x82\x83"
+        text, guess = decode_with_guess(body)
+        assert isinstance(text, str)
+        assert isinstance(guess, EncodingGuess)
+
+    def test_decode_with_unknown_encoding_falls_back_to_latin1(self) -> None:
+        body = b"some bytes"
+        text, guess = decode_with_guess(
+            body,
+            content_type="text/html; charset=notreal-encoding-x123",
+        )
+        assert isinstance(text, str)
+        assert "latin-1" in guess.source
+
+
+# ─────────────────────────────────────────────────────────────────────
+# Freshness scheduler (PR-D)
+# ─────────────────────────────────────────────────────────────────────
+
+
+class FreshnessSchedulerTests(SimpleTestCase):
+    def test_bootstrap_when_no_observation(self) -> None:
+        decision = next_refresh_interval_seconds(None)
+        assert decision.reason == "bootstrap"
+        assert decision.interval_seconds == DEFAULT_BOOTSTRAP_INTERVAL_SECONDS
+
+    def test_zero_crawls_is_bootstrap(self) -> None:
+        decision = next_refresh_interval_seconds(
+            CrawlObservation(crawls=0, changes=0, average_interval_seconds=3600)
+        )
+        assert decision.reason == "bootstrap"
+
+    def test_invalid_observation_rejected(self) -> None:
+        with self.assertRaises(ValueError):
+            CrawlObservation(crawls=5, changes=10, average_interval_seconds=60)
+        with self.assertRaises(ValueError):
+            CrawlObservation(crawls=-1, changes=0, average_interval_seconds=60)
+        with self.assertRaises(ValueError):
+            CrawlObservation(crawls=1, changes=0, average_interval_seconds=0)
+
+    def test_laplace_smoothing_keeps_zero_change_finite(self) -> None:
+        obs = CrawlObservation(crawls=10, changes=0, average_interval_seconds=3600)
+        lam, p = estimate_change_rate_per_second(obs)
+        assert p > 0.0
+        assert lam > 0.0
+
+    def test_high_change_rate_shortens_interval(self) -> None:
+        # Loosen the floor so monotonicity is observable (the default
+        # 6 h min clamps both short intervals to the same value).
+        volatile = CrawlObservation(
+            crawls=10, changes=9, average_interval_seconds=3600
+        )
+        static = CrawlObservation(
+            crawls=10, changes=1, average_interval_seconds=3600
+        )
+        kw = {"min_interval_seconds": 1, "max_interval_seconds": 90 * 24 * 3600}
+        volatile_interval = next_refresh_interval_seconds(volatile, **kw).interval_seconds
+        static_interval = next_refresh_interval_seconds(static, **kw).interval_seconds
+        assert volatile_interval < static_interval
+
+    def test_higher_importance_shortens_interval(self) -> None:
+        obs = CrawlObservation(crawls=10, changes=3, average_interval_seconds=3600)
+        kw = {"min_interval_seconds": 1, "max_interval_seconds": 365 * 24 * 3600}
+        low = next_refresh_interval_seconds(obs, importance=0.25, **kw).interval_seconds
+        high = next_refresh_interval_seconds(obs, importance=4.0, **kw).interval_seconds
+        assert high < low
+
+    def test_interval_is_clamped_below_min(self) -> None:
+        volatile = CrawlObservation(
+            crawls=1000, changes=999, average_interval_seconds=60
+        )
+        decision = next_refresh_interval_seconds(volatile)
+        assert decision.interval_seconds == DEFAULT_MIN_INTERVAL_SECONDS
+        assert decision.reason == "clamped_min"
+
+    def test_interval_is_clamped_above_max(self) -> None:
+        # Very low change rate + very low importance → raw interval
+        # pushes past the 30-day ceiling. Crystal page that has been
+        # checked 100 times over 7 days each with zero changes, and
+        # operator has deprioritised it (importance << 1).
+        crystal = CrawlObservation(
+            crawls=100,
+            changes=0,
+            average_interval_seconds=7 * 24 * 3600,
+        )
+        decision = next_refresh_interval_seconds(crystal, importance=1e-6)
+        assert decision.interval_seconds == DEFAULT_MAX_INTERVAL_SECONDS
+        assert decision.reason == "clamped_max"
+
+    def test_square_root_law_holds_roughly(self) -> None:
+        # raw interval is what we test — clamps in the decision don't
+        # affect the underlying sqrt relationship. ratio of raw values
+        # should be ~sqrt(2) when change count doubles at fixed cadence.
+        slow = CrawlObservation(crawls=100, changes=10, average_interval_seconds=3600)
+        fast = CrawlObservation(crawls=100, changes=20, average_interval_seconds=3600)
+        slow_dec = next_refresh_interval_seconds(slow, importance=100.0)
+        fast_dec = next_refresh_interval_seconds(fast, importance=100.0)
+        ratio = slow_dec.raw_interval_seconds / fast_dec.raw_interval_seconds
+        # sqrt(2) ≈ 1.41; allow 25% slack for Laplace smoothing distortion.
+        assert 1.15 <= ratio <= 1.7
+
+    def test_bad_importance_raises(self) -> None:
+        obs = CrawlObservation(crawls=5, changes=1, average_interval_seconds=3600)
+        with self.assertRaises(ValueError):
+            next_refresh_interval_seconds(obs, importance=0)
+        with self.assertRaises(ValueError):
+            next_refresh_interval_seconds(obs, importance=-1)
