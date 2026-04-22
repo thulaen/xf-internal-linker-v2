@@ -74,6 +74,12 @@ faiss-gpu-cu12>=1.8.0               # FR-030: GPU vector search (Linux/CUDA 12 o
 psutil==6.1.1                        # CPU / RAM sampling for /api/system/metrics/
 pynvml==11.5.3                       # NVIDIA GPU sampling (VRAM, temp, utilization)
 
+# ── Explainability ────────────────────────────────────────────────
+# Kernel SHAP ("Why did the ranker give this suggestion score X?")
+# On-demand only — fires when an operator clicks Explain on a single
+# suggestion. Pulls numba + llvmlite; ~60 MB added to image.
+shap==0.46.0
+
 # ── Auth / Passkeys (WebAuthn) ─────────────────────────────────────
 # Backs /api/auth/passkey/{register,login}/{begin,finish}/. The library
 # handles attestation, challenge verification, COSE public-key parsing,
