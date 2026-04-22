@@ -34,12 +34,18 @@ from celery import shared_task
 from django.conf import settings
 from django.utils import timezone
 
+from .alerts import (
+    detect_missed_jobs,
+    raise_alert,
+    resolve_open_alerts_for_job,
+)
 from .lock import (
     acquire_runner_lock,
     current_holder,
     release_runner_lock,
 )
 from .models import (
+    ALERT_TYPE_FAILED,
     JOB_STATE_COMPLETED,
     JOB_STATE_FAILED,
     JOB_STATE_PAUSED,
@@ -197,19 +203,28 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
     except Exception as exc:
         tb = traceback.format_exc()
         logger.exception("scheduled_updates: job %s failed", job.key)
+        failure_ts = timezone.now()
         prior = ScheduledJob.objects.filter(pk=job.pk).values(
             "log_tail"
         ).first() or {"log_tail": ""}
         new_tail = (
             (prior["log_tail"] or "")
-            + f"\n[FAIL {timezone.now().isoformat()}] {exc.__class__.__name__}: {exc}\n"
+            + f"\n[FAIL {failure_ts.isoformat()}] {exc.__class__.__name__}: {exc}\n"
             + tb
         )
         ScheduledJob.objects.filter(pk=job.pk).update(
             state=JOB_STATE_FAILED,
-            finished_at=timezone.now(),
+            finished_at=failure_ts,
             current_message=f"Failed: {exc.__class__.__name__}: {str(exc)[:160]}",
             log_tail=new_tail[-ScheduledJob.LOG_TAIL_MAX_CHARS :],
+        )
+        # Surface the failure once per (job, day) via the deduped alert
+        # channel; the frontend badge picks it up on its next poll.
+        raise_alert(
+            job_key=job.key,
+            alert_type=ALERT_TYPE_FAILED,
+            calendar_date=timezone.localtime(failure_ts).date(),
+            message=f"{job.display_name or job.key}: {exc.__class__.__name__}: {str(exc)[:240]}",
         )
         return JOB_STATE_FAILED
 
@@ -223,6 +238,9 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
         current_message="Completed.",
         pause_token=False,  # clear any stale pause flag
     )
+    # Auto-resolve any active alerts the job had accumulated — a clean
+    # run after a rough patch silently clears the badge.
+    resolve_open_alerts_for_job(job.key, now=finish)
     return JOB_STATE_COMPLETED
 
 
@@ -238,6 +256,19 @@ def run_next_scheduled_job() -> dict:
     The returned dict is Celery-result-friendly (JSON-serialisable) so
     operators can follow the runner's decisions via task results.
     """
+    # Catch-up sweep — deliberately runs BEFORE the window guard so a
+    # job that missed yesterday's window still surfaces as an alert the
+    # moment the laptop wakes up, even at 10 am local.
+    try:
+        missed = detect_missed_jobs()
+        if missed:
+            logger.info(
+                "scheduled_updates: detect_missed_jobs flagged %s job(s)",
+                len(missed),
+            )
+    except Exception:
+        logger.exception("scheduled_updates: detect_missed_jobs crashed — continuing")
+
     if not is_within_window():
         return {"status": "skipped", "reason": "outside_window"}
 
