@@ -253,6 +253,59 @@ class PasskeyLoginBeginView(APIView):
         return Response(_options_to_dict(options))
 
 
+def _lookup_credential(body: dict):
+    """Return (cred, err_response). cred is None iff err_response is set."""
+    raw_id = body.get("rawId") or body.get("id")
+    if not raw_id:
+        return None, Response(
+            {"detail": "Missing credential id."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        credential_id = _b64u_decode(raw_id)
+    except Exception:
+        return None, Response(
+            {"detail": "Bad credential id encoding."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    try:
+        cred = PasskeyCredential.objects.select_related("user").get(
+            credential_id=credential_id,
+        )
+    except PasskeyCredential.DoesNotExist:
+        return None, Response(
+            {"detail": "Unknown credential."},
+            status=status.HTTP_400_BAD_REQUEST,
+        )
+    return cred, None
+
+
+def _lookup_login_challenge(cred):
+    """Prefer a challenge scoped to this user; fall back to anonymous."""
+    return (
+        PasskeyChallenge.objects.filter(
+            operation_type="login",
+            expires_at__gte=timezone.now(),
+        )
+        .filter(user__in=[cred.user, None])
+        .order_by("-created_at")
+        .first()
+    )
+
+
+def _issue_token_payload(cred) -> dict:
+    token, _ = Token.objects.get_or_create(user=cred.user)
+    return {
+        "ok": True,
+        "token": token.key,
+        "user": {
+            "id": cred.user.id,
+            "username": cred.user.username,
+            "email": cred.user.email,
+        },
+    }
+
+
 class PasskeyLoginFinishView(APIView):
     """Step 2 of login. Verifies assertion, issues DRF token."""
 
@@ -264,42 +317,11 @@ class PasskeyLoginFinishView(APIView):
             return guard
 
         body = request.data or {}
-        raw_id = body.get("rawId") or body.get("id")
-        if not raw_id:
-            return Response(
-                {"detail": "Missing credential id."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        try:
-            credential_id = _b64u_decode(raw_id)
-        except Exception:
-            return Response(
-                {"detail": "Bad credential id encoding."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+        cred, err = _lookup_credential(body)
+        if err is not None:
+            return err
 
-        try:
-            cred = PasskeyCredential.objects.select_related("user").get(
-                credential_id=credential_id,
-            )
-        except PasskeyCredential.DoesNotExist:
-            return Response(
-                {"detail": "Unknown credential."},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-
-        # Find the matching challenge — prefer one scoped to this user,
-        # fall back to any recent anonymous login challenge.
-        now = timezone.now()
-        challenge_row = (
-            PasskeyChallenge.objects.filter(
-                operation_type="login",
-                expires_at__gte=now,
-            )
-            .filter(user__in=[cred.user, None])
-            .order_by("-created_at")
-            .first()
-        )
+        challenge_row = _lookup_login_challenge(cred)
         if challenge_row is None:
             return Response(
                 {"detail": "No active login challenge — restart the flow."},
@@ -326,22 +348,11 @@ class PasskeyLoginFinishView(APIView):
             )
 
         cred.sign_count = int(verification.new_sign_count or 0)
-        cred.last_used_at = now
+        cred.last_used_at = timezone.now()
         cred.save(update_fields=["sign_count", "last_used_at", "updated_at"])
         challenge_row.delete()
 
-        token, _ = Token.objects.get_or_create(user=cred.user)
-        return Response(
-            {
-                "ok": True,
-                "token": token.key,
-                "user": {
-                    "id": cred.user.id,
-                    "username": cred.user.username,
-                    "email": cred.user.email,
-                },
-            }
-        )
+        return Response(_issue_token_payload(cred))
 
 
 # `secrets.token_bytes` is imported only so the module declares its own
