@@ -70,6 +70,8 @@ LOCAL_APPS = [
     "apps.realtime",
     # Phase OF — Operations Feed.
     "apps.ops_feed",
+    # PR-B — Scheduled Updates orchestrator (1pm-11pm serial runner).
+    "apps.scheduled_updates",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
