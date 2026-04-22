@@ -108,8 +108,12 @@ acf_lag_k
 pacf_lag_k
 ewma_smoothed
 
-# Block F (FR-144..151) — streaming sketches (duplicates or overlaps)
-hyperloglog
+# Block F (FR-144..151) — streaming sketches (duplicates or overlaps).
+# NOTE: `hyperloglog` is NOT banned — it's the name of the Source-layer
+# implementation we actually shipped (apps.sources.hyperloglog, PR-C).
+# Only the FR-144/145 pending-backlog variants were deleted. `hyperloglog_pp`
+# (HLL++) remains banned because we did not ship the extended-precision
+# variant.
 hyperloglog_pp
 countmin_anchor
 count_sketch

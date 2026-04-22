@@ -72,6 +72,8 @@ LOCAL_APPS = [
     "apps.ops_feed",
     # PR-B — Scheduled Updates orchestrator (1pm-11pm serial runner).
     "apps.scheduled_updates",
+    # PR-C — Source-layer helpers (token bucket, backoff, bloom, HLL, etc).
+    "apps.sources",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
