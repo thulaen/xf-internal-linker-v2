@@ -162,7 +162,10 @@ scq
 # (Church & Hanks 1990) as a legitimate helper. The original pending signal
 # that lived under "pmi" was never implemented; only the Church-Hanks
 # collocation scorer uses this identifier now.
-npmi
+# NOTE: `npmi` un-banned 2026-04-22 — PR-E also ships
+# apps.sources.collocations.normalised_pmi (Bouma 2009). The identifier
+# appears in spec pick-24-pmi-collocations.md citing the Bouma NPMI paper URL.
+# Previously-pending signal with the same name was never implemented.
 llr
 kl_div
 js_div
