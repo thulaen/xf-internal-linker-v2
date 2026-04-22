@@ -455,4 +455,9 @@ urlpatterns = [
     path("benchmarks/", include("apps.benchmarks.urls")),
     # Phase OF — /api/operations/events/ hydrates the feed on reload.
     path("operations/", include("apps.ops_feed.urls")),
+    # PR-B — Scheduled Updates REST surface (jobs / alerts / window status).
+    path(
+        "scheduled-updates/",
+        include("apps.scheduled_updates.urls", namespace="scheduled_updates"),
+    ),
 ]
