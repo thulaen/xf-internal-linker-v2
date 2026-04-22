@@ -1,0 +1,47 @@
+# Banned tokens — any text that must NOT reappear anywhere in the repo
+# except in paths listed as exclusions in check_phantom_references.py.
+#
+# Format: one token per line. Blank lines and lines starting with # are ignored.
+# Tokens are matched as plain substrings (case-sensitive).
+#
+# When a slice deletes a feature, append every surviving identifier that
+# should never be re-introduced. A future AI session scanning the repo will
+# get a loud CI failure if it tries to resurrect a deleted prefix.
+
+# ── PR-A slice 1 — FR-225 Meta Tournament ──────────────────────────────
+MetaTournamentResult
+HoldoutQuery
+MetaTournamentView
+MetaTournamentRunView
+MetaTournamentPinView
+MetaTournamentComponent
+meta_rotation_scheduler
+meta_slot_registry
+meta_rotation_tournament
+meta-rotation-tournament
+meta-tournament
+META_SLOT_REGISTRY
+MetaSlotConfig
+run_meta_tournament
+_evaluate_meta_on_holdout
+_should_promote
+FR-225
+fr225-meta-rotation-scheduler
+
+# ── PR-A slice 2 — 3 unwired C++ kernels + 5 stale specs ───────────────
+strpool
+inv_index
+pulse_metrics
+strpool_core
+inv_index_core
+pulse_metrics_core
+fr091-cpp-extension-retrofit
+opt-73-abseil-hashmap-inv-index
+opt-75-abseil-hashmap-strpool
+opt-78-abseil-mutex
+opt-89-pipeline-accel
+FR-091
+OPT-73
+OPT-75
+OPT-78
+OPT-89
