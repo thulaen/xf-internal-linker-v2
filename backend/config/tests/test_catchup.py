@@ -44,9 +44,9 @@ class CatchupRegistryTests(TestCase):
     def test_heavy_tasks_use_pipeline_queue(self):
         for name, entry in CATCHUP_REGISTRY.items():
             if entry.weight_class == "heavy":
-                assert entry.queue == "pipeline", (
-                    f"Heavy task {name} not on pipeline queue"
-                )
+                assert (
+                    entry.queue == "pipeline"
+                ), f"Heavy task {name} not on pipeline queue"
 
 
 class OverdueDetectionTests(TestCase):
