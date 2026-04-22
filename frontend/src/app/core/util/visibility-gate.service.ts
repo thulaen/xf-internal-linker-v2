@@ -26,7 +26,7 @@ import { AuthService } from '../services/auth.service';
  *   ngOnInit() {
  *     this.gate
  *       .whileLoggedInAndVisible(() => timer(0, 30_000).pipe(
- *         switchMap(() => this.http.get('/api/foo'))
+ *         switchMap(() => fetchFoo().pipe(catchError(() => of(null))))
  *       ))
  *       .pipe(takeUntilDestroyed(this.destroyRef))
  *       .subscribe(...);
