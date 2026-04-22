@@ -379,6 +379,122 @@ def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
     checkpoint(progress_pct=100.0, message="Weight tune complete")
 
 
+@scheduled_job(
+    "meta_hyperparameter_hpo",
+    display_name="Meta-hyperparameter auto-tune (TPE, Option B)",
+    cadence_seconds=WEEK,
+    estimate_seconds=90 * 60,
+    priority=JOB_PRIORITY_HIGH,
+)
+def run_meta_hyperparameter_hpo(job, checkpoint) -> None:
+    """Fully-automatic weekly TPE study over all 12 TPE-tuned picks.
+
+    Reads the daily reservoir eval set, runs 200 Optuna trials
+    against it, applies safety rails (NDCG improvement gate,
+    per-param change clamp, rollback-snapshot persistence), and
+    writes winning params back to ``AppSetting``. Rail 3 (rollback
+    watchdog) runs as its own daily job below.
+
+    Logically depends on ``weight_tuner_lbfgs_tpe`` — the weekly
+    ranker-weight fit should land first so the meta-HPO is tuning
+    against the current calibrated ranker.
+    """
+    from apps.pipeline.services.meta_hpo import run_study_and_maybe_apply
+
+    outcome = run_study_and_maybe_apply(checkpoint=checkpoint)
+    msg = (
+        f"applied {len(outcome.applied_params)} params, Δ={outcome.gate.delta:+.4f}"
+        if outcome.applied and outcome.gate
+        else (
+            f"no apply (baseline NDCG={outcome.baseline_ndcg:.4f}, "
+            f"best={outcome.best_ndcg:.4f})"
+        )
+    )
+    logger.info("meta_hyperparameter_hpo: %s", msg)
+
+
+@scheduled_job(
+    "meta_hpo_rollback_watchdog",
+    display_name="Meta-HPO rollback watchdog (CTR regression check)",
+    cadence_seconds=DAY,
+    estimate_seconds=2 * 60,
+    priority=JOB_PRIORITY_HIGH,
+)
+def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
+    """Daily check — did CTR drop materially since the last auto-apply?
+
+    Rail 3 of the fully-automatic safety stack. Restores the
+    previous snapshot when the drop exceeds 5% over a 24-h post-apply
+    window.
+    """
+    from datetime import datetime, timedelta
+
+    from apps.core.models import AppSetting
+    from apps.pipeline.services.meta_hpo_safety import (
+        ROLLBACK_OBSERVATION_HOURS,
+        restore_previous_snapshot,
+        should_rollback,
+    )
+
+    checkpoint(progress_pct=0.0, message="Reading last applied timestamp")
+    applied_at_raw = (
+        AppSetting.objects.filter(key="meta_hpo.applied_at")
+        .values_list("value", flat=True)
+        .first()
+    )
+    if not applied_at_raw:
+        checkpoint(progress_pct=100.0, message="No prior apply — nothing to watch")
+        return
+
+    try:
+        applied_at = datetime.fromisoformat(applied_at_raw)
+    except ValueError:
+        logger.warning(
+            "meta_hpo_rollback_watchdog: bad applied_at: %s", applied_at_raw
+        )
+        checkpoint(progress_pct=100.0, message="Malformed applied_at — skip")
+        return
+
+    if timezone.now() - applied_at < timedelta(hours=ROLLBACK_OBSERVATION_HOURS):
+        checkpoint(
+            progress_pct=100.0,
+            message="Post-apply window not yet elapsed — nothing to decide",
+        )
+        return
+
+    # W1 ships the decision path with placeholder CTR values so the
+    # rail is installed and tested. W3 wires GSC / click-log
+    # ingestion to fill these in with real data.
+    checkpoint(
+        progress_pct=40.0,
+        message="Computing 24-h CTR vs 7-day baseline (placeholder until W3)",
+    )
+    baseline_ctr = 0.20
+    observed_ctr = 0.20
+    decision = should_rollback(baseline_ctr=baseline_ctr, observed_ctr=observed_ctr)
+
+    if decision.rollback:
+        checkpoint(
+            progress_pct=70.0,
+            message=f"ROLLBACK triggered: {decision.reason}",
+        )
+        restored = restore_previous_snapshot()
+        logger.warning(
+            "meta_hpo_rollback_watchdog: rolled back (%s); %d params restored",
+            decision.reason,
+            len(restored),
+        )
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Rolled back — {len(restored)} params restored",
+        )
+    else:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"No regression ({decision.reason})",
+        )
+
+
 # ────────────────────────────────────────────────────────────────────
 # MEDIUM — weekly retrains
 # ────────────────────────────────────────────────────────────────────

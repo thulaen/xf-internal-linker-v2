@@ -80,6 +80,13 @@ pynvml==11.5.3                       # NVIDIA GPU sampling (VRAM, temp, utilizat
 # suggestion. Pulls numba + llvmlite; ~60 MB added to image.
 shap==0.46.0
 
+# ── Hyperparameter Optimisation ───────────────────────────────────
+# Optuna powers the weekly fully-automatic meta-HPO study (pick #42,
+# Option B). TPE sampler + MedianPruner across all 12 TPE-tuned
+# ranking/feedback knobs. Study state persists to SQLite at
+# `var/optuna/meta_hpo.db` so weeks of history survive laptop restarts.
+optuna==4.1.0
+
 # ── Auth / Passkeys (WebAuthn) ─────────────────────────────────────
 # Backs /api/auth/passkey/{register,login}/{begin,finish}/. The library
 # handles attestation, challenge verification, COSE public-key parsing,
