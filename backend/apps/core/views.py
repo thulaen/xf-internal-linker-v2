@@ -3791,15 +3791,15 @@ class MaintenanceModeSettingsView(APIView):
 
     Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
 
-        {"enabled": bool, "message": str, "started_at": ISO-8601 | null}
+        {"enabled": bool, "message": str, "started_at": ISO timestamp or null}
 
     When ``enabled`` is true the frontend shell shows a persistent amber
     banner and the active ``message``. ``started_at`` is stamped when the
     toggle flips from false -> true and cleared when it flips back.
 
-    Kept deliberately minimal — no 503 middleware yet. The frontend half
-    is what ships today; a future slice can add backend write-blocking
-    off the same flag.
+    Kept deliberately minimal — no write-blocking middleware yet. The
+    frontend half is what ships today; a future slice can add backend
+    enforcement off the same flag.
     """
 
     permission_classes = [IsAuthenticated]

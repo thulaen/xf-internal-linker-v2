@@ -72,6 +72,8 @@ logger = logging.getLogger(__name__)
 User = get_user_model()
 
 CHALLENGE_TTL_SECONDS = 300
+# Matches the `CharField(max_length=...)` on `PasskeyCredential.label`.
+CREDENTIAL_LABEL_MAX_LEN = 100
 
 
 def _b64u_decode(s: str) -> bytes:
@@ -197,7 +199,7 @@ class PasskeyRegisterFinishView(APIView):
             public_key=bytes(verification.credential_public_key),
             sign_count=int(verification.sign_count or 0),
             transports=",".join(body.get("response", {}).get("transports", []) or []),
-            label=(body.get("label") or "")[:100],
+            label=(body.get("label") or "")[:CREDENTIAL_LABEL_MAX_LEN],
         )
         challenge_row.delete()
         return Response({"ok": True})
@@ -211,8 +213,9 @@ class PasskeyLoginBeginView(APIView):
     specific username, POST {"username": "..."} and we'll pre-populate.
 
     Also answers HEAD — the frontend uses a HEAD probe as a "is passkey
-    configured on this backend?" capability check. A 200/401 means yes;
-    a 404 means the route isn't wired.
+    configured on this backend?" capability check. Any success or
+    auth-required response means yes; a not-found response means the
+    route isn't wired.
     """
 
     permission_classes = [AllowAny]

@@ -12,6 +12,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Cap the stored route so a pathological URL cannot blow up the row.
+# Matches the `CharField(max_length=...)` on `UserActivity.last_route`.
+LAST_ROUTE_MAX_LEN = 200
+
 
 class UserActivityMiddleware:
     """Stamps ``UserActivity.last_seen_at`` on every authenticated request.
@@ -50,7 +54,7 @@ class UserActivityMiddleware:
                 user=user,
                 defaults={
                     "last_seen_at": timezone.now(),
-                    "last_route": (request.path or "")[:200],
+                    "last_route": (request.path or "")[:LAST_ROUTE_MAX_LEN],
                 },
             )
         except DatabaseError:

@@ -223,7 +223,7 @@ def recompute_all_search_impact() -> dict[str, int]:
 def detect_traffic_spikes() -> dict[str, int]:
     """
     FR-023 Part 3: Momentum-based spike detection.
-    Alerts the dashboard if a page's daily traffic is >300% above its 7-day trailing average.
+    Alerts the dashboard when a page's daily traffic exceeds 3x its 7-day trailing average.
     """
     from django.db.models import Avg, Sum
     from apps.notifications.services import emit_operator_alert
