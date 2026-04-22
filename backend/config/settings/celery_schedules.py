@@ -8,16 +8,6 @@ Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
-    # ── FR-225 — Meta Rotation Tournament: 15:00 UTC daily ──
-    # Moved from 03:00 UTC to 15:00 UTC (= 16:00 BST / 15:00 GMT, inside the
-    # operator's 14:00-17:00 local afternoon window) so the tournament runs
-    # when the laptop is on. Sequential evaluation, no concurrent shadow
-    # runs. Peak RAM <= 512 MB.
-    "meta-rotation-tournament": {
-        "task": "suggestions.meta_rotation_tournament",
-        "schedule": crontab(hour=15, minute=0),
-        "options": {"queue": "pipeline"},
-    },
     # ── Heavy tasks: 13:00–13:30 UTC daytime window ─────────────────
     # Moved from the 21:00-22:00 UTC evening window to 13:00-13:30 UTC so
     # tasks actually run on a laptop that's off overnight. Trade-off: heavy

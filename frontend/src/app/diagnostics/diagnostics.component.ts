@@ -20,7 +20,6 @@ import { DiagnosticsService, ErrorLogEntry, FeatureReadiness, NodeSummary, Pipel
 import { dispatchRealtimeUpdate, removeConflictFrom, removeServiceFrom, upsertConflictInto, upsertServiceInto } from './diagnostics.realtime';
 import { buildRuntimeExecutionCards, buildRuntimeLaneCards, RuntimeExecutionCard, RuntimeLaneCard } from './diagnostics.runtime-cards';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
-import { MetaTournamentComponent } from './meta-tournament/meta-tournament.component';
 import { ReadinessMatrixComponent } from './readiness-matrix/readiness-matrix.component';
 import { ServiceCardComponent } from './service-card/service-card.component';
 import { SuppressedPairsCardComponent } from './suppressed-pairs-card/suppressed-pairs-card.component';
@@ -39,7 +38,7 @@ const ERROR_TAB_FRAGMENT_TO_INDEX: Record<string, number> = {
   imports: [
     CommonModule, MatTooltipModule, MatButtonModule, MatIconModule, MatTabsModule,
     PersistTabDirective, ServiceCardComponent, ConflictListComponent,
-    ReadinessMatrixComponent, MetaTournamentComponent, SuppressedPairsCardComponent,
+    ReadinessMatrixComponent, SuppressedPairsCardComponent,
   ],
   templateUrl: './diagnostics.component.html',
   styleUrls: ['./diagnostics.component.scss'],

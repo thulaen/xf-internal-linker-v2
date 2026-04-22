@@ -59,20 +59,6 @@ urlpatterns = [
         views.MissionCriticalView.as_view(),
         name="mission-critical",
     ),
-    # FR-225 — Meta Tournament
-    path(
-        "meta-tournament/", views.MetaTournamentView.as_view(), name="meta-tournament"
-    ),
-    path(
-        "meta-tournament/run/",
-        views.MetaTournamentRunView.as_view(),
-        name="meta-tournament-run",
-    ),
-    path(
-        "meta-tournament/pin/",
-        views.MetaTournamentPinView.as_view(),
-        name="meta-tournament-pin",
-    ),
     path(
         "internal/scheduler/dispatch/",
         views.SchedulerDispatchView.as_view(),
