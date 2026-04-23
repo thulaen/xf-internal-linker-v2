@@ -107,17 +107,18 @@ from rest_framework.throttling import AnonRateThrottle
 class _LoginRateThrottle(AnonRateThrottle):
     """Per-IP throttle on the login endpoint.
 
-    Ten attempts per rolling ten-second window. After the cap, the
-    Too-Many-Requests response asks the client to retry in at most
-    ten seconds. DRF's default rate parser only understands whole
-    units (s/m/h/d), so we override parse_rate to express a
-    ten-second window directly.
+    Ten attempts per rolling sixty-second window. This covers both the
+    login page and the session re-auth dialog, which share the same
+    endpoint. A 60-second window prevents the two flows from competing
+    for the same short budget. DRF's default rate parser only understands
+    whole units (s/m/h/d), so we override parse_rate to express the
+    window directly.
     """
 
-    rate = "10/10s"
+    rate = "10/60s"
 
     def parse_rate(self, rate):
-        return (10, 10)
+        return (10, 60)
 
     def allow_request(self, request, view):
         # Skip in DEBUG so a few mistyped passwords can't lock the local
