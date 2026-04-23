@@ -25,6 +25,7 @@ import threading
 
 import numpy as np
 
+from apps.core.performance_mode import PERFORMANCE_MODE_HIGH, get_requested_performance_mode
 from apps.pipeline.services.embeddings import (
     get_current_embedding_dimension,
     get_current_embedding_filter,
@@ -81,11 +82,10 @@ def build_faiss_index() -> None:
         logger.warning("faiss not installed — FAISS-GPU path disabled")
         return
 
-    from django.conf import settings
     from apps.content.models import ContentItem
     from apps.pipeline.services.pipeline import _coerce_embedding_vector
 
-    performance_mode = getattr(settings, "ML_PERFORMANCE_MODE", "STANDARD")
+    performance_mode = get_requested_performance_mode()
 
     qs = ContentItem.objects.filter(
         embedding__isnull=False,
@@ -113,7 +113,7 @@ def build_faiss_index() -> None:
     index_cpu = faiss.IndexFlatIP(dim)
     index_cpu.add(matrix)
 
-    if faiss.get_num_gpus() > 0 and performance_mode == "HIGH_PERFORMANCE":
+    if faiss.get_num_gpus() > 0 and performance_mode == PERFORMANCE_MODE_HIGH:
         res = faiss.StandardGpuResources()
         # Cap FAISS GPU temp memory to 512 MB to leave headroom for
         # embedding model + Chrome.  See docs/PERFORMANCE.md §6.

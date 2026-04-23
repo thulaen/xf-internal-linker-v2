@@ -583,9 +583,13 @@ def check_helper_nodes_health() -> ServiceHealthResult:
 def check_gpu_faiss_health() -> ServiceHealthResult:
     try:
         import torch
+        from apps.core.performance_mode import get_requested_performance_mode
+        from apps.pipeline.services.embeddings import get_effective_runtime_resolution
         from apps.pipeline.services.faiss_index import get_faiss_status
 
         cuda_available = torch.cuda.is_available()
+        requested_mode = get_requested_performance_mode()
+        runtime_resolution = get_effective_runtime_resolution()
         faiss_status = get_faiss_status()
         faiss_active = faiss_status.get("active", False)
         faiss_device = faiss_status.get("device", "none")
@@ -597,6 +601,9 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
             "faiss_active": faiss_active,
             "faiss_device": faiss_device,
             "faiss_vectors": faiss_vectors,
+            "performance_mode": requested_mode,
+            "effective_runtime_mode": runtime_resolution.get("effective_runtime_mode"),
+            "effective_runtime_reason": runtime_resolution.get("reason", ""),
         }
 
         if cuda_available:
@@ -623,12 +630,34 @@ def check_gpu_faiss_health() -> ServiceHealthResult:
 
         on_gpu = "GPU" in faiss_device
         if not on_gpu:
+            fallback_reason = runtime_resolution.get("reason") or "GPU path not active"
+            if (
+                requested_mode == "high"
+                and runtime_resolution.get("effective_runtime_mode") == "cpu"
+            ):
+                issue_description = (
+                    "FAISS index is loaded but still running on CPU. High mode is "
+                    f"requested, but the live embedding runtime is still on CPU because {fallback_reason}."
+                )
+                suggested_fix = (
+                    "Open Settings > Performance and keep High Performance selected. "
+                    f"Then check the backend runtime for the CPU fallback reason: {fallback_reason}."
+                )
+            else:
+                issue_description = (
+                    "FAISS index is loaded but running on CPU, not GPU. Stage 1 "
+                    "search is faster than NumPy but not at full GPU speed."
+                )
+                suggested_fix = (
+                    "Open Settings > Performance and switch to High Performance if "
+                    "you want GPU acceleration for embeddings and FAISS."
+                )
             return ServiceHealthResult(
                 service_key="gpu_faiss",
                 status=ServiceHealthRecord.STATUS_WARNING,
                 status_label=f"FAISS on CPU ({faiss_vectors:,} vectors).",
-                issue_description="FAISS index is loaded but running on CPU, not GPU. Stage 1 search is faster than NumPy but not at full GPU speed.",
-                suggested_fix="Ensure ML_PERFORMANCE_MODE=HIGH_PERFORMANCE in your .env and that CUDA drivers are available inside the container.",
+                issue_description=issue_description,
+                suggested_fix=suggested_fix,
                 last_success_at=timezone.now(),
                 metadata=meta,
             )

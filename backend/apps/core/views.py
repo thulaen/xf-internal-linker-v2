@@ -2994,20 +2994,17 @@ class DashboardView(APIView):
         except Exception:
             logger.debug("GSCSyncRun model not available, skipping analytics freshness")
 
-        # Runtime mode from AppSetting
+        # Runtime mode shown on the dashboard reflects the live effective device,
+        # not the drain-and-resume runtime switch target row.
         runtime_mode = "CPU"
         try:
-            from apps.core.models import AppSetting
+            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
 
-            mode_setting = (
-                AppSetting.objects.filter(key="system.runtime_mode")
-                .values_list("value", flat=True)
-                .first()
+            runtime_mode = (
+                get_effective_runtime_resolution()["effective_runtime_mode"].upper()
             )
-            if mode_setting:
-                runtime_mode = mode_setting
         except Exception:
-            logger.debug("AppSetting table not available, using default runtime_mode")
+            logger.debug("Embedding runtime unavailable, using default runtime_mode")
 
         return Response(
             {
@@ -3577,11 +3574,13 @@ class RuntimeSettingsView(APIView):
 
     def get(self, request):
         from apps.core.models import AppSetting
+        from apps.core.performance_mode import get_requested_performance_mode
 
         mode = "cpu"
-        perf_mode = "balanced"
+        perf_mode = get_requested_performance_mode()
         expiry = "none"
         expires_at = ""
+        effective_runtime_mode = "cpu"
         try:
             mode_val = (
                 AppSetting.objects.filter(key="system.runtime_mode")
@@ -3596,7 +3595,7 @@ class RuntimeSettingsView(APIView):
                 .first()
             )
             if perf_val:
-                perf_mode = perf_val
+                perf_mode = get_requested_performance_mode()
             expiry_val = (
                 AppSetting.objects.filter(key="system.performance_mode_expiry")
                 .values_list("value", flat=True)
@@ -3617,6 +3616,11 @@ class RuntimeSettingsView(APIView):
                 .first()
             )
             master_pause = (master_pause_val or "false").lower() == "true"
+            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
+
+            effective_runtime_mode = get_effective_runtime_resolution()[
+                "effective_runtime_mode"
+            ]
         except Exception:
             logger.debug(
                 "AppSetting table not available, using default runtime and performance modes"
@@ -3627,6 +3631,7 @@ class RuntimeSettingsView(APIView):
             {
                 "runtime_mode": mode,
                 "performance_mode": perf_mode,
+                "effective_runtime_mode": effective_runtime_mode,
                 "performance_mode_expiry": expiry,
                 "performance_mode_expires_at": expires_at,
                 "master_pause": master_pause,
@@ -3694,10 +3699,27 @@ class RuntimeSwitchView(APIView):
                 "category": "performance",
             },
         )
+        runtime_mode = (
+            AppSetting.objects.filter(key="system.runtime_mode")
+            .values_list("value", flat=True)
+            .first()
+            or "cpu"
+        )
+
+        try:
+            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
+
+            effective_runtime_mode = get_effective_runtime_resolution()[
+                "effective_runtime_mode"
+            ]
+        except Exception:
+            effective_runtime_mode = "cpu"
 
         return Response(
             {
+                "runtime_mode": runtime_mode,
                 "performance_mode": new_mode,
+                "effective_runtime_mode": effective_runtime_mode,
                 "performance_mode_expiry": new_expiry,
                 "performance_mode_expires_at": new_expires_at or "",
             }
@@ -4095,13 +4117,10 @@ class RuntimeConfigView(APIView):
         return max(1, logical_processors - 2)
 
     def _default_gpu_memory_budget_pct(self, django_conf):
-        mode = str(
-            self._read_text(
-                "system.performance_mode",
-                getattr(django_conf, "ML_PERFORMANCE_MODE", "BALANCED"),
-            )
-        ).strip()
-        if mode.lower() in {"high", "high_performance"}:
+        from apps.core.performance_mode import get_requested_performance_mode
+
+        mode = get_requested_performance_mode()
+        if mode == "high":
             fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_HIGH", 0.80)
         else:
             fraction = getattr(django_conf, "CUDA_MEMORY_FRACTION_SAFE", 0.25)

@@ -18,6 +18,7 @@ export type PerformanceExpiry = 'none' | 'activity' | 'night';
 export interface RuntimeSettingsResponse {
   runtime_mode: string;
   performance_mode: string;
+  effective_runtime_mode?: string;
   performance_mode_expiry?: PerformanceExpiry;
   performance_mode_expires_at?: string;
 }
@@ -70,6 +71,7 @@ export class PerformanceModeService {
           of<RuntimeSettingsResponse>({
             runtime_mode: 'cpu',
             performance_mode: this._mode(),
+            effective_runtime_mode: 'cpu',
             performance_mode_expiry: this._expiry(),
             performance_mode_expires_at: this._expiresAt(),
           }),

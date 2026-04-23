@@ -2,9 +2,12 @@ from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.utils import timezone
 from rest_framework.test import APIClient
+from unittest import mock
+from types import SimpleNamespace
 
 from apps.health.models import ServiceHealthRecord
 from apps.health.services import (
+    check_gpu_faiss_health,
     perform_health_check,
     HealthCheckRegistry,
     ServiceHealthResult,
@@ -77,3 +80,46 @@ class HealthApiRouteTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertIn("available", response.data)
+
+
+class GpuFaissHealthTests(TestCase):
+    @mock.patch("apps.pipeline.services.faiss_index.get_faiss_status")
+    @mock.patch("apps.pipeline.services.embeddings.get_effective_runtime_resolution")
+    @mock.patch("apps.core.performance_mode.get_requested_performance_mode")
+    def test_high_mode_cpu_fallback_message_uses_db_backed_reason(
+        self,
+        requested_mode,
+        runtime_resolution,
+        faiss_status,
+    ):
+        requested_mode.return_value = "high"
+        runtime_resolution.return_value = {
+            "performance_mode": "high",
+            "effective_runtime_mode": "cpu",
+            "device": "cpu",
+            "reason": "CUDA warmup failed",
+        }
+        faiss_status.return_value = {
+            "active": True,
+            "vectors": 7,
+            "device": "CPU",
+            "vram_mb": 0,
+        }
+        fake_torch = SimpleNamespace(
+            cuda=SimpleNamespace(
+                is_available=lambda: True,
+                get_device_properties=lambda *_args, **_kwargs: mock.Mock(
+                    total_memory=6 * 1024 * 1024 * 1024,
+                    name="RTX 3050",
+                ),
+                mem_get_info=lambda *_args, **_kwargs: (1024 * 1024 * 1024, 0),
+            )
+        )
+
+        with mock.patch.dict("sys.modules", {"torch": fake_torch}):
+            result = check_gpu_faiss_health()
+
+        self.assertEqual(result.status, ServiceHealthRecord.STATUS_WARNING)
+        self.assertIn("High mode is requested", result.issue_description)
+        self.assertIn("CUDA warmup failed", result.issue_description)
+        self.assertIn("Settings > Performance", result.suggested_fix)

@@ -5,9 +5,9 @@ Embeddings are stored directly in pgvector VectorField columns on
 ContentItem and Sentence models. The sentence-transformers model is
 loaded once and cached in process.
 
-Performance mode is controlled by ML_PERFORMANCE_MODE env var:
-  BALANCED (default) — CPU only, batch_size=32
-  HIGH_PERFORMANCE  — GPU if CUDA available, batch_size starts at 128
+Performance mode is controlled by the canonical performance-mode resolver:
+  balanced (default) — CPU only, batch_size=32
+  high               — GPU if CUDA available, batch_size starts at 128
                        and backs off automatically if memory pressure is hit
 """
 
@@ -21,6 +21,11 @@ from typing import Any
 
 import numpy as np
 from django.conf import settings
+
+from apps.core.performance_mode import (
+    PERFORMANCE_MODE_HIGH,
+    get_requested_performance_mode,
+)
 
 try:
     from extensions import l2norm
@@ -48,7 +53,7 @@ _PERCENT_TO_FRACTION = 100.0
 
 
 def _resolve_device() -> str:
-    """Return 'cuda' or 'cpu' based on ML_PERFORMANCE_MODE.
+    """Return 'cuda' or 'cpu' based on the canonical performance mode.
 
     When CUDA is selected, applies mode-dependent VRAM fraction limits
     as documented in docs/PERFORMANCE.md §6 (GPU Self-Limiting) AND runs a
@@ -57,26 +62,14 @@ def _resolve_device() -> str:
     etc.); warmup catches those silent failures so we fall back to CPU
     with a loud alert instead of crashing mid-pipeline.
 
-    If the user asked for HIGH_PERFORMANCE but GPU is unavailable, emit the
+    If the user asked for High Performance but GPU is unavailable, emit the
     named operator-alert rule from notifications/alert_rules.py so they know
     the system silently dropped to CPU (plan item 10, rule d).
     """
-    mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
-    if mode == "HIGH_PERFORMANCE":
-        try:
-            import torch
-
-            if torch.cuda.is_available():
-                if not _cuda_warmup_ok():
-                    _emit_gpu_fallback_alert("CUDA warmup failed")
-                    return "cpu"
-                _apply_vram_fraction()
-                return "cuda"
-            _emit_gpu_fallback_alert("CUDA not available")
-        except ImportError:
-            logger.debug("torch not installed, falling back to CPU")
-            _emit_gpu_fallback_alert("torch not installed")
-    return "cpu"
+    return _get_effective_runtime_resolution(
+        apply_vram_cap=True,
+        emit_alerts=True,
+    )["device"]
 
 
 def _cuda_warmup_ok() -> bool:
@@ -155,10 +148,66 @@ def _read_performance_bool(key: str, default: bool) -> bool:
 
 
 def _get_performance_mode() -> str:
-    mode = _read_performance_setting("system.performance_mode")
-    if mode:
-        return str(mode).strip().upper()
-    return os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
+    return get_requested_performance_mode()
+
+
+def _get_effective_runtime_resolution(
+    *,
+    apply_vram_cap: bool = False,
+    emit_alerts: bool = False,
+) -> dict[str, str]:
+    """Resolve the actual runtime that embeddings would use right now."""
+    mode = _get_performance_mode()
+    resolution = {
+        "performance_mode": mode,
+        "effective_runtime_mode": "cpu",
+        "device": "cpu",
+        "reason": "High mode not requested",
+    }
+
+    if mode != PERFORMANCE_MODE_HIGH:
+        return resolution
+
+    try:
+        import torch
+    except ImportError:
+        logger.debug("torch not installed, falling back to CPU")
+        if emit_alerts:
+            _emit_gpu_fallback_alert("torch not installed")
+        resolution["reason"] = "torch not installed"
+        return resolution
+
+    if not torch.cuda.is_available():
+        if emit_alerts:
+            _emit_gpu_fallback_alert("CUDA unavailable")
+        resolution["reason"] = "CUDA unavailable"
+        return resolution
+
+    if not _cuda_warmup_ok():
+        if emit_alerts:
+            _emit_gpu_fallback_alert("CUDA warmup failed")
+        resolution["reason"] = "CUDA warmup failed"
+        return resolution
+
+    if apply_vram_cap:
+        _apply_vram_fraction()
+
+    resolution.update(
+        {
+            "effective_runtime_mode": "gpu",
+            "device": "cuda",
+            "reason": "",
+        }
+    )
+    return resolution
+
+
+def get_effective_runtime_resolution() -> dict[str, str]:
+    """Public read-only view of the current embedding runtime choice."""
+    return _get_effective_runtime_resolution(
+        apply_vram_cap=False,
+        emit_alerts=False,
+    )
 
 
 def _get_cpu_thread_cap() -> int:
@@ -184,7 +233,7 @@ def _get_gpu_memory_budget_fraction() -> float:
     )
     if raw_budget_pct:
         return raw_budget_pct / _PERCENT_TO_FRACTION
-    if _get_performance_mode() in {"HIGH", "HIGH_PERFORMANCE"}:
+    if _get_performance_mode() == PERFORMANCE_MODE_HIGH:
         return getattr(settings, "CUDA_MEMORY_FRACTION_HIGH", 0.60)
     return getattr(settings, "CUDA_MEMORY_FRACTION_SAFE", 0.25)
 
@@ -385,14 +434,20 @@ def _emit_model_alert(
         )
 
 
+def _get_model_cache_key(model_name: str, device: str) -> str:
+    """Keep separate cached model instances for CPU and CUDA loads."""
+    return f"{model_name}::{device}"
+
+
 def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
     """Load and cache a sentence-transformers model."""
-    if model_name in _model_cache:
-        return _model_cache[model_name]
+    device = _resolve_device()
+    cache_key = _get_model_cache_key(model_name, device)
+    if cache_key in _model_cache:
+        return _model_cache[cache_key]
 
     from sentence_transformers import SentenceTransformer
 
-    device = _resolve_device()
     logger.info("Loading embedding model '%s' on device='%s'...", model_name, device)
     _emit_model_alert(
         "model.warming",
@@ -432,7 +487,7 @@ def _load_model(model_name: str = DEFAULT_MODEL_NAME) -> Any:
             profile["configured_batch_size"],
             profile["embedding_dim"],
         )
-    _model_cache[model_name] = model
+    _model_cache[cache_key] = model
     _emit_model_alert(
         "model.ready",
         "success",
@@ -628,8 +683,11 @@ def _get_configured_batch_size() -> int:
     except Exception:
         logger.debug("AppSetting unavailable; falling back to mode-based batch size")
 
-    mode = os.environ.get("ML_PERFORMANCE_MODE", "BALANCED").upper()
-    return _BATCH_SIZE_HIGH if mode == "HIGH_PERFORMANCE" else _BATCH_SIZE_DEFAULT
+    return (
+        _BATCH_SIZE_HIGH
+        if _get_performance_mode() == PERFORMANCE_MODE_HIGH
+        else _BATCH_SIZE_DEFAULT
+    )
 
 
 def _get_batch_size(model: Any | None = None) -> int:
@@ -1135,9 +1193,11 @@ def generate_all_embeddings(
 def get_model_status() -> dict[str, Any]:
     """Return a status dict about the currently cached model."""
     model_name = _get_model_name()
-    loaded = model_name in _model_cache
-    device = _resolve_device()
-    model = _model_cache.get(model_name)
+    runtime_resolution = get_effective_runtime_resolution()
+    device = runtime_resolution["device"]
+    cache_key = _get_model_cache_key(model_name, device)
+    loaded = cache_key in _model_cache
+    model = _model_cache.get(cache_key)
     profile = _describe_model_runtime(
         model_name=model_name,
         configured_batch_size=_get_configured_batch_size(),
@@ -1147,8 +1207,10 @@ def get_model_status() -> dict[str, Any]:
         "model_name": model_name,
         "loaded": loaded,
         "device": device,
-        "fp16": device == "cuda",
-        "mode": os.environ.get("ML_PERFORMANCE_MODE", "BALANCED"),
+        "fp16": runtime_resolution["effective_runtime_mode"] == "gpu",
+        "mode": runtime_resolution["performance_mode"],
+        "effective_runtime_mode": runtime_resolution["effective_runtime_mode"],
+        "effective_runtime_reason": runtime_resolution["reason"],
         "batch_size": _get_batch_size(model),
         "configured_batch_size": profile["configured_batch_size"],
         "embedding_dim": profile["embedding_dim"],

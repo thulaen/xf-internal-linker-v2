@@ -264,10 +264,10 @@ export class DashboardComponent implements OnInit {
         this.cdr.markForCheck();
       });
 
-    this.http.get<{ runtime_mode: string; performance_mode: string }>('/api/settings/runtime/')
-      .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced' })), takeUntilDestroyed(this.destroyRef))
+    this.http.get<{ runtime_mode: string; performance_mode: string; effective_runtime_mode?: string }>('/api/settings/runtime/')
+      .pipe(catchError(() => of({ runtime_mode: 'cpu', performance_mode: 'balanced', effective_runtime_mode: 'cpu' })), takeUntilDestroyed(this.destroyRef))
       .subscribe(rt => {
-        this.runtimeMode = rt.runtime_mode;
+        this.runtimeMode = rt.effective_runtime_mode ?? rt.runtime_mode;
         this.performanceMode = rt.performance_mode;
         this.perfModeSvc.setMode(rt.performance_mode);
         this.cdr.markForCheck();
