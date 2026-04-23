@@ -352,7 +352,7 @@ class GlitchtipEventsView(views.APIView):
 
     def get(self, request):
         queryset = ErrorLog.objects.filter(source=ErrorLog.SOURCE_GLITCHTIP).order_by(
-            "-created_at"
+            "-created_at", "-id"
         )
         if request.query_params.get("status", "unresolved") == "unresolved":
             queryset = queryset.filter(acknowledged=False)

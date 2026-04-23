@@ -37,6 +37,7 @@ from apps.core.views import (
     WeightedAuthoritySettingsView,
     UserMeView,
     UserLogoutView,
+    LocalVerificationBootstrapView,
     ActiveUsersView,
     GraphCandidateSettingsView,
     ValueModelSettingsView,
@@ -165,6 +166,11 @@ urlpatterns = [
     path("auth/token/", obtain_auth_token, name="auth-token"),
     path("auth/me/", UserMeView.as_view(), name="user-me"),
     path("auth/logout/", UserLogoutView.as_view(), name="user-logout"),
+    path(
+        "auth/local-verification-bootstrap/",
+        LocalVerificationBootstrapView.as_view(),
+        name="auth-local-verification-bootstrap",
+    ),
     path("auth/active-users/", ActiveUsersView.as_view(), name="auth-active-users"),
     # WebAuthn / Passkey — two ceremonies (register + login), two steps each.
     path(

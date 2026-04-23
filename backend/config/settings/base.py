@@ -482,6 +482,9 @@ RUNTIME_PROGRESS_STREAM_BLOCK_MS = max(
 )
 SCHEDULER_CONTROL_TOKEN = env("SCHEDULER_CONTROL_TOKEN", default="").strip()
 CELERY_BEAT_RUNTIME_ENABLED = env.bool("CELERY_BEAT_RUNTIME_ENABLED", default=True)
+LOCAL_VERIFICATION_BOOTSTRAP_ENABLED = env.bool(
+    "LOCAL_VERIFICATION_BOOTSTRAP_ENABLED", default=True
+)
 
 
 # ── ML / AI Settings ─────────────────────────────────────────────

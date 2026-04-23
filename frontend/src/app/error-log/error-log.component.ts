@@ -2,10 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnIn
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule, DatePipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { ScrollingModule } from '@angular/cdk/scrolling';
 import { MatButtonModule } from '@angular/material/button';
-import { MatCardModule } from '@angular/material/card';
-import { MatChipsModule } from '@angular/material/chips';
+import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -21,25 +19,16 @@ import {
   DiagnosticsService,
   ErrorLogEntry,
 } from '../diagnostics/diagnostics.service';
+import {
+  ErrorGroup,
+  groupErrors,
+  trackGroupFingerprint,
+} from '../diagnostics/diagnostics.error-log';
 
 const GLITCHTIP_TAB_INDEX = 1;
 const ALL_TAB_INDEX = 2;
 const GLITCHTIP_POLL_MS = 30_000;
 
-/**
- * Phase E1 / Gap 27 — Virtual scroll applied to the error list.
- *
- * The error-log can grow to hundreds of entries in production. Rather than
- * rendering all DOM nodes at once (slow scrolling, high memory), we wrap the
- * list in `cdk-virtual-scroll-viewport` with `*cdkVirtualFor`.
- *
- * Row height approximation: each error card is ~200px when collapsed. Cards
- * with long stack traces expand beyond that, but CDK handles variable-height
- * cards reasonably with `minBufferPx` / `maxBufferPx`.
- *
- * Pattern reuse: See `core/util/virtual-scroll-datasource.ts` for the
- * VirtualScrollDataSource utility when a mat-table integration is needed.
- */
 @Component({
   selector: 'app-error-log',
   standalone: true,
@@ -48,10 +37,8 @@ const GLITCHTIP_POLL_MS = 30_000;
     CommonModule,
     DatePipe,
     FormsModule,
-    ScrollingModule,
     MatButtonModule,
-    MatCardModule,
-    MatChipsModule,
+    MatExpansionModule,
     MatFormFieldModule,
     MatIconModule,
     MatProgressSpinnerModule,
@@ -63,12 +50,11 @@ const GLITCHTIP_POLL_MS = 30_000;
   styleUrl: './error-log.component.scss',
 })
 export class ErrorLogComponent implements OnInit {
-  private diagnostics = inject(DiagnosticsService);
-  private glitchtip = inject(GlitchtipService);
-  private cdr = inject(ChangeDetectorRef);
-  // Phase E2 / Gap 41 — cancel in-flight HTTP on route leave.
-  private destroyRef = inject(DestroyRef);
-  private visibilityGate = inject(VisibilityGateService);
+  private readonly diagnostics = inject(DiagnosticsService);
+  private readonly glitchtip = inject(GlitchtipService);
+  private readonly cdr = inject(ChangeDetectorRef);
+  private readonly destroyRef = inject(DestroyRef);
+  private readonly visibilityGate = inject(VisibilityGateService);
 
   errors: ErrorLogEntry[] = [];
   glitchtipEvents: ErrorLogEntry[] = [];
@@ -80,6 +66,7 @@ export class ErrorLogComponent implements OnInit {
   filterAcknowledged = '';
 
   readonly glitchtipBaseUrl = environment.glitchtipBaseUrl;
+  readonly trackGroupFingerprint = trackGroupFingerprint;
 
   ngOnInit(): void {
     this.loadErrors();
@@ -161,6 +148,10 @@ export class ErrorLogComponent implements OnInit {
     });
   }
 
+  get groupedErrors(): ErrorGroup[] {
+    return groupErrors(this.filteredErrors, null);
+  }
+
   get uniqueJobTypes(): string[] {
     return [...new Set(this.errors.map((e) => e.job_type))].sort();
   }
@@ -179,13 +170,12 @@ export class ErrorLogComponent implements OnInit {
       .subscribe({
         next: () => {
           error.acknowledged = true;
+          if (error.source === 'glitchtip') {
+            this.glitchtipEvents = this.glitchtipEvents.filter((event) => event.id !== error.id);
+          }
+          this.cdr.markForCheck();
         },
       });
-  }
-
-  /** Gap 27 — trackBy for *cdkVirtualFor; prevents full re-render on data refresh. */
-  trackById(_index: number, error: ErrorLogEntry): number {
-    return error.id;
   }
 
   jobTypeLabel(type: string): string {
@@ -197,5 +187,22 @@ export class ErrorLogComponent implements OnInit {
       auto_tune_weights: 'Auto-Tune',
     };
     return labels[type] || type;
+  }
+
+  previewMessage(error: ErrorLogEntry, maxLength = 140): string {
+    const message = (error.error_message || '').trim();
+    if (message.length <= maxLength) {
+      return message;
+    }
+    return `${message.slice(0, maxLength - 3).trimEnd()}...`;
+  }
+
+  severityLabel(error: ErrorLogEntry): string {
+    const severity = error.severity || 'medium';
+    return severity.charAt(0).toUpperCase() + severity.slice(1);
+  }
+
+  sourceLabel(error: ErrorLogEntry): string {
+    return error.source === 'glitchtip' ? 'GlitchTip' : 'Internal';
   }
 }

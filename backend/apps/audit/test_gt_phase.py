@@ -21,6 +21,10 @@ from django.utils import timezone
 from apps.audit import fix_suggestions, runtime_context
 from apps.audit.error_ingest import _compute_fingerprint, ingest_error
 from apps.audit.models import ErrorLog
+from apps.audit.tasks import (
+    _fallback_glitchtip_fingerprint,
+    sync_glitchtip_issues,
+)
 from apps.diagnostics.serializers import ErrorLogSerializer
 
 
@@ -186,3 +190,84 @@ class ErrorLogSerializerTrendTests(TestCase):
         )
         data = ErrorLogSerializer(r1).data
         self.assertNotIn(r_old.pk, data["related_error_ids"])
+
+
+class GlitchtipSyncFingerprintTests(TestCase):
+    def _mock_response(self, issues: list[dict]):
+        response = mock.Mock()
+        response.raise_for_status.return_value = None
+        response.json.return_value = issues
+        return response
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "GLITCHTIP_API_URL": "http://glitchtip.local",
+            "GLITCHTIP_API_TOKEN": "token",
+            "GLITCHTIP_ORG_SLUG": "org",
+            "GLITCHTIP_PROJECT_SLUG": "proj",
+        },
+        clear=False,
+    )
+    @mock.patch("requests.get")
+    def test_sync_joins_list_fingerprint_into_stable_string(self, mock_get):
+        mock_get.return_value = self._mock_response(
+            [
+                {
+                    "id": "gt-100",
+                    "status": "unresolved",
+                    "title": "Database unavailable",
+                    "culprit": "pipeline.sync_items",
+                    "count": 3,
+                    "level": "error",
+                    "fingerprint": ["db-down", "pipeline.sync_items"],
+                    "tags": [],
+                }
+            ]
+        )
+
+        result = sync_glitchtip_issues()
+
+        self.assertEqual(result["status"], "ok")
+        row = ErrorLog.objects.get(glitchtip_issue_id="gt-100")
+        self.assertEqual(row.fingerprint, "db-down|pipeline.sync_items")
+        self.assertEqual(row.occurrence_count, 3)
+
+    @mock.patch.dict(
+        os.environ,
+        {
+            "GLITCHTIP_API_URL": "http://glitchtip.local",
+            "GLITCHTIP_API_TOKEN": "token",
+            "GLITCHTIP_ORG_SLUG": "org",
+            "GLITCHTIP_PROJECT_SLUG": "proj",
+        },
+        clear=False,
+    )
+    @mock.patch("requests.get")
+    def test_sync_falls_back_to_normalized_title_and_culprit_when_missing_fingerprint(
+        self, mock_get
+    ):
+        title = "OperationalError: task 123 failed at /tmp/run-123"
+        culprit = "pipeline.sync_items"
+        mock_get.return_value = self._mock_response(
+            [
+                {
+                    "id": "gt-101",
+                    "status": "unresolved",
+                    "title": title,
+                    "culprit": culprit,
+                    "count": 1,
+                    "level": "error",
+                    "fingerprint": None,
+                    "tags": [],
+                }
+            ]
+        )
+
+        sync_glitchtip_issues()
+
+        row = ErrorLog.objects.get(glitchtip_issue_id="gt-101")
+        self.assertEqual(
+            row.fingerprint,
+            _fallback_glitchtip_fingerprint(title, culprit),
+        )

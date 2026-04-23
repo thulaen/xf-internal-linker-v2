@@ -466,6 +466,40 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-23 — Error Log GlitchTip cleanup: grouped expansion panels + stable GlitchTip fingerprints (Codex)
+
+- **AI/tool:** Codex
+- **Why:** User reported that GlitchTip entries on `/error-log` were noisy and truncated, and asked for the standalone Error Log page to use expansion-panel content plus stronger dedup/grouping.
+- **Relevant open findings disclosed in chat before touching code:** None in the error-log / GlitchTip UI area.
+- **Intentional files changed:**
+  - `frontend/src/app/error-log/error-log.component.ts`
+  - `frontend/src/app/error-log/error-log.component.html`
+  - `frontend/src/app/error-log/error-log.component.scss`
+  - `frontend/src/app/error-log/error-log.component.spec.ts` (new)
+  - `backend/apps/audit/tasks.py`
+  - `backend/apps/audit/test_gt_phase.py`
+  - `backend/apps/diagnostics/views.py`
+- **What changed:**
+  - Replaced the standalone `/error-log` page's old virtual-scroll card list with grouped `mat-expansion-panel` rows.
+  - Reused `groupErrors()` from `frontend/src/app/diagnostics/diagnostics.error-log.ts` so duplicate fingerprints collapse into one row with a summed occurrence badge.
+  - The panel header now shows source, severity, job/step, count, timestamp, and a truncated preview with tooltip; the body shows full error text, why, fix guidance, traceback, and the GlitchTip deep link.
+  - Tightened GlitchTip grouping by canonicalizing upstream list/tuple fingerprints and falling back to a normalized hash of `title + culprit` when GlitchTip provides no fingerprint.
+  - Made `/api/glitchtip/events/` ordering deterministic with `-created_at, -id` so same-timestamp rows do not flip order between requests.
+- **Verification that passed:**
+  - `& '.\.venv\Scripts\python.exe' backend\manage.py test apps.audit.test_gt_phase apps.diagnostics.tests.GlitchtipEventsViewTests --settings=config.settings.test`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\test-frontend.ps1`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\build-frontend.ps1`
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - `powershell -ExecutionPolicy Bypass -File .\scripts\prune-verification-artifacts.ps1`
+- **Verification blockers / notes:**
+  - The MCP Playwright browser tool is still blocked in this environment (`EPERM: operation not permitted, mkdir 'C:\Windows\System32\.playwright-mcp'`), so browser-level verification for this slice used Angular unit/build checks instead of that MCP path.
+  - The artifact prune script skipped Docker image prune in the sandbox because direct Docker execution was not allowed there; the required Django migration checks were run successfully via elevated Docker access.
+- **Commit/push state:**
+  - Changes are currently uncommitted.
+
+---
+
 ### 2026-04-21 — Frontend sluggishness audit → whole-stack prod-mode profile + zone/polling/helper fixes (Claude)
 
 - **AI/tool:** Claude
@@ -3231,5 +3265,33 @@ context.
   - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1`
   - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1 -Apply`
   - `powershell -ExecutionPolicy Bypass -File .\scripts\cleanup-host-safe.ps1` after tightening Docker exclusions
+- Commit/push state:
+  - Changes are currently uncommitted.
+
+### 2026-04-23 - Localhost-only Playwright auth bootstrap for protected-page verification
+
+- AI/tool: Codex
+- Intentional files changed:
+  - `backend/apps/api/urls.py`
+  - `backend/apps/core/tests.py`
+  - `backend/apps/core/views.py`
+  - `backend/config/settings/base.py`
+  - `AI-CONTEXT.md`
+- What changed:
+  - Added `/api/auth/local-verification-bootstrap/`, a localhost-only token bootstrap endpoint for browser verification flows.
+  - The endpoint is gated by the explicit `X-XFIL-Verification: playwright` header, rejects non-local hosts, and stays disabled when `LOCAL_VERIFICATION_BOOTSTRAP_ENABLED` is false.
+  - Reused an existing superuser token when available; otherwise creates or repairs a `playwright-local` superuser with an unusable password so protected pages can be verified without weakening normal login.
+  - Added focused API tests for missing-header rejection, disabled-state rejection, superuser-token reuse, bootstrap-user creation, and stale bootstrap-user repair.
+  - Verified that this repo's prod-style Docker stack needs an explicit `docker compose restart nginx` after backend container recreation, otherwise nginx can hold a stale backend upstream IP and produce transient `502` responses on the bootstrap POST.
+- Verification that passed:
+  - `& '.\.venv\Scripts\python.exe' backend\manage.py test apps.core.tests.LocalVerificationBootstrapTests --settings=config.settings.test`
+  - `docker compose exec backend python manage.py showmigrations`
+  - `docker compose exec backend python manage.py makemigrations --check --dry-run`
+  - Playwright browser flow on `http://localhost/error-log` after seeding auth through `/api/auth/local-verification-bootstrap/` returned:
+    - URL: `http://localhost/error-log`
+    - Title: `Error Log — XF Internal Linker`
+    - Heading: `Error Log`
+    - Local auth token present: `true`
+  - Full-page Playwright screenshot captured at `C:\Users\goldm\.codex\tmp\playwright-mcp\page-2026-04-23T19-37-42-943Z.png`
 - Commit/push state:
   - Changes are currently uncommitted.

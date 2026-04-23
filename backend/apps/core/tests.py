@@ -4,6 +4,7 @@ from unittest.mock import patch
 from django.contrib.auth import get_user_model
 from django.test import override_settings
 from django_celery_beat.models import PeriodicTask
+from rest_framework.authtoken.models import Token
 from rest_framework.test import APITestCase
 
 from apps.core.models import AppSetting
@@ -979,3 +980,78 @@ class EmbeddingModelDefaultTests(APITestCase):
         self.assertEqual(
             AppSetting.objects.get(key="embedding_model").value, "custom/local-model"
         )
+
+
+@override_settings(LOCAL_VERIFICATION_BOOTSTRAP_ENABLED=True)
+class LocalVerificationBootstrapTests(APITestCase):
+    def test_requires_explicit_verification_header(self):
+        response = self.client.post("/api/auth/local-verification-bootstrap/")
+
+        self.assertEqual(response.status_code, 404)
+
+    @override_settings(LOCAL_VERIFICATION_BOOTSTRAP_ENABLED=False)
+    def test_returns_404_when_bootstrap_is_disabled(self):
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            HTTP_HOST="localhost:8000",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 404)
+
+    def test_reuses_existing_superuser_token_on_localhost(self):
+        user = get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="pass",
+        )
+        token = Token.objects.create(user=user)
+
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            HTTP_HOST="localhost:8000",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.json(),
+            {
+                "token": token.key,
+                "username": "admin",
+            },
+        )
+
+    def test_creates_local_superuser_when_none_exists(self):
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            HTTP_HOST="127.0.0.1:8000",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["username"], "playwright-local")
+        user = get_user_model().objects.get(username="playwright-local")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertTrue(Token.objects.filter(user=user).exists())
+
+    def test_upgrades_existing_playwright_local_account(self):
+        user = get_user_model().objects.create_user(
+            username="playwright-local",
+            email="old@example.com",
+            password="pass",
+        )
+
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            HTTP_HOST="localhost:8000",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        user.refresh_from_db()
+        self.assertEqual(user.email, "playwright-local@example.invalid")
+        self.assertTrue(user.is_staff)
+        self.assertTrue(user.is_superuser)
+        self.assertFalse(user.has_usable_password())

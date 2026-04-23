@@ -25,11 +25,12 @@
         Last synced:
         {{ glitchtipLastSyncedAt ? (glitchtipLastSyncedAt | date: 'short') : 'Awaiting first sync' }}
       </p>
-      <button type="button"
-              mat-flat-button
-              color="primary"
-              class="glitchtip-visit-button"
-              (click)="openGlitchtip()">
+      <button
+        type="button"
+        mat-flat-button
+        color="primary"
+        class="glitchtip-visit-button"
+        (click)="openGlitchtip()">
         <mat-icon>open_in_new</mat-icon>
         <span>Visit Glitchtip</span>
       </button>
@@ -63,14 +64,12 @@
     </div>
   }
 
-  <!-- Loading -->
   @if (loading) {
     <div class="loading-container">
       <mat-spinner diameter="48"></mat-spinner>
     </div>
   }
 
-  <!-- Empty state -->
   @if (!loading && filteredErrors.length === 0) {
     <div class="empty-state">
       <mat-icon class="empty-icon">check_circle</mat-icon>
@@ -79,75 +78,106 @@
     </div>
   }
 
-  <!-- Error cards — Phase E1 / Gap 27: wrapped in cdk-virtual-scroll-viewport
-       so the browser only renders ~5 cards at a time instead of all of them.
-       itemSize is an approximation (collapsed card ≈ 200px); CDK buffers
-       extra rows above/below via minBufferPx / maxBufferPx. -->
   @if (!loading && filteredErrors.length > 0) {
-    <cdk-virtual-scroll-viewport
-      class="error-viewport"
-      itemSize="200"
-      [minBufferPx]="400"
-      [maxBufferPx]="800"
-    >
-      <mat-card
-        *cdkVirtualFor="let error of filteredErrors; trackBy: trackById"
-        class="error-card"
-        [class.acknowledged]="error.acknowledged"
-      >
-        <mat-card-header>
-          <mat-icon mat-card-avatar class="error-avatar-icon" [class.reviewed]="error.acknowledged">
-            {{ error.acknowledged ? 'check_circle' : 'error' }}
-          </mat-icon>
-          <mat-card-title class="error-title">{{ error.step }}</mat-card-title>
-          <mat-card-subtitle>
-            <mat-chip-set>
-              <mat-chip class="job-type-chip" [matTooltip]="'Job type: ' + error.job_type">
-                {{ jobTypeLabel(error.job_type) }}
-              </mat-chip>
-            </mat-chip-set>
-            <span class="error-date">{{ error.created_at | date:'medium' }}</span>
-          </mat-card-subtitle>
-        </mat-card-header>
-
-        <mat-card-content>
-          <!-- Plain English explanation -->
-          @if (error.why) {
-            <div class="why-box">
-              <div class="why-header">
-                <mat-icon>lightbulb</mat-icon>
-                <strong>What happened</strong>
+    <mat-accordion class="error-accordion">
+      @for (group of groupedErrors; track trackGroupFingerprint($index, group)) {
+        @let error = group.representative;
+        <mat-expansion-panel class="error-panel" [class.reviewed-panel]="error.acknowledged">
+          <mat-expansion-panel-header class="error-panel-header">
+            <mat-panel-title>
+              <div class="panel-title-row">
+                <span
+                  class="tone-badge"
+                  [class.tone-bad]="error.source === 'glitchtip'"
+                  [class.tone-warn]="error.source !== 'glitchtip'">
+                  {{ sourceLabel(error) }}
+                </span>
+                <span
+                  class="tone-badge"
+                  [class.tone-bad]="error.severity === 'critical' || error.severity === 'high'"
+                  [class.tone-warn]="error.severity === 'medium'"
+                  [class.tone-good]="error.severity === 'low'">
+                  {{ severityLabel(error) }}
+                </span>
+                <span class="panel-location" [matTooltip]="jobTypeLabel(error.job_type) + ': ' + error.step">
+                  {{ jobTypeLabel(error.job_type) }}: {{ error.step }}
+                </span>
+                @if (group.totalCount > 1) {
+                  <span class="occurrence-badge" [matTooltip]="'Seen ' + group.totalCount + ' times'">
+                    x{{ group.totalCount }}
+                  </span>
+                }
               </div>
-              <p>{{ error.why }}</p>
+            </mat-panel-title>
+
+            <mat-panel-description>
+              <div class="panel-description-row">
+                <span class="panel-preview" [matTooltip]="error.error_message">
+                  {{ previewMessage(error) }}
+                </span>
+                <span class="panel-date">{{ error.created_at | date:'medium' }}</span>
+              </div>
+            </mat-panel-description>
+          </mat-expansion-panel-header>
+
+          <div class="panel-body">
+            @if (error.why) {
+              <div class="why-box">
+                <div class="why-header">
+                  <mat-icon>lightbulb</mat-icon>
+                  <strong>What happened</strong>
+                </div>
+                <p>{{ error.why }}</p>
+              </div>
+            }
+
+            <div class="detail-block">
+              <strong>Error</strong>
+              <p>{{ error.error_message }}</p>
             </div>
-          }
 
-          <!-- Error message -->
-          <div class="error-message">
-            <strong>Error:</strong> {{ error.error_message }}
+            @if (error.how_to_fix) {
+              <div class="detail-block fix-block">
+                <strong>How to fix</strong>
+                <p>{{ error.how_to_fix }}</p>
+              </div>
+            }
+
+            @if (error.raw_exception) {
+              <div class="detail-block">
+                <strong>Traceback</strong>
+                <pre class="exception-pre">{{ error.raw_exception }}</pre>
+              </div>
+            }
+
+            <div class="panel-actions">
+              @if (error.glitchtip_url) {
+                <a
+                  [href]="error.glitchtip_url"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  mat-stroked-button
+                  class="glitchtip-link-button">
+                  <mat-icon>open_in_new</mat-icon>
+                  Open in GlitchTip
+                </a>
+              }
+
+              @if (!error.acknowledged) {
+                <button mat-flat-button color="primary" type="button" (click)="acknowledgeError(error)">
+                  <mat-icon>done</mat-icon>
+                  Mark Reviewed
+                </button>
+              } @else {
+                <span class="reviewed-label">
+                  <mat-icon class="icon-sm">check</mat-icon>
+                  Reviewed
+                </span>
+              }
+            </div>
           </div>
-
-          <!-- Expandable raw exception -->
-          @if (error.raw_exception) {
-            <details class="exception-details">
-              <summary>Show full traceback</summary>
-              <pre class="exception-pre">{{ error.raw_exception }}</pre>
-            </details>
-          }
-        </mat-card-content>
-
-        <mat-card-actions align="end">
-          @if (!error.acknowledged) {
-            <button mat-stroked-button (click)="acknowledgeError(error)">
-              <mat-icon>done</mat-icon> Mark Reviewed
-            </button>
-          } @else {
-            <span class="reviewed-label">
-              <mat-icon class="icon-sm">check</mat-icon> Reviewed
-            </span>
-          }
-        </mat-card-actions>
-      </mat-card>
-    </cdk-virtual-scroll-viewport>
+        </mat-expansion-panel>
+      }
+    </mat-accordion>
   }
 </div>

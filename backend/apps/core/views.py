@@ -5631,6 +5631,62 @@ class UserLogoutView(APIView):
         return Response({"status": "success"})
 
 
+class LocalVerificationBootstrapView(APIView):
+    """Mint a localhost-only auth token for browser verification."""
+
+    authentication_classes = []
+    permission_classes = []
+    VERIFICATION_HEADER = "HTTP_X_XFIL_VERIFICATION"
+
+    def post(self, request):
+        if not getattr(django_settings, "LOCAL_VERIFICATION_BOOTSTRAP_ENABLED", False):
+            return Response({"detail": "Not found."}, status=404)
+        if request.META.get(self.VERIFICATION_HEADER) != "playwright":
+            return Response({"detail": "Not found."}, status=404)
+
+        host = (request.get_host() or "").split(":", 1)[0].lower()
+        if host not in {"localhost", "127.0.0.1"}:
+            return Response({"detail": "Not found."}, status=404)
+
+        from django.contrib.auth import get_user_model
+        from rest_framework.authtoken.models import Token
+
+        user_model = get_user_model()
+        user = user_model.objects.filter(is_superuser=True).order_by("id").first()
+        if user is None:
+            user, _ = user_model.objects.get_or_create(
+                username="playwright-local",
+                defaults={
+                    "email": "playwright-local@example.invalid",
+                    "is_staff": True,
+                    "is_superuser": True,
+                },
+            )
+            fields_to_update = []
+            if not user.is_staff:
+                user.is_staff = True
+                fields_to_update.append("is_staff")
+            if not user.is_superuser:
+                user.is_superuser = True
+                fields_to_update.append("is_superuser")
+            if user.email != "playwright-local@example.invalid":
+                user.email = "playwright-local@example.invalid"
+                fields_to_update.append("email")
+            if user.has_usable_password():
+                user.set_unusable_password()
+                fields_to_update.append("password")
+            if fields_to_update:
+                user.save(update_fields=fields_to_update)
+
+        token, _ = Token.objects.get_or_create(user=user)
+        return Response(
+            {
+                "token": token.key,
+                "username": user.username,
+            }
+        )
+
+
 class ActiveUsersView(APIView):
     """GET /api/auth/active-users/ — who has made an authenticated request recently.
 

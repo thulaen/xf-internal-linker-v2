@@ -1,47 +1,54 @@
 .error-log-page {
-  padding: var(--space-lg);
-  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+  max-width: 1120px;
 }
 
 .page-header {
   display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-lg);
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
 }
 
 .title-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .page-title {
+  margin: 0;
   font-size: var(--page-title-size);
   font-weight: var(--page-title-weight);
-  margin: 0;
   color: var(--color-text-primary);
 }
 
 .page-description {
-  font-size: 13px;
-  color: var(--color-text-muted);
   margin: 0;
+  font-size: 13px;
   line-height: 1.5;
+  color: var(--color-text-muted);
 }
 
 .unreviewed-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--space-sm);
+  border-radius: var(--radius-pill);
   background: var(--color-error);
-  color: #fff;
+  color: var(--color-bg-white);
   font-size: 12px;
-  font-weight: 500;
-  padding: 2px 8px;
-  border-radius: 12px;
+  font-weight: 600;
 }
 
 .error-log-tabs {
-  margin-bottom: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-xs);
+  border-bottom: var(--card-border);
 }
 
 .glitchtip-tab-toolbar {
@@ -49,9 +56,11 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-md);
-  padding: var(--space-md) 0;
-  margin-bottom: var(--space-md);
-  border-bottom: 1px solid var(--color-border);
+  flex-wrap: wrap;
+  padding: var(--space-md);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
 }
 
 .glitchtip-sync-status {
@@ -60,7 +69,8 @@
   color: var(--color-text-secondary);
 }
 
-.glitchtip-visit-button {
+.glitchtip-visit-button,
+.glitchtip-link-button {
   flex-shrink: 0;
 }
 
@@ -68,7 +78,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-md);
-  margin-bottom: var(--space-lg);
+  flex-wrap: wrap;
 }
 
 .filter-field {
@@ -79,107 +89,162 @@
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 64px 0;
+  padding: calc(var(--space-xl) * 2) 0;
 }
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 64px var(--space-lg);
+  gap: var(--space-sm);
+  padding: calc(var(--space-xl) * 2) var(--space-xl);
+  border: var(--card-border);
+  border-radius: var(--radius-md);
+  background: var(--color-bg-white);
   color: var(--color-text-secondary);
 
   .empty-icon {
     font-size: 48px;
     width: 48px;
     height: 48px;
-    color: var(--color-success, #34a853);
-    margin-bottom: var(--space-md);
+    color: var(--color-success);
   }
 
   h2 {
+    margin: 0;
     font-size: 16px;
-    font-weight: 500;
-    margin: 0 0 var(--space-xs);
+    font-weight: 600;
     color: var(--color-text-primary);
   }
 
   p {
-    font-size: 13px;
     margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    text-align: center;
   }
 }
 
-/* Phase E1 / Gap 27 — Virtual scroll viewport for the error list.
-   cdk-virtual-scroll-viewport requires an explicit height so it knows
-   the viewable area. We cap at 70vh so the rest of the page (header,
-   filters) remains visible. The viewport itself scrolls; the page doesn't. */
-.error-viewport {
-  height: 70vh;
-  /* Ensure the viewport fills the page width up to the page max-width. */
+.error-accordion {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.error-panel {
+  box-shadow: none !important;
+  border: var(--card-border);
+  border-radius: var(--radius-md) !important;
+  background: var(--color-bg-white);
+
+  &.reviewed-panel {
+    opacity: 0.72;
+  }
+}
+
+.error-panel-header {
+  padding: var(--space-sm) var(--space-md);
+}
+
+.panel-title-row,
+.panel-description-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  min-width: 0;
   width: 100%;
 }
 
-/* Each card rendered by *cdkVirtualFor needs a consistent left/right layout
-   and its own bottom margin so cards don't touch each other. The viewport
-   handles vertical position; we just add the gap. */
-.error-viewport mat-card,
-.error-viewport .error-card {
-  margin-bottom: var(--space-md);
+.panel-title-row {
+  flex-wrap: wrap;
 }
 
-.error-card {
+.panel-description-row {
+  justify-content: space-between;
+}
+
+.tone-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--space-sm);
   border: var(--card-border);
-  box-shadow: none;
-  border-radius: var(--card-border-radius);
+  border-radius: 4px;
+  background: var(--color-bg-faint);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
 
-  &.acknowledged {
-    opacity: 0.6;
+  &.tone-good {
+    background: var(--color-success-light);
+    border-color: var(--color-success);
+    color: var(--color-success-dark);
   }
 
-  .error-avatar-icon {
-    color: var(--color-error);
-    font-size: 24px;
-    width: 24px;
-    height: 24px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    &.reviewed {
-      color: var(--color-success, #34a853);
-    }
+  &.tone-warn {
+    background: var(--color-warning-light);
+    border-color: var(--color-warning);
+    color: var(--color-warning-dark);
   }
 
-  .error-title {
-    font-size: 14px;
-    font-weight: 500;
+  &.tone-bad {
+    background: var(--color-error-light);
+    border-color: var(--color-error);
+    color: var(--color-error-dark);
   }
+}
 
-  mat-card-subtitle {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    flex-wrap: wrap;
-  }
+.panel-location {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
 
-  .job-type-chip {
-    font-size: 11px;
-    min-height: 24px;
-  }
+.occurrence-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 24px;
+  padding: 0 var(--space-sm);
+  border: var(--card-border);
+  border-radius: 4px;
+  background: var(--color-bg-faint);
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}
 
-  .error-date {
-    font-size: 12px;
-    color: var(--color-text-secondary);
-  }
+.panel-preview {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  color: var(--color-text-primary);
+}
+
+.panel-date {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  text-align: right;
+}
+
+.panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: 0 var(--spacing-card) var(--spacing-card);
 }
 
 .why-box {
-  background: var(--color-blue-50, #e8f0fe);
+  padding: var(--space-sm) var(--space-md);
   border-left: 3px solid var(--color-primary);
   border-radius: 4px;
-  padding: var(--space-sm) var(--space-md);
-  margin-bottom: var(--space-md);
+  background: var(--color-blue-50);
 
   .why-header {
     display: flex;
@@ -188,67 +253,94 @@
     margin-bottom: var(--space-xs);
     color: var(--color-primary);
     font-size: 13px;
+  }
 
-    mat-icon {
-      font-size: 16px;
-      width: 16px;
-      height: 16px;
-    }
+  mat-icon {
+    font-size: 16px;
+    width: 16px;
+    height: 16px;
   }
 
   p {
     margin: 0;
     font-size: 13px;
-    color: var(--color-text-primary);
     line-height: 1.5;
+    color: var(--color-text-primary);
   }
 }
 
-.error-message {
-  font-size: 13px;
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-sm);
-  line-height: 1.5;
-}
+.detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
 
-.exception-details {
-  margin-top: var(--space-sm);
-
-  summary {
+  strong {
     font-size: 12px;
     color: var(--color-text-secondary);
-    cursor: pointer;
-    padding: var(--space-xs) 0;
-
-    &:hover {
-      color: var(--color-primary);
-    }
   }
+
+  p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--color-text-primary);
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+}
+
+.fix-block {
+  padding: var(--space-sm) var(--space-md);
+  border-radius: 4px;
+  background: var(--color-blue-50);
 }
 
 .exception-pre {
-  background: #263238;
-  color: #eeffff;
+  margin: 0;
+  max-height: 320px;
+  overflow: auto;
+  padding: var(--space-md);
+  border-radius: 4px;
+  background: var(--color-bg-faint);
+  color: var(--color-text-primary);
   font-family: var(--font-mono);
   font-size: 11px;
   line-height: 1.5;
-  padding: var(--space-md);
-  border-radius: 4px;
-  overflow-x: auto;
-  max-height: 300px;
-  margin: var(--space-xs) 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.panel-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-sm);
+  flex-wrap: wrap;
+  padding-top: var(--space-md);
+  border-top: var(--card-border);
 }
 
 .reviewed-label {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: var(--space-xs);
   font-size: 12px;
   color: var(--color-text-secondary);
+}
 
-  .icon-sm {
-    font-size: 16px;
-    width: 16px;
-    height: 16px;
+.icon-sm {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+@media (max-width: 960px) {
+  .panel-description-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .panel-date {
+    text-align: left;
   }
 }

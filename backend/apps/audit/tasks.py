@@ -4,7 +4,9 @@ Periodic audit tasks — reviewer scorecard computation.
 
 from __future__ import annotations
 
+import hashlib
 import logging
+import re
 from collections import Counter
 from datetime import timedelta
 
@@ -12,6 +14,28 @@ from celery import shared_task
 from django.utils import timezone
 
 logger = logging.getLogger(__name__)
+
+_GLITCHTIP_FINGERPRINT_NOISE_RE = re.compile(
+    r"(\d{2,}|[0-9a-f]{8,}|/[/\w.\-]+|0x[0-9a-f]+)",
+    re.IGNORECASE,
+)
+
+
+def _canonicalize_glitchtip_fingerprint(raw_fingerprint: object) -> str:
+    if isinstance(raw_fingerprint, (list, tuple)):
+        parts = [str(part).strip() for part in raw_fingerprint if str(part).strip()]
+        return "|".join(parts)
+    if raw_fingerprint is None:
+        return ""
+    return str(raw_fingerprint).strip()
+
+
+def _fallback_glitchtip_fingerprint(title: str, culprit: str) -> str:
+    normalized = _GLITCHTIP_FINGERPRINT_NOISE_RE.sub("*", f"{title}|{culprit}")
+    return hashlib.sha1(
+        normalized.encode("utf-8"),
+        usedforsecurity=False,
+    ).hexdigest()
 
 
 @shared_task(name="audit.compute_weekly_reviewer_scorecard")
@@ -191,7 +215,10 @@ def sync_glitchtip_issues():
         level = issue.get("level", "error")
         severity = severity_map.get(level, ErrorLog.SEVERITY_MEDIUM)
         url = f"{api_url}/issues/{gt_id}/"
-        fingerprint = str(issue.get("fingerprint") or gt_id)[:255]
+        fingerprint = _canonicalize_glitchtip_fingerprint(issue.get("fingerprint"))
+        if not fingerprint:
+            fingerprint = _fallback_glitchtip_fingerprint(title, culprit)
+        fingerprint = fingerprint[:255]
         tags = {
             t[0]: t[1]
             for t in (issue.get("tags") or [])
@@ -210,7 +237,8 @@ def sync_glitchtip_issues():
         if existing is not None:
             existing.occurrence_count = count
             existing.severity = severity
-            existing.save(update_fields=["occurrence_count", "severity"])
+            existing.fingerprint = fingerprint
+            existing.save(update_fields=["occurrence_count", "severity", "fingerprint"])
             updated += 1
             continue
 
