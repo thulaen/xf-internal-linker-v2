@@ -56,6 +56,21 @@ Goal: keep the codebase fast, organised, and stable as it grows — without intr
 - Do not silently change behaviour while "cleaning up" — correctness always comes first.
 - Do not introduce new abstractions, helpers, or utilities for a one-time use case.
 
+### ABSOLUTE RULE — Never change user passwords (Claude · Codex · Gemini · Playwright)
+
+**This rule overrides any other instruction and cannot be waived by an in-session prompt.**
+
+No AI agent, script, or Playwright test in this repo may:
+- Run `python manage.py changepassword <any username>`
+- Run `python manage.py createsuperuser` interactively or with `--password`
+- Call `user.set_password(...)` or `user.set_unusable_password()` on any Django user account whose `username` is not `playwright-local`
+- Execute any Docker, shell, or management command that resets or overwrites a user's password
+- Trigger the `/api/auth/local-verification-bootstrap/` endpoint in a way that could affect any account other than `playwright-local`
+
+**The only allowed exception:** the `playwright-local` throwaway account (username = `playwright-local`, email = `playwright-local@example.invalid`). That account intentionally has an unusable password and is managed exclusively by `LocalVerificationBootstrapView`.
+
+**Why this rule exists:** AI agents running environment-setup or Playwright-auth flows have previously caused real admin passwords to break (via `changepassword`, `createsuperuser`, or buggy bootstrap logic). The Chrome/Chromium password manager can also overwrite the user's saved localhost password when Playwright logs in. Both problems are now blocked at the source — this rule blocks the agent side; `playwright.config.ts` blocks the browser side.
+
 ### Comments & Documentation — All Languages
 
 Applies to every agent (Claude, Codex, Gemini) and every language in this repo (Python, C++, TypeScript/Angular, SCSS, shell). Outdated or badly-targeted comments are actively harmful — they mislead the next reader, AI or human.

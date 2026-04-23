@@ -25,7 +25,20 @@ export default defineConfig({
   projects: [
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: {
+        ...devices['Desktop Chrome'],
+        launchOptions: {
+          // Prevent Chromium from offering to save or update passwords during
+          // test runs. Without these flags the browser can write to the OS
+          // keychain or to a shared Chrome profile, which corrupts the saved
+          // password for localhost in the user's real browser.
+          args: [
+            '--disable-features=PasswordImport',
+            '--disable-password-manager-reauthentication',
+            '--password-store=basic',
+          ],
+        },
+      },
     },
   ],
 });

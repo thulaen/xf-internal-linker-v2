@@ -993,39 +993,27 @@ class LocalVerificationBootstrapTests(APITestCase):
     def test_returns_404_when_bootstrap_is_disabled(self):
         response = self.client.post(
             "/api/auth/local-verification-bootstrap/",
-            HTTP_HOST="localhost:8000",
+            REMOTE_ADDR="127.0.0.1",
             HTTP_X_XFIL_VERIFICATION="playwright",
         )
 
         self.assertEqual(response.status_code, 404)
 
-    def test_reuses_existing_superuser_token_on_localhost(self):
-        user = get_user_model().objects.create_superuser(
-            username="admin",
-            email="admin@example.com",
-            password="pass",
-        )
-        token = Token.objects.create(user=user)
-
+    def test_returns_404_for_non_loopback_peer_ip(self):
+        """A request arriving from a non-loopback IP is always rejected,
+        even if someone forges a Host: localhost header."""
         response = self.client.post(
             "/api/auth/local-verification-bootstrap/",
-            HTTP_HOST="localhost:8000",
+            REMOTE_ADDR="203.0.113.42",
             HTTP_X_XFIL_VERIFICATION="playwright",
         )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(
-            response.json(),
-            {
-                "token": token.key,
-                "username": "admin",
-            },
-        )
+        self.assertEqual(response.status_code, 404)
 
-    def test_creates_local_superuser_when_none_exists(self):
+    def test_creates_playwright_local_when_no_superuser_exists(self):
         response = self.client.post(
             "/api/auth/local-verification-bootstrap/",
-            HTTP_HOST="127.0.0.1:8000",
+            REMOTE_ADDR="127.0.0.1",
             HTTP_X_XFIL_VERIFICATION="playwright",
         )
 
@@ -1036,6 +1024,31 @@ class LocalVerificationBootstrapTests(APITestCase):
         self.assertTrue(user.is_superuser)
         self.assertTrue(Token.objects.filter(user=user).exists())
 
+    def test_returns_playwright_local_token_when_real_admin_also_exists(self):
+        """Endpoint must always return playwright-local's token.
+        It must never return a real admin's token or touch their password."""
+        admin = get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="secret",
+        )
+        admin_token = Token.objects.create(user=admin)
+
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            REMOTE_ADDR="127.0.0.1",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        # Must be the playwright-local account, not the real admin
+        self.assertEqual(data["username"], "playwright-local")
+        self.assertNotEqual(data["token"], admin_token.key)
+        # Real admin's password must be completely untouched
+        admin.refresh_from_db()
+        self.assertTrue(admin.has_usable_password())
+
     def test_upgrades_existing_playwright_local_account(self):
         user = get_user_model().objects.create_user(
             username="playwright-local",
@@ -1045,7 +1058,7 @@ class LocalVerificationBootstrapTests(APITestCase):
 
         response = self.client.post(
             "/api/auth/local-verification-bootstrap/",
-            HTTP_HOST="localhost:8000",
+            REMOTE_ADDR="127.0.0.1",
             HTTP_X_XFIL_VERIFICATION="playwright",
         )
 
@@ -1055,3 +1068,29 @@ class LocalVerificationBootstrapTests(APITestCase):
         self.assertTrue(user.is_staff)
         self.assertTrue(user.is_superuser)
         self.assertFalse(user.has_usable_password())
+
+    def test_upgrades_playwright_local_even_when_real_admin_exists(self):
+        """Repair must run on playwright-local even when another superuser exists.
+        Previously the repair block was inside 'if user is None' and was skipped."""
+        get_user_model().objects.create_superuser(
+            username="admin",
+            email="admin@example.com",
+            password="secret",
+        )
+        stale = get_user_model().objects.create_user(
+            username="playwright-local",
+            email="old@example.com",
+            password="old-password",
+        )
+
+        response = self.client.post(
+            "/api/auth/local-verification-bootstrap/",
+            REMOTE_ADDR="127.0.0.1",
+            HTTP_X_XFIL_VERIFICATION="playwright",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["username"], "playwright-local")
+        stale.refresh_from_db()
+        self.assertTrue(stale.is_superuser)
+        self.assertFalse(stale.has_usable_password())

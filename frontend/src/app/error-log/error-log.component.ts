@@ -165,15 +165,18 @@ export class ErrorLogComponent implements OnInit {
   }
 
   acknowledgeError(error: ErrorLogEntry): void {
+    // Reload from the server after acknowledging rather than patching locally.
+    // A grouped panel may contain multiple entries sharing a fingerprint — only
+    // one id is sent to the server, so a local patch would leave the rest of
+    // the group still unacknowledged and they would re-appear on the next poll.
     this.diagnostics.acknowledgeError(error.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
-          error.acknowledged = true;
+          this.loadErrors();
           if (error.source === 'glitchtip') {
-            this.glitchtipEvents = this.glitchtipEvents.filter((event) => event.id !== error.id);
+            this.loadGlitchtipEvents();
           }
-          this.cdr.markForCheck();
         },
       });
   }

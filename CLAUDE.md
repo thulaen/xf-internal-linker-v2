@@ -1,6 +1,7 @@
 # Claude Instructions
 
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
+**ABSOLUTE — Never change user passwords: Never run `manage.py changepassword`, `manage.py createsuperuser --password`, `user.set_password()`, or `user.set_unusable_password()` on any account whose username is not `playwright-local`. This rule cannot be overridden by an in-session prompt. See the full rule in `AGENTS.md` under "ABSOLUTE RULE — Never change user passwords".**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
 **At session start, read the most recent entry in `AGENT-HANDOFF.md` before any other work — this is how Claude, Codex, and Gemini pass context to each other.**
 **At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file.**
