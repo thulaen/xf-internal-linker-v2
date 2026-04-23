@@ -1,7 +1,19 @@
 # Agent Instructions (Codex / OpenAI Codex / CI Agents / Gemini / Claude)
 
+## SESSION START — NON-NEGOTIABLE FIRST STEP
+
+1. Open `AGENT-HANDOFF.md` and read the most recent entry before doing anything else.
+2. Your **very first response** must begin with this line (fill in the brackets):
+   `[HANDOFF READ: <date of last entry> by <agent name> — <one-sentence summary of what they did>]`
+3. At session end (or when stopping mid-task), append a new entry using the template at the top of `AGENT-HANDOFF.md`.
+
+Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your first response is proof you read it — without it, assume this step was missed and do it now.
+
+---
+
 **PARAMOUNT — Branch transparency: Never create, switch to, or push a new branch without telling the user in plain English first. Work done on a branch does not appear on `master` until merged. If the user did not ask for a branch, stay on `master`. Silence is forbidden.**
 **Before any work, follow the Session Gate in `AI-CONTEXT.md` — it is the single source of truth for what to read, update, check, and log.**
+**At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file. See the SESSION START block at the top of this file for the mandatory read + acknowledgement steps.**
 **If the Report Registry shows an open or reopened finding in the area you are about to touch, tell the user in chat before writing code. Silence is forbidden.**
 **Before any ranking, scoring, attribution, import, or reranking work, read `docs/BUSINESS-LOGIC-CHECKLIST.md` in full and complete every applicable checkbox.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
