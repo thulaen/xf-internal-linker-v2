@@ -10,8 +10,14 @@ from django.utils import timezone
 
 from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
+from apps.sources.conditional_get import build_validator_headers
+from apps.sources.robots import RobotsChecker
 
 logger = logging.getLogger(__name__)
+
+#: One per-process robots checker — its 24-h TTL cache amortises per-origin
+#: robots.txt fetches across crawl sessions. RFC 9309 §3 default TTL.
+_ROBOTS_CHECKER = RobotsChecker()
 
 
 def run_crawl_session_sync(session_id) -> None:
@@ -76,6 +82,52 @@ async def _execute_crawl_session(session_id) -> None:
     )
 
     to_crawl = list(set(valid_urls) - already_crawled)
+
+    # Pick #09 — drop URLs that robots.txt forbids before we waste a fetch.
+    # The RobotsChecker fails open per RFC 9309 §3.1 if robots.txt is
+    # unreachable, so this only filters out genuine Disallows.
+    if to_crawl:
+        allowed: list[str] = []
+        blocked = 0
+        for u in to_crawl:
+            try:
+                if _ROBOTS_CHECKER.is_allowed(u):
+                    allowed.append(u)
+                else:
+                    blocked += 1
+            except Exception:
+                # Robots fetch hiccup — fail open, queue the URL.
+                allowed.append(u)
+        if blocked:
+            logger.info(
+                "robots.txt: filtered %d / %d URLs in session %s",
+                blocked,
+                len(to_crawl),
+                session_id,
+            )
+        to_crawl = allowed
+
+    # Pick #06 — preload cached ETag / Last-Modified per URL so the
+    # next chunk's fetch_urls call sends If-None-Match / If-Modified-Since.
+    cached_validators: dict[str, dict[str, str]] = {}
+    if to_crawl:
+        prior_validators = await asyncio.to_thread(
+            lambda: list(
+                CrawledPageMeta.objects.filter(
+                    url__in=to_crawl,
+                )
+                .exclude(etag="", last_modified="")
+                .values("url", "etag", "last_modified")
+            )
+        )
+        for row in prior_validators:
+            headers = build_validator_headers(
+                etag=row.get("etag"),
+                last_modified=row.get("last_modified"),
+            )
+            if headers:
+                cached_validators[row["url"]] = headers
+
     rate_limit = session.config.get("rate_limit", 4)
     timeout_hours = session.config.get("timeout_hours", 2)
     end_time = timezone.now() + timedelta(hours=timeout_hours)
@@ -100,12 +152,21 @@ async def _execute_crawl_session(session_id) -> None:
             return
 
         chunk = to_crawl[i : i + chunk_size]
-        responses = await fetch_urls(chunk, max_concurrency=rate_limit)
+        chunk_validators = {
+            u: cached_validators[u] for u in chunk if u in cached_validators
+        }
+        responses = await fetch_urls(
+            chunk,
+            max_concurrency=rate_limit,
+            headers_by_url=chunk_validators,
+        )
 
         for res in responses:
             raw_url = res["url"]
             status_code = res["status_code"]
             body = res["content"]
+            new_etag = res.get("etag", "")
+            new_last_modified = res.get("last_modified", "")
 
             parsed_url = urlparse(raw_url)
             normalized_url = parsed_url._replace(
@@ -121,9 +182,19 @@ async def _execute_crawl_session(session_id) -> None:
                 normalized_url=normalized_url,
                 http_status=status_code,
                 content_length=len(body) if body else 0,
+                etag=new_etag[:200],
+                last_modified=new_last_modified[:200],
             )
 
-            if status_code == 200 and body:
+            # Pick #06 — RFC 7232 §4.1: 304 means "your cached copy is
+            # current". Skip parse + content_length tracking; the caller
+            # relies on the prior CrawledPageMeta row for the body.
+            if status_code == 304:
+                meta.content_length = 0
+                logger.debug(
+                    "conditional GET 304: %s (cache hit, body skipped)", raw_url
+                )
+            elif status_code == 200 and body:
                 try:
                     await asyncio.to_thread(_parse_html, body, meta, raw_url)
                 except Exception as ex:

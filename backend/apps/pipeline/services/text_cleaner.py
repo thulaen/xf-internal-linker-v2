@@ -155,7 +155,10 @@ _MAX_NOISE_LINE_LENGTH = 180
 def clean_bbcode(raw_text: str) -> str:
     """Strip BBCode from raw text, obliterating QUOTE and CODE block contents.
 
-    Returns plain text with normalized whitespace.
+    Returns plain text with normalized whitespace + NFKC-normalised
+    Unicode (pick #13). NFKC folds compatibility-equivalent codepoints
+    (`café` precomposed vs decomposed, fullwidth digits, etc.) so all
+    downstream signals see a stable byte sequence.
     """
     if not raw_text:
         return ""
@@ -166,11 +169,16 @@ def clean_bbcode(raw_text: str) -> str:
     text = _obliterate_blocks(text, _SIGPIC_RE)
     text = _TAG_RE.sub("", text)
     text = _MULTI_WS_RE.sub(" ", text).strip()
-    return text
+    return _nfkc(text)
 
 
 def clean_import_text(raw_text: str) -> str:
-    """Normalize imported content from either BBCode or rendered WordPress HTML."""
+    """Normalize imported content from either BBCode or rendered WordPress HTML.
+
+    Final step is NFKC normalisation (pick #13) so SHA-256 fingerprints,
+    BM25 tokens, and BGE-M3 embeddings all see canonically-equivalent
+    text byte-for-byte.
+    """
     if not raw_text:
         return ""
 
@@ -180,7 +188,15 @@ def clean_import_text(raw_text: str) -> str:
     text = unescape(strip_tags(text))
     text = _remove_noise_lines(text)
     text = _strip_inline_noise_phrases(text)
-    return _MULTI_WS_RE.sub(" ", text).strip()
+    return _nfkc(_MULTI_WS_RE.sub(" ", text).strip())
+
+
+def _nfkc(text: str) -> str:
+    """NFKC normaliser bound at module import — saves an ``apps.sources.normalize``
+    re-import on every call. Pick #13 (Unicode UAX #15)."""
+    from apps.sources.normalize import nfkc
+
+    return nfkc(text)
 
 
 def generate_content_hash(title: str, clean_text: str) -> str:

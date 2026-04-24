@@ -95,32 +95,67 @@ async def fetch_urls(
     max_concurrency: int = 25,
     max_body_bytes: int = 5_242_880,
     timeout: float = 30.0,
+    headers_by_url: dict[str, dict[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
-    """Fetch URL body chunks for crawling."""
+    """Fetch URL body chunks for crawling.
+
+    ``headers_by_url`` carries per-URL request headers so callers can
+    pipe in conditional-GET validators (``If-None-Match`` /
+    ``If-Modified-Since`` from :mod:`apps.sources.conditional_get`).
+    The result dict gains ``etag`` and ``last_modified`` keys when the
+    server echoes those headers, so callers can persist them onto
+    :class:`CrawledPageMeta`.
+    """
     sem = asyncio.Semaphore(max_concurrency)
     results: list[dict[str, Any]] = []
+    headers_by_url = headers_by_url or {}
 
     async def fetch(url: str, client: httpx.AsyncClient):
         try:
             # We don't read the whole body if it is too massive, or limit by slicing.
             # Using stream could be better but simplistic approach runs as follows.
-            res = await _bounded_request(sem, client, "GET", url)
-            body = res.text[:max_body_bytes]
+            extra_headers = headers_by_url.get(url) or {}
+            res = await _bounded_request(
+                sem, client, "GET", url, headers=extra_headers
+            )
+            # 304 responses have empty bodies — that's correct,
+            # the caller treats `status_code=304` as "unchanged".
+            body = res.text[:max_body_bytes] if res.status_code != 304 else ""
+            etag_value = res.headers.get("ETag", "") or res.headers.get("etag", "")
+            lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
+                "last-modified", ""
+            )
             results.append(
                 {
                     "url": url,
                     "status_code": res.status_code,
                     "content": body,
                     "error": None,
+                    "etag": etag_value,
+                    "last_modified": lm_value,
                 }
             )
         except httpx.TimeoutException:
             results.append(
-                {"url": url, "status_code": 0, "content": "", "error": "timeout"}
+                {
+                    "url": url,
+                    "status_code": 0,
+                    "content": "",
+                    "error": "timeout",
+                    "etag": "",
+                    "last_modified": "",
+                }
             )
         except httpx.RequestError as exc:
             results.append(
-                {"url": url, "status_code": 0, "content": "", "error": str(exc)}
+                {
+                    "url": url,
+                    "status_code": 0,
+                    "content": "",
+                    "error": str(exc),
+                    "etag": "",
+                    "last_modified": "",
+                }
             )
 
     async with httpx.AsyncClient(

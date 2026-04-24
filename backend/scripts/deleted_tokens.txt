@@ -83,7 +83,11 @@ hits_hub
 anti_trustrank
 salsa
 simrank
-katz
+# NOTE: `katz` un-banned 2026-04-22 — FR-100 KMIG (Katz Marginal
+# Information Gain, Katz 1953) shipped in commit 80dc675 by the
+# parallel ranking-signals agent. The previously-pending pending
+# signal of the same name was never implemented; KMIG is the
+# legitimate Katz reference now.
 k_shell
 harmonic_centrality
 leaderrank

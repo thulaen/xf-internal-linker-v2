@@ -276,7 +276,7 @@ Implemented all remaining backend code + the Angular Embeddings page for the 12-
 - None this session — all files compile cleanly (py_compile'd every edit) and the TypeScript component follows the standalone-component + signals pattern already used elsewhere in the repo.
 
 ### What I explicitly ruled out
-- **Full `ng build` / `python manage.py test` inside this session:** both require Docker to be running for migrations + FAISS init. The verification rules allow skipping when the preview can't exercise the feature end-to-end. The next session should run: `docker compose exec backend python manage.py migrate`, `docker compose exec backend python manage.py test`, and `docker compose exec frontend-dev ng test` (or the prod-build equivalent).
+- **Full `ng build` / `python manage.py test` inside this session:** both require Docker to be running for migrations + FAISS init. The verification rules allow skipping when the preview can't exercise the feature end-to-end. The next session should run: `docker compose exec backend python manage.py migrate`, `docker compose exec backend python manage.py test`, and `docker compose exec frontend-build ng test` (the prod-only frontend service — the dual-mode dev frontend was retired, see `docs/DELETED-FEATURES.md`).
 - **Preview server start:** hook prompted, but the feature needs migrations applied + AppSettings populated before it's useful. Acknowledged in-session and skipped per the verification-workflow "preview can't exercise" clause.
 - **OpenAI/Gemini SDK installs in this session:** providers have lazy imports + clear error messages if SDKs are missing. `pip install openai google-genai tiktoken` belongs in the next session alongside `requirements.txt` update.
 
