@@ -3291,9 +3291,10 @@ class PipelinePersistenceRegressionTests(TestCase):
         self.assertEqual(created, 2)
         # 4 base queries + 2 for transaction.atomic() SAVEPOINT/RELEASE
         # + 1 constant-cost fetch for RejectedPair negative-memory suppression
+        # + 1 constant-cost fetch for approved-suggestion dedup (commit 7011dc6)
         # (see pipeline_persist._persist_suggestions). O(1) per run regardless
         # of candidate count, so not an N+1 risk.
-        self.assertLessEqual(len(queries), 7)
+        self.assertLessEqual(len(queries), 8)
 
         suggestion_a = Suggestion.objects.get(destination=self.destination_a)
         suggestion_b = Suggestion.objects.get(destination=self.destination_b)
@@ -4432,16 +4433,29 @@ class EmbeddingRuntimeSafetyTests(TestCase):
         fake_model = MagicMock()
         fake_model.get_sentence_embedding_dimension.return_value = 1536
 
+        # Cache keys are built as f"{model_name}::{device}" by
+        # _get_model_cache_key. Also patch get_effective_runtime_resolution
+        # so device is deterministic regardless of whether CUDA is visible.
         with (
             patch.dict(
                 embeddings_service._model_cache,
-                {"custom/model": fake_model},
+                {"custom/model::cpu": fake_model},
                 clear=True,
             ),
             patch.object(
                 embeddings_service, "_get_model_name", return_value="custom/model"
             ),
             patch.object(embeddings_service, "_resolve_device", return_value="cpu"),
+            patch.object(
+                embeddings_service,
+                "get_effective_runtime_resolution",
+                return_value={
+                    "device": "cpu",
+                    "effective_runtime_mode": "cpu",
+                    "performance_mode": "economy",
+                    "reason": "test_override",
+                },
+            ),
             patch.object(
                 embeddings_service, "_get_configured_batch_size", return_value=32
             ),

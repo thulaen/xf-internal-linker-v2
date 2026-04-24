@@ -253,6 +253,23 @@ def _build_suggestion_records(
                 link_farm_diagnostics=candidate.link_farm_diagnostics,
                 explore_exploit_diagnostics=candidate.explore_exploit_diagnostics,
                 cluster_diagnostics=candidate.cluster_diagnostics,
+                # FR-099 through FR-105 — graph-topology signals.
+                # Defaults to 0.0 / {} if the dispatcher didn't run (e.g.
+                # cold-start, all 7 disabled, or caches unavailable).
+                score_darb=getattr(candidate, "score_darb", 0.0),
+                score_kmig=getattr(candidate, "score_kmig", 0.0),
+                score_tapb=getattr(candidate, "score_tapb", 0.0),
+                score_kcib=getattr(candidate, "score_kcib", 0.0),
+                score_berp=getattr(candidate, "score_berp", 0.0),
+                score_hgte=getattr(candidate, "score_hgte", 0.0),
+                score_rsqva=getattr(candidate, "score_rsqva", 0.0),
+                darb_diagnostics=getattr(candidate, "darb_diagnostics", {}) or {},
+                kmig_diagnostics=getattr(candidate, "kmig_diagnostics", {}) or {},
+                tapb_diagnostics=getattr(candidate, "tapb_diagnostics", {}) or {},
+                kcib_diagnostics=getattr(candidate, "kcib_diagnostics", {}) or {},
+                berp_diagnostics=getattr(candidate, "berp_diagnostics", {}) or {},
+                hgte_diagnostics=getattr(candidate, "hgte_diagnostics", {}) or {},
+                rsqva_diagnostics=getattr(candidate, "rsqva_diagnostics", {}) or {},
                 score_final=candidate.score_final,
                 status="pending",
             )

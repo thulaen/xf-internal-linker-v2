@@ -85,6 +85,24 @@ export interface SuggestionDetail extends Suggestion {
   destination_engagement_quality_score?: number;
   destination_content_value_diagnostics?: ScoreBreakdown | Record<string, never>;
   destination_engagement_quality_diagnostics?: ScoreBreakdown | Record<string, never>;
+  // FR-099 through FR-105 — 7 graph-topology ranking signals.
+  // Each field is 0.0 when the signal is disabled or in neutral fallback.
+  // Each diagnostics blob carries fallback_triggered + reason + raw input
+  // values so a reviewer can answer BLC §3's four questions from the UI.
+  score_darb?: number;
+  score_kmig?: number;
+  score_tapb?: number;
+  score_kcib?: number;
+  score_berp?: number;
+  score_hgte?: number;
+  score_rsqva?: number;
+  darb_diagnostics?: Fr099DarbDiagnostics;
+  kmig_diagnostics?: Fr100KmigDiagnostics;
+  tapb_diagnostics?: Fr101TapbDiagnostics;
+  kcib_diagnostics?: Fr102KcibDiagnostics;
+  berp_diagnostics?: Fr103BerpDiagnostics;
+  hgte_diagnostics?: Fr104HgteDiagnostics;
+  rsqva_diagnostics?: Fr105RsqvaDiagnostics;
   updated_at: string;
 }
 
@@ -253,6 +271,92 @@ export interface FieldAwareFieldDetail {
     idf: number;
     token_score: number;
   }>;
+}
+
+// FR-099..FR-105 diagnostic interfaces. Each mirrors the JSON blob
+// persisted on Suggestion.<signal>_diagnostics by the pipeline. All fields
+// are optional since the backend only includes keys that are populated
+// during a given run (neutral fallback, cold start, etc.).
+
+export interface Fr099DarbDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  raw_host_value?: number;
+  raw_host_out_degree?: number;
+  saturation_threshold?: number;
+  min_host_value_threshold?: number;
+  path?: string;
+}
+
+export interface Fr100KmigDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  katz_2hop_reachability?: number;
+  direct_edge?: number;
+  two_hop_paths_count?: number;
+  beta?: number;
+  path?: string;
+  total_edges?: number;
+  min_required?: number;
+}
+
+export interface Fr101TapbDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  is_articulation_point?: boolean;
+  graph_node_count?: number;
+  articulation_point_count?: number;
+  path?: string;
+  min_required?: number;
+}
+
+export interface Fr102KcibDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  host_kcore?: number;
+  dest_kcore?: number;
+  max_kcore?: number;
+  kcore_delta?: number;
+  path?: string;
+}
+
+export interface Fr103BerpDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  host_bcc?: number;
+  dest_bcc?: number;
+  would_create_bridge?: boolean;
+  host_bcc_size?: number;
+  dest_bcc_size?: number;
+  min_component_size?: number;
+  path?: string;
+}
+
+export interface Fr104HgteDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  host_out_degree?: number;
+  host_silo_count_before?: number;
+  host_silo_count_after?: number;
+  entropy_before?: number;
+  entropy_after?: number;
+  entropy_delta?: number;
+  max_entropy?: number;
+  normalized_delta?: number;
+  path?: string;
+}
+
+export interface Fr105RsqvaDiagnostics {
+  fallback_triggered?: boolean;
+  diagnostic?: string;
+  cosine_similarity?: number;
+  host_query_count?: number;
+  dest_query_count?: number;
+  gsc_days_available?: number;
+  min_required?: number;
+  host_norm?: number;
+  dest_norm?: number;
+  path?: string;
 }
 
 export interface ClickDistanceDiagnostics {

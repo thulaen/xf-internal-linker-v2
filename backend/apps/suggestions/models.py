@@ -490,6 +490,36 @@ class Suggestion(TimestampedModel):
         default=0.5,
         help_text="FR-197 link-farm anti-spam score. 0.5 = neutral, lower values mean the destination sits in a suspicious reciprocal ring.",
     )
+    # FR-099 through FR-105 — 7 complementary graph-topology ranking signals.
+    # See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
+    score_darb = models.FloatField(
+        default=0.0,
+        help_text="FR-099 Dangling Authority Redistribution Bonus. Boost when host has high content-value and low out-degree. 0.0 = neutral.",
+    )
+    score_kmig = models.FloatField(
+        default=0.0,
+        help_text="FR-100 Katz Marginal Information Gain. 1.0 when host cannot reach dest via existing 1-2 hop paths; lower when already reachable. 0.0 = neutral.",
+    )
+    score_tapb = models.FloatField(
+        default=0.0,
+        help_text="FR-101 Tarjan Articulation Point Boost. 1.0 when host is a graph articulation point (cut vertex); 0.0 otherwise. 0.0 = neutral.",
+    )
+    score_kcib = models.FloatField(
+        default=0.0,
+        help_text="FR-102 K-Core Integration Boost. Rewards high-kcore host linking to low-kcore dest to integrate periphery. 0.0 = neutral.",
+    )
+    score_berp = models.FloatField(
+        default=0.0,
+        help_text="FR-103 Bridge-Edge Redundancy Penalty. Negative when host->dest edge would be a new bridge (fragile single-path connector). 0.0 = neutral.",
+    )
+    score_hgte = models.FloatField(
+        default=0.0,
+        help_text="FR-104 Host-Graph Topic Entropy Boost. Shannon-entropy-delta reward when adding the link diversifies host's outbound silo distribution. 0.0 = neutral.",
+    )
+    score_rsqva = models.FloatField(
+        default=0.0,
+        help_text="FR-105 Reverse Search-Query Vocabulary Alignment. TF-IDF cosine of host vs dest GSC query vocabularies. 0.0 = neutral (no shared queries).",
+    )
     score_final = models.FloatField(
         default=0.0,
         db_index=True,
@@ -615,6 +645,42 @@ class Suggestion(TimestampedModel):
         default=dict,
         blank=True,
         help_text="Explainable FR-015 MMR slot selection details for review and debugging.",
+    )
+    # FR-099 through FR-105 — graph-topology signal diagnostics.
+    darb_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-099 dangling-authority-redistribution diagnostics (raw_host_value, out_degree, saturation, fallback reason).",
+    )
+    kmig_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-100 Katz marginal-information-gain diagnostics (katz_2hop_reachability, direct_edge, two_hop_paths_count, beta).",
+    )
+    tapb_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-101 articulation-point diagnostics (is_articulation_point, graph_node_count, articulation_point_count).",
+    )
+    kcib_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-102 k-core-integration diagnostics (host_kcore, dest_kcore, max_kcore, kcore_delta).",
+    )
+    berp_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-103 bridge-edge-redundancy diagnostics (host_bcc, dest_bcc, would_create_bridge, component sizes).",
+    )
+    hgte_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-104 host-topic-entropy diagnostics (host_out_degree, silo counts before/after, entropy delta).",
+    )
+    rsqva_diagnostics = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text="Explainable FR-105 reverse-search-query alignment diagnostics (cosine, host_query_count, dest_query_count, shared_query_count).",
     )
 
     # Review state

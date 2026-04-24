@@ -873,6 +873,16 @@ export class SiloSettingsService {
     return this.http.put<LinkFarmSettings>('/api/settings/link-farm/', payload);
   }
 
+  // FR-099 through FR-105 — single grouped endpoint for all 7 signals.
+  // See docs/specs/fr099-*.md through fr105-*.md and docs/RANKING-GATES.md.
+  getFr099Fr105Settings(): Observable<any> {
+    return this.http.get<any>('/api/settings/fr099-fr105/');
+  }
+
+  updateFr099Fr105Settings(payload: any): Observable<any> {
+    return this.http.put<any>('/api/settings/fr099-fr105/', payload);
+  }
+
   getRuntimeConfig(): Observable<RuntimeConfig> {
     return this.http.get<RuntimeConfig>('/api/settings/runtime-config/');
   }

@@ -16,6 +16,15 @@ import pyroaring as pr
 from django.conf import settings
 
 from .anchor_diversity import build_anchor_history
+from .fr099_fr105_signals import FR099FR105Caches, FR099FR105Settings
+from .graph_topology_caches import (
+    build_articulation_point_cache,
+    build_bridge_edge_cache,
+    build_host_silo_distribution_cache,
+    build_katz_cache,
+    build_kcore_cache,
+    build_query_tfidf_cache,
+)
 from .keyword_stuffing import (
     build_keyword_baseline,
     evaluate_keyword_stuffing,
@@ -93,6 +102,7 @@ def _load_pipeline_content(
     rare_term_settings: Any,
     keyword_stuffing_settings: Any,
     progress_fn: Callable,
+    fr099_fr105_settings: FR099FR105Settings | None = None,
 ) -> Any:
     """Load content records, sentences, existing links, and rare-term profiles.
 
@@ -100,6 +110,9 @@ def _load_pipeline_content(
     content-level resources on success.
     """
     from .pipeline import PipelineResult
+
+    if fr099_fr105_settings is None:
+        fr099_fr105_settings = FR099FR105Settings()
     from .pipeline_loaders import (
         _get_max_anchor_words,
         _get_max_existing_links_per_host,
@@ -161,6 +174,18 @@ def _load_pipeline_content(
 
     link_farm_by_destination = {}
 
+    # FR-099 through FR-105 — graph-topology signal precomputes.
+    # Only built when at least one signal is enabled (any_enabled flag).
+    # Each cache is still returned (possibly empty) so the dispatcher's
+    # neutral-fallback path is exercised if the underlying graph data is
+    # too small (BLC §6.4 minimum-data floors).
+    fr099_fr105_caches = _build_fr099_fr105_caches(
+        content_records=content_records,
+        existing_links=existing_links,
+        fr099_fr105_settings=fr099_fr105_settings,
+        progress_fn=progress_fn,
+    )
+
     return dict(
         content_records=content_records,
         sentence_records=sentence_records,
@@ -176,7 +201,127 @@ def _load_pipeline_content(
         keyword_baseline=keyword_baseline,
         keyword_stuffing_by_destination=keyword_stuffing_by_destination,
         link_farm_by_destination=link_farm_by_destination,
+        fr099_fr105_caches=fr099_fr105_caches,
     )
+
+
+def _build_fr099_fr105_caches(
+    *,
+    content_records: dict[ContentKey, ContentRecord],
+    existing_links: set[ExistingLinkKey],
+    fr099_fr105_settings: FR099FR105Settings,
+    progress_fn: Callable,
+) -> FR099FR105Caches:
+    """Build the 6 graph-topology precompute caches for FR-099 through FR-105.
+
+    Returns a FR099FR105Caches whose individual fields may be None if the
+    corresponding signal is disabled. Signal modules' neutral-fallback
+    path handles missing caches gracefully.
+    """
+    if not fr099_fr105_settings.any_enabled:
+        return FR099FR105Caches()
+
+    progress_fn(0.15, "Building FR-099..FR-105 graph-topology caches...")
+    content_keys = list(content_records.keys())
+
+    katz_cache = (
+        build_katz_cache(content_keys, existing_links)
+        if fr099_fr105_settings.kmig.enabled
+        else None
+    )
+    articulation_cache = (
+        build_articulation_point_cache(content_keys, existing_links)
+        if fr099_fr105_settings.tapb.enabled
+        else None
+    )
+    kcore_cache = (
+        build_kcore_cache(content_keys, existing_links)
+        if fr099_fr105_settings.kcib.enabled
+        else None
+    )
+    bridge_cache = (
+        build_bridge_edge_cache(content_keys, existing_links)
+        if fr099_fr105_settings.berp.enabled
+        else None
+    )
+
+    # FR-104 HGTE — host-silo distribution from existing link graph.
+    silo_cache = None
+    if fr099_fr105_settings.hgte.enabled:
+        dest_silo_by_key: dict[ContentKey, int | None] = {
+            key: getattr(record, "silo_group_id", None)
+            for key, record in content_records.items()
+        }
+        silo_ids = {s for s in dest_silo_by_key.values() if s is not None}
+        silo_cache = build_host_silo_distribution_cache(
+            existing_links=existing_links,
+            dest_silo_by_key=dest_silo_by_key,
+            num_silos=max(1, len(silo_ids)),
+        )
+
+    # FR-105 RSQVA — GSC-query TF-IDF vectors loaded from ContentItem.
+    # The daily refresh task (deferred) populates gsc_query_tfidf_vector.
+    # Cold start returns an empty cache; evaluate_rsqva handles the
+    # vector_not_computed fallback.
+    query_cache = None
+    if fr099_fr105_settings.rsqva.enabled:
+        query_cache = _load_query_tfidf_cache(content_records)
+
+    return FR099FR105Caches(
+        katz_cache=katz_cache,
+        articulation_cache=articulation_cache,
+        kcore_cache=kcore_cache,
+        bridge_cache=bridge_cache,
+        silo_cache=silo_cache,
+        query_cache=query_cache,
+    )
+
+
+def _load_query_tfidf_cache(
+    content_records: dict[ContentKey, ContentRecord],
+):
+    """Load FR-105 RSQVA query TF-IDF vectors from the ContentItem column.
+
+    Returns an empty cache if no vectors have been refreshed yet
+    (daily refresh task is deferred to a follow-up session).
+    """
+    try:
+        from apps.content.models import ContentItem
+
+        page_vectors: dict[ContentKey, np.ndarray] = {}
+        content_ids = [key[0] for key in content_records.keys()]
+        # Only load items that actually have a vector column populated.
+        qs = (
+            ContentItem.objects.filter(
+                id__in=content_ids,
+                gsc_query_tfidf_vector__isnull=False,
+            )
+            .only("id", "content_type", "gsc_query_tfidf_vector")
+            .iterator(chunk_size=500)
+        )
+        for item in qs:
+            vec = _coerce_embedding_vector(item.gsc_query_tfidf_vector)
+            if vec is None or vec.size == 0:
+                continue
+            page_vectors[(item.id, item.content_type)] = vec
+        return build_query_tfidf_cache(
+            page_vectors=page_vectors,
+            # Query counts are not separately tracked on ContentItem today;
+            # use a conservative fallback of 10 per page when the vector
+            # column is populated. When the refresh task ships it can also
+            # persist a query_count scalar for richer diagnostics.
+            page_query_counts={k: 10 for k in page_vectors},
+            gsc_days_available=30 if page_vectors else 0,
+        )
+    except Exception:
+        logger.exception(
+            "Failed to load FR-105 RSQVA query-TFIDF cache; returning empty."
+        )
+        return build_query_tfidf_cache(
+            page_vectors={},
+            page_query_counts={},
+            gsc_days_available=0,
+        )
 
 
 def _load_pipeline_resources(
@@ -189,6 +334,7 @@ def _load_pipeline_resources(
     keyword_stuffing_settings: Any,
     link_farm_settings: Any,
     progress_fn: Callable,
+    fr099_fr105_settings: FR099FR105Settings | None = None,
 ) -> Any:
     """Load all pipeline resources including embeddings.
 
@@ -204,6 +350,7 @@ def _load_pipeline_resources(
         rare_term_settings=rare_term_settings,
         keyword_stuffing_settings=keyword_stuffing_settings,
         progress_fn=progress_fn,
+        fr099_fr105_settings=fr099_fr105_settings,
     )
     if isinstance(content_data, PipelineResult):
         return content_data

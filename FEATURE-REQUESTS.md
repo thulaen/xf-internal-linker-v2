@@ -800,6 +800,69 @@ Every new signal must have its own settings card in the Ranking Weights tab. Eac
 
 ---
 
+### FR-099 - Dangling Authority Redistribution Bonus (DARB)
+**Requested:** 2026-04-24
+**Target phase:** TBD (foundation landed this session; hot-path integration pending)
+**Priority:** High (operator request via Reddit-post dangling-node concern)
+**Spec:** `docs/specs/fr099-dangling-authority-redistribution-bonus.md`
+**Status:** **Partial** — foundation shipped (Python module + tests + benchmark + preset defaults + migrations + model fields); hot-path ranker integration pending.
+**Academic source:** Page, Brin, Motwani, Winograd 1999, Stanford InfoLab 1999-66 §2.5 + §3.2 eq. 1
+**What's wanted:** Per-pair ranker bonus for candidates from high-authority hosts with low out-degree — operationalizes the "dangling-node hoarder" concept as a ranking signal.
+
+### FR-100 - Katz Marginal Information Gain (KMIG)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr100-katz-marginal-information-gain.md`
+**Status:** **Partial** — foundation shipped; hot-path integration pending.
+**Academic source:** Katz 1953, Psychometrika 18(1):39–43, DOI `10.1007/BF02289026` §2 eq. 2
+**What's wanted:** Penalize candidates already reachable within 1-2 hops via existing internal links — discourages redundant "duplicate-line" edges.
+
+### FR-101 - Tarjan Articulation Point Boost (TAPB)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr101-tarjan-articulation-point-boost.md`
+**Status:** **Partial** — foundation shipped; hot-path integration pending.
+**Academic source:** Tarjan 1972, SIAM J. Computing 1(2):146–160, DOI `10.1137/0201010` §3
+**What's wanted:** Boost candidates whose host is a structural cut vertex (articulation point). Complements DARB by rewarding structural-bridge hosts independently of content-value.
+
+### FR-102 - K-Core Integration Boost (KCIB)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr102-kcore-integration-boost.md`
+**Status:** **Partial** — foundation shipped; hot-path integration pending.
+**Academic source:** Seidman 1983, Social Networks 5(3):269–287, DOI `10.1016/0378-8733(83)90028-X` §2 eq. 1
+**What's wanted:** Reward links from high-kcore hosts to low-kcore destinations — integrates peripheral pages into the site's dense core.
+
+### FR-103 - Bridge-Edge Redundancy Penalty (BERP)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr103-bridge-edge-redundancy-penalty.md`
+**Status:** **Partial** — foundation shipped; hot-path integration pending.
+**Academic source:** Hopcroft & Tarjan 1973, CACM 16(6):372–378, DOI `10.1145/362248.362272` §2 Algorithm 3
+**What's wanted:** Small penalty when host→dest would become a bridge edge — steers the graph toward multi-path resilience instead of fragile single-path connectors.
+
+### FR-104 - Host-Graph Topic Entropy Boost (HGTE)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr104-host-graph-topic-entropy-boost.md`
+**Status:** **Partial** — foundation shipped; hot-path integration pending.
+**Academic source:** Shannon 1948, Bell System Technical Journal 27(3):379–423, DOI `10.1002/j.1538-7305.1948.tb01338.x` §6 eq. 4
+**What's wanted:** Reward candidates that increase the Shannon entropy of the host's outbound-link silo distribution — actively balances topic portfolios.
+
+### FR-105 - Reverse Search-Query Vocabulary Alignment (RSQVA)
+**Requested:** 2026-04-24
+**Target phase:** TBD
+**Priority:** High
+**Spec:** `docs/specs/fr105-reverse-search-query-vocabulary-alignment.md`
+**Status:** **Partial** — foundation shipped; hot-path integration + GSC refresh task pending.
+**Academic source:** Salton & Buckley 1988, IP&M 24(5):513–523, DOI `10.1016/0306-4573(88)90021-0` §3-4; Järvelin & Kekäläinen 2002, ACM TOIS 20(4) DOI `10.1145/582415.582418` §2.1
+**What's wanted:** TF-IDF cosine between host's and destination's GSC-query vocabularies — rewards pages that serve overlapping user search intent even when body embeddings differ.
+
 ### FR-020 - Zero-Downtime Model Switching, Hot Swap & Runtime Registry
 **Requested:** 2026-03-25
 **Target phase:** Phase 23

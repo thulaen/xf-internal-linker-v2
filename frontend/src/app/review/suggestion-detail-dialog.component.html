@@ -362,6 +362,107 @@
         </p>
       }
 
+      <!-- FR-099 through FR-105 — graph-topology signal diagnostics.
+           Each block uses `@if (... ; as x)` to narrow the nullable
+           diagnostic blob into a local so strict Angular templates
+           can access fields without optional-chaining gymnastics. -->
+      @if (detail.darb_diagnostics; as d) {
+        @if (detail.score_darb) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">alt_route</mat-icon>
+            FR-099 DARB: {{ (detail.score_darb ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.raw_host_value != null) {
+              - host value {{ (d.raw_host_value ?? 0).toFixed(2) }}
+              / out-degree {{ d.raw_host_out_degree ?? 0 }}
+            }
+          </p>
+        }
+      }
+      @if (detail.kmig_diagnostics; as d) {
+        @if (detail.score_kmig) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">route</mat-icon>
+            FR-100 KMIG: {{ (detail.score_kmig ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.katz_2hop_reachability != null) {
+              - katz 2hop {{ (d.katz_2hop_reachability ?? 0).toFixed(3) }}
+              ({{ d.direct_edge ? 'direct' : 'indirect' }},
+              {{ d.two_hop_paths_count ?? 0 }} 2-hop paths)
+            }
+          </p>
+        }
+      }
+      @if (detail.tapb_diagnostics; as d) {
+        @if (detail.score_tapb) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">account_tree</mat-icon>
+            FR-101 TAPB: {{ (detail.score_tapb ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.is_articulation_point != null) {
+              - host is{{ d.is_articulation_point ? '' : ' not' }} an articulation point
+              ({{ d.articulation_point_count ?? 0 }} APs in graph)
+            }
+          </p>
+        }
+      }
+      @if (detail.kcib_diagnostics; as d) {
+        @if (detail.score_kcib) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">filter_center_focus</mat-icon>
+            FR-102 KCIB: {{ (detail.score_kcib ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.kcore_delta != null) {
+              - host k-core {{ d.host_kcore }}
+              → dest k-core {{ d.dest_kcore }}
+              (Δ={{ d.kcore_delta }}/{{ d.max_kcore }})
+            }
+          </p>
+        }
+      }
+      @if (detail.berp_diagnostics; as d) {
+        @if (detail.score_berp) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">link_off</mat-icon>
+            FR-103 BERP: {{ (detail.score_berp ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.would_create_bridge != null) {
+              - {{ d.would_create_bridge ? 'would create bridge' : 'no new bridge' }}
+              (BCCs: host={{ d.host_bcc }} size {{ d.host_bcc_size }},
+              dest={{ d.dest_bcc }} size {{ d.dest_bcc_size }})
+            }
+          </p>
+        }
+      }
+      @if (detail.hgte_diagnostics; as d) {
+        @if (detail.score_hgte) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">pie_chart</mat-icon>
+            FR-104 HGTE: {{ (detail.score_hgte ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.entropy_delta != null) {
+              - entropy {{ (d.entropy_before ?? 0).toFixed(3) }}
+              → {{ (d.entropy_after ?? 0).toFixed(3) }}
+              (Δ={{ (d.entropy_delta ?? 0).toFixed(3) }})
+            }
+          </p>
+        }
+      }
+      @if (detail.rsqva_diagnostics; as d) {
+        @if (detail.score_rsqva) {
+          <p class="meta-line">
+            <mat-icon class="icon-sm">search</mat-icon>
+            FR-105 RSQVA: {{ (detail.score_rsqva ?? 0).toFixed(3) }}
+            @if (d.diagnostic) { - {{ d.diagnostic }} }
+            @if (d.cosine_similarity != null) {
+              - GSC query cosine {{ (d.cosine_similarity ?? 0).toFixed(3) }}
+              (host {{ d.host_query_count ?? 0 }} queries,
+              dest {{ d.dest_query_count ?? 0 }} queries)
+            }
+          </p>
+        }
+      }
+
       @if (detail.graph_walk_diagnostics; as gwd) {
         @if (gwd.enabled || detail.candidate_origin === 'graph_walk' || detail.candidate_origin === 'both') {
           <p class="meta-line">

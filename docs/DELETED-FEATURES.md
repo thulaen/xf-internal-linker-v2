@@ -37,6 +37,8 @@ Gone for good:
 - Spec files: `fr091-cpp-extension-retrofit.md`, `opt-73-abseil-hashmap-inv-index.md`, `opt-75-abseil-hashmap-strpool.md`, `opt-78-abseil-mutex.md`, `opt-89-pipeline-accel.md`.
 - Write-only pulse-metrics push inside `backend/apps/crawler/tasks.py` heartbeat (no consumer ever read the ring-buffer summary).
 
+> **2026-04-24 update**: FR-099 through FR-105 have been **reclaimed** for a new, unrelated class of graph-topology ranking signals (DARB / KMIG / TAPB / KCIB / BERP / HGTE / RSQVA — see `docs/specs/fr099-*.md` through `docs/specs/fr105-*.md` and the audit report `docs/reports/2026-04-24-fr099-fr105-graph-topology-signals.md`). None of the retired Block A-O algorithm identifiers (BM25L, PL2, DPH, etc.) are re-introduced. The FR *numbers* are re-used for entirely different algorithms with distinct primary sources. The `check_phantom_references.py` CI gate is unaffected because it targets specific banned algorithm tokens in `deleted_tokens.txt`, not FR-number prefixes.
+
 ## 2026-04-22 — PR-A slice 4: 126 pending ranking signals (Block A-O / FR-099..FR-224)
 
 Retired the full Block A-O forward-declared signal library. Every signal in these four files was inert — no production scoring path consumed them — and each one fell into a conflict, overlap, duplicate, or "no-consumer niche" tier per the plan's Part 1 manifest.

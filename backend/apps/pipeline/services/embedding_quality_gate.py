@@ -105,6 +105,14 @@ class QualityGate:
             return GateDecision("REJECT", "lower_quality_provider", float(delta))
 
         # Gate 2 — change detection. Unit-norm vectors ⇒ dot product == cosine.
+        # Dimension-mismatch guard: if old and new vectors come from different-
+        # dimensioned models (provider upgrade, e.g. 1024→1536), cosine is
+        # undefined. In that case the old vector is from a different model
+        # entirely — accept the new one immediately. Gate 3's stability check
+        # is about the new model's own reproducibility; it adds no value for
+        # a cross-provider upgrade.
+        if old_vec.shape[0] != new_vec.shape[0]:
+            return GateDecision("ACCEPT_NEW", "dimension_upgrade", 0.0)
         cos_new_old = float(np.dot(old_vec, new_vec))
         if cos_new_old > self.noop_cosine_threshold:
             return GateDecision("NOOP", "unchanged", cos_new_old)

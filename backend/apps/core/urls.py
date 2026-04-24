@@ -174,6 +174,13 @@ urlpatterns = [
         LinkFarmSettingsView.as_view(),
         name="settings-link-farm",
     ),
+    path(
+        "settings/fr099-fr105/",
+        __import__(
+            "apps.core.views_fr099_fr105", fromlist=["FR099FR105SettingsView"]
+        ).FR099FR105SettingsView.as_view(),
+        name="settings-fr099-fr105",
+    ),
     # Runbook execution endpoints (plan item 17)
     path(
         "runbooks/<str:runbook_id>/execute/",

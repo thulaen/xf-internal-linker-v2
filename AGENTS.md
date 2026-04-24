@@ -16,6 +16,7 @@ Skipping step 1 or 2 is a protocol violation. The acknowledgement line in your f
 **At session end (or when stopping mid-task), append a new entry to `AGENT-HANDOFF.md` using the template at the top of that file. See the SESSION START block at the top of this file for the mandatory read + acknowledgement steps.**
 **If the Report Registry shows an open or reopened finding in the area you are about to touch, tell the user in chat before writing code. Silence is forbidden.**
 **Before any ranking, scoring, attribution, import, or reranking work, read `docs/BUSINESS-LOGIC-CHECKLIST.md` in full and complete every applicable checkbox.**
+**Before any work touching ranking signals, meta-algorithms, autotuners, or weight-preset keys, read `docs/RANKING-GATES.md` and satisfy Gate A (implementation — fires when CODE is about to be written) and Gate B (user-idea intake — fires the moment an idea is PROPOSED). Every checkbox must pass or have an explicit written justification. Skipping either gate is a policy violation. Applies to Claude, Codex, Gemini, Antigravity, and every future agent.**
 **Before any Python backend work, read `backend/PYTHON-RULES.md` first.**
 **Before any C++ work, read `backend/extensions/CPP-RULES.md` first.**
 

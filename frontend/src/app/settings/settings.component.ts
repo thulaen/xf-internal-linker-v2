@@ -1562,6 +1562,188 @@ const SETTING_TOOLTIPS: Record<string, SettingTooltip> = {
     example: 'Lower to 2.0 if your site has very spiky seasonal patterns.',
     range: '1.5 to 10.0',
   },
+  // FR-099 Dangling Authority Redistribution Bonus (DARB)
+  'darb.enabled': {
+    definition: 'FR-099 DARB: turns on the "dangling hoarder" boost for high-value hosts that have few outbound links.',
+    impact: 'Enabled adds a small boost to candidates from hosts that are strong pages but barely link out. Disabled turns the feature off.',
+    default: 'On',
+    example: 'Leave on — the boost is tiny but fixes the classic "dead-end street" SEO problem in the Reddit post.',
+    range: 'On / Off',
+  },
+  'darb.ranking_weight': {
+    definition: 'How strongly the DARB bonus contributes to the final score.',
+    impact: 'Higher values push harder to route juice out of hoarder hosts. Zero disables the boost without turning off the signal.',
+    default: '0.04',
+    example: '0.04 is a gentle nudge. Raise to 0.08 if your site has many high-traffic posts with no outbound links.',
+    range: '0 to 0.15',
+  },
+  'darb.out_degree_saturation': {
+    definition: 'Minimum outbound links above which a host is no longer considered "dangling".',
+    impact: 'Lower values mean only very sparse hosts qualify; higher values widen the boost to hosts with a few existing links.',
+    default: '5',
+    example: 'Raising to 8 makes the boost fire on more hosts. Broder et al. 2000 median out-degree is 8.',
+    range: '1 to 20',
+  },
+  'darb.min_host_value': {
+    definition: 'Minimum host content_value_score (GSC+GA4+PageRank composite) required to trigger the boost.',
+    impact: 'Higher values restrict the boost to high-quality hosts only. 0.5 is neutral.',
+    default: '0.5',
+    example: 'Raise to 0.7 if you want only your very best pages to benefit from the boost.',
+    range: '0 to 1',
+  },
+  // FR-100 Katz Marginal Information Gain (KMIG)
+  'kmig.enabled': {
+    definition: 'FR-100 KMIG: penalises candidates already reachable within 1-2 hops via existing links.',
+    impact: 'Enabled discourages duplicate-line edges. Disabled ignores graph reachability redundancy.',
+    default: 'On',
+    example: 'Keep on — prevents the ranker from suggesting redundant edges that add no new information.',
+    range: 'On / Off',
+  },
+  'kmig.ranking_weight': {
+    definition: 'How strongly the Katz marginal-information-gain signal contributes.',
+    impact: 'Higher values punish "we already have a path there" more aggressively.',
+    default: '0.05',
+    example: '0.05 is the Salton-Buckley magnitude band. Raise to 0.10 on densely-linked sites.',
+    range: '0 to 0.15',
+  },
+  'kmig.attenuation': {
+    definition: 'Katz attenuation β for the 2-hop reachability sum.',
+    impact: 'Lower β emphasises direct edges; higher β weights 2-hop paths more.',
+    default: '0.5',
+    example: 'Pigueiral 2017 validates 0.5 for truncated Katz. Only tune if you fully understand Katz centrality.',
+    range: '0.1 to 0.9',
+  },
+  'kmig.max_hops': {
+    definition: 'Max path length used in the truncated Katz sum. Higher values blow RAM; we truncate at 2.',
+    impact: 'Raising above 2 makes the signal much slower with minimal score impact.',
+    default: '2',
+    example: 'Leave at 2. Raising to 3 roughly 15x the per-pipeline RAM cost for a 50k-node graph.',
+    range: '1 to 3',
+  },
+  // FR-101 Tarjan Articulation Point Boost (TAPB)
+  'tapb.enabled': {
+    definition: 'FR-101 TAPB: boosts candidates whose host is a structural cut vertex (articulation point).',
+    impact: 'Enabled rewards hosts that bridge otherwise-disconnected graph regions. Disabled ignores cut-vertex topology.',
+    default: 'On',
+    example: 'Leave on — articulation-point hosts are rare (~5-8%) so the boost rarely fires but is valuable when it does.',
+    range: 'On / Off',
+  },
+  'tapb.ranking_weight': {
+    definition: 'How much the cut-vertex host boost contributes.',
+    impact: 'Higher values strongly reward bridge-style hosts.',
+    default: '0.03',
+    example: '0.03 matches link_farm magnitude band for rare-event structural signals.',
+    range: '0 to 0.10',
+  },
+  'tapb.apply_to_articulation_node_only': {
+    definition: 'When on, only exact articulation points trigger the boost; off enables a graded boost on near-articulation nodes.',
+    impact: 'On keeps the signal conservative. Off (future option) would widen the boost.',
+    default: 'On',
+    example: 'Keep on for v1. The graded variant is a future extension.',
+    range: 'On / Off',
+  },
+  // FR-102 K-Core Integration Boost (KCIB)
+  'kcib.enabled': {
+    definition: 'FR-102 KCIB: rewards links from high-kcore hosts to low-kcore destinations, pulling peripheral pages into the core.',
+    impact: 'Enabled actively integrates peripheral content. Disabled leaves the graph topology alone.',
+    default: 'On',
+    example: 'Keep on — especially useful for sites with deep long-tail content that rarely gets linked.',
+    range: 'On / Off',
+  },
+  'kcib.ranking_weight': {
+    definition: 'How strongly the k-core integration boost contributes.',
+    impact: 'Higher values more aggressively pull peripheral pages into the core.',
+    default: '0.03',
+    example: '0.03 matches the link_farm rarity magnitude band.',
+    range: '0 to 0.10',
+  },
+  'kcib.min_kcore_spread': {
+    definition: 'Minimum host.kcore - dest.kcore gap needed to fire the boost.',
+    impact: 'Lower values let smaller core-gaps trigger; higher values restrict the boost to clearly hub-to-periphery links.',
+    default: '1',
+    example: '1 is the smallest meaningful step. Raise to 3 to only reward big integration jumps.',
+    range: '1 to 10',
+  },
+  // FR-103 Bridge-Edge Redundancy Penalty (BERP)
+  'berp.enabled': {
+    definition: 'FR-103 BERP: penalises candidates where host->dest would become a new bridge edge (fragile single-path connector).',
+    impact: 'Enabled discourages creating structural single points of failure. Disabled ignores bridge-edge topology.',
+    default: 'On',
+    example: 'Leave on — multi-path resilience is generally healthier than narrow bridges.',
+    range: 'On / Off',
+  },
+  'berp.ranking_weight': {
+    definition: 'How strongly the would-be-bridge penalty subtracts from the score.',
+    impact: 'Higher values punish would-be bridges harder.',
+    default: '0.04',
+    example: '0.04 matches the keyword_stuffing penalty magnitude.',
+    range: '0 to 0.15',
+  },
+  'berp.min_component_size': {
+    definition: 'Minimum biconnected-component size before the penalty fires. Smaller components are treated as noise.',
+    impact: 'Higher values keep the penalty restricted to meaningfully-large components.',
+    default: '5',
+    example: 'Seidman 1983 small-component discussion. Raise to 10 on very small sites.',
+    range: '2 to 20',
+  },
+  // FR-104 Host-Graph Topic Entropy Boost (HGTE)
+  'hgte.enabled': {
+    definition: 'FR-104 HGTE: rewards candidates that increase the Shannon entropy of the host\'s outbound silo distribution.',
+    impact: 'Enabled diversifies host portfolios. Disabled ignores portfolio topic-distribution health.',
+    default: 'On',
+    example: 'Keep on to prevent hosts from becoming topically monotone over time.',
+    range: 'On / Off',
+  },
+  'hgte.ranking_weight': {
+    definition: 'How strongly the entropy-delta boost contributes.',
+    impact: 'Higher values strongly reward diversifying links.',
+    default: '0.04',
+    example: '0.04 matches the rare_term_propagation magnitude band.',
+    range: '0 to 0.10',
+  },
+  'hgte.min_host_out_degree': {
+    definition: 'Minimum number of outbound links the host must have before entropy is computed at all (too few links = noisy entropy).',
+    impact: 'Higher values mean only well-linked hosts trigger the signal.',
+    default: '3',
+    example: 'Shannon 1948 asymptotic reliability discussion. 3 is the minimum meaningful.',
+    range: '2 to 10',
+  },
+  // FR-105 Reverse Search-Query Vocabulary Alignment (RSQVA)
+  'rsqva.enabled': {
+    definition: 'FR-105 RSQVA: TF-IDF cosine between host\'s and destination\'s GSC query vocabularies. High overlap = same search intent.',
+    impact: 'Enabled rewards user-intent-aligned pairs even when body text differs. Disabled ignores GSC query vocabularies.',
+    default: 'On',
+    example: 'Keep on — this catches topically-related pairs that embeddings miss.',
+    range: 'On / Off',
+  },
+  'rsqva.ranking_weight': {
+    definition: 'How strongly GSC query-vocabulary alignment contributes.',
+    impact: 'Higher values treat GSC query overlap as a stronger relevance signal.',
+    default: '0.05',
+    example: '0.05 matches the ga4_gsc magnitude band.',
+    range: '0 to 0.15',
+  },
+  'rsqva.min_queries_per_page': {
+    definition: 'Minimum GSC queries a page must have to participate in the alignment signal.',
+    impact: 'Higher values exclude more low-traffic pages; lower values let noisy vocabularies participate.',
+    default: '5',
+    example: 'Salton-Buckley 1988 §3.2 reliability floor. Below 5 the TF-IDF vector is noise.',
+    range: '3 to 20',
+  },
+  'rsqva.min_query_clicks': {
+    definition: 'Minimum clicks a query must have to count in the TF-IDF aggregation.',
+    impact: 'Higher values exclude impression-only queries; 1 keeps all converting queries.',
+    default: '1',
+    example: 'Keep at 1. Järvelin-Kekäläinen 2002 click-weighted CG framework motivates click-gating.',
+    range: '1 to 10',
+  },
+  'rsqva.max_vocab_size': {
+    definition: 'Hard cap on the number of distinct query terms tracked per page.',
+    impact: 'Larger caps handle broader vocabularies; hashing collisions remain bounded.',
+    default: '10000',
+    example: 'Leave at 10000. Smaller sites won\'t hit the cap; very large sites benefit from the upper bound.',
+    range: '1000 to 50000',
+  },
 };
 
 const UI_TO_PRESET_KEY: Record<string, string> = {
@@ -1707,6 +1889,38 @@ const UI_TO_PRESET_KEY: Record<string, string> = {
   'seasonality.w_current': 'seasonality.w_current',
   'seasonality.w_anticipation': 'seasonality.w_anticipation',
   'seasonality.index_cap': 'seasonality.index_cap',
+  // FR-099 DARB
+  'darb.enabled': 'darb.enabled',
+  'darb.ranking_weight': 'darb.ranking_weight',
+  'darb.out_degree_saturation': 'darb.out_degree_saturation',
+  'darb.min_host_value': 'darb.min_host_value',
+  // FR-100 KMIG
+  'kmig.enabled': 'kmig.enabled',
+  'kmig.ranking_weight': 'kmig.ranking_weight',
+  'kmig.attenuation': 'kmig.attenuation',
+  'kmig.max_hops': 'kmig.max_hops',
+  // FR-101 TAPB
+  'tapb.enabled': 'tapb.enabled',
+  'tapb.ranking_weight': 'tapb.ranking_weight',
+  'tapb.apply_to_articulation_node_only': 'tapb.apply_to_articulation_node_only',
+  // FR-102 KCIB
+  'kcib.enabled': 'kcib.enabled',
+  'kcib.ranking_weight': 'kcib.ranking_weight',
+  'kcib.min_kcore_spread': 'kcib.min_kcore_spread',
+  // FR-103 BERP
+  'berp.enabled': 'berp.enabled',
+  'berp.ranking_weight': 'berp.ranking_weight',
+  'berp.min_component_size': 'berp.min_component_size',
+  // FR-104 HGTE
+  'hgte.enabled': 'hgte.enabled',
+  'hgte.ranking_weight': 'hgte.ranking_weight',
+  'hgte.min_host_out_degree': 'hgte.min_host_out_degree',
+  // FR-105 RSQVA
+  'rsqva.enabled': 'rsqva.enabled',
+  'rsqva.ranking_weight': 'rsqva.ranking_weight',
+  'rsqva.min_queries_per_page': 'rsqva.min_queries_per_page',
+  'rsqva.min_query_clicks': 'rsqva.min_query_clicks',
+  'rsqva.max_vocab_size': 'rsqva.max_vocab_size',
 };
 
 const ALERT_THRESHOLDS: Record<string, { warnBelow?: number; warnAbove?: number; dangerBelow?: number; dangerAbove?: number }> = {
@@ -2169,6 +2383,55 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     score_window: 0.30,
     similarity_cap: 0.90,
   };
+  // FR-099 through FR-105 — graph-topology ranking signals.
+  // See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
+  // Defaults match backend/apps/suggestions/recommended_weights.py byte-for-byte.
+  darb = {
+    enabled: true,
+    ranking_weight: 0.04,
+    out_degree_saturation: 5,
+    min_host_value: 0.5,
+  };
+  savingDarb = false;
+  kmig = {
+    enabled: true,
+    ranking_weight: 0.05,
+    attenuation: 0.5,
+    max_hops: 2,
+  };
+  savingKmig = false;
+  tapb = {
+    enabled: true,
+    ranking_weight: 0.03,
+    apply_to_articulation_node_only: true,
+  };
+  savingTapb = false;
+  kcib = {
+    enabled: true,
+    ranking_weight: 0.03,
+    min_kcore_spread: 1,
+  };
+  savingKcib = false;
+  berp = {
+    enabled: true,
+    ranking_weight: 0.04,
+    min_component_size: 5,
+  };
+  savingBerp = false;
+  hgte = {
+    enabled: true,
+    ranking_weight: 0.04,
+    min_host_out_degree: 3,
+  };
+  savingHgte = false;
+  rsqva = {
+    enabled: true,
+    ranking_weight: 0.05,
+    min_queries_per_page: 5,
+    min_query_clicks: 1,
+    max_vocab_size: 10000,
+  };
+  savingRsqva = false;
   xenforo: XenForoSettings = {
     base_url: '',
     api_key_configured: false,
@@ -2675,6 +2938,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       slateDiversity: this.siloSvc.getSlateDiversitySettings(),
       graphCandidate: this.siloSvc.getGraphCandidateSettings(),
       valueModel: this.siloSvc.getValueModelSettings(),
+      fr099Fr105: this.siloSvc.getFr099Fr105Settings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
       notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
@@ -2713,6 +2977,16 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
         this.slateDiversity = { ...this.slateDiversity, ...data.slateDiversity };
         this.graphCandidate = { ...this.graphCandidate, ...data.graphCandidate };
         this.valueModel = { ...this.valueModel, ...data.valueModel };
+        // FR-099 through FR-105 — 7 graph-topology signals loaded as a group.
+        if (data.fr099Fr105) {
+          this.darb = { ...this.darb, ...(data.fr099Fr105.darb || {}) };
+          this.kmig = { ...this.kmig, ...(data.fr099Fr105.kmig || {}) };
+          this.tapb = { ...this.tapb, ...(data.fr099Fr105.tapb || {}) };
+          this.kcib = { ...this.kcib, ...(data.fr099Fr105.kcib || {}) };
+          this.berp = { ...this.berp, ...(data.fr099Fr105.berp || {}) };
+          this.hgte = { ...this.hgte, ...(data.fr099Fr105.hgte || {}) };
+          this.rsqva = { ...this.rsqva, ...(data.fr099Fr105.rsqva || {}) };
+        }
         this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
         this.loadGroupsAndScopes();
@@ -3482,6 +3756,49 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       },
     });
   }
+
+  // FR-099 through FR-105 — saves all 7 signals via the grouped endpoint.
+  // Each card's Save button calls this; we set the per-signal spinner so
+  // the right card shows "Saving..." while the whole batch goes up.
+  private _saveFr099Fr105(spinnerSetter: (v: boolean) => void, name: string): void {
+    spinnerSetter(true);
+    const payload = {
+      darb: this.darb,
+      kmig: this.kmig,
+      tapb: this.tapb,
+      kcib: this.kcib,
+      berp: this.berp,
+      hgte: this.hgte,
+      rsqva: this.rsqva,
+    };
+    this.siloSvc.updateFr099Fr105Settings(payload)
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: (saved) => {
+          if (saved?.darb) this.darb = { ...this.darb, ...saved.darb };
+          if (saved?.kmig) this.kmig = { ...this.kmig, ...saved.kmig };
+          if (saved?.tapb) this.tapb = { ...this.tapb, ...saved.tapb };
+          if (saved?.kcib) this.kcib = { ...this.kcib, ...saved.kcib };
+          if (saved?.berp) this.berp = { ...this.berp, ...saved.berp };
+          if (saved?.hgte) this.hgte = { ...this.hgte, ...saved.hgte };
+          if (saved?.rsqva) this.rsqva = { ...this.rsqva, ...saved.rsqva };
+          this.refreshCurrentWeights();
+          spinnerSetter(false);
+          this.snack.open(`${name} settings saved`, undefined, { duration: 2500 });
+        },
+        error: (error) => {
+          spinnerSetter(false);
+          this.snack.open(error?.error?.detail || error?.error?.error || `Failed to save ${name} settings`, 'Dismiss', { duration: 4000 });
+        },
+      });
+  }
+  saveDarbSettings(): void { this._saveFr099Fr105(v => this.savingDarb = v, 'DARB'); }
+  saveKmigSettings(): void { this._saveFr099Fr105(v => this.savingKmig = v, 'KMIG'); }
+  saveTapbSettings(): void { this._saveFr099Fr105(v => this.savingTapb = v, 'TAPB'); }
+  saveKcibSettings(): void { this._saveFr099Fr105(v => this.savingKcib = v, 'KCIB'); }
+  saveBerpSettings(): void { this._saveFr099Fr105(v => this.savingBerp = v, 'BERP'); }
+  saveHgteSettings(): void { this._saveFr099Fr105(v => this.savingHgte = v, 'HGTE'); }
+  saveRsqvaSettings(): void { this._saveFr099Fr105(v => this.savingRsqva = v, 'RSQVA'); }
 
   saveClickDistanceSettings(): void {
     this.savingClickDistance = true;

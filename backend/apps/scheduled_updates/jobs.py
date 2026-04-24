@@ -168,6 +168,35 @@ def run_link_freshness_decay(job, checkpoint) -> None:
 
 
 @scheduled_job(
+    "rsqva_tfidf_refresh",
+    display_name="FR-105 RSQVA: GSC query TF-IDF vectors refresh",
+    cadence_seconds=DAY,
+    estimate_seconds=15 * 60,
+    priority=JOB_PRIORITY_HIGH,
+)
+def run_rsqva_tfidf_refresh(job, checkpoint) -> None:
+    """Recompute per-page GSC query TF-IDF vectors used by FR-105 RSQVA.
+
+    See docs/specs/fr105-reverse-search-query-vocabulary-alignment.md.
+    Safely no-ops when GSC data is below the 7-day minimum-data floor
+    (BLC §6.4) — FR-105's signal evaluation stays in
+    `vector_not_computed` fallback until the window has enough data.
+    """
+    from apps.analytics.gsc_query_vocab import refresh_gsc_query_tfidf
+
+    checkpoint(progress_pct=0.0, message="Starting RSQVA TF-IDF refresh")
+    stats = refresh_gsc_query_tfidf(lookback_days=90, checkpoint=checkpoint)
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"RSQVA refresh: {stats['pages_updated']:,} pages updated "
+            f"from {stats['rows_read']:,} GSC rows "
+            f"({stats['min_gsc_days_seen']} days seen)"
+        ),
+    )
+
+
+@scheduled_job(
     "crawl_freshness_scan",
     display_name="Crawl-freshness re-scheduling scan",
     cadence_seconds=DAY,

@@ -13,6 +13,7 @@
 **Before writing any code, follow the Code Quality Mandate in `AGENTS.md` — it applies to every task.**
 **Before any work involving scheduled tasks, resource usage, concurrency, or GPU work, read `docs/PERFORMANCE.md`. This applies to all AI agents (Claude, Codex, Gemini).**
 **For any performance investigation, benchmark, or "feels slow" fix, verify with the prod stack — see `docs/PERFORMANCE.md` §13. There is no dev mode any more (see `docs/DELETED-FEATURES.md`): `docker compose --env-file .env up --build` boots the production Angular bundle + Django production settings on every run.**
+**Before any work touching ranking signals, meta-algorithms, autotuners, or weight-preset keys, read `docs/RANKING-GATES.md` and satisfy Gate A (implementation — fires when CODE is about to be written) and Gate B (user-idea intake — fires the moment an idea is PROPOSED). Every checkbox must pass or have an explicit written justification. Skipping either gate is a policy violation.**
 
 # Mandatory Benchmark Rule — All Languages
 

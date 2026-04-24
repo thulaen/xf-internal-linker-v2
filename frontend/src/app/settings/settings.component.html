@@ -589,6 +589,331 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- FR-099 DARB -->
+          <mat-card class="settings-card" id="darb">
+            <mat-card-header>
+              <mat-card-title>Dangling Authority Redistribution Bonus (FR-099)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Boost candidates from high-value hosts that barely link out — fixes the Reddit-post "dead-end street" problem. Source: Page et al. 1999 §2.5.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="darb.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="darb.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Out-degree saturation</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="20" step="1" [(ngModel)]="darb.out_degree_saturation" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.out_degree_saturation')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min host value</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="1" step="0.05" [(ngModel)]="darb.min_host_value" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('darb.min_host_value')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingDarb" (click)="saveDarbSettings()">
+                  <mat-icon>{{ savingDarb ? 'sync' : 'alt_route' }}</mat-icon>
+                  {{ savingDarb ? 'Saving...' : 'Save DARB' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-100 KMIG -->
+          <mat-card class="settings-card" id="kmig">
+            <mat-card-header>
+              <mat-card-title>Katz Marginal Information Gain (FR-100)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Penalises candidates already reachable within 1-2 hops via existing links — avoids redundant edges. Source: Katz 1953, Psychometrika 18(1) §2 eq. 2.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="kmig.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="kmig.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Katz attenuation β</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0.1" max="0.9" step="0.05" [(ngModel)]="kmig.attenuation" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.attenuation')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Max hops</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="3" step="1" [(ngModel)]="kmig.max_hops" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kmig.max_hops')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingKmig" (click)="saveKmigSettings()">
+                  <mat-icon>{{ savingKmig ? 'sync' : 'route' }}</mat-icon>
+                  {{ savingKmig ? 'Saving...' : 'Save KMIG' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-101 TAPB -->
+          <mat-card class="settings-card" id="tapb">
+            <mat-card-header>
+              <mat-card-title>Tarjan Articulation Point Boost (FR-101)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Rewards candidates whose host is a structural cut vertex (bridge node). Source: Tarjan 1972 SIAM §3.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="tapb.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('tapb.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.10" step="0.01" [(ngModel)]="tapb.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('tapb.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Articulation-only mode</mat-label>
+                  <mat-select [(ngModel)]="tapb.apply_to_articulation_node_only" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Strict (only APs)</mat-option>
+                    <mat-option [value]="false">Graded (future)</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('tapb.apply_to_articulation_node_only')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingTapb" (click)="saveTapbSettings()">
+                  <mat-icon>{{ savingTapb ? 'sync' : 'account_tree' }}</mat-icon>
+                  {{ savingTapb ? 'Saving...' : 'Save TAPB' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-102 KCIB -->
+          <mat-card class="settings-card" id="kcib">
+            <mat-card-header>
+              <mat-card-title>K-Core Integration Boost (FR-102)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Rewards links from high-kcore hosts into low-kcore destinations — pulls peripheral pages into the core. Source: Seidman 1983 Social Networks 5(3) §2.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="kcib.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kcib.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.10" step="0.01" [(ngModel)]="kcib.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kcib.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min kcore spread</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="10" step="1" [(ngModel)]="kcib.min_kcore_spread" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('kcib.min_kcore_spread')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingKcib" (click)="saveKcibSettings()">
+                  <mat-icon>{{ savingKcib ? 'sync' : 'filter_center_focus' }}</mat-icon>
+                  {{ savingKcib ? 'Saving...' : 'Save KCIB' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-103 BERP -->
+          <mat-card class="settings-card" id="berp">
+            <mat-card-header>
+              <mat-card-title>Bridge-Edge Redundancy Penalty (FR-103)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Penalises candidates where host→dest would become a fragile single-path bridge. Source: Hopcroft-Tarjan 1973 CACM 16(6) §2.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="berp.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('berp.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Penalty weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="berp.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('berp.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min component size</mat-label>
+                  <input matInput autocomplete="off" type="number" min="2" max="20" step="1" [(ngModel)]="berp.min_component_size" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('berp.min_component_size')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingBerp" (click)="saveBerpSettings()">
+                  <mat-icon>{{ savingBerp ? 'sync' : 'link_off' }}</mat-icon>
+                  {{ savingBerp ? 'Saving...' : 'Save BERP' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-104 HGTE -->
+          <mat-card class="settings-card" id="hgte">
+            <mat-card-header>
+              <mat-card-title>Host-Graph Topic Entropy Boost (FR-104)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">Rewards candidates that diversify the host's outbound-link topic portfolio (Shannon entropy delta). Source: Shannon 1948 §6 eq. 4.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="hgte.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('hgte.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.10" step="0.01" [(ngModel)]="hgte.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('hgte.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min host out-degree</mat-label>
+                  <input matInput autocomplete="off" type="number" min="2" max="10" step="1" [(ngModel)]="hgte.min_host_out_degree" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('hgte.min_host_out_degree')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingHgte" (click)="saveHgteSettings()">
+                  <mat-icon>{{ savingHgte ? 'sync' : 'pie_chart' }}</mat-icon>
+                  {{ savingHgte ? 'Saving...' : 'Save HGTE' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <!-- FR-105 RSQVA -->
+          <mat-card class="settings-card" id="rsqva">
+            <mat-card-header>
+              <mat-card-title>Reverse Search-Query Vocabulary Alignment (FR-105)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">TF-IDF cosine between host's and destination's Google Search Console query vocabularies — rewards user-intent overlap. Source: Salton &amp; Buckley 1988, Järvelin &amp; Kekäläinen 2002.</p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Status</mat-label>
+                  <mat-select [(ngModel)]="rsqva.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rsqva.enabled')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Ranking weight</mat-label>
+                  <input matInput autocomplete="off" type="number" min="0" max="0.15" step="0.01" [(ngModel)]="rsqva.ranking_weight" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rsqva.ranking_weight')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min queries per page</mat-label>
+                  <input matInput autocomplete="off" type="number" min="3" max="20" step="1" [(ngModel)]="rsqva.min_queries_per_page" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rsqva.min_queries_per_page')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Min query clicks</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1" max="10" step="1" [(ngModel)]="rsqva.min_query_clicks" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rsqva.min_query_clicks')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Max vocab size</mat-label>
+                  <input matInput autocomplete="off" type="number" min="1000" max="50000" step="1000" [(ngModel)]="rsqva.max_vocab_size" />
+                  <button matSuffix mat-icon-button type="button" class="info-btn" [matTooltip]="tip('rsqva.max_vocab_size')" matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary" [disabled]="savingRsqva" (click)="saveRsqvaSettings()">
+                  <mat-icon>{{ savingRsqva ? 'sync' : 'search' }}</mat-icon>
+                  {{ savingRsqva ? 'Saving...' : 'Save RSQVA' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <!-- Feedback Reranking -->
           <mat-card class="settings-card">
             <mat-card-header>

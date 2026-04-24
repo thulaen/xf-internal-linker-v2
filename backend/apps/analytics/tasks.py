@@ -201,6 +201,31 @@ def schedule_gsc_performance_daily() -> dict[str, int | str]:
 
 
 @shared_task(
+    bind=True,
+    name="analytics.refresh_gsc_query_tfidf",
+    time_limit=1800,
+    soft_time_limit=1740,
+)
+def refresh_gsc_query_tfidf(self, lookback_days: int = 90) -> dict[str, int]:
+    """FR-105 RSQVA — recompute per-page GSC query TF-IDF vectors.
+
+    Populates `ContentItem.gsc_query_tfidf_vector` from recent
+    `SearchMetric(source="gsc", query != "")` rows. Runs daily by default
+    (Celery Beat `schedule_gsc_performance_daily` stores the underlying
+    per-query data; this task consumes it into TF-IDF space).
+
+    Safe no-op when GSC data is below the 7-day BLC §6.4 floor — the
+    helper returns zero-counts and FR-105's signal evaluation stays in
+    `vector_not_computed` fallback.
+
+    See docs/specs/fr105-reverse-search-query-vocabulary-alignment.md.
+    """
+    from .gsc_query_vocab import refresh_gsc_query_tfidf as _impl
+
+    return _impl(lookback_days=lookback_days)
+
+
+@shared_task(
     name="analytics.recompute_all_search_impact", time_limit=1800, soft_time_limit=1740
 )
 def recompute_all_search_impact() -> dict[str, int]:

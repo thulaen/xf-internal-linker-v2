@@ -23,8 +23,18 @@ from .ranker import (
 )
 from .phrase_matching import PhraseMatchingSettings
 from .rare_term_propagation import RareTermPropagationSettings
+from .dangling_authority_redistribution import DARBSettings
+from .katz_marginal_info import KMIGSettings
+from .articulation_point_boost import TAPBSettings
+from .kcore_integration import KCIBSettings
+from .bridge_edge_redundancy import BERPSettings
+from .host_topic_entropy import HGTESettings
+from .search_query_alignment import RSQVASettings
+from .fr099_fr105_signals import FR099FR105Settings
 from apps.suggestions.recommended_weights import (
+    recommended_bool,
     recommended_float,
+    recommended_int,
     recommended_str,
 )
 
@@ -62,6 +72,7 @@ def _load_all_pipeline_settings() -> dict[str, Any]:
         "feedback_rerank": _load_feedback_rerank_settings(),
         "clustering": _load_clustering_settings(),
         "slate_diversity": _load_slate_diversity_settings(),
+        "fr099_fr105": _load_fr099_fr105_settings(),
         "max_host_reuse": _get_max_host_reuse(),
     }
 
@@ -488,3 +499,83 @@ def _load_slate_diversity_settings() -> SlateDiversitySettings:
     except Exception:
         logger.exception("Failed to load slate diversity settings; using defaults.")
         return SlateDiversitySettings()
+
+
+def _load_fr099_fr105_settings() -> FR099FR105Settings:
+    """Load FR-099 through FR-105 graph-topology ranking-signal settings.
+
+    Reads the 19 keys seeded in recommended_weights.py (`darb.*`, `kmig.*`,
+    `tapb.*`, `kcib.*`, `berp.*`, `hgte.*`, `rsqva.*`) from AppSetting
+    overrides if present, else falls back to the Recommended preset defaults.
+
+    See docs/specs/fr099-*.md through docs/specs/fr105-*.md for baseline
+    citations. See docs/RANKING-GATES.md Gate A for the implementation gate.
+    """
+    def _get(key: str, fallback_str: str) -> str:
+        """Read AppSetting override for key, else use the Recommended default."""
+        try:
+            from apps.core.models import AppSetting
+
+            setting = AppSetting.objects.filter(key=key).first()
+            if setting is not None:
+                return setting.value
+        except Exception:
+            logger.exception("Failed to read AppSetting %s; using preset.", key)
+        return fallback_str
+
+    def _bool(key: str) -> bool:
+        return _get(key, "true" if recommended_bool(key) else "false").strip().lower() == "true"
+
+    def _float(key: str) -> float:
+        return float(_get(key, str(recommended_float(key))))
+
+    def _int(key: str) -> int:
+        return int(float(_get(key, str(recommended_int(key)))))
+
+    try:
+        return FR099FR105Settings(
+            darb=DARBSettings(
+                enabled=_bool("darb.enabled"),
+                ranking_weight=_float("darb.ranking_weight"),
+                out_degree_saturation=_int("darb.out_degree_saturation"),
+                min_host_value=_float("darb.min_host_value"),
+            ),
+            kmig=KMIGSettings(
+                enabled=_bool("kmig.enabled"),
+                ranking_weight=_float("kmig.ranking_weight"),
+                attenuation=_float("kmig.attenuation"),
+                max_hops=_int("kmig.max_hops"),
+            ),
+            tapb=TAPBSettings(
+                enabled=_bool("tapb.enabled"),
+                ranking_weight=_float("tapb.ranking_weight"),
+                apply_to_articulation_node_only=_bool("tapb.apply_to_articulation_node_only"),
+            ),
+            kcib=KCIBSettings(
+                enabled=_bool("kcib.enabled"),
+                ranking_weight=_float("kcib.ranking_weight"),
+                min_kcore_spread=_int("kcib.min_kcore_spread"),
+            ),
+            berp=BERPSettings(
+                enabled=_bool("berp.enabled"),
+                ranking_weight=_float("berp.ranking_weight"),
+                min_component_size=_int("berp.min_component_size"),
+            ),
+            hgte=HGTESettings(
+                enabled=_bool("hgte.enabled"),
+                ranking_weight=_float("hgte.ranking_weight"),
+                min_host_out_degree=_int("hgte.min_host_out_degree"),
+            ),
+            rsqva=RSQVASettings(
+                enabled=_bool("rsqva.enabled"),
+                ranking_weight=_float("rsqva.ranking_weight"),
+                min_queries_per_page=_int("rsqva.min_queries_per_page"),
+                min_query_clicks=_int("rsqva.min_query_clicks"),
+                max_vocab_size=_int("rsqva.max_vocab_size"),
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "Failed to load FR-099 through FR-105 settings; using dataclass defaults."
+        )
+        return FR099FR105Settings()

@@ -156,6 +156,7 @@ def run_pipeline(
         keyword_stuffing_settings=settings["keyword_stuffing"],
         link_farm_settings=settings["link_farm"],
         progress_fn=_progress,
+        fr099_fr105_settings=settings.get("fr099_fr105"),
     )
     data = _load_pipeline_resources(**resource_kwargs)
     if isinstance(data, PipelineResult):
@@ -219,6 +220,7 @@ def _execute_pipeline_stages(
         feedback_rerank_service=feedback_rerank_service,
         progress_fn=progress_fn,
         items_in_scope=data["items_in_scope"],
+        fr099_fr105_caches=data.get("fr099_fr105_caches"),
     )
     candidates_by_destination, diagnostics = _score_all_destinations(**scoring_kwargs)
 

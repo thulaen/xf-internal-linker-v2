@@ -288,6 +288,7 @@ def _score_all_destinations(
     feedback_rerank_service: Any,
     progress_fn: Callable,
     items_in_scope: int,
+    fr099_fr105_caches: Any = None,
 ) -> tuple[dict[ContentKey, list[ScoredCandidate]], list[tuple]]:
     """Score every destination through Stage 2 + Stage 3, with reranking."""
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
@@ -310,6 +311,7 @@ def _score_all_destinations(
             feedback_rerank_service=feedback_rerank_service,
             candidates_by_destination=candidates_by_destination,
             diagnostics=diagnostics,
+            fr099_fr105_caches=fr099_fr105_caches,
         )
 
         if dest_idx % _SCORING_PROGRESS_INTERVAL == 0 and dest_idx > 0:
@@ -336,6 +338,7 @@ def _score_single_destination(
     feedback_rerank_service: Any,
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
     diagnostics: list[tuple],
+    fr099_fr105_caches: Any = None,
 ) -> None:
     """Score a single destination through Stage 2 + Stage 3."""
     destination = content_records[dest_key]
@@ -389,6 +392,8 @@ def _score_single_destination(
         clustering_settings=settings["clustering"],
         blocked_reasons=blocked_reasons,
         min_semantic_score=MIN_SEMANTIC_SCORE,
+        fr099_fr105_caches=fr099_fr105_caches,
+        fr099_fr105_settings=settings.get("fr099_fr105"),
     )
 
     _collect_destination_result(

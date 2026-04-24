@@ -369,6 +369,20 @@ class ContentItem(TimestampedModel):
         help_text="Semantic embedding for the active model. Pair with embedding_model_version when reading.",
     )
 
+    # FR-105 — Reverse Search-Query Vocabulary Alignment (RSQVA) input.
+    # TF-IDF vector over this page's GSC query vocabulary, L2-normalized
+    # per Salton & Buckley 1988. Rebuilt daily by the
+    # analytics.tasks.refresh_gsc_query_tfidf Celery Beat task. Null until
+    # first sync. Stored as a pgvector so pair-cosine uses pgvector's <=>
+    # operator at query time. Dimension is bounded by rsqva.max_vocab_size
+    # (default 10000) via hashing.
+    gsc_query_tfidf_vector = VectorField(
+        null=True,
+        blank=True,
+        dimensions=1024,
+        help_text="FR-105 RSQVA: L2-normalized TF-IDF vector over this page's GSC query vocabulary, projected to 1024-dim via feature hashing. Null until first analytics sync.",
+    )
+
     # Engagement metrics (mirrored from XenForo)
     view_count = models.IntegerField(
         default=0,

@@ -208,6 +208,22 @@ class ScoredCandidate:
     link_farm_diagnostics: dict[str, object] = field(default_factory=dict)
     score_slate_diversity: float | None = field(default=None)
     slate_diversity_diagnostics: dict[str, object] = field(default_factory=dict)
+    # FR-099 through FR-105 — graph-topology signals (default 0.0 = neutral).
+    # See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
+    score_darb: float = 0.0
+    score_kmig: float = 0.0
+    score_tapb: float = 0.0
+    score_kcib: float = 0.0
+    score_berp: float = 0.0
+    score_hgte: float = 0.0
+    score_rsqva: float = 0.0
+    darb_diagnostics: dict[str, object] = field(default_factory=dict)
+    kmig_diagnostics: dict[str, object] = field(default_factory=dict)
+    tapb_diagnostics: dict[str, object] = field(default_factory=dict)
+    kcib_diagnostics: dict[str, object] = field(default_factory=dict)
+    berp_diagnostics: dict[str, object] = field(default_factory=dict)
+    hgte_diagnostics: dict[str, object] = field(default_factory=dict)
+    rsqva_diagnostics: dict[str, object] = field(default_factory=dict)
 
     @property
     def destination_key(self) -> ContentKey:
@@ -419,6 +435,8 @@ def score_destination_matches(
     clustering_settings: ClusteringSettings = ClusteringSettings(),
     blocked_reasons: set[str] | None = None,
     min_semantic_score: float = 0.25,
+    fr099_fr105_caches: object = None,
+    fr099_fr105_settings: object = None,
     min_sentence_chars: int = _DEFAULT_MIN_SENTENCE_CHARS,
     max_sentence_chars: int = _DEFAULT_MAX_SENTENCE_CHARS,
     min_host_chars: int = _DEFAULT_MIN_HOST_CHARS,
@@ -661,6 +679,14 @@ def score_destination_matches(
     else:
         score_finals = np.empty(0, dtype=np.float32)
 
+    # Lazy import to keep the module dependency-light when FR-099..105 is
+    # disabled. Dispatcher is a pure-Python additive layer on top of the
+    # existing 15-component composite — see docs/specs/fr099-*.md through
+    # docs/specs/fr105-*.md.
+    _fr099_dispatcher = None
+    if fr099_fr105_settings is not None and fr099_fr105_caches is not None:
+        from .fr099_fr105_signals import evaluate_all_fr099_fr105 as _fr099_dispatcher
+
     for pending_candidate, raw_score_final in zip(pending_candidates, score_finals):
         match = pending_candidate["match"]
         phrase_match = pending_candidate["phrase_match"]
@@ -675,6 +701,52 @@ def score_destination_matches(
             pending_candidate["score_click_distance_component"]
         )
         score_final = float(raw_score_final)
+
+        # FR-099 through FR-105 — graph-topology signals.
+        # Dispatcher returns weighted_contribution (already multiplied by each
+        # signal's ranking_weight), per_signal_scores (raw [0, 1] for
+        # Suggestion.score_<signal>), and per_signal_diagnostics.
+        fr099_contribution = 0.0
+        fr099_scores: dict[str, float] = {
+            "score_darb": 0.0,
+            "score_kmig": 0.0,
+            "score_tapb": 0.0,
+            "score_kcib": 0.0,
+            "score_berp": 0.0,
+            "score_hgte": 0.0,
+            "score_rsqva": 0.0,
+        }
+        fr099_diags: dict[str, dict[str, object]] = {
+            "darb_diagnostics": {},
+            "kmig_diagnostics": {},
+            "tapb_diagnostics": {},
+            "kcib_diagnostics": {},
+            "berp_diagnostics": {},
+            "hgte_diagnostics": {},
+            "rsqva_diagnostics": {},
+        }
+        if _fr099_dispatcher is not None:
+            host_record = content_records.get(match.host_key)
+            host_content_value = (
+                float(host_record.content_value_score)
+                if host_record is not None
+                and getattr(host_record, "content_value_score", None) is not None
+                else None
+            )
+            dest_silo_id = getattr(destination, "silo_group_id", None)
+            fr099_eval = _fr099_dispatcher(
+                host_key=match.host_key,
+                destination_key=destination.key,
+                host_content_value=host_content_value,
+                dest_silo_id=dest_silo_id,
+                existing_outgoing_counts=existing_outgoing_counts,
+                caches=fr099_fr105_caches,
+                settings=fr099_fr105_settings,
+            )
+            fr099_contribution = float(fr099_eval.weighted_contribution)
+            fr099_scores = fr099_eval.per_signal_scores
+            fr099_diags = fr099_eval.per_signal_diagnostics
+        score_final += fr099_contribution
 
         # FR-014 Clustering Suppression
         score_cluster_suppression = 0.0
@@ -768,6 +840,21 @@ def score_destination_matches(
                 anchor_diversity_diagnostics=anchor_diversity_eval.diagnostics,
                 keyword_stuffing_diagnostics=keyword_stuffing_eval.diagnostics,
                 link_farm_diagnostics=link_farm_eval.diagnostics,
+                # FR-099 through FR-105 — graph-topology signals.
+                score_darb=float(fr099_scores.get("score_darb", 0.0)),
+                score_kmig=float(fr099_scores.get("score_kmig", 0.0)),
+                score_tapb=float(fr099_scores.get("score_tapb", 0.0)),
+                score_kcib=float(fr099_scores.get("score_kcib", 0.0)),
+                score_berp=float(fr099_scores.get("score_berp", 0.0)),
+                score_hgte=float(fr099_scores.get("score_hgte", 0.0)),
+                score_rsqva=float(fr099_scores.get("score_rsqva", 0.0)),
+                darb_diagnostics=dict(fr099_diags.get("darb_diagnostics", {})),
+                kmig_diagnostics=dict(fr099_diags.get("kmig_diagnostics", {})),
+                tapb_diagnostics=dict(fr099_diags.get("tapb_diagnostics", {})),
+                kcib_diagnostics=dict(fr099_diags.get("kcib_diagnostics", {})),
+                berp_diagnostics=dict(fr099_diags.get("berp_diagnostics", {})),
+                hgte_diagnostics=dict(fr099_diags.get("hgte_diagnostics", {})),
+                rsqva_diagnostics=dict(fr099_diags.get("rsqva_diagnostics", {})),
             )
         )
 

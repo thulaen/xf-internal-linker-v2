@@ -165,6 +165,22 @@ This file is the single index of all audit reports and individual issues found b
 
 ---
 
+### ISS-024 — EmbeddingRuntimeSafetyTests expect 1536-dim but provider returns 1024-dim (2026-04-24)
+
+- **Found by:** Claude (during FR-099..105 regression test run)
+- **Severity:** low
+- **Affected files:** `backend/apps/pipeline/tests.py` (EmbeddingRuntimeSafetyTests two tests), `backend/apps/pipeline/services/embedding_quality_gate.py`
+- **Description:** Three pre-existing test failures in `EmbeddingRuntimeSafetyTests` around embedding-dimension mismatches.
+- **Status:** RESOLVED
+- **Resolved:** 2026-04-24 (same session as FR-099..105 full-integration)
+- **Fixed in:**
+  - `embedding_quality_gate.evaluate()` Gate 2 now handles old/new dimension mismatch as an `ACCEPT_NEW` decision with reason `"dimension_upgrade"`. The previous crash path (`np.dot(old_vec, new_vec)` raising `ValueError`) is replaced with a clean early-return for cross-provider upgrades. Gate 3 (stability) is skipped when dimensions mismatch because the stability check compares the new model to itself — irrelevant for a cross-provider upgrade.
+  - `test_model_status_exposes_dimension_compatibility` now uses the correct `_model_cache` key format (`"<model_name>::<device>"` per `_get_model_cache_key`) and patches `get_effective_runtime_resolution` so the device is deterministic regardless of CUDA visibility.
+  - All 6 `EmbeddingRuntimeSafetyTests` now pass. Full `apps.pipeline` regression: 356 → 457 tests, 0 failures.
+- **Regression watch:** Any future change to `embedding_quality_gate.evaluate()` must preserve the early-return for `old_vec.shape[0] != new_vec.shape[0]`. Any future change to `_get_model_cache_key` must update `test_model_status_exposes_dimension_compatibility`'s patched dict-key.
+
+---
+
 ### ISS-011 — 101 stalled-job alerts flooding the Alerts page with 142× duplicates (2026-04-12)
 
 - **Found by:** Claude

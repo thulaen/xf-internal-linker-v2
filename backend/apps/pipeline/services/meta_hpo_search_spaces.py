@@ -87,7 +87,43 @@ def _clip_categorical(choices: list):
     return _inner
 
 
-# ── The 12 TPE-tuned keys ──────────────────────────────────────────
+# ── FR-099..FR-105 burn-in gate ────────────────────────────────────
+#
+# BLC §7.3 rule: no hyperparameter enters the TPE search space until it
+# has 30 days of outcome data. FR-099..FR-105 signals all ship with
+# researched defaults and stay fixed during the burn-in period.
+# `is_fr099_fr105_tpe_eligible()` returns True only when
+# SuggestionPresentation has ≥ 30 days of history, at which point the
+# guarded entries below join the live search space.
+
+
+def is_fr099_fr105_tpe_eligible() -> bool:
+    """Return True iff we have ≥ 30 days of suggestion outcome data.
+
+    Source: BLC §6.4 + §7.3. Before the 30-day burn-in completes,
+    FR-099..FR-105 weights stay at the researched starting values from
+    each spec's §Researched Starting Point.
+    """
+    try:
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from apps.suggestions.models import SuggestionPresentation
+
+        cutoff = timezone.now() - timedelta(days=30)
+        if not SuggestionPresentation.objects.filter(
+            first_seen_at__lte=cutoff
+        ).exists():
+            return False
+        # Also require ≥ 100 rows per BLC §6.4 minimum-data floor.
+        return SuggestionPresentation.objects.count() >= 100
+    except Exception:
+        # Any schema / availability issue → stay ineligible (safe).
+        return False
+
+
+# ── The 12 TPE-tuned keys + 7 FR-099..FR-105 guarded entries ───────
 #
 # Order mirrors the plan manifest. Each block cites its pick spec §6
 # TPE row so reviewers can audit against the source of truth.
@@ -200,6 +236,80 @@ SEARCH_SPACE: list[SearchSpaceEntry] = [
         to_appsetting=lambda v: f"{float(v):.6f}",
     ),
 ]
+
+
+# ── FR-099..FR-105 TPE entries (added after 30-day burn-in completes) ──
+#
+# These live in a separate list so the eligibility gate can splice them
+# into SEARCH_SPACE only after SuggestionPresentation has ≥ 30 days of
+# data. Bounds come from each spec's §Researched Starting Point +
+# §Hardware Budget magnitude band. pick_number is the FR number for
+# dashboard grouping.
+
+_FR099_FR105_ENTRIES: list[SearchSpaceEntry] = [
+    # FR-099 DARB ranking_weight — Page et al. 1999 §3.2 eq. 1 magnitude band
+    SearchSpaceEntry(
+        app_setting_key="darb.ranking_weight",
+        pick_number=99,
+        suggest=_suggest_float("darb.ranking_weight", 0.01, 0.10),
+        clip=_clip(0.01, 0.10),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-100 KMIG ranking_weight — Katz 1953 §3 attenuated-status magnitude
+    SearchSpaceEntry(
+        app_setting_key="kmig.ranking_weight",
+        pick_number=100,
+        suggest=_suggest_float("kmig.ranking_weight", 0.01, 0.12),
+        clip=_clip(0.01, 0.12),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-101 TAPB ranking_weight — Tarjan 1972 §3 articulation-point rarity band
+    SearchSpaceEntry(
+        app_setting_key="tapb.ranking_weight",
+        pick_number=101,
+        suggest=_suggest_float("tapb.ranking_weight", 0.01, 0.08),
+        clip=_clip(0.01, 0.08),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-102 KCIB ranking_weight — Seidman 1983 §4 k-core distribution magnitude
+    SearchSpaceEntry(
+        app_setting_key="kcib.ranking_weight",
+        pick_number=102,
+        suggest=_suggest_float("kcib.ranking_weight", 0.01, 0.08),
+        clip=_clip(0.01, 0.08),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-103 BERP ranking_weight — Hopcroft-Tarjan 1973 §2 bridge-edge rarity band
+    SearchSpaceEntry(
+        app_setting_key="berp.ranking_weight",
+        pick_number=103,
+        suggest=_suggest_float("berp.ranking_weight", 0.01, 0.10),
+        clip=_clip(0.01, 0.10),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-104 HGTE ranking_weight — Shannon 1948 §6 entropy magnitude band
+    SearchSpaceEntry(
+        app_setting_key="hgte.ranking_weight",
+        pick_number=104,
+        suggest=_suggest_float("hgte.ranking_weight", 0.01, 0.10),
+        clip=_clip(0.01, 0.10),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+    # FR-105 RSQVA ranking_weight — Salton & Buckley 1988 §5 cosine-sim magnitude
+    SearchSpaceEntry(
+        app_setting_key="rsqva.ranking_weight",
+        pick_number=105,
+        suggest=_suggest_float("rsqva.ranking_weight", 0.01, 0.12),
+        clip=_clip(0.01, 0.12),
+        to_appsetting=lambda v: f"{float(v):.4f}",
+    ),
+]
+
+
+# Splice FR-099..FR-105 into SEARCH_SPACE iff the burn-in gate passes.
+# Evaluated at module-import time (stable for the process lifetime).
+if is_fr099_fr105_tpe_eligible():
+    SEARCH_SPACE.extend(_FR099_FR105_ENTRIES)
 
 
 # ── Study-level constants ─────────────────────────────────────────
