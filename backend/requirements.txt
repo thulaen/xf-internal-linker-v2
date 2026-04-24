@@ -92,3 +92,11 @@ optuna==4.1.0
 # handles attestation, challenge verification, COSE public-key parsing,
 # and sign-counter checks — we only persist credentials + challenges.
 webauthn==2.5.2
+
+# ── Embedding Providers (plan Parts 1, 4) ─────────────────────────
+# Optional remote-provider SDKs. Imported lazily inside
+# apps/pipeline/services/embedding_providers/ so a missing package
+# only breaks that provider — the local BGE-M3 path keeps working.
+openai==1.55.3                       # OpenAI text-embedding-3-small / -large
+tiktoken==0.8.0                      # Offline token counting for OpenAI cost pre-check
+google-genai==0.3.0                  # Gemini text-embedding-004 / gemini-embedding-exp-03-07

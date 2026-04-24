@@ -350,6 +350,63 @@ def _flush_embeddings_slice(
         supports_model_version = True
     except Exception:
         supports_model_version = False
+
+    # Quality gate (plan Part 9, FR-236) — decides per-item REPLACE / REJECT /
+    # NOOP / ACCEPT_NEW before we archive + overwrite. Filters pks_slice + the
+    # normalised matrix to only the rows the gate approves. If the gate is
+    # disabled (AppSetting embedding.gate_enabled = false), behaviour matches
+    # the pre-gate pipeline exactly.
+    gate_kept_indices, gate_pks_kept = _run_quality_gate(
+        model_class=model_class,
+        pks_slice=pks_slice,
+        normalised=normalised,
+        embedding_signature=embedding_signature,
+    )
+    if gate_kept_indices is not None:
+        # Gate active and produced a filtered set. If nothing kept, bail early.
+        if not gate_kept_indices:
+            raw_vectors_list.clear()
+            return
+        if len(gate_kept_indices) < len(pks_slice):
+            normalised = normalised[gate_kept_indices]
+            pks_slice = gate_pks_kept
+
+    # Archive existing embeddings before overwrite (plan Part 2). Scope: ContentItem
+    # only — SupersededEmbedding.content_item is a FK to ContentItem, not Sentence.
+    # Skips rows that are empty or already at the target signature (nothing to preserve).
+    # Best-effort: archive failure never blocks the bulk_update.
+    if getattr(model_class, "__name__", "") == "ContentItem" and pks_slice:
+        try:
+            from apps.content.models import SupersededEmbedding
+
+            archive_qs = model_class.objects.filter(
+                pk__in=pks_slice, embedding__isnull=False
+            )
+            if supports_model_version and embedding_signature:
+                archive_qs = archive_qs.exclude(
+                    embedding_model_version=embedding_signature
+                )
+            archive_rows = [
+                SupersededEmbedding(
+                    content_item=row,
+                    embedding=row.embedding,
+                    embedding_model_version=getattr(row, "embedding_model_version", "")
+                    or "",
+                    content_hash=getattr(row, "content_hash", "") or "",
+                    content_version=getattr(row, "content_version", 1) or 1,
+                )
+                for row in archive_qs.iterator(chunk_size=500)
+            ]
+            if archive_rows:
+                SupersededEmbedding.objects.bulk_create(
+                    archive_rows, batch_size=500, ignore_conflicts=True
+                )
+        except Exception:
+            logger.warning(
+                "SupersededEmbedding archive batch failed; bulk_update will proceed",
+                exc_info=True,
+            )
+
     model_class.objects.bulk_update(
         [
             model_class(
@@ -683,6 +740,36 @@ def _get_configured_batch_size() -> int:
     except Exception:
         logger.debug("AppSetting unavailable; falling back to mode-based batch size")
 
+    # Hardware-aware auto-tuning (plan Part 8a, FR-233): if the operator has
+    # not set an explicit override, let the hardware profile pick a batch size
+    # scaled to RAM / VRAM / current provider dimension. Falls back to the
+    # mode-based default on any failure so this path is always safe.
+    try:
+        from apps.pipeline.services.hardware_profile import (
+            detect_profile,
+            recommended_batch_size,
+        )
+
+        prof = detect_profile()
+        # Resolve the current provider's output dimension if the abstraction
+        # is installed; otherwise fall back to the local BGE dim.
+        dimension = EMBEDDING_DIM
+        try:
+            from apps.pipeline.services.embedding_providers import get_provider
+
+            provider = get_provider()
+            dimension = int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
+        except Exception:
+            pass
+        auto_batch = recommended_batch_size(dimension=dimension, profile=prof)
+        if _BATCH_SIZE_MIN <= auto_batch <= _BATCH_SIZE_MAX:
+            return auto_batch
+    except Exception:
+        logger.debug(
+            "Hardware-aware batch sizing unavailable; using mode-based default",
+            exc_info=True,
+        )
+
     return (
         _BATCH_SIZE_HIGH
         if _get_performance_mode() == PERFORMANCE_MODE_HIGH
@@ -840,6 +927,348 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 
 
+# ---------------------------------------------------------------------------
+# Provider-aware encode helper (plan Part 1)
+# ---------------------------------------------------------------------------
+
+
+def _encode_batch_via_provider(
+    *,
+    batch_texts: list[str],
+    model: Any,
+    batch_size: int,
+    job_id: str | None,
+) -> np.ndarray:
+    """Encode a batch through the active provider abstraction.
+
+    Fast path: if the active provider is ``local``, delegates straight to the
+    already-loaded ``model.encode()`` — preserves the existing GPU/CPU path,
+    OOM-retry behaviour, and thermal guard surrounding calls. Zero overhead.
+
+    API path: when the user has flipped ``AppSetting("embedding.provider")`` to
+    ``openai`` or ``gemini``, calls ``provider.embed()`` and records token +
+    cost usage in ``EmbeddingCostLedger`` via upsert (unique on (job_id,
+    provider) so resume never duplicates). Provider-side pause checks and
+    retries are handled inside the provider class.
+    """
+    try:
+        from apps.pipeline.services.embedding_providers import (
+            BudgetExceededError,
+            ProviderError,
+            get_provider,
+        )
+    except ImportError:
+        # Provider module not present → legacy local path.
+        return model.encode(
+            batch_texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+
+    try:
+        provider = get_provider()
+    except Exception:
+        logger.exception("get_provider failed; falling back to local encode")
+        return model.encode(
+            batch_texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+
+    if getattr(provider, "name", "local") == "local":
+        # Existing fast path — nothing gained by routing through the wrapper,
+        # and we preserve all surrounding OOM / thermal behaviour.
+        return model.encode(
+            batch_texts,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
+        )
+
+    # API-provider path with graceful fallback (plan Part 8b, FR-234):
+    # if the provider raises BudgetExceededError / AuthenticationError /
+    # RateLimitError, switch to the configured fallback provider (default
+    # ``local``) and retry the batch once. On double failure, re-raise.
+    try:
+        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
+    except BudgetExceededError as exc:
+        fallback = _attempt_graceful_fallback(
+            failing_provider_name=getattr(provider, "name", "unknown"),
+            reason=str(exc),
+            reason_code="budget",
+        )
+        if fallback is None:
+            raise
+        provider = fallback
+        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
+    except ProviderError as exc:
+        reason_code = getattr(exc, "reason", "provider_error")
+        if reason_code not in ("auth", "rate_limit", "budget", "transient"):
+            raise
+        fallback = _attempt_graceful_fallback(
+            failing_provider_name=getattr(provider, "name", "unknown"),
+            reason=str(exc),
+            reason_code=reason_code,
+        )
+        if fallback is None:
+            raise
+        provider = fallback
+        result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
+
+    if job_id:
+        _record_provider_usage(
+            job_id=job_id,
+            provider_name=getattr(provider, "name", "unknown"),
+            signature=getattr(provider, "signature", ""),
+            items=len(batch_texts),
+            tokens=getattr(result, "tokens_input", 0),
+            cost_usd=getattr(result, "cost_usd", 0.0),
+        )
+    return result.vectors
+
+
+def _attempt_graceful_fallback(
+    *,
+    failing_provider_name: str,
+    reason: str,
+    reason_code: str,
+) -> Any | None:
+    """Switch ``embedding.provider`` to the configured fallback and return the new provider.
+
+    Called from ``_encode_batch_via_provider`` when the primary provider raises
+    a recoverable error (auth / rate-limit / budget / transient). Operations:
+      1. Read ``AppSetting("embedding.fallback_provider")``; default ``local``.
+      2. If fallback equals the failing provider, do nothing (avoid infinite loop).
+      3. Update ``AppSetting("embedding.provider")`` in place so subsequent
+         batches resolve to the new provider immediately.
+      4. Clear the provider cache so ``get_provider()`` re-instantiates.
+      5. Emit an operator alert so the Embeddings page surfaces the switch.
+      6. Return the new provider.
+
+    On any internal failure, returns ``None`` — the caller re-raises the original
+    error so the operator is not silently stuck.
+    """
+    try:
+        from apps.core.models import AppSetting
+
+        fallback_row = AppSetting.objects.filter(key="embedding.fallback_provider").first()
+        fallback_name = (str(fallback_row.value).strip().lower() if fallback_row else "local") or "local"
+        if fallback_name == failing_provider_name:
+            logger.warning(
+                "Fallback provider equals failing provider (%s); cannot recover",
+                failing_provider_name,
+            )
+            return None
+
+        AppSetting.objects.update_or_create(
+            key="embedding.provider",
+            defaults={"value": fallback_name},
+        )
+
+        from apps.pipeline.services.embedding_providers import clear_cache, get_provider
+
+        clear_cache()
+        new_provider = get_provider()
+
+        logger.warning(
+            "Embedding provider fallback: %s → %s (reason=%s: %s)",
+            failing_provider_name,
+            fallback_name,
+            reason_code,
+            reason,
+        )
+
+        _emit_fallback_alert(
+            failing=failing_provider_name,
+            fallback=fallback_name,
+            reason_code=reason_code,
+            reason_message=reason,
+        )
+        return new_provider
+    except Exception:
+        logger.exception("Graceful fallback failed for provider=%s", failing_provider_name)
+        return None
+
+
+def _emit_fallback_alert(
+    *,
+    failing: str,
+    fallback: str,
+    reason_code: str,
+    reason_message: str,
+) -> None:
+    """Best-effort operator alert for the Embeddings page and system alerts UI."""
+    try:
+        from apps.diagnostics.alerts import emit_operator_alert
+
+        emit_operator_alert(
+            event_type="embedding.provider_fallback",
+            severity="warning",
+            payload={
+                "failing_provider": failing,
+                "fallback_provider": fallback,
+                "reason_code": reason_code,
+                "reason_message": reason_message[:500],
+            },
+        )
+    except Exception:
+        # Alert system optional; never block fallback.
+        logger.debug("emit_operator_alert unavailable", exc_info=True)
+
+
+def _run_quality_gate(
+    *,
+    model_class: type,
+    pks_slice: list[int],
+    normalised: np.ndarray,
+    embedding_signature: str | None,
+) -> tuple[list[int] | None, list[int]]:
+    """Apply the measure-twice gate to this flush batch.
+
+    Returns a ``(kept_indices, kept_pks)`` tuple:
+        kept_indices: Row indices into ``normalised`` the gate approved, or
+                      ``None`` if the gate is disabled (caller should act as
+                      pre-feature).
+        kept_pks: ``pks_slice`` filtered to the same set.
+
+    Only ContentItem currently goes through the gate (Sentence embeddings have
+    no archive table and no provider-aware signature yet).
+    """
+    try:
+        from apps.pipeline.services.embedding_quality_gate import (
+            QualityGate,
+            is_gate_enabled,
+            load_gate_thresholds,
+            load_provider_ranking,
+            persist_decisions,
+        )
+    except ImportError:
+        return None, pks_slice
+
+    if not is_gate_enabled():
+        return None, pks_slice
+    if getattr(model_class, "__name__", "") != "ContentItem" or not pks_slice:
+        return None, pks_slice
+    if embedding_signature is None:
+        return None, pks_slice
+
+    # Fetch existing rows once: (pk, embedding, embedding_model_version, text).
+    try:
+        has_signature_field = True
+        try:
+            model_class._meta.get_field("embedding_model_version")
+        except Exception:
+            has_signature_field = False
+
+        values_fields = ["pk", "embedding", "title", "distilled_text"]
+        if has_signature_field:
+            values_fields.append("embedding_model_version")
+        existing = {
+            row["pk"]: row
+            for row in model_class.objects.filter(pk__in=pks_slice).values(
+                *values_fields
+            )
+        }
+    except Exception:
+        logger.warning("Gate: existing-row fetch failed; skipping gate", exc_info=True)
+        return None, pks_slice
+
+    thresholds = load_gate_thresholds()
+    ranking = load_provider_ranking()
+    try:
+        from apps.pipeline.services.embedding_providers import get_provider
+        provider = get_provider()
+    except Exception:
+        provider = None
+
+    gate = QualityGate(
+        provider_ranking=ranking,
+        provider=provider,
+        quality_delta_threshold=thresholds[0],
+        noop_cosine_threshold=thresholds[1],
+        stability_threshold=thresholds[2],
+    )
+
+    decisions_to_log: list = []
+    kept_indices: list[int] = []
+    kept_pks: list[int] = []
+    for idx, pk in enumerate(pks_slice):
+        row = existing.get(pk)
+        new_vec = normalised[idx]
+        old_vec = None
+        old_sig = ""
+        text = None
+        if row is not None:
+            raw_emb = row.get("embedding")
+            if raw_emb is not None:
+                try:
+                    old_vec = np.asarray(raw_emb, dtype=np.float32)
+                except Exception:
+                    old_vec = None
+            if has_signature_field:
+                old_sig = row.get("embedding_model_version") or ""
+            title = row.get("title") or ""
+            distilled = row.get("distilled_text") or ""
+            text = f"{title}\n\n{distilled}".strip()
+
+        decision = gate.evaluate(
+            text=text,
+            old_vec=old_vec,
+            old_sig=old_sig,
+            new_vec=new_vec,
+            new_sig=embedding_signature,
+        )
+        decisions_to_log.append((pk, "content_item", decision, old_sig, embedding_signature))
+        if decision.action in ("REPLACE", "ACCEPT_NEW"):
+            kept_indices.append(idx)
+            kept_pks.append(pk)
+
+    # Log all decisions (batched).
+    persist_decisions(decisions_to_log)
+    return kept_indices, kept_pks
+
+
+def _record_provider_usage(
+    *,
+    job_id: str,
+    provider_name: str,
+    signature: str,
+    items: int,
+    tokens: int,
+    cost_usd: float,
+) -> None:
+    """Upsert a row in ``EmbeddingCostLedger`` for this (job_id, provider)."""
+    try:
+        from apps.pipeline.models import EmbeddingCostLedger
+        from django.db import transaction
+        from django.db.models import F
+
+        with transaction.atomic():
+            row, created = EmbeddingCostLedger.objects.get_or_create(
+                job_id=job_id,
+                provider=provider_name,
+                defaults={
+                    "signature": signature,
+                    "items": items,
+                    "tokens_input": tokens,
+                    "cost_usd": cost_usd,
+                },
+            )
+            if not created:
+                # Increment in place to avoid read-modify-write races.
+                EmbeddingCostLedger.objects.filter(pk=row.pk).update(
+                    signature=signature,
+                    items=F("items") + items,
+                    tokens_input=F("tokens_input") + tokens,
+                    cost_usd=F("cost_usd") + cost_usd,
+                )
+    except Exception:
+        # Ledger write failures must never break the embed flow.
+        logger.warning("EmbeddingCostLedger write failed", exc_info=True)
+
+
 def generate_content_item_embeddings(
     content_item_ids: list[int] | None = None,
     job_id: str | None = None,
@@ -936,11 +1365,11 @@ def generate_content_item_embeddings(
         batch_texts = texts[cursor : cursor + batch_size]
         _thermal_guard_before_gpu_batch()
         try:
-            batch_vectors = model.encode(
-                batch_texts,
+            batch_vectors = _encode_batch_via_provider(
+                batch_texts=list(batch_texts),
+                model=model,
                 batch_size=batch_size,
-                show_progress_bar=False,
-                convert_to_numpy=True,
+                job_id=job_id,
             )
         except Exception as exc:
             if not _is_embedding_oom_error(exc):
@@ -1101,11 +1530,11 @@ def generate_sentence_embeddings(
         batch_texts = texts[cursor : cursor + batch_size]
         _thermal_guard_before_gpu_batch()
         try:
-            batch_vectors = model.encode(
-                batch_texts,
+            batch_vectors = _encode_batch_via_provider(
+                batch_texts=list(batch_texts),
+                model=model,
                 batch_size=batch_size,
-                show_progress_bar=False,
-                convert_to_numpy=True,
+                job_id=job_id,
             )
         except Exception as exc:
             if not _is_embedding_oom_error(exc):
