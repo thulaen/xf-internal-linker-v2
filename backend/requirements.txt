@@ -99,4 +99,4 @@ webauthn==2.5.2
 # only breaks that provider — the local BGE-M3 path keeps working.
 openai==1.55.3                       # OpenAI text-embedding-3-small / -large
 tiktoken==0.8.0                      # Offline token counting for OpenAI cost pre-check
-google-genai==0.3.0                  # Gemini text-embedding-004 / gemini-embedding-exp-03-07
+google-genai==1.73.1                 # Gemini text-embedding-004 / gemini-embedding-exp-03-07 (1.73.1 drops the pillow<12 cap)
