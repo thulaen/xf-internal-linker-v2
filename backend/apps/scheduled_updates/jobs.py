@@ -389,13 +389,37 @@ def run_trustrank_propagation(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
-    """Weekly L-BFGS-B tune of ranking weights (pre-existing weight_tuner.py)."""
+    """Weekly L-BFGS-B tune of ranking weights (pre-existing weight_tuner.py).
+
+    Side-effect: also fits + persists the Platt score calibration
+    (pick #32) so the review-queue UI shows calibrated probabilities.
+    Calibration runs after the weight tune so the new weights are
+    reflected in the score → label mapping.
+    """
+    from apps.pipeline.services.score_calibrator import (
+        fit_and_persist_from_history,
+    )
     from apps.suggestions.services.weight_tuner import WeightTuner
 
     checkpoint(progress_pct=0.0, message="Starting L-BFGS-B tuning run")
     run_id = f"sched-{timezone.now():%Y%m%d%H%M}"
     WeightTuner().run(run_id=run_id)
-    checkpoint(progress_pct=100.0, message="Weight tune complete")
+    checkpoint(progress_pct=70.0, message="Fitting Platt score calibration")
+    snapshot = fit_and_persist_from_history()
+    if snapshot is not None:
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"Weight tune + Platt fit complete "
+                f"(slope={snapshot.slope:.4f}, bias={snapshot.bias:.4f}, "
+                f"n={snapshot.training_pairs})"
+            ),
+        )
+    else:
+        checkpoint(
+            progress_pct=100.0,
+            message="Weight tune complete; Platt fit skipped (insufficient history)",
+        )
 
 
 @scheduled_job(
