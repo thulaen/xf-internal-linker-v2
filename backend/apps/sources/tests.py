@@ -1254,3 +1254,60 @@ class UrlCanonicalTests(SimpleTestCase):
         # Audit code calls this on possibly-malformed DB rows; raising
         # would crash the audit. False is the safe answer.
         self.assertFalse(is_canonical("/relative/path"))
+
+
+class BloomFilterRegistryTests(SimpleTestCase):
+    """Tests for the W2d singleton wrapper — pick #04 wiring."""
+
+    def _registry(self, snapshot_path):
+        from .bloom_filter_registry import BloomFilterRegistry
+
+        return BloomFilterRegistry(snapshot_path=snapshot_path)
+
+    def test_cold_start_is_known_returns_false(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(f"{d}/snap.bin")
+            self.assertFalse(reg.is_known(123))
+
+    def test_mark_then_is_known_round_trip(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(f"{d}/snap.bin")
+            reg.mark(42)
+            self.assertTrue(reg.is_known(42))
+            # 43 has not been added — Bloom may report a false positive
+            # but the test population is small enough that 0.01 FPR
+            # gives < 1 % chance. Run with a known-clean key.
+            self.assertFalse(reg.is_known("definitely-not-added-key-xyz"))
+
+    def test_snapshot_round_trip(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            snap = f"{d}/snap.bin"
+            reg = self._registry(snap)
+            reg.mark(7)
+            reg.mark(99)
+            # Trigger snapshot save via the internal helper — public
+            # save path is rebuild_from_db which requires the ORM.
+            reg._save_snapshot()
+            # New registry instance loads from disk on first read.
+            reg2 = self._registry(snap)
+            self.assertTrue(reg2.is_known(7))
+            self.assertTrue(reg2.is_known(99))
+            self.assertFalse(reg2.is_known("clean-control-key"))
+
+    def test_corrupt_snapshot_returns_cold_start(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            snap = f"{d}/snap.bin"
+            with open(snap, "wb") as fh:
+                fh.write(b"this is not a valid pickle")
+            reg = self._registry(snap)
+            # Should not raise — falls back to "cold" rather than
+            # crashing the import path.
+            self.assertFalse(reg.is_known(1))

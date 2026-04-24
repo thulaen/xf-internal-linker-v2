@@ -108,43 +108,33 @@ def run_feedback_aggregator_ema_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_CRITICAL,
 )
 def run_bloom_filter_ids_rebuild(job, checkpoint) -> None:
-    """Rebuild the id-dedup Bloom filter from authoritative ContentItem IDs."""
-    from apps.content.models import ContentItem
-    from apps.sources.bloom_filter import BloomFilter
+    """Rebuild the id-dedup Bloom filter from authoritative ContentItem IDs.
 
-    checkpoint(progress_pct=0.0, message="Counting content items")
-    total = ContentItem.objects.filter(is_deleted=False).count()
-    if total == 0:
-        checkpoint(progress_pct=100.0, message="No content items — nothing to rebuild")
+    Delegates to :data:`apps.sources.bloom_filter_registry.REGISTRY`
+    so the rebuilt filter persists to disk and import-pipeline callers
+    can fast-skip post IDs they have already imported.
+    """
+    from apps.sources.bloom_filter_registry import REGISTRY
+
+    def _progress(done, total):
+        checkpoint(
+            progress_pct=80.0 * done / max(total, 1),
+            message=f"Added {done:,} / {total:,}",
+        )
+
+    checkpoint(progress_pct=0.0, message="Rebuilding from ContentItem table")
+    added = REGISTRY.rebuild_from_db(progress=_progress)
+    if added == 0:
+        checkpoint(progress_pct=100.0, message="No content items — skip")
         return
-
-    capacity = max(total * 2, 10_000)
-    checkpoint(
-        progress_pct=10.0,
-        message=f"Allocating filter capacity={capacity:,} @ 1% FPR",
-    )
-    bf = BloomFilter(capacity=capacity, false_positive_rate=0.01)
-    done = 0
-    for content_pk in (
-        ContentItem.objects.filter(is_deleted=False)
-        .values_list("pk", flat=True)
-        .iterator(chunk_size=10_000)
-    ):
-        bf.add(str(content_pk))
-        done += 1
-        if done % 50_000 == 0:
-            checkpoint(
-                progress_pct=10.0 + 80.0 * done / max(total, 1),
-                message=f"Added {done:,} / {total:,}",
-            )
-
-    checkpoint(progress_pct=95.0, message="Filter built in memory")
     logger.info(
-        "bloom_filter_ids_rebuild: added %d IDs; estimated cardinality %d",
-        done,
-        len(bf),
+        "bloom_filter_ids_rebuild: registry now contains %d IDs (snapshot persisted)",
+        added,
     )
-    checkpoint(progress_pct=100.0, message=f"Rebuilt with {done:,} IDs")
+    checkpoint(
+        progress_pct=100.0,
+        message=f"Rebuilt registry with {added:,} IDs (snapshot saved)",
+    )
 
 
 @scheduled_job(
