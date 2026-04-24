@@ -1,5 +1,4 @@
 import asyncio
-import hashlib
 import json
 import logging
 from datetime import timedelta
@@ -13,6 +12,7 @@ from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
 from apps.sources.conditional_get import build_validator_headers
 from apps.sources.hyperloglog_registry import REGISTRY as HLL_REGISTRY
 from apps.sources.robots import RobotsChecker
+from apps.sources.sha256_fingerprint import fingerprint as content_fingerprint
 from apps.sources.url_canonical import canonicalize as canonicalize_url
 
 logger = logging.getLogger(__name__)
@@ -300,7 +300,12 @@ def _parse_html(html: str, meta: CrawledPageMeta, base_url: str):
     if len(html) > 0:
         meta.content_to_html_ratio = len(clean_text) / len(html)
 
-    meta.content_hash = hashlib.sha256(clean_text.encode("utf-8")).hexdigest()
+    # Pick #12 — SHA-256 fingerprint helper applies NFKC first so two
+    # canonically-equivalent texts (different Unicode encodings) map to
+    # the same hash. Empty / very short bodies return None and the
+    # column stays empty (read-side dedup skips trivial pages).
+    digest = content_fingerprint(clean_text)
+    meta.content_hash = digest or ""
 
     # Images
     images = soup.find_all("img")

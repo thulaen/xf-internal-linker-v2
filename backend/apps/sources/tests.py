@@ -1382,3 +1382,65 @@ class HyperLogLogRegistryTests(SimpleTestCase):
             for p in Path(d).iterdir():
                 self.assertTrue(p.is_file())
                 self.assertEqual(p.parent.resolve(), Path(d).resolve())
+
+
+class Sha256FingerprintTests(SimpleTestCase):
+    """Tests for pick #12 — SHA-256 page fingerprint helper."""
+
+    def test_empty_text_returns_none(self) -> None:
+        from .sha256_fingerprint import fingerprint
+
+        self.assertIsNone(fingerprint(""))
+        self.assertIsNone(fingerprint(None))
+
+    def test_short_text_returns_none(self) -> None:
+        from .sha256_fingerprint import MIN_TEXT_CHARS_FOR_HASH, fingerprint
+
+        too_short = "x" * (MIN_TEXT_CHARS_FOR_HASH - 1)
+        self.assertIsNone(fingerprint(too_short))
+
+    def test_long_text_returns_64_hex(self) -> None:
+        from .sha256_fingerprint import fingerprint
+
+        digest = fingerprint("the quick brown fox " * 10)
+        self.assertIsNotNone(digest)
+        self.assertEqual(len(digest), 64)
+        self.assertTrue(all(c in "0123456789abcdef" for c in digest))
+
+    def test_canonically_equivalent_unicode_hashes_same(self) -> None:
+        # `café` precomposed (U+00E9) vs decomposed (e + U+0301).
+        # NFKC normalises both to the same canonical form, so their
+        # fingerprints should be identical. Body padded above the
+        # 50-char minimum threshold.
+        from .sha256_fingerprint import fingerprint
+
+        body = (
+            " the historic café was a wonderful destination tonight "
+            " and many writers used to gather there to discuss things"
+        )
+        precomposed = body
+        decomposed = body.replace("é", "e\u0301")
+        self.assertNotEqual(precomposed, decomposed)  # different bytes
+        self.assertEqual(fingerprint(precomposed), fingerprint(decomposed))
+
+    def test_different_text_hashes_differently(self) -> None:
+        from .sha256_fingerprint import fingerprint
+
+        # Both above the 50-char minimum.
+        a = "the quick brown fox jumps over the lazy dog one early morning"
+        b = "the slow brown fox jumps over the lazy dog one early morning"
+        self.assertNotEqual(fingerprint(a), fingerprint(b))
+
+    def test_fingerprint_bytes_handles_binary(self) -> None:
+        from .sha256_fingerprint import fingerprint_bytes
+
+        digest = fingerprint_bytes(b"\x00\x01\x02\x03" * 50)
+        self.assertEqual(len(digest), 64)
+        self.assertIsNone(fingerprint_bytes(b""))
+        self.assertIsNone(fingerprint_bytes(None))
+
+    def test_find_duplicate_with_no_hash_returns_none(self) -> None:
+        from .sha256_fingerprint import find_duplicate_content_hash
+
+        self.assertIsNone(find_duplicate_content_hash(""))
+        self.assertIsNone(find_duplicate_content_hash(None))
