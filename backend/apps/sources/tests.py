@@ -1444,3 +1444,81 @@ class Sha256FingerprintTests(SimpleTestCase):
 
         self.assertIsNone(find_duplicate_content_hash(""))
         self.assertIsNone(find_duplicate_content_hash(None))
+
+
+class FreshnessFrontierTests(TestCase):
+    """Tests for the W2g freshness gate — pick #10 wiring."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        # CrawledPageMeta has UNIQUE(session, normalized_url), so each
+        # meta row needs its own session to simulate "the same URL was
+        # crawled in two different sessions over time".
+        self._session_counter = 0
+
+    def _new_session(self):
+        from apps.crawler.models import CrawlSession
+
+        self._session_counter += 1
+        return CrawlSession.objects.create(
+            site_domain="example.com", status="completed"
+        )
+
+    def _make_meta(self, url: str, *, content_hash: str = "x" * 64, status: int = 200):
+        from apps.crawler.models import CrawledPageMeta
+
+        return CrawledPageMeta.objects.create(
+            session=self._new_session(),
+            url=url,
+            normalized_url=url,
+            http_status=status,
+            content_hash=content_hash,
+        )
+
+    def test_no_history_returns_empty_skip_set(self) -> None:
+        from .freshness_frontier import compute_skip_set
+
+        skipped = compute_skip_set(["https://example.com/never-crawled"])
+        self.assertEqual(skipped, set())
+
+    def test_recently_crawled_static_page_is_skipped(self) -> None:
+        from datetime import timedelta
+
+        from apps.crawler.models import CrawledPageMeta
+        from django.utils import timezone
+
+        from .freshness_frontier import compute_skip_set
+
+        # Two crawls 30 days apart, both same hash → very low change rate.
+        # The CGM scheduler will recommend a long interval; the most-recent
+        # crawl is "right now" so elapsed << interval and we should skip.
+        url = "https://example.com/static"
+        old = self._make_meta(url, content_hash="a" * 64)
+        recent = self._make_meta(url, content_hash="a" * 64)
+        # Backdate the older crawl so the helper sees a 30-day gap.
+        CrawledPageMeta.objects.filter(pk=old.pk).update(
+            created_at=timezone.now() - timedelta(days=30)
+        )
+
+        skipped = compute_skip_set([url])
+        self.assertIn(url, skipped)
+
+    def test_single_history_row_does_not_skip(self) -> None:
+        from .freshness_frontier import compute_skip_set
+
+        url = "https://example.com/just-once"
+        self._make_meta(url)
+        # One observation → bootstrap interval; helper does not skip
+        # because we want at least one re-crawl to learn change rate.
+        skipped = compute_skip_set([url])
+        self.assertNotIn(url, skipped)
+
+    def test_failed_crawls_excluded_from_history(self) -> None:
+        from .freshness_frontier import compute_skip_set
+
+        url = "https://example.com/404-only"
+        self._make_meta(url, status=404)
+        self._make_meta(url, status=404)
+        # All rows are non-200; helper sees no history → no skip.
+        skipped = compute_skip_set([url])
+        self.assertNotIn(url, skipped)

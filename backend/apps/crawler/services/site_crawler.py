@@ -10,6 +10,7 @@ from django.utils import timezone
 from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
 from apps.sources.conditional_get import build_validator_headers
+from apps.sources.freshness_frontier import compute_skip_set as freshness_skip_set
 from apps.sources.hyperloglog_registry import REGISTRY as HLL_REGISTRY
 from apps.sources.robots import RobotsChecker
 from apps.sources.sha256_fingerprint import fingerprint as content_fingerprint
@@ -108,6 +109,27 @@ async def _execute_crawl_session(session_id) -> None:
                 session_id,
             )
         to_crawl = allowed
+
+    # Pick #10 — Cho-Garcia-Molina freshness gate. Drop URLs whose
+    # last successful crawl is more recent than their adaptive
+    # refresh interval. URLs without history pass through unchanged
+    # (every new URL gets crawled at least once). Uses one bulk
+    # query against CrawledPageMeta — no N+1.
+    if to_crawl:
+        try:
+            skipped = await asyncio.to_thread(freshness_skip_set, to_crawl)
+        except Exception:
+            logger.debug("freshness_skip_set failed; not filtering", exc_info=True)
+            skipped = set()
+        if skipped:
+            logger.info(
+                "freshness gate: skipping %d / %d URLs in session %s "
+                "(crawled too recently)",
+                len(skipped),
+                len(to_crawl),
+                session_id,
+            )
+            to_crawl = [u for u in to_crawl if u not in skipped]
 
     # Pick #06 — preload cached ETag / Last-Modified per URL so the
     # next chunk's fetch_urls call sends If-None-Match / If-Modified-Since.
