@@ -868,6 +868,39 @@ def _mark_embedding_job_paused(job_id: str | None, reason: str) -> None:
     )
 
 
+def _save_fallback_checkpoint(
+    *,
+    job_id: str | None,
+    failing_provider: str,
+    fallback_provider: str,
+    reason_code: str,
+) -> None:
+    """Mark the SyncJob row that a provider fallback happened mid-run (FR-234).
+
+    Written before the AppSetting swap + provider-cache clear so that if the
+    worker crashes in that window, an operator inspecting the row sees the
+    fallback was in-flight. Resume correctness is still carried by the
+    ``embedding IS NULL`` filter — this checkpoint is for observability.
+    """
+    if not job_id:
+        return
+    try:
+        from apps.sync.models import SyncJob
+
+        SyncJob.objects.filter(job_id=job_id).update(
+            is_resumable=True,
+            checkpoint_stage="embed_fallback",
+            message=(
+                f"Provider fallback: {failing_provider} → {fallback_provider} "
+                f"(reason={reason_code}). Resume continues with the new provider."
+            ),
+        )
+    except Exception:
+        logger.exception(
+            "Failed to persist fallback checkpoint for job_id=%s", job_id
+        )
+
+
 def _record_embedding_backoff(
     *,
     job_id: str | None,
@@ -930,6 +963,16 @@ def _l2_normalize(arr: np.ndarray) -> np.ndarray:
 # ---------------------------------------------------------------------------
 # Provider-aware encode helper (plan Part 1)
 # ---------------------------------------------------------------------------
+
+
+_FALLBACK_RETRY_COOLDOWN_SECONDS = 10
+"""Seconds to wait between the failed primary call and the fallback retry.
+
+Matches the plan's ``Retry(countdown=10)`` intent for FR-234. Prevents the
+new provider from being hit immediately after the old one tripped a
+rate-limit / auth error — some providers (OpenAI, Google) share org-level
+throttles at the IP layer, so an instant retry can trip the same limit.
+"""
 
 
 def _encode_batch_via_provider(
@@ -998,9 +1041,11 @@ def _encode_batch_via_provider(
             failing_provider_name=getattr(provider, "name", "unknown"),
             reason=str(exc),
             reason_code="budget",
+            job_id=job_id,
         )
         if fallback is None:
             raise
+        time.sleep(_FALLBACK_RETRY_COOLDOWN_SECONDS)
         provider = fallback
         result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
     except ProviderError as exc:
@@ -1011,9 +1056,11 @@ def _encode_batch_via_provider(
             failing_provider_name=getattr(provider, "name", "unknown"),
             reason=str(exc),
             reason_code=reason_code,
+            job_id=job_id,
         )
         if fallback is None:
             raise
+        time.sleep(_FALLBACK_RETRY_COOLDOWN_SECONDS)
         provider = fallback
         result = provider.embed(batch_texts, batch_size=batch_size, job_id=job_id)
 
@@ -1034,6 +1081,7 @@ def _attempt_graceful_fallback(
     failing_provider_name: str,
     reason: str,
     reason_code: str,
+    job_id: str | None = None,
 ) -> Any | None:
     """Switch ``embedding.provider`` to the configured fallback and return the new provider.
 
@@ -1041,11 +1089,13 @@ def _attempt_graceful_fallback(
     a recoverable error (auth / rate-limit / budget / transient). Operations:
       1. Read ``AppSetting("embedding.fallback_provider")``; default ``local``.
       2. If fallback equals the failing provider, do nothing (avoid infinite loop).
-      3. Update ``AppSetting("embedding.provider")`` in place so subsequent
+      3. **Persist a fallback checkpoint to SyncJob** (FR-234) so an operator
+         inspecting the row mid-swap sees the in-flight state.
+      4. Update ``AppSetting("embedding.provider")`` in place so subsequent
          batches resolve to the new provider immediately.
-      4. Clear the provider cache so ``get_provider()`` re-instantiates.
-      5. Emit an operator alert so the Embeddings page surfaces the switch.
-      6. Return the new provider.
+      5. Clear the provider cache so ``get_provider()`` re-instantiates.
+      6. Emit an operator alert so the Embeddings page surfaces the switch.
+      7. Return the new provider.
 
     On any internal failure, returns ``None`` — the caller re-raises the original
     error so the operator is not silently stuck.
@@ -1061,6 +1111,13 @@ def _attempt_graceful_fallback(
                 failing_provider_name,
             )
             return None
+
+        _save_fallback_checkpoint(
+            job_id=job_id,
+            failing_provider=failing_provider_name,
+            fallback_provider=fallback_name,
+            reason_code=reason_code,
+        )
 
         AppSetting.objects.update_or_create(
             key="embedding.provider",

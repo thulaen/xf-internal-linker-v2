@@ -145,6 +145,37 @@ def embedding_status(request: Request) -> Response:
     )
 
 
+@api_view(["GET"])
+@permission_classes([IsAuthenticated])
+def embedding_hardware_profile(request: Request) -> Response:
+    """Detected hardware tier plus recommended batch sizes for common dims.
+
+    Dedicated endpoint per FR-233 contract. Status endpoint exposes a subset
+    nested inside its response; this view returns the canonical shape for
+    clients that only need hardware info.
+    """
+    from apps.pipeline.services.hardware_profile import (
+        detect_profile,
+        recommended_batch_size,
+    )
+
+    profile = detect_profile()
+    batch_sizes = {
+        str(dim): recommended_batch_size(dimension=dim, profile=profile)
+        for dim in (1024, 1536, 3072)
+    }
+    return Response(
+        {
+            "tier": profile.tier,
+            "ram_gb": round(profile.ram_gb, 2),
+            "cpu_cores": profile.cpu_cores,
+            "vram_gb": round(profile.vram_gb, 2),
+            "has_cuda": profile.has_cuda,
+            "batch_sizes": batch_sizes,
+        }
+    )
+
+
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 def embedding_provider(request: Request) -> Response:

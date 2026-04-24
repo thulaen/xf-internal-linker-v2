@@ -476,4 +476,5 @@ urlpatterns = [
     path("embedding/bakeoff/run/", __import__("apps.api.embedding_views", fromlist=["embedding_bakeoff_run"]).embedding_bakeoff_run, name="embedding-bakeoff-run"),
     path("embedding/audit/run/", __import__("apps.api.embedding_views", fromlist=["embedding_audit_run"]).embedding_audit_run, name="embedding-audit-run"),
     path("embedding/gate-decisions/", __import__("apps.api.embedding_views", fromlist=["embedding_gate_decisions"]).embedding_gate_decisions, name="embedding-gate-decisions"),
+    path("embedding/hardware-profile/", __import__("apps.api.embedding_views", fromlist=["embedding_hardware_profile"]).embedding_hardware_profile, name="embedding-hardware-profile"),
 ]

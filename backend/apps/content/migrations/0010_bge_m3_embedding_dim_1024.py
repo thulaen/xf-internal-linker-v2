@@ -43,6 +43,10 @@ def null_embeddings(apps, schema_editor):
     Sentence.objects.all().update(embedding=None)
     print(
         f"\n-- Migration 0010: nulled {existing_count} pre-1024-dim embeddings. "
+        f"Archival to SupersededEmbedding is not possible at this migration's "
+        f"dependency point (the archive table is added later in 0020). The "
+        f"runtime archival hook in apps/pipeline/services/embeddings.py "
+        f"preserves future provider-swap and model-upgrade vectors. "
         f"Re-run the embed pipeline to repopulate."
     )
 
