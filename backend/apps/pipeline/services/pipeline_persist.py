@@ -44,17 +44,27 @@ def _partition_candidates(
     content_records: dict[ContentKey, ContentRecord],
     sentence_records: dict[int, SentenceRecord],
     suppressed_pairs: set[tuple[int, int]],
+    approved_pairs: set[tuple[int, int]] | None = None,
     rerun_mode: str,
     suppression_days: int,
 ) -> _CandidatePartition:
-    """Split candidates into valid vs negative-memory-suppressed.
+    """Split candidates into valid vs suppressed.
 
-    Skips candidates whose destination or sentence record is missing, and
-    those whose ``(host_id, destination_id)`` is in ``suppressed_pairs``. For
-    suppressed pairs, records a diagnostic tuple so the caller can emit a
-    ``PipelineDiagnostic`` row with ``skip_reason="rejected_recently"``.
+    Skips candidates whose destination or sentence record is missing, whose
+    ``(host_id, destination_id)`` is in ``suppressed_pairs`` (negative memory
+    of prior rejections), or whose pair already exists as an approved / applied
+    / verified Suggestion (``approved_pairs``).
+
+    Emits diagnostic tuples so the caller can write ``PipelineDiagnostic`` rows:
+    - ``skip_reason="rejected_recently"`` for negative-memory suppression
+    - ``skip_reason="already_approved"`` for pairs already approved by a reviewer
+
+    The approved-pair filter prevents previously-approved link suggestions from
+    re-appearing as new pending items on pipeline re-runs — the reviewer already
+    said yes to that exact pair (plan Part 7).
     """
     out = _CandidatePartition()
+    approved_pairs = approved_pairs or set()
     for candidate in selected_candidates:
         dest_record = content_records.get(candidate.destination_key)
         sentence_record = sentence_records.get(candidate.host_sentence_id)
@@ -70,6 +80,18 @@ def _partition_candidates(
                     {
                         "host_content_id": candidate.host_content_id,
                         "suppression_days": suppression_days,
+                    },
+                )
+            )
+            continue
+        if pair_id in approved_pairs:
+            out.suppressed_diagnostics.append(
+                (
+                    candidate.destination_content_id,
+                    candidate.destination_content_type,
+                    "already_approved",
+                    {
+                        "host_content_id": candidate.host_content_id,
                     },
                 )
             )
@@ -117,11 +139,22 @@ def _persist_suggestions(
 
     # Load the suppression set once per pipeline run. Empty set when the
     # RejectedPair table is empty → behaviour identical to pre-feature.
+    #
+    # Load approved pairs once per run so re-runs do not surface pending copies
+    # of already-approved (host, destination) pairs (plan Part 7). Mirrors the
+    # RejectedPair suppression pattern; the diagnostic reason is
+    # ``already_approved`` so operators can tell the two apart in the explorer.
+    approved_pairs = set(
+        Suggestion.objects.filter(
+            status__in=("approved", "applied", "verified"),
+        ).values_list("host_id", "destination_id")
+    )
     parts = _partition_candidates(
         selected_candidates=selected_candidates,
         content_records=content_records,
         sentence_records=sentence_records,
         suppressed_pairs=RejectedPair.get_suppressed_pair_ids(),
+        approved_pairs=approved_pairs,
         rerun_mode=rerun_mode,
         suppression_days=REJECTED_PAIR_SUPPRESSION_DAYS,
     )

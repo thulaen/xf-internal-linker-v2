@@ -142,6 +142,19 @@ CATCHUP_REGISTRY: dict[str, CatchupEntry] = {
         queue="default",
         weight_class="light",
     ),
+    # ── Embedding health & quality (plan Parts 3 + 4) ─────────────
+    "fortnightly-embedding-accuracy": CatchupEntry(
+        threshold_hours=14 * 24,  # 336 h
+        priority=35,
+        queue="pipeline",
+        weight_class="medium",
+    ),
+    "monthly-embedding-bakeoff": CatchupEntry(
+        threshold_hours=35 * 24,
+        priority=38,
+        queue="pipeline",
+        weight_class="medium",
+    ),
 }
 
 _HEAVY_STAGGER_SECONDS = 30

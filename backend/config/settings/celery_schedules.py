@@ -8,6 +8,24 @@ Imported by base.py via: from .celery_schedules import CELERY_BEAT_SCHEDULE
 from celery.schedules import crontab
 
 CELERY_BEAT_SCHEDULE = {
+    # ── Embedding health & quality (plan Parts 3 + 4) ─────────────────
+    # Fortnightly accuracy audit — Thursdays 13:00 UTC, in the Medium window.
+    # Task respects the 13-day fortnight gate + 13:00-22:59 UTC window guard
+    # internally, so double-dispatches by Beat are trivially idempotent.
+    "fortnightly-embedding-accuracy": {
+        "task": "pipeline.embedding_accuracy_audit",
+        "schedule": crontab(minute=0, hour=13, day_of_week=4),
+        "options": {"queue": "pipeline"},
+        "kwargs": {"fortnightly": True},
+    },
+    # Monthly provider bake-off — 1st of each month at 14:30 UTC, after
+    # monthly full-sync tasks complete. Scores local + OpenAI + Gemini on
+    # the user's approved/rejected Suggestion qrels.
+    "monthly-embedding-bakeoff": {
+        "task": "pipeline.embedding_provider_bakeoff",
+        "schedule": crontab(minute=30, hour=14, day_of_month=1),
+        "options": {"queue": "pipeline"},
+    },
     # ── Scheduled Updates orchestrator (PR-B) — 1pm-11pm serial runner.
     # Fires every 5 minutes inside the 13:00-22:59 window. Each tick is
     # idempotent: if the Redis lock is held or no pending job fits the
