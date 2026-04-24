@@ -23,6 +23,33 @@ async def _bounded_request(
         return await client.request(method, url, **kw)
 
 
+def _decode_response_body(
+    res: "httpx.Response", *, max_body_bytes: int
+) -> tuple[str, str]:
+    """Decode an httpx response body via pick #11's encoding-detect helper.
+
+    Returns a ``(text, encoding)`` pair. ``encoding`` is the codec
+    name actually used so callers can persist it for diagnostics.
+    Falls back to httpx's built-in ``res.text`` when the helper isn't
+    available — the import is local so async_http stays usable in
+    minimal test contexts that don't load the full source layer.
+    """
+    raw_bytes = res.content[:max_body_bytes]
+    if not raw_bytes:
+        return "", ""
+    try:
+        from apps.sources.encoding import decode_with_guess, detect_encoding
+    except Exception:
+        # Source layer isn't importable — fall back to httpx heuristic.
+        return res.text[:max_body_bytes], ""
+    guess = detect_encoding(
+        raw_bytes,
+        content_type_header=res.headers.get("Content-Type"),
+    )
+    text = decode_with_guess(raw_bytes, guess)
+    return text, guess.encoding
+
+
 async def probe_urls(
     urls: list[str],
     *,
@@ -118,13 +145,21 @@ async def fetch_urls(
             res = await _bounded_request(
                 sem, client, "GET", url, headers=extra_headers
             )
-            # 304 responses have empty bodies — that's correct,
-            # the caller treats `status_code=304` as "unchanged".
-            body = res.text[:max_body_bytes] if res.status_code != 304 else ""
             etag_value = res.headers.get("ETag", "") or res.headers.get("etag", "")
             lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
                 "last-modified", ""
             )
+            # 304 responses have empty bodies — that's correct,
+            # the caller treats `status_code=304` as "unchanged".
+            if res.status_code == 304:
+                body = ""
+                encoding_used = ""
+            else:
+                # Pick #11 — explicit encoding detection beats httpx's
+                # heuristic on origins that don't declare charset.
+                body, encoding_used = _decode_response_body(
+                    res, max_body_bytes=max_body_bytes
+                )
             results.append(
                 {
                     "url": url,
@@ -133,6 +168,7 @@ async def fetch_urls(
                     "error": None,
                     "etag": etag_value,
                     "last_modified": lm_value,
+                    "encoding": encoding_used,
                 }
             )
         except httpx.TimeoutException:
@@ -144,6 +180,7 @@ async def fetch_urls(
                     "error": "timeout",
                     "etag": "",
                     "last_modified": "",
+                    "encoding": "",
                 }
             )
         except httpx.RequestError as exc:
@@ -155,6 +192,7 @@ async def fetch_urls(
                     "error": str(exc),
                     "etag": "",
                     "last_modified": "",
+                    "encoding": "",
                 }
             )
 
