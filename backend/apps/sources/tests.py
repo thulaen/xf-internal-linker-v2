@@ -1124,3 +1124,133 @@ class ProductQuantizationTests(SimpleTestCase):
         # deviations of the original.
         err = ((vectors - decoded) ** 2).mean() ** 0.5
         assert err < 2.0
+
+
+class UrlCanonicalTests(SimpleTestCase):
+    """Tests for pick #08 — RFC 3986 §6 URL canonicalisation."""
+
+    def test_lowercases_scheme_and_host(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("HTTP://Example.COM/path"),
+            "http://example.com/path",
+        )
+
+    def test_strips_default_port_http(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("http://example.com:80/foo"),
+            "http://example.com/foo",
+        )
+
+    def test_strips_default_port_https(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("https://example.com:443/foo"),
+            "https://example.com/foo",
+        )
+
+    def test_keeps_non_default_port(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("http://example.com:8080/foo"),
+            "http://example.com:8080/foo",
+        )
+
+    def test_drops_fragment_by_default(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("https://example.com/foo#section-2"),
+            "https://example.com/foo",
+        )
+
+    def test_preserves_fragment_when_disabled(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize(
+                "https://example.com/foo#section-2",
+                drop_fragment=False,
+            ),
+            "https://example.com/foo#section-2",
+        )
+
+    def test_strips_utm_and_fbclid_tracking(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize(
+                "https://example.com/foo?utm_source=twitter&fbclid=123&q=python"
+            ),
+            "https://example.com/foo?q=python",
+        )
+
+    def test_sorts_query_parameters(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("https://example.com/foo?z=1&a=2"),
+            "https://example.com/foo?a=2&z=1",
+        )
+
+    def test_collapses_double_slashes_in_path(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("https://example.com//foo//bar"),
+            "https://example.com/foo/bar",
+        )
+
+    def test_resolves_dot_segments(self) -> None:
+        from .url_canonical import canonicalize
+
+        self.assertEqual(
+            canonicalize("https://example.com/a/b/../c/./d"),
+            "https://example.com/a/c/d",
+        )
+
+    def test_idempotent(self) -> None:
+        from .url_canonical import canonicalize
+
+        once = canonicalize(
+            "HTTP://Example.com:80//Foo/../Bar/?utm_source=x&z=1#frag"
+        )
+        twice = canonicalize(once)
+        self.assertEqual(once, twice)
+
+    def test_relative_url_rejected(self) -> None:
+        from .url_canonical import canonicalize
+
+        with self.assertRaises(ValueError):
+            canonicalize("/relative/path")
+
+    def test_empty_url_rejected(self) -> None:
+        from .url_canonical import canonicalize
+
+        with self.assertRaises(ValueError):
+            canonicalize("")
+
+    def test_is_canonical_true_for_canonical_form(self) -> None:
+        from .url_canonical import canonicalize, is_canonical
+
+        url = canonicalize("https://example.com/foo")
+        self.assertTrue(is_canonical(url))
+
+    def test_is_canonical_false_for_messy_form(self) -> None:
+        from .url_canonical import is_canonical
+
+        self.assertFalse(
+            is_canonical("HTTP://Example.com/foo?utm_source=x")
+        )
+
+    def test_is_canonical_does_not_raise_on_relative(self) -> None:
+        from .url_canonical import is_canonical
+
+        # Audit code calls this on possibly-malformed DB rows; raising
+        # would crash the audit. False is the safe answer.
+        self.assertFalse(is_canonical("/relative/path"))

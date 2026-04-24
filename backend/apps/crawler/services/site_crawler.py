@@ -12,6 +12,7 @@ from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
 from apps.sources.conditional_get import build_validator_headers
 from apps.sources.robots import RobotsChecker
+from apps.sources.url_canonical import canonicalize as canonicalize_url
 
 logger = logging.getLogger(__name__)
 
@@ -168,13 +169,18 @@ async def _execute_crawl_session(session_id) -> None:
             new_etag = res.get("etag", "")
             new_last_modified = res.get("last_modified", "")
 
-            parsed_url = urlparse(raw_url)
-            normalized_url = parsed_url._replace(
-                params="", query="", fragment=""
-            ).geturl()
-
-            if not normalized_url.endswith("/"):
-                normalized_url = normalized_url.rstrip("/")
+            # Pick #08 — RFC 3986 §6 canonicalisation. Replaces the
+            # earlier inline normaliser (lower-host + drop-fragment) with
+            # the full RFC contract: case-folding, default-port stripping,
+            # dot-segment resolution, percent-encoding round-trip,
+            # tracking-param scrub, query sort.
+            try:
+                normalized_url = canonicalize_url(raw_url)
+            except ValueError:
+                # Origin returned a malformed URL — keep the raw form so
+                # the row still saves and operators can investigate.
+                logger.debug("URL canonicalisation failed for %s", raw_url)
+                normalized_url = raw_url
 
             meta = CrawledPageMeta(
                 session=session,
