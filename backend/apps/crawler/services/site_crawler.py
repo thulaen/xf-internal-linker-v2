@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
 from apps.sources.conditional_get import build_validator_headers
+from apps.sources.hyperloglog_registry import REGISTRY as HLL_REGISTRY
 from apps.sources.robots import RobotsChecker
 from apps.sources.url_canonical import canonicalize as canonicalize_url
 
@@ -182,6 +183,14 @@ async def _execute_crawl_session(session_id) -> None:
                 logger.debug("URL canonicalisation failed for %s", raw_url)
                 normalized_url = raw_url
 
+            # Pick #05 — record the canonical URL in the cardinality
+            # counter so the dashboard can answer "how many unique
+            # pages have we ever crawled?" in O(1).
+            try:
+                HLL_REGISTRY.add("crawl_unique_urls", normalized_url)
+            except Exception:
+                logger.debug("HLL counter update failed for %s", normalized_url)
+
             meta = CrawledPageMeta(
                 session=session,
                 url=raw_url,
@@ -235,6 +244,13 @@ async def _execute_crawl_session(session_id) -> None:
     session.message = "Crawl completed successfully."
     session.progress = 1.0
     await session.asave(update_fields=["status", "completed_at", "message", "progress"])
+
+    # Pick #05 — flush the in-memory cardinality counter to its
+    # snapshot file so dashboard reads survive a process restart.
+    try:
+        HLL_REGISTRY.snapshot("crawl_unique_urls")
+    except Exception:
+        logger.debug("HLL snapshot persistence failed")
 
 
 def _parse_html(html: str, meta: CrawledPageMeta, base_url: str):

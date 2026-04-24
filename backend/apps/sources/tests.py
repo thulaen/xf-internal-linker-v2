@@ -1311,3 +1311,74 @@ class BloomFilterRegistryTests(SimpleTestCase):
             # Should not raise — falls back to "cold" rather than
             # crashing the import path.
             self.assertFalse(reg.is_known(1))
+
+
+class HyperLogLogRegistryTests(SimpleTestCase):
+    """Tests for the W2e cardinality registry — pick #05 wiring."""
+
+    def _registry(self, snapshot_dir):
+        from .hyperloglog_registry import HyperLogLogRegistry
+        from pathlib import Path
+
+        return HyperLogLogRegistry(snapshot_dir=Path(snapshot_dir))
+
+    def test_cold_count_is_zero(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(d)
+            self.assertEqual(reg.count("never_used"), 0)
+
+    def test_add_increments_count_estimate(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(d)
+            for i in range(1000):
+                reg.add("urls", f"https://example.com/post/{i}")
+            # HLL has ~0.8 % relative error; allow 5 % bound for the
+            # test's small-cardinality regime.
+            estimate = reg.count("urls")
+            self.assertGreater(estimate, 950)
+            self.assertLess(estimate, 1100)
+
+    def test_buckets_are_isolated(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(d)
+            for i in range(500):
+                reg.add("posts", f"post-{i}")
+            for i in range(50):
+                reg.add("threads", f"thread-{i}")
+            self.assertGreater(reg.count("posts"), 100)
+            self.assertLess(reg.count("threads"), 100)
+
+    def test_snapshot_round_trip(self) -> None:
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(d)
+            for i in range(500):
+                reg.add("urls", f"item-{i}")
+            saved = reg.snapshot("urls")
+            self.assertEqual(saved, 1)
+
+            # New registry instance against the same dir loads the
+            # bucket lazily on the first read.
+            reg2 = self._registry(d)
+            self.assertGreater(reg2.count("urls"), 100)
+
+    def test_unsafe_bucket_name_sanitised(self) -> None:
+        import tempfile
+        from pathlib import Path
+
+        with tempfile.TemporaryDirectory() as d:
+            reg = self._registry(d)
+            reg.add("../../etc/passwd", "x")
+            reg.snapshot()
+            # Sanitiser replaces unsafe chars with underscores; no
+            # path-traversal escape from the snapshot dir.
+            for p in Path(d).iterdir():
+                self.assertTrue(p.is_file())
+                self.assertEqual(p.parent.resolve(), Path(d).resolve())
