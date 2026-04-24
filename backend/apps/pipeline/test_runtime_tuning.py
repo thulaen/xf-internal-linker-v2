@@ -119,7 +119,17 @@ class EmbeddingRuntimeTuningTests(TestCase):
             },
         )
 
-        self.assertEqual(embeddings._get_configured_batch_size(), 128)
+        # FR-233 added a hardware-aware tuning layer between the mode
+        # default and the AppSetting override. Without isolation that
+        # layer reads the test runner's hardware (typically returning
+        # 64) and the contract under test ("high mode → high default
+        # batch") is masked. Force the auto-tuner to abstain so the
+        # function falls through to the mode-based default.
+        with mock.patch(
+            "apps.pipeline.services.hardware_profile.recommended_batch_size",
+            side_effect=RuntimeError("isolated for test"),
+        ):
+            self.assertEqual(embeddings._get_configured_batch_size(), 128)
 
     @mock.patch(
         "apps.pipeline.services.embeddings._emit_gpu_fallback_alert",

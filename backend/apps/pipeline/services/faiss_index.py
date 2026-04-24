@@ -36,6 +36,11 @@ try:
 
     HAS_FAISS = True
 except ImportError:
+    # Set the symbol to None so module-level callers (and tests using
+    # ``mock.patch.object(faiss_index, "faiss", ...)``) always have a
+    # stable attribute. Code paths gate on ``HAS_FAISS`` before
+    # touching it, so a ``None`` value never reaches the FAISS API.
+    faiss = None  # type: ignore[assignment]
     HAS_FAISS = False
 
 logger = logging.getLogger(__name__)
