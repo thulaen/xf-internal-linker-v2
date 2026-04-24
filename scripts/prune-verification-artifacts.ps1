@@ -6,6 +6,13 @@ $ErrorActionPreference = "Stop"
 
 $repoRoot = Get-RepoRoot
 
+# Gemini guard — strip [extensions] worktreeConfig = true from .git/config if present.
+# This runs first so a broken Gemini session can recover as soon as the prune runs.
+$gitConfigGuard = Join-Path $PSScriptRoot "ensure-git-config-clean.ps1"
+if (Test-Path $gitConfigGuard) {
+    & $gitConfigGuard
+}
+
 function Remove-DirectoryIfExists {
     param(
         [Parameter(Mandatory = $true)]
@@ -51,19 +58,27 @@ Remove-DirectoryIfExists -Path (Join-Path $repoRoot "backend\htmlcov") -Label "p
 $dockerAvailability = Get-DockerAvailability
 if ($dockerAvailability.Status -eq "ok") {
     $dockerSafe = Get-DockerSafeScript
-    Write-Host "Pruning Docker builder cache..."
-    & $dockerSafe builder prune -f
+    # `docker system prune -f` removes stopped containers, unused networks, dangling images, and build cache in one call.
+    # It never touches named volumes, so pgdata / redis-data / media_files / staticfiles (and thus embeddings) are always safe.
+    Write-Host "Pruning Docker (stopped containers, unused networks, dangling images, build cache)..."
+    & $dockerSafe system prune -f
     if ($LASTEXITCODE -ne 0) {
-        throw "Docker builder prune failed with exit code $LASTEXITCODE."
-    }
-
-    Write-Host "Pruning dangling Docker images..."
-    & $dockerSafe image prune -f
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker image prune failed with exit code $LASTEXITCODE."
+        throw "Docker system prune failed with exit code $LASTEXITCODE."
     }
 } else {
     Write-Host "Skipping Docker prune. $(Get-DockerUnavailableMessage -Availability $dockerAvailability)"
+}
+
+# Attempt VHDX compaction so Windows actually reclaims the freed space.
+# The compact script auto-skips if any container is running, so this is safe to always call.
+$compactScript = Join-Path $PSScriptRoot "..\docker_compact_vhd.ps1"
+if (Test-Path $compactScript) {
+    Write-Host "Attempting VHDX compaction (auto-skips if containers are running)..."
+    try {
+        & powershell -ExecutionPolicy Bypass -File $compactScript
+    } catch {
+        Write-Host "VHDX compaction step reported an error (non-fatal): $_"
+    }
 }
 
 Write-Host "Verification artifact prune completed."

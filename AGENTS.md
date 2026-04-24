@@ -299,6 +299,32 @@ Act as a strict frontend architect. To maintain absolute design uniformity, we f
 
 ---
 
+## Gemini Guard — .git/config Must Not Contain `worktreeConfig = true`
+
+Applies to every agent (Claude, Codex, Gemini) and every tool that touches Git.
+
+When `.git/config` contains the block below, **Gemini CLI and Gemini Antigravity silently stop generating code**. No error is thrown — the session just becomes unresponsive:
+
+```
+[extensions]
+    worktreeConfig = true
+```
+
+Claude Code's `Agent(isolation: "worktree")` re-adds this block automatically whenever a worktree operation runs. This is the known cause.
+
+### Automation is already in place
+
+- `.githooks/post-checkout` and `.githooks/pre-commit` invoke `.githooks/_ensure-git-config-clean.sh` on every checkout, branch switch, worktree add, and commit attempt.
+- `scripts/ensure-git-config-clean.ps1` is the PowerShell equivalent. It runs as the first step of `scripts/prune-verification-artifacts.ps1`.
+
+### Rules
+
+- **Never** re-add `[extensions] worktreeConfig = true` to `.git/config` under any circumstance.
+- After running `Agent(isolation: "worktree")` or `git worktree add`, immediately run `scripts/ensure-git-config-clean.ps1` (or `.githooks/_ensure-git-config-clean.sh`). Do not rely solely on the checkout hook — worktree operations do not always trigger `post-checkout`.
+- If Gemini stops responding mid-session, first check `.git/config` for that block and run the cleanup script. Do not debug Gemini itself first.
+
+---
+
 ## Native Runtime Policy
 
 - Before changing native C++, Python fallback, runtime ownership, or operator-facing runtime diagnostics, read `docs/NATIVE_RUNTIME_POLICY.md`.
@@ -344,16 +370,29 @@ After verification or at the end of the session, agents must run the approved cl
 
 - `powershell -ExecutionPolicy Bypass -File scripts\\prune-verification-artifacts.ps1`
 
-Safe prune means disposable caches and build artifacts only. This includes frontend build/cache output, backend test/lint caches, native extension build folders, .NET `bin`/`obj`, Docker builder cache, and dangling Docker images.
+Safe prune means disposable caches and build artifacts only. The script covers frontend build/cache output, backend test/lint caches, native extension build folders, .NET `bin`/`obj`, and all four safe Docker categories in one call via `docker system prune -f`: **stopped containers, unused networks, dangling images, and build cache**. It also runs the Gemini `.git/config` guard first, so Gemini sessions can recover automatically.
+
+### Mandatory VHDX compaction at session end
+
+After `docker compose down` at session end, agents must also run:
+
+- `powershell -ExecutionPolicy Bypass -File docker_compact_vhd.ps1`
+
+This compacts the Windows virtual disk file (VHDX) so Windows actually reclaims the space that `docker system prune -f` freed. Docker's virtual disk never shrinks on its own. The compact script auto-skips if any container is still running, so it is always safe to call. Without this step, Windows continues to show the old (larger) disk usage even though Docker has cleaned up internally.
+
+`scripts/prune-verification-artifacts.ps1` already invokes this script at the end, so running the prune script after `docker compose down` is sufficient.
 
 ### Forbidden cleanup
 
 - Never run `docker-compose down -v`
+- Never prune named Docker volumes: `pgdata`, `redis-data`, `media_files`, `staticfiles` — **embeddings live in `pgdata`**
 - Never prune database volumes
 - Never prune Redis/runtime data
 - Never prune embeddings
 - Never prune `media/`
 - Never prune checked-in files
+
+`docker system prune -f` never touches named volumes, so all of the above are automatically protected by the standard prune command.
 
 Reuse the existing repo cleanup script and Docker prune policy above. Do not invent competing cleanup commands or duplicate this policy elsewhere.
 

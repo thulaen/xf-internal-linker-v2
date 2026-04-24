@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Post-checkout hook: ensure Gemini-breaking worktreeConfig extension is not in .git/config.
+# Fires after checkout, worktree add, branch switch.
+set -e
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+"${HOOK_DIR}/_ensure-git-config-clean.sh" || true

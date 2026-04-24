@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# Pre-commit hook: ensure Gemini-breaking worktreeConfig extension is not in .git/config.
+# Runs before each commit so no commit lands while the block is present.
+set -e
+HOOK_DIR="$(cd "$(dirname "$0")" && pwd)"
+"${HOOK_DIR}/_ensure-git-config-clean.sh" || true

@@ -6,7 +6,13 @@ $ErrorActionPreference = "Stop"
 
 $logFile = "$PSScriptRoot\docker_cleanup.log"
 $dockerSafe = Join-Path $PSScriptRoot "scripts\docker-safe.ps1"
-$dockerVhdPath = Join-Path $env:LOCALAPPDATA "Docker\wsl\disk\docker_data.vhdx"
+
+# Docker Desktop uses different VHDX paths across versions — try both known locations.
+$candidateVhdPaths = @(
+    (Join-Path $env:LOCALAPPDATA "Docker\wsl\disk\docker_data.vhdx"),   # Docker Desktop 4.30+
+    (Join-Path $env:LOCALAPPDATA "Docker\wsl\data\ext4.vhdx")            # older WSL2 backend
+)
+$dockerVhdPath = $candidateVhdPaths | Where-Object { Test-Path $_ } | Select-Object -First 1
 
 function Write-Log {
     param(
@@ -20,10 +26,11 @@ function Write-Log {
 
 Write-Log "Starting Docker VHD compaction check..."
 
-if (-not (Test-Path $dockerVhdPath)) {
-    Write-Log "Skipping compaction because the Docker VHD was not found at $dockerVhdPath."
+if ([string]::IsNullOrEmpty($dockerVhdPath)) {
+    Write-Log "Skipping compaction because the Docker VHD was not found in any known path: $($candidateVhdPaths -join '; ')"
     exit 0
 }
+Write-Log "Found Docker VHD at $dockerVhdPath."
 
 $dockerIsReachable = $false
 if (Test-Path $dockerSafe) {

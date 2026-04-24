@@ -60,6 +60,17 @@ Language-specific rules files:
 | 3 | `FEATURE-REQUESTS.md` — FR status | If an FR was completed or partially completed |
 | 4 | `docs/reports/REPORT-REGISTRY.md` | If you found a new issue, created a report, or resolved a finding |
 
+### MUST PRUNE Docker build caches before session end
+
+Every session that touches Docker (build, up, exec, any `docker compose` command) must run the safe-prune script before the session ends. Docker build caches bloat the Windows VHDX to tens of GB if left unattended — the prune + compact combo keeps disk usage honest without touching any named volume (`pgdata`, `redis-data`, `media_files`, `staticfiles` are always safe).
+
+- Command: `powershell -ExecutionPolicy Bypass -File scripts\prune-verification-artifacts.ps1`
+- At session end, after `docker compose down`: also run `powershell -ExecutionPolicy Bypass -File docker_compact_vhd.ps1` so the Windows VHDX actually shrinks.
+- The prune script already covers all four safe Docker categories via `docker system prune -f` (stopped containers, unused networks, dangling images, build cache) and strips the Gemini-breaking `worktreeConfig` extension from `.git/config` as its first step.
+- Full rules and the forbidden-cleanup list live in `AGENTS.md` § "Automatic Migration And Safe Artifact Prune". Do not duplicate them elsewhere.
+
+If the session made no Docker changes (docs-only or config-only), this step may be skipped — note that in the Current Session Note.
+
 ### MUST LOG issues discovered during work
 
 If you find any bug, performance bottleneck, logic flaw, missing validation, or code smell during your session — even if it's outside your current task scope — add it to `docs/reports/REPORT-REGISTRY.md` as an individual issue entry. Don't just ignore it and move on. Future AIs will see it and can fix it.

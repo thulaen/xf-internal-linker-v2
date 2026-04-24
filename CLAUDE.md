@@ -204,6 +204,10 @@ Every AI session must follow these rules to prevent Docker disk bloat:
 - **Prod-only compose stack.** There is **one** compose file — `docker-compose.yml` — and it boots the **production** Angular bundle (`xf-linker-frontend-prod:latest`) behind nginx on port 80. There is no dev Angular server, no `ng serve` in docker, no `docker-compose.override.yml`, no `docker-compose.prod.yml`. The dual-mode setup was retired 2026-04-22 (see `docs/DELETED-FEATURES.md`). Any AI that tries to re-add a dev-frontend service, resurrect `frontend-dev`, or split the compose back into dev+prod files will trip the phantom-reference CI gate (`backend/scripts/check_phantom_references.py`).
 - Never add a `build:` block to a service that can reuse an existing image. Use `image:` instead.
 - The build-once pattern is mandatory: `xf-linker-backend:latest` is shared by backend, celery-worker, and celery-beat. Do not break this.
-- After any `docker-compose build`, immediately run `docker image prune -f` to remove dangling images (old leftover copies).
+- After any `docker-compose build`, immediately run `docker system prune -f` to remove stopped containers, unused networks, dangling images, and build cache in a single call. This **never touches named volumes**, so embeddings in `pgdata` (and all data in `redis-data`, `media_files`, `staticfiles`) stay safe. At session end, after `docker compose down`, also run `powershell -ExecutionPolicy Bypass -File docker_compact_vhd.ps1` to compact the Windows VHDX so the freed space is actually returned to Windows.
 - Never run `docker-compose down -v` — the `-v` flag deletes the database and all embeddings. Use `docker-compose down` only (no `-v`).
 - For backend sessions, follow the canonical migration and safe-prune policy in `AGENTS.md`.
+
+# Gemini Guard — Never Re-Add `worktreeConfig = true`
+
+When spawning an `Agent(isolation: "worktree")`, the worktree feature silently re-adds `[extensions] worktreeConfig = true` to `.git/config`, which makes Gemini CLI and Gemini Antigravity stop responding. Immediately after the worktree operation ends, run `scripts/ensure-git-config-clean.ps1` (or `.githooks/_ensure-git-config-clean.sh`) to strip the block. The `post-checkout` and `pre-commit` hooks already strip it automatically for normal Git operations. See the full rule in `AGENTS.md` under "Gemini Guard".
