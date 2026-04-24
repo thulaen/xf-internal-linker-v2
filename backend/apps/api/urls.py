@@ -467,4 +467,13 @@ urlpatterns = [
         "scheduled-updates/",
         include("apps.scheduled_updates.urls", namespace="scheduled_updates"),
     ),
+    # Embeddings page (plan Part 8c, FR-235).
+    path("embedding/status/", __import__("apps.api.embedding_views", fromlist=["embedding_status"]).embedding_status, name="embedding-status"),
+    path("embedding/provider/", __import__("apps.api.embedding_views", fromlist=["embedding_provider"]).embedding_provider, name="embedding-provider"),
+    path("embedding/settings/", __import__("apps.api.embedding_views", fromlist=["embedding_settings"]).embedding_settings, name="embedding-settings"),
+    path("embedding/test-connection/", __import__("apps.api.embedding_views", fromlist=["embedding_test_connection"]).embedding_test_connection, name="embedding-test-connection"),
+    path("embedding/bakeoff/", __import__("apps.api.embedding_views", fromlist=["embedding_bakeoff_results"]).embedding_bakeoff_results, name="embedding-bakeoff-results"),
+    path("embedding/bakeoff/run/", __import__("apps.api.embedding_views", fromlist=["embedding_bakeoff_run"]).embedding_bakeoff_run, name="embedding-bakeoff-run"),
+    path("embedding/audit/run/", __import__("apps.api.embedding_views", fromlist=["embedding_audit_run"]).embedding_audit_run, name="embedding-audit-run"),
+    path("embedding/gate-decisions/", __import__("apps.api.embedding_views", fromlist=["embedding_gate_decisions"]).embedding_gate_decisions, name="embedding-gate-decisions"),
 ]

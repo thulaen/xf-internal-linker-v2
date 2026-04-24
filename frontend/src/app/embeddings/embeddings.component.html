@@ -1,0 +1,464 @@
+<div class="embeddings-page">
+  <header class="page-header">
+    <h1 class="page-title">Embeddings</h1>
+    <p class="page-subtitle">
+      Switch providers, monitor cost, run bake-offs, and audit embedding quality.
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="loading-wrap">
+      <mat-spinner diameter="48"></mat-spinner>
+    </div>
+  } @else {
+    <mat-tab-group animationDuration="200ms" dynamicHeight>
+      <!-- OVERVIEW -->
+      <mat-tab label="Overview">
+        <div class="tab-body">
+          @if (status(); as s) {
+            <div class="overview-grid">
+              <mat-card appearance="outlined" class="overview-card">
+                <mat-card-header>
+                  <mat-card-title>Active provider</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <mat-chip-set>
+                    <mat-chip highlighted color="primary">{{ s.active_provider }}</mat-chip>
+                  </mat-chip-set>
+                  <dl class="kv">
+                    <dt>Model</dt>
+                    <dd>{{ s.model_name || '—' }}</dd>
+                    <dt>Dimension</dt>
+                    <dd>{{ s.dimension || '—' }}</dd>
+                    <dt>Max tokens</dt>
+                    <dd>{{ s.max_tokens || '—' }}</dd>
+                    <dt>Signature</dt>
+                    <dd class="monospace">{{ s.signature || '—' }}</dd>
+                    <dt>Fallback</dt>
+                    <dd>{{ s.fallback_provider }}</dd>
+                    @if (s.recommended_provider) {
+                      <dt>Last bake-off winner</dt>
+                      <dd>
+                        <mat-chip highlighted>{{ s.recommended_provider }}</mat-chip>
+                      </dd>
+                    }
+                  </dl>
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card appearance="outlined" class="overview-card">
+                <mat-card-header>
+                  <mat-card-title>Hardware</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <mat-chip-set>
+                    <mat-chip highlighted>{{ s.hardware.tier }}</mat-chip>
+                    @if (s.hardware.has_cuda) {
+                      <mat-chip>CUDA</mat-chip>
+                    }
+                  </mat-chip-set>
+                  <dl class="kv">
+                    <dt>RAM</dt>
+                    <dd>{{ s.hardware.ram_gb }} GB</dd>
+                    <dt>CPU cores</dt>
+                    <dd>{{ s.hardware.cpu_cores }}</dd>
+                    <dt>VRAM</dt>
+                    <dd>{{ s.hardware.vram_gb }} GB</dd>
+                    <dt>Recommended batch size</dt>
+                    <dd>{{ s.hardware.recommended_batch_size }}</dd>
+                  </dl>
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card appearance="outlined" class="overview-card">
+                <mat-card-header>
+                  <mat-card-title>Coverage</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  <dl class="kv">
+                    <dt>Content items</dt>
+                    <dd>{{ s.coverage.total }}</dd>
+                    <dt>Embedded</dt>
+                    <dd>{{ s.coverage.embedded }}</dd>
+                    <dt>Coverage</dt>
+                    <dd>{{ s.coverage.pct }}%</dd>
+                  </dl>
+                  <mat-progress-bar mode="determinate" [value]="s.coverage.pct"></mat-progress-bar>
+                </mat-card-content>
+              </mat-card>
+
+              <mat-card appearance="outlined" class="overview-card">
+                <mat-card-header>
+                  <mat-card-title>Spend this month</mat-card-title>
+                </mat-card-header>
+                <mat-card-content>
+                  @if (s.spend_this_month.length === 0) {
+                    <p class="muted">No API spend yet.</p>
+                  } @else {
+                    <dl class="kv">
+                      @for (row of s.spend_this_month; track row.provider) {
+                        <dt>{{ row.provider }}</dt>
+                        <dd>${{ row.cost_usd.toFixed(4) }} ({{ row.tokens }} tok)</dd>
+                      }
+                    </dl>
+                  }
+                </mat-card-content>
+              </mat-card>
+            </div>
+          }
+        </div>
+      </mat-tab>
+
+      <!-- PROVIDERS -->
+      <mat-tab label="Providers">
+        <div class="tab-body">
+          <mat-card appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>Active provider</mat-card-title>
+              <mat-card-subtitle>
+                Switch triggers in-flight jobs to pause at batch boundary, save checkpoint, and resume on the new provider.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <!-- Explicit two-step switch avoids surprising keyboard users:
+                   arrow-keys change the radio UI but do NOT fire the destructive
+                   provider switch until Enter/Space or explicit Apply click
+                   (WCAG 2.1 AA — 3.2.2 On Input). -->
+              <mat-radio-group
+                [(ngModel)]="pendingProvider"
+                class="provider-radio"
+                aria-label="Select embedding provider">
+                <mat-radio-button value="local">
+                  <span class="provider-label">Local (BGE-M3)</span>
+                  <span class="provider-hint">On-device; free; GPU if available</span>
+                </mat-radio-button>
+                <mat-radio-button value="openai">
+                  <span class="provider-label">OpenAI</span>
+                  <span class="provider-hint">text-embedding-3 — paid, high-quality</span>
+                </mat-radio-button>
+                <mat-radio-button value="gemini">
+                  <span class="provider-label">Gemini</span>
+                  <span class="provider-hint">text-embedding-004 — paid, high-quality</span>
+                </mat-radio-button>
+              </mat-radio-group>
+
+              <div class="actions-row">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="!pendingProvider || pendingProvider === status()?.active_provider || busyAction === 'switching'"
+                  (click)="applyProviderChange()">
+                  @if (busyAction === 'switching') {
+                    <span role="status" aria-live="polite" aria-label="Switching provider">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">swap_horiz</mat-icon>
+                  }
+                  <span>Apply provider change</span>
+                </button>
+              </div>
+
+              <div class="test-buttons">
+                <button
+                  mat-stroked-button
+                  [disabled]="testingProvider === 'local'"
+                  (click)="testConnection('local')">
+                  @if (testingProvider === 'local') {
+                    <span role="status" aria-live="polite" aria-label="Testing local connection">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">verified</mat-icon>
+                  }
+                  <span>Test local</span>
+                </button>
+                <button
+                  mat-stroked-button
+                  [disabled]="testingProvider === 'openai'"
+                  (click)="testConnection('openai')">
+                  @if (testingProvider === 'openai') {
+                    <span role="status" aria-live="polite" aria-label="Testing OpenAI connection">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">verified</mat-icon>
+                  }
+                  <span>Test OpenAI</span>
+                </button>
+                <button
+                  mat-stroked-button
+                  [disabled]="testingProvider === 'gemini'"
+                  (click)="testConnection('gemini')">
+                  @if (testingProvider === 'gemini') {
+                    <span role="status" aria-live="polite" aria-label="Testing Gemini connection">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">verified</mat-icon>
+                  }
+                  <span>Test Gemini</span>
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card appearance="outlined" class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Provider settings</mat-card-title>
+              <mat-card-subtitle>
+                API key is stored as a secret. Never commit keys to code.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @for (key of editableKeys; track key) {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ labelFor[key] || key }}</mat-label>
+                  @if (key === 'embedding.api_key') {
+                    <input
+                      matInput
+                      [type]="showApiKey ? 'text' : 'password'"
+                      [ngModel]="settings()[key] || ''"
+                      (ngModelChange)="setSettingValue(key, $event)"
+                      placeholder="Paste API key to replace"
+                      autocomplete="off"
+                      [attr.aria-label]="'API key. Currently ' + (showApiKey ? 'visible' : 'hidden')" />
+                    <button
+                      mat-icon-button
+                      matSuffix
+                      type="button"
+                      (click)="toggleApiKey()"
+                      [attr.aria-label]="showApiKey ? 'Hide API key' : 'Show API key'"
+                      [attr.aria-pressed]="showApiKey">
+                      <mat-icon aria-hidden="true">{{ showApiKey ? 'visibility_off' : 'visibility' }}</mat-icon>
+                    </button>
+                  } @else {
+                    <input
+                      matInput
+                      [type]="numericKeys.has(key) ? 'number' : 'text'"
+                      [ngModel]="settings()[key] || ''"
+                      (ngModelChange)="setSettingValue(key, $event)"
+                      [attr.inputmode]="numericKeys.has(key) ? 'decimal' : null" />
+                  }
+                </mat-form-field>
+              }
+
+              <div class="actions-row">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="busyAction === 'saving'"
+                  (click)="saveSettings()">
+                  @if (busyAction === 'saving') {
+                    <span role="status" aria-live="polite" aria-label="Saving settings">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  }
+                  <span>Save settings</span>
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <!-- RUN CONTROL -->
+      <mat-tab label="Run Control">
+        <div class="tab-body">
+          <mat-card appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>Embed pipeline</mat-card-title>
+              <mat-card-subtitle>
+                Trigger re-embed or audit on demand. Pause/resume honoured by the pause contract.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              <div class="actions-row">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="busyAction === 'audit'"
+                  (click)="runAudit()">
+                  @if (busyAction === 'audit') {
+                    <span role="status" aria-live="polite" aria-label="Queuing audit">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">fact_check</mat-icon>
+                  }
+                  <span>Run audit now</span>
+                </button>
+                <button
+                  mat-raised-button
+                  [disabled]="busyAction === 'bakeoff'"
+                  (click)="runBakeoff()">
+                  @if (busyAction === 'bakeoff') {
+                    <span role="status" aria-live="polite" aria-label="Queuing bake-off">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  } @else {
+                    <mat-icon aria-hidden="true">compare_arrows</mat-icon>
+                  }
+                  <span>Run bake-off now</span>
+                </button>
+              </div>
+
+              @if (status(); as s) {
+                <div class="progress-wrap">
+                  <p>
+                    <strong>Coverage:</strong>
+                    {{ s.coverage.embedded }} / {{ s.coverage.total }} items ({{ s.coverage.pct }}%)
+                  </p>
+                  <mat-progress-bar mode="determinate" [value]="s.coverage.pct"></mat-progress-bar>
+                </div>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <!-- BAKE-OFF -->
+      <mat-tab label="Bake-off">
+        <div class="tab-body">
+          <mat-card appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>Provider comparison (MTEB-style)</mat-card-title>
+              <mat-card-subtitle>
+                MRR@10, NDCG@10, Recall@10 from your approved vs. rejected history.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @if (bakeoffRows().length === 0) {
+                <p class="muted">No bake-offs yet. Click <strong>Run bake-off now</strong> in Run Control.</p>
+              } @else {
+                <table mat-table [dataSource]="bakeoffRows()" class="full-width" aria-label="Provider bake-off results">
+                  <caption class="visually-hidden">MRR, NDCG, Recall, separation, cost, and latency for each provider bake-off run.</caption>
+                  <ng-container matColumnDef="provider">
+                    <th mat-header-cell *matHeaderCellDef>Provider</th>
+                    <td mat-cell *matCellDef="let r">{{ r.provider }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="mrr_at_10">
+                    <th mat-header-cell *matHeaderCellDef>MRR@10</th>
+                    <td mat-cell *matCellDef="let r">{{ r.mrr_at_10 }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="ndcg_at_10">
+                    <th mat-header-cell *matHeaderCellDef>NDCG@10</th>
+                    <td mat-cell *matCellDef="let r">{{ r.ndcg_at_10 }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="recall_at_10">
+                    <th mat-header-cell *matHeaderCellDef>Recall@10</th>
+                    <td mat-cell *matCellDef="let r">{{ r.recall_at_10 }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="separation_score">
+                    <th mat-header-cell *matHeaderCellDef>Separation</th>
+                    <td mat-cell *matCellDef="let r">{{ r.separation_score }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="cost_usd">
+                    <th mat-header-cell *matHeaderCellDef>Cost (USD)</th>
+                    <td mat-cell *matCellDef="let r">{{ r.cost_usd }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="latency_ms_p95">
+                    <th mat-header-cell *matHeaderCellDef>p95 ms</th>
+                    <td mat-cell *matCellDef="let r">{{ r.latency_ms_p95 }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="created_at">
+                    <th mat-header-cell *matHeaderCellDef>When</th>
+                    <td mat-cell *matCellDef="let r">{{ r.created_at | date:'short' }}</td>
+                  </ng-container>
+                  <tr mat-header-row *matHeaderRowDef="bakeoffCols"></tr>
+                  <tr mat-row *matRowDef="let row; columns: bakeoffCols"></tr>
+                </table>
+              }
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+
+      <!-- AUDIT -->
+      <mat-tab label="Audit">
+        <div class="tab-body">
+          <mat-card appearance="outlined">
+            <mat-card-header>
+              <mat-card-title>Quality-gate decisions</mat-card-title>
+              <mat-card-subtitle>
+                Last 100 REPLACE / REJECT / NOOP decisions from the measure-twice gate.
+              </mat-card-subtitle>
+            </mat-card-header>
+            <mat-card-content>
+              @if (gateDecisions().length === 0) {
+                <p class="muted">No gate decisions yet.</p>
+              } @else {
+                <table mat-table [dataSource]="gateDecisions()" class="full-width" aria-label="Quality-gate decisions">
+                  <caption class="visually-hidden">Last 100 measure-twice gate decisions: action, reason, and score delta per item.</caption>
+                  <ng-container matColumnDef="created_at">
+                    <th mat-header-cell *matHeaderCellDef>When</th>
+                    <td mat-cell *matCellDef="let r">{{ r.created_at | date:'short' }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="item_kind">
+                    <th mat-header-cell *matHeaderCellDef>Kind</th>
+                    <td mat-cell *matCellDef="let r">{{ r.item_kind }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="item_id">
+                    <th mat-header-cell *matHeaderCellDef>ID</th>
+                    <td mat-cell *matCellDef="let r">{{ r.item_id }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="action">
+                    <th mat-header-cell *matHeaderCellDef>Action</th>
+                    <td mat-cell *matCellDef="let r">
+                      <mat-chip [highlighted]="r.action === 'REPLACE' || r.action === 'ACCEPT_NEW'">
+                        {{ r.action }}
+                      </mat-chip>
+                    </td>
+                  </ng-container>
+                  <ng-container matColumnDef="reason">
+                    <th mat-header-cell *matHeaderCellDef>Reason</th>
+                    <td mat-cell *matCellDef="let r">{{ r.reason }}</td>
+                  </ng-container>
+                  <ng-container matColumnDef="score_delta">
+                    <th mat-header-cell *matHeaderCellDef>Score delta</th>
+                    <td mat-cell *matCellDef="let r">{{ r.score_delta }}</td>
+                  </ng-container>
+                  <tr mat-header-row *matHeaderRowDef="decisionCols"></tr>
+                  <tr mat-row *matRowDef="let row; columns: decisionCols"></tr>
+                </table>
+              }
+            </mat-card-content>
+          </mat-card>
+
+          <mat-card appearance="outlined" class="settings-card">
+            <mat-card-header>
+              <mat-card-title>Audit &amp; gate settings</mat-card-title>
+            </mat-card-header>
+            <mat-card-content>
+              @for (key of auditKeys; track key) {
+                <mat-form-field appearance="outline" class="full-width">
+                  <mat-label>{{ labelFor[key] || key }}</mat-label>
+                  <input
+                    matInput
+                    [type]="numericKeys.has(key) ? 'number' : 'text'"
+                    [ngModel]="settings()[key] || ''"
+                    (ngModelChange)="setSettingValue(key, $event)"
+                    [attr.inputmode]="numericKeys.has(key) ? 'decimal' : null" />
+                </mat-form-field>
+              }
+              <div class="actions-row">
+                <button
+                  mat-raised-button
+                  color="primary"
+                  [disabled]="busyAction === 'saving'"
+                  (click)="saveSettings()">
+                  @if (busyAction === 'saving') {
+                    <span role="status" aria-live="polite" aria-label="Saving audit settings">
+                      <mat-spinner diameter="18"></mat-spinner>
+                    </span>
+                  }
+                  <span>Save</span>
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+        </div>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</div>

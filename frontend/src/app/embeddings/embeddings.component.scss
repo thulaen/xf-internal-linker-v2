@@ -1,0 +1,186 @@
+// Embeddings page (plan Part 8c, FR-235).
+// Uses GA4 design tokens from default-theme.scss. 4px grid only.
+// M3 Expressive states allowed; no flattening.
+// Token fallbacks removed intentionally — tokens live in _theme-vars.scss
+// and are always defined for any component rendered in the app shell.
+
+.embeddings-page {
+  padding: var(--space-lg);
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: var(--space-lg);
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  margin: 0 0 4px 0;
+}
+
+.page-subtitle {
+  margin: 0;
+  color: var(--color-text-secondary);
+  // GA4 body baseline 13px (DESIGN-PATTERNS §1 Typography).
+  font-size: 13px;
+}
+
+.loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+}
+
+.tab-body {
+  padding: var(--space-lg) 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
+.overview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+}
+
+.overview-card,
+.settings-card {
+  // Card hover transitions are a no-op in prod (mat-card handles the shadow
+  // token swap), but the rule per DESIGN-PATTERNS §10 is to declare the
+  // transition on every interactive element so future style edits are safe.
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  mat-card-content {
+    padding-top: var(--space-md);
+  }
+}
+
+.kv {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  // Row gap: 8px (never 4px — 4px is for icon-to-label only per anti-pattern #4).
+  gap: var(--space-sm) var(--space-md);
+  margin: var(--space-md) 0 0 0;
+
+  dt {
+    color: var(--color-text-secondary);
+    font-size: 13px;
+  }
+
+  dd {
+    margin: 0;
+    color: var(--color-text-primary);
+    font-size: 13px;
+  }
+}
+
+.monospace {
+  font-family: 'Roboto Mono', Consolas, Menlo, monospace;
+  // Matches GA4 body-min 13px; WCAG 1.4.4 tolerates zoom from this baseline.
+  font-size: 13px;
+}
+
+// Screen-reader-only content for table captions (WCAG 1.3.1).
+// Visually hides the caption but keeps it readable for assistive tech.
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.muted {
+  color: var(--color-text-secondary);
+  font-size: 13px;
+}
+
+.provider-radio {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  margin-bottom: var(--space-lg);
+
+  mat-radio-button {
+    padding: var(--space-sm) var(--space-md);
+    border-radius: 8px;
+    transition: background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    &:hover {
+      // GA4 primary tint at 4% — never hardcode the hex.
+      background: rgba(var(--color-primary-rgb), 0.04);
+    }
+  }
+
+  .provider-label {
+    font-weight: 500;
+    color: var(--color-text-primary);
+  }
+
+  .provider-hint {
+    display: block;
+    // Hint text is allowed to drop to 12px per GA4 (nav-item descriptor size).
+    font-size: 12px;
+    color: var(--color-text-muted);
+    margin-top: 2px;
+  }
+}
+
+.test-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+
+  button {
+    // DESIGN-PATTERNS §"Buttons" line 71 — min 140px in action rows.
+    min-width: 140px;
+
+    mat-icon,
+    mat-spinner {
+      margin-right: 8px;
+    }
+  }
+}
+
+.actions-row {
+  display: flex;
+  gap: var(--space-sm);
+  margin-top: var(--space-md);
+
+  mat-spinner {
+    margin-right: 8px;
+  }
+}
+
+.full-width {
+  width: 100%;
+  margin-bottom: var(--space-sm);
+}
+
+.progress-wrap {
+  margin-top: var(--space-lg);
+
+  p {
+    margin-bottom: var(--space-sm);
+    font-size: 13px;
+  }
+}
+
+table.full-width {
+  width: 100%;
+
+  th.mat-mdc-header-cell,
+  td.mat-mdc-cell {
+    padding: var(--space-sm) var(--space-md);
+    font-size: 13px;
+  }
+}

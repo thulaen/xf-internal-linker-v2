@@ -295,6 +295,12 @@ export class AppComponent implements OnInit {
           route: '/analytics',
           tooltip: 'SEO impact reports from GSC and GA4',
         },
+        {
+          label: 'Embeddings',
+          icon: 'compare_arrows',
+          route: '/embeddings',
+          tooltip: 'Switch providers, run bake-offs, audit embedding quality',
+        },
       ],
     },
     {

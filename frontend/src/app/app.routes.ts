@@ -37,6 +37,13 @@ export const routes: Routes = [
     canActivate: [authGuard],
   },
   {
+    path: 'embeddings',
+    loadComponent: () =>
+      import('./embeddings/embeddings.component').then((m) => m.EmbeddingsComponent),
+    title: 'Embeddings — XF Internal Linker',
+    canActivate: [authGuard],
+  },
+  {
     path: 'link-health',
     loadComponent: () =>
       import('./link-health/link-health.component').then((m) => m.LinkHealthComponent),
