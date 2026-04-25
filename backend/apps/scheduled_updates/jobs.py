@@ -270,6 +270,10 @@ def _load_networkx_graph(checkpoint):
 )
 def run_personalized_pagerank_refresh(job, checkpoint) -> None:
     from apps.content.models import ContentItem
+    from apps.pipeline.services.graph_signal_store import (
+        SIGNAL_PPR,
+        persist_top_n,
+    )
     from apps.pipeline.services.personalized_pagerank import compute
 
     g = _load_networkx_graph(checkpoint)
@@ -277,8 +281,7 @@ def run_personalized_pagerank_refresh(job, checkpoint) -> None:
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
-    # Seed set: top-N nodes by the already-computed PageRank. Topic-
-    # specific seeds land in W3.
+    # Seed set: top-N nodes by the already-computed PageRank.
     seed_pks = list(
         ContentItem.objects.filter(is_deleted=False)
         .order_by("-march_2026_pagerank_score")[:50]
@@ -287,9 +290,11 @@ def run_personalized_pagerank_refresh(job, checkpoint) -> None:
     seeds = [(pk, ct) for pk, ct in seed_pks if g.has_node((pk, ct))]
     checkpoint(progress_pct=30.0, message=f"Computing PPR over {len(seeds)} seeds")
     result = compute(g, seeds=seeds)
+    checkpoint(progress_pct=70.0, message="Persisting PPR top-N")
+    written = persist_top_n(signal=SIGNAL_PPR, scores=result.scores)
     checkpoint(
         progress_pct=100.0,
-        message=f"Computed PPR for {len(result.scores)} nodes",
+        message=f"PPR persisted: {written} of {len(result.scores)} nodes",
     )
 
 
@@ -301,6 +306,11 @@ def run_personalized_pagerank_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_hits_refresh(job, checkpoint) -> None:
+    from apps.pipeline.services.graph_signal_store import (
+        SIGNAL_HITS_AUTHORITY,
+        SIGNAL_HITS_HUB,
+        persist_top_n,
+    )
     from apps.pipeline.services.hits import compute
 
     g = _load_networkx_graph(checkpoint)
@@ -309,9 +319,15 @@ def run_hits_refresh(job, checkpoint) -> None:
         return
     checkpoint(progress_pct=30.0, message="Computing HITS scores")
     scores = compute(g)
+    checkpoint(progress_pct=70.0, message="Persisting authority + hub top-N")
+    auth_count = persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores=scores.authority)
+    hub_count = persist_top_n(signal=SIGNAL_HITS_HUB, scores=scores.hub)
     checkpoint(
         progress_pct=100.0,
-        message=f"Computed HITS for {len(scores.authority)} nodes",
+        message=(
+            f"HITS persisted: {auth_count} authorities + {hub_count} hubs "
+            f"(of {len(scores.authority)} nodes)"
+        ),
     )
 
 
@@ -356,6 +372,10 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
 )
 def run_trustrank_propagation(job, checkpoint) -> None:
     from apps.core.models import AppSetting
+    from apps.pipeline.services.graph_signal_store import (
+        SIGNAL_TRUSTRANK,
+        persist_top_n,
+    )
     from apps.pipeline.services.trustrank import compute
 
     g = _load_networkx_graph(checkpoint)
@@ -375,9 +395,14 @@ def run_trustrank_propagation(job, checkpoint) -> None:
         message=f"Propagating trust from {len(seeds)} seeds",
     )
     result = compute(g, trusted_seeds=seeds)
+    checkpoint(progress_pct=70.0, message="Persisting TrustRank top-N")
+    written = persist_top_n(signal=SIGNAL_TRUSTRANK, scores=result.scores)
     checkpoint(
         progress_pct=100.0,
-        message=f"TrustRank computed ({result.reason})",
+        message=(
+            f"TrustRank persisted: {written} of {len(result.scores)} nodes "
+            f"({result.reason})"
+        ),
     )
 
 
