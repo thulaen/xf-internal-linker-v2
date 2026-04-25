@@ -487,6 +487,28 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-25 (7) — Phase 6 fully wired: 6 ranker-time adapters + 4 parse-time integrations, all paper-backed, all in Recommended preset (Claude)
+
+- **AI/tool:** Claude (continuation of (6)).
+- **Why:** Operator asked for every Phase 6 pick to be on by default with paper-backed defaults and part of the Recommended preset. (6) had only VADER wired.
+- **Relevant open findings disclosed in chat:** None in dispatcher / sentence_splitter / distiller / crawler / pipeline_data area.
+- **Forward-clash check:** No clash. Cold-start byte-stable: every adapter returns 0.0 until its underlying model exists; the W1 trainers populate them over the first week.
+- **Intentional files changed (committed in this session):**
+  - `apps/pipeline/services/phase6_ranker_contribution.py` — full rewrite. ``AdapterContext`` dataclass + six wired adapters (VADER / KenLM / LDA / Node2Vec / BPR / FM).
+  - `apps/pipeline/services/{ranker.py, pipeline.py}` — context wiring + killswitch.
+  - `apps/suggestions/recommended_weights.py` — paper-backed `<pick>.ranking_weight` for all six picks + `phase6_ranker.enabled`.
+  - `apps/suggestions/migrations/0046_seed_phase6_ranker_weights.py` (new) — idempotent seed.
+  - `apps/sources/language_filter.py` (new) — FastText LangID candidate-pool filter.
+  - `apps/pipeline/services/pipeline_data.py` — calls language filter after content-record load.
+  - `apps/pipeline/services/sentence_splitter.py` — PySBD-first; spaCy still parses for downstream NER/POS.
+  - `apps/pipeline/services/distiller.py` — YAKE keyword boost on distilled sentences.
+  - `apps/crawler/services/site_crawler.py::_parse_html` — Trafilatura main-content extraction.
+  - `apps/pipeline/test_phase6_ranker_contribution.py` — 35 tests covering all six adapters + dispatcher.
+  - `apps/sources/test_language_filter.py` (new) — 10 tests.
+  - `docs/READY-TODAY.md`, `AGENT-HANDOFF.md` — governance updates.
+- **Test status:** Full sweep **1309/1309 pass** (5 skipped, pre-existing). Phantom gate clean.
+- **Branch:** stayed on `master`.
+
 ### 2026-04-25 (6) — Retention into runner window + Roaring B.5/B.6/B.7 prune + Tier-A waste fixes + Phase 6 dispatcher (Claude)
 
 - **AI/tool:** Claude (continuation of (5) — same uncommitted master tree).

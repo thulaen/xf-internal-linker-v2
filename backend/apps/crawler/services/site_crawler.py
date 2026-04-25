@@ -376,12 +376,34 @@ def _parse_html(html: str, meta: CrawledPageMeta, base_url: str):
     if h1_tags:
         meta.h1_text = str(h1_tags[0].get_text(strip=True))[:500]
 
-    # Clean text extraction
-    for tag in soup(["script", "style", "nav", "footer", "header"]):
-        tag.decompose()
+    # Clean text extraction.
+    # Pick #7 — Trafilatura (Barbaresi 2021 ACL Demos) does
+    # main-content extraction much more cleanly than the BeautifulSoup
+    # "strip these tags + get_text" approach: it combines DOM-tree
+    # heuristics with text-density signals, so navigation menus,
+    # sidebars, related-posts blocks, and ad chrome get filtered out.
+    # Cold-start safe: when trafilatura is missing or its toggle is
+    # off, falls through to the original BeautifulSoup path so we
+    # always have *some* clean_text to work with.
+    clean_text = ""
+    try:
+        from apps.sources import trafilatura_extractor
 
-    text = soup.get_text(separator=" ")
-    clean_text = " ".join(text.split())
+        if trafilatura_extractor.is_available():
+            extracted = trafilatura_extractor.extract(html, url=base_url)
+            if extracted and extracted.text:
+                clean_text = " ".join(extracted.text.split())
+    except Exception as exc:
+        logger.debug("trafilatura extraction failed; using BeautifulSoup: %s", exc)
+
+    if not clean_text:
+        # BeautifulSoup fallback — kept verbatim so cold-start /
+        # missing-dep installs still get clean_text.
+        for tag in soup(["script", "style", "nav", "footer", "header"]):
+            tag.decompose()
+        text = soup.get_text(separator=" ")
+        clean_text = " ".join(text.split())
+
     meta.extracted_text = clean_text
     meta.word_count = len(clean_text.split())
 

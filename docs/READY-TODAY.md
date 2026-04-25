@@ -1,6 +1,6 @@
 # Ready Today — what's running right now (no jargon edition)
 
-> Last updated: 2026-04-25 (Wire phase + Polish.A/B shipped, scheduler widened from 1 pm → 11 am, retention moved into the operator window, Phase 6 dispatcher built with VADER as the first wired pick). If you're a new operator coming back to this, this is the first thing to read.
+> Last updated: 2026-04-25 (Wire + Polish + scheduler 11–23 + retention in window + Phase 6 dispatcher with **all six ranker-time picks wired** + parse-time picks (FastText LangID filter, PySBD splitter, YAKE keyword boost, Trafilatura HTML extractor) plumbed). If you're a new operator coming back to this, this is the first thing to read.
 
 ## TL;DR
 
@@ -51,16 +51,16 @@ These were the focus of this week's "Wire phase". Each has: pip dep installed, p
 
 | Pick | Status today | What lights up after wiring |
 |---|---|---|
-| **VADER #22** (Hutto-Gilbert 2014) | **Wired into the ranker via `phase6_ranker_contribution`.** Operator must raise `vader_sentiment.ranking_weight` above 0.0 in Settings for it to perturb `score_final`. | Sentiment shifts ranking when the host sentence is clearly positive / negative; surface for the per-pick breakdown lands in the Explain panel via a future commit. |
-| **PySBD #15** (Sadvilkar-Neumann 2020) | Helper available; toggle on; not consumed | More-accurate sentence splits in the parse pipeline |
-| **YAKE! #17** (Campos 2020) | Helper available; toggle on; not consumed | Keyword diagnostics on suggestion-detail dialog |
-| **Trafilatura #7** (Barbaresi 2021) | Helper available; toggle on; not consumed | Used at crawl time when external HTML import lands |
-| **FastText LangID #14** (Joulin 2016) | Helper + 131 MB model available; toggle on; not consumed | Non-English content suppression in candidate pool |
-| **LDA #18** (Blei-Ng-Jordan 2003) | Helper available; weekly W1 trains a real model from corpus titles; not yet consumed | Topical-similarity feature in ranker |
-| **KenLM #23** (Heafield 2011) | Helper + lmplz binary available; weekly W1 trains real model; not yet consumed | Anchor fluency scoring |
-| **Node2Vec #37** (Grover-Leskovec 2016) | Helper available; weekly W1 trains real embeddings; not yet consumed | Graph-structure feature on ranker |
-| **BPR #38** (Rendle 2009) | Helper available; weekly W1 fits on approve/reject; not yet consumed | Personalised ranking score |
-| **Factorization Machines #39** (Rendle 2010) | Hand-rolled NumPy helper available; weekly W1 fits on Suggestion features; not yet consumed | Pairwise feature-interaction score |
+| **VADER #22** (Hutto-Gilbert 2014) | **Wired in the ranker.** Recommended weight `0.05`. Per-candidate compound × 0.05 lands on `score_final`. | Sentiment-aware ranking on every Suggestion — already running. |
+| **KenLM #23** (Heafield 2011) | **Wired in the ranker.** Recommended weight `0.05`. Per-host-sentence `tanh(per_token + 3)` × 0.05. Cold-start safe — fluency = 0.0 until the W1 weekly trainer writes the first ARPA file. | Fluent host sentences get a small lift; ungrammatical ones a small demote. |
+| **LDA #18** (Blei-Ng-Jordan 2003) | **Wired in the ranker.** Recommended weight `0.10`. Cosine-of-topic-mixtures over host + destination texts. Cold-start safe — 0.0 until the W1 weekly LDA trainer fires. | Topical similarity gets fed into `score_final` once a model exists. |
+| **Node2Vec #37** (Grover-Leskovec 2016) | **Wired in the ranker.** Recommended weight `0.05`. Cosine of per-node embeddings. Cold-start safe — 0.0 until W1 weekly Node2Vec trainer writes embeddings. | Graph-community signal complements PageRank/HITS/PPR/TrustRank. |
+| **BPR #38** (Rendle 2009) | **Wired in the ranker.** Recommended weight `0.05`. `tanh(BPR-score / 2)`. Cold-start safe — 0.0 until W1 weekly BPR refit fires (≥ 5 reviewed Suggestions). | Personalised pairwise LTR signal. |
+| **Factorization Machines #39** (Rendle 2010) | **Wired in the ranker.** Recommended weight `0.10`. `tanh(FM-prediction)`. Cold-start safe — 0.0 until W1 weekly FM refit fires. | Feature-interaction signal (Rendle 2010 §3 eq. 1-3). |
+| **PySBD #15** (Sadvilkar-Neumann 2020) | **Wired into the sentence splitter.** Used as the default backend when its dep + toggle are both active; spaCy stays the parallel parse for downstream NER / POS. | More-accurate sentence boundaries on forum prose — every distillation + ranker pass benefits. |
+| **YAKE! #17** (Campos 2020) | **Wired into the distiller.** Adds a small per-sentence boost (0.05 per matching keyword, capped at 0.4) when distilled sentences contain document-level YAKE keywords. | Distilled body skews toward sentences carrying the document's most salient terms. |
+| **Trafilatura #7** (Barbaresi 2021) | **Wired into the crawler.** Replaces the BeautifulSoup-strip-and-`get_text()` step in `site_crawler._parse_html`. Falls through to BeautifulSoup when trafilatura is unavailable. | Crawled pages get clean main-content text instead of "everything between the boilerplate". |
+| **FastText LangID #14** (Joulin 2016) | **Wired into the candidate pool.** `pipeline_data` drops content records whose title is detected as non-English (default `und` is kept — defensive). Off-toggle and missing-dep paths return the dict verbatim. | Non-English content stops slipping into the candidate pool. |
 
 **Why the gap exists:** the original 52-pick plan separated "ship the helper" (Phases 6.1–6.5) from "wire it into the ranker" (the per-pick PRs that would add `Suggestion.score_<pick>` columns). The Wire phase finished the first half; the second half is per-pick follow-up.
 

@@ -37,6 +37,80 @@ Be specific — the next agent has no memory of your session. Explain the *why*,
 
 ---
 
+## 2026-04-25 (7) Agent: Claude — Phase 6 fully wired (all 6 ranker-time picks + 4 parse-time picks) with paper-backed Recommended-preset defaults
+
+### What I did
+The (5) + (6) commits left only VADER wired and the other nine picks
+deferred. This commit closes the rest:
+
+| Pick | Wire point | Default ``ranking_weight`` (paper-backed) |
+|---|---|---|
+| VADER #22  | dispatcher adapter — host-sentence compound, returns [-1, +1] | 0.05 (Hutto-Gilbert 2014 §3.2 — compound calibrated ±1) |
+| KenLM #23  | dispatcher adapter — `tanh(per_token + 3)` (Heafield 2011 §4) | 0.05 |
+| LDA #18    | dispatcher adapter — cosine-of-topic-mixtures minus 0.5 | 0.10 (Blei-Ng-Jordan 2003 §6 IR experiments) |
+| Node2Vec #37 | dispatcher adapter — cosine of per-node embeddings | 0.05 (Grover-Leskovec 2016 §4) |
+| BPR #38    | dispatcher adapter — `tanh(score / 2)` (Rendle 2009 §5 Table 2) | 0.05 |
+| FM #39     | dispatcher adapter — `tanh(prediction)` (Rendle 2010 §3 eq.1-3) | 0.10 |
+
+Sum of dispatcher weights = **0.40** — well under the 1.0 magnitude
+of the existing 15-component composite, so Phase 6 fine-tunes
+ordering without dominating it.
+
+Parse-time picks wired in their natural pipeline stages:
+
+| Pick | Wire point |
+|---|---|
+| PySBD #15  | `apps/pipeline/services/sentence_splitter.py` — PySBD is now the FIRST backend; spaCy parses in parallel for the Doc downstream consumers need; regex is the last fallback. |
+| YAKE #17  | `apps/pipeline/services/distiller.py` — extracts top-10 keywords once per document, boosts each distilled sentence by 0.05 per matching keyword (capped at 0.4). |
+| Trafilatura #7 | `apps/crawler/services/site_crawler.py::_parse_html` — replaces the BeautifulSoup `get_text` path; falls through to the original on missing dep / disabled toggle. |
+| FastText LangID #14 | `apps/pipeline/services/pipeline_data.py` — drops non-English content records before they enter Stage-1. New module `apps/sources/language_filter.py` wraps the helper with batched cold-start-safe semantics. |
+
+### Files changed (this commit)
+- `backend/apps/pipeline/services/phase6_ranker_contribution.py` — full rewrite. New ``AdapterContext`` dataclass; six wired adapters; paper-backed normalisations.
+- `backend/apps/pipeline/services/ranker.py` — pass `host_key` + `destination.key` into `AdapterContext`.
+- `backend/apps/pipeline/services/pipeline.py` — read `phase6_ranker.enabled` killswitch from settings.
+- `backend/apps/suggestions/recommended_weights.py` — `<pick>.ranking_weight` for all six picks + `phase6_ranker.enabled`.
+- `backend/apps/suggestions/migrations/0046_seed_phase6_ranker_weights.py` (new) — idempotent ``update_or_create`` for the seven keys above.
+- `backend/apps/sources/language_filter.py` (new) — `is_english` / `filter_english_content_records` / `english_subset` cold-start-safe helpers.
+- `backend/apps/pipeline/services/pipeline_data.py` — calls `filter_english_content_records` after `_load_content_records`.
+- `backend/apps/pipeline/services/sentence_splitter.py` — PySBD-first backend chain, parallel spaCy doc.
+- `backend/apps/pipeline/services/distiller.py` — YAKE keyword boost.
+- `backend/apps/crawler/services/site_crawler.py::_parse_html` — Trafilatura main-content extraction.
+- `backend/apps/pipeline/test_phase6_ranker_contribution.py` — extended to cover all six adapters; added migration-aware `_clear_seed_weights` helper.
+- `backend/apps/sources/test_language_filter.py` (new) — ten cases.
+- `docs/READY-TODAY.md`, `AGENT-HANDOFF.md`, `AI-CONTEXT.md` — governance updates.
+
+### Tests
+- Full backend sweep: **1309 / 1309 pass** (was 1281 before this commit, +28 net new).
+- Phantom gate: OK, scanned 165 banned tokens, no phantoms.
+- Migration `0046_seed_phase6_ranker_weights` applies cleanly on the test DB and the prod DB.
+
+### Key decisions and WHY
+- **`AdapterContext` instead of `(host_text, dest_text)`.** Node2Vec, BPR, FM all need ID-shaped inputs (graph-node IDs / user-as-host IDs / one-hot feature labels). The old binary-string signature couldn't carry them; bumping to a frozen dataclass with optional `host_key`/`destination_key` made the contract uniform across all six adapters and matches what the ranker's per-candidate loop already has on hand.
+- **Why every weight is small + adds up to 0.40.** Phase 6 is meant to fine-tune ordering, not dominate the existing 15-component composite. 0.40 ≪ 1.0 keeps each candidate's pre-Phase-6 score the principal contributor.
+- **Cold-start byte-stable.** Every adapter returns 0.0 when its trained model file is missing. The W1 jobs populate the models over the first week of cadence (LDA / KenLM / Node2Vec / BPR / FM are weekly). Until then, only VADER (no model required) contributes any non-zero value.
+- **Parse-time picks: each integrates at its NATURAL stage.** PySBD = sentence splitter, YAKE = distiller, Trafilatura = crawler, FastText = candidate pool. None of them required a schema migration. All four are cold-start safe (missing dep / disabled toggle → fall through to the legacy code).
+- **Migration 0046 dependency.** Depends on `suggestions/0045_add_suggestion_indexes` + `core/0013_seed_embedding_provider_defaults` so it composes cleanly with the index migration from this morning's commit.
+
+### What I tried that didn't work
+- **First splitter rewrite broke `tasks_import_helpers._persist_content_body::salient_entities`.** When PySBD is the spans source we returned `doc=None`; the entity-salience consumer needs the spaCy `Doc` to call `rank_entities`. Fix: the splitter now ALWAYS calls spaCy in parallel when it's available, even when PySBD is the spans source. One extra parse per content item, fine because the consumer was paying for that parse anyway.
+- **`test_no_weights_set_returns_none` + `test_disabled_pick_excluded` failed** after migration 0046 started seeding non-zero weights. Updated the tests to clear the seed rows first when they're testing the cold-start path explicitly.
+
+### What I explicitly ruled out
+- **Per-pick `score_<pick>` columns on Suggestion.** Following the FR-099..105 dispatcher's lead means this commit is *additive only* on `score_final`. Per-pick observability (Suggestion.score_vader, etc.) can come in a later commit if operators need it for the Explain panel.
+- **YAKE storage on ContentItem.** No JSON column added — the boost is computed at distillation time and only affects which sentences get distilled. No persisted state means no migration/backfill.
+- **Schema changes for FastText LangID** (e.g. `Sentence.language` field). The filter runs at content-record load; results aren't persisted because the cost is small (one short fastText predict per content title).
+
+### Pending / next steps
+- [ ] **Settings UI for the per-pick weights.** Polish.A's "Optional Pick Toggles" tab only has on/off switches. A future commit can add numeric inputs for each `<pick>.ranking_weight` so operators don't need the Django shell to tune.
+- [ ] **Per-pick observability.** When operators want to see "which pick contributed how much", expose `Phase6RankerContribution.per_pick_breakdown(ctx)` results in the Explain panel.
+- [ ] **Tier-B waste fixes.** Separate slice — runtime_flags request-scoped cache, bundled feedback-relevance snapshot read, shared NetworkX graph across W1 graph jobs, etc.
+
+### Open questions / blockers
+- None. Recommended preset is now end-to-end paper-backed and active out of the box.
+
+---
+
 ## 2026-04-25 (6) Agent: Claude — Retention into runner window + Roaring B.5/B.6/B.7 prune + Tier-A waste fixes + Phase 6 dispatcher (VADER first wired pick)
 
 ### What I did

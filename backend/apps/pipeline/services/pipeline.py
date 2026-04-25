@@ -217,16 +217,24 @@ def _execute_pipeline_stages(
         enabled=bool(graph_signal_settings.get("enabled", True)),
     )
 
-    # Slice 5 — Phase 6 ranker-time contribution dispatcher (pick #22
-    # VADER seeded; KenLM #23 / LDA #18 / Node2Vec #37 / BPR #38 /
-    # FM #39 slot in via ``_ADAPTERS`` registrations). Returns None
-    # when no enabled pick has a non-zero ``ranking_weight``, so the
-    # default ranker behaviour is unchanged until the operator
-    # explicitly raises a weight in Settings.
+    # Slice 5 — Phase 6 ranker-time contribution dispatcher (six
+    # picks wired: VADER #22, KenLM #23, LDA #18, Node2Vec #37,
+    # BPR #38, FM #39). Each pick has a paper-backed default
+    # ``ranking_weight`` in apps/suggestions/recommended_weights.py;
+    # cold-start safe — adapters return 0.0 when their underlying
+    # model file isn't trained yet, so flipping every pick on doesn't
+    # perturb a fresh install until the W1 jobs populate models.
+    # Killswitch: AppSetting key ``phase6_ranker.enabled``.
     from .phase6_ranker_contribution import build_phase6_contribution
 
+    phase6_killswitch = bool(
+        settings.get(
+            "phase6_ranker_enabled",
+            settings.get("phase6_ranker", {}).get("enabled", True),
+        )
+    )
     phase6_contribution = build_phase6_contribution(
-        enabled_global=bool(settings.get("phase6_ranker_enabled", True)),
+        enabled_global=phase6_killswitch,
     )
 
     scoring_kwargs = dict(

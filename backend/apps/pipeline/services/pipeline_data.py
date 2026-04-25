@@ -130,6 +130,23 @@ def _load_pipeline_content(
             run_id="", items_in_scope=0, suggestions_created=0, destinations_skipped=0
         )
 
+    # Pick #14 — FastText LangID candidate filter (Joulin 2016 EACL).
+    # When the operator has fasttext + the lid.176 model installed, this
+    # drops non-English content records before they reach the retrievers.
+    # Cold-start safe: returns the input dict verbatim when the dep / model
+    # / toggle is missing. Toggle: ``fasttext_langid.candidate_filter.enabled``.
+    from apps.sources.language_filter import filter_english_content_records
+
+    pre_filter_count = len(content_records)
+    content_records = filter_english_content_records(content_records)
+    if len(content_records) != pre_filter_count:
+        progress_fn(
+            0.06,
+            f"FastText LangID filter dropped "
+            f"{pre_filter_count - len(content_records)} non-English records "
+            f"({len(content_records)} kept)",
+        )
+
     progress_fn(0.08, "Loading sentence records...")
     sentence_records, content_to_sentence_ids = _load_sentence_records(
         set(content_records.keys())

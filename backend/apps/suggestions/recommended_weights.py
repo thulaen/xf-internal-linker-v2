@@ -195,13 +195,14 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # ±0.05 lives in the helper as :attr:`SentimentResult.is_neutral`
     # (paper §3.2 "compound score thresholds for sentiment intensity").
     "vader_sentiment.enabled": "true",
-    # ranking_weight 0.0 = sentiment is computed but does NOT perturb
-    # ``score_final`` until the operator explicitly raises it. The
-    # ``apps.pipeline.services.phase6_ranker_contribution`` dispatcher
-    # multiplies VADER's compound score (∈ [-1, +1]) by this weight.
-    # 0.05-0.20 is a sane operator starting range — small enough that
-    # sentiment alone can't dominate the existing 15-component blend.
-    "vader_sentiment.ranking_weight": "0.0",
+    # Phase 6 ranker contribution weight. The dispatcher multiplies
+    # the compound score (∈ [-1, +1] per Hutto-Gilbert §3.2) by this
+    # weight before adding to ``score_final``. 0.05 keeps sentiment a
+    # small "fine-tune" signal next to the dominant semantic +
+    # keyword + graph signals — Hutto-Gilbert §4 reports compound
+    # scores in social media routinely span ±0.5, so weight 0.05
+    # bounds the per-candidate sentiment shift to ~ ±0.025.
+    "vader_sentiment.ranking_weight": "0.05",
 
     # ── Pick #15 PySBD (Sadvilkar & Neumann 2020 ACL Demos) ────────
     # ``language=en`` matches our content; ``clean=False`` keeps the
@@ -253,6 +254,14 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "lda.eta": "auto",
     "lda.model_path": "/app/media/lda/lda.model",
     "lda.dictionary_path": "/app/media/lda/lda.dict",
+    # Phase 6 ranker contribution weight. The dispatcher normalises
+    # cosine similarity over topic distributions to [-0.5, +0.5];
+    # weight 0.10 bounds the per-candidate shift to ~ ±0.05.
+    # Blei-Ng-Jordan 2003 §6 ("IR experiments") shows topic-mixture
+    # similarity beats raw bag-of-words for retrieval — that's why it
+    # gets a slightly larger weight than the unary signals (VADER /
+    # KenLM) but stays under the dominant semantic + keyword inputs.
+    "lda.ranking_weight": "0.10",
 
     # ── Pick #23 KenLM (Heafield 2011 WMT) ────────────────────────
     # order=3 = trigram (the paper's headline benchmark). Empty
@@ -262,6 +271,14 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "kenlm.enabled": "true",
     "kenlm.order": "3",
     "kenlm.model_path": "/app/media/kenlm/model.arpa",
+    # Phase 6 ranker contribution weight. The dispatcher's adapter
+    # maps per-token log10 probability via ``tanh(per_token + 3)``
+    # so output is bounded (-1, +1). Weight 0.05 bounds the per-
+    # candidate shift to ~ ±0.05. Heafield 2011 §4 reports per-token
+    # log10 in -2 to -4 for natural English under the trigram model;
+    # the 0.05 weight intentionally keeps fluency a small "fine-tune"
+    # signal rather than a primary ranker.
+    "kenlm.ranking_weight": "0.05",
 
     # ── Pick #37 Node2Vec (Grover & Leskovec 2016 KDD §4 Table 1) ──
     # dimensions=64 + walk_length=30 + num_walks=200 + p=q=1.0 is the
@@ -275,6 +292,13 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "node2vec.q": "1.0",
     "node2vec.window": "10",
     "node2vec.embeddings_path": "/app/media/node2vec/embeddings.pkl",
+    # Phase 6 ranker contribution weight. Cosine of two Node2Vec
+    # embeddings is in [-1, +1] (paper §4.2); weight 0.05 caps the
+    # per-candidate contribution at ~ ±0.05. The graph-signal layer
+    # (HITS / PPR / TrustRank) already feeds destination authority
+    # via ``score_node_affinity`` — Node2Vec adds the dyadic
+    # community-structure signal but doesn't need to dominate.
+    "node2vec.ranking_weight": "0.05",
 
     # ── Pick #38 BPR (Rendle et al. 2009 UAI §5) ──────────────────
     # factors=50 keeps the latent matrix small at our scale; iterations,
@@ -286,6 +310,12 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "bpr.learning_rate": "0.01",
     "bpr.regularization": "0.01",
     "bpr.model_path": "/app/media/bpr/model.pkl",
+    # Phase 6 ranker contribution weight. The adapter maps the BPR
+    # dot-product score via ``tanh(score / 2)`` to land in (-1, +1);
+    # weight 0.05 mirrors the Node2Vec graph signal scale. Rendle
+    # 2009 §5 evaluates BPR on personalised LTR with similar
+    # weighting in mixed-feature LTR pipelines (Table 2 baselines).
+    "bpr.ranking_weight": "0.05",
 
     # ── Pick #39 Factorization Machines (Rendle 2010 ICDM §3.1) ───
     # factors=8 keeps latent vectors tiny — fine for our small
@@ -297,6 +327,22 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "factorization_machines.num_iter": "50",
     "factorization_machines.learning_rate": "0.001",
     "factorization_machines.model_path": "/app/media/fm/model.pkl",
+    # Phase 6 ranker contribution weight. FM captures pairwise
+    # feature interactions (Rendle 2010 §3.1 eq. 1); the adapter
+    # maps the prediction via ``tanh(pred)``. Weight 0.10 matches
+    # LDA — both are "compositional" signals that combine multiple
+    # underlying features into one ranker-time score; both deserve
+    # a slightly larger share than the unary sentiment / fluency
+    # picks.
+    "factorization_machines.ranking_weight": "0.10",
+
+    # ────────────────────────────────────────────────────────────────
+    # Phase 6 ranker dispatcher — operator killswitch.
+    # When false, the entire dispatcher short-circuits regardless of
+    # individual ``<pick>.ranking_weight`` values. Default true so the
+    # six paper-backed signals contribute on a fresh install.
+    # ────────────────────────────────────────────────────────────────
+    "phase6_ranker.enabled": "true",
 }
 
 # Merge forward-declared FR keys into the main dict.

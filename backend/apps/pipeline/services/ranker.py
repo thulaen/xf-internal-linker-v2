@@ -776,22 +776,28 @@ def score_destination_matches(
 
         # Slice 5 — Phase 6 ranker-time contribution dispatcher.
         # Adds the operator-tunable contribution from each enabled
-        # Phase 6 pick (VADER #22 today; KenLM/LDA/Node2Vec/BPR/FM
-        # slot in via apps.pipeline.services.phase6_ranker_contribution
-        # adapter registry). Cold-start safe: when phase6_contribution
-        # is None or every weight is zero, this is exactly 0.0.
+        # Phase 6 pick (VADER #22, KenLM #23, LDA #18, Node2Vec #37,
+        # BPR #38, FM #39) via the
+        # apps.pipeline.services.phase6_ranker_contribution dispatcher.
+        # Cold-start safe: when phase6_contribution is None, every
+        # adapter returns 0.0 for missing models, this stays at 0.0.
         if phase6_contribution is not None:
             try:
+                from .phase6_ranker_contribution import AdapterContext
+
                 sentence_record = sentence_records.get(match.sentence_id)
                 host_text = ""
                 if sentence_record is not None:
                     host_text = getattr(sentence_record, "text", "") or ""
                 dest_text = getattr(destination, "title", "") or ""
+                phase6_ctx = AdapterContext(
+                    host_sentence_text=host_text,
+                    destination_text=dest_text,
+                    host_key=host_key,
+                    destination_key=destination.key,
+                )
                 score_final += float(
-                    phase6_contribution.contribute_total(
-                        host_sentence_text=host_text,
-                        destination_text=dest_text,
-                    )
+                    phase6_contribution.contribute_total(phase6_ctx)
                 )
             except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(

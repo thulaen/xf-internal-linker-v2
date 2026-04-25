@@ -1,6 +1,30 @@
 """Sentence splitting for cleaned post text.
 
-Uses spaCy en_core_web_sm when available, falls back to regex-based splitting.
+Backend priority (best → worst), each falling through cleanly when
+its dependency or model is missing:
+
+1. **PySBD #15** (Sadvilkar & Neumann 2020 ACL Demos) — rule-based
+   pragmatic boundary disambiguation; handles abbreviations,
+   decimals, ellipses, quoted dialogue, and list items robustly.
+   Toggle: ``pysbd_segmenter.enabled``.
+2. **spaCy en_core_web_sm** — neural sentence segmenter, accurate
+   on standard prose. Used when PySBD isn't installed (or the
+   operator turned its toggle off). Doc is also returned for
+   downstream entity / POS reuse.
+3. **Regex fallback** — naïve split on sentence-terminator
+   punctuation. Last-resort for installs without spaCy or PySBD.
+
+PySBD doesn't return character offsets directly, so this module
+recomputes them by scanning the original text in order — the same
+approach the spaCy and regex paths use.
+
+Reference
+---------
+- Sadvilkar, N. & Neumann, M. (2020). "PySBD: Pragmatic Sentence
+  Boundary Disambiguation." ACL 2020 Demonstrations.
+- Honnibal, M. & Montani, I. (2017). "spaCy 2: Natural language
+  understanding with Bloom embeddings, convolutional neural
+  networks and incremental parsing."
 """
 
 from __future__ import annotations
@@ -24,6 +48,47 @@ class SentenceSpan:
 _SENT_RE = re.compile(r"(?<=[.!?])\s+(?=[A-Z])" r"|(?:\n\s*\n)")
 
 _MIN_SENT_LEN = 15
+
+
+def _pysbd_active() -> bool:
+    """True when PySBD is installed AND its operator toggle is on."""
+    try:
+        from apps.sources import pysbd_segmenter
+        from apps.core.runtime_flags import is_enabled
+
+        if not pysbd_segmenter.is_available():
+            return False
+        return is_enabled("pysbd_segmenter.enabled", default=True)
+    except Exception:
+        return False
+
+
+def _pysbd_split_with_offsets(text: str) -> list[tuple[str, int, int]]:
+    """Run PySBD and recompute character offsets in the source text.
+
+    PySBD's ``segment`` returns sentence strings as substrings of the
+    input (we construct the segmenter with ``clean=False``), so each
+    sentence appears in order and does not overlap. We scan the
+    source from the end of the previous sentence to find each one's
+    offset.
+    """
+    from apps.sources import pysbd_segmenter
+
+    sentences = pysbd_segmenter.split(text)
+    offsets: list[tuple[str, int, int]] = []
+    cursor = 0
+    for raw in sentences:
+        stripped = raw.strip()
+        if not stripped:
+            continue
+        idx = text.find(stripped, cursor)
+        if idx < 0:
+            # PySBD returned a sentence we can't locate (cleaning
+            # mismatch); skip rather than poison the pipeline.
+            continue
+        offsets.append((stripped, idx, idx + len(stripped)))
+        cursor = idx + len(stripped)
+    return offsets
 
 
 def split_sentences(text: str) -> list[str]:
@@ -63,15 +128,35 @@ def split_sentence_spans_with_doc(text: str):
     if not text or not text.strip():
         return [], None
 
-    nlp = get_spacy_nlp()
+    # Backend priority for sentence boundaries: PySBD first (best on
+    # forum prose), then spaCy, then regex.
+    #
+    # We ALWAYS try to parse with spaCy in parallel when it's
+    # available, because downstream consumers (entity ranking, POS,
+    # deps in tasks_import_helpers._persist_content_body) need the
+    # spaCy ``Doc``. If PySBD provides better sentence boundaries,
+    # we use them — but spaCy still parses the same text once for
+    # its NLP outputs.
     doc = None
+    raw_spans: list[tuple[str, int, int]] = []
+
+    nlp = get_spacy_nlp()
     if nlp is not None:
+        # Single parse — used for downstream NLP reuse regardless of
+        # which sentence-boundary backend is the spans source.
         doc = nlp(text)
-        raw_spans = [
-            (sent.text.strip(), sent.start_char, sent.end_char) for sent in doc.sents
-        ]
-    else:
-        raw_spans = _regex_split_with_offsets(text)
+
+    if _pysbd_active():
+        raw_spans = _pysbd_split_with_offsets(text)
+
+    if not raw_spans:
+        if doc is not None:
+            raw_spans = [
+                (sent.text.strip(), sent.start_char, sent.end_char)
+                for sent in doc.sents
+            ]
+        else:
+            raw_spans = _regex_split_with_offsets(text)
 
     spans: list[SentenceSpan] = []
     position = 0
@@ -108,5 +193,13 @@ def _regex_split_with_offsets(text: str) -> list[tuple[str, int, int]]:
 
 
 def get_backend() -> str:
-    """Return which sentence-splitting backend is active."""
+    """Return which sentence-splitting backend is active.
+
+    Tracks the priority chain in :func:`split_sentence_spans_with_doc`:
+    PySBD when its dep + toggle are both active, then spaCy, then
+    regex. Used by diagnostics + the Settings UI to surface which
+    splitter the operator's ranker is actually using.
+    """
+    if _pysbd_active():
+        return "pysbd"
     return "spacy" if is_spacy_available() else "regex"
