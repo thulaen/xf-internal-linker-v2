@@ -37,6 +37,95 @@ Be specific — the next agent has no memory of your session. Explain the *why*,
 
 ---
 
+## 2026-04-25 Agent: Claude — Groups A.1-A.4 + B.1-B.2 (52-pick blocker wirings)
+
+### What I did
+Continued the 52-pick completion plan from `plans/check-how-many-pending-tidy-iverson.md`.
+Shipped **6 commits** on master (no branch — per project rules). Each is real-data-ready
+and cold-start safe; the producer scheduled jobs no-op cleanly until data flows, then
+fit + persist automatically with no code change required.
+
+| Commit | Group | What |
+|---|---|---|
+| `9067e7d` | A.1 | `SuggestionImpression` model + `/api/suggestions/impressions/` bulk-log endpoint + 9 tests |
+| `abc38ed` | A.2 | Pick #33 IPS Position Bias producer wired into W1 `position_bias_ips_refit` job + 16 tests |
+| `7101352` | A.3 | Pick #34 Cascade Click Model producer wired into W1 `cascade_click_em_re_estimate` job + 11 tests |
+| `b47e7bd` | A.4 | Consumer wire — `feedback_relevance.cascade_relevance_for` + `_compute_ips_ctr` now read producer outputs with 3-source fallback chain + 5 tests |
+| `1df6609` | B.1 | Pick #20 Product Quantization producer + `ContentItem.pq_code` + `pq_code_version` columns + W1 `product_quantization_refit` wired + 6 tests |
+| `f35d7b0` | B.2 | PQ read-path helpers `decode_pq_codes` + `pq_cosine_for_pks` (filter by codebook version) + 5 tests |
+
+### Key decisions and WHY
+- **Producer/Consumer split with AppSetting JSON snapshots** — same pattern Platt
+  (#32), Conformal (#50), ACI (#52), Elo (#35) already use. Each producer fits
+  on real data + persists; consumers read with cold-start fallbacks. No
+  code-path changes to existing production callers.
+- **Two complementary data sources for IPS+Cascade, not one** — `feedback_relevance`
+  uses review-queue history (always available); the new `*_producer` modules use
+  `SuggestionImpression` rows (frontend hook required, empty until landed). Both
+  run in W1 jobs side-by-side; consumers prefer the impression-based table when
+  populated, fall back to review-queue. Two distinct AppSetting namespaces so
+  neither overwrites the other.
+- **PQ pq_code stays nullable + version-tagged** — every encoded row carries
+  `pq_code_version`; consumers reject codes whose version doesn't match the
+  active codebook (post-refit cleanup is a no-op). Codebook bytes stored
+  base64-encoded in AppSetting (FAISS `serialize_index` returns numpy uint8
+  array; `np.frombuffer` reverses it on load).
+- **No invasive read-path swap for PQ** — pgvector's `<=>` is fine at our 100k
+  scale. Shipped read-path helpers (`pq_cosine_for_pks`) so any future consumer
+  (clustering, batch similarity) can opt in. Hot-path swap deferred until
+  profiling shows pgvector becomes the bottleneck.
+- **Delay-imports inside consumer functions** — avoids producer↔consumer cycle
+  at module load (`feedback_relevance` calls `position_bias_ips_producer.load_eta()`
+  inside `_compute_ips_ctr`, not at top-of-file).
+
+### What I tried that didn't work
+- **First Cascade test had click pattern that landed exactly at the prior mean
+  0.5** — `[0,0,1,1,0,2,0,1,3,0]*3` gave dest 0 a 15/30 click ratio →
+  `(15+1)/(30+2) = 0.5`. Bumped pattern to `[0]*8 + [1,2]` so dest 0 gets a
+  clear majority and the relevance estimate exceeds prior mean.
+- **First PQ load_quantizer call** passed raw bytes to FAISS's
+  `deserialize_index` → `'bytes' object has no attribute 'shape'`. FAISS expects
+  a numpy uint8 array. Fixed with `np.frombuffer(snap.codebook_blob, dtype=np.uint8)`.
+
+### What I explicitly ruled out
+- **Adding a session_id column to `SuggestionImpression`** for Cascade session
+  grouping — used `pipeline_run` as the session proxy instead. Less precise but
+  no schema change, robust on cold-start.
+- **Building a new Django app for PQ** (e.g. `apps.embed`) — per the
+  Anti-Spaghetti Charter rule 1, helpers go in `apps.sources.*` (already there)
+  or `apps.pipeline.services.*` (where the producer landed). The only sanctioned
+  new-app exception is `apps.training` (Phase 6, not yet started).
+- **Hot-path PQ read swap** — see Group B.2 commit message. Deferred until
+  profiling justifies; helpers shipped so opting in is one import away.
+
+### Context the next agent must know
+- **6 commits ahead of origin/master, on `master` branch (NO new branches per project rules).**
+- **All 52 producer-side wirings are now in place** for picks #33, #34, #20.
+  Together with prior session's Phase 5 work (#28 QL-Dirichlet, #29 HITS,
+  #30 TrustRank, #32 Platt, #35 Elo, #36 PPR, #49 Uncertainty, #50 Conformal,
+  #51 Auto-Seeder, #52 ACI), that's ~13 picks now real-data-ready end-to-end.
+- **Test counts:** apps.pipeline = 529, full broader sweep = 776. All green +
+  phantom gate clean.
+- **Migration `content.0031_contentitem_pq_code_contentitem_pq_code_version` applied.**
+  Adds two nullable columns; reversible AddField; safe.
+
+### Pending / next steps
+- [ ] **Group C** (Stage-1 candidate fusion) — refactor Stage-1 to list-of-retrievers
+      pattern, then add LexicalRetriever + Stage-1.5 RRF fusion (#31), then
+      QueryExpansionRetriever (#27). Bigger architectural work, ~6-12h.
+- [ ] **Phase 6** (~50h) — implement 17 missing helpers in groups (tiny → small
+      → medium → large). Largest piece is `apps.training` Django app for picks
+      #41-46 (offline training stack: L-BFGS-B, TPE, Cosine Annealing,
+      LambdaLoss, SWA, OHEM).
+- [ ] **Phase 7** (~20h) — governance backfill: FR-rows, AI-CONTEXT entries,
+      BUSINESS-LOGIC checklist, PERFORMANCE entries, benchmarks per hot-path
+      pick, spec-checkbox closure across all 52 picks.
+
+### Open questions / blockers
+- None. Each phase ahead is well-scoped per the plan.
+
+---
+
 ## 2026-04-24 (6) Agent: Claude — FR-099..FR-105 DEFERRED ITEMS ALL CLOSED
 
 ### What I did (additional to entry (5))
