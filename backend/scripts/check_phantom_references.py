@@ -49,6 +49,12 @@ ALLOWED_PATHS: tuple[str, ...] = (
     # to reference the original class name to round-trip correctly.
     "backend/apps/suggestions/migrations/0030_metatournamentresult_holdoutquery.py",
     "backend/apps/suggestions/migrations/0034_drop_meta_tournament_tables.py",
+    # The HITS pick #29 storage layer legitimately uses Kleinberg's canonical
+    # output names ("authority" and "hub"). The banned tokens `hits_authority`
+    # and `hits_hub` were deleted as **forward-declared duplicate signals** —
+    # the implemented HITS algorithm still has to produce scores under those
+    # names because that's what Kleinberg (1999) calls them.
+    "backend/apps/pipeline/services/graph_signal_store.py",
 )
 
 # ── Directories never scanned (generated / vendored / cache).
