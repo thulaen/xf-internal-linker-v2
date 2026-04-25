@@ -338,13 +338,40 @@ def _persist_content_body(
         content_item.distilled_text = distill_body(
             [s.text for s in sentence_objs], max_sentences=5
         )
-        # ``salient_entities`` was set above in the same transaction
-        # (or left unchanged if NER failed) — include it in the save.
+
+        # Pick #25 — Callan 1994 passage-aligned windows. Reuses the
+        # sentence list we already created above (single sentence-
+        # split pass, two consumers). Failures are absorbed because
+        # passages are advisory, not a hard dependency.
+        try:
+            from apps.sources.passages import segment_from_sentences
+
+            sentence_texts = [s.text for s in sentence_objs]
+            passage_records = segment_from_sentences(sentence_texts)
+            content_item.passages = [
+                {
+                    "index": p.index,
+                    "text": p.text,
+                    "token_count": p.token_count,
+                    "token_start": p.token_start,
+                    "token_end": p.token_end,
+                }
+                for p in passage_records
+            ]
+        except Exception:
+            logger.exception(
+                "segment_from_sentences failed for content_item=%s; "
+                "leaving passages unchanged",
+                content_item.pk,
+            )
+        # ``salient_entities`` and ``passages`` were set above in the
+        # same transaction (or left unchanged on helper failure).
         content_item.save(
             update_fields=[
                 "content_hash",
                 "distilled_text",
                 "salient_entities",
+                "passages",
                 "updated_at",
             ]
         )

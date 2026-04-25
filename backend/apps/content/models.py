@@ -320,6 +320,24 @@ class ContentItem(TimestampedModel):
             "Empty list = no entities or unscored row."
         ),
     )
+    # Pick #25 — Callan 1994 passage-level segmentation. Sentence-
+    # aligned ~150-token windows derived from the existing Sentence
+    # rows during import. Each entry: ``{index, text, token_count,
+    # token_start, token_end}``. Empty list = unscored (cold-start
+    # row or empty body). Used by future passage-level retrieval
+    # paths; produced now so the data is available for opt-in
+    # consumers.
+    passages = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Sentence-aligned passages (Callan 1994 fixed-window with "
+            "overlap, ~150 tokens). Each entry: {index, text, "
+            "token_count, token_start, token_end}. Populated at import "
+            "from the same Sentence rows used for retrieval — no "
+            "duplicate splitting work."
+        ),
+    )
     engagement_quality_diagnostics = models.JSONField(
         default=dict,
         blank=True,
