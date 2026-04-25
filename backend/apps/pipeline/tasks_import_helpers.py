@@ -228,15 +228,32 @@ def _persist_content_body(
     new_hash: str,
     first_post_id: int | None,
 ) -> None:
-    """Save Post, Sentences, and distilled text inside a transaction."""
+    """Save Post, Sentences, and distilled text inside a transaction.
+
+    Pick #19 — readability grades are computed from ``clean_text``
+    here (one call into ``apps.sources.readability.score``) and
+    persisted onto the Post row so the ranker doesn't have to
+    re-tokenise on every pipeline pass. Cold-start safe: empty body
+    yields 0.0/0.0 grades from the helper.
+    """
     from django.db import transaction
 
     from apps.content.models import Post, Sentence
     from apps.pipeline.services.distiller import distill_body
     from apps.pipeline.services.sentence_splitter import split_sentence_spans
+    from apps.sources.readability import score as readability_score
 
     with transaction.atomic():
         content_item.content_hash = new_hash
+
+        # Pick #19 — Flesch-Kincaid + Gunning Fog. The helper already
+        # iterates clean_text once to count words/sentences/syllables
+        # (it doesn't reuse ``post.word_count`` because the bare
+        # ``len(clean_text.split())`` here doesn't filter punctuation
+        # the way the readability tokeniser does — the two counts are
+        # close but not identical). One pass through clean_text inside
+        # the helper is the cleanest way to compute both grades.
+        readability = readability_score(clean_text)
 
         post, _ = Post.objects.get_or_create(content_item=content_item)
         post.raw_bbcode = raw_body
@@ -244,6 +261,8 @@ def _persist_content_body(
         post.char_count = len(clean_text)
         post.word_count = len(clean_text.split())
         post.xf_post_id = first_post_id
+        post.flesch_kincaid_grade = readability.flesch_kincaid_grade
+        post.gunning_fog_grade = readability.gunning_fog
         post.save(
             update_fields=[
                 "raw_bbcode",
@@ -251,6 +270,8 @@ def _persist_content_body(
                 "char_count",
                 "word_count",
                 "xf_post_id",
+                "flesch_kincaid_grade",
+                "gunning_fog_grade",
             ]
         )
 

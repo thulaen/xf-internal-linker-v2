@@ -475,6 +475,29 @@ class Post(TimestampedModel):
         default=0,
         help_text="Word count of clean_text. Pipeline scans first HOST_SCAN_WORD_LIMIT words only.",
     )
+    # Pick #19 — Flesch-Kincaid + Gunning Fog readability grades.
+    # Computed at import time from clean_text via
+    # apps.sources.readability.score so the ranker (and operators
+    # browsing posts) can distinguish a graduate-level dissertation
+    # (Fog ~20) from a conversational reply (Fog ~8) without re-
+    # tokenising on every pipeline run. 0.0 = unscored (fresh row,
+    # zero-length body, or import predates the wiring).
+    flesch_kincaid_grade = models.FloatField(
+        default=0.0,
+        help_text=(
+            "Flesch-Kincaid Grade Level (Kincaid et al. 1975). Higher = "
+            "more reading skill required. Computed from clean_text at "
+            "import time. 0.0 = unscored."
+        ),
+    )
+    gunning_fog_grade = models.FloatField(
+        default=0.0,
+        help_text=(
+            "Gunning Fog Index (Gunning 1952). Higher = more complex "
+            "vocabulary. Computed from clean_text at import time. "
+            "0.0 = unscored."
+        ),
+    )
     xf_post_id = models.IntegerField(
         null=True,
         blank=True,
