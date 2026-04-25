@@ -85,17 +85,38 @@ class RunRetrieversTests(SimpleTestCase):
         self.assertEqual(result, {("d1", "thread"): [10, 20, 30]})
 
     def test_two_retrievers_unify_with_dedup_preserving_order(self) -> None:
-        """Retriever B's overlapping IDs are dropped; new ones append in order."""
+        """fuse_with_rrf=False → C.1 dedup-preserving-order semantics."""
         ret_a = _FakeRetriever(
             "a", {("d1", "thread"): [10, 20, 30]}
         )
         ret_b = _FakeRetriever(
             "b", {("d1", "thread"): [20, 40, 30, 50]}
         )
-        result = run_retrievers([ret_a, ret_b], context=_make_context())
+        result = run_retrievers(
+            [ret_a, ret_b], context=_make_context(), fuse_with_rrf=False
+        )
         # Order: A's [10, 20, 30] first; then B contributes 40, 50
         # (already-seen 20 + 30 are dropped).
         self.assertEqual(result, {("d1", "thread"): [10, 20, 30, 40, 50]})
+
+    def test_two_retrievers_default_uses_rrf_fusion(self) -> None:
+        """Default fuse_with_rrf=True runs the RRF helper."""
+        # Sentence ids: 10, 20, 30, 40, 50.
+        # A ranks them [10, 20, 30] → ranks 1, 2, 3.
+        # B ranks them [40, 30, 50, 20] → ranks 1, 2, 3, 4.
+        # Both rank 30 (rank 3 in A, rank 2 in B) → strongest fused.
+        ret_a = _FakeRetriever("a", {("d1", "thread"): [10, 20, 30]})
+        ret_b = _FakeRetriever("b", {("d1", "thread"): [40, 30, 50, 20]})
+        result = run_retrievers([ret_a, ret_b], context=_make_context())
+        fused_order = result[("d1", "thread")]
+        # 30 appears in both lists with reasonable ranks → must be at top.
+        self.assertEqual(fused_order[0], 30)
+        # All five distinct sentence IDs are present.
+        self.assertEqual(set(fused_order), {10, 20, 30, 40, 50})
+        # Single-doc lists pass through without RRF re-shuffle.
+        ret_solo = _FakeRetriever("solo", {("d1", "thread"): [10, 20]})
+        result_solo = run_retrievers([ret_solo], context=_make_context())
+        self.assertEqual(result_solo[("d1", "thread")], [10, 20])
 
     def test_retrievers_with_disjoint_dests_merge(self) -> None:
         ret_a = _FakeRetriever("a", {("d1", "thread"): [10]})
@@ -115,6 +136,124 @@ class RunRetrieversTests(SimpleTestCase):
         )
         # A and C still contribute; B's exception is swallowed.
         self.assertEqual(result, {("d1", "thread"): [10, 20]})
+
+
+class LexicalRetrieverTests(SimpleTestCase):
+    """Group C.2 — token-overlap lexical retriever."""
+
+    @staticmethod
+    def _record(title: str, scope_title: str = ""):
+        """Lightweight stand-in for ContentRecord.
+
+        SimpleTestCase doesn't hit the DB; the retriever only reads
+        ``.title`` + ``.scope_title``, so a SimpleNamespace suffices.
+        """
+        from types import SimpleNamespace
+
+        return SimpleNamespace(title=title, scope_title=scope_title)
+
+    def test_disabled_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import LexicalRetriever
+
+        ret = LexicalRetriever(enabled=False)
+        result = ret.retrieve(_make_context())
+        self.assertEqual(result, {})
+
+    def test_no_overlap_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import LexicalRetriever
+
+        ret = LexicalRetriever(enabled=True)
+        records = {
+            (1, "thread"): self._record("alpha beta gamma"),
+            (2, "thread"): self._record("delta epsilon zeta"),
+        }
+        sentence_ids = {(1, "thread"): [10], (2, "thread"): [20]}
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+            )
+        )
+        # Dest's only host candidate is itself (filtered out) →
+        # empty.
+        self.assertEqual(result, {})
+
+    def test_overlap_emits_top_k_hosts(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import LexicalRetriever
+
+        ret = LexicalRetriever(enabled=True)
+        records = {
+            (1, "thread"): self._record("python tutorial guide"),
+            (2, "thread"): self._record("python beginner intro"),
+            (3, "thread"): self._record("ruby on rails"),
+            (4, "thread"): self._record("python advanced patterns"),
+        }
+        sentence_ids = {
+            (1, "thread"): [10],
+            (2, "thread"): [20, 21],
+            (3, "thread"): [30],
+            (4, "thread"): [40, 41],
+        }
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+                top_k=3,
+            )
+        )
+        # Hosts 2 + 4 share "python" with dest 1 → both contribute.
+        # Host 3 shares nothing → excluded.
+        # Host 1 == dest → excluded.
+        sids = result[(1, "thread")]
+        self.assertCountEqual(sids, [20, 21, 40, 41])
+
+    def test_stopwords_dropped(self) -> None:
+        """Stopwords should never produce overlap on their own."""
+        from apps.pipeline.services.candidate_retrievers import LexicalRetriever
+
+        ret = LexicalRetriever(enabled=True)
+        records = {
+            (1, "thread"): self._record("the and that"),
+            (2, "thread"): self._record("the or this"),
+        }
+        sentence_ids = {
+            (1, "thread"): [10],
+            (2, "thread"): [20],
+        }
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+            )
+        )
+        # All non-stopword content tokens are < 3 chars or filtered;
+        # no real overlap → empty.
+        self.assertEqual(result, {})
+
+    def test_short_tokens_filtered(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import LexicalRetriever
+
+        ret = LexicalRetriever(enabled=True, min_token_length=4)
+        records = {
+            (1, "thread"): self._record("foo bar baz"),
+            (2, "thread"): self._record("foo bar baz"),
+        }
+        sentence_ids = {
+            (1, "thread"): [10],
+            (2, "thread"): [20],
+        }
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+            )
+        )
+        # All tokens are 3 chars; min_token_length=4 → empty.
+        self.assertEqual(result, {})
 
 
 class SemanticRetrieverTests(SimpleTestCase):
