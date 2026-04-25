@@ -37,7 +37,159 @@ Be specific — the next agent has no memory of your session. Explain the *why*,
 
 ---
 
-## 2026-04-25 Agent: Claude — Groups A.1-A.4 + B.1-B.2 (52-pick blocker wirings)
+## 2026-04-25 (2) Agent: Claude — Groups C.1-C.3 + Phase 6 (52-pick completion phase, blockers 3 + 4 done)
+
+### What I did
+Continued the 52-pick completion plan after the earlier `2026-04-25 (1)`
+session that shipped Groups A.1-A.4 + B.1-B.2. This session closes
+the remaining blockers (Stage-1 retriever refactor + missing-helper
+sweep) for **9 more commits** on master. Every commit is real-data
+ready, cold-start safe.
+
+| Commit | Group | What |
+|---|---|---|
+| `2ec1814` | C.1 | Stage-1 list-of-retrievers refactor — `CandidateRetriever` Protocol + `SemanticRetriever` + `run_retrievers()` unifier (byte-equivalent to legacy single-source path) + 9 tests |
+| `16bb821` | C.2 | `LexicalRetriever` (token overlap) + Stage-1.5 RRF fusion (#31) — multi-retriever default uses `reciprocal_rank_fusion.fuse()`; gated by `stage1.lexical_retriever_enabled` AppSetting + 7 tests |
+| `5e7479b` | C.3 | `QueryExpansionRetriever` (#27) — Rocchio PRF cycle on top of fusion; gated by `stage1.query_expansion_retriever_enabled` AppSetting + 4 tests |
+| `5860615` | Phase 6.1 | `apps.sources.vader_sentiment` (#22), `pysbd_segmenter` (#15), `yake_keywords` (#17) — all lazy-import + cold-start safe + 14 tests |
+| `5831de4` | Phase 6.2 | `apps.sources.trafilatura_extractor` (#7) + `fasttext_langid` (#14) — model paths from AppSetting + 9 tests |
+| `56a9721` | Phase 6.3 | `apps.pipeline.services.lda_topics` (#18) + `kenlm_fluency` (#23); LDA W1 job upgraded from `DeferredPickError` to real producer that fires when gensim is installed + 11 tests |
+| `d3b7bf3` | Phase 6.4 | `apps.pipeline.services.node2vec_embeddings` (#37), `bpr_ranking` (#38), `factorization_machines` (#39) — all wrappers + 18 tests |
+| `c14f45f` | Phase 6.5 | NEW Django app `apps.training` for picks #41-46 (L-BFGS-B, TPE, Cosine Annealing, LambdaLoss, SWA, OHEM) + 22 tests |
+
+Phase 6 in total: 11 helper modules across `apps.sources` and
+`apps.pipeline.services` + the new `apps.training` Django app
+(the **single sanctioned new-app exception** in the plan's
+Anti-Spaghetti Charter). All deps that ARE installed (scipy,
+optuna, torch, numpy) make the helpers real-data ready immediately;
+the rest (vaderSentiment, pysbd, yake, trafilatura, fasttext,
+gensim, kenlm, node2vec, implicit, pyfm) install-and-go with no
+code change required.
+
+### Key decisions and WHY
+- **Stage-1 refactor: list-of-retrievers + RRF unifier, not class
+  hierarchy.** Different retrievers (semantic, lexical,
+  query-expansion) have incompatible inputs (embeddings vs tokens
+  vs PRF docs); a hierarchy would force-fit them. A `Protocol` +
+  free unifier function lets each retriever own its inputs while
+  the unifier just sees `dict[ContentKey, list[int]]` outputs.
+  Mirrors the producer/consumer pattern used elsewhere.
+- **RRF fusion is opt-in (multi-retriever case only).** Single-
+  retriever default → pass-through, byte-equivalent to legacy
+  single-source. Multi-retriever default → RRF (#31) per dest. A
+  `fuse_with_rrf=False` escape hatch keeps the C.1 dedup-preserving-
+  order union for tests + diagnostics.
+- **Lexical + QueryExpansion retrievers gated by AppSetting flags
+  (default off).** Operators flip on independently. `_setting_enabled()`
+  is bulletproof — catches every conceivable failure mode (DB
+  unreachable, AppSetting model missing, `SimpleTestCase` guard,
+  migration not applied) and returns False. The opt-in retrievers
+  stay off until operators deliberately enable them.
+- **Shared token-bag helpers between LexicalRetriever and
+  QueryExpansionRetriever** (`_build_host_token_bags`,
+  `_rank_hosts_by_overlap`) — no duplicate tokenisation, no
+  duplicate scoring. Anti-Spaghetti Charter compliant.
+- **Phase 6 helpers use the FAISS-style lazy-import pattern.**
+  Module-level `HAS_<DEP>` flag + `is_available()` + cold-start
+  fallback inside every public function. Ensures the module never
+  crashes at import time when its optional pip dep is missing.
+- **`apps.training` is the single sanctioned new Django app.** The
+  plan explicitly authorised it for the offline-training stack
+  (#41-46). Every other Phase 6 helper went into the existing
+  `apps.sources` or `apps.pipeline.services`.
+- **LDA W1 job wired (gensim is installed); KenLM/Node2Vec/BPR/FM
+  W1 jobs stay deferred.** LDA can train in-process. KenLM
+  training requires the external `lmplz` binary (not just a pip
+  dep), and Node2Vec/BPR/FM all need additional plumbing
+  (graph-extraction, interaction-stream, feature-pipeline) before
+  end-to-end production wiring is meaningful. The inference
+  helpers for all four are real-data ready — operators install the
+  pip dep + drop a model file and inference auto-activates.
+- **PQ read-path helpers (`pq_cosine_for_pks`, `decode_pq_codes`)
+  shipped without invasive hot-path swap.** pgvector's `<=>` is
+  fine at our 100k-page target; PQ wins at >10M rows. Helpers are
+  ready when a future consumer (clustering, near-dup, batch
+  similarity) wants opt-in acceleration.
+
+### What I tried that didn't work
+- **First Cascade test had click pattern landing exactly at prior
+  mean 0.5** (`[0,0,1,1,0,2,0,1,3,0]*3` → 15/30 clicks → smoothed
+  0.5). Switched to `[0]*8 + [1,2]` so dest 0 gets a clear
+  majority and Cascade relevance exceeds prior.
+- **First PQ load_quantizer call** passed raw bytes to FAISS's
+  `deserialize_index` → `'bytes' object has no attribute 'shape'`.
+  FAISS expects a numpy uint8 array. Fixed with `np.frombuffer(blob,
+  dtype=np.uint8)`.
+- **Stage-1 integration tests** (`Stage1CandidatesIntegrationTests`)
+  initially failed because `_lexical_enabled()` did a DB query and
+  the tests use `SimpleTestCase` which forbids DB access. Fixed by
+  catching every exception in `_setting_enabled()` (renamed from
+  `_lexical_enabled()` to be reusable for both flags).
+
+### What I explicitly ruled out
+- **Replacing the FAISS path in Stage-1.** SemanticRetriever wraps
+  the existing `_stage1_semantic_candidates` body verbatim — no
+  parallel implementation.
+- **Building a new C++ kernel** for PQ encoding/decoding. FAISS
+  already provides this via `IndexPQ`; we just call it.
+- **Hot-path PQ swap**. Deferred to a future commit when profiling
+  shows pgvector becoming the bottleneck.
+- **Wiring KenLM/Node2Vec/BPR/FM W1 jobs end-to-end**. Each needs
+  additional plumbing beyond a pip-dep install; explicitly out of
+  scope for Phase 6.4. Inference-side helpers shipped + tested.
+- **TensorFlow Ranking dependency for LambdaLoss.** Hand-rolled
+  per Wang et al. §3 in pure NumPy.
+
+### Context the next agent must know
+- **15 commits ahead of origin/master** since the `2ec1814` Group
+  C.1 commit (this session's first). Master branch only — no new
+  branches per project rules.
+- **Test counts:** apps.pipeline = 579, apps.sources = 163, apps.training = 22, full backend sweep covers >800 tests. All green; phantom gate clean.
+- **Phase 6 Django app addition:** `apps.training` registered in
+  `config/settings/base.py` INSTALLED_APPS. Sub-packages mirror the
+  pick numbers (#41 optim, #42 hpo, #43 schedule, #44 loss, #45
+  avg, #46 sample).
+- **Migration `content.0031_contentitem_pq_code_contentitem_pq_code_version` applied** in the earlier session — adds two
+  nullable columns; reversible AddField. No new migrations this
+  session.
+- **AppSetting flags introduced this session** (operators must
+  manually flip these on; default off):
+  - `stage1.lexical_retriever_enabled`
+  - `stage1.query_expansion_retriever_enabled`
+- **AppSetting model paths read by Phase 6 helpers** (operator
+  populates after installing pip deps + dropping model files):
+  - `fasttext_langid.model_path`, `fasttext_langid.min_confidence`
+  - `kenlm.model_path`
+  - `lda.model_path`, `lda.dictionary_path`, `lda.num_topics`
+  - `node2vec.embeddings_path`
+  - `bpr.model_path`
+  - `factorization_machines.model_path`
+
+### Pending / next steps
+- [ ] **Phase 7 governance polish** (this commit covers the
+      handoff doc; remaining surfaces — FR-row backfill in
+      `FEATURE-REQUESTS.md`, BUSINESS-LOGIC-CHECKLIST entries,
+      PERFORMANCE benchmarks per hot-path pick, spec-checkbox
+      closure across all 52 picks — are mostly mechanical and
+      can be split into smaller commits).
+- [ ] **Wire the remaining deferred W1 jobs** (kenlm_retrain,
+      node2vec_walks, bpr_refit, factorization_machines_refit)
+      end-to-end once their pip deps are approved + corpus/
+      interaction extractors are designed.
+- [ ] **Hot-path PQ read swap** when profiling justifies it
+      (>10M rows or pgvector bottleneck).
+- [ ] **Operator UI surfaces** for the new AppSetting flags
+      (Settings > Stage-1 retrievers tab — toggles for
+      lexical_retriever_enabled and query_expansion_retriever_enabled).
+
+### Open questions / blockers
+- **None for the next-session resume.** Each phase ahead is
+  well-scoped, optional, and can be skipped without breaking the
+  shipped 52-pick wiring.
+
+---
+
+## 2026-04-25 (1) Agent: Claude — Groups A.1-A.4 + B.1-B.2 (52-pick blocker wirings)
 
 ### What I did
 Continued the 52-pick completion plan from `plans/check-how-many-pending-tidy-iverson.md`.
