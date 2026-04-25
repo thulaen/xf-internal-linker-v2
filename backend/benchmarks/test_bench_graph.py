@@ -79,3 +79,75 @@ def test_bench_pagerank_large(benchmark):
     pr = _import_pagerank()
     indptr, indices, data, ranks, dangling = _make_csr_graph(100_000)
     benchmark(pr.pagerank_step, indptr, indices, data, ranks, dangling, 0.85, 100_000)
+
+
+# ── Personalized PageRank (pick #36 / pick #30 — Phase 5a kernel) ───
+#
+# Same fixture builder as ``pagerank_step`` benchmarks; we add a
+# personalisation vector concentrated on a small seed set so the
+# benchmark exercises a realistic seeded PPR run rather than the
+# uniform 1/N degenerate case.
+
+
+def _seed_personalization(nodes: int, seed_count: int = 5) -> np.ndarray:
+    p = np.zeros(nodes, dtype=np.float64)
+    seed_idx = np.linspace(0, nodes - 1, num=min(seed_count, nodes), dtype=int)
+    p[seed_idx] = 1.0 / len(seed_idx)
+    return p
+
+
+def test_bench_personalized_pagerank_small(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, dangling = _make_csr_graph(100)
+    p = _seed_personalization(100)
+    benchmark(
+        pr.personalized_pagerank_step,
+        indptr, indices, data, ranks, dangling, p, 0.15, 100,
+    )
+
+
+def test_bench_personalized_pagerank_medium(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, dangling = _make_csr_graph(10_000)
+    p = _seed_personalization(10_000)
+    benchmark(
+        pr.personalized_pagerank_step,
+        indptr, indices, data, ranks, dangling, p, 0.15, 10_000,
+    )
+
+
+def test_bench_personalized_pagerank_large(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, dangling = _make_csr_graph(100_000)
+    p = _seed_personalization(100_000)
+    benchmark(
+        pr.personalized_pagerank_step,
+        indptr, indices, data, ranks, dangling, p, 0.15, 100_000,
+    )
+
+
+# ── HITS (pick #29 — Phase 5a kernel) ──────────────────────────────
+
+
+def test_bench_hits_small(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, _ = _make_csr_graph(100)
+    authority = np.full(100, 1.0 / 100, dtype=np.float64)
+    hub = authority.copy()
+    benchmark(pr.hits_step, indptr, indices, data, authority, hub, 100)
+
+
+def test_bench_hits_medium(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, _ = _make_csr_graph(10_000)
+    authority = np.full(10_000, 1.0 / 10_000, dtype=np.float64)
+    hub = authority.copy()
+    benchmark(pr.hits_step, indptr, indices, data, authority, hub, 10_000)
+
+
+def test_bench_hits_large(benchmark):
+    pr = _import_pagerank()
+    indptr, indices, data, ranks, _ = _make_csr_graph(100_000)
+    authority = np.full(100_000, 1.0 / 100_000, dtype=np.float64)
+    hub = authority.copy()
+    benchmark(pr.hits_step, indptr, indices, data, authority, hub, 100_000)
