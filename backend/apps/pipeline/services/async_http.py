@@ -128,6 +128,7 @@ async def fetch_urls(
     max_attempts: int = 1,
     backoff_base: float = 1.0,
     backoff_cap: float = 30.0,
+    circuit_breaker: object | None = None,
 ) -> list[dict[str, Any]]:
     """Fetch URL body chunks for crawling.
 
@@ -160,6 +161,17 @@ async def fetch_urls(
     ``backoff_base`` and ``backoff_cap`` define the jitter window per
     :func:`apps.sources.backoff.full_jitter_delay`: each retry sleeps a
     random duration in ``[0, min(cap, base * 2 ** attempt)]``.
+
+    ``circuit_breaker`` (pick #3 — Nygard 2007 *Release It!*) is an
+    optional :class:`apps.pipeline.services.circuit_breaker.CircuitBreaker`
+    instance. When supplied, every request first checks
+    ``breaker.is_open()``; if OPEN, the request is fast-failed with
+    ``error="circuit_open"`` and no HTTP call is made. Successful
+    fetches call ``breaker.record_success()``; transient failures (the
+    same ``httpx.TimeoutException`` / ``RequestError`` that the
+    backoff loop retries) call ``breaker.record_failure()``. The
+    breaker's state machine then drives CLOSED → OPEN → HALF_OPEN →
+    CLOSED transitions per its configured thresholds.
     """
     sem = asyncio.Semaphore(max_concurrency)
     results: list[dict[str, Any]] = []
@@ -203,6 +215,25 @@ async def fetch_urls(
                 )
                 return
 
+        # Pick #3 — Nygard circuit breaker. Fast-fail when the per-host
+        # breaker is OPEN so a downed origin doesn't drain the
+        # concurrency pool with timeouts. ``is_open`` advances
+        # HALF_OPEN transitions for us, so a long-quiet OPEN flips
+        # automatically when the recovery window expires.
+        if circuit_breaker is not None and circuit_breaker.is_open():
+            results.append(
+                {
+                    "url": url,
+                    "status_code": 0,
+                    "content": "",
+                    "error": "circuit_open",
+                    "etag": "",
+                    "last_modified": "",
+                    "encoding": "",
+                }
+            )
+            return
+
         # Pick #2 — AWS full-jitter retry loop. ``max_attempts == 1``
         # makes the loop a single iteration with no sleep, which is
         # the pre-pick-2 behaviour. ``last_error`` carries the row we
@@ -242,6 +273,10 @@ async def fetch_urls(
                         "encoding": encoding_used,
                     }
                 )
+                # Successful response — tell the breaker (if any) that
+                # the origin is healthy. Drives HALF_OPEN → CLOSED.
+                if circuit_breaker is not None:
+                    circuit_breaker.record_success()
                 return
             except httpx.TimeoutException:
                 last_error = {
@@ -253,6 +288,8 @@ async def fetch_urls(
                     "last_modified": "",
                     "encoding": "",
                 }
+                if circuit_breaker is not None:
+                    circuit_breaker.record_failure()
             except httpx.RequestError as exc:
                 last_error = {
                     "url": url,
@@ -263,6 +300,8 @@ async def fetch_urls(
                     "last_modified": "",
                     "encoding": "",
                 }
+                if circuit_breaker is not None:
+                    circuit_breaker.record_failure()
             # Sleep before next attempt (skipped on the final iteration
             # because ``return`` after results.append below ends the
             # coroutine — no point sleeping for nothing).

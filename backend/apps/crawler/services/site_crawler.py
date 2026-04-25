@@ -7,8 +7,11 @@ from urllib.parse import urljoin, urlparse
 from bs4 import BeautifulSoup
 from django.utils import timezone
 
+import httpx
+
 from apps.crawler.models import CrawledPageMeta, CrawlSession, SitemapConfig
 from apps.pipeline.services.async_http import crawl_sitemap, fetch_urls
+from apps.pipeline.services.circuit_breaker import CircuitBreaker
 from apps.sources.conditional_get import build_validator_headers
 from apps.sources.freshness_frontier import compute_skip_set as freshness_skip_set
 from apps.sources.hyperloglog_registry import REGISTRY as HLL_REGISTRY
@@ -19,6 +22,32 @@ from apps.sources.token_bucket import (
     BucketConfig,
 )
 from apps.sources.url_canonical import canonicalize as canonicalize_url
+
+
+#: Pick #3 — per-host circuit breakers, lazily built and cached so a
+#: single bad origin doesn't bleed into other crawl sessions on the
+#: same process. ``httpx.TimeoutException`` and ``httpx.RequestError``
+#: are the breaker's expected-exception list because those are exactly
+#: the conditions ``fetch_urls`` records as transient (5xx is NOT
+#: retried by the fetch path, so it's not in the breaker's ledger).
+_HOST_BREAKERS: dict[str, CircuitBreaker] = {}
+
+
+def _get_host_breaker(domain: str) -> CircuitBreaker:
+    breaker = _HOST_BREAKERS.get(domain)
+    if breaker is None:
+        breaker = CircuitBreaker(
+            name=f"crawl:{domain}",
+            failure_threshold=10,
+            recovery_timeout=300,
+            success_threshold=2,
+            expected_exceptions=[
+                httpx.TimeoutException,
+                httpx.RequestError,
+            ],
+        )
+        _HOST_BREAKERS[domain] = breaker
+    return breaker
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +212,11 @@ async def _execute_crawl_session(session_id) -> None:
     backoff_base = float(session.config.get("backoff_base_seconds", 1.0))
     backoff_cap = float(session.config.get("backoff_cap_seconds", 30.0))
 
+    # Pick #3 — Nygard circuit breaker per origin. Lazy-cached so
+    # repeated sessions against the same domain share the breaker's
+    # failure history.
+    host_breaker = _get_host_breaker(domain)
+
     session.message = f"Crawling {len(to_crawl)} URLs at {rate_limit} req/s..."
     await session.asave(update_fields=["message"])
 
@@ -214,6 +248,7 @@ async def _execute_crawl_session(session_id) -> None:
             max_attempts=backoff_attempts,
             backoff_base=backoff_base,
             backoff_cap=backoff_cap,
+            circuit_breaker=host_breaker,
         )
 
         for res in responses:

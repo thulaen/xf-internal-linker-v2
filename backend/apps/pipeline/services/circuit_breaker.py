@@ -87,6 +87,47 @@ class CircuitBreaker:
             self._on_success()
             return result
 
+    # ── Async-friendly public API ───────────────────────────────
+    #
+    # ``call(fn, ...)`` is sync because most callers pass a sync
+    # function. The crawler's HTTP fetch is async, and wrapping it in
+    # ``asyncio.to_thread`` would spawn a fresh event loop per request
+    # — wasteful when all we need from the breaker is its state-machine
+    # bookkeeping. The three methods below expose the same primitives
+    # that ``call()`` uses internally so async callers can integrate
+    # cleanly: check state up-front, record success/failure after.
+    #
+    # The lock-acquire / state-machine logic is identical to ``call()``
+    # — these are not a parallel implementation, just public aliases.
+
+    def is_open(self) -> bool:
+        """True iff the breaker is OPEN (fast-fail mode).
+
+        Checks for HALF_OPEN transition first, so a long-quiet OPEN
+        state correctly flips to HALF_OPEN on the next probe attempt.
+        """
+        with self._lock:
+            self._maybe_transition_to_half_open()
+            return self._state == CircuitState.OPEN
+
+    def record_success(self) -> None:
+        """Tell the breaker an out-of-band call succeeded.
+
+        Use after an async call you ran outside ``call()``. Equivalent
+        to the success path of ``call()``; advances HALF_OPEN → CLOSED
+        once ``success_threshold`` is reached.
+        """
+        self._on_success()
+
+    def record_failure(self) -> None:
+        """Tell the breaker an out-of-band call failed.
+
+        Use after an async call you ran outside ``call()``. Equivalent
+        to the failure path of ``call()``; trips CLOSED → OPEN once
+        ``failure_threshold`` is reached.
+        """
+        self._on_failure()
+
     # ── Internal helpers ────────────────────────────────────────
 
     def _maybe_transition_to_half_open(self) -> None:
