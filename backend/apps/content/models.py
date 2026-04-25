@@ -338,6 +338,21 @@ class ContentItem(TimestampedModel):
             "duplicate splitting work."
         ),
     )
+    # Pick #35 — Elo rating (Elo 1978; default 1500 per chess
+    # convention). Updated by the ``elo_rating_refresh`` scheduled
+    # job from operator review-queue history; consumed at suggestion
+    # write time as a per-destination quality signal.
+    # Cold-start: every row has 1500 until the first Elo refresh
+    # runs and finds approve/reject pairs.
+    elo_rating = models.FloatField(
+        default=1500.0,
+        db_index=True,
+        help_text=(
+            "Elo rating (Elo 1978) updated from operator approve / "
+            "reject pairs sharing the same host sentence. 1500 = "
+            "no information yet (chess convention)."
+        ),
+    )
     engagement_quality_diagnostics = models.JSONField(
         default=dict,
         blank=True,

@@ -573,6 +573,19 @@ class Suggestion(TimestampedModel):
             "→ review first. NULL when calibrated_probability is NULL."
         ),
     )
+    # Pick #35 — Elo rating snapshot of the destination at suggestion-
+    # write time (Elo 1978). Mirrors ``ContentItem.elo_rating`` on the
+    # destination row so post-hoc analytics can correlate accept rate
+    # against rating without joining back to ContentItem. 1500 =
+    # neutral / no-information cold-start value.
+    score_elo_rating = models.FloatField(
+        default=1500.0,
+        help_text=(
+            "Elo rating of the destination at suggestion-write time "
+            "(Elo 1978). 1500 = no information; updated by the "
+            "scheduled elo_rating_refresh job."
+        ),
+    )
 
     # FR-021 Graph and Value Model
     candidate_origin = models.CharField(

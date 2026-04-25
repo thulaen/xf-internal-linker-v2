@@ -563,6 +563,49 @@ def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
 
 
 @scheduled_job(
+    "elo_rating_refresh",
+    display_name="Elo rating refresh (per-destination)",
+    cadence_seconds=DAY,
+    estimate_seconds=2 * 60,
+    priority=JOB_PRIORITY_MEDIUM,
+)
+def run_elo_rating_refresh(job, checkpoint) -> None:
+    """Pick #35 — daily Elo refresh from review-queue history.
+
+    Reads ``Suggestion.status`` history (last 90 days), pairs up
+    suggestions sharing the same ``host_sentence_id``, applies the
+    Elo update batch, and writes the new ratings to
+    ``ContentItem.elo_rating``. Suggestion-write reads the persisted
+    rating into ``Suggestion.score_elo_rating``.
+
+    Cold-start safe: with no reviewed suggestions yet, the producer
+    returns zero pairs and every ContentItem keeps its initial 1500
+    rating. Once the review queue accumulates accept / reject pairs
+    on the same host sentence, ratings start drifting.
+    """
+    from apps.pipeline.services.elo_rating_producer import (
+        fit_and_persist_from_history,
+    )
+
+    checkpoint(progress_pct=10.0, message="Deriving pairs from review history")
+    result = fit_and_persist_from_history()
+    if result.pairs_processed == 0:
+        checkpoint(
+            progress_pct=100.0,
+            message="No reviewed suggestion pairs yet — Elo unchanged",
+        )
+        return
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"Elo refresh complete: {result.pairs_processed} pairs → "
+            f"{result.destinations_rated} destinations rated "
+            f"({result.skipped_no_signal} skipped)"
+        ),
+    )
+
+
+@scheduled_job(
     "meta_hyperparameter_hpo",
     display_name="Meta-hyperparameter auto-tune (TPE, Option B)",
     cadence_seconds=WEEK,

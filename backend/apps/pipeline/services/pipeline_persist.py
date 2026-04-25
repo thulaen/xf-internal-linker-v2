@@ -381,6 +381,12 @@ def _build_suggestion_records(
                 uncertainty_score=uncertainty,
                 # Pick #28 — QL-Dirichlet log-score.
                 score_query_likelihood=ql_log_score,
+                # Pick #35 — Elo rating snapshot of the destination
+                # at suggestion-write time. Mirrors
+                # ``ContentItem.elo_rating`` (default 1500). The
+                # ``elo_rating_refresh`` scheduled job updates the
+                # source column from review-queue history.
+                score_elo_rating=float(getattr(dest_ci, "elo_rating", 1500.0) or 1500.0),
                 status="pending",
             )
         )
