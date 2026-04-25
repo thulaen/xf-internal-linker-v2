@@ -170,3 +170,76 @@ def predict(text: str) -> LangPrediction:
     if confidence < threshold:
         return LangPrediction(language=UND_LANGUAGE, confidence=confidence)
     return LangPrediction(language=code, confidence=confidence)
+
+
+def predict_batch(texts: list[str]) -> list[LangPrediction]:
+    """Predict languages for a batch of *texts* in one fastText call.
+
+    fastText's ``model.predict([t1, t2, ...], k=1)`` accepts a list of
+    strings and returns parallel ``(labels, probs)`` matrices in a
+    single C-extension call. At 100k+ inputs this is dramatically
+    faster than calling :func:`predict` per text — the per-call
+    Python↔C round-trip overhead dominates the actual prediction.
+
+    Audit bug A5 fix.
+
+    Returns a list of :class:`LangPrediction` parallel to *texts*. The
+    semantics for empty / cold-start / disabled paths match
+    :func:`predict` exactly: each input gets its own
+    :data:`UNDEFINED` placeholder when the dep / model / toggle is
+    missing OR when its specific text is empty / below confidence.
+
+    Cold-start safe — when no model is available, returns a list of
+    :data:`UNDEFINED` of the same length as the input.
+    """
+    if not texts:
+        return []
+    cold_start = [UNDEFINED] * len(texts)
+    if not HAS_FASTTEXT:
+        return cold_start
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("fasttext_langid.enabled", default=True):
+        return cold_start
+    path, threshold = _load_model_path_from_settings()
+    model = _load_model(path)
+    if model is None:
+        return cold_start
+
+    # fastText rejects multi-line input; collapse newlines per text.
+    # Empty / whitespace-only inputs keep their UNDEFINED slot rather
+    # than wasting a prediction.
+    indexed_inputs: list[tuple[int, str]] = []
+    for idx, raw in enumerate(texts):
+        if not raw or not raw.strip():
+            continue
+        indexed_inputs.append((idx, " ".join(raw.split())))
+    if not indexed_inputs:
+        return cold_start
+
+    cleaned_texts = [t for _, t in indexed_inputs]
+    try:
+        labels_matrix, probs_matrix = model.predict(cleaned_texts, k=1)
+    except Exception as exc:
+        logger.debug("fasttext_langid: predict_batch failed: %s", exc)
+        return cold_start
+
+    out = list(cold_start)
+    for (orig_idx, _), labels, probs in zip(
+        indexed_inputs, labels_matrix, probs_matrix, strict=True
+    ):
+        if labels is None or probs is None:
+            continue
+        # ``labels`` is a list of the top-1 label per input; same for probs.
+        if not len(labels) or not len(probs):
+            continue
+        label = str(labels[0])
+        code = label.replace("__label__", "")
+        confidence = float(probs[0])
+        if confidence < threshold:
+            out[orig_idx] = LangPrediction(
+                language=UND_LANGUAGE, confidence=confidence
+            )
+        else:
+            out[orig_idx] = LangPrediction(language=code, confidence=confidence)
+    return out

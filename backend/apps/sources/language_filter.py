@@ -85,9 +85,13 @@ def filter_english_content_records(
     """Drop content records whose title is detected as non-English.
 
     Returns a new dict; the caller's input is unmodified. Records
-    whose title is empty / undetermined / English are kept. The
-    helper batches predictions internally via the lid.176 model's
-    own per-call efficiency (one model, repeated short calls).
+    whose title is empty / undetermined / English are kept.
+
+    Audit bug A5 fix: previously the helper called the per-text
+    ``is_english`` function once per record — at 100k records, that
+    means 100k Python↔C round trips into fastText. The batched
+    :func:`fasttext_langid.predict_batch` is one C call for the
+    whole list and is dramatically faster at scale.
 
     Cold-start safe: when fastText is unavailable, the operator flag
     is off, or every prediction is undetermined, this returns the
@@ -111,14 +115,30 @@ def filter_english_content_records(
     except Exception:
         return dict(records)
 
-    kept: dict[object, object] = {}
-    dropped = 0
+    # One pass to gather titles; one pass to resolve.
+    items: list[tuple[object, object, str]] = []
     for key, record in records.items():
         title = getattr(record, "title", "") or ""
+        items.append((key, record, title))
+
+    titles = [title for _, _, title in items]
+    try:
+        predictions = fasttext_langid.predict_batch(titles)
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "language_filter: predict_batch raised; falling back to "
+            "per-text predict (slower but still correct): %s",
+            exc,
+        )
+        predictions = [fasttext_langid.predict(t) for t in titles]
+
+    kept: dict[object, object] = {}
+    dropped = 0
+    for (key, record, title), prediction in zip(items, predictions, strict=True):
         if not title.strip():
             kept[key] = record
             continue
-        if is_english(title):
+        if prediction.is_undefined or prediction.language in ENGLISH_CODES:
             kept[key] = record
         else:
             dropped += 1

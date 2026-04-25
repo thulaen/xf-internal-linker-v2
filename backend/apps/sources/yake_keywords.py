@@ -52,6 +52,39 @@ def is_available() -> bool:
     return HAS_YAKE
 
 
+#: Process-wide cache of YAKE extractors keyed on construction
+#: parameters. YAKE's ``KeywordExtractor`` initialises stopword
+#: tables + dedup tries on construction (~ms per call); calling
+#: ``extract`` once per content item at distillation time means
+#: 100k+ constructions per import. Cache audited fix A8.
+_EXTRACTOR_CACHE: dict[tuple[str, int, float, int], object] = {}
+
+
+def _get_extractor(
+    language: str, ngram_max: int, dedup_threshold: float, top_k: int
+):
+    """Return a cached :class:`yake.KeywordExtractor` for the params.
+
+    Different parameter combinations get their own cached instance —
+    the cache key is the four constructor args. Most callers use
+    the recommended defaults so a single instance services all
+    distillation calls.
+    """
+    if not HAS_YAKE:
+        return None
+    cache_key = (language, ngram_max, dedup_threshold, top_k)
+    extractor = _EXTRACTOR_CACHE.get(cache_key)
+    if extractor is None:
+        extractor = _yake.KeywordExtractor(
+            lan=language,
+            n=ngram_max,
+            dedupLim=dedup_threshold,
+            top=top_k,
+        )
+        _EXTRACTOR_CACHE[cache_key] = extractor
+    return extractor
+
+
 def extract(
     text: str,
     *,
@@ -65,10 +98,10 @@ def extract(
     Empty input → ``[]``. Missing pip dep → ``[]``. Real-data ready:
     install ``yake`` and every call wires through automatically.
 
-    YAKE! constructs a per-document extractor on each call (the
-    library doesn't expose a stateful corpus model — the score is
-    computed entirely from local features), so we don't cache an
-    instance.
+    Audit bug A8 fix: the extractor instance is cached per parameter
+    set in :data:`_EXTRACTOR_CACHE`. A typical import that distills
+    100k content items reuses the same extractor 100k times instead
+    of constructing a new one each call.
     """
     if not text or not text.strip() or not HAS_YAKE:
         return []
@@ -76,11 +109,8 @@ def extract(
 
     if not is_enabled("yake_keywords.enabled", default=True):
         return []
-    extractor = _yake.KeywordExtractor(
-        lan=language,
-        n=ngram_max,
-        dedupLim=dedup_threshold,
-        top=top_k,
-    )
+    extractor = _get_extractor(language, ngram_max, dedup_threshold, top_k)
+    if extractor is None:
+        return []
     raw = extractor.extract_keywords(text)
     return [KeywordHit(keyword=str(kw), score=float(score)) for kw, score in raw]

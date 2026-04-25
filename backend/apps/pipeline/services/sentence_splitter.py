@@ -94,21 +94,41 @@ def _pysbd_split_with_offsets(text: str) -> list[tuple[str, int, int]]:
 def split_sentences(text: str) -> list[str]:
     """Split cleaned text into sentences.
 
-    Returns a list of non-trivial sentence strings.
+    Returns a list of non-trivial sentence strings. Audit bug A9 fix:
+    skips the spaCy parse when PySBD is the spans source AND the
+    caller doesn't ask for the Doc.
     """
     return [span.text for span in split_sentence_spans(text)]
 
 
 def split_sentence_spans(text: str) -> list[SentenceSpan]:
-    """Split cleaned text into sentence spans with character offsets.
+    """Split cleaned text into sentence spans WITHOUT parsing spaCy when
+    PySBD can do the job alone.
 
-    Thin wrapper over :func:`split_sentence_spans_with_doc` that
-    discards the underlying spaCy ``Doc``. Use the wider function
-    when you also want entity / POS / dep info — the parse cost is
-    the same either way.
+    Audit bug A9 fix: this fast path is now genuinely fast — only
+    runs spaCy when neither PySBD nor regex is sufficient. Callers
+    that need the spaCy ``Doc`` should use
+    :func:`split_sentence_spans_with_doc` directly.
     """
-    spans, _doc = split_sentence_spans_with_doc(text)
-    return spans
+    if not text or not text.strip():
+        return []
+
+    raw_spans: list[tuple[str, int, int]] = []
+    if _pysbd_active():
+        raw_spans = _pysbd_split_with_offsets(text)
+
+    if not raw_spans:
+        nlp = get_spacy_nlp()
+        if nlp is not None:
+            doc = nlp(text)
+            raw_spans = [
+                (sent.text.strip(), sent.start_char, sent.end_char)
+                for sent in doc.sents
+            ]
+        else:
+            raw_spans = _regex_split_with_offsets(text)
+
+    return _to_sentence_spans(raw_spans)
 
 
 def split_sentence_spans_with_doc(text: str):
@@ -119,6 +139,12 @@ def split_sentence_spans_with_doc(text: str):
     Callers that need further NLP (entity ranking, POS, deps) reuse
     the same Doc so the text is parsed exactly once per import.
 
+    Audit bug A9 fix: even when PySBD is the spans source, spaCy
+    is still parsed in parallel here because the caller HAS asked
+    for the Doc — that's the function's contract. If you don't
+    need the Doc, call :func:`split_sentence_spans` instead and
+    save a parse.
+
     The return type is intentionally untyped (no ``Doc`` import
     here) so this module stays importable in minimal containers
     without spaCy. The ``_Doc`` protocol in
@@ -128,22 +154,16 @@ def split_sentence_spans_with_doc(text: str):
     if not text or not text.strip():
         return [], None
 
-    # Backend priority for sentence boundaries: PySBD first (best on
-    # forum prose), then spaCy, then regex.
-    #
-    # We ALWAYS try to parse with spaCy in parallel when it's
-    # available, because downstream consumers (entity ranking, POS,
-    # deps in tasks_import_helpers._persist_content_body) need the
-    # spaCy ``Doc``. If PySBD provides better sentence boundaries,
-    # we use them — but spaCy still parses the same text once for
-    # its NLP outputs.
+    # Backend priority: PySBD first (best on forum prose), then
+    # spaCy spans + Doc, then regex (no Doc).
     doc = None
     raw_spans: list[tuple[str, int, int]] = []
 
     nlp = get_spacy_nlp()
     if nlp is not None:
-        # Single parse — used for downstream NLP reuse regardless of
-        # which sentence-boundary backend is the spans source.
+        # The caller asked for the Doc, so spaCy parses regardless
+        # of whether PySBD is active. Reuse the Doc for spans when
+        # PySBD isn't preferred.
         doc = nlp(text)
 
     if _pysbd_active():
@@ -158,6 +178,14 @@ def split_sentence_spans_with_doc(text: str):
         else:
             raw_spans = _regex_split_with_offsets(text)
 
+    return _to_sentence_spans(raw_spans), doc
+
+
+def _to_sentence_spans(
+    raw_spans: list[tuple[str, int, int]],
+) -> list[SentenceSpan]:
+    """Wrap raw ``(text, start, end)`` triples into ``SentenceSpan``s,
+    filtering by :data:`_MIN_SENT_LEN`."""
     spans: list[SentenceSpan] = []
     position = 0
     for raw_text, start, end in raw_spans:
@@ -171,7 +199,7 @@ def split_sentence_spans_with_doc(text: str):
                 )
             )
             position += 1
-    return spans, doc
+    return spans
 
 
 def _regex_split_with_offsets(text: str) -> list[tuple[str, int, int]]:

@@ -439,17 +439,60 @@ _ADAPTERS: dict[str, Adapter] = {
 # ─────────────────────────────────────────────────────────────────────
 
 
-@dataclass(frozen=True, slots=True)
+#: Maps each pick's adapter to the AdapterContext fields it actually
+#: consumes. Used by :meth:`Phase6RankerContribution.contribute_total`
+#: to compute a per-adapter cache key that ignores irrelevant fields
+#: — e.g. VADER doesn't care about destination_text or keys, so two
+#: candidates with the same host_sentence_text but different
+#: destinations share VADER's cached score.
+#:
+#: Audit bug A6 fix.
+_ADAPTER_CACHE_KEYS: dict[str, tuple[str, ...]] = {
+    "vader_sentiment": ("host_sentence_text",),
+    "kenlm": ("host_sentence_text",),
+    "lda": ("host_sentence_text", "destination_text"),
+    "node2vec": ("host_key", "destination_key"),
+    "bpr": ("host_key", "destination_key"),
+    # FM consumes per-candidate score components → no two candidates
+    # share the same key, so caching FM is pointless. Empty key
+    # tuple = uncached.
+    "factorization_machines": (),
+}
+
+
+@dataclass(slots=True)
 class Phase6RankerContribution:
-    """Bundle of (pick_name, ranking_weight) entries.
+    """Bundle of (pick_name, ranking_weight) entries with a per-pass cache.
 
     Construct via :func:`build_phase6_contribution` so cold-start,
     disabled flags, and zero weights are all handled in one place.
     The :meth:`contribute_total` method is the only thing the live
     ranker needs to call per (host_sentence, destination) candidate.
+
+    The dispatcher carries a private per-pass cache (keyed per
+    adapter on the subset of ``AdapterContext`` fields the adapter
+    actually reads — see :data:`_ADAPTER_CACHE_KEYS`). At ~50
+    candidates per destination × 1000 destinations, identical host
+    sentences appear many times — without the cache, KenLM scores
+    the same sentence 50 times. Audit bug A6 fix.
+
+    The cache lives for the lifetime of one dispatcher instance. The
+    pipeline builds a fresh dispatcher each pass via
+    :func:`build_phase6_contribution`, so the cache is naturally
+    bounded.
     """
 
     weights: Mapping[str, float] = field(default_factory=dict)
+    _adapter_cache: dict[tuple, float] = field(default_factory=dict)
+
+    def _cache_key(self, pick_name: str, ctx: AdapterContext) -> tuple | None:
+        """Return a hashable cache key for *pick_name*, or ``None``
+        if this adapter shouldn't be cached (FM is per-candidate).
+        """
+        fields = _ADAPTER_CACHE_KEYS.get(pick_name)
+        if not fields:
+            return None
+        return (pick_name,) + tuple(getattr(ctx, name) for name in fields)
 
     def contribute_total(self, ctx: AdapterContext) -> float:
         """Return the sum of ``weight × adapter(ctx)`` over picks.
@@ -458,6 +501,11 @@ class Phase6RankerContribution:
         ranker becomes a no-op cleanly). One contribution per active
         pick; failures inside an adapter are caught and logged so a
         single broken helper can't poison the entire ranker pass.
+
+        Each adapter's raw output is cached on this dispatcher
+        instance keyed on the fields the adapter actually reads
+        (see :data:`_ADAPTER_CACHE_KEYS`). Subsequent candidates
+        sharing the same key short-circuit to the cached value.
         """
         if not self.weights:
             return 0.0
@@ -468,41 +516,56 @@ class Phase6RankerContribution:
             adapter = _ADAPTERS.get(pick_name)
             if adapter is None:
                 continue
-            try:
-                raw = adapter(ctx)
-            except Exception as exc:  # pragma: no cover — defensive
-                logger.warning(
-                    "phase6_ranker_contribution: adapter %s raised: %s",
-                    pick_name,
-                    exc,
-                )
-                continue
-            total += float(weight) * float(raw)
+            cache_key = self._cache_key(pick_name, ctx)
+            if cache_key is not None and cache_key in self._adapter_cache:
+                raw = self._adapter_cache[cache_key]
+            else:
+                try:
+                    raw = float(adapter(ctx))
+                except Exception as exc:  # pragma: no cover — defensive
+                    logger.warning(
+                        "phase6_ranker_contribution: adapter %s raised: %s",
+                        pick_name,
+                        exc,
+                    )
+                    continue
+                if cache_key is not None:
+                    self._adapter_cache[cache_key] = raw
+            total += float(weight) * raw
         return total
 
     def per_pick_breakdown(self, ctx: AdapterContext) -> dict[str, float]:
         """Return per-pick raw scores (pre-weight) for the Explain panel.
 
         Diagnostics-only: the live ranker only consumes
-        :meth:`contribute_total`. Useful when an operator wants to see
-        the unweighted per-pick contribution alongside the blended
-        ``score_final``.
+        :meth:`contribute_total`. Reuses the same per-pass cache.
         """
         out: dict[str, float] = {}
         for pick_name in self.weights:
             adapter = _ADAPTERS.get(pick_name)
             if adapter is None:
                 continue
+            cache_key = self._cache_key(pick_name, ctx)
+            if cache_key is not None and cache_key in self._adapter_cache:
+                out[pick_name] = self._adapter_cache[cache_key]
+                continue
             try:
-                out[pick_name] = float(adapter(ctx))
+                value = float(adapter(ctx))
             except Exception:
-                out[pick_name] = 0.0
+                value = 0.0
+            out[pick_name] = value
+            if cache_key is not None:
+                self._adapter_cache[cache_key] = value
         return out
 
     @property
     def is_active(self) -> bool:
         """True iff any pick has a non-zero weight."""
         return any(w != 0.0 for w in self.weights.values())
+
+    def cache_size(self) -> int:
+        """Diagnostic: how many adapter outputs are currently cached."""
+        return len(self._adapter_cache)
 
 
 # ─────────────────────────────────────────────────────────────────────

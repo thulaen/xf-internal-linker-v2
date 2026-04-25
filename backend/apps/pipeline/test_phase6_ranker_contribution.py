@@ -452,6 +452,120 @@ class DispatcherWeightingTests(SimpleTestCase):
             self.assertAlmostEqual(breakdown["pick_b"], -0.3, places=6)
 
 
+class DispatcherCacheTests(SimpleTestCase):
+    """Audit bug A6 — per-pass cache short-circuits repeat calls with
+    the same adapter-relevant fields."""
+
+    def test_vader_only_caches_on_host_text(self) -> None:
+        call_counter = {"n": 0}
+
+        def counting_adapter(ctx):
+            call_counter["n"] += 1
+            return 0.5
+
+        with patch.dict(p6._ADAPTERS, {"vader_sentiment": counting_adapter}):
+            c = p6.Phase6RankerContribution(weights={"vader_sentiment": 1.0})
+            # Same host sentence, different destinations — VADER doesn't
+            # care about destination, so adapter should fire once.
+            for dest_pk in range(5):
+                c.contribute_total(
+                    _ctx(host="happy day", dest=f"dest-{dest_pk}")
+                )
+            self.assertEqual(call_counter["n"], 1)
+            self.assertEqual(c.cache_size(), 1)
+
+    def test_lda_caches_on_host_plus_dest(self) -> None:
+        call_counter = {"n": 0}
+
+        def counting_adapter(ctx):
+            call_counter["n"] += 1
+            return 0.1
+
+        with patch.dict(p6._ADAPTERS, {"lda": counting_adapter}):
+            c = p6.Phase6RankerContribution(weights={"lda": 1.0})
+            # Same (host, dest) → cached. Different dest → new call.
+            c.contribute_total(_ctx(host="h1", dest="d1"))
+            c.contribute_total(_ctx(host="h1", dest="d1"))  # cached
+            c.contribute_total(_ctx(host="h1", dest="d2"))  # new
+            self.assertEqual(call_counter["n"], 2)
+
+    def test_fm_is_uncached_per_candidate(self) -> None:
+        call_counter = {"n": 0}
+
+        def counting_adapter(ctx):
+            call_counter["n"] += 1
+            return 0.0
+
+        with patch.dict(
+            p6._ADAPTERS, {"factorization_machines": counting_adapter}
+        ):
+            c = p6.Phase6RankerContribution(
+                weights={"factorization_machines": 1.0}
+            )
+            # FM is per-candidate (no cache). Three calls = three
+            # adapter invocations, even with the same context.
+            for _ in range(3):
+                c.contribute_total(
+                    _ctx(score_components={"score_semantic": 0.5})
+                )
+            self.assertEqual(call_counter["n"], 3)
+            self.assertEqual(c.cache_size(), 0)
+
+
+class FastTextBatchTests(SimpleTestCase):
+    """Audit bug A5 — predict_batch must be called once per filter
+    invocation, not once per record."""
+
+    def test_filter_calls_predict_batch_once(self) -> None:
+        from unittest.mock import MagicMock
+        from apps.sources import language_filter
+        from apps.sources.fasttext_langid import LangPrediction
+
+        records = {
+            i: type("FakeRec", (), {"title": f"Title {i}"})()
+            for i in range(50)
+        }
+
+        # All English → all kept.
+        with patch(
+            "apps.sources.fasttext_langid.is_available",
+            return_value=True,
+        ), patch(
+            "apps.sources.fasttext_langid.predict_batch",
+            return_value=[LangPrediction("en", 0.99)] * 50,
+        ) as mock_batch, patch(
+            "apps.sources.fasttext_langid.predict",
+            new=MagicMock(side_effect=AssertionError(
+                "predict() should NOT be called when batch path is hit"
+            )),
+        ):
+            kept = language_filter.filter_english_content_records(records)
+
+        # Batch path called exactly once with all 50 titles.
+        self.assertEqual(mock_batch.call_count, 1)
+        self.assertEqual(len(mock_batch.call_args[0][0]), 50)
+        self.assertEqual(len(kept), 50)
+
+
+class YakeExtractorCacheTests(SimpleTestCase):
+    """Audit bug A8 — the YAKE KeywordExtractor instance is cached
+    per parameter set, not constructed per call."""
+
+    def test_extractor_cache_reuses_instance(self) -> None:
+        from apps.sources import yake_keywords as yk
+
+        # Clear any prior cache state.
+        yk._EXTRACTOR_CACHE.clear()
+        if not yk.HAS_YAKE:
+            self.skipTest("yake pip dep not installed")
+        yk.extract("Some text to extract keywords from for testing.", top_k=5)
+        first = yk._EXTRACTOR_CACHE.get(("en", 3, 0.9, 5))
+        self.assertIsNotNone(first)
+        yk.extract("Different text but same parameters yet again.", top_k=5)
+        second = yk._EXTRACTOR_CACHE.get(("en", 3, 0.9, 5))
+        self.assertIs(first, second)
+
+
 class BuildDispatcherTests(TestCase):
     def _invalidate_pick_caches(self) -> None:
         from apps.core.runtime_flags import invalidate
