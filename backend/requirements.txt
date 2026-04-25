@@ -53,7 +53,11 @@ drf-spectacular==0.27.2              # OpenAPI 3 schema generation for DRF
 sentry-sdk==2.20.0                   # GlitchTip / Sentry-compatible error tracking
 
 httpx[http2]==0.28.1                 # Async HTTP client
-scipy==1.15.2                        # L-BFGS optimizer
+scipy==1.13.1                        # L-BFGS optimizer.
+                                     # Pinned to <1.14 because gensim 4.3.3 (LDA #18,
+                                     # Node2Vec #37) requires scipy<1.14 in its
+                                     # install_requires. statsmodels, scikit-learn,
+                                     # sentence-transformers, shap all support 1.13.x.
 beautifulsoup4==4.12.3               # HTML parser for crawler
 lxml==6.1.0                          # High-performance HTML parser back-end — 6.1.0 patches CVE-2026-41066
 
@@ -108,3 +112,75 @@ webauthn==2.5.2
 openai==1.55.3                       # OpenAI text-embedding-3-small / -large
 tiktoken==0.8.0                      # Offline token counting for OpenAI cost pre-check
 google-genai==1.73.1                 # Gemini text-embedding-004 / gemini-embedding-exp-03-07 (1.73.1 drops the pillow<12 cap)
+
+# ════════════════════════════════════════════════════════════════════
+# 52-pick optional helpers — Phase 6 / Wire phase
+# These were previously lazy-import-and-skip cold-start fallbacks.
+# Now installed so the helpers fire on real data with paper-cited
+# defaults. Each line cites the matching pick number and academic
+# reference; per-pick AppSetting hyperparameters live in
+# `apps/suggestions/recommended_weights.py` under the matching
+# prefix.
+# ════════════════════════════════════════════════════════════════════
+
+# ── Pick #22 VADER sentiment (Hutto & Gilbert 2014 ICWSM) ─────────
+# Rule-based polarity scorer with 7,500-token sentiment lexicon.
+# Wrapper: apps.sources.vader_sentiment.
+vaderSentiment==3.3.2
+
+# ── Pick #15 PySBD sentence boundary detection (Sadvilkar & Neumann 2020 ACL) ──
+# Robust sentence splitter — handles abbreviations, decimals,
+# ellipses better than naïve regex / NLTK Punkt. Wrapper:
+# apps.sources.pysbd_segmenter.
+pysbd==0.3.4
+
+# ── Pick #17 YAKE! keyword extractor (Campos et al. 2020 Inf. Sci.) ──
+# Unsupervised, language-agnostic keyword scorer using local
+# features (casing, position, frequency, sentence relatedness).
+# No training corpus required. Wrapper: apps.sources.yake_keywords.
+yake==0.6.0
+
+# ── Pick #7 Trafilatura (Barbaresi 2021 ACL Demos) ────────────────
+# Main-content extractor: strips nav/footer/sidebar/ad chrome from
+# fetched HTML. Wrapper: apps.sources.trafilatura_extractor.
+trafilatura==1.12.2
+
+# ── Pick #14 FastText LangID (Joulin et al. 2016 EACL) ────────────
+# Fast 176-language detector using the official lid.176.bin model
+# (downloaded by Dockerfile to /app/models/lid.176.bin; AppSetting
+# `fasttext_langid.model_path` points at it). Wrapper:
+# apps.sources.fasttext_langid.
+fasttext-wheel==0.9.2
+
+# ── Pick #18 LDA topic model (Blei, Ng, Jordan 2003 JMLR) ─────────
+# Latent Dirichlet Allocation via gensim. The W1
+# `lda_topic_refresh` job trains weekly over the corpus.
+# Wrapper: apps.pipeline.services.lda_topics.
+gensim==4.3.3
+
+# ── Pick #37 Node2Vec (Grover & Leskovec 2016 KDD) ────────────────
+# Biased random-walk graph embeddings. Built on top of gensim's
+# Word2Vec. The W1 `node2vec_walks` job trains weekly. Wrapper:
+# apps.pipeline.services.node2vec_embeddings.
+node2vec==0.5.0
+
+# ── Pick #38 BPR (Rendle et al. 2009 UAI) ─────────────────────────
+# Pairwise Bayesian Personalized Ranking via the `implicit` library
+# (Cython-backed). The W1 `bpr_refit` job trains weekly over
+# operator approve/reject feedback. Wrapper:
+# apps.pipeline.services.bpr_ranking.
+implicit==0.7.2
+
+# ── Pick #39 Factorization Machines (Rendle 2010 ICDM) ────────────
+# Linear model + low-rank pairwise feature interactions, hand-rolled
+# in NumPy (apps.pipeline.services.factorization_machines). No pip
+# dep — the libFM family (pyfm, pylibfm, fastFM) all stalled on
+# Python ≤ 3.11 builds. Hand-rolled implementation matches Rendle
+# 2010 §3.1 eq. 1-3 and trains via SGD with linear + pairwise terms.
+
+# ── Pick #23 KenLM trigram (Heafield 2011 WMT) ────────────────────
+# Both the Python `kenlm` module AND the `lmplz` training binary
+# are built from source in the Dockerfile. `pip install kenlm`
+# from PyPI fails to build a wheel on Python 3.12 inside pip's
+# sandbox, so we install from the kpu/kenlm checkout we already
+# cloned. Wrapper: apps.pipeline.services.kenlm_fluency.

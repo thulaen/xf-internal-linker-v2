@@ -68,9 +68,19 @@ class FastTextLangIdTests(TestCase):
         self.assertEqual(u.confidence, 0.0)
         self.assertTrue(u.is_undefined)
 
-    def test_no_model_path_configured_returns_undefined(self) -> None:
-        """Even with the pip dep installed, missing AppSetting → UND."""
-        # Default AppSetting has no row → path is empty → undefined.
+    def test_explicit_empty_model_path_returns_undefined(self) -> None:
+        """When operator explicitly clears the AppSetting → UND."""
+        from apps.core.models import AppSetting
+
+        # Migration 0043 seeds a default path; clear it for this test.
+        AppSetting.objects.update_or_create(
+            key=fasttext_langid.KEY_MODEL_PATH,
+            defaults={"value": "", "description": ""},
+        )
+        # Reset the per-process cache so the prior test doesn't bleed
+        # state between tests.
+        fasttext_langid._MODEL_SINGLETON = None
+        fasttext_langid._MODEL_PATH_LOADED = None
         result = fasttext_langid.predict("Hello world this is English")
         self.assertTrue(result.is_undefined)
 
@@ -84,5 +94,32 @@ class FastTextLangIdTests(TestCase):
                 "description": "",
             },
         )
+        # Reset the per-process cache so a prior load doesn't bleed
+        # state between tests.
+        fasttext_langid._MODEL_SINGLETON = None
+        fasttext_langid._MODEL_PATH_LOADED = None
         result = fasttext_langid.predict("Hello world")
         self.assertTrue(result.is_undefined)
+
+    @unittest.skipUnless(
+        fasttext_langid.HAS_FASTTEXT and __import__("os").path.exists(
+            "/opt/models/lid.176.bin"
+        ),
+        "fasttext + lid.176.bin both required",
+    )
+    def test_real_prediction_classifies_english(self) -> None:
+        """Real-data integration: with the model file present, fastText
+        classifies obvious English correctly with high confidence."""
+        # Ensure we hit the real model — clear any stale cache + use
+        # the migrated default path.
+        fasttext_langid._MODEL_SINGLETON = None
+        fasttext_langid._MODEL_PATH_LOADED = None
+        result = fasttext_langid.predict(
+            "The quick brown fox jumps over the lazy dog. "
+            "This is unmistakably English text with multiple sentences."
+        )
+        # fastText's lid.176 emits ISO 639-1 codes (e.g. "en"); the
+        # docstring on the helper says "ISO 639-3" but that was an
+        # over-spec — the actual labels are 2-letter.
+        self.assertEqual(result.language, "en")
+        self.assertGreater(result.confidence, 0.9)

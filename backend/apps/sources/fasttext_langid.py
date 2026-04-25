@@ -43,9 +43,11 @@ except ImportError:  # pragma: no cover — depends on pip env
 logger = logging.getLogger(__name__)
 
 
-#: ISO-639-3 stand-in code for "undefined / cannot detect". Mirrors
-#: ICU's ``und`` convention so consumers can compare it against
-#: well-known codes.
+#: Stand-in code for "undefined / cannot detect". Mirrors ICU's
+#: ``und`` convention so consumers can compare against well-known
+#: codes. Note: the lid.176 model itself emits ISO-639-1 (2-letter)
+#: codes like ``en``, ``de``, ``fr`` — :class:`LangPrediction.language`
+#: is ``UND`` only on failure / low-confidence.
 UND_LANGUAGE: str = "und"
 
 #: AppSetting key for the model path. Default ``""`` — operator must

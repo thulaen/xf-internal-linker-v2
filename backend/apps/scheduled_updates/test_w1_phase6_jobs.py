@@ -96,7 +96,7 @@ class BprW1Tests(TestCase):
 
 
 class FmW1Tests(TestCase):
-    def test_deferred_when_pyfm_missing(self) -> None:
+    def test_deferred_when_sklearn_missing(self) -> None:
         from apps.scheduled_updates.jobs import run_factorization_machines_refit
 
         with mock.patch(
@@ -106,7 +106,9 @@ class FmW1Tests(TestCase):
             cp = _CheckpointRecorder()
             with self.assertRaises(DeferredPickError):
                 run_factorization_machines_refit(job=None, checkpoint=cp)
-        self.assertIn("install `pyfm`", cp.last_message)
+        # Message changed in Wire phase — FM is hand-rolled NumPy now,
+        # so the only true dep is sklearn (already in requirements.txt).
+        self.assertIn("install `scikit-learn`", cp.last_message)
 
     def test_no_reviewed_rows_no_ops(self) -> None:
         from apps.scheduled_updates.jobs import run_factorization_machines_refit

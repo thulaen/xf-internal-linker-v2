@@ -121,3 +121,57 @@ class FactorizationMachinesTests(TestCase):
                 output_path="/tmp/fm.pkl",
             )
         )
+
+    def test_fit_and_predict_round_trip_regression(self) -> None:
+        """Hand-rolled NumPy FM trains a regression model + scores back.
+
+        Real-data integration: the previously-skipped path now runs on
+        every test because we no longer depend on a pip dep that may
+        be missing.
+        """
+        import os
+        import tempfile
+
+        from apps.core.models import AppSetting
+
+        # Synthetic regression target: y = a + b + 2*a*b
+        # FM should learn the linear (a, b) and pairwise (a*b) terms.
+        rng_features = []
+        rng_targets = []
+        import random
+
+        rng = random.Random(0)
+        for _ in range(200):
+            a = rng.uniform(0, 1)
+            b = rng.uniform(0, 1)
+            rng_features.append({"a": a, "b": b})
+            rng_targets.append(a + b + 2 * a * b)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "fm.pkl")
+            ok = factorization_machines.fit_and_save(
+                features=rng_features,
+                targets=rng_targets,
+                output_path=path,
+                factors=4,
+                num_iter=20,
+                learning_rate=0.05,
+                task="regression",
+            )
+            self.assertTrue(ok)
+            AppSetting.objects.update_or_create(
+                key=factorization_machines.KEY_MODEL_PATH,
+                defaults={"value": path, "description": ""},
+            )
+            preds = factorization_machines.predict(
+                [{"a": 0.5, "b": 0.5}, {"a": 0.0, "b": 0.0}]
+            )
+            self.assertIsNotNone(preds)
+            self.assertEqual(len(preds), 2)
+            # The "a=0,b=0" prediction should be near 0 (target was 0
+            # for that input class). Generous tolerance because 200
+            # samples × 20 iterations is light.
+            self.assertLess(abs(preds[1]), 0.6)
+            # The "a=0.5,b=0.5" target was 0.5 + 0.5 + 0.5 = 1.5 — pred
+            # should be on the positive side.
+            self.assertGreater(preds[0], preds[1])

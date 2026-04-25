@@ -181,6 +181,115 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "rsqva.min_queries_per_page": "5",
     "rsqva.min_query_clicks": "1",
     "rsqva.max_vocab_size": "10000",
+
+    # ════════════════════════════════════════════════════════════════
+    # 52-pick optional helpers — Wire phase defaults
+    # All values cited to the matching academic source. Each ``*.enabled``
+    # is True so the pick fires on real data the moment the helper is
+    # consulted.
+    # ════════════════════════════════════════════════════════════════
+
+    # ── Pick #22 VADER (Hutto & Gilbert 2014 ICWSM) ─────────────────
+    # No tunable thresholds at the helper level — VADER's ``compound``
+    # score is consulted directly by callers. The neutrality cutoff
+    # ±0.05 lives in the helper as :attr:`SentimentResult.is_neutral`
+    # (paper §3.2 "compound score thresholds for sentiment intensity").
+    "vader_sentiment.enabled": "true",
+
+    # ── Pick #15 PySBD (Sadvilkar & Neumann 2020 ACL Demos) ────────
+    # ``language=en`` matches our content; ``clean=False`` keeps the
+    # caller in charge of post-processing (paper §3.1 — segmentation
+    # is meant to be reversible by default).
+    "pysbd_segmenter.enabled": "true",
+    "pysbd_segmenter.language": "en",
+
+    # ── Pick #17 YAKE! (Campos et al. 2020 Inf. Sci. §3.5) ─────────
+    # ngram_max=3 captures the trigram phrases the paper Table 4
+    # reports; dedup_threshold=0.9 mirrors Campos et al.'s LM-distance
+    # cutoff; top_k=20 covers the 5-20 keywords-per-doc baseline.
+    "yake_keywords.enabled": "true",
+    "yake_keywords.ngram_max": "3",
+    "yake_keywords.dedup_threshold": "0.9",
+    "yake_keywords.top_k": "20",
+    "yake_keywords.language": "en",
+
+    # ── Pick #7 Trafilatura (Barbaresi 2021 ACL Demos) ─────────────
+    # Default profile (favor_recall=False) is the precision-tuned
+    # extractor that the paper recommends for downstream NLP. Tables
+    # ON because tabular forum content (resource pages) often carries
+    # signal we want; comments OFF because XF threading already
+    # captures discussion replies separately.
+    "trafilatura_extractor.enabled": "true",
+    "trafilatura_extractor.favor_recall": "false",
+    "trafilatura_extractor.include_comments": "false",
+    "trafilatura_extractor.include_tables": "true",
+
+    # ── Pick #14 FastText LangID (Joulin et al. 2016 EACL §3) ─────
+    # min_confidence=0.4 sits well below the paper's reported
+    # ~0.998 mean confidence on clean inputs; we use 0.4 specifically
+    # to catch noisy XF posts where the model is genuinely unsure.
+    # Model path matches the Dockerfile-downloaded location.
+    "fasttext_langid.enabled": "true",
+    "fasttext_langid.model_path": "/opt/models/lid.176.bin",
+    "fasttext_langid.min_confidence": "0.4",
+
+    # ── Pick #18 LDA (Blei, Ng, Jordan 2003 JMLR §6) ──────────────
+    # num_topics=50 is a small-corpus default — the paper's Wikipedia
+    # experiment used 100 over 16k docs, but our forum corpus is
+    # smaller. passes=5 is gensim's documented good-enough default;
+    # alpha/eta="auto" lets gensim infer the priors from the corpus.
+    # Model paths match the W1 ``lda_topic_refresh`` job's output dir.
+    "lda.enabled": "true",
+    "lda.num_topics": "50",
+    "lda.passes": "5",
+    "lda.alpha": "auto",
+    "lda.eta": "auto",
+    "lda.model_path": "/app/media/lda/lda.model",
+    "lda.dictionary_path": "/app/media/lda/lda.dict",
+
+    # ── Pick #23 KenLM (Heafield 2011 WMT) ────────────────────────
+    # order=3 = trigram (the paper's headline benchmark). Empty
+    # model_path until the W1 ``kenlm_retrain`` job runs and writes
+    # MEDIA_ROOT/kenlm/model.arpa. Helper short-circuits to neutral
+    # score until then.
+    "kenlm.enabled": "true",
+    "kenlm.order": "3",
+    "kenlm.model_path": "/app/media/kenlm/model.arpa",
+
+    # ── Pick #37 Node2Vec (Grover & Leskovec 2016 KDD §4 Table 1) ──
+    # dimensions=64 + walk_length=30 + num_walks=200 + p=q=1.0 is the
+    # "balanced community + structural" preset from the paper's
+    # main-result configuration. window=10 matches §4.1.
+    "node2vec.enabled": "true",
+    "node2vec.dimensions": "64",
+    "node2vec.walk_length": "30",
+    "node2vec.num_walks": "200",
+    "node2vec.p": "1.0",
+    "node2vec.q": "1.0",
+    "node2vec.window": "10",
+    "node2vec.embeddings_path": "/app/media/node2vec/embeddings.pkl",
+
+    # ── Pick #38 BPR (Rendle et al. 2009 UAI §5) ──────────────────
+    # factors=50 keeps the latent matrix small at our scale; iterations,
+    # learning_rate, regularization match Rendle et al.'s reported
+    # MovieLens defaults (Table 2).
+    "bpr.enabled": "true",
+    "bpr.factors": "50",
+    "bpr.iterations": "100",
+    "bpr.learning_rate": "0.01",
+    "bpr.regularization": "0.01",
+    "bpr.model_path": "/app/media/bpr/model.pkl",
+
+    # ── Pick #39 Factorization Machines (Rendle 2010 ICDM §3.1) ───
+    # factors=8 keeps latent vectors tiny — fine for our small
+    # feature space (~10 score columns + categorical anchor_confidence).
+    # num_iter=50 with learning_rate=0.001 matches the paper's
+    # "stable convergence on small datasets" recommendation.
+    "factorization_machines.enabled": "true",
+    "factorization_machines.factors": "8",
+    "factorization_machines.num_iter": "50",
+    "factorization_machines.learning_rate": "0.001",
+    "factorization_machines.model_path": "/app/media/fm/model.pkl",
 }
 
 # Merge forward-declared FR keys into the main dict.

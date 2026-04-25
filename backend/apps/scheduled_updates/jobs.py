@@ -1408,10 +1408,12 @@ def run_factorization_machines_refit(job, checkpoint) -> None:
     if not factorization_machines.is_available():
         checkpoint(
             progress_pct=0.0,
-            message="FM deferred — install `pyfm` + `scikit-learn` to enable",
+            message="FM deferred — install `scikit-learn` to enable",
         )
         raise DeferredPickError(
-            "Factorization Machines depend on `pyfm` (Cython libFM) which is not installed."
+            "Factorization Machines (hand-rolled NumPy implementation) "
+            "still requires `scikit-learn` for DictVectorizer; "
+            "scikit-learn is in requirements.txt."
         )
 
     import os
