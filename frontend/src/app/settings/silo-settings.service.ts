@@ -365,6 +365,25 @@ export interface Stage1RetrieverSettings {
   query_expansion_retriever_enabled: boolean;
 }
 
+/** Phase 6 optional-pick master switches. Each pick has a single
+ *  ``enabled`` flag. Defaults seeded ON via migration 0043; operator
+ *  flips off any pick whose cost outweighs the benefit on their corpus. */
+export interface Phase6PickFlag {
+  enabled: boolean;
+}
+export interface Phase6PickSettings {
+  vader_sentiment: Phase6PickFlag;
+  pysbd_segmenter: Phase6PickFlag;
+  yake_keywords: Phase6PickFlag;
+  trafilatura_extractor: Phase6PickFlag;
+  fasttext_langid: Phase6PickFlag;
+  lda: Phase6PickFlag;
+  kenlm: Phase6PickFlag;
+  node2vec: Phase6PickFlag;
+  bpr: Phase6PickFlag;
+  factorization_machines: Phase6PickFlag;
+}
+
 export interface RuntimeModelRegistryEntry {
   id: number;
   task_type: string;
@@ -911,6 +930,24 @@ export class SiloSettingsService {
     return this.http.put<Stage1RetrieverSettings>(
       '/api/settings/stage1-retrievers/',
       payload
+    );
+  }
+
+  // Phase 6 optional-pick master switches (10 picks: VADER, PySBD,
+  // YAKE!, Trafilatura, FastText, LDA, KenLM, Node2Vec, BPR, FM).
+  // Defaults seeded ON via migration 0043. Each pick has just an
+  // ``enabled`` boolean — pip deps and model files are baked into
+  // the production image already.
+  getPhase6PickSettings(): Observable<Phase6PickSettings> {
+    return this.http.get<Phase6PickSettings>('/api/settings/phase6-picks/');
+  }
+
+  updatePhase6PickSettings(
+    payload: Partial<Phase6PickSettings>,
+  ): Observable<Phase6PickSettings> {
+    return this.http.put<Phase6PickSettings>(
+      '/api/settings/phase6-picks/',
+      payload,
     );
   }
 

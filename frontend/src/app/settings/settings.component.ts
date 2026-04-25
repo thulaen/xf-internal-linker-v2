@@ -41,6 +41,7 @@ import {
   SiloSettings,
   SiloSettingsService,
   Stage1RetrieverSettings,
+  Phase6PickSettings,
   WeightedAuthoritySettings,
   XenForoSettings,
   XenForoSettingsUpdate,
@@ -2393,6 +2394,23 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   };
   savingStage1Retrievers = false;
 
+  // Phase 6 optional-pick master switches. Defaults seeded ON via
+  // migration 0043. Operator flips off any pick whose cost outweighs
+  // the benefit on their corpus.
+  phase6Picks: Phase6PickSettings = {
+    vader_sentiment: { enabled: true },
+    pysbd_segmenter: { enabled: true },
+    yake_keywords: { enabled: true },
+    trafilatura_extractor: { enabled: true },
+    fasttext_langid: { enabled: true },
+    lda: { enabled: true },
+    kenlm: { enabled: true },
+    node2vec: { enabled: true },
+    bpr: { enabled: true },
+    factorization_machines: { enabled: true },
+  };
+  savingPhase6Picks = false;
+
   // FR-099 through FR-105 — graph-topology ranking signals.
   // See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
   // Defaults match backend/apps/suggestions/recommended_weights.py byte-for-byte.
@@ -2950,6 +2968,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       valueModel: this.siloSvc.getValueModelSettings(),
       fr099Fr105: this.siloSvc.getFr099Fr105Settings(),
       stage1Retrievers: this.siloSvc.getStage1RetrieverSettings(),
+      phase6Picks: this.siloSvc.getPhase6PickSettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
       notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
@@ -3004,6 +3023,10 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
             ...this.stage1Retrievers,
             ...data.stage1Retrievers,
           };
+        }
+        // Phase 6 — 10 optional-pick toggles.
+        if (data.phase6Picks) {
+          this.phase6Picks = { ...this.phase6Picks, ...data.phase6Picks };
         }
         this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
@@ -3843,6 +3866,37 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
             error?.error?.detail
               || error?.error?.error
               || 'Failed to save Stage-1 retrievers',
+            'Dismiss',
+            { duration: 4000 },
+          );
+        },
+      });
+  }
+
+  // Phase 6 — 10 optional-pick master switches. All default ON via
+  // the seed migration. Single Save button posts the whole tree.
+  savePhase6PickSettings(): void {
+    this.savingPhase6Picks = true;
+    this.siloSvc.updatePhase6PickSettings(this.phase6Picks)
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: (saved) => {
+          if (saved) {
+            this.phase6Picks = { ...this.phase6Picks, ...saved };
+          }
+          this.savingPhase6Picks = false;
+          this.snack.open(
+            'Optional pick toggles saved',
+            undefined,
+            { duration: 2500 },
+          );
+        },
+        error: (error) => {
+          this.savingPhase6Picks = false;
+          this.snack.open(
+            error?.error?.detail
+              || error?.error?.error
+              || 'Failed to save optional pick toggles',
             'Dismiss',
             { duration: 4000 },
           );

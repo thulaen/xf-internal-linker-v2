@@ -646,6 +646,157 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Phase 6 optional-pick master switches.
+               10 picks default ON via migration 0043; flip OFF any pick
+               whose RAM / training cost outweighs benefit on this corpus.
+               The pip deps + model files are baked into the production image
+               already — toggling these flags only short-circuits the per-call
+               consumer logic. Each card cites the paper that backs the pick. -->
+          <mat-card class="settings-card" id="phase6-picks">
+            <mat-card-header>
+              <mat-card-title>Optional Pick Toggles (10 paper-backed helpers)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">
+                These 10 helpers come from the 52-pick research plan.
+                All default ON; the pip deps + model files are already
+                installed. Flip OFF any pick whose RAM or training cost
+                outweighs its benefit on your corpus. Each tooltip cites
+                the paper.
+              </p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>VADER Sentiment (#22)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.vader_sentiment.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #22 — Hutto & Gilbert 2014 ICWSM. Rule-based 7,500-token polarity scorer over review-queue text."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>PySBD sentence splitter (#15)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.pysbd_segmenter.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #15 — Sadvilkar & Neumann 2020 ACL Demos. Robust sentence splitter for abbreviations, decimals, ellipses."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>YAKE! keyword extractor (#17)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.yake_keywords.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #17 — Campos et al. 2020 Inf. Sci. Unsupervised, language-agnostic n-gram keyword scorer."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Trafilatura main-content (#7)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.trafilatura_extractor.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #7 — Barbaresi 2021 ACL Demos. Strips nav/footer/sidebar/ads from fetched HTML, returns the article body."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>FastText LangID (#14)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.fasttext_langid.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #14 — Joulin et al. 2016 EACL. 176-language detector via the official lid.176.bin (131 MB) model."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>LDA topic model (#18)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.lda.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #18 — Blei, Ng & Jordan 2003 JMLR. Soft topic distribution per document via gensim. Re-trained weekly."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>KenLM trigram fluency (#23)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.kenlm.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #23 — Heafield 2011 WMT. n-gram language-model fluency scorer; trained weekly via lmplz."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Node2Vec graph embeddings (#37)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.node2vec.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #37 — Grover & Leskovec 2016 KDD. Biased random-walk node embeddings; re-trained weekly."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>BPR pairwise LTR (#38)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.bpr.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #38 — Rendle et al. 2009 UAI. Pairwise Bayesian Personalized Ranking over approve/reject feedback."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Factorization Machines (#39)</mat-label>
+                  <mat-select [(ngModel)]="phase6Picks.factorization_machines.enabled" [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Pick #39 — Rendle 2010 ICDM. Linear + low-rank pairwise feature interactions, hand-rolled NumPy implementation."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary"
+                        [disabled]="savingPhase6Picks"
+                        (click)="savePhase6PickSettings()">
+                  <mat-icon>{{ savingPhase6Picks ? 'sync' : 'tune' }}</mat-icon>
+                  {{ savingPhase6Picks ? 'Saving...' : 'Save optional pick toggles' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <!-- FR-099 DARB -->
           <mat-card class="settings-card" id="darb">
             <mat-card-header>

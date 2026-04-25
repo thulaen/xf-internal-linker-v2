@@ -191,6 +191,18 @@ urlpatterns = [
         ).Stage1RetrieverSettingsView.as_view(),
         name="settings-stage1-retrievers",
     ),
+    # Phase 6 optional-pick master switches (10 picks: VADER, PySBD,
+    # YAKE!, Trafilatura, FastText, LDA, KenLM, Node2Vec, BPR, FM).
+    # All default ON via migration 0043. Operator flips off any pick
+    # whose cost outweighs the benefit on their corpus.
+    path(
+        "settings/phase6-picks/",
+        __import__(
+            "apps.core.views_phase6_picks",
+            fromlist=["Phase6PicksSettingsView"],
+        ).Phase6PicksSettingsView.as_view(),
+        name="settings-phase6-picks",
+    ),
     # Runbook execution endpoints (plan item 17)
     path(
         "runbooks/<str:runbook_id>/execute/",
