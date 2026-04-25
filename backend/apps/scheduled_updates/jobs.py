@@ -966,29 +966,55 @@ def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
 def run_position_bias_ips_refit(job, checkpoint) -> None:
     """Weekly refit of position-bias IPS weights (pick #33).
 
-    The Cascade job (sibling) already builds the per-position event
-    table during :func:`feedback_relevance.compute_and_persist` — we
-    re-use the same function here so the IPS re-fit is consistent
-    with the Cascade re-fit. Both keys live under ``feedback_relevance.*``
-    in AppSetting.
+    Two complementary refits run side-by-side:
+
+    1. :func:`feedback_relevance.compute_and_persist` — uses the
+       review-queue history (PipelineRun + Suggestion ranks) as the
+       click stream. Persists per-position IPS-weighted CTR. This
+       always has data because operator review is the click stream
+       for an internal-linker product.
+    2. :func:`position_bias_ips_producer.fit_and_persist_from_impressions`
+       — uses the new ``SuggestionImpression`` rows logged by the
+       frontend's review-queue viewport hook. Fits the η exponent of
+       the power-law propensity. Cold-start safe: until the frontend
+       hook lands and impressions accumulate, this no-ops cleanly
+       and the consumer (``feedback_relevance._compute_ips_ctr`` once
+       Group A.4 wires it) keeps using the helper's default η=1.0.
+
+    Both keys are namespaced separately in AppSetting
+    (``feedback_relevance.*`` vs ``position_bias_ips.*``) so neither
+    overwrites the other's data.
     """
     from apps.pipeline.services.feedback_relevance import compute_and_persist
+    from apps.pipeline.services.position_bias_ips_producer import (
+        fit_and_persist_from_impressions,
+    )
 
     checkpoint(progress_pct=0.0, message="Refitting IPS weights from review history")
-    snapshot = compute_and_persist()
-    if snapshot is None:
-        checkpoint(
-            progress_pct=100.0,
-            message="Insufficient review history — refit skipped",
-        )
-        return
+    cascade_snap = compute_and_persist()
+
     checkpoint(
-        progress_pct=100.0,
-        message=(
-            f"IPS table refreshed for {len(snapshot.ips_weighted_ctr)} positions "
-            f"({snapshot.training_runs} runs)"
-        ),
+        progress_pct=50.0,
+        message="Fitting η from SuggestionImpression rows",
     )
+    eta_snap = fit_and_persist_from_impressions()
+
+    parts: list[str] = []
+    if cascade_snap is not None:
+        parts.append(
+            f"per-position CTR: {len(cascade_snap.ips_weighted_ctr)} positions "
+            f"({cascade_snap.training_runs} runs)"
+        )
+    else:
+        parts.append("per-position CTR: insufficient review history")
+    if eta_snap is not None:
+        parts.append(
+            f"η fit: {eta_snap.eta:.3f} from {eta_snap.observations} impressions"
+        )
+    else:
+        parts.append("η fit: cold-start (insufficient impressions)")
+
+    checkpoint(progress_pct=100.0, message="; ".join(parts))
 
 
 scheduled_job(
