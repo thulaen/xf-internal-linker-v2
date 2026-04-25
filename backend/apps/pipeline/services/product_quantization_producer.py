@@ -168,6 +168,85 @@ def load_quantizer() -> ProductQuantizer | None:
     return quant
 
 
+def decode_pq_codes(
+    pq_codes: list[bytes],
+    *,
+    quantizer: ProductQuantizer | None = None,
+):
+    """Decode a list of ``pq_code`` byte-blobs to approximate float32 vectors.
+
+    Returns a numpy array of shape ``(n, dimension)`` or ``None`` if
+    the codebook isn't fitted yet.
+
+    ``quantizer`` is optional — pass a cached one when decoding many
+    code lists in a row to avoid re-loading the codebook from
+    AppSetting every call.
+    """
+    import numpy as np
+
+    if not pq_codes:
+        return None
+    quant = quantizer if quantizer is not None else load_quantizer()
+    if quant is None:
+        return None
+    # Build a single (n, bytes_per_vector) uint8 array.
+    bytes_per_vec = quant.bytes_per_vector
+    n = len(pq_codes)
+    flat = np.empty((n, bytes_per_vec), dtype=np.uint8)
+    for i, code in enumerate(pq_codes):
+        if code is None or len(code) != bytes_per_vec:
+            # Defensive — skip rows with stale/wrong-sized codes by
+            # writing zeros. Caller decides what to do with those.
+            flat[i, :] = 0
+        else:
+            flat[i, :] = np.frombuffer(code, dtype=np.uint8)
+    return quant.decode(flat)
+
+
+def pq_cosine_for_pks(pks):
+    """Return a dict ``{pk: decoded_unit_vector}`` for ContentItems with valid PQ codes.
+
+    Used by consumers that want PQ-accelerated similarity in batch.
+    Rows whose ``pq_code_version`` doesn't match the active codebook
+    are skipped — they need a refit before participating. Cold-start
+    safe: returns ``{}`` when no codebook is fitted yet.
+
+    The returned vectors are L2-normalised so consumers can compute
+    cosine similarity via a simple dot product.
+    """
+    import numpy as np
+
+    from apps.content.models import ContentItem
+
+    snap = load_codebook()
+    if snap is None or not pks:
+        return {}
+    quant = load_quantizer()
+    if quant is None:
+        return {}
+
+    rows = list(
+        ContentItem.objects.filter(
+            pk__in=list(pks),
+            pq_code_version=snap.version,
+        )
+        .exclude(pq_code__isnull=True)
+        .values_list("pk", "pq_code")
+    )
+    if not rows:
+        return {}
+
+    codes = [bytes(c) for _, c in rows]
+    decoded = decode_pq_codes(codes, quantizer=quant)
+    if decoded is None:
+        return {}
+    # Normalise so callers can do `decoded @ decoded.T` for cosine.
+    norms = np.linalg.norm(decoded, axis=1, keepdims=True)
+    norms = np.where(norms < 1e-12, 1.0, norms)
+    unit = decoded / norms
+    return {pk: unit[i] for i, (pk, _) in enumerate(rows)}
+
+
 # ── Producer ──────────────────────────────────────────────────────
 
 

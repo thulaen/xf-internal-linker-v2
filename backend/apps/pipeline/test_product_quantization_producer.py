@@ -195,6 +195,93 @@ class ProductQuantizationProducerTests(TestCase):
         snap = load_codebook()
         self.assertIsNotNone(snap)
 
+    # ── decode_pq_codes / pq_cosine_for_pks (Group B.2 read-path) ─
+
+    def test_decode_pq_codes_cold_start_returns_none(self) -> None:
+        from apps.pipeline.services.product_quantization_producer import (
+            decode_pq_codes,
+        )
+
+        self.assertIsNone(decode_pq_codes([b"\x00\x00\x00\x00"]))
+
+    def test_decode_pq_codes_returns_array_after_fit(self) -> None:
+        from apps.pipeline.services.product_quantization_producer import (
+            decode_pq_codes,
+            fit_and_persist_from_embeddings,
+        )
+
+        n = self.SMALL_MIN_TRAINING + 30
+        self._seed_embeddings(n)
+        result = fit_and_persist_from_embeddings(
+            min_training_rows=self.SMALL_MIN_TRAINING,
+            m=self.SMALL_M,
+            ks=self.SMALL_KS,
+        )
+        self.assertIsNotNone(result)
+
+        item = ContentItem.objects.exclude(pq_code__isnull=True).first()
+        decoded = decode_pq_codes([bytes(item.pq_code)])
+        self.assertIsNotNone(decoded)
+        self.assertEqual(decoded.shape, (1, self.SMALL_DIM))
+
+    def test_pq_cosine_for_pks_cold_start_returns_empty(self) -> None:
+        from apps.pipeline.services.product_quantization_producer import (
+            pq_cosine_for_pks,
+        )
+
+        self.assertEqual(pq_cosine_for_pks([1, 2, 3]), {})
+
+    def test_pq_cosine_for_pks_returns_unit_vectors(self) -> None:
+        import numpy as np
+
+        from apps.pipeline.services.product_quantization_producer import (
+            fit_and_persist_from_embeddings,
+            pq_cosine_for_pks,
+        )
+
+        n = self.SMALL_MIN_TRAINING + 30
+        self._seed_embeddings(n)
+        fit_and_persist_from_embeddings(
+            min_training_rows=self.SMALL_MIN_TRAINING,
+            m=self.SMALL_M,
+            ks=self.SMALL_KS,
+        )
+
+        pks = list(
+            ContentItem.objects.exclude(pq_code__isnull=True)
+            .values_list("pk", flat=True)[:10]
+        )
+        result = pq_cosine_for_pks(pks)
+        self.assertEqual(set(result.keys()), set(pks))
+        for vec in result.values():
+            # L2 norm should be ≈ 1.0.
+            self.assertAlmostEqual(float(np.linalg.norm(vec)), 1.0, places=4)
+
+    def test_pq_cosine_skips_stale_versions(self) -> None:
+        """Rows whose pq_code_version is out of date are skipped."""
+        from apps.pipeline.services.product_quantization_producer import (
+            fit_and_persist_from_embeddings,
+            pq_cosine_for_pks,
+        )
+
+        n = self.SMALL_MIN_TRAINING + 30
+        self._seed_embeddings(n)
+        fit_and_persist_from_embeddings(
+            min_training_rows=self.SMALL_MIN_TRAINING,
+            m=self.SMALL_M,
+            ks=self.SMALL_KS,
+        )
+        # Tag every encoded row with a stale version.
+        ContentItem.objects.filter(pq_code__isnull=False).update(
+            pq_code_version="stale-version"
+        )
+        pks = list(
+            ContentItem.objects.exclude(pq_code__isnull=True)
+            .values_list("pk", flat=True)[:10]
+        )
+        # All rows now have the wrong version → returns empty.
+        self.assertEqual(pq_cosine_for_pks(pks), {})
+
     def test_encode_round_trip_within_tolerance(self) -> None:
         """Decoded vectors are within reasonable distance of originals."""
         import numpy as np
