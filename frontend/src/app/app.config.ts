@@ -69,7 +69,9 @@ export const appConfig: ApplicationConfig = {
     //     health; performance strategy (cache-first, 1h TTL) for analytics.
     provideServiceWorker('ngsw-worker.js', {
       enabled: !isDevMode(),
-      registrationStrategy: 'registerWhenStable:30000',
+      // 30s was too long — users with slow first loads miss the SW cache entirely.
+      // 5s is enough for the app to stabilise without blocking early interactions.
+      registrationStrategy: 'registerWhenStable:5000',
     }),
   ],
 };

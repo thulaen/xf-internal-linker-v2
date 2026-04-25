@@ -1,6 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, OnDestroy, OnInit, inject } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
+import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatTabsModule } from '@angular/material/tabs';
@@ -37,6 +38,7 @@ const ERROR_TAB_FRAGMENT_TO_INDEX: Record<string, number> = {
   standalone: true,
   imports: [
     CommonModule, MatTooltipModule, MatButtonModule, MatIconModule, MatTabsModule,
+    MatCardModule,
     PersistTabDirective, ServiceCardComponent, ConflictListComponent,
     ReadinessMatrixComponent, SuppressedPairsCardComponent,
   ],

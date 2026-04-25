@@ -109,6 +109,7 @@ export class NotificationService implements OnDestroy {
     this.auth.isLoggedIn$.subscribe((loggedIn) => {
       this.loggedIn = loggedIn;
       if (loggedIn) {
+        this.disconnectWebSocket(); // Clear any existing leaked sockets
         this.loadSummary();
         // Fresh session → allow the retry budget to start over.
         this.consecutiveFailures = 0;
@@ -169,8 +170,11 @@ export class NotificationService implements OnDestroy {
             );
         }),
       )
-      .subscribe((s) => {
-        if (s) this._unreadCount$.next(s.total_unread);
+      .subscribe({
+        next: (s) => {
+          if (s) this._unreadCount$.next(s.total_unread);
+        },
+        error: () => console.error('[NotificationService] Failed to load alert summary (primary and fallback failed)'),
       });
   }
 

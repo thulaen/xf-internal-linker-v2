@@ -2,6 +2,7 @@ import { DestroyRef, Injectable, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { HttpClient } from '@angular/common/http';
 import { catchError, of } from 'rxjs';
+import { AuthService } from './auth.service';
 
 /**
  * Phase OB / Gaps 131 + 132 — Feature flags + A/B harness.
@@ -47,12 +48,23 @@ const STORAGE_KEY = 'xfil_feature_flags_cache';
 @Injectable({ providedIn: 'root' })
 export class FeatureFlagsService {
   private readonly http = inject(HttpClient);
+  private readonly auth = inject(AuthService);
   private readonly destroyRef = inject(DestroyRef);
+  private _isLoggedIn = false;
 
   private readonly flags = signal<Readonly<Record<string, FeatureFlag>>>(
     this.readCache(),
   );
   private readonly exposed = new Set<string>();
+
+  constructor() {
+    this.auth.isLoggedIn$.subscribe((loggedIn) => {
+      this._isLoggedIn = loggedIn;
+      if (loggedIn) {
+        this.refresh();
+      }
+    });
+  }
 
   /** Wire once from app bootstrap. Subsequent calls are no-ops. */
   start(): void {
@@ -61,6 +73,7 @@ export class FeatureFlagsService {
 
   /** Force a refresh — useful after the admin edits a flag. */
   refresh(): void {
+    if (!this._isLoggedIn) return;
     this.http
       .get<FeatureFlag[]>('/api/feature-flags/')
       .pipe(
@@ -97,16 +110,12 @@ export class FeatureFlagsService {
     if (this.exposed.has(key)) return;
     this.exposed.add(key);
     const variant = this.variantOf(key);
-    try {
-      fetch('/api/feature-flags/exposures/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'same-origin',
-        body: JSON.stringify({ key, variant }),
-      }).catch(() => { /* best-effort */ });
-    } catch {
-      // No-op.
-    }
+    // Use HttpClient so the auth interceptor attaches CSRF + auth headers.
+    // takeUntilDestroyed prevents leaks; catchError makes it best-effort.
+    this.http.post('/api/feature-flags/exposures/', { key, variant }).pipe(
+      catchError(() => of(null)),
+      takeUntilDestroyed(this.destroyRef),
+    ).subscribe();
   }
 
   /** Snapshot — used by the admin UI and debug overlay. */

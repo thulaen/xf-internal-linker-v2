@@ -36,14 +36,29 @@ export class PullToRefreshDirective implements OnInit {
   private currentY = 0;
   private arming = false;
   private indicator: HTMLElement | null = null;
+  private destroyRef = inject(import('@angular/core').DestroyRef);
+  private ngZone = inject(import('@angular/core').NgZone);
 
   ngOnInit(): void {
     const el = this.host.nativeElement;
     if (!el.style.touchAction) el.style.touchAction = 'pan-y';
+
+    this.ngZone.runOutsideAngular(() => {
+      const offDown = this.renderer.listen(el, 'pointerdown', (ev: PointerEvent) => this.onDown(ev));
+      const offMove = this.renderer.listen(el, 'pointermove', (ev: PointerEvent) => this.onMove(ev));
+      const offUp = this.renderer.listen(el, 'pointerup', (ev: PointerEvent) => this.onUp(ev));
+      const offCancel = this.renderer.listen(el, 'pointercancel', (ev: PointerEvent) => this.onUp(ev));
+
+      this.destroyRef.onDestroy(() => {
+        offDown();
+        offMove();
+        offUp();
+        offCancel();
+      });
+    });
   }
 
-  @HostListener('pointerdown', ['$event'])
-  onDown(ev: PointerEvent): void {
+  private onDown(ev: PointerEvent): void {
     if (ev.pointerType !== 'touch') return;
     const el = this.host.nativeElement;
     if (el.scrollTop !== 0) return;
@@ -52,8 +67,7 @@ export class PullToRefreshDirective implements OnInit {
     this.currentY = ev.clientY;
   }
 
-  @HostListener('pointermove', ['$event'])
-  onMove(ev: PointerEvent): void {
+  private onMove(ev: PointerEvent): void {
     if (!this.arming) return;
     if (ev.pointerType !== 'touch') return;
     this.currentY = ev.clientY;
@@ -67,16 +81,14 @@ export class PullToRefreshDirective implements OnInit {
     this.showIndicator(drag >= this.thresholdPx, drag);
   }
 
-  @HostListener('pointerup', ['$event'])
-  @HostListener('pointercancel', ['$event'])
-  onUp(ev: PointerEvent): void {
+  private onUp(ev: PointerEvent): void {
     if (!this.arming) return;
     if (ev && ev.pointerType && ev.pointerType !== 'touch') return;
     const dy = this.currentY - this.startY;
     this.arming = false;
     this.removeIndicator();
     if (dy >= this.thresholdPx) {
-      this.refresh.emit();
+      this.ngZone.run(() => this.refresh.emit());
     }
   }
 

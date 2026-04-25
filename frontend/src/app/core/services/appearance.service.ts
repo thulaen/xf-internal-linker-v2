@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { BehaviorSubject, Observable, Subject, catchError, debounceTime, map, of, take, tap } from 'rxjs';
+import { AuthService } from './auth.service';
 
 export interface AppearanceConfig {
   primaryColor: string;
@@ -61,6 +62,7 @@ const SIDEBAR_WIDTH_MAP: Record<string, string> = {
 @Injectable({ providedIn: 'root' })
 export class AppearanceService {
   private http = inject(HttpClient);
+  private auth = inject(AuthService);
   private apiUrl = '/api/settings/appearance/';
 
   private _config$ = new BehaviorSubject<AppearanceConfig>(DEFAULT_CONFIG);
@@ -68,15 +70,34 @@ export class AppearanceService {
 
   private updateSubject = new Subject<Partial<AppearanceConfig>>();
   private pendingPatch: Partial<AppearanceConfig> = {};
+  private _isLoggedIn = false;
 
   constructor() {
+    // Apply defaults immediately so the first frame isn't unstyled.
+    this.applyToDom(DEFAULT_CONFIG);
+
+    // Refresh when auth state changes.
+    this.auth.isLoggedIn$.subscribe((loggedIn) => {
+      this._isLoggedIn = loggedIn;
+      if (loggedIn) {
+        this.load();
+      } else {
+        // Revert to defaults on logout.
+        const cfg = DEFAULT_CONFIG;
+        this._config$.next(cfg);
+        this.applyToDom(cfg);
+      }
+    });
+
     this.updateSubject.pipe(
       debounceTime(500)
     ).subscribe(() => {
-      if (Object.keys(this.pendingPatch).length > 0) {
+      if (this._isLoggedIn && Object.keys(this.pendingPatch).length > 0) {
         const patchToTransmit = { ...this.pendingPatch };
         this.pendingPatch = {};
-        this.http.put<AppearanceConfig>(this.apiUrl, patchToTransmit).subscribe();
+        this.http.put<AppearanceConfig>(this.apiUrl, patchToTransmit).subscribe({
+          error: () => console.error('[AppearanceService] Failed to save appearance settings to server'),
+        });
       }
     });
   }
@@ -85,8 +106,10 @@ export class AppearanceService {
     return this._config$.getValue();
   }
 
-  /** Load settings from API and apply to DOM. Call once on app init. */
+  /** Load settings from API and apply to DOM. Called automatically on login. */
   load(): void {
+    if (!this._isLoggedIn) return;
+
     this.http
       .get<AppearanceConfig>(this.apiUrl)
       .pipe(catchError(() => of(DEFAULT_CONFIG)))
@@ -104,7 +127,7 @@ export class AppearanceService {
     if (debounce) {
       this.pendingPatch = { ...this.pendingPatch, ...patch };
       this.updateSubject.next(this.pendingPatch);
-    } else {
+    } else if (this._isLoggedIn) {
       this.http
         .put<AppearanceConfig>(this.apiUrl, patch)
         .pipe(take(1), catchError(() => of(this.config)))
@@ -162,8 +185,13 @@ export class AppearanceService {
 
   /** Remove the site logo and clear logoUrl. */
   removeLogo(): void {
-    this.http.delete('/api/settings/logo/').pipe(take(1), catchError(() => of(null))).subscribe();
-    this.updateLocal({ logoUrl: '' });
+    this.http
+      .delete('/api/settings/logo/')
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.updateLocal({ logoUrl: '' }),
+        error: () => console.error('[AppearanceService] Failed to remove logo from server'),
+      });
   }
 
   /**
@@ -183,8 +211,13 @@ export class AppearanceService {
 
   /** Remove the site favicon and clear faviconUrl. */
   removeFavicon(): void {
-    this.http.delete('/api/settings/favicon/').pipe(take(1), catchError(() => of(null))).subscribe();
-    this.updateLocal({ faviconUrl: '' });
+    this.http
+      .delete('/api/settings/favicon/')
+      .pipe(take(1))
+      .subscribe({
+        next: () => this.updateLocal({ faviconUrl: '' }),
+        error: () => console.error('[AppearanceService] Failed to remove favicon from server'),
+      });
   }
 
   private applyToDom(cfg: AppearanceConfig): void {

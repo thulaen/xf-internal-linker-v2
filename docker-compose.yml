@@ -271,8 +271,14 @@ services:
     mem_limit: 128m
     ports:
       - "80:80"
+      - "443:443"
     volumes:
       - ./nginx/nginx.prod.conf:/etc/nginx/nginx.conf:ro
+      # TLS certificate + private key — read-only inside the container.
+      # Generated on the developer's machine by mkcert (see docs/DEV-HTTPS.md).
+      - ./nginx/certs:/etc/nginx/certs:ro
+      # Static maintenance page served on 502/503 before Angular boots.
+      - ./nginx/maintenance.html:/usr/share/nginx/html/maintenance.html:ro
       # `frontend_dist` mounted RW (not `:ro`) because the child volumes
       # below sit on subdirectories inside this tree, and Docker cannot
       # create a mountpoint inside a read-only parent. Nginx runs as an

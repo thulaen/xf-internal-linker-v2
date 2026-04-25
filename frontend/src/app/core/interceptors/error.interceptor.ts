@@ -100,6 +100,13 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
 
       // Gap 43 — 429 gets a live countdown snackbar instead of a flat toast.
       if (status === 429) {
+        // Telemetry endpoints are best-effort fire-and-forget beacons (web
+        // vitals, client errors). Showing a "Too many requests" countdown to
+        // the operator for a background beacon is hostile UX — swallow silently.
+        if (req.url.includes('/api/telemetry/')) {
+          return throwError(() => error);
+        }
+
         const rawSeconds = parseRetryAfter(error);
         const seconds = Math.min(rawSeconds, MAX_VISIBLE_RETRY_SECONDS);
 

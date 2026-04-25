@@ -373,7 +373,9 @@ export class AppComponent implements OnInit {
   ];
 
   ngOnInit(): void {
-    this.appearance.load();
+    // AppearanceService and FeatureFlagsService are self-managing — they
+    // subscribe to isLoggedIn$ internally and load on login. Calling
+    // load()/start() here would cause a redundant double-fetch.
     this.alertDelivery.start();
     this.linkInterceptor.init();
     // Phase GB / Gap 150 — register the milestone catalogue so the
@@ -414,9 +416,8 @@ export class AppComponent implements OnInit {
     // element. Doesn't block features (everything has a Material
     // fallback), just helps diagnose unexpected UX on legacy clients.
     reportPlatformFeatures();
-    // Phase OB / Gaps 131 + 132 — fetch the feature-flag snapshot.
-    // Silent on 404 until the backend endpoint ships.
-    this.featureFlags.start();
+    // FeatureFlagsService is self-managing — it subscribes to isLoggedIn$
+    // and auto-fetches on login. start() is no longer needed here.
     // Phase RC / Gap 139 — heartbeat presence to other tabs.
     this.presence.start();
     // Phase MX3 / Gap 344 — maintenance-mode banner poll. Idempotent

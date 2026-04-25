@@ -113,3 +113,6 @@ tools/cloudflared.exe
 # C++ benchmark artifacts
 backend/extensions/benchmarks/build/
 backend/extensions/benchmarks/results/
+
+# mkcert localhost TLS certificates — never commit private keys
+nginx/certs/*.pem
