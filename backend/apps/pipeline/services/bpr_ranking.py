@@ -115,9 +115,13 @@ def load_snapshot() -> BPRSnapshot:
 def score_for_user(user_id: str, item_ids: list[str]) -> dict[str, float] | None:
     """Score *item_ids* for a single *user_id*.
 
-    Cold-start safe: missing dep / no model → ``None``. Items the
-    model hasn't seen yet aren't in the output.
+    Cold-start safe: missing dep / no model / toggle off → ``None``.
+    Items the model hasn't seen yet aren't in the output.
     """
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("bpr.enabled", default=True):
+        return None
     snap = load_snapshot()
     if snap.is_empty:
         return None

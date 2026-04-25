@@ -233,6 +233,8 @@ class Phase6PicksSettingsView(APIView):
             incoming = payload.get(pick) or {}
             validated[pick] = _validate_pick(pick, incoming, current[pick])
 
+        from apps.core.runtime_flags import invalidate
+
         for pick, fields in validated.items():
             _persist_settings(
                 pick,
@@ -240,4 +242,8 @@ class Phase6PicksSettingsView(APIView):
                 category="ranking",
                 descriptions=_PICK_DESCRIPTIONS[pick],
             )
+            # Drop the cached flag so consumers see the new value on
+            # their next call instead of waiting up to 60 s.
+            for field in fields:
+                invalidate(f"{pick}.{field}")
         return Response(validated)

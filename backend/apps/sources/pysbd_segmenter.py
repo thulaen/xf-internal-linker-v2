@@ -65,10 +65,17 @@ def split(text: str) -> list[str]:
     regex-based fallback that's worse on edge cases but still
     produces usable output. Real-data ready: install ``pysbd`` and
     the call automatically upgrades.
+
+    Honours the ``pysbd_segmenter.enabled`` AppSetting toggle (cached
+    via :mod:`apps.core.runtime_flags`); when the operator flips the
+    toggle off, this falls back to the regex splitter even if PySBD
+    is installed. Empty input still returns ``[]``.
     """
     if not text or not text.strip():
         return []
-    if HAS_PYSBD:
+    from apps.core.runtime_flags import is_enabled
+
+    if HAS_PYSBD and is_enabled("pysbd_segmenter.enabled", default=True):
         return [s for s in _segmenter().segment(text) if s.strip()]
     # Fallback — naive regex split.
     return [s.strip() for s in _FALLBACK_SPLIT_RE.split(text) if s.strip()]

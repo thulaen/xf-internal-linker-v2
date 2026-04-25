@@ -146,6 +146,10 @@ def predict(text: str) -> LangPrediction:
         return UNDEFINED
     if not HAS_FASTTEXT:
         return UNDEFINED
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("fasttext_langid.enabled", default=True):
+        return UNDEFINED
     path, threshold = _load_model_path_from_settings()
     model = _load_model(path)
     if model is None:

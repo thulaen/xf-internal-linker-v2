@@ -34,22 +34,21 @@ def fix_fasttext_path(apps, schema_editor):
 
 
 def reverse_fix(apps, schema_editor):
-    AppSetting = apps.get_model("core", "AppSetting")
-    AppSetting.objects.update_or_create(
-        key="fasttext_langid.model_path",
-        defaults={
-            "value": "/app/models/lid.176.bin",
-            "description": "Pick #14 FastText LangID model path.",
-            "value_type": "str",
-            "category": "parse",
-        },
-    )
+    """Reverse direction is intentionally a no-op.
+
+    Migration 0044 was created to fix migration 0043's mistake
+    (path /app/models/... is hidden by the docker-compose bind-mount).
+    Restoring that broken value on rollback would re-introduce the
+    bug. If you actually need to roll back past 0044, manually edit
+    the AppSetting row to whatever path your environment uses.
+    """
+    return
 
 
 class Migration(migrations.Migration):
     dependencies = [
         ("suggestions", "0043_seed_phase6_pick_defaults"),
-        ("core", "0001_initial"),
+        ("core", "0013_seed_embedding_provider_defaults"),
     ]
 
     operations = [

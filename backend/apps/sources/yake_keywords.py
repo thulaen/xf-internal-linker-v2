@@ -72,6 +72,10 @@ def extract(
     """
     if not text or not text.strip() or not HAS_YAKE:
         return []
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("yake_keywords.enabled", default=True):
+        return []
     extractor = _yake.KeywordExtractor(
         lan=language,
         n=ngram_max,

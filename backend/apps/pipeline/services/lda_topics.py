@@ -121,9 +121,14 @@ def infer_topics(tokens: list[str]) -> TopicDistribution:
     """Return the topic mixture for *tokens* (a list of words).
 
     Cold-start safe at every layer; returns
-    :data:`EMPTY_DISTRIBUTION` when no model is available.
+    :data:`EMPTY_DISTRIBUTION` when no model is available or when
+    the operator has flipped the ``lda.enabled`` toggle off.
     """
     if not tokens:
+        return EMPTY_DISTRIBUTION
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("lda.enabled", default=True):
         return EMPTY_DISTRIBUTION
     loaded = load_model()
     if loaded is None:

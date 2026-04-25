@@ -123,19 +123,13 @@ class FactorizationMachinesTests(TestCase):
         )
 
     def test_fit_and_predict_round_trip_regression(self) -> None:
-        """Hand-rolled NumPy FM trains a regression model + scores back.
-
-        Real-data integration: the previously-skipped path now runs on
-        every test because we no longer depend on a pip dep that may
-        be missing.
-        """
+        """Hand-rolled NumPy FM trains a regression model + scores back."""
         import os
         import tempfile
 
         from apps.core.models import AppSetting
 
-        # Synthetic regression target: y = a + b + 2*a*b
-        # FM should learn the linear (a, b) and pairwise (a*b) terms.
+        # Synthetic target: y = a + b. Linear-only.
         rng_features = []
         rng_targets = []
         import random
@@ -145,7 +139,7 @@ class FactorizationMachinesTests(TestCase):
             a = rng.uniform(0, 1)
             b = rng.uniform(0, 1)
             rng_features.append({"a": a, "b": b})
-            rng_targets.append(a + b + 2 * a * b)
+            rng_targets.append(a + b)
 
         with tempfile.TemporaryDirectory() as tmp:
             path = os.path.join(tmp, "fm.pkl")
@@ -154,7 +148,7 @@ class FactorizationMachinesTests(TestCase):
                 targets=rng_targets,
                 output_path=path,
                 factors=4,
-                num_iter=20,
+                num_iter=30,
                 learning_rate=0.05,
                 task="regression",
             )
@@ -168,10 +162,95 @@ class FactorizationMachinesTests(TestCase):
             )
             self.assertIsNotNone(preds)
             self.assertEqual(len(preds), 2)
-            # The "a=0,b=0" prediction should be near 0 (target was 0
-            # for that input class). Generous tolerance because 200
-            # samples × 20 iterations is light.
-            self.assertLess(abs(preds[1]), 0.6)
-            # The "a=0.5,b=0.5" target was 0.5 + 0.5 + 0.5 = 1.5 — pred
-            # should be on the positive side.
+            # Sanity: zero input → near zero; bigger input → bigger pred.
+            self.assertLess(abs(preds[1]), 0.4)
             self.assertGreater(preds[0], preds[1])
+
+    def test_fit_learns_pairwise_interaction_better_than_linear_only(self) -> None:
+        """Distinguishes a real FM from a linear-only baseline.
+
+        Synthetic target: y = a XOR b (in continuous form: y = (a-b)^2).
+        A linear regressor cannot fit XOR (the classic 1969 Minsky-Papert
+        critique). A real FM with rank ≥ 1 should fit it via the
+        pairwise term. Rendle 2010 §3.2 uses XOR-like cases as the
+        canonical demonstration of FM expressiveness.
+
+        Tests the *pairwise* term specifically — a linear-only FM
+        (factors=0 or all zero V) would have ~uniform predictions
+        regardless of input, scoring much worse than a real FM.
+        """
+        import os
+        import tempfile
+
+        import numpy as np
+        from apps.core.models import AppSetting
+
+        # Generate a balanced set of (a, b) ∈ {(0,0), (0,1), (1,0), (1,1)}
+        # with continuous noise + the XOR-like target (a-b)^2:
+        # (0,0) → 0, (0,1) → 1, (1,0) → 1, (1,1) → 0.
+        # No linear combination of (a, b) can fit this — needs the
+        # interaction term a*b.
+        rng = np.random.default_rng(0)
+        features = []
+        targets = []
+        for _ in range(200):
+            a = float(rng.choice([0, 1])) + 0.05 * rng.normal()
+            b = float(rng.choice([0, 1])) + 0.05 * rng.normal()
+            features.append({"a": a, "b": b})
+            targets.append((a - b) ** 2)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "fm_xor.pkl")
+            ok = factorization_machines.fit_and_save(
+                features=features,
+                targets=targets,
+                output_path=path,
+                factors=4,
+                num_iter=80,
+                learning_rate=0.05,
+                task="regression",
+            )
+            self.assertTrue(ok)
+            AppSetting.objects.update_or_create(
+                key=factorization_machines.KEY_MODEL_PATH,
+                defaults={"value": path, "description": ""},
+            )
+            # The four canonical XOR points.
+            preds = factorization_machines.predict(
+                [
+                    {"a": 0.0, "b": 0.0},  # target 0
+                    {"a": 0.0, "b": 1.0},  # target 1
+                    {"a": 1.0, "b": 0.0},  # target 1
+                    {"a": 1.0, "b": 1.0},  # target 0
+                ]
+            )
+            self.assertIsNotNone(preds)
+
+            # FM should rank the diagonal (a == b → target 0) BELOW
+            # the off-diagonal (a != b → target 1). A linear-only
+            # model cannot — it would need to put (1,1) above (0,0)
+            # AND below (0,1) simultaneously, which no linear function
+            # can.
+            same_avg = (preds[0] + preds[3]) / 2.0     # both (a==b)
+            diff_avg = (preds[1] + preds[2]) / 2.0     # both (a!=b)
+            self.assertGreater(
+                diff_avg - same_avg,
+                0.3,
+                f"FM did not learn the pairwise interaction: "
+                f"same={same_avg:.3f} vs diff={diff_avg:.3f}. "
+                "A linear-only model fails this check by construction.",
+            )
+            # Also assert the residual MSE is below what a linear-only
+            # baseline (mean(y) ≈ 0.5) would achieve.
+            mse_fm = sum(
+                (p - t) ** 2 for p, t in zip(preds, [0.0, 1.0, 1.0, 0.0])
+            ) / 4.0
+            mse_baseline = sum(
+                (0.5 - t) ** 2 for t in [0.0, 1.0, 1.0, 0.0]
+            ) / 4.0
+            self.assertLess(
+                mse_fm,
+                mse_baseline,
+                f"FM MSE {mse_fm:.3f} should beat the constant-mean "
+                f"baseline {mse_baseline:.3f}.",
+            )

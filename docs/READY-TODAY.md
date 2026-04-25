@@ -10,43 +10,58 @@ Open `http://localhost/` → log in → that's your dashboard. The ranker is doi
 
 ---
 
-## What's switched on right now
+## What's switched on right now (and what "switched on" means)
 
-All 52 picks default to **Enabled**. No operator action is required to turn anything on. Specifically:
+**Important distinction** — "switched on" means two different things in this system, and the docs need to be precise:
 
-### Active immediately (every link suggestion benefits today)
+- **Live in the ranker right now**: every Suggestion you see in the review queue had this signal computed and added to `score_final`. You'd notice immediately if it stopped.
+- **Helper installed + ready, but not yet a live scoring contributor**: the pip package + model file are present, the helper module returns real values when called, the AppSetting toggle exists, scheduled training jobs fire on cadence — but the ranker's `score_destination_matches` doesn't yet call it. To consume the helper, a future commit would add a `score_<pick>` column on `Suggestion` and call the helper from the ranker.
 
-| Pick | What it does | Where you see it |
+Both states are "ready to go", but only the first state changes today's review-queue results.
+
+### Live in the ranker right now (every Suggestion benefits today)
+
+| Pick | Where you see it |
+|---|---|
+| Semantic similarity (BGE-M3) | `score_semantic` |
+| Keyword match | `score_keyword` |
+| PageRank (FR-006) | `score_march_2026_pagerank` |
+| HITS authority + hub | Inside `score_node_affinity` (W3c GraphSignalRanker) |
+| TrustRank, PPR (#30, #36) | Inside `score_node_affinity` (same ranker) |
+| Anchor diversity | `score_anchor_diversity` |
+| Phrase relevance, field-aware relevance, learned anchor, rare term, GA4/GSC, click distance, freshness, FR-099..105 (DARB/KMIG/TAPB/KCIB/BERP/HGTE/RSQVA) | Each has a dedicated `score_*` column |
+| RRF fusion (#31) | Used in candidate fusion when Group C retrievers are enabled |
+| Conformal Prediction #50 + ACI #52 | `confidence_lower_bound` / `confidence_upper_bound` |
+| Uncertainty Sampling #49 | Review queue ordering |
+| Platt Calibration #32 | `calibrated_probability` |
+| Elo #35 | `score_elo_rating` |
+| Auto-Seeder #51 + TrustRank seed selection | Daily scheduled refresh; consumed by HITS/PPR/TrustRank |
+| Position-bias IPS #33 + Cascade Click #34 | Persisted to AppSetting + read by feedback_relevance consumer; populates `score_*` indirectly |
+| Group C Stage-1 retrievers (Lexical #C.2 + QueryExpansion #C.3) | Off by default; flip via Settings → "Stage-1 Candidate Retrievers" |
+
+### The 10 Phase 6 helpers — installed, toggleable, NOT yet live in the ranker
+
+These were the focus of this week's "Wire phase". Each has: pip dep installed, paper-backed defaults seeded in `AppSetting`, a toggle in Settings → "Optional Pick Toggles", lazy-import wrapper, tests, benchmarks, and (where applicable) a weekly scheduled training job that produces real model files.
+
+**They are NOT yet wired into the per-Suggestion scoring loop.** The ranker (`apps/pipeline/services/ranker.py::score_destination_matches`) doesn't call them yet. Wiring each one requires a follow-up PR that:
+1. Adds a `score_<pick>` column to the `Suggestion` model + migration
+2. Calls the helper inside the ranker's per-candidate loop
+3. Adds the column to `recommended_weights.py` blend
+
+| Pick | Status today | What lights up after wiring |
 |---|---|---|
-| Semantic similarity (BGE-M3) | Finds destinations that mean the same thing as the host | Every Suggestion has a `score_semantic` field |
-| Keyword match | Catches literal-phrase overlap | `score_keyword` |
-| PageRank | Boosts well-linked-to destinations | `score_march_2026_pagerank` |
-| HITS | Authority + hub scoring | Pre-computed daily, shows up in `score_node_affinity` |
-| TrustRank | Trust propagated from seed pages | Daily refresh |
-| Personalized PageRank | Topic-biased authority | Daily refresh |
-| Anchor diversity | Stops the same anchor text being used too often | `score_anchor_diversity` |
-| Click distance, freshness, phrase relevance, field-aware relevance, learned anchor, rare term, GA4/GSC, FR-099..105 graph signals | Every fancy ranking feature | `score_*` columns on every Suggestion |
-| RRF fusion (#31) | Combines multiple ranking signals fairly | Inside the ranker — no toggle needed |
-| Conformal prediction (#50) + Adaptive Conformal Inference (#52) | Confidence bands on every score | `confidence_lower_bound` / `confidence_upper_bound` |
-| Uncertainty sampling (#49) | Surfaces the most-uncertain suggestions to you first | Review queue ordering |
-| Elo (#35), Auto-Seeder (#51), QL Dirichlet (#28), Position-bias IPS (#33), Cascade Click (#34) | Behind-the-scenes calibration | Auto-fires when data flows |
+| **VADER #22** (Hutto-Gilbert 2014) | Helper available; toggle on; not consumed | Sentiment-aware ranking; sentiment shown on suggestion-detail dialog |
+| **PySBD #15** (Sadvilkar-Neumann 2020) | Helper available; toggle on; not consumed | More-accurate sentence splits in the parse pipeline |
+| **YAKE! #17** (Campos 2020) | Helper available; toggle on; not consumed | Keyword diagnostics on suggestion-detail dialog |
+| **Trafilatura #7** (Barbaresi 2021) | Helper available; toggle on; not consumed | Used at crawl time when external HTML import lands |
+| **FastText LangID #14** (Joulin 2016) | Helper + 131 MB model available; toggle on; not consumed | Non-English content suppression in candidate pool |
+| **LDA #18** (Blei-Ng-Jordan 2003) | Helper available; weekly W1 trains a real model from corpus titles; not yet consumed | Topical-similarity feature in ranker |
+| **KenLM #23** (Heafield 2011) | Helper + lmplz binary available; weekly W1 trains real model; not yet consumed | Anchor fluency scoring |
+| **Node2Vec #37** (Grover-Leskovec 2016) | Helper available; weekly W1 trains real embeddings; not yet consumed | Graph-structure feature on ranker |
+| **BPR #38** (Rendle 2009) | Helper available; weekly W1 fits on approve/reject; not yet consumed | Personalised ranking score |
+| **Factorization Machines #39** (Rendle 2010) | Hand-rolled NumPy helper available; weekly W1 fits on Suggestion features; not yet consumed | Pairwise feature-interaction score |
 
-### The 10 helpers from the Wire phase (Phase 6 picks)
-
-These are the ones I (the AI) installed and configured this week. Each is paper-backed, defaults to on, and is wired into the pipeline:
-
-| Pick | What it does | First real result expected |
-|---|---|---|
-| **VADER #22** (Hutto-Gilbert 2014) | Reads sentiment of a sentence | Immediate — scores every reviewed Suggestion |
-| **PySBD #15** (Sadvilkar-Neumann 2020) | Splits text into sentences accurately | Immediate — runs on every imported page |
-| **YAKE! #17** (Campos 2020) | Extracts keywords from a document | Immediate |
-| **Trafilatura #7** (Barbaresi 2021) | Strips nav/footer/ads from web pages | Whenever you import a new page |
-| **FastText LangID #14** (Joulin 2016) | Detects which language a text is in | Immediate |
-| **LDA #18** (Blei-Ng-Jordan 2003) | Learns topic distribution per page | First model trained within 7 days |
-| **KenLM #23** (Heafield 2011) | Fluency scoring (does this sentence read naturally?) | First model trained within 7 days |
-| **Node2Vec #37** (Grover-Leskovec 2016) | Graph-structure embeddings | First model trained within 7 days |
-| **BPR #38** (Rendle 2009) | Pairwise ranking from your approve/reject feedback | Once you have ≥ 5 reviewed Suggestions |
-| **Factorization Machines #39** (Rendle 2010) | Learns interactions between ranking features | Once you have ≥ 5 reviewed Suggestions |
+**Why the gap exists:** the original 52-pick plan separated "ship the helper" (Phases 6.1–6.5) from "wire it into the ranker" (the per-pick PRs that would add `Suggestion.score_<pick>` columns). The Wire phase finished the first half; the second half is per-pick follow-up.
 
 ---
 

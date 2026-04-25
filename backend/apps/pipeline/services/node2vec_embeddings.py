@@ -122,7 +122,16 @@ def load_embeddings() -> Node2VecEmbeddings:
 
 
 def vector_for(node_id) -> list[float] | None:
-    """Return the embedding for *node_id* or ``None`` on cold start."""
+    """Return the embedding for *node_id* or ``None`` on cold start.
+
+    Honours the ``node2vec.enabled`` AppSetting toggle (cached via
+    :mod:`apps.core.runtime_flags`); when off, returns ``None`` even
+    if a real model is loaded.
+    """
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("node2vec.enabled", default=True):
+        return None
     emb = load_embeddings()
     if emb.is_empty:
         return None

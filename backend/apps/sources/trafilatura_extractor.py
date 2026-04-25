@@ -74,6 +74,10 @@ def extract(
     """
     if not html or not html.strip() or not HAS_TRAFILATURA:
         return None
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("trafilatura_extractor.enabled", default=True):
+        return None
     # Trafilatura's bare_extraction returns a TrafilaturaDocument /
     # dict-like with keys ['text', 'title', 'author', 'date', ...].
     raw = _trafilatura.bare_extraction(

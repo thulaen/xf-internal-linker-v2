@@ -111,11 +111,16 @@ def score_fluency(sentence: str) -> FluencyScore:
     """Return the LM log-prob for *sentence*.
 
     Empty / whitespace-only input → neutral. Missing pip dep / model
-    file → neutral. Real-data ready: install ``kenlm`` + place a
-    model file at ``AppSetting["kenlm.model_path"]``, and every call
-    upgrades automatically.
+    file → neutral. Operator-flipped-off toggle → neutral. Real-
+    data ready: install ``kenlm`` + place a model file at
+    ``AppSetting["kenlm.model_path"]``, and every call upgrades
+    automatically.
     """
     if not sentence or not sentence.strip():
+        return _NEUTRAL
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("kenlm.enabled", default=True):
         return _NEUTRAL
     model = load_model()
     if model is None:

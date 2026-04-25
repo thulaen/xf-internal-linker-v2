@@ -356,7 +356,10 @@ def reverse_seed(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("suggestions", "0042_suggestion_impression"),
-        ("core", "0001_initial"),
+        # Depend on the latest core migration at the time this seed
+        # was written. Pinning to 0001_initial would break safe
+        # rollback (core 0001 → 0013 → 0001 would orphan this seed).
+        ("core", "0013_seed_embedding_provider_defaults"),
     ]
 
     operations = [

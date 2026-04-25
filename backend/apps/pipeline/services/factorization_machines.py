@@ -176,6 +176,10 @@ def predict(features: list[dict]) -> list[float] | None:
     """
     if not features:
         return []
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("factorization_machines.enabled", default=True):
+        return None
     model, vectorizer = _load_model_and_vectorizer()
     if model is None or vectorizer is None:
         return None
@@ -242,18 +246,27 @@ def fit_and_save(
 
                 # Updates — paper §3.3.
                 w0 -= learning_rate * (grad + regularization * w0)
-                # Linear weights.
+                # Linear weights — only update parameters tied to
+                # non-zero features (Rendle 2010 §3.2 eq. 4: gradient
+                # for w_i is x_i, which is 0 for zero features).
                 mask = xi != 0
                 w[mask] -= learning_rate * (
                     grad * xi[mask] + regularization * w[mask]
                 )
-                # Latent factors — paper eq. 7.
+                # Latent factors — paper §3.2 eq. 6:
                 # ∂pairwise / ∂v_{i,f} = x_i (Σ_j v_{j,f} x_j) − x_i² v_{i,f}
+                # The x_i factor zeroes the gradient for zero
+                # features, so we apply the same mask as the linear
+                # weights — only updating active rows of V keeps the
+                # update consistent with the linear path and avoids
+                # spurious regularisation drift on inactive features.
                 for f in range(factors):
                     sum_vfx = float(np.dot(V[:, f], xi))  # Σ_j v_{j,f} x_j
-                    deriv = xi * sum_vfx - (xi ** 2) * V[:, f]
-                    V[:, f] -= learning_rate * (
-                        grad * deriv + regularization * V[:, f]
+                    deriv_active = xi[mask] * sum_vfx - (
+                        xi[mask] ** 2
+                    ) * V[mask, f]
+                    V[mask, f] -= learning_rate * (
+                        grad * deriv_active + regularization * V[mask, f]
                     )
 
         model = _FmModel(w0=w0, w=w, V=V, task=task)

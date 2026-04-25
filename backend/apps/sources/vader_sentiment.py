@@ -89,8 +89,17 @@ def score(text: str) -> SentimentResult:
     need to special-case anything). Real-data ready: when the
     ``vaderSentiment`` package is installed, every call wires through
     automatically.
+
+    Honours the ``vader_sentiment.enabled`` AppSetting toggle (cached
+    via :mod:`apps.core.runtime_flags`); when the operator flips the
+    toggle off, this returns :data:`NEUTRAL` without invoking the
+    underlying analyser.
     """
     if not text or not HAS_VADER:
+        return NEUTRAL
+    from apps.core.runtime_flags import is_enabled
+
+    if not is_enabled("vader_sentiment.enabled", default=True):
         return NEUTRAL
     raw = _analyzer().polarity_scores(text)
     return SentimentResult(
