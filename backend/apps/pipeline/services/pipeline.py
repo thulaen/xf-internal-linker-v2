@@ -250,6 +250,8 @@ def _execute_pipeline_stages(
         sentence_records=data["sentence_records"],
         paragraph_window=data["paragraph_window"],
         items_in_scope=data["items_in_scope"],
+        # Pick #28 — corpus stats reused at suggestion-write time.
+        keyword_baseline=data.get("keyword_baseline"),
         progress_fn=progress_fn,
     )
     return _finalize_pipeline(**finalize_kwargs)
@@ -270,6 +272,7 @@ def _finalize_pipeline(
     paragraph_window: int,
     items_in_scope: int,
     progress_fn: Callable,
+    keyword_baseline: Any = None,
 ) -> PipelineResult:
     """Apply diversity/filtering, persist suggestions, and return the result."""
     embedding_lookup: dict[ContentKey, np.ndarray] = {
@@ -310,6 +313,10 @@ def _finalize_pipeline(
         content_records=content_records,
         sentence_records=sentence_records,
         rerun_mode=rerun_mode,
+        # Pick #28 — pass the same KeywordBaseline the keyword-
+        # stuffing detector used so QL-Dirichlet doesn't have to
+        # walk the corpus a second time.
+        keyword_baseline=keyword_baseline,
     )
 
     _persist_diagnostics(run_id=run_id, diagnostics=diagnostics)

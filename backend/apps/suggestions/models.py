@@ -539,6 +539,23 @@ class Suggestion(TimestampedModel):
             "given score_final. NULL = uncalibrated (no fit yet)."
         ),
     )
+    # Pick #28 — Query Likelihood with Dirichlet smoothing
+    # (Zhai & Lafferty 2001). Log-probability that the destination's
+    # language model would have generated the host-sentence "query".
+    # Computed at suggestion-write from the same KeywordBaseline the
+    # keyword_stuffing detector already builds (no duplicate corpus
+    # walk). 0.0 = unscored (cold start or empty corpus stats); a
+    # higher (less negative) value means the destination's vocabulary
+    # is a better fit for this sentence.
+    score_query_likelihood = models.FloatField(
+        default=0.0,
+        help_text=(
+            "QL-Dirichlet log-score (Zhai & Lafferty 2001). Reuses the "
+            "corpus stats from the keyword baseline. Higher (closer to "
+            "0) means the destination's vocabulary fits the host "
+            "sentence better. 0.0 = unscored."
+        ),
+    )
 
     # FR-021 Graph and Value Model
     candidate_origin = models.CharField(

@@ -112,6 +112,7 @@ def _persist_suggestions(
     content_records: dict[ContentKey, ContentRecord],
     sentence_records: dict[int, SentenceRecord],
     rerun_mode: str,
+    keyword_baseline: Any = None,
 ) -> int:
     """Create Suggestion records for the selected candidates.
 
@@ -175,6 +176,7 @@ def _persist_suggestions(
         valid_candidates=parts.valid_candidates,
         content_items=content_items,
         sentences=sentences,
+        keyword_baseline=keyword_baseline,
     )
 
     # Wrap delete + bulk_create in a transaction so the database is never
@@ -199,6 +201,7 @@ def _build_suggestion_records(
     valid_candidates: list[ScoredCandidate],
     content_items: dict[int, Any],
     sentences: dict[int, Any],
+    keyword_baseline: Any = None,
 ) -> list[Any]:
     """Build Suggestion model instances from scored candidates.
 
@@ -209,12 +212,26 @@ def _build_suggestion_records(
     snapshot exists yet, ``load_snapshot`` returns ``None`` and we
     leave ``calibrated_probability`` NULL — the panel renders that
     as a dash, never a fake percentage.
+
+    Pick #28 — when ``keyword_baseline`` is supplied (it always is in
+    production paths via :func:`_persist_suggestions`), we build a
+    ``CollectionStatistics`` from it ONCE and run QL-Dirichlet
+    scoring per row using the host-sentence text as the query and
+    the destination's distilled body as the document. The same
+    ``KeywordBaseline`` the keyword-stuffing detector already builds
+    is the corpus stats source — single corpus walk, two consumers.
     """
     from apps.suggestions.models import Suggestion
     from apps.pipeline.services.score_calibrator import (
         calibrate_score,
         load_snapshot as load_calibration_snapshot,
     )
+    from apps.pipeline.services.query_likelihood import (
+        CollectionStatistics,
+        score_document as ql_score_document,
+        tokenised_to_counter,
+    )
+    from apps.pipeline.services.text_tokens import tokenize_text
 
     # Single load per pipeline-pass — the snapshot is small and the
     # cost is one AppSetting query, which is amortised across every
@@ -226,6 +243,23 @@ def _build_suggestion_records(
         # Calibration is advisory; never block suggestion writes on it.
         pass
 
+    # Pick #28 — build CollectionStatistics ONCE from the existing
+    # KeywordBaseline (same corpus walk that powers the keyword-
+    # stuffing detector). Cold start safe: skip QL when no baseline
+    # was supplied or the corpus is empty.
+    ql_stats: CollectionStatistics | None = None
+    if (
+        keyword_baseline is not None
+        and getattr(keyword_baseline, "total_terms", 0) > 0
+    ):
+        try:
+            ql_stats = CollectionStatistics(
+                collection_term_counts=keyword_baseline.term_counts,
+                collection_length=int(keyword_baseline.total_terms),
+            )
+        except Exception:
+            ql_stats = None
+
     records: list[Suggestion] = []
     for candidate in valid_candidates:
         dest_ci = content_items.get(candidate.destination_content_id)
@@ -233,6 +267,27 @@ def _build_suggestion_records(
         host_sentence = sentences.get(candidate.host_sentence_id)
         if dest_ci is None or host_ci is None or host_sentence is None:
             continue
+
+        # Pick #28 — QL-Dirichlet score using the host sentence as
+        # the query and the destination's distilled body as the
+        # document. Returns 0.0 when no corpus stats are available.
+        ql_log_score = 0.0
+        if ql_stats is not None:
+            try:
+                query_tokens = tokenize_text(host_sentence.text or "")
+                doc_tokens = tokenize_text(dest_ci.distilled_text or "")
+                if query_tokens and doc_tokens:
+                    ql_result = ql_score_document(
+                        query_term_counts=tokenised_to_counter(query_tokens),
+                        document_term_counts=tokenised_to_counter(doc_tokens),
+                        document_length=len(doc_tokens),
+                        statistics=ql_stats,
+                    )
+                    ql_log_score = float(ql_result.log_score)
+            except Exception:
+                # QL is advisory — never block suggestion writes.
+                ql_log_score = 0.0
+
         records.append(
             Suggestion(
                 pipeline_run=run,
@@ -304,6 +359,9 @@ def _build_suggestion_records(
                     if calibration_snapshot is not None
                     else None
                 ),
+                # Pick #28 — QL-Dirichlet log-score (Zhai & Lafferty
+                # 2001). 0.0 when corpus stats unavailable.
+                score_query_likelihood=ql_log_score,
                 status="pending",
             )
         )
