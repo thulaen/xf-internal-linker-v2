@@ -6,7 +6,6 @@ import math
 from unittest.mock import patch
 
 import optuna
-import pytest
 from django.test import SimpleTestCase
 
 from apps.pipeline.services.meta_hpo_eval import (
