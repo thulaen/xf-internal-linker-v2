@@ -46,6 +46,27 @@ class SessionCoOccurrencePair(models.Model):
             "Higher = more statistically surprising co-occurrence."
         ),
     )
+    # Pick #24 — Church & Hanks 1990 Pointwise Mutual Information
+    # (and Bouma 2009's normalised variant). Computed from the same
+    # counts as G² in a single pass; complementary statistic — G² is
+    # better at small-count corrections, PMI/NPMI are better at
+    # surfacing genuinely-associated pairs regardless of frequency.
+    pmi_score = models.FloatField(
+        default=0.0,
+        db_index=True,
+        help_text=(
+            "Church & Hanks 1990 Pointwise Mutual Information (base-2). "
+            "Positive = co-occur more than chance; 0 = independent; "
+            "negative = less than chance. Same counts as G²."
+        ),
+    )
+    npmi_score = models.FloatField(
+        default=0.0,
+        help_text=(
+            "Bouma 2009 normalised PMI in [-1, 1]. Easier to threshold "
+            "across corpora of different sizes than raw PMI."
+        ),
+    )
     last_computed_at = models.DateTimeField(auto_now=True)
     data_window_start = models.DateField()
     data_window_end = models.DateField()

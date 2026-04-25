@@ -136,7 +136,19 @@ def _upsert_cooccurrence_pairs(
     window_start: date,
     window_end: date,
 ) -> int:
-    """Compute Jaccard, lift, G-squared and upsert co-occurrence pairs."""
+    """Compute Jaccard, lift, G², PMI/NPMI and upsert co-occurrence pairs.
+
+    Pick #24 — PMI and NPMI are computed from the **same** counts the
+    G² path already iterates, so the loop pays for the score
+    computation exactly once per pair. The two statistics are
+    complementary: G² (Dunning 1993) handles small counts well; PMI
+    (Church & Hanks 1990) surfaces genuinely-associated pairs
+    regardless of frequency. Storing both lets ranking-time consumers
+    pick whichever has better empirical performance for their use case.
+    """
+    from apps.sources.collocations import normalised_pmi as _npmi
+    from apps.sources.collocations import pmi as _pmi
+
     from .models import SessionCoOccurrencePair
 
     pairs_written = 0
@@ -157,6 +169,19 @@ def _upsert_cooccurrence_pairs(
         p_ab = co_count / total_sessions if total_sessions else 0.0
         lift = p_ab / (p_a * p_b) if (p_a * p_b) > 0 else 1.0
         g2 = _compute_log_likelihood(co_count, a_total, b_total, total_sessions)
+        # Pick #24 — same counts, two more scores.
+        pmi_score = _pmi(
+            joint_count=co_count,
+            count_a=a_total,
+            count_b=b_total,
+            total=total_sessions,
+        )
+        npmi_score = _npmi(
+            joint_count=co_count,
+            count_a=a_total,
+            count_b=b_total,
+            total=total_sessions,
+        )
 
         SessionCoOccurrencePair.objects.update_or_create(
             source_content_item_id=a_id,
@@ -168,6 +193,8 @@ def _upsert_cooccurrence_pairs(
                 "jaccard_similarity": round(jaccard, 6),
                 "lift": round(lift, 4),
                 "log_likelihood_score": round(g2, 4),
+                "pmi_score": round(pmi_score, 4),
+                "npmi_score": round(npmi_score, 4),
                 "data_window_start": window_start,
                 "data_window_end": window_end,
             },
