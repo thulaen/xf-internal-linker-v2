@@ -256,6 +256,116 @@ class LexicalRetrieverTests(SimpleTestCase):
         self.assertEqual(result, {})
 
 
+class QueryExpansionRetrieverTests(SimpleTestCase):
+    """Group C.3 — pseudo-relevance feedback retriever (pick #27)."""
+
+    @staticmethod
+    def _record(title: str, scope_title: str = ""):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(title=title, scope_title=scope_title)
+
+    def test_disabled_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import (
+            QueryExpansionRetriever,
+        )
+
+        ret = QueryExpansionRetriever(enabled=False)
+        self.assertEqual(ret.retrieve(_make_context()), {})
+
+    def test_no_overlap_returns_empty(self) -> None:
+        from apps.pipeline.services.candidate_retrievers import (
+            QueryExpansionRetriever,
+        )
+
+        ret = QueryExpansionRetriever(enabled=True)
+        records = {
+            (1, "thread"): self._record("alpha"),
+            (2, "thread"): self._record("beta"),
+        }
+        sentence_ids = {(1, "thread"): [10], (2, "thread"): [20]}
+        self.assertEqual(
+            ret.retrieve(
+                _make_context(
+                    destination_keys=((1, "thread"),),
+                    content_records=records,
+                    content_to_sentence_ids=sentence_ids,
+                )
+            ),
+            {},
+        )
+
+    def test_expansion_pulls_in_synonyms(self) -> None:
+        """Expanded query surfaces hosts that share PRF-discovered terms."""
+        from apps.pipeline.services.candidate_retrievers import (
+            QueryExpansionRetriever,
+        )
+
+        # Dest title is "python tutorial". Hosts 2-4 are "python
+        # variant" pages — they share "python" with the dest, so
+        # they're pseudo-relevant. Their *other* tokens (tutorial,
+        # guide, beginner) become expansion terms when they appear
+        # in ≥ 2 PRF docs. Host 5 has only "tutorial" (no python)
+        # — without expansion it'd be invisible; with expansion,
+        # it surfaces because "tutorial" became an expansion term.
+        records = {
+            (1, "thread"): self._record("python tutorial"),  # dest
+            (2, "thread"): self._record("python tutorial guide"),
+            (3, "thread"): self._record("python beginner tutorial"),
+            (4, "thread"): self._record("python advanced tutorial"),
+            (5, "thread"): self._record("ruby tutorial guide"),
+            (6, "thread"): self._record("unrelated topic"),
+        }
+        sentence_ids = {k: [k[0] * 10] for k in records}
+
+        # Pick min_document_frequency=2 so common terms across the
+        # PRF set surface. PRF top_n=4 covers hosts 2-4.
+        ret = QueryExpansionRetriever(
+            enabled=True,
+            prf_top_n=4,
+            expansion_terms=5,
+            min_document_frequency=2,
+        )
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+                top_k=10,
+            )
+        )
+        sids = result.get((1, "thread"), [])
+        # Host 5 should now appear (carried in by "tutorial" expansion).
+        # Host 6 should NOT appear (no overlap with original or expanded).
+        self.assertIn(50, sids)
+        self.assertNotIn(60, sids)
+
+    def test_falls_back_to_lexical_when_too_few_prf_docs(self) -> None:
+        """Single PRF doc → no expansion; behaves like LexicalRetriever."""
+        from apps.pipeline.services.candidate_retrievers import (
+            QueryExpansionRetriever,
+        )
+
+        records = {
+            (1, "thread"): self._record("python tutorial"),  # dest
+            (2, "thread"): self._record("python beginner"),
+        }
+        sentence_ids = {(1, "thread"): [10], (2, "thread"): [20]}
+        ret = QueryExpansionRetriever(
+            enabled=True, prf_top_n=10, expansion_terms=5
+        )
+        result = ret.retrieve(
+            _make_context(
+                destination_keys=((1, "thread"),),
+                content_records=records,
+                content_to_sentence_ids=sentence_ids,
+            )
+        )
+        # Only host 2 shares "python" with dest; PRF set is size 1
+        # so no expansion runs. Output is the same as plain lexical.
+        self.assertEqual(result.get((1, "thread")), [20])
+
+
 class SemanticRetrieverTests(SimpleTestCase):
     """SemanticRetriever delegates to the original semantic function."""
 

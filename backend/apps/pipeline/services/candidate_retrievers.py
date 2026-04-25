@@ -109,6 +109,82 @@ class SemanticRetriever:
         )
 
 
+# ── Lexical/QueryExpansion shared token-bag helpers (C.2 + C.3) ─
+
+
+def _build_token_set(text: str, *, min_length: int) -> set[str]:
+    """Tokenise *text*; drop short tokens + standard English stopwords.
+
+    Shared between :class:`LexicalRetriever` and
+    :class:`QueryExpansionRetriever` so they stay vocabulary-aligned.
+    """
+    if not text:
+        return set()
+    from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
+
+    out: set[str] = set()
+    for raw in TOKEN_RE.findall(text.lower()):
+        if len(raw) < min_length:
+            continue
+        if raw in STANDARD_ENGLISH_STOPWORDS:
+            continue
+        out.add(raw)
+    return out
+
+
+def _build_host_token_bags(
+    context: RetrievalContext, *, min_length: int
+) -> dict[ContentKey, set[str]]:
+    """Build ``{host_key: token_set}`` from titles + scope titles.
+
+    Only emits hosts that have at least one usable token *and* a
+    non-empty sentence-ID list — sources that can't contribute
+    candidates are filtered out at the bag-build stage.
+    """
+    host_tokens: dict[ContentKey, set[str]] = {}
+    for key, record in context.content_records.items():
+        if key not in context.content_to_sentence_ids:
+            continue
+        if not context.content_to_sentence_ids[key]:
+            continue
+        title = getattr(record, "title", "") or ""
+        scope = getattr(record, "scope_title", "") or ""
+        tokens = _build_token_set(title, min_length=min_length) | _build_token_set(
+            scope, min_length=min_length
+        )
+        if tokens:
+            host_tokens[key] = tokens
+    return host_tokens
+
+
+def _rank_hosts_by_overlap(
+    *,
+    query_tokens: set[str],
+    host_tokens: dict[ContentKey, set[str]],
+    skip_key: ContentKey,
+    host_keys_ordered: list[ContentKey],
+    top_k: int,
+) -> list[ContentKey]:
+    """Return the top-K hosts ranked by token-overlap with *query_tokens*.
+
+    Ties broken on the host's index in ``host_keys_ordered`` for
+    determinism. ``skip_key`` is excluded (typically the destination
+    itself, so the retriever doesn't return a self-link).
+    """
+    scored: list[tuple[int, int, ContentKey]] = []
+    for idx, host_key in enumerate(host_keys_ordered):
+        if host_key == skip_key:
+            continue
+        overlap = len(query_tokens & host_tokens[host_key])
+        if overlap == 0:
+            continue
+        scored.append((-overlap, idx, host_key))
+    if not scored:
+        return []
+    scored.sort()
+    return [hk for _, _, hk in scored[:top_k]]
+
+
 # ── Concrete: LexicalRetriever (Group C.2) ───────────────────────
 
 
@@ -122,8 +198,8 @@ class LexicalRetriever:
 
     Algorithm
     ---------
-    1. Tokenise each destination title via :func:`text_tokens.tokenize`
-       and drop standard stopwords + tokens shorter than 3 chars.
+    1. Tokenise each destination title via :mod:`text_tokens` and
+       drop standard stopwords + tokens shorter than ``min_token_length``.
     2. For each destination, score every host content record by the
        size of the title-token intersection (Jaccard-without-the-divide
        — pure intersection size, since RRF only uses ranks). Tie-break
@@ -131,17 +207,8 @@ class LexicalRetriever:
     3. Take the top-K hosts and emit their full sentence-ID lists,
        mirroring the semantic path's contract.
 
-    This is intentionally simple: no DB query, no new dependency.
-    Token overlap is a weak BM25 substitute but a real **second
-    rank order**, which is exactly what RRF (#31) needs in order to
-    add value over a single source. When the
-    ``stage1.lexical_retriever_enabled`` setting is False the
-    retriever returns ``{}`` and contributes nothing — making C.2
-    feature-flagged off by default until operators enable it.
-
-    Cold-start safe: empty content_records → empty output; no
-    destinations have titles → empty output; lexicalised titles
-    overlap zero hosts → no candidates for that destination.
+    Feature-flagged off by default; enable via the AppSetting
+    ``stage1.lexical_retriever_enabled``. Cold-start safe.
     """
 
     name: str = "lexical"
@@ -156,65 +223,167 @@ class LexicalRetriever:
         if not self.enabled:
             return {}
 
-        from .text_tokens import STANDARD_ENGLISH_STOPWORDS, TOKEN_RE
-
-        def _tokens(text: str) -> set[str]:
-            if not text:
-                return set()
-            out: set[str] = set()
-            for raw in TOKEN_RE.findall(text.lower()):
-                if len(raw) < self.min_token_length:
-                    continue
-                if raw in STANDARD_ENGLISH_STOPWORDS:
-                    continue
-                out.add(raw)
-            return out
-
-        # Build host token bags, indexed by content key.
-        host_tokens: dict[ContentKey, set[str]] = {}
-        for key, record in context.content_records.items():
-            if key not in context.content_to_sentence_ids:
-                continue
-            if not context.content_to_sentence_ids[key]:
-                continue
-            title = getattr(record, "title", "") or ""
-            scope = getattr(record, "scope_title", "") or ""
-            tokens = _tokens(title) | _tokens(scope)
-            if tokens:
-                host_tokens[key] = tokens
-
+        host_tokens = _build_host_token_bags(
+            context, min_length=self.min_token_length
+        )
         if not host_tokens:
             return {}
-
-        result: dict[ContentKey, list[int]] = {}
-        # Stable host iteration order so ties break deterministically.
         host_keys_ordered = list(host_tokens.keys())
 
+        result: dict[ContentKey, list[int]] = {}
         for dest_key in context.destination_keys:
             dest_record = context.content_records.get(dest_key)
             if dest_record is None:
                 continue
             dest_title = getattr(dest_record, "title", "") or ""
             dest_scope = getattr(dest_record, "scope_title", "") or ""
-            dest_token_set = _tokens(dest_title) | _tokens(dest_scope)
+            dest_token_set = _build_token_set(
+                dest_title, min_length=self.min_token_length
+            ) | _build_token_set(dest_scope, min_length=self.min_token_length)
             if not dest_token_set:
                 continue
 
-            # Score every host by intersection size; skip self.
-            scored: list[tuple[int, int, ContentKey]] = []
-            for idx, host_key in enumerate(host_keys_ordered):
-                if host_key == dest_key:
-                    continue
-                overlap = len(dest_token_set & host_tokens[host_key])
-                if overlap == 0:
-                    continue
-                # Sort key: -overlap (higher first), then idx (stable).
-                scored.append((-overlap, idx, host_key))
+            top_hosts = _rank_hosts_by_overlap(
+                query_tokens=dest_token_set,
+                host_tokens=host_tokens,
+                skip_key=dest_key,
+                host_keys_ordered=host_keys_ordered,
+                top_k=context.top_k,
+            )
+            sentence_ids: list[int] = []
+            for host_key in top_hosts:
+                sentence_ids.extend(
+                    context.content_to_sentence_ids.get(host_key, [])
+                )
+            if sentence_ids:
+                result[dest_key] = sentence_ids
+        return result
 
-            if not scored:
+
+# ── Concrete: QueryExpansionRetriever (Group C.3) ─────────────────
+
+
+class QueryExpansionRetriever:
+    """Pseudo-relevance-feedback lexical retriever (pick #27).
+
+    The classic Rocchio (1971) / Lavrenko-Croft (2001) PRF cycle:
+
+    1. Use the destination title tokens as the *original query*.
+    2. Run a first lexical pass — find the top-N pseudo-relevant
+       hosts by plain token-overlap (same algorithm as
+       :class:`LexicalRetriever`).
+    3. Treat those N hosts as evidence; rank co-occurring tokens by
+       :func:`query_expansion_bow.rank_expansion_terms` (Rocchio
+       weighting) to discover synonyms / related-vocabulary terms.
+    4. Re-run the lexical pass with the *expanded* query
+       (original + top-K expansion terms) to surface hosts that
+       didn't share the literal title tokens.
+
+    Why this complements semantic + plain-lexical:
+    - SemanticRetriever already handles synonyms via dense
+      embeddings. PRF gives a second, **interpretable** path —
+      the operator can see exactly which expansion terms pulled
+      a host into the candidate pool (Group C.3 diagnostics in a
+      future commit will surface them).
+    - Different rank order ⇒ adds value to RRF fusion.
+    - Pure Python + the existing helpers; no new pip dep.
+
+    Feature-flagged off by default via the AppSetting
+    ``stage1.query_expansion_retriever_enabled``. Cold-start safe at
+    every layer: no destinations / no host tokens / too few
+    pseudo-relevant docs → returns ``{}`` for that destination.
+    """
+
+    name: str = "query_expansion"
+
+    def __init__(
+        self,
+        *,
+        enabled: bool = False,
+        min_token_length: int = 3,
+        prf_top_n: int = 10,
+        expansion_terms: int = 10,
+        min_document_frequency: int = 2,
+    ):
+        self.enabled = enabled
+        self.min_token_length = min_token_length
+        self.prf_top_n = prf_top_n
+        self.expansion_terms = expansion_terms
+        self.min_document_frequency = min_document_frequency
+
+    def retrieve(
+        self, context: RetrievalContext
+    ) -> dict[ContentKey, list[int]]:
+        if not self.enabled:
+            return {}
+
+        from collections import Counter
+
+        from .query_expansion_bow import rank_expansion_terms
+        from .text_tokens import STANDARD_ENGLISH_STOPWORDS
+
+        host_tokens = _build_host_token_bags(
+            context, min_length=self.min_token_length
+        )
+        if not host_tokens:
+            return {}
+        host_keys_ordered = list(host_tokens.keys())
+        stopwords_frozen = frozenset(STANDARD_ENGLISH_STOPWORDS)
+
+        result: dict[ContentKey, list[int]] = {}
+        for dest_key in context.destination_keys:
+            dest_record = context.content_records.get(dest_key)
+            if dest_record is None:
                 continue
-            scored.sort()
-            top_hosts = [hk for _, _, hk in scored[: context.top_k]]
+            dest_title = getattr(dest_record, "title", "") or ""
+            dest_scope = getattr(dest_record, "scope_title", "") or ""
+            dest_token_set = _build_token_set(
+                dest_title, min_length=self.min_token_length
+            ) | _build_token_set(dest_scope, min_length=self.min_token_length)
+            if not dest_token_set:
+                continue
+
+            # Step 1 — first lexical pass to find pseudo-relevant docs.
+            prf_hosts = _rank_hosts_by_overlap(
+                query_tokens=dest_token_set,
+                host_tokens=host_tokens,
+                skip_key=dest_key,
+                host_keys_ordered=host_keys_ordered,
+                top_k=self.prf_top_n,
+            )
+
+            # Step 2 — derive expansion terms from those docs (when
+            # we have enough). With < 2 PRF docs Rocchio collapses
+            # toward noise; fall back to the plain lexical query.
+            expanded_tokens = set(dest_token_set)
+            if len(prf_hosts) >= 2:
+                prf_term_counts: list[Counter] = [
+                    Counter({tok: 1 for tok in host_tokens[host_key]})
+                    for host_key in prf_hosts
+                ]
+                expansion_records = rank_expansion_terms(
+                    prf_term_counts,
+                    query_terms=dest_token_set,
+                    top_terms=self.expansion_terms,
+                    stopwords=stopwords_frozen,
+                    min_document_frequency=self.min_document_frequency,
+                )
+                for record in expansion_records:
+                    if (
+                        record.term not in dest_token_set
+                        and len(record.term) >= self.min_token_length
+                    ):
+                        expanded_tokens.add(record.term)
+
+            # Step 3 — rank hosts using the expanded query.
+            top_hosts = _rank_hosts_by_overlap(
+                query_tokens=expanded_tokens,
+                host_tokens=host_tokens,
+                skip_key=dest_key,
+                host_keys_ordered=host_keys_ordered,
+                top_k=context.top_k,
+            )
+
             sentence_ids: list[int] = []
             for host_key in top_hosts:
                 sentence_ids.extend(
@@ -355,35 +524,40 @@ def _fuse_via_rrf(
 def default_retrievers() -> list[CandidateRetriever]:
     """Return the production retriever list.
 
-    Group C.2: ``[SemanticRetriever(), LexicalRetriever(...)]`` when
-    the AppSetting ``stage1.lexical_retriever_enabled`` is True,
-    otherwise just ``[SemanticRetriever()]``. The lexical retriever
-    is feature-flagged off by default — operators flip it on once
-    they're comfortable with the RRF fusion path. When flipped on,
-    :func:`run_retrievers` automatically uses RRF (#31) to fuse the
-    two ranked lists per destination.
+    Always-on:
+    - :class:`SemanticRetriever` (the legacy default).
+
+    Opt-in via AppSetting:
+    - :class:`LexicalRetriever` — flipped on by
+      ``stage1.lexical_retriever_enabled``.
+    - :class:`QueryExpansionRetriever` — flipped on by
+      ``stage1.query_expansion_retriever_enabled``.
+
+    When more than one retriever is active, :func:`run_retrievers`
+    automatically uses RRF (#31) to fuse the per-dest ranked lists.
+    Both opt-ins are independent — operators can enable any subset.
     """
     retrievers: list[CandidateRetriever] = [SemanticRetriever()]
-    if _lexical_enabled():
+    if _setting_enabled("stage1.lexical_retriever_enabled"):
         retrievers.append(LexicalRetriever(enabled=True))
+    if _setting_enabled("stage1.query_expansion_retriever_enabled"):
+        retrievers.append(QueryExpansionRetriever(enabled=True))
     return retrievers
 
 
-def _lexical_enabled() -> bool:
-    """Read the on/off switch for the lexical retriever from AppSetting.
+def _setting_enabled(key: str) -> bool:
+    """Read a boolean AppSetting flag with cold-start fallback to False.
 
-    Cold-start safe at every layer: any exception during the lookup
-    (Django not initialised, AppSetting model missing, DB
-    unreachable, migration not applied, ``SimpleTestCase``'s
-    DatabaseOperationForbidden guard) returns False. The retriever
-    stays opt-in; failures only ever bias toward "disabled".
+    Catches every conceivable failure mode (Django not initialised,
+    AppSetting model missing, DB unreachable, migration not applied,
+    ``SimpleTestCase`` DatabaseOperationForbidden guard) and returns
+    False. Opt-in retrievers stay off until the operator deliberately
+    flips them on.
     """
     try:
         from apps.core.models import AppSetting
 
-        row = AppSetting.objects.filter(
-            key="stage1.lexical_retriever_enabled"
-        ).first()
+        row = AppSetting.objects.filter(key=key).first()
     except Exception:
         return False
     if row is None or not row.value:
