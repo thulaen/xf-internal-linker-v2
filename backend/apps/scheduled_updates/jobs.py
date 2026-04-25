@@ -928,32 +928,59 @@ def run_near_duplicate_cluster_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_LOW,
 )
 def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
-    """Weekly re-estimate of Cascade doc relevance from review history (pick #34).
+    """Weekly re-estimate of Cascade doc relevance (pick #34).
 
-    Wraps :func:`apps.pipeline.services.feedback_relevance.compute_and_persist`,
-    which builds Cascade sessions from PipelineRun + Suggestion rows
-    (no GSC dependency — the operator-review cycle is the click stream
-    on this internal-linker product) and persists the per-destination
-    relevance table to AppSetting for the ranker to consume.
+    Two complementary fits run side-by-side:
+
+    1. :func:`feedback_relevance.compute_and_persist` — uses the
+       review-queue history (PipelineRun + Suggestion ranks) as the
+       click stream. Always-on data on an internal-linker product.
+       Persists to ``feedback_relevance.cascade.json``.
+    2. :func:`cascade_click_em_producer.fit_and_persist_from_impressions`
+       — uses the new ``SuggestionImpression`` rows logged by the
+       frontend's review-queue viewport hook. Direct cascade EM on
+       per-impression click data. Cold-start safe: until the
+       frontend hook lands and impressions accumulate, this no-ops
+       cleanly. Persists to ``cascade_click_em.relevance.json``.
+
+    The two tables live in separate AppSetting namespaces — neither
+    overwrites the other. Group A.4 will wire consumers to prefer
+    the impression-based table when populated and fall back to the
+    review-queue table otherwise.
     """
+    from apps.pipeline.services.cascade_click_em_producer import (
+        fit_and_persist_from_impressions as fit_cascade_from_impressions,
+    )
     from apps.pipeline.services.feedback_relevance import compute_and_persist
 
     checkpoint(progress_pct=0.0, message="Aggregating Cascade + IPS feedback")
-    snapshot = compute_and_persist()
-    if snapshot is None:
-        checkpoint(
-            progress_pct=100.0,
-            message="Insufficient review history — fit skipped",
-        )
-        return
+    review_snap = compute_and_persist()
+
     checkpoint(
-        progress_pct=100.0,
-        message=(
-            f"Persisted Cascade ({len(snapshot.cascade_relevance)} dests) + "
-            f"IPS ({len(snapshot.ips_weighted_ctr)} positions) "
-            f"from {snapshot.training_runs} runs"
-        ),
+        progress_pct=50.0,
+        message="Fitting Cascade from SuggestionImpression rows",
     )
+    impression_snap = fit_cascade_from_impressions()
+
+    parts: list[str] = []
+    if review_snap is not None:
+        parts.append(
+            f"review-queue Cascade: {len(review_snap.cascade_relevance)} dests "
+            f"+ IPS CTR: {len(review_snap.ips_weighted_ctr)} positions "
+            f"({review_snap.training_runs} runs)"
+        )
+    else:
+        parts.append("review-queue Cascade: insufficient history")
+    if impression_snap is not None:
+        parts.append(
+            f"impression Cascade: {len(impression_snap.relevance)} dests "
+            f"({impression_snap.sessions} sessions, "
+            f"{impression_snap.observations} impressions)"
+        )
+    else:
+        parts.append("impression Cascade: cold-start (insufficient impressions)")
+
+    checkpoint(progress_pct=100.0, message="; ".join(parts))
 
 
 @scheduled_job(
