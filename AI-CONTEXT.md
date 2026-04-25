@@ -3385,3 +3385,44 @@ context.
   - Full-page Playwright screenshot captured at `C:\Users\goldm\.codex\tmp\playwright-mcp\page-2026-04-23T19-37-42-943Z.png`
 - Commit/push state:
   - Changes are currently uncommitted.
+
+### 2026-04-25 — FR-230 completion phase: Groups A/B/C + Phase 6 + W1 wirings (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Closed the four 52-pick blockers from `plans/check-how-many-pending-tidy-iverson.md`, shipped the 11 missing Phase 6 helpers, wired the 4 deferred W1 jobs end-to-end, and added benchmarks + FR-roster updates. Sixteen functional commits + four governance/handoff commits across the day.
+- **Phases / commits:**
+  - **Group A (4 commits):** SuggestionImpression model + DRF endpoint (`9067e7d`), IPS #33 producer (`abc38ed`), Cascade #34 producer (`7101352`), consumer wire into `feedback_relevance` (`b47e7bd`).
+  - **Group B (2 commits):** PQ #20 producer + `pq_code` BinaryField column (`1df6609`), PQ read-path helpers `decode_pq_codes` + `pq_cosine_for_pks` (`f35d7b0`).
+  - **Group C (3 commits):** Stage-1 list-of-retrievers refactor (`2ec1814`), `LexicalRetriever` + Stage-1.5 RRF fusion #31 (`16bb821`), `QueryExpansionRetriever` #27 with Rocchio PRF (`5e7479b`).
+  - **Phase 6 (5 commits):** VADER #22 + PySBD #15 + YAKE! #17 wrappers (`5860615`), Trafilatura #7 + FastText LangID #14 wrappers (`5831de4`), LDA #18 + KenLM #23 wrappers + LDA W1 wired (`56a9721`), Node2Vec #37 + BPR #38 + FM #39 wrappers (`d3b7bf3`), `apps.training` Django app for #41-46 (`c14f45f`).
+  - **W1 wirings (1 commit):** node2vec_walks + bpr_refit + factorization_machines_refit + kenlm_retrain (`f74eb66`).
+  - **Phase 7 governance (3 commits):** benchmarks for Phase 6 helpers (`8801092`), FR-230 roster table flipped to "Shipped" for the 16 picks done this session (`fadd09a`), this AI-CONTEXT entry.
+- **Architectural decisions and WHY:**
+  - **Producer/consumer split with AppSetting JSON snapshots** for picks #20, #33, #34 — same pattern Platt (#32), Conformal (#50), ACI (#52), Elo (#35) already use. Each producer fits on real data + persists; consumers read with cold-start fallbacks. No code-path changes to existing production callers.
+  - **Two complementary data sources for IPS+Cascade** — review-queue history (always available) AND SuggestionImpression rows (frontend hook required). Both run side-by-side in W1 jobs; consumers prefer impression-based when populated, fall back to review-queue, fall back to neutral 0.5. Two distinct AppSetting namespaces.
+  - **Stage-1 list-of-retrievers + RRF unifier** — different retrievers (semantic, lexical, query-expansion) have incompatible inputs (embeddings vs tokens vs PRF docs); a class hierarchy would force-fit them. Protocol + free unifier function lets each retriever own its inputs while the unifier sees `dict[ContentKey, list[int]]` outputs.
+  - **RRF fusion is opt-in (multi-retriever case only).** Single-retriever default → pass-through, byte-equivalent to legacy single-source. Multi-retriever default → RRF (#31) per dest. AppSetting flags (`stage1.lexical_retriever_enabled`, `stage1.query_expansion_retriever_enabled`) gate the new retrievers; default off.
+  - **Phase 6 helpers use FAISS-style lazy-import.** Module-level `HAS_<DEP>` flag + `is_available()` predicate + cold-start fallback inside every public function. Modules never crash at import time when their optional pip dep is missing.
+  - **`apps.training` is the single sanctioned new Django app** (per the plan's Anti-Spaghetti Charter). Six sub-packages — `optim/` #41, `hpo/` #42, `schedule/` #43, `loss/` #44, `avg/` #45, `sample/` #46.
+  - **W1 wirings reuse existing graph/feedback extractors.** node2vec_walks reuses `_load_networkx_graph` (same loader as HITS / PPR / TrustRank). bpr_refit + factorization_machines_refit consume `Suggestion.status='approved/rejected'` rows. kenlm_retrain pipes `Sentence.text` to the `lmplz` binary via subprocess (the official KenLM training tool — `pip kenlm` is inference-only).
+  - **No invasive PQ read-path swap.** pgvector's `<=>` is fine at our 100k-page target; PQ wins at >10M rows. Helpers are ready for future opt-in consumers (clustering, near-dup, batch similarity).
+- **Migrations applied:** `content.0031_contentitem_pq_code_contentitem_pq_code_version` (two nullable BinaryField/CharField columns; reversible AddField). Migration `suggestions.0042_suggestion_impression` shipped earlier in Group A.1.
+- **AppSetting keys introduced** (operators populate as needed):
+  - Stage-1 retrievers: `stage1.lexical_retriever_enabled`, `stage1.query_expansion_retriever_enabled` (booleans, default False).
+  - Phase 6 model paths: `fasttext_langid.model_path` + `.min_confidence`, `kenlm.model_path`, `lda.model_path` + `.dictionary_path` + `.num_topics`, `node2vec.embeddings_path`, `bpr.model_path`, `factorization_machines.model_path`, `product_quantization.codebook` + 7 sibling fields.
+- **Test counts (post-session):** apps.pipeline = 579, apps.sources = 163, apps.training = 22, apps.scheduled_updates = 110+ (incl. 9 new W1-job tests). Full broader sweep: 800+ tests, all green. Phantom gate clean.
+- **Verification on rebuilt prod stack:**
+  - `docker-compose exec -T backend python manage.py test apps.pipeline apps.sources apps.training apps.scheduled_updates` → all green.
+  - `python backend/scripts/check_phantom_references.py` → exit 0.
+  - Migration applies + rolls back cleanly via `migrate content 0030` ↔ `migrate content 0031`.
+- **What's NOT done:**
+  - **Frontend UI** for the new AppSetting flags (`stage1.lexical_retriever_enabled`, `stage1.query_expansion_retriever_enabled`) — operators set them via Django admin or shell for now.
+  - **NDCG smoke test** on a sample site comparing pre/post Group C / Phase 6 ship state.
+  - **`docs/BUSINESS-LOGIC-CHECKLIST.md`** is a procedural checklist for sessions, not a per-pick log — no per-pick entries to add. The checklist itself is up to date.
+  - **Per-spec governance-checkbox closure** in `docs/specs/pick-*.md` — mechanical paperwork, can be a follow-up session.
+  - **Hot-path PQ read-path swap** — deferred until profiling justifies (>10M rows or pgvector bottleneck).
+- **Session Gate compliance:**
+  - Read `AI-CONTEXT.md`, the 52-pick plan, `AGENT-HANDOFF.md` (latest two entries), `CLAUDE.md`, `frontend/FRONTEND-RULES.md` (no frontend work this session), `backend/PYTHON-RULES.md`, `docs/PERFORMANCE.md` before writing code.
+  - Anti-Spaghetti Charter respected: only one new Django app (`apps.training`), no new C++ kernels, all helpers in `apps.sources` or `apps.pipeline.services`, Pattern A (sidecar) and Pattern B (lazy-import) — no third pattern invented.
+  - Mandatory benchmark rule satisfied for all hot-path Phase 6 helpers via `backend/benchmarks/test_bench_phase6_helpers.py` — three input sizes per helper.
+- **Changes committed:** Yes — 20 commits ahead of origin/master on the master branch (no new branches per project rules). User asked for this session's work to be committed iteratively rather than as a single PR.
