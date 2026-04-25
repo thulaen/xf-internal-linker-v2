@@ -288,6 +288,31 @@ def _build_suggestion_records(
                 # QL is advisory — never block suggestion writes.
                 ql_log_score = 0.0
 
+        # Pick #32 — Platt-calibrated probability. None when no
+        # snapshot exists; otherwise a [0, 1] probability.
+        calibrated_probability: float | None = (
+            calibrate_score(
+                float(candidate.score_final),
+                snapshot=calibration_snapshot,
+            )
+            if calibration_snapshot is not None
+            else None
+        )
+
+        # Pick #49 — Lewis & Gale 1994 least-confidence uncertainty
+        # on the binary calibrated probability. Higher = more
+        # uncertain → review first. None when calibration is None.
+        uncertainty: float | None
+        if calibrated_probability is None:
+            uncertainty = None
+        else:
+            # Binary least-confidence: 1 - max(p, 1-p). Equivalent to
+            # the value uncertainty_sampling.score() returns for a
+            # 1-D probability iterable, but inlined to avoid the
+            # numpy round-trip per row.
+            p = float(calibrated_probability)
+            uncertainty = 1.0 - max(p, 1.0 - p)
+
         records.append(
             Suggestion(
                 pipeline_run=run,
@@ -349,18 +374,12 @@ def _build_suggestion_records(
                 hgte_diagnostics=getattr(candidate, "hgte_diagnostics", {}) or {},
                 rsqva_diagnostics=getattr(candidate, "rsqva_diagnostics", {}) or {},
                 score_final=candidate.score_final,
-                # Pick #32 — Platt-calibrated probability. NULL when
-                # no snapshot exists; otherwise a [0, 1] probability.
-                calibrated_probability=(
-                    calibrate_score(
-                        float(candidate.score_final),
-                        snapshot=calibration_snapshot,
-                    )
-                    if calibration_snapshot is not None
-                    else None
-                ),
-                # Pick #28 — QL-Dirichlet log-score (Zhai & Lafferty
-                # 2001). 0.0 when corpus stats unavailable.
+                # Pick #32 — Platt-calibrated probability.
+                calibrated_probability=calibrated_probability,
+                # Pick #49 — Lewis-Gale 1994 least-confidence
+                # uncertainty derived from the same probability.
+                uncertainty_score=uncertainty,
+                # Pick #28 — QL-Dirichlet log-score.
                 score_query_likelihood=ql_log_score,
                 status="pending",
             )

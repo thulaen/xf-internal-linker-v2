@@ -556,6 +556,23 @@ class Suggestion(TimestampedModel):
             "sentence better. 0.0 = unscored."
         ),
     )
+    # Pick #49 — Lewis & Gale 1994 uncertainty score (least-confidence
+    # by default — ``1 - max(P, 1-P)`` for the binary review case).
+    # Computed at suggestion-write directly from
+    # ``calibrated_probability`` so review-queue ordering can surface
+    # the model's least-confident cases first. NULL when no
+    # ``calibrated_probability`` is available (cold start before the
+    # W3a Platt fit-job has run).
+    uncertainty_score = models.FloatField(
+        null=True,
+        blank=True,
+        db_index=True,
+        help_text=(
+            "Lewis-Gale 1994 uncertainty (least-confidence on the "
+            "binary calibrated_probability). Higher = more uncertain "
+            "→ review first. NULL when calibrated_probability is NULL."
+        ),
+    )
 
     # FR-021 Graph and Value Model
     candidate_origin = models.CharField(
