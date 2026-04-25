@@ -150,9 +150,20 @@ def _upsert_content_item(
     c_type: str,
     current_scope: Any,
 ) -> Any:
-    """Create or fully update a ``ContentItem`` row and return it."""
+    """Create or fully update a ``ContentItem`` row and return it.
+
+    Pick #4 — After the upsert succeeds we mark the resulting primary
+    key in the Bloom-filter registry. The W1 ``bloom_filter_ids_rebuild``
+    scheduled job is the durable source of truth (rebuilt weekly from
+    the ContentItem table); marking inline here keeps the in-process
+    filter current within a session so other consumers — diagnostics
+    panels, future "is this a new id?" fast-skip paths in bulk
+    importers — get accurate ``is_known`` answers without waiting for
+    the next rebuild.
+    """
     from apps.content.models import ContentItem
     from apps.pipeline.services.link_parser import normalize_internal_url
+    from apps.sources.bloom_filter_registry import REGISTRY as BLOOM_REGISTRY
 
     canonical_url = normalize_internal_url(parsed.view_url) or parsed.view_url
     content_item, _ = ContentItem.objects.get_or_create(
@@ -194,6 +205,19 @@ def _upsert_content_item(
             "updated_at",
         ]
     )
+    # Pick #4 — keep the Bloom-filter registry warm. ``mark`` is O(1)
+    # and forgives a missing snapshot (creates an empty filter on first
+    # call), so the importer doesn't have to special-case cold start.
+    try:
+        BLOOM_REGISTRY.mark(content_item.pk)
+    except Exception:
+        # The Bloom filter is an optimisation — never let it block an
+        # import. The next weekly rebuild will pick the row up anyway.
+        logger.debug(
+            "BloomFilterRegistry.mark failed for pk=%s — continuing import",
+            content_item.pk,
+            exc_info=True,
+        )
     return content_item
 
 
