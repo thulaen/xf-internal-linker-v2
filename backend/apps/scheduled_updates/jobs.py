@@ -909,22 +909,228 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
     )
 
 
-scheduled_job(
+@scheduled_job(
     "kenlm_retrain",
     display_name="KenLM trigram retrain",
     cadence_seconds=WEEK,
     estimate_seconds=20 * 60,
     priority=JOB_PRIORITY_MEDIUM,
-)(_deferred_pick_entrypoint("KenLM retrain", "kenlm + lmplz"))
+)
+def run_kenlm_retrain(job, checkpoint) -> None:
+    """Weekly KenLM trigram refit over corpus sentences (pick #23).
+
+    W1.4 wiring (replaces the deferred stub): builds a corpus of
+    sentence text from existing :class:`Sentence` rows, pipes it to
+    the ``lmplz`` binary via subprocess, and writes the resulting
+    ARPA file to ``MEDIA_ROOT/kenlm/model.arpa``. Sets the
+    ``kenlm.model_path`` AppSetting so :func:`kenlm_fluency.score_fluency`
+    auto-activates on the next call.
+
+    Cold-start safe at every layer:
+    - ``kenlm`` pip dep missing AND ``lmplz`` not on PATH →
+      ``DeferredPickError`` so the operator sees the deferred state.
+    - ``lmplz`` available but ``kenlm`` pip missing → still trains
+      the ARPA file (operator can install ``kenlm`` later for
+      inference). Reports the half-state in the progress message.
+    - <100 sentences → no-op (lmplz needs a real corpus).
+    - Subprocess failure → logged + AppSetting untouched.
+
+    Real-data ready: install ``kenlm`` (pip) and `lmplz` (apt /
+    brew / source build) and the W1 job auto-fits.
+    """
+    from apps.pipeline.services import kenlm_fluency
+
+    pip_ok = kenlm_fluency.is_available()
+    binary_ok = kenlm_fluency.lmplz_available()
+
+    if not (pip_ok or binary_ok):
+        checkpoint(
+            progress_pct=0.0,
+            message="KenLM deferred — install `kenlm` pip dep AND `lmplz` binary",
+        )
+        raise DeferredPickError(
+            "KenLM retrain requires both the `kenlm` pip package (for inference) "
+            "and the `lmplz` binary (for training). Neither is currently available."
+        )
+
+    if not binary_ok:
+        checkpoint(
+            progress_pct=0.0,
+            message="`lmplz` binary not on PATH — KenLM retrain deferred",
+        )
+        raise DeferredPickError(
+            "KenLM retrain requires the `lmplz` binary. Install via "
+            "`apt install kenlm-tools` or build from source."
+        )
+
+    import os
+
+    from django.conf import settings as django_settings
+
+    from apps.content.models import Sentence
+    from apps.core.models import AppSetting
+
+    checkpoint(progress_pct=10.0, message="Loading sentences from corpus")
+
+    # Only feed reasonably-clean sentences. Skip empty / very short
+    # rows — they don't help trigram statistics.
+    corpus_lines: list[str] = []
+    for text in Sentence.objects.values_list("text", flat=True).iterator(
+        chunk_size=5000
+    ):
+        if not text:
+            continue
+        cleaned = " ".join(text.split())
+        if len(cleaned) < 10:
+            continue
+        corpus_lines.append(cleaned)
+
+    if len(corpus_lines) < 100:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Only {len(corpus_lines)} sentences (<100) — KenLM retrain skipped",
+        )
+        return
+
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, "kenlm")
+    os.makedirs(out_dir, exist_ok=True)
+    output_path = os.path.join(out_dir, "model.arpa")
+
+    checkpoint(
+        progress_pct=30.0,
+        message=f"Running lmplz over {len(corpus_lines)} sentences (trigram)",
+    )
+    ok = kenlm_fluency.fit_arpa_with_lmplz(
+        corpus_lines=corpus_lines,
+        output_arpa_path=output_path,
+        order=3,
+    )
+    if not ok:
+        checkpoint(
+            progress_pct=100.0,
+            message="lmplz reported failure — keeping previous KenLM model",
+        )
+        return
+
+    AppSetting.objects.update_or_create(
+        key=kenlm_fluency.KEY_MODEL_PATH,
+        defaults={
+            "value": output_path,
+            "description": (
+                "Pick #23 KenLM trigram fluency model — refit weekly by "
+                "kenlm_retrain via the lmplz binary. ARPA format; "
+                "loaded directly by kenlm.Model."
+            ),
+        },
+    )
+    half_state = "" if pip_ok else " (kenlm pip dep still missing — install for inference)"
+    checkpoint(
+        progress_pct=100.0,
+        message=f"KenLM ARPA persisted from {len(corpus_lines)} sentences{half_state}",
+    )
 
 
-scheduled_job(
+@scheduled_job(
     "node2vec_walks",
     display_name="Node2Vec random walks + embedding",
     cadence_seconds=WEEK,
     estimate_seconds=35 * 60,
     priority=JOB_PRIORITY_MEDIUM,
-)(_deferred_pick_entrypoint("Node2Vec walks", "node2vec / gensim"))
+)
+def run_node2vec_walks(job, checkpoint) -> None:
+    """Weekly Node2Vec embedding refit over the internal-link graph (pick #37).
+
+    W1.1 wiring (replaces the deferred stub): reuses the same
+    weighted-PageRank graph loader that the HITS / PPR / TrustRank
+    jobs use — no new graph extractor. Edge list is derived from the
+    persisted adjacency matrix, fed straight into the
+    :func:`node2vec_embeddings.fit_and_save` helper, which trains
+    via ``node2vec`` + ``gensim`` and pickles the per-node vector dict.
+
+    Cold-start safe end-to-end:
+    - Pip dep missing → raises ``DeferredPickError`` so operators see
+      the deferred state in the dashboard.
+    - Graph empty (no internal links yet) → no-op with progress note.
+    - Training raises → ``fit_and_save`` returns False; job logs and
+      finishes cleanly.
+    - Successful train → AppSetting ``node2vec.embeddings_path`` points
+      at the persisted pickle so :func:`vector_for` auto-activates.
+    """
+    from apps.pipeline.services import node2vec_embeddings
+
+    if not node2vec_embeddings.is_available():
+        checkpoint(
+            progress_pct=0.0,
+            message="Node2Vec deferred — install `node2vec` + `gensim` to enable",
+        )
+        raise DeferredPickError(
+            "Node2Vec depends on `node2vec` (which itself wraps gensim + networkx) "
+            "which is not installed."
+        )
+
+    import os
+
+    from django.conf import settings as django_settings
+
+    g = _load_networkx_graph(checkpoint)
+    if g.number_of_nodes() < 2:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Graph has only {g.number_of_nodes()} nodes — skip Node2Vec",
+        )
+        return
+
+    # Convert the directed graph's edges into (src, dst, weight) triples.
+    # node2vec internally treats them as undirected for walks; weights
+    # bias the walk transition probabilities.
+    edges: list[tuple] = []
+    for src, dst, data in g.edges(data=True):
+        weight = float(data.get("weight", 1.0)) if data else 1.0
+        # Use a string-stable key per the helper's API contract — the
+        # underlying Word2Vec needs hashable string nodes.
+        edges.append((str(src), str(dst), weight))
+
+    if not edges:
+        checkpoint(progress_pct=100.0, message="No edges in graph — skip Node2Vec")
+        return
+
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, "node2vec")
+    os.makedirs(out_dir, exist_ok=True)
+    output_path = os.path.join(out_dir, "embeddings.pkl")
+
+    checkpoint(
+        progress_pct=20.0,
+        message=f"Training Node2Vec over {g.number_of_nodes()} nodes / {len(edges)} edges",
+    )
+    ok = node2vec_embeddings.fit_and_save(
+        edges=edges,
+        output_path=output_path,
+    )
+    if not ok:
+        checkpoint(
+            progress_pct=100.0,
+            message="Node2Vec training reported failure — keeping previous embeddings",
+        )
+        return
+
+    from apps.core.models import AppSetting
+
+    AppSetting.objects.update_or_create(
+        key=node2vec_embeddings.KEY_EMBEDDINGS_PATH,
+        defaults={
+            "value": output_path,
+            "description": (
+                "Pick #37 Node2Vec embeddings — refit weekly by node2vec_walks. "
+                "Pickled dict {node_str: vector}."
+            ),
+        },
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=f"Node2Vec persisted: {g.number_of_nodes()} node embeddings",
+    )
 
 
 @scheduled_job(
@@ -1170,22 +1376,256 @@ def run_position_bias_ips_refit(job, checkpoint) -> None:
     checkpoint(progress_pct=100.0, message="; ".join(parts))
 
 
-scheduled_job(
+@scheduled_job(
     "factorization_machines_refit",
     display_name="Factorization Machines refit",
     cadence_seconds=WEEK,
     estimate_seconds=10 * 60,
     priority=JOB_PRIORITY_LOW,
-)(_deferred_pick_entrypoint("Factorization Machines", "pyfm / libFM"))
+)
+def run_factorization_machines_refit(job, checkpoint) -> None:
+    """Weekly FM refit over operator-feedback Suggestion features (pick #39).
+
+    W1.3 wiring (replaces the deferred stub): builds DictVectorizer-
+    friendly feature dicts from each reviewed Suggestion's existing
+    score columns (semantic, keyword, node, quality, FR099-FR105
+    diagnostics if populated). Target = 1.0 for approved, 0.0 for
+    rejected. The trained FM learns pairwise interactions between
+    those scores that linear blends miss.
+
+    Cold-start safe end-to-end:
+    - Pip dep missing → ``DeferredPickError``.
+    - <5 reviewed rows → no-op.
+    - All targets identical (no signal) → no-op via
+      :func:`fit_and_save`'s internal guard.
+    - Training failure → logged + previous model preserved.
+
+    Real-data ready: install ``pyfm`` + ``scikit-learn`` and the next
+    weekly run starts producing FM scores via :func:`predict`.
+    """
+    from apps.pipeline.services import factorization_machines
+
+    if not factorization_machines.is_available():
+        checkpoint(
+            progress_pct=0.0,
+            message="FM deferred — install `pyfm` + `scikit-learn` to enable",
+        )
+        raise DeferredPickError(
+            "Factorization Machines depend on `pyfm` (Cython libFM) which is not installed."
+        )
+
+    import os
+    from datetime import timedelta
+
+    from django.conf import settings as django_settings
+    from django.utils import timezone
+
+    from apps.core.models import AppSetting
+    from apps.suggestions.models import Suggestion
+
+    cutoff = timezone.now() - timedelta(days=90)
+    rows = list(
+        Suggestion.objects.filter(
+            updated_at__gte=cutoff,
+            status__in=["approved", "rejected"],
+        ).values(
+            "score_semantic",
+            "score_keyword",
+            "score_node_affinity",
+            "score_quality",
+            "score_link_freshness",
+            "score_phrase_relevance",
+            "score_field_aware_relevance",
+            "score_rare_term_propagation",
+            "score_anchor_diversity",
+            "anchor_confidence",
+            "status",
+        )
+    )
+    if len(rows) < 5:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Only {len(rows)} reviewed rows — FM refit skipped",
+        )
+        return
+
+    # Build feature dicts. DictVectorizer turns categorical strings
+    # (anchor_confidence) into one-hot columns automatically and
+    # leaves numeric fields alone — no manual encoding.
+    features: list[dict] = []
+    targets: list[float] = []
+    for row in rows:
+        feats: dict = {
+            "score_semantic": float(row.get("score_semantic") or 0.0),
+            "score_keyword": float(row.get("score_keyword") or 0.0),
+            "score_node_affinity": float(row.get("score_node_affinity") or 0.0),
+            "score_quality": float(row.get("score_quality") or 0.0),
+            "score_link_freshness": float(row.get("score_link_freshness") or 0.0),
+            "score_phrase_relevance": float(row.get("score_phrase_relevance") or 0.0),
+            "score_field_aware_relevance": float(
+                row.get("score_field_aware_relevance") or 0.0
+            ),
+            "score_rare_term_propagation": float(
+                row.get("score_rare_term_propagation") or 0.0
+            ),
+            "score_anchor_diversity": float(
+                row.get("score_anchor_diversity") or 0.0
+            ),
+            f"anchor_confidence={row.get('anchor_confidence') or 'none'}": 1.0,
+        }
+        features.append(feats)
+        targets.append(1.0 if row.get("status") == "approved" else 0.0)
+
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, "fm")
+    os.makedirs(out_dir, exist_ok=True)
+    output_path = os.path.join(out_dir, "model.pkl")
+
+    checkpoint(
+        progress_pct=20.0,
+        message=f"Training FM over {len(features)} reviewed Suggestions",
+    )
+    ok = factorization_machines.fit_and_save(
+        features=features,
+        targets=targets,
+        output_path=output_path,
+        task="classification",
+    )
+    if not ok:
+        checkpoint(
+            progress_pct=100.0,
+            message="FM training reported failure — keeping previous model",
+        )
+        return
+
+    AppSetting.objects.update_or_create(
+        key=factorization_machines.KEY_MODEL_PATH,
+        defaults={
+            "value": output_path,
+            "description": (
+                "Pick #39 Factorization Machines — refit weekly by "
+                "factorization_machines_refit. Captures pairwise score "
+                "interactions linear blends miss."
+            ),
+        },
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=f"FM persisted: {len(features)} samples × {len(features[0])} features",
+    )
 
 
-scheduled_job(
+@scheduled_job(
     "bpr_refit",
     display_name="BPR matrix factorisation refit",
     cadence_seconds=WEEK,
     estimate_seconds=15 * 60,
     priority=JOB_PRIORITY_LOW,
-)(_deferred_pick_entrypoint("BPR refit", "implicit"))
+)
+def run_bpr_refit(job, checkpoint) -> None:
+    """Weekly BPR refit over operator approve/reject feedback (pick #38).
+
+    W1.2 wiring (replaces the deferred stub): treats every host-content
+    item as a "user" in BPR's terminology and every destination as
+    an "item". An *approved* Suggestion is a positive interaction
+    (weight 1.0), a *rejected* one is implicit-skip evidence
+    (negative example via BPR's pairwise loss). The result is a
+    user-item factorisation that captures latent affinity between
+    hosts and destinations beyond what cosine alone shows.
+
+    Cold-start safe at every layer:
+    - Pip dep missing → ``DeferredPickError``.
+    - Fewer than 5 interactions in the lookback window → no-op.
+    - Training failure → logged, AppSetting untouched, prior model
+      remains active.
+
+    Real-data ready: install ``implicit`` and the W1 job auto-fits
+    the next time it runs. ``score_for_user(host_pk_str, dest_pks)``
+    returns dense scores once the AppSetting path is populated.
+    """
+    from apps.pipeline.services import bpr_ranking
+
+    if not bpr_ranking.is_available():
+        checkpoint(
+            progress_pct=0.0,
+            message="BPR deferred — install `implicit` to enable",
+        )
+        raise DeferredPickError(
+            "BPR depends on `implicit` (Cython-backed pairwise LTR) which is not installed."
+        )
+
+    import os
+    from datetime import timedelta
+
+    from django.conf import settings as django_settings
+    from django.utils import timezone
+
+    from apps.core.models import AppSetting
+    from apps.suggestions.models import Suggestion
+
+    # Lookback window — match the IPS / Cascade producers so we
+    # never train on a stale pool that diverges from the other
+    # feedback signals.
+    cutoff = timezone.now() - timedelta(days=90)
+    rows = list(
+        Suggestion.objects.filter(
+            updated_at__gte=cutoff,
+            status__in=["approved", "rejected"],
+        ).values_list("host_id", "destination_id", "status")
+    )
+    if len(rows) < 5:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Only {len(rows)} approve/reject rows — refit skipped",
+        )
+        return
+
+    # Translate each row into BPR-style ``(user_id, item_id, weight)``.
+    # ``approved`` → weight 1.0 (strong positive). ``rejected`` →
+    # weight 0.1 (weak signal — BPR uses the implicit-feedback
+    # convention where any nonzero weight means "the user saw this
+    # item"; the pairwise loss does the rest).
+    interactions: list[tuple[str, str, float]] = []
+    for host_id, dest_id, status in rows:
+        if host_id is None or dest_id is None:
+            continue
+        weight = 1.0 if status == "approved" else 0.1
+        interactions.append((str(host_id), str(dest_id), weight))
+
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, "bpr")
+    os.makedirs(out_dir, exist_ok=True)
+    output_path = os.path.join(out_dir, "model.pkl")
+
+    checkpoint(
+        progress_pct=20.0,
+        message=f"Training BPR over {len(interactions)} interactions",
+    )
+    ok = bpr_ranking.fit_and_save(
+        interactions=interactions,
+        output_path=output_path,
+    )
+    if not ok:
+        checkpoint(
+            progress_pct=100.0,
+            message="BPR training reported failure — keeping previous model",
+        )
+        return
+
+    AppSetting.objects.update_or_create(
+        key=bpr_ranking.KEY_MODEL_PATH,
+        defaults={
+            "value": output_path,
+            "description": (
+                "Pick #38 BPR (Bayesian Personalized Ranking) — refit "
+                "weekly by bpr_refit. Pickled implicit.bpr model + indexes."
+            ),
+        },
+    )
+    checkpoint(
+        progress_pct=100.0,
+        message=f"BPR persisted: {len(interactions)} interactions trained",
+    )
 
 
 @scheduled_job(

@@ -147,3 +147,115 @@ def perplexity(sentence: str) -> float:
     if score is _NEUTRAL or score.token_count == 0:
         return math.inf
     return math.exp(-score.per_token)
+
+
+# ── Producer (W1.4 wiring — lmplz subprocess) ────────────────────
+
+
+def lmplz_available() -> bool:
+    """True when the ``lmplz`` binary is on ``$PATH``.
+
+    The Python ``kenlm`` package handles inference; training (`lmplz`)
+    is a separate C++ tool from the same project. Operators install
+    it via apt / homebrew / source build. Cold-start safe — returns
+    False when shutil can't find it.
+    """
+    import shutil
+
+    return shutil.which("lmplz") is not None
+
+
+def fit_arpa_with_lmplz(
+    corpus_lines: list[str],
+    *,
+    output_arpa_path: str,
+    order: int = 3,
+    discount_fallback: bool = True,
+) -> bool:
+    """Train an ARPA-format n-gram LM via the ``lmplz`` binary.
+
+    *corpus_lines* is one sentence per element (tokenised on
+    whitespace by ``lmplz`` itself). *order* sets the n-gram size
+    (3 = trigram, the helper's default).
+
+    Cold-start safe:
+    - ``lmplz`` not on PATH → returns False (caller can choose
+      :class:`DeferredPickError`).
+    - Empty corpus / fewer than 100 lines → returns False (lmplz
+      requires a meaningful sample to fit reliably; below that
+      threshold the model is unstable).
+    - Subprocess raises → logged, returns False, no partial file
+      left behind.
+
+    Real-data ready: install lmplz on PATH and the producer
+    activates. The helper does not load the resulting ARPA back into
+    a binary KenLM model — operators or a follow-up step can run
+    ``build_binary`` if they want the binary format. The Python
+    ``kenlm.Model`` constructor accepts ARPA directly so loading
+    the trained model just works.
+    """
+    import logging
+    import os
+    import subprocess
+    import tempfile
+
+    log = logging.getLogger(__name__)
+
+    if not lmplz_available():
+        return False
+    if not corpus_lines:
+        return False
+    if len(corpus_lines) < 100:
+        log.info(
+            "kenlm_fluency.fit_arpa_with_lmplz: %d corpus lines (<100) — skip",
+            len(corpus_lines),
+        )
+        return False
+
+    # Write the corpus to a temp file. lmplz reads from stdin or a
+    # file; we use stdin so we don't have to clean up an extra path.
+    os.makedirs(os.path.dirname(output_arpa_path) or ".", exist_ok=True)
+    cmd = ["lmplz", "-o", str(order), "--text", "/dev/stdin"]
+    if discount_fallback:
+        # Most small corpora trip "warning: x of y n-grams have a zero
+        # count" — discount_fallback handles that by smoothing instead
+        # of erroring out.
+        cmd.append("--discount_fallback")
+
+    corpus_blob = ("\n".join(corpus_lines) + "\n").encode("utf-8")
+    try:
+        with open(output_arpa_path, "wb") as out_fh:
+            result = subprocess.run(
+                cmd,
+                input=corpus_blob,
+                stdout=out_fh,
+                stderr=subprocess.PIPE,
+                check=False,
+                timeout=15 * 60,
+            )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warning("kenlm_fluency.fit_arpa_with_lmplz: subprocess failed: %s", exc)
+        # Best-effort cleanup of partial output.
+        try:
+            os.remove(output_arpa_path)
+        except OSError:
+            pass
+        return False
+
+    if result.returncode != 0:
+        log.warning(
+            "kenlm_fluency.fit_arpa_with_lmplz: lmplz exit %d — stderr tail: %s",
+            result.returncode,
+            (result.stderr or b"")[-512:].decode("utf-8", errors="replace"),
+        )
+        try:
+            os.remove(output_arpa_path)
+        except OSError:
+            pass
+        return False
+
+    # Reset the inference cache so the next score_fluency picks up
+    # the fresh model.
+    global _MODEL_CACHE
+    _MODEL_CACHE = None
+    return True
