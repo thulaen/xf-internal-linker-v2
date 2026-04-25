@@ -87,6 +87,7 @@ from apps.suggestions.views import (
     PipelineDiagnosticViewSet,
     PipelineRunViewSet,
     RankingChallengerViewSet,
+    SuggestionImpressionLogView,
     SuggestionReadinessView,
     SuggestionViewSet,
     WeightAdjustmentHistoryViewSet,
@@ -210,6 +211,18 @@ urlpatterns = [
         "suggestions/readiness/",
         SuggestionReadinessView.as_view(),
         name="suggestion-readiness",
+    ),
+    # Pick #33 + #34 — bulk impression logger. The frontend POSTs
+    # ``[{suggestion_id, position, clicked, dwell_ms?}, ...]`` whenever
+    # suggestions enter / leave the operator's viewport. Producers
+    # (``position_bias_ips_refit``, ``cascade_click_em_re_estimate``)
+    # consume the resulting :class:`SuggestionImpression` rows on
+    # their daily / weekly schedules. Must come BEFORE the router
+    # include (same routing-precedence reason as the readiness path).
+    path(
+        "suggestions/impressions/",
+        SuggestionImpressionLogView.as_view(),
+        name="suggestion-impressions",
     ),
     path(
         "meta-algorithms/",

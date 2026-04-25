@@ -845,6 +845,81 @@ class Suggestion(TimestampedModel):
         )
 
 
+class SuggestionImpression(models.Model):
+    """One observation of a Suggestion in the review queue.
+
+    Picks #33 (IPS Position Bias) and #34 (Cascade Click Model) both
+    need ``(impression_position, clicked)`` pairs to estimate
+    propensity weights / click-stop probabilities. ``Suggestion.status``
+    only records the *final* operator decision (approved / rejected /
+    etc.) — it doesn't say *what rank the suggestion was shown at*
+    when the operator made that decision. This model fills that gap.
+
+    The frontend logs one row per suggestion-in-viewport event from
+    the review queue. The producer scheduled jobs
+    (``position_bias_ips_refit``, ``cascade_click_em_re_estimate``)
+    read these rows to fit their parameters.
+
+    Cold-start safe: until the frontend hook lands, this table is
+    empty and the producers no-op cleanly. No code change is needed
+    on either side once impressions start flowing — the existing
+    producers + consumers fire automatically.
+    """
+
+    suggestion = models.ForeignKey(
+        Suggestion,
+        on_delete=models.CASCADE,
+        related_name="impressions",
+        help_text="The suggestion that was impressed.",
+    )
+    position = models.IntegerField(
+        help_text=(
+            "0-based rank of the suggestion in the review queue at "
+            "impression time. Same row showing up at different "
+            "positions gets one Impression row per position."
+        ),
+    )
+    impressed_at = models.DateTimeField(
+        auto_now_add=True,
+        db_index=True,
+        help_text="When the suggestion entered the operator's viewport.",
+    )
+    clicked = models.BooleanField(
+        default=False,
+        help_text=(
+            "True when the operator interacted (approved / rejected / "
+            "clicked through). False = impression-only (operator scrolled "
+            "past). Updated post-hoc when the click event fires."
+        ),
+    )
+    dwell_ms = models.IntegerField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Optional — how long the suggestion stayed in viewport "
+            "before scroll-out or click. NULL = not measured by the "
+            "frontend hook."
+        ),
+    )
+
+    class Meta:
+        verbose_name = "Suggestion Impression"
+        verbose_name_plural = "Suggestion Impressions"
+        ordering = ["-impressed_at"]
+        indexes = [
+            # Producer-side query: pick #33 / #34 read recent
+            # impressions grouped by position to fit propensities.
+            models.Index(fields=["-impressed_at", "position"]),
+            # Operator's review-history view: impressions for one
+            # suggestion across many sessions.
+            models.Index(fields=["suggestion", "-impressed_at"]),
+        ]
+
+    def __str__(self) -> str:
+        click_marker = "✓" if self.clicked else "·"
+        return f"{click_marker} pos={self.position} sug={self.suggestion_id}"
+
+
 class PipelineDiagnostic(models.Model):
     """
     Records why a destination was skipped during a pipeline run.

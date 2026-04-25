@@ -24,6 +24,7 @@ from .models import (
     RankingChallenger,
     RejectedPair,
     Suggestion,
+    SuggestionImpression,
     SuggestionPresentation,
     WeightAdjustmentHistory,
     WeightPreset,
@@ -832,3 +833,101 @@ class SuggestionReadinessView(views.APIView):
         from .readiness import compute_readiness_payload
 
         return Response(compute_readiness_payload())
+
+
+class SuggestionImpressionLogView(views.APIView):
+    """Bulk-accept impression observations from the review-queue UI.
+
+    Picks #33 (IPS Position Bias) and #34 (Cascade Click Model) both
+    feed off this stream. The frontend POSTs a list of
+    ``{suggestion_id, position, clicked, dwell_ms?}`` rows whenever a
+    batch of suggestions enters / leaves the operator's viewport.
+    Server-side we ``bulk_create`` them — no per-row write contention.
+
+    Idempotency: callers can send the same payload twice (page
+    refresh, retry) without mass-corrupting the calibration set.
+    Each row gets a fresh timestamp via ``auto_now_add``, so the
+    producer scheduled jobs only see real impression events; double-
+    submits show up as two impressions at slightly different times,
+    which is the truth (the suggestion was indeed in viewport at
+    both moments).
+
+    Cold-start safe: empty payload → 200 with ``{written: 0}``;
+    invalid suggestion ids → silently skipped (don't reject the
+    whole batch on one stale row).
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        rows = request.data
+        if not isinstance(rows, list):
+            return Response(
+                {"detail": "expected a JSON array of impression rows"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Validate + bulk-build in one pass. Drop rows whose
+        # suggestion_id doesn't exist — the operator's queue may have
+        # been re-ranked between fetch and impression-emit.
+        # ``Suggestion.pk`` is a UUID, so we store the raw value as-is
+        # and let Django's UUIDField coerce on the ``filter(pk__in=...)``
+        # query. ``position`` is an int and gets coerced explicitly.
+        candidate_ids: set = set()
+        prepared: list[dict] = []
+        for row in rows:
+            if not isinstance(row, dict):
+                continue
+            sid = row.get("suggestion_id")
+            if sid is None or sid == "":
+                continue
+            try:
+                position = int(row["position"])
+            except (KeyError, TypeError, ValueError):
+                continue
+            clicked = bool(row.get("clicked", False))
+            dwell_raw = row.get("dwell_ms")
+            try:
+                dwell = int(dwell_raw) if dwell_raw is not None else None
+            except (TypeError, ValueError):
+                dwell = None
+            candidate_ids.add(sid)
+            prepared.append(
+                {
+                    "suggestion_id": sid,
+                    "position": position,
+                    "clicked": clicked,
+                    "dwell_ms": dwell,
+                }
+            )
+
+        if not prepared:
+            return Response({"written": 0}, status=status.HTTP_200_OK)
+
+        # Filter to existing suggestion IDs in one query. UUIDs come
+        # in as strings (JSON has no native UUID type) but the model
+        # field is ``UUIDField`` — we stringify both sides of the
+        # ``in`` check so the equality test isn't comparing UUID
+        # objects against str representations.
+        valid_ids = set(
+            str(pk)
+            for pk in Suggestion.objects.filter(
+                pk__in=list(candidate_ids)
+            ).values_list("pk", flat=True)
+        )
+        impressions = [
+            SuggestionImpression(
+                suggestion_id=row["suggestion_id"],
+                position=row["position"],
+                clicked=row["clicked"],
+                dwell_ms=row["dwell_ms"],
+            )
+            for row in prepared
+            if str(row["suggestion_id"]) in valid_ids
+        ]
+        if not impressions:
+            return Response({"written": 0}, status=status.HTTP_200_OK)
+        SuggestionImpression.objects.bulk_create(impressions, batch_size=500)
+        return Response(
+            {"written": len(impressions)}, status=status.HTTP_201_CREATED
+        )
