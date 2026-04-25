@@ -682,21 +682,32 @@ def run_near_duplicate_cluster_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_LOW,
 )
 def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
-    """Weekly re-estimate of Cascade doc relevance from click logs (pick #34).
+    """Weekly re-estimate of Cascade doc relevance from review history (pick #34).
 
-    W1 verifies the helper is callable with synthetic sessions. W3 wires
-    real GSC/click-log ingestion.
+    Wraps :func:`apps.pipeline.services.feedback_relevance.compute_and_persist`,
+    which builds Cascade sessions from PipelineRun + Suggestion rows
+    (no GSC dependency — the operator-review cycle is the click stream
+    on this internal-linker product) and persists the per-destination
+    relevance table to AppSetting for the ranker to consume.
     """
-    from apps.pipeline.services.cascade_click_model import ClickSession, estimate
+    from apps.pipeline.services.feedback_relevance import compute_and_persist
 
-    checkpoint(progress_pct=0.0, message="Sample cascade estimate")
-    sessions = [
-        ClickSession(ranked_docs=["d1", "d2", "d3"], clicked_rank=2),
-        ClickSession(ranked_docs=["d2", "d1", "d3"], clicked_rank=None),
-    ]
-    result = estimate(sessions)
-    logger.info("cascade_click_em_re_estimate: helper OK (%d doc scores)", len(result))
-    checkpoint(progress_pct=100.0, message="Helper path verified")
+    checkpoint(progress_pct=0.0, message="Aggregating Cascade + IPS feedback")
+    snapshot = compute_and_persist()
+    if snapshot is None:
+        checkpoint(
+            progress_pct=100.0,
+            message="Insufficient review history — fit skipped",
+        )
+        return
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"Persisted Cascade ({len(snapshot.cascade_relevance)} dests) + "
+            f"IPS ({len(snapshot.ips_weighted_ctr)} positions) "
+            f"from {snapshot.training_runs} runs"
+        ),
+    )
 
 
 @scheduled_job(
@@ -707,15 +718,30 @@ def run_cascade_click_em_re_estimate(job, checkpoint) -> None:
     priority=JOB_PRIORITY_LOW,
 )
 def run_position_bias_ips_refit(job, checkpoint) -> None:
-    """Weekly refit of the position-bias exponent η from GSC logs (pick #33)."""
-    from apps.pipeline.services.position_bias_ips import ips_weight
+    """Weekly refit of position-bias IPS weights (pick #33).
 
-    checkpoint(progress_pct=0.0, message="Sample IPS weight")
-    w = ips_weight(position=5, eta=1.0, max_weight=10.0)
-    logger.info("position_bias_ips_refit: helper OK (sample weight=%.3f)", w)
+    The Cascade job (sibling) already builds the per-position event
+    table during :func:`feedback_relevance.compute_and_persist` — we
+    re-use the same function here so the IPS re-fit is consistent
+    with the Cascade re-fit. Both keys live under ``feedback_relevance.*``
+    in AppSetting.
+    """
+    from apps.pipeline.services.feedback_relevance import compute_and_persist
+
+    checkpoint(progress_pct=0.0, message="Refitting IPS weights from review history")
+    snapshot = compute_and_persist()
+    if snapshot is None:
+        checkpoint(
+            progress_pct=100.0,
+            message="Insufficient review history — refit skipped",
+        )
+        return
     checkpoint(
         progress_pct=100.0,
-        message="GSC ingestion + η fit land in W3",
+        message=(
+            f"IPS table refreshed for {len(snapshot.ips_weighted_ctr)} positions "
+            f"({snapshot.training_runs} runs)"
+        ),
     )
 
 
