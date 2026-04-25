@@ -1309,10 +1309,13 @@ def nightly_data_retention(progress_callback=None):
     # Anything older than 90 days is no longer in any producer's
     # window so it can be pruned without losing fidelity.
     #
-    # Roaring bitmap pattern: build the prune-set first (one O(N)
-    # scan), log its cardinality for the dashboard, then DELETE WHERE
-    # pk IN (...). Cardinality preview is O(1) on the bitmap so the
-    # dashboard can render it cheaply.
+    # Roaring bitmap is used **only** for the cardinality preview
+    # (audit bug A3 fix): the previous implementation called
+    # ``list(bitmap)`` and then ``pk__in=[...]`` on a fresh queryset,
+    # which materialised every PK to a Python int list and forced
+    # Postgres to parse a 1M-element IN clause. The original
+    # ``prune_qs.delete()`` is the cheaper path — Postgres translates
+    # it to a single ``DELETE … WHERE impressed_at < %s``.
     try:
         from apps.suggestions.models import SuggestionImpression
 
@@ -1320,14 +1323,14 @@ def nightly_data_retention(progress_callback=None):
         prune_qs = SuggestionImpression.objects.filter(
             impressed_at__lt=cutoff_b5
         )
+        # Cardinality preview only — bitmap is dropped after we read
+        # its cardinality. SQL DELETE goes through the original
+        # queryset so Postgres uses the indexed range scan.
         bitmap = waste_bitmaps.bitmap_from_pks(prune_qs)
         pending = waste_bitmaps.cardinality_preview(bitmap)
+        deleted = 0
         if pending:
-            deleted, _ = SuggestionImpression.objects.filter(
-                pk__in=list(bitmap)
-            ).delete()
-        else:
-            deleted = 0
+            deleted, _ = prune_qs.delete()
         results["suggestion_impressions_deleted"] = deleted
         logger.info(
             "[nightly_data_retention] (B.5) Deleted %d SuggestionImpression rows "
@@ -1358,7 +1361,8 @@ def nightly_data_retention(progress_callback=None):
     # --- SuggestionPresentation: 180 days (B.6) ---
     # Joachims 2017 IPW reranker reads a 180-day window of presentations
     # to estimate exposure denominators. Older rows fall out of every
-    # producer's active window and can be pruned safely.
+    # producer's active window and can be pruned safely. Same
+    # bitmap-for-preview-only pattern as B.5 (audit bug A3).
     try:
         from apps.suggestions.models import SuggestionPresentation
 
@@ -1368,12 +1372,9 @@ def nightly_data_retention(progress_callback=None):
         )
         bitmap = waste_bitmaps.bitmap_from_pks(prune_qs)
         pending = waste_bitmaps.cardinality_preview(bitmap)
+        deleted = 0
         if pending:
-            deleted, _ = SuggestionPresentation.objects.filter(
-                pk__in=list(bitmap)
-            ).delete()
-        else:
-            deleted = 0
+            deleted, _ = prune_qs.delete()
         results["suggestion_presentations_deleted"] = deleted
         logger.info(
             "[nightly_data_retention] (B.6) Deleted %d SuggestionPresentation rows "

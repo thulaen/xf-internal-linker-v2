@@ -88,15 +88,33 @@ class AdapterContext:
     - VADER, KenLM → host_sentence_text only.
     - LDA → host_sentence_text + destination_text (cosine over topic
       mixtures of each tokenised text).
-    - Node2Vec, BPR → host_key + destination_key (graph node IDs).
-    - FM → all four (text features + ID features for one-hot
-      vectorisation).
+    - Node2Vec → host_key + destination_key. The W1 trainer keys nodes
+      on ``str(NodeKey)`` = ``str((pk, content_type))``, so the adapter
+      builds the same string from these tuple fields.
+    - BPR → host_key[0] + destination_key[0] (BARE primary keys). The
+      W1 trainer keys interactions on ``str(host_id)`` where ``host_id``
+      is the FK column (an integer), NOT the ``(pk, content_type)``
+      tuple — see ``run_bpr_refit`` in scheduled_updates/jobs.py.
+    - FM → ``score_components`` (the per-candidate score-component
+      dict the ranker computes during ``score_destination_matches``).
+      The W1 trainer fits on the same nine score columns +
+      one-hot ``anchor_confidence`` from each reviewed Suggestion, so
+      the adapter mirrors the trainer's vocabulary exactly. See
+      ``run_factorization_machines_refit``.
     """
 
     host_sentence_text: str = ""
     destination_text: str = ""
     host_key: tuple[int, str] | None = None
     destination_key: tuple[int, str] | None = None
+    #: Per-candidate score components — keyed by the same names the
+    #: FM W1 trainer uses (``score_semantic``, ``score_keyword``, …,
+    #: ``score_anchor_diversity``) plus ``anchor_confidence``. Populated
+    #: by the ranker's per-candidate loop right before it calls
+    #: ``contribute_total``. Empty dict on cold start (FM adapter
+    #: returns 0.0 cleanly).
+    score_components: dict[str, float] | None = None
+    anchor_confidence: str | None = None
 
 
 #: Callable signature each adapter satisfies.
@@ -242,13 +260,21 @@ def _node2vec_adapter(ctx: AdapterContext) -> float:
 def _bpr_adapter(ctx: AdapterContext) -> float:
     """BPR #38 — host-as-user pairwise ranking (Rendle et al. 2009 UAI §5).
 
-    Treats ``host_key`` as the "user" and ``destination_key`` as the
-    "item" — a clean reduction of the personalised-LTR setup to the
-    internal-linker setting. ``score_for_user`` returns the dot
-    product of the user's latent factor and the item's latent factor,
-    which can be any real number; we normalise via
-    ``tanh(score / 2.0)`` so the output stays in (-1, +1) regardless
-    of the BPR factor magnitudes.
+    Treats the host ContentItem PK as the "user" and the destination
+    ContentItem PK as the "item" — a clean reduction of the
+    personalised-LTR setup to the internal-linker setting.
+    ``score_for_user`` returns the dot product of the user's latent
+    factor and the item's latent factor, which can be any real
+    number; we normalise via ``tanh(score / 2.0)`` so the output
+    stays in (-1, +1) regardless of the BPR factor magnitudes.
+
+    **ID format must match the trainer.** ``run_bpr_refit`` in
+    ``apps/scheduled_updates/jobs.py`` builds interactions as
+    ``(str(host_id), str(dest_id), weight)`` where ``host_id`` is
+    the integer FK from ``Suggestion.host_id`` (i.e. the bare
+    ContentItem PK), NOT the ``(pk, content_type)`` tuple. So this
+    adapter passes ``str(ctx.host_key[0])`` (the pk) instead of
+    ``str(ctx.host_key)`` (the tuple). Bug A1 fix from the audit.
 
     Cold-start safe: returns 0.0 until the W1 ``bpr_refit`` job has
     enough operator approve/reject feedback to fit a model (~5+
@@ -259,8 +285,8 @@ def _bpr_adapter(ctx: AdapterContext) -> float:
     try:
         from apps.pipeline.services import bpr_ranking
 
-        host_id = str(ctx.host_key)
-        dest_id = str(ctx.destination_key)
+        host_id = str(ctx.host_key[0])
+        dest_id = str(ctx.destination_key[0])
         scores = bpr_ranking.score_for_user(host_id, [dest_id])
         if scores is None or dest_id not in scores:
             return 0.0
@@ -270,34 +296,62 @@ def _bpr_adapter(ctx: AdapterContext) -> float:
         return 0.0
 
 
+#: The exact nine score-component names the FM W1 trainer fits on.
+#: Must match ``run_factorization_machines_refit`` in
+#: ``apps/scheduled_updates/jobs.py`` line-for-line; mismatch means the
+#: DictVectorizer at predict time sees a zero vector and FM returns
+#: only the bias term. Audit bug A2 fix.
+_FM_TRAINER_SCORE_COMPONENTS: tuple[str, ...] = (
+    "score_semantic",
+    "score_keyword",
+    "score_node_affinity",
+    "score_quality",
+    "score_link_freshness",
+    "score_phrase_relevance",
+    "score_field_aware_relevance",
+    "score_rare_term_propagation",
+    "score_anchor_diversity",
+)
+
+
 def _fm_adapter(ctx: AdapterContext) -> float:
     """FM #39 — feature-cross score (Rendle 2010 ICDM §3 eq. 1-3).
 
-    Encodes the four context fields as a sparse feature dict —
-    matching the schema the W1 ``factorization_machines_refit`` job
-    uses when it trains on past Suggestion features — and asks the
-    persisted FM model to score it. Output is normalised via
-    ``tanh(prediction)`` so the contribution stays in (-1, +1).
+    Encodes the same nine score columns + one-hot ``anchor_confidence``
+    that the W1 ``factorization_machines_refit`` job trains on (see
+    ``apps/scheduled_updates/jobs.py``). DictVectorizer's vocabulary
+    is built from those nine names; passing any other key would land
+    on an unknown dimension and the FM would only return its bias
+    term. Output is normalised via ``tanh(prediction)`` so the
+    contribution stays in (-1, +1).
 
-    Cold-start safe: returns 0.0 when no trained model exists. The
-    feature dict mirrors the trainer's vocabulary so the
-    DictVectorizer doesn't drop everything.
+    Audit bug A2 fix: the previous implementation encoded
+    ``host_text_len`` / ``destination_text_len`` / one-hot key
+    features that had zero overlap with the trainer's vocabulary,
+    so the adapter was perpetually returning ~0. The fix is to read
+    the live in-pipeline score components from
+    ``ctx.score_components`` (populated by the ranker right before
+    calling ``contribute_total``) and pass them through.
+
+    Cold-start safe: when ``ctx.score_components`` is None or empty
+    (e.g. early in the per-candidate loop) OR no trained model
+    exists OR the helper's pip dep is missing, returns 0.0.
     """
-    if not (ctx.host_sentence_text or ctx.host_key):
+    if not ctx.score_components:
         return 0.0
     try:
         from apps.pipeline.services import factorization_machines
 
-        features = {
-            "host_text_len": float(len(ctx.host_sentence_text)),
-            "destination_text_len": float(len(ctx.destination_text)),
-        }
-        if ctx.host_key is not None:
-            features[f"host_key:{ctx.host_key[0]}:{ctx.host_key[1]}"] = 1.0
-        if ctx.destination_key is not None:
-            features[
-                f"destination_key:{ctx.destination_key[0]}:{ctx.destination_key[1]}"
-            ] = 1.0
+        features: dict[str, float] = {}
+        for name in _FM_TRAINER_SCORE_COMPONENTS:
+            features[name] = float(ctx.score_components.get(name, 0.0) or 0.0)
+        # Mirror the trainer's one-hot anchor_confidence encoding.
+        # The trainer uses ``f"anchor_confidence={value}"`` as the
+        # feature key with value 1.0; an empty / unknown confidence
+        # falls back to "none" (matches the trainer's
+        # ``row.get('anchor_confidence') or 'none'`` default).
+        confidence_value = ctx.anchor_confidence or "none"
+        features[f"anchor_confidence={confidence_value}"] = 1.0
         preds = factorization_machines.predict([features])
         if preds is None or not preds:
             return 0.0
@@ -318,6 +372,13 @@ def _cosine_minus_half(
 ) -> float:
     """Cosine similarity over sparse (topic_id, prob) pairs, shifted to
     [-0.5, +0.5]. Returns 0.0 when either side has zero magnitude.
+
+    Audit bug A7 fix: when the two topic distributions share **no**
+    topics, return ``0.0`` (orthogonal cosine), NOT ``-0.5``. Forum
+    corpora often have hosts and destinations with disjoint LDA
+    top-K topics — that's the absence of evidence, not negative
+    evidence. The "minus 0.5" centring belongs to the high-overlap
+    case only.
     """
     if not a_pairs or not b_pairs:
         return 0.0
@@ -325,7 +386,9 @@ def _cosine_minus_half(
     b_dict = dict(b_pairs)
     keys = a_dict.keys() & b_dict.keys()
     if not keys:
-        return -0.5  # full mismatch
+        # Orthogonal cosine = 0; "no shared topics" is absence of
+        # evidence, not anti-evidence. Return neutral 0.0.
+        return 0.0
     dot = sum(a_dict[k] * b_dict[k] for k in keys)
     norm_a = math.sqrt(sum(v * v for v in a_dict.values()))
     norm_b = math.sqrt(sum(v * v for v in b_dict.values()))
@@ -447,36 +510,50 @@ class Phase6RankerContribution:
 # ─────────────────────────────────────────────────────────────────────
 
 
-def _read_weight_for(pick_name: str) -> float:
-    """Read ``<pick>.ranking_weight`` from AppSetting.
-
-    Defaults to 0.0 when the row is missing or malformed. The
-    Recommended preset (and the corresponding seed migration)
-    populate paper-backed defaults so new installs are non-zero out
-    of the box; this fallback only matters for partial / legacy
-    installs.
-    """
-    try:
-        from apps.core.models import AppSetting
-
-        row = AppSetting.objects.filter(
-            key=f"{pick_name}.ranking_weight"
-        ).first()
-        if row is None or not row.value:
-            return 0.0
-        return float(row.value)
-    except Exception:
-        return 0.0
-
-
 def _is_enabled(pick_name: str) -> bool:
-    """Read ``<pick>.enabled`` via :mod:`apps.core.runtime_flags`."""
+    """Read ``<pick>.enabled`` via :mod:`apps.core.runtime_flags`.
+
+    Kept as a thin wrapper so the dispatcher's batched-load path
+    stays focused on weight reads while honouring the per-pick
+    enabled toggle (which lives in the runtime_flags cache).
+    """
     try:
         from apps.core.runtime_flags import is_enabled
 
         return is_enabled(f"{pick_name}.enabled", default=True)
     except Exception:
         return False
+
+
+def _load_all_weights() -> dict[str, float]:
+    """Audit bug A4 fix: batch-load every ``<pick>.ranking_weight`` in
+    ONE AppSetting query instead of N separate ``filter().first()``
+    round trips.
+
+    Returns a ``{pick_name: weight}`` dict. Missing / malformed
+    values default to 0.0. Mirrors the same A.3 batched-read pattern
+    used by ``run_trustrank_auto_seeder``.
+    """
+    keys = [f"{pick_name}.ranking_weight" for pick_name in _ADAPTERS]
+    try:
+        from apps.core.models import AppSetting
+
+        rows = AppSetting.objects.filter(key__in=keys).values_list("key", "value")
+        raw = dict(rows)
+    except Exception:
+        return {pick: 0.0 for pick in _ADAPTERS}
+
+    out: dict[str, float] = {}
+    for pick_name in _ADAPTERS:
+        value = raw.get(f"{pick_name}.ranking_weight")
+        if value is None or value == "":
+            out[pick_name] = 0.0
+            continue
+        try:
+            out[pick_name] = float(value)
+        except (TypeError, ValueError):
+            out[pick_name] = 0.0
+    return out
 
 
 def build_phase6_contribution(
@@ -499,14 +576,20 @@ def build_phase6_contribution(
     dict lookups + the active adapters' work) but ``None`` is even
     cheaper, so the cold-start path is byte-stable with the pre-
     Phase 6 ranker.
+
+    Audit bug A4 fix: weight reads are batched into one
+    ``filter(key__in=…)`` query at the top, so build cost is one
+    AppSetting query + N runtime_flag cache lookups instead of 2N
+    AppSetting queries.
     """
     if not enabled_global:
         return None
+    all_weights = _load_all_weights()
     weights: dict[str, float] = {}
     for pick_name in _ADAPTERS:
         if not _is_enabled(pick_name):
             continue
-        weight = _read_weight_for(pick_name)
+        weight = all_weights.get(pick_name, 0.0)
         if weight == 0.0:
             continue
         weights[pick_name] = weight

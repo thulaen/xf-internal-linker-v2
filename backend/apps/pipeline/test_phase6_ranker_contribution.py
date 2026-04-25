@@ -32,12 +32,16 @@ def _ctx(
     dest: str = "",
     host_key: tuple[int, str] | None = None,
     destination_key: tuple[int, str] | None = None,
+    score_components: dict[str, float] | None = None,
+    anchor_confidence: str | None = None,
 ) -> AdapterContext:
     return AdapterContext(
         host_sentence_text=host,
         destination_text=dest,
         host_key=host_key,
         destination_key=destination_key,
+        score_components=score_components,
+        anchor_confidence=anchor_confidence,
     )
 
 
@@ -166,6 +170,26 @@ class LDAAdapterColdStartTests(SimpleTestCase):
             # Cosine of identical → 1.0; minus 0.5 → +0.5
             self.assertGreater(p6._lda_adapter(_ctx(host="x", dest="y")), 0.4)
 
+    def test_no_shared_topics_returns_zero_not_negative(self) -> None:
+        """Audit bug A7 — disjoint topic distributions ARE NOT
+        anti-evidence. Cosine of orthogonal vectors is 0.0; the
+        adapter must return 0.0, NOT -0.5.
+        """
+        from apps.pipeline.services.lda_topics import TopicDistribution
+
+        host_dist = TopicDistribution(weights=[(0, 0.9), (1, 0.1)])
+        dest_dist = TopicDistribution(weights=[(99, 0.9), (100, 0.1)])
+
+        # Sequential calls: first invocation returns host_dist,
+        # second returns dest_dist. infer_topics is called twice
+        # inside the adapter (once per text).
+        call_seq = iter([host_dist, dest_dist])
+        with patch(
+            "apps.pipeline.services.lda_topics.infer_topics",
+            side_effect=lambda *_a, **_k: next(call_seq),
+        ):
+            self.assertEqual(p6._lda_adapter(_ctx(host="x", dest="y")), 0.0)
+
 
 class Node2VecAdapterColdStartTests(SimpleTestCase):
     def test_no_keys_returns_zero(self) -> None:
@@ -230,9 +254,13 @@ class BPRAdapterColdStartTests(SimpleTestCase):
             )
 
     def test_positive_score_returns_positive_bounded(self) -> None:
+        # Audit bug A1 fix: trainer uses bare-pk strings ("2"), NOT
+        # the (pk, content_type) tuple string. The adapter must
+        # match — assert by passing a mock that ONLY honours the
+        # bare-pk format.
         with patch(
             "apps.pipeline.services.bpr_ranking.score_for_user",
-            return_value={"(2, 'thread')": 4.0},
+            return_value={"2": 4.0},
         ):
             r = p6._bpr_adapter(
                 _ctx(host_key=(1, "thread"), destination_key=(2, "thread"))
@@ -240,26 +268,129 @@ class BPRAdapterColdStartTests(SimpleTestCase):
             self.assertGreater(r, 0.0)
             self.assertLess(r, 1.0)  # tanh saturates below 1
 
+    def test_adapter_passes_bare_pks_not_tuple_strings(self) -> None:
+        """Audit bug A1 — adapter must use ``str(host_key[0])`` so
+        the W1 trainer's user_index lookup hits."""
+        captured: dict[str, object] = {}
+
+        def fake_score_for_user(user_id, item_ids):
+            captured["user_id"] = user_id
+            captured["item_ids"] = list(item_ids)
+            return None
+
+        with patch(
+            "apps.pipeline.services.bpr_ranking.score_for_user",
+            side_effect=fake_score_for_user,
+        ):
+            p6._bpr_adapter(
+                _ctx(host_key=(123, "thread"), destination_key=(456, "thread"))
+            )
+
+        self.assertEqual(captured["user_id"], "123")
+        self.assertEqual(captured["item_ids"], ["456"])
+
 
 class FMAdapterColdStartTests(SimpleTestCase):
-    def test_no_inputs_returns_zero(self) -> None:
+    def test_no_score_components_returns_zero(self) -> None:
+        # Audit bug A2 fix: when score_components is None / empty,
+        # the adapter short-circuits to 0.0 (no useful FM input).
         self.assertEqual(p6._fm_adapter(_ctx()), 0.0)
+        self.assertEqual(
+            p6._fm_adapter(_ctx(host="x", dest="y")),  # text alone is not enough
+            0.0,
+        )
 
     def test_no_model_returns_zero(self) -> None:
         with patch(
             "apps.pipeline.services.factorization_machines.predict",
             return_value=None,
         ):
-            self.assertEqual(p6._fm_adapter(_ctx(host="x", dest="y")), 0.0)
+            self.assertEqual(
+                p6._fm_adapter(
+                    _ctx(score_components={"score_semantic": 0.5})
+                ),
+                0.0,
+            )
 
     def test_positive_prediction_returns_positive_bounded(self) -> None:
         with patch(
             "apps.pipeline.services.factorization_machines.predict",
             return_value=[2.5],
         ):
-            r = p6._fm_adapter(_ctx(host="x", dest="y"))
+            r = p6._fm_adapter(
+                _ctx(
+                    score_components={"score_semantic": 0.7, "score_keyword": 0.4},
+                    anchor_confidence="strong",
+                )
+            )
             self.assertGreater(r, 0.0)
             self.assertLess(r, 1.0)
+
+    def test_adapter_encodes_trainer_vocabulary(self) -> None:
+        """Audit bug A2 — adapter must build a feature dict whose
+        keys match the W1 trainer's vocabulary (nine score columns
+        + one-hot anchor_confidence)."""
+        captured: dict[str, dict] = {}
+
+        def fake_predict(features_list):
+            captured["features"] = features_list[0]
+            return [0.0]
+
+        with patch(
+            "apps.pipeline.services.factorization_machines.predict",
+            side_effect=fake_predict,
+        ):
+            p6._fm_adapter(
+                _ctx(
+                    score_components={
+                        "score_semantic": 0.6,
+                        "score_keyword": 0.3,
+                        "score_node_affinity": 0.5,
+                        "score_quality": 0.4,
+                        "score_link_freshness": 0.7,
+                        "score_phrase_relevance": 0.2,
+                        "score_field_aware_relevance": 0.1,
+                        "score_rare_term_propagation": 0.3,
+                        "score_anchor_diversity": 0.5,
+                    },
+                    anchor_confidence="strong",
+                )
+            )
+
+        feats = captured["features"]
+        # All nine numeric score columns present with the expected
+        # values.
+        self.assertEqual(feats["score_semantic"], 0.6)
+        self.assertEqual(feats["score_keyword"], 0.3)
+        self.assertEqual(feats["score_node_affinity"], 0.5)
+        self.assertEqual(feats["score_quality"], 0.4)
+        self.assertEqual(feats["score_link_freshness"], 0.7)
+        self.assertEqual(feats["score_phrase_relevance"], 0.2)
+        self.assertEqual(feats["score_field_aware_relevance"], 0.1)
+        self.assertEqual(feats["score_rare_term_propagation"], 0.3)
+        self.assertEqual(feats["score_anchor_diversity"], 0.5)
+        # anchor_confidence one-hot.
+        self.assertEqual(feats["anchor_confidence=strong"], 1.0)
+        # The old (broken) feature names MUST NOT be present.
+        self.assertNotIn("host_text_len", feats)
+        self.assertNotIn("destination_text_len", feats)
+
+    def test_missing_anchor_confidence_falls_back_to_none(self) -> None:
+        """Mirror the trainer's ``row.get('anchor_confidence') or 'none'``
+        default."""
+        captured: dict[str, dict] = {}
+
+        with patch(
+            "apps.pipeline.services.factorization_machines.predict",
+            side_effect=lambda fs: (captured.update(features=fs[0]), [0.0])[1],
+        ):
+            p6._fm_adapter(
+                _ctx(
+                    score_components={"score_semantic": 0.5},
+                    anchor_confidence=None,
+                )
+            )
+        self.assertEqual(captured["features"]["anchor_confidence=none"], 1.0)
 
 
 class DispatcherWeightingTests(SimpleTestCase):
@@ -424,3 +555,30 @@ class BuildDispatcherTests(TestCase):
         # Sum of paper-backed defaults: 0.40 (small relative to the
         # existing 15-component composite — sane co-existence).
         self.assertAlmostEqual(sum(result.weights.values()), 0.40, places=6)
+
+    def test_weight_reads_are_batched_into_one_query(self) -> None:
+        """Audit bug A4 — `_load_all_weights` issues exactly ONE
+        AppSetting query for all six weights, not six separate
+        ``filter().first()`` round trips.
+        """
+        from django.db import connection
+        from django.test.utils import CaptureQueriesContext
+
+        # Make sure migration 0046 is in place by calling the
+        # batched loader once.
+        self._invalidate_pick_caches()
+        with CaptureQueriesContext(connection) as captured:
+            p6._load_all_weights()
+
+        # Count queries that touched core_appsetting. Other DB hits
+        # (auth fixtures, etc.) are not under test.
+        appsetting_queries = [
+            q for q in captured.captured_queries if "core_appsetting" in q["sql"]
+        ]
+        self.assertEqual(
+            len(appsetting_queries),
+            1,
+            f"Expected 1 batched AppSetting query, got "
+            f"{len(appsetting_queries)}: "
+            f"{[q['sql'] for q in appsetting_queries]}",
+        )

@@ -644,6 +644,10 @@ def score_destination_matches(
                 "score_ga4_gsc": score_ga4_gsc,
                 "score_click_distance": score_click_distance,
                 "score_click_distance_component": score_click_distance_component,
+                # Audit bug A2 fix — Phase 6 FM adapter needs this on
+                # the per-candidate dict so the feature vector matches
+                # the W1 trainer's vocabulary.
+                "score_link_freshness": score_link_freshness,
                 "anchor_diversity_eval": anchor_diversity_eval,
                 "keyword_stuffing_eval": keyword_stuffing_eval,
                 "link_farm_eval": link_farm_eval,
@@ -781,6 +785,12 @@ def score_destination_matches(
         # apps.pipeline.services.phase6_ranker_contribution dispatcher.
         # Cold-start safe: when phase6_contribution is None, every
         # adapter returns 0.0 for missing models, this stays at 0.0.
+        #
+        # Audit bug A2 fix: pass the live ``score_components`` dict +
+        # ``anchor_confidence`` so the FM adapter can build feature
+        # vectors that match the W1 trainer's vocabulary. Without
+        # them, the FM DictVectorizer sees zero overlap and the
+        # adapter is inert.
         if phase6_contribution is not None:
             try:
                 from .phase6_ranker_contribution import AdapterContext
@@ -790,11 +800,40 @@ def score_destination_matches(
                 if sentence_record is not None:
                     host_text = getattr(sentence_record, "text", "") or ""
                 dest_text = getattr(destination, "title", "") or ""
+                # Mirror the FM trainer's nine score columns (see
+                # ``run_factorization_machines_refit``). Field-name
+                # parity is mandatory — DictVectorizer's vocab is
+                # built from the trainer's keys.
+                phase6_score_components = {
+                    "score_semantic": float(match.score_semantic),
+                    "score_keyword": float(pending_candidate["score_keyword"]),
+                    "score_node_affinity": float(pending_candidate["score_node"]),
+                    "score_quality": float(pending_candidate["score_quality"]),
+                    "score_link_freshness": float(
+                        pending_candidate.get("score_link_freshness", 0.0)
+                    ),
+                    "score_phrase_relevance": float(
+                        phrase_match.score_phrase_relevance
+                    ),
+                    "score_field_aware_relevance": float(
+                        field_aware_match.score_field_aware_relevance
+                    ),
+                    "score_rare_term_propagation": float(
+                        rare_term_match.score_rare_term_propagation
+                    ),
+                    "score_anchor_diversity": float(
+                        anchor_diversity_eval.score_anchor_diversity
+                    ),
+                }
                 phase6_ctx = AdapterContext(
                     host_sentence_text=host_text,
                     destination_text=dest_text,
                     host_key=host_key,
                     destination_key=destination.key,
+                    score_components=phase6_score_components,
+                    anchor_confidence=getattr(
+                        phrase_match, "anchor_confidence", None
+                    ),
                 )
                 score_final += float(
                     phase6_contribution.contribute_total(phase6_ctx)
