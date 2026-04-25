@@ -14,6 +14,10 @@ from apps.sources.freshness_frontier import compute_skip_set as freshness_skip_s
 from apps.sources.hyperloglog_registry import REGISTRY as HLL_REGISTRY
 from apps.sources.robots import RobotsChecker
 from apps.sources.sha256_fingerprint import fingerprint as content_fingerprint
+from apps.sources.token_bucket import (
+    DEFAULT_REGISTRY as RATE_LIMITER,
+    BucketConfig,
+)
 from apps.sources.url_canonical import canonicalize as canonicalize_url
 
 logger = logging.getLogger(__name__)
@@ -156,6 +160,22 @@ async def _execute_crawl_session(session_id) -> None:
     timeout_hours = session.config.get("timeout_hours", 2)
     end_time = timezone.now() + timedelta(hours=timeout_hours)
 
+    # Pick #1 — Turner 1986 token bucket. Register a per-origin bucket
+    # at the configured rate_limit so concurrent crawl sessions on
+    # different domains never starve each other. ``rate_limit`` is the
+    # operator-facing knob (req/s); we let burst = 2× rate so a brief
+    # gap can be made up without blowing the long-run average.
+    rate_limiter_key = f"crawl:{domain}"
+    tokens_per_second = float(rate_limit) if rate_limit > 0 else 1.0
+    burst_capacity = max(2.0 * tokens_per_second, 1.0)
+    RATE_LIMITER.register(
+        rate_limiter_key,
+        BucketConfig(
+            tokens_per_second=tokens_per_second,
+            burst_capacity=burst_capacity,
+        ),
+    )
+
     session.message = f"Crawling {len(to_crawl)} URLs at {rate_limit} req/s..."
     await session.asave(update_fields=["message"])
 
@@ -183,6 +203,7 @@ async def _execute_crawl_session(session_id) -> None:
             chunk,
             max_concurrency=rate_limit,
             headers_by_url=chunk_validators,
+            rate_limiter_key=rate_limiter_key,
         )
 
         for res in responses:

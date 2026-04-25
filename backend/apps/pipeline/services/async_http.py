@@ -123,6 +123,8 @@ async def fetch_urls(
     max_body_bytes: int = 5_242_880,
     timeout: float = 30.0,
     headers_by_url: dict[str, dict[str, str]] | None = None,
+    rate_limiter_key: str | None = None,
+    rate_limiter_timeout: float = 60.0,
 ) -> list[dict[str, Any]]:
     """Fetch URL body chunks for crawling.
 
@@ -132,12 +134,53 @@ async def fetch_urls(
     The result dict gains ``etag`` and ``last_modified`` keys when the
     server echoes those headers, so callers can persist them onto
     :class:`CrawledPageMeta`.
+
+    ``rate_limiter_key`` (pick #1 — Turner 1986 token bucket) gates each
+    outbound request on a token from the named bucket in
+    :data:`apps.sources.token_bucket.DEFAULT_REGISTRY`. Callers register
+    the bucket up-front (typically per origin host) with the desired
+    ``tokens_per_second`` / ``burst_capacity``; if no key is passed the
+    limiter is skipped and only the concurrency semaphore applies.
+
+    ``rate_limiter_timeout`` caps how long a single request waits for a
+    token before recording a ``rate_limited`` error and moving on.
     """
     sem = asyncio.Semaphore(max_concurrency)
     results: list[dict[str, Any]] = []
     headers_by_url = headers_by_url or {}
 
+    if rate_limiter_key is not None:
+        # Local import keeps async_http importable in minimal test
+        # contexts that don't load the source layer.
+        from apps.sources.token_bucket import DEFAULT_REGISTRY as _RATE_LIMITER
+    else:
+        _RATE_LIMITER = None
+
     async def fetch(url: str, client: httpx.AsyncClient):
+        # Pick #1 — wait for a token before issuing the HTTP request.
+        # The bucket's wait is sync (uses time.sleep) and thread-safe;
+        # offload to a worker thread so the asyncio event loop stays
+        # responsive for the other in-flight requests.
+        if _RATE_LIMITER is not None and rate_limiter_key is not None:
+            acquired = await asyncio.to_thread(
+                _RATE_LIMITER.wait_and_acquire,
+                rate_limiter_key,
+                cost=1.0,
+                timeout=rate_limiter_timeout,
+            )
+            if not acquired:
+                results.append(
+                    {
+                        "url": url,
+                        "status_code": 0,
+                        "content": "",
+                        "error": "rate_limited",
+                        "etag": "",
+                        "last_modified": "",
+                        "encoding": "",
+                    }
+                )
+                return
         try:
             # We don't read the whole body if it is too massive, or limit by slicing.
             # Using stream could be better but simplistic approach runs as follows.
