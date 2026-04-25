@@ -9,7 +9,7 @@
 | **Settings prefix** | `sha256_fingerprint` |
 | **Pipeline stage** | Crawl |
 | **Shipped in commit** | **partially shipped** — inline code at [apps/crawler/services/site_crawler.py:210](../../backend/apps/crawler/services/site_crawler.py) uses `hashlib.sha256`; **helper module pending extraction** |
-| **Helper module** | `backend/apps/sources/sha256_fingerprint.py` (to be created in W2) |
+| **Helper module** | [backend/apps/sources/sha256_fingerprint.py](../../backend/apps/sources/sha256_fingerprint.py) |
 | **Tests module** | `backend/apps/sources/tests.py` — `SHA256FingerprintTests` (to be created) |
 | **Benchmark module** | `backend/benchmarks/test_bench_sha256_fingerprint.py` (pending G6) |
 

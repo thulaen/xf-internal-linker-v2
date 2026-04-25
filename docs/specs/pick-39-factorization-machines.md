@@ -9,7 +9,7 @@
 | **Settings prefix** | `factorization_machines` |
 | **Pipeline stage** | Score (ranking) |
 | **Shipped in commit** | **DEFERRED** — needs `pyfm` / `libFM` pip dep |
-| **Helper module** | `backend/apps/ranking/ltr/factorization_machines.py` (plan path) |
+| **Helper module** | `backend/apps/pipeline/services/factorization_machines.py` (Phase 6 — `apps.ranking.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

@@ -9,7 +9,7 @@
 | **Settings prefix** | `uncertainty_sampling` |
 | **Pipeline stage** | Reviewable |
 | **Shipped in commit** | **PR-P — to ship** |
-| **Helper module** | `backend/apps/pipeline/services/uncertainty_sampling.py` (to be created) |
+| **Helper module** | [backend/apps/pipeline/services/uncertainty_sampling.py](../../backend/apps/pipeline/services/uncertainty_sampling.py) |
 | **Tests module** | `backend/apps/pipeline/test_reviewable.py` (to be created) |
 | **Benchmark module** | `backend/benchmarks/test_bench_uncertainty.py` (pending G6) |
 

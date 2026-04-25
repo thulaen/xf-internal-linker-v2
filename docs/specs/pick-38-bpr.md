@@ -9,7 +9,7 @@
 | **Settings prefix** | `bpr` |
 | **Pipeline stage** | Score (ranking LTR) |
 | **Shipped in commit** | **DEFERRED** — needs `implicit` pip dep |
-| **Helper module** | `backend/apps/ranking/ltr/bpr.py` (plan path) |
+| **Helper module** | `backend/apps/pipeline/services/bpr_ranker.py` (Phase 6 — `apps.ranking.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

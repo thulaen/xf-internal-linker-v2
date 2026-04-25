@@ -9,7 +9,7 @@
 | **Settings prefix** | `trafilatura` |
 | **Pipeline stage** | Crawl / Parse |
 | **Shipped in commit** | **not yet merged — awaiting pip-dep approval** |
-| **Helper module** | `backend/apps/sources/trafilatura_adapter.py` (to be created) |
+| **Helper module** | `backend/apps/sources/trafilatura_adapter.py` (Phase 6 — Medium tier; needs `trafilatura` pip dep approval) |
 | **Tests module** | `backend/apps/sources/tests.py` — `TrafilaturaTests` (to be created) |
 | **Benchmark module** | `backend/benchmarks/test_bench_trafilatura.py` (pending G6) |
 

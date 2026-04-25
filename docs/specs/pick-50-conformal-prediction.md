@@ -9,7 +9,7 @@
 | **Settings prefix** | `conformal_prediction` |
 | **Pipeline stage** | Reviewable |
 | **Shipped in commit** | **PR-P — to ship** |
-| **Helper module** | `backend/apps/pipeline/services/conformal_prediction.py` (to be created) |
+| **Helper module** | [backend/apps/pipeline/services/conformal_prediction.py](../../backend/apps/pipeline/services/conformal_prediction.py) |
 | **Tests module** | `backend/apps/pipeline/test_reviewable.py` |
 | **Benchmark module** | `backend/benchmarks/test_bench_conformal.py` (pending G6) |
 

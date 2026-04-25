@@ -9,7 +9,7 @@
 | **Settings prefix** | `url_canonical` |
 | **Pipeline stage** | Crawl |
 | **Shipped in commit** | **not yet merged** — existing `canonical_url` in `site_crawler.py` only reads the `<link rel="canonical">` tag, does not normalise arbitrary URLs |
-| **Helper module** | `backend/apps/sources/url_canonical.py` (to be created) |
+| **Helper module** | [backend/apps/sources/url_canonical.py](../../backend/apps/sources/url_canonical.py) |
 | **Tests module** | `backend/apps/sources/tests.py` — `UrlCanonicalTests` (to be created) |
 | **Benchmark module** | `backend/benchmarks/test_bench_url_canonical.py` (pending G6) |
 

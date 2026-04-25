@@ -9,7 +9,7 @@
 | **Settings prefix** | `lda` |
 | **Pipeline stage** | Parse |
 | **Shipped in commit** | **DEFERRED** — needs `gensim` pip dep |
-| **Helper module** | `backend/apps/parse/topics/lda.py` (plan path) |
+| **Helper module** | `backend/apps/sources/lda_topics.py` (Phase 6 — `apps.parse.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

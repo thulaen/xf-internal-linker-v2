@@ -9,7 +9,7 @@
 | **Settings prefix** | `fasttext_langid` |
 | **Pipeline stage** | Parse |
 | **Shipped in commit** | **not yet merged — DEFERRED** (awaits `fasttext-langdetect` pip dep + 126 MB model download approval) |
-| **Helper module** | `backend/apps/parse/language/fasttext_langid.py` (plan path) |
+| **Helper module** | `backend/apps/sources/fasttext_langid.py` (Phase 6 — `apps.parse.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

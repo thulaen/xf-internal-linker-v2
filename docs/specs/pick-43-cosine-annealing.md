@@ -9,7 +9,7 @@
 | **Settings prefix** | `cosine_annealing` |
 | **Pipeline stage** | Training |
 | **Shipped in commit** | **DEFERRED** — no torch training loop exists yet |
-| **Helper module** | `backend/apps/training/schedule/cosine_annealing.py` (plan path, not yet created) |
+| **Helper module** | `backend/apps/training/schedule/cosine_annealing.py` (Phase 6 — sanctioned `apps.training` Django app, see Completion Plan §Architecture Principles rule 1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

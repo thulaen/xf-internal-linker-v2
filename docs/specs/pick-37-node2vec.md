@@ -9,7 +9,7 @@
 | **Settings prefix** | `node2vec` |
 | **Pipeline stage** | Embed |
 | **Shipped in commit** | **DEFERRED** — needs `node2vec` or `gensim` pip dep |
-| **Helper module** | `backend/apps/ranking/graph/node2vec.py` (plan path) |
+| **Helper module** | `backend/apps/pipeline/services/node2vec.py` (Phase 6 — `apps.ranking.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

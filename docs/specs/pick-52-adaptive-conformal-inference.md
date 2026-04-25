@@ -9,7 +9,7 @@
 | **Settings prefix** | `adaptive_conformal_inference` |
 | **Pipeline stage** | Reviewable |
 | **Shipped in commit** | **PR-P — to ship** |
-| **Helper module** | `backend/apps/pipeline/services/adaptive_conformal_inference.py` (to be created) |
+| **Helper module** | [backend/apps/pipeline/services/adaptive_conformal_inference.py](../../backend/apps/pipeline/services/adaptive_conformal_inference.py) |
 | **Tests module** | `backend/apps/pipeline/test_reviewable.py` |
 | **Benchmark module** | `backend/benchmarks/test_bench_aci.py` (pending G6) |
 

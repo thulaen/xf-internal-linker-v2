@@ -9,7 +9,7 @@
 | **Settings prefix** | `yake` |
 | **Pipeline stage** | Parse |
 | **Shipped in commit** | **DEFERRED** — needs `yake` pip dep |
-| **Helper module** | `backend/apps/parse/keywords/yake_adapter.py` (plan path) |
+| **Helper module** | `backend/apps/sources/yake_keywords.py` (Phase 6 — `apps.parse.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

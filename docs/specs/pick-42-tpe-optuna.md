@@ -9,7 +9,7 @@
 | **Settings prefix** | `meta_hpo` |
 | **Pipeline stage** | Training |
 | **Shipped in commit** | **TO SHIP** — Option B approval received 2026-04-22. Needs `optuna` pip dep. |
-| **Helper module** | `backend/apps/pipeline/services/meta_hpo.py` (to be created) |
+| **Helper module** | [backend/apps/pipeline/services/meta_hpo.py](../../backend/apps/pipeline/services/meta_hpo.py) |
 | **Tests module** | `backend/apps/pipeline/test_meta_hpo.py` (to be created) |
 | **Benchmark module** | `backend/benchmarks/test_bench_tpe.py` (pending G6) |
 

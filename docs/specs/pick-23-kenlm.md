@@ -9,7 +9,7 @@
 | **Settings prefix** | `kenlm` |
 | **Pipeline stage** | Parse |
 | **Shipped in commit** | **DEFERRED** — needs `kenlm` pip dep + `lmplz` trainer binary |
-| **Helper module** | `backend/apps/parse/fluency/kenlm.py` (plan path) |
+| **Helper module** | `backend/apps/sources/kenlm_lm.py` (Phase 6 — `apps.parse.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 

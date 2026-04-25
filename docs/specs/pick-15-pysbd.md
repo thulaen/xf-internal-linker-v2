@@ -8,9 +8,9 @@
 | **Canonical name** | PySBD (Python Sentence Boundary Disambiguation) |
 | **Settings prefix** | `pysbd` |
 | **Pipeline stage** | Parse |
-| **Shipped in commit** | **REUSED** — already a project dependency; the wrapper lives at [apps/pipeline/services/sentence_splitter.py](../../backend/apps/pipeline/services/sentence_splitter.py) |
-| **Helper module** | [backend/apps/pipeline/services/sentence_splitter.py](../../backend/apps/pipeline/services/sentence_splitter.py) |
-| **Tests module** | [backend/apps/pipeline/tests.py](../../backend/apps/pipeline/tests.py) — `SentenceSplitterTests` |
+| **Shipped in commit** | **NOT YET — spec was incorrect**: existing `sentence_splitter.py` uses spaCy + regex, NOT PySBD. Phase 6 will add PySBD as an opt-in alternative when robustness on edge cases (abbreviations, ellipses, scientific text) matters. |
+| **Helper module** | `backend/apps/sources/pysbd_segmenter.py` (Phase 6 — `apps.parse.*` namespace from original plan is forbidden by anti-spaghetti rule §1) |
+| **Tests module** | `backend/apps/sources/test_pysbd_segmenter.py` (Phase 6) |
 | **Benchmark module** | `backend/benchmarks/test_bench_pysbd.py` (pending G6) |
 
 ## 2 · Motivation

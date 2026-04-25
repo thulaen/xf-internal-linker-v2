@@ -9,7 +9,7 @@
 | **Settings prefix** | `lambda_loss` |
 | **Pipeline stage** | Training |
 | **Shipped in commit** | **DEFERRED** — needs torch training loop |
-| **Helper module** | `backend/apps/training/loss/lambda_loss.py` (plan path) |
+| **Helper module** | `backend/apps/training/loss/lambda_loss.py` (Phase 6 — sanctioned `apps.training` Django app, see Completion Plan §Architecture Principles rule 1) |
 | **Tests module** | pending |
 | **Benchmark module** | pending G6 |
 
