@@ -1673,6 +1673,41 @@ def run_reservoir_sampling_rotate(job, checkpoint) -> None:
 
 
 @scheduled_job(
+    "ndcg_smoke_test",
+    display_name="Retriever NDCG smoke test",
+    cadence_seconds=DAY,
+    estimate_seconds=2 * 60,
+    priority=JOB_PRIORITY_LOW,
+)
+def run_ndcg_smoke_test(job, checkpoint) -> None:
+    """Daily NDCG@10 readout over the reviewed-Suggestion stream.
+
+    Polish.B — paper-backed automated retriever-quality eval. Pulls
+    approved + rejected Suggestions from the last 30 days, computes
+    NDCG@10 with bootstrap 95% confidence, gates on Sanderson 2010
+    §5.2 sample-size floor (≥ 50 for basic, ≥ 200 for pairwise),
+    and persists the result to ``AppSetting["ndcg_eval.latest.json"]``
+    for the dashboard.
+
+    Cold-start safe: < 50 reviewed → ``sufficient_data=False`` and
+    the dashboard shows "Approve more, then this reads".
+    """
+    from apps.pipeline.services.ndcg_eval import evaluate_and_persist
+
+    checkpoint(progress_pct=0.0, message="Aggregating reviewed-Suggestion stream")
+    result = evaluate_and_persist()
+    if not result.sufficient_data:
+        checkpoint(progress_pct=100.0, message=result.message)
+        return
+    summary = (
+        f"NDCG@10: {result.ndcg:.3f} "
+        f"[CI95: {result.confidence_lower:.3f}-{result.confidence_upper:.3f}] "
+        f"over {result.sample_size} reviewed suggestions"
+    )
+    checkpoint(progress_pct=100.0, message=summary)
+
+
+@scheduled_job(
     "analytics_rollups",
     display_name="Analytics rollups",
     cadence_seconds=DAY,

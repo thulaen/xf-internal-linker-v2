@@ -237,6 +237,25 @@ export interface PipelineGate {
   blockers: PipelineGateBlocker[];
 }
 
+/** Polish.B — daily NDCG@K readout over the reviewed-Suggestion stream.
+ *  Mirrors the Python ``NdcgResult.to_dict`` shape. */
+export interface NdcgEvalResult {
+  available: boolean;
+  /** Human-readable status line for the dashboard. */
+  message: string;
+  /** Empty when not yet available. */
+  ndcg?: number;
+  k?: number;
+  sample_size?: number;
+  sufficient_data?: boolean;
+  sufficient_for_pairwise?: boolean;
+  confidence_lower?: number;
+  confidence_upper?: number;
+  fitted_at?: string | null;
+  /** Per-candidate-origin NDCG (only origins with ≥ basic floor sample). */
+  breakdown_by_candidate_origin?: Record<string, number>;
+}
+
 @Injectable({ providedIn: 'root' })
 export class DiagnosticsService {
   private http = inject(HttpClient);
@@ -287,6 +306,13 @@ export class DiagnosticsService {
   getResources(): Observable<ResourceUsage> {
     return this.http.get<ResourceUsage>(`${this.baseUrl}/resources/`).pipe(
       catchError(err => throwError(() => err))
+    );
+  }
+
+  /** Polish.B — daily NDCG@K readout (paper-backed retriever quality). */
+  getNdcgEval(): Observable<NdcgEvalResult> {
+    return this.http.get<NdcgEvalResult>(`${this.baseUrl}/ndcg-eval/`).pipe(
+      catchError(err => throwError(() => err)),
     );
   }
 

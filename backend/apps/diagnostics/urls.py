@@ -17,6 +17,14 @@ urlpatterns = [
     path("features/", views.FeatureReadinessView.as_view(), name="feature-readiness"),
     path("resources/", views.ResourceUsageView.as_view(), name="resource-usage"),
     path("weights/", views.WeightDiagnosticsView.as_view(), name="weight-diagnostics"),
+    # Polish.B — daily NDCG@10 readout over the reviewed-Suggestion
+    # stream. Paper-backed (Järvelin-Kekäläinen 2002, Buckley-Voorhees
+    # 2004, Sanderson 2010) automated retriever-quality eval.
+    path(
+        "ndcg-eval/",
+        views.NdcgEvalView.as_view(),
+        name="ndcg-eval",
+    ),
     # Phase 1v — suppressed-pair counter for the Diagnostics page (Phase 1
     # negative memory visibility).
     path(

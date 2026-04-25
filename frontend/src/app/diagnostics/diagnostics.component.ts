@@ -16,7 +16,7 @@ import { ScrollAttentionService } from '../core/services/scroll-attention.servic
 import { TopicUpdate } from '../core/services/realtime.types';
 import { environment } from '../../environments/environment';
 import { buildAIPromptForError, diffErrorSnapshot, ErrorGroup, groupErrors, maxTrendCount as maxTrendCountFn, relatedErrors as relatedErrorsFn, trackErrorId as trackErrorIdFn, trackGroupFingerprint as trackGroupFingerprintFn, trackNodeId as trackNodeIdFn, trackTrendDate as trackTrendDateFn, trendLabel as trendLabelFn, uniqueNodeIds } from './diagnostics.error-log';
-import { DiagnosticsService, ErrorLogEntry, FeatureReadiness, NodeSummary, PipelineGate, ResourceUsage, RuntimeContext, ServiceStatus, SystemConflict } from './diagnostics.service';
+import { DiagnosticsService, ErrorLogEntry, FeatureReadiness, NdcgEvalResult, NodeSummary, PipelineGate, ResourceUsage, RuntimeContext, ServiceStatus, SystemConflict } from './diagnostics.service';
 import { dispatchRealtimeUpdate, removeConflictFrom, removeServiceFrom, upsertConflictInto, upsertServiceInto } from './diagnostics.realtime';
 import { buildRuntimeExecutionCards, buildRuntimeLaneCards, RuntimeExecutionCard, RuntimeLaneCard } from './diagnostics.runtime-cards';
 import { ConflictListComponent } from './conflict-list/conflict-list.component';
@@ -57,6 +57,8 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   conflicts: SystemConflict[] = [];
   features: FeatureReadiness[] = [];
   resources: ResourceUsage | null = null;
+  /** Polish.B — populated daily by the ndcg_smoke_test scheduled job. */
+  ndcgEval: NdcgEvalResult | null = null;
   runtimeLaneCards: RuntimeLaneCard[] = [];
   runtimeExecutionCards: RuntimeExecutionCard[] = [];
   loading = true;
@@ -169,6 +171,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
       runtimeCtx: this.diagnosticsService.getRuntimeContext().pipe(catchError(() => of<RuntimeContext | null>(null))),
       nodes: this.diagnosticsService.getNodes().pipe(catchError(() => of<NodeSummary[]>([]))),
       pipelineGate: this.diagnosticsService.getPipelineGate().pipe(catchError(() => of<PipelineGate | null>(null))),
+      ndcgEval: this.diagnosticsService.getNdcgEval().pipe(catchError(() => of<NdcgEvalResult | null>(null))),
     }).pipe(takeUntil(this.destroy$)).subscribe({
       next: (data) => {
         this.services = data.services;
@@ -178,6 +181,7 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
         this.runtimeCtx = data.runtimeCtx;
         this.nodes = data.nodes;
         this.pipelineGate = data.pipelineGate;
+        this.ndcgEval = data.ndcgEval;
         this.applyErrorsSnapshot(data.errors);
         this.rebuildRuntimeCards();
         this.loading = false;
@@ -264,6 +268,17 @@ export class DiagnosticsComponent implements OnInit, OnDestroy {
   getHealthyCount(): number { return this.services.filter((service) => service.state === 'healthy').length; }
   runtimeLaneTrackBy(_i: number, lane: RuntimeLaneCard): string { return lane.id; }
   runtimeExecutionTrackBy(_i: number, card: RuntimeExecutionCard): string { return card.id; }
+
+  /** Polish.B — turn the NDCG breakdown dict into a sorted list for *ngFor. */
+  ndcgEvalOriginEntries(): Array<{ origin: string; score: number }> {
+    const breakdown = this.ndcgEval?.breakdown_by_candidate_origin;
+    if (!breakdown) {
+      return [];
+    }
+    return Object.entries(breakdown)
+      .map(([origin, score]) => ({ origin, score: score as number }))
+      .sort((a, b) => b.score - a.score);
+  }
   trackServiceName(_i: number, service: ServiceStatus): string { return service.service_name; }
   get coreServices(): ServiceStatus[] { return this.services.filter((service) => !RUNTIME_SUMMARY_SERVICES.has(service.service_name)); }
   get groupedErrors(): ErrorGroup[] { return groupErrors(this.errors, this.filterNodeId); }

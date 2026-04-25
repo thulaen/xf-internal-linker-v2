@@ -694,6 +694,50 @@ class SchedulerDispatchView(views.APIView):
         )
 
 
+class NdcgEvalView(views.APIView):
+    """Latest NDCG@K reading over the reviewed-Suggestion stream.
+
+    GET-only — populated daily by the ``ndcg_smoke_test`` scheduled
+    job (Polish.B). Returns the full :class:`NdcgResult` shape from
+    ``apps.pipeline.services.ndcg_eval``:
+
+    - ``ndcg``: NDCG@10 point estimate.
+    - ``confidence_lower`` / ``confidence_upper``: bootstrap 95 % CI.
+    - ``sample_size``: number of reviewed suggestions in the window.
+    - ``sufficient_data`` / ``sufficient_for_pairwise``: Sanderson
+      §5.2 sample-size gates.
+    - ``message``: human-readable status line for the dashboard.
+    - ``breakdown_by_candidate_origin``: per-origin NDCG (only
+      origins above the basic floor).
+    - ``fitted_at``: ISO timestamp of the last run.
+
+    Cold-start (no scheduled job has run yet) → returns
+    ``{"available": false, ...}`` so the dashboard renders a
+    "Eval pending — first run within 24 h" banner.
+    """
+
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        from apps.pipeline.services.ndcg_eval import load_latest
+
+        result = load_latest()
+        if result is None:
+            return response.Response(
+                {
+                    "available": False,
+                    "message": (
+                        "NDCG eval has not run yet. The ndcg_smoke_test "
+                        "scheduled job runs daily; check the Scheduled "
+                        "Updates tab to trigger it manually."
+                    ),
+                }
+            )
+        body = result.to_dict()
+        body["available"] = True
+        return response.Response(body)
+
+
 class WeightDiagnosticsView(views.APIView):
     """
     FR-028: Algorithm Weight Diagnostics.

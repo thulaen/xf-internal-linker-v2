@@ -434,6 +434,67 @@
          (owns its counter fetch + drilldown list + per-row clear action). -->
     <app-suppressed-pairs-card></app-suppressed-pairs-card>
 
+    <!-- Polish.B — NDCG@K retriever-quality readout. Daily refresh by
+         the ndcg_smoke_test scheduled job. Sources: Järvelin & Kekäläinen
+         2002 ACM TOIS, Sanderson 2010 FnTIR §5.2 sample-size gate. -->
+    <section class="ndcg-eval-section" *ngIf="ndcgEval">
+      <div class="section-heading">
+        <h2>Retriever Quality (NDCG@10)</h2>
+        <p>
+          How well your ranker orders approved over rejected suggestions.
+          Sources: Järvelin &amp; Kekäläinen 2002 ACM TOIS;
+          Sanderson 2010 FnTIR §5.2 sample-size gate.
+        </p>
+      </div>
+      <mat-card class="ndcg-eval-card">
+        <mat-card-content>
+          <ng-container *ngIf="!ndcgEval.available || ndcgEval.sufficient_data === false; else ndcgReady">
+            <p class="ndcg-status-pending">
+              <mat-icon class="icon-md">hourglass_empty</mat-icon>
+              {{ ndcgEval.message }}
+            </p>
+          </ng-container>
+          <ng-template #ndcgReady>
+            <div class="ndcg-readout">
+              <div class="ndcg-headline">
+                <span class="ndcg-value">{{ ndcgEval.ndcg | number:'1.3-3' }}</span>
+                <span class="ndcg-label">NDCG@{{ ndcgEval.k }}</span>
+              </div>
+              <div class="ndcg-detail">
+                <span>
+                  Sample size: <strong>{{ ndcgEval.sample_size }}</strong>
+                  reviewed suggestions
+                </span>
+                <span>
+                  95 % confidence interval:
+                  <strong>
+                    [{{ ndcgEval.confidence_lower | number:'1.3-3' }} —
+                    {{ ndcgEval.confidence_upper | number:'1.3-3' }}]
+                  </strong>
+                </span>
+                <span class="ndcg-pairwise-note" *ngIf="!ndcgEval.sufficient_for_pairwise">
+                  <mat-icon class="icon-md">info_outline</mat-icon>
+                  {{ ndcgEval.message }}
+                </span>
+              </div>
+            </div>
+            <div class="ndcg-breakdown" *ngIf="ndcgEvalOriginEntries().length > 0">
+              <h3>By candidate origin</h3>
+              <ul class="ndcg-origin-list">
+                <li *ngFor="let entry of ndcgEvalOriginEntries()">
+                  <span class="origin-name">{{ entry.origin }}</span>
+                  <span class="origin-score">{{ entry.score | number:'1.3-3' }}</span>
+                </li>
+              </ul>
+            </div>
+            <p class="ndcg-fitted-at" *ngIf="ndcgEval.fitted_at">
+              Last refresh: {{ ndcgEval.fitted_at | date:'medium' }}
+            </p>
+          </ng-template>
+        </mat-card-content>
+      </mat-card>
+    </section>
+
     <section class="runtime-lanes-section" *ngIf="runtimeLaneCards.length > 0">
       <div class="section-heading">
         <h2>Heavy Runtime Owners</h2>
