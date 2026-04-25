@@ -181,6 +181,16 @@ urlpatterns = [
         ).FR099FR105SettingsView.as_view(),
         name="settings-fr099-fr105",
     ),
+    # Group C Stage-1 retriever flags (LexicalRetriever + QueryExpansion).
+    # Default off; flip on via the Settings UI to enable RRF fusion.
+    path(
+        "settings/stage1-retrievers/",
+        __import__(
+            "apps.core.views_stage1_retrievers",
+            fromlist=["Stage1RetrieverSettingsView"],
+        ).Stage1RetrieverSettingsView.as_view(),
+        name="settings-stage1-retrievers",
+    ),
     # Runbook execution endpoints (plan item 17)
     path(
         "runbooks/<str:runbook_id>/execute/",

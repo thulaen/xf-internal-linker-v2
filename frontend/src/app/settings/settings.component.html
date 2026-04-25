@@ -589,6 +589,63 @@
             </mat-card-content>
           </mat-card>
 
+          <!-- Group C — Stage-1 retriever flags (LexicalRetriever + QueryExpansionRetriever).
+               Both default off; when either is on, the candidate pool fuses
+               semantic + lexical (+ optionally query-expansion) rankings via
+               Reciprocal Rank Fusion (pick #31, Cormack et al. 2009 SIGIR).
+               Source: docs/specs/pick-31-rrf.md, pick-27-query-expansion-bow.md. -->
+          <mat-card class="settings-card" id="stage1-retrievers">
+            <mat-card-header>
+              <mat-card-title>Stage-1 Candidate Retrievers (Group C)</mat-card-title>
+            </mat-card-header>
+            <mat-card-content class="card-content">
+              <p class="hint">
+                Add complementary candidate retrievers to Stage-1. The
+                semantic (BGE-M3 cosine) retriever is always on. Flipping
+                either flag below activates Reciprocal Rank Fusion (RRF,
+                pick #31) per destination. Source: Cormack et al. 2009 SIGIR.
+              </p>
+              <div class="number-grid">
+                <mat-form-field appearance="outline">
+                  <mat-label>Lexical retriever (token overlap)</mat-label>
+                  <mat-select
+                    [(ngModel)]="stage1Retrievers.lexical_retriever_enabled"
+                    [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Group C.2 — adds the LexicalRetriever (token-overlap on titles + scopes). Catches synonyms / spelling-out gaps that dense embeddings miss."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+                <mat-form-field appearance="outline">
+                  <mat-label>Query-expansion retriever (Rocchio PRF, pick #27)</mat-label>
+                  <mat-select
+                    [(ngModel)]="stage1Retrievers.query_expansion_retriever_enabled"
+                    [compareWith]="compareBooleans">
+                    <mat-option [value]="true">Enabled</mat-option>
+                    <mat-option [value]="false">Disabled</mat-option>
+                  </mat-select>
+                  <button matSuffix mat-icon-button type="button" class="info-btn"
+                          matTooltip="Group C.3 — adds the QueryExpansionRetriever (Rocchio 1971 / Lavrenko-Croft 2001 PRF). Pulls in hosts that share expansion terms even when they don't share literal title tokens. Combine with lexical retriever for the richest fused ranking."
+                          matTooltipClass="setting-tooltip">
+                    <mat-icon class="icon-md">info_outline</mat-icon>
+                  </button>
+                </mat-form-field>
+              </div>
+              <div class="card-actions-row">
+                <button mat-flat-button color="primary"
+                        [disabled]="savingStage1Retrievers"
+                        (click)="saveStage1RetrieverSettings()">
+                  <mat-icon>{{ savingStage1Retrievers ? 'sync' : 'merge' }}</mat-icon>
+                  {{ savingStage1Retrievers ? 'Saving...' : 'Save Stage-1 retrievers' }}
+                </button>
+              </div>
+            </mat-card-content>
+          </mat-card>
+
           <!-- FR-099 DARB -->
           <mat-card class="settings-card" id="darb">
             <mat-card-header>

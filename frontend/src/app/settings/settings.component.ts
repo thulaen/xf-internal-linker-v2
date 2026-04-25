@@ -40,6 +40,7 @@ import {
   SiloMode,
   SiloSettings,
   SiloSettingsService,
+  Stage1RetrieverSettings,
   WeightedAuthoritySettings,
   XenForoSettings,
   XenForoSettingsUpdate,
@@ -2383,6 +2384,15 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
     score_window: 0.30,
     similarity_cap: 0.90,
   };
+  // Group C — Stage-1 candidate-retriever flags.
+  // Default off; flipping either on activates RRF fusion (pick #31).
+  // See backend/apps/pipeline/services/candidate_retrievers.py.
+  stage1Retrievers: Stage1RetrieverSettings = {
+    lexical_retriever_enabled: false,
+    query_expansion_retriever_enabled: false,
+  };
+  savingStage1Retrievers = false;
+
   // FR-099 through FR-105 — graph-topology ranking signals.
   // See docs/specs/fr099-*.md through docs/specs/fr105-*.md.
   // Defaults match backend/apps/suggestions/recommended_weights.py byte-for-byte.
@@ -2939,6 +2949,7 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
       graphCandidate: this.siloSvc.getGraphCandidateSettings(),
       valueModel: this.siloSvc.getValueModelSettings(),
       fr099Fr105: this.siloSvc.getFr099Fr105Settings(),
+      stage1Retrievers: this.siloSvc.getStage1RetrieverSettings(),
       currentWeights: this.siloSvc.getCurrentWeights(),
       notifPrefs: this.notifSvc.loadPreferences(),
     }).pipe(takeUntil(this.destroy$), this.markForCheckOnComplete()).subscribe({
@@ -2986,6 +2997,13 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
           this.berp = { ...this.berp, ...(data.fr099Fr105.berp || {}) };
           this.hgte = { ...this.hgte, ...(data.fr099Fr105.hgte || {}) };
           this.rsqva = { ...this.rsqva, ...(data.fr099Fr105.rsqva || {}) };
+        }
+        // Group C — Stage-1 retriever flags.
+        if (data.stage1Retrievers) {
+          this.stage1Retrievers = {
+            ...this.stage1Retrievers,
+            ...data.stage1Retrievers,
+          };
         }
         this.notifPrefs = { ...this.notifPrefs, ...data.notifPrefs };
         this.currentWeights = data.currentWeights;
@@ -3799,6 +3817,38 @@ export class SettingsComponent implements OnInit, OnDestroy, HasUnsavedChanges {
   saveBerpSettings(): void { this._saveFr099Fr105(v => this.savingBerp = v, 'BERP'); }
   saveHgteSettings(): void { this._saveFr099Fr105(v => this.savingHgte = v, 'HGTE'); }
   saveRsqvaSettings(): void { this._saveFr099Fr105(v => this.savingRsqva = v, 'RSQVA'); }
+
+  // Group C — Stage-1 candidate retriever flags. Both default off;
+  // flipping either on activates RRF fusion (#31) on the next pipeline
+  // pass with no other code change.
+  saveStage1RetrieverSettings(): void {
+    this.savingStage1Retrievers = true;
+    this.siloSvc.updateStage1RetrieverSettings(this.stage1Retrievers)
+      .pipe(takeUntil(this.destroy$), this.markForCheckOnComplete())
+      .subscribe({
+        next: (saved) => {
+          if (saved) {
+            this.stage1Retrievers = { ...this.stage1Retrievers, ...saved };
+          }
+          this.savingStage1Retrievers = false;
+          this.snack.open(
+            'Stage-1 retrievers saved',
+            undefined,
+            { duration: 2500 },
+          );
+        },
+        error: (error) => {
+          this.savingStage1Retrievers = false;
+          this.snack.open(
+            error?.error?.detail
+              || error?.error?.error
+              || 'Failed to save Stage-1 retrievers',
+            'Dismiss',
+            { duration: 4000 },
+          );
+        },
+      });
+  }
 
   saveClickDistanceSettings(): void {
     this.savingClickDistance = true;

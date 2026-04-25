@@ -355,6 +355,16 @@ export interface LinkFarmSettings {
   lambda: number;
 }
 
+/** Group C Stage-1 retriever flags. Default off; flipping either
+ *  on adds the matching retriever to the production registry, which
+ *  triggers RRF fusion (#31) on the next pipeline pass. */
+export interface Stage1RetrieverSettings {
+  /** Group C.2 — adds LexicalRetriever (token overlap). */
+  lexical_retriever_enabled: boolean;
+  /** Group C.3 — adds QueryExpansionRetriever (Rocchio PRF, pick #27). */
+  query_expansion_retriever_enabled: boolean;
+}
+
 export interface RuntimeModelRegistryEntry {
   id: number;
   task_type: string;
@@ -881,6 +891,27 @@ export class SiloSettingsService {
 
   updateFr099Fr105Settings(payload: any): Observable<any> {
     return this.http.put<any>('/api/settings/fr099-fr105/', payload);
+  }
+
+  // Group C Stage-1 retriever flags (Lexical + QueryExpansion).
+  // Default off; flipping either on activates RRF fusion (#31)
+  // automatically on the next pipeline pass. See
+  // docs/specs/pick-31-rrf.md, pick-27-query-expansion-bow.md, and
+  // backend/apps/pipeline/services/candidate_retrievers.py for the
+  // wiring details.
+  getStage1RetrieverSettings(): Observable<Stage1RetrieverSettings> {
+    return this.http.get<Stage1RetrieverSettings>(
+      '/api/settings/stage1-retrievers/'
+    );
+  }
+
+  updateStage1RetrieverSettings(
+    payload: Partial<Stage1RetrieverSettings>
+  ): Observable<Stage1RetrieverSettings> {
+    return this.http.put<Stage1RetrieverSettings>(
+      '/api/settings/stage1-retrievers/',
+      payload
+    );
   }
 
   getRuntimeConfig(): Observable<RuntimeConfig> {
