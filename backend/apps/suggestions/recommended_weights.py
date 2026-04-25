@@ -62,6 +62,22 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "graph_signals.hits_authority.ranking_weight": "0.04",
     "graph_signals.personalized_pagerank.ranking_weight": "0.04",
     "graph_signals.trustrank.ranking_weight": "0.03",
+    # ── Pick #51 — TrustRank Auto-Seeder (Gyöngyi 2004 §4.1) ──
+    # Inverse-PageRank seed picker with quality + spam + readability
+    # filters. Defaults from the 52-pick plan §"Round-5/6 Detail".
+    # The scheduled job ``trustrank_auto_seeder`` reads these on each
+    # daily run and feeds them to ``pick_seeds`` along with the
+    # per-node quality data sourced from ``ContentItem.content_value_score``
+    # and ``Post.flesch_kincaid_grade`` (the latter is the column
+    # Phase 3 #19 wired; pick #51 is its first downstream consumer).
+    "trustrank_auto_seeder.candidate_pool_size": "100",
+    "trustrank_auto_seeder.seed_count_k": "20",
+    "trustrank_auto_seeder.post_quality_min": "0.6",
+    "trustrank_auto_seeder.readability_grade_max": "16",
+    # 0.0 disables the spam filter; positive values reject candidates
+    # whose content_value_score sits at-or-below the floor as a
+    # spam-proxy until a dedicated spam_guard column lands.
+    "trustrank_auto_seeder.spam_content_value_floor": "0.15",
     "link_freshness.ranking_weight": "0.05",
     "link_freshness.recent_window_days": "30",
     "link_freshness.newest_peer_percent": "0.25",

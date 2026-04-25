@@ -339,16 +339,127 @@ def run_hits_refresh(job, checkpoint) -> None:
     priority=JOB_PRIORITY_HIGH,
 )
 def run_trustrank_auto_seeder(job, checkpoint) -> None:
+    """Phase 5c — pick #51 wiring.
+
+    Reads the operator-tunable AppSettings the plan specified
+    (``trustrank_auto_seeder.*``) and feeds the seed picker
+    real per-node quality data:
+
+    - ``post_quality`` from ``ContentItem.content_value_score``
+    - ``readability_grade`` from ``Post.flesch_kincaid_grade``
+      (the Phase 3 #19 column we just shipped — single source of
+      truth for readability, no duplicate computation)
+    - ``spam_flagged`` from a low-quality threshold on
+      content_value_score (no dedicated spam column on ContentItem
+      yet; this is the closest available proxy)
+
+    Cold-start safe: every quality input is optional. Missing rows
+    pass the filter (the picker only rejects on affirmative low-
+    quality evidence — see ``pick_seeds`` docstring §3).
+    """
+    from apps.content.models import ContentItem, Post
     from apps.core.models import AppSetting
-    from apps.pipeline.services.trustrank_auto_seeder import pick_seeds
+    from apps.pipeline.services.trustrank_auto_seeder import (
+        DEFAULT_CANDIDATE_POOL_SIZE,
+        DEFAULT_POST_QUALITY_MIN,
+        DEFAULT_READABILITY_GRADE_MAX,
+        DEFAULT_SEED_COUNT_K,
+        pick_seeds,
+    )
 
     g = _load_networkx_graph(checkpoint)
     if g.number_of_nodes() == 0:
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
-    checkpoint(progress_pct=30.0, message="Running inverse-PR seed picker")
-    result = pick_seeds(g)
+    # Operator-tunable parameters with helper-provided defaults.
+    def _setting_int(key: str, default: int) -> int:
+        try:
+            row = AppSetting.objects.filter(key=key).first()
+            return int(row.value) if row else default
+        except (TypeError, ValueError):
+            return default
+
+    def _setting_float(key: str, default: float) -> float:
+        try:
+            row = AppSetting.objects.filter(key=key).first()
+            return float(row.value) if row else default
+        except (TypeError, ValueError):
+            return default
+
+    candidate_pool_size = _setting_int(
+        "trustrank_auto_seeder.candidate_pool_size", DEFAULT_CANDIDATE_POOL_SIZE
+    )
+    seed_count_k = _setting_int(
+        "trustrank_auto_seeder.seed_count_k", DEFAULT_SEED_COUNT_K
+    )
+    post_quality_min = _setting_float(
+        "trustrank_auto_seeder.post_quality_min", DEFAULT_POST_QUALITY_MIN
+    )
+    readability_grade_max = _setting_float(
+        "trustrank_auto_seeder.readability_grade_max",
+        DEFAULT_READABILITY_GRADE_MAX,
+    )
+    # Spam flagging — no dedicated column, so we treat very low
+    # content_value_score as the proxy. Tunable via AppSetting; 0.0
+    # disables the spam filter entirely.
+    spam_quality_floor = _setting_float(
+        "trustrank_auto_seeder.spam_content_value_floor", 0.15
+    )
+
+    checkpoint(
+        progress_pct=20.0,
+        message="Loading per-node quality + readability + spam maps",
+    )
+
+    # Build per-node quality maps keyed by the (pk, content_type)
+    # tuple the graph uses. Single DB query each — O(N) memory but
+    # bounded by the active ContentItem table size, well below the
+    # 50 MB / 50 MB budget the plan calls out for pick #51.
+    quality_rows = ContentItem.objects.filter(is_deleted=False).values_list(
+        "pk", "content_type", "content_value_score"
+    )
+    post_quality: dict = {}
+    spam_flagged: set = set()
+    for pk, content_type, value_score in quality_rows:
+        key = (pk, content_type)
+        if value_score is not None:
+            post_quality[key] = float(value_score)
+            if spam_quality_floor > 0.0 and float(value_score) <= spam_quality_floor:
+                spam_flagged.add(key)
+
+    readability_rows = (
+        Post.objects.select_related("content_item")
+        .filter(content_item__is_deleted=False)
+        .values_list(
+            "content_item__pk",
+            "content_item__content_type",
+            "flesch_kincaid_grade",
+        )
+    )
+    readability_grade: dict = {}
+    for pk, content_type, grade in readability_rows:
+        if grade is not None and grade > 0.0:
+            readability_grade[(pk, content_type)] = float(grade)
+
+    checkpoint(
+        progress_pct=50.0,
+        message=(
+            f"Picking seeds from pool={candidate_pool_size} k={seed_count_k} "
+            f"(quality={len(post_quality)}, readability={len(readability_grade)}, "
+            f"spam={len(spam_flagged)})"
+        ),
+    )
+    result = pick_seeds(
+        g,
+        candidate_pool_size=candidate_pool_size,
+        seed_count_k=seed_count_k,
+        spam_flagged=spam_flagged,
+        post_quality=post_quality,
+        post_quality_min=post_quality_min,
+        readability_grade=readability_grade,
+        readability_grade_max=readability_grade_max,
+    )
     seed_ids = ",".join(str(s) for s in result.seeds)
     AppSetting.objects.update_or_create(
         key="trustrank.seed_ids",
@@ -359,7 +470,11 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
     )
     checkpoint(
         progress_pct=100.0,
-        message=f"Picked {len(result.seeds)} seeds ({result.reason})",
+        message=(
+            f"Picked {len(result.seeds)} seeds "
+            f"({result.reason}; rejected={result.rejected_count}, "
+            f"fallback={'yes' if result.fallback_used else 'no'})"
+        ),
     )
 
 
