@@ -29,7 +29,7 @@ The linker adds two on top of that raw signal:
   top up with the best remaining forward-PageRank nodes.
 
 The module is pure Python + networkx; no DB access. A scheduled
-job (``trustrank_auto_seeder`` in the 13:00–23:00 runner) supplies
+job (``trustrank_auto_seeder`` in the 11:00–23:00 runner) supplies
 the graph and the per-node quality map; this module returns the
 seed list.
 """

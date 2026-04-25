@@ -74,6 +74,8 @@ redis-data/
 htmlcov/
 .coverage
 .coverage.*
+coverage-html/
+backend/coverage-html/
 
 # Celery
 celerybeat-schedule

@@ -15,6 +15,8 @@ import warnings
 import numpy as np
 from typing import Mapping, TypeAlias
 
+logger = logging.getLogger(__name__)
+
 try:
     from extensions import scoring
 
@@ -447,6 +449,7 @@ def score_destination_matches(
     fr099_fr105_caches: object = None,
     fr099_fr105_settings: object = None,
     graph_signal_ranker: GraphSignalRanker | None = None,
+    phase6_contribution: object = None,
     min_sentence_chars: int = _DEFAULT_MIN_SENTENCE_CHARS,
     max_sentence_chars: int = _DEFAULT_MAX_SENTENCE_CHARS,
     min_host_chars: int = _DEFAULT_MIN_HOST_CHARS,
@@ -770,6 +773,31 @@ def score_destination_matches(
             fr099_diags = fr099_eval.per_signal_diagnostics
         score_final += fr099_contribution
         score_final += graph_signal_contribution
+
+        # Slice 5 — Phase 6 ranker-time contribution dispatcher.
+        # Adds the operator-tunable contribution from each enabled
+        # Phase 6 pick (VADER #22 today; KenLM/LDA/Node2Vec/BPR/FM
+        # slot in via apps.pipeline.services.phase6_ranker_contribution
+        # adapter registry). Cold-start safe: when phase6_contribution
+        # is None or every weight is zero, this is exactly 0.0.
+        if phase6_contribution is not None:
+            try:
+                sentence_record = sentence_records.get(match.sentence_id)
+                host_text = ""
+                if sentence_record is not None:
+                    host_text = getattr(sentence_record, "text", "") or ""
+                dest_text = getattr(destination, "title", "") or ""
+                score_final += float(
+                    phase6_contribution.contribute_total(
+                        host_sentence_text=host_text,
+                        destination_text=dest_text,
+                    )
+                )
+            except Exception as exc:  # pragma: no cover — defensive
+                logger.warning(
+                    "phase6_contribution.contribute_total raised: %s",
+                    exc,
+                )
 
         # FR-014 Clustering Suppression
         score_cluster_suppression = 0.0

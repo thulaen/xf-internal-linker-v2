@@ -836,6 +836,31 @@ class Suggestion(TimestampedModel):
             models.Index(fields=["destination", "status"]),
             models.Index(fields=["host", "status"]),
             models.Index(fields=["is_applied"]),
+            # A.6 — Compound index on (status, candidate_origin) for
+            # the feedback_relevance + pipeline_data hot-path queries
+            # that filter on both columns. Postgres can't AND two
+            # single-column indexes; this compound one accelerates
+            # the typical "pending suggestions of source X" pattern.
+            models.Index(
+                fields=["status", "candidate_origin"],
+                name="sug_status_origin_idx",
+            ),
+            # A.7 — updated_at index supports the retention scans
+            # added in nightly_data_retention (B.5/B.7), the NDCG
+            # 30-day window scan in apps.pipeline.services.ndcg_eval,
+            # and the future G3.1 scope-content-signature compute.
+            # Without this, Postgres falls back to a sequential scan.
+            models.Index(
+                fields=["updated_at"],
+                name="sug_updated_at_idx",
+            ),
+            # Compound (status, updated_at) accelerates the B.7
+            # retention prune query specifically: it filters on
+            # status THEN orders/cuts on updated_at.
+            models.Index(
+                fields=["status", "updated_at"],
+                name="sug_status_updated_at_idx",
+            ),
         ]
 
     def __str__(self) -> str:

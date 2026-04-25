@@ -3,7 +3,7 @@
     <h1 class="page-title">Scheduled Updates</h1>
     <p class="page-subtitle">
       Background refresh jobs run once at a time inside the
-      <strong>1 pm – 11 pm</strong> window. Each job is pausable and
+      <strong>11 am – 11 pm</strong> window. Each job is pausable and
       resumable. Missed windows surface as deduped alerts.
     </p>
 
@@ -14,7 +14,7 @@
         [matTooltip]="
           window.is_within_window
             ? 'Window is open — runner will pick up pending jobs.'
-            : 'Window is closed — no new jobs start until 1 pm local.'
+            : 'Window is closed — no new jobs start until 11 am local.'
         "
       >
         {{ window.is_within_window ? 'schedule' : 'bedtime' }}
@@ -192,7 +192,7 @@
                 (click)="runNow(job)"
                 [matTooltip]="
                   window && !window.is_within_window
-                    ? 'Window is closed — try again between 1 pm and 11 pm.'
+                    ? 'Window is closed — try again between 11 am and 11 pm.'
                     : 'Queue this job for the next runner tick.'
                 "
               >

@@ -217,6 +217,18 @@ def _execute_pipeline_stages(
         enabled=bool(graph_signal_settings.get("enabled", True)),
     )
 
+    # Slice 5 — Phase 6 ranker-time contribution dispatcher (pick #22
+    # VADER seeded; KenLM #23 / LDA #18 / Node2Vec #37 / BPR #38 /
+    # FM #39 slot in via ``_ADAPTERS`` registrations). Returns None
+    # when no enabled pick has a non-zero ``ranking_weight``, so the
+    # default ranker behaviour is unchanged until the operator
+    # explicitly raises a weight in Settings.
+    from .phase6_ranker_contribution import build_phase6_contribution
+
+    phase6_contribution = build_phase6_contribution(
+        enabled_global=bool(settings.get("phase6_ranker_enabled", True)),
+    )
+
     scoring_kwargs = dict(
         destination_keys=data["destination_keys"],
         dest_embeddings=data["dest_embeddings"],
@@ -234,6 +246,7 @@ def _execute_pipeline_stages(
         items_in_scope=data["items_in_scope"],
         fr099_fr105_caches=data.get("fr099_fr105_caches"),
         graph_signal_ranker=graph_signal_ranker,
+        phase6_contribution=phase6_contribution,
     )
     candidates_by_destination, diagnostics = _score_all_destinations(**scoring_kwargs)
 

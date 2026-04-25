@@ -10,8 +10,9 @@ from celery.schedules import crontab
 CELERY_BEAT_SCHEDULE = {
     # ── Embedding health & quality (plan Parts 3 + 4) ─────────────────
     # Fortnightly accuracy audit — Thursdays 13:00 UTC, in the Medium window.
-    # Task respects the 13-day fortnight gate + 13:00-22:59 UTC window guard
-    # internally, so double-dispatches by Beat are trivially idempotent.
+    # Task respects the 13-day fortnight gate + 11:00-22:59 UTC window guard
+    # internally (per apps/scheduled_updates/window.py), so double-dispatches
+    # by Beat are trivially idempotent.
     "fortnightly-embedding-accuracy": {
         "task": "pipeline.embedding_accuracy_audit",
         "schedule": crontab(minute=0, hour=13, day_of_week=4),
@@ -26,17 +27,19 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(minute=30, hour=14, day_of_month=1),
         "options": {"queue": "pipeline"},
     },
-    # ── Scheduled Updates orchestrator (PR-B) — 1pm-11pm serial runner.
-    # Fires every 5 minutes inside the 13:00-22:59 window. Each tick is
-    # idempotent: if the Redis lock is held or no pending job fits the
-    # window, the task exits silently. The catch-up sweep (which raises
-    # deduped missed-job alerts) runs on every tick — including ticks
-    # that skip because of the window guard — so a job that missed
+    # ── Scheduled Updates orchestrator (PR-B) — 11am-11pm serial runner.
+    # Window widened from 13-23 → 11-23 on 2026-04-25 to give the
+    # operator two extra hours of daily capacity. Fires every 5 minutes
+    # inside the 11:00-22:59 window. Each tick is idempotent: if the
+    # Redis lock is held or no pending job fits the window, the task
+    # exits silently. The catch-up sweep (which raises deduped
+    # missed-job alerts) runs on every tick — including ticks that
+    # skip because of the window guard — so a job that missed
     # yesterday's window still surfaces as an alert the moment the
     # runner wakes up next morning.
     "scheduled-updates-runner-tick": {
         "task": "scheduled_updates.run_next_scheduled_job",
-        "schedule": crontab(hour="13-22", minute="*/5"),
+        "schedule": crontab(hour="11-22", minute="*/5"),
         "options": {"queue": "default", "expires": 290},
     },
     # Stalled-job detector: every hour inside the window. Raises a
@@ -45,7 +48,7 @@ CELERY_BEAT_SCHEDULE = {
     # pause/cancel via the API.
     "scheduled-updates-detect-stalled": {
         "task": "scheduled_updates.detect_stalled_jobs",
-        "schedule": crontab(hour="13-22", minute=30),
+        "schedule": crontab(hour="11-22", minute=30),
         "options": {"queue": "default", "expires": 3500},
     },
     # Nightly (late-window) prune of resolved JobAlert rows older than
@@ -103,12 +106,14 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=14, minute=0, day_of_week=0),
         "options": {"queue": "pipeline"},
     },
-    # Part 7 — nightly data retention: 14:00 UTC daily.
-    "nightly-data-retention": {
-        "task": "pipeline.nightly_data_retention",
-        "schedule": crontab(hour=14, minute=0),
-        "options": {"queue": "pipeline"},
-    },
+    # Part 7 — data retention is now scheduled via the @scheduled_job
+    # decorator in apps/scheduled_updates/jobs.py at daily 22:30 inside
+    # the 11am-11pm operator window. The scheduler runner picks it up,
+    # honours pause/resume, surfaces missed runs as deduped alerts, and
+    # publishes Roaring-bitmap cardinality previews to the dashboard.
+    # The celery beat entry is intentionally absent — the function
+    # ``apps.pipeline.tasks.nightly_data_retention`` is still
+    # invocable manually via ``.run()`` from the diagnostics page.
     # Stuck job cleanup: 14:10 UTC daily.
     "cleanup-stuck-sync-jobs": {
         "task": "pipeline.cleanup_stuck_sync_jobs",
@@ -158,11 +163,16 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=14, minute=25, day_of_week=0),
         "options": {"queue": "default"},
     },
-    # ── Daytime / frequent tasks (unchanged) ────────────────────────
-    # FR-019 — daily GSC spike detection: 08:00 UTC.
+    # ── Daytime / frequent tasks ─────────────────────────────────────
+    # FR-019 — daily GSC spike detection: 11:00 UTC.
+    # Moved from 08:00 → 11:00 on 2026-04-25 because the laptop is
+    # asleep before ~10:00 (sleeps after 23:00, wakes ~10:00). 11:00
+    # is the first slot inside the widened operator window where the
+    # job is guaranteed to fire. See docs/PERFORMANCE.md and
+    # apps/scheduled_updates/window.py for the window contract.
     "daily-gsc-spike-check": {
         "task": "pipeline.check_gsc_spikes",
-        "schedule": crontab(hour=8, minute=0),
+        "schedule": crontab(hour=11, minute=0),
         "options": {"queue": "pipeline"},
     },
     # Automated system health check: Every 30 minutes.

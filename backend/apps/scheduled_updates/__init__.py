@@ -6,9 +6,11 @@ runs through this orchestrator instead of direct Celery beat entries.
 
 The orchestrator enforces three hard rules:
 
-1. **1pm-11pm local window only.** The laptop goes to sleep around 11 pm
-   and is off overnight; any job that would start after 23:00 or would
-   still be running past 23:00 is refused at the window guard.
+1. **11am-11pm local window only.** The laptop wakes around 10 am and
+   sleeps around 11 pm and is off overnight; any job that would start
+   before 11:00 or after 23:00, or would still be running past 23:00,
+   is refused at the window guard. Window widened from 13-23 → 11-23
+   on 2026-04-25 to give the operator two extra hours of capacity.
 2. **Strict serial execution.** A Redis lock (`scheduled_updates:runner`)
    ensures at most one job runs at a time. Per-job multicore is fine
    (joblib / multiprocessing inside a single job) but two heavy jobs

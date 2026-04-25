@@ -1,6 +1,6 @@
 # Ready Today — what's running right now (no jargon edition)
 
-> Last updated: 2026-04-25 (Wire phase + Polish.A/B shipped). If you're a new operator coming back to this, this is the first thing to read.
+> Last updated: 2026-04-25 (Wire phase + Polish.A/B shipped, scheduler widened from 1 pm → 11 am, retention moved into the operator window, Phase 6 dispatcher built with VADER as the first wired pick). If you're a new operator coming back to this, this is the first thing to read.
 
 ## TL;DR
 
@@ -38,6 +38,7 @@ Both states are "ready to go", but only the first state changes today's review-q
 | Auto-Seeder #51 + TrustRank seed selection | Daily scheduled refresh; consumed by HITS/PPR/TrustRank |
 | Position-bias IPS #33 + Cascade Click #34 | Persisted to AppSetting + read by feedback_relevance consumer; populates `score_*` indirectly |
 | Group C Stage-1 retrievers (Lexical #C.2 + QueryExpansion #C.3) | Off by default; flip via Settings → "Stage-1 Candidate Retrievers" |
+| **VADER #22 sentiment** (new) | Wired into `score_final` via `phase6_ranker_contribution`. Operator-tunable via `vader_sentiment.ranking_weight` AppSetting (default 0.0 → no effect; raise to 0.05–0.20 to start using). |
 
 ### The 10 Phase 6 helpers — installed, toggleable, NOT yet live in the ranker
 
@@ -50,7 +51,7 @@ These were the focus of this week's "Wire phase". Each has: pip dep installed, p
 
 | Pick | Status today | What lights up after wiring |
 |---|---|---|
-| **VADER #22** (Hutto-Gilbert 2014) | Helper available; toggle on; not consumed | Sentiment-aware ranking; sentiment shown on suggestion-detail dialog |
+| **VADER #22** (Hutto-Gilbert 2014) | **Wired into the ranker via `phase6_ranker_contribution`.** Operator must raise `vader_sentiment.ranking_weight` above 0.0 in Settings for it to perturb `score_final`. | Sentiment shifts ranking when the host sentence is clearly positive / negative; surface for the per-pick breakdown lands in the Explain panel via a future commit. |
 | **PySBD #15** (Sadvilkar-Neumann 2020) | Helper available; toggle on; not consumed | More-accurate sentence splits in the parse pipeline |
 | **YAKE! #17** (Campos 2020) | Helper available; toggle on; not consumed | Keyword diagnostics on suggestion-detail dialog |
 | **Trafilatura #7** (Barbaresi 2021) | Helper available; toggle on; not consumed | Used at crawl time when external HTML import lands |
@@ -80,11 +81,12 @@ The Wire phase already:
 
 The system trains some models on a schedule. They'll auto-fire — you don't have to click anything:
 
-- **Daily 13:00–23:00** (the operator-window scheduler):
+- **Daily 11:00–23:00** (the operator-window scheduler — widened from 13–23 → 11–23 on 2026-04-25 to give two extra hours of capacity):
   - PageRank, HITS, TrustRank, PPR refresh
   - Auto-seeder (TrustRank seed picker)
   - Near-duplicate clustering refresh
   - **NDCG@10 smoke test** — Polish.B's daily quality readout (see Diagnostics page)
+  - GSC spike detection (moved from 08:00 → 11:00 — the laptop is asleep at 8 am)
 - **Weekly**:
   - LDA topic model retrain
   - KenLM trigram retrain (uses `lmplz` binary)

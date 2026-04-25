@@ -100,57 +100,64 @@ class WindowGuardTests(TestCase):
         tz = ZoneInfo("UTC")
         return dt.datetime(2026, 4, 22, hour, minute, tzinfo=tz)
 
-    def test_within_window_between_13_and_23(self) -> None:
+    def test_within_window_between_start_and_end(self) -> None:
         for hour in range(WINDOW_START_HOUR, WINDOW_END_HOUR):
             with self.subTest(hour=hour):
                 assert is_within_window(self._at(hour)) is True
 
-    def test_outside_window_before_13(self) -> None:
+    def test_outside_window_before_start(self) -> None:
         for hour in range(0, WINDOW_START_HOUR):
             with self.subTest(hour=hour):
                 assert is_within_window(self._at(hour)) is False
 
-    def test_outside_window_at_or_after_23(self) -> None:
-        for hour in (23, 0, 3):
+    def test_outside_window_at_or_after_end(self) -> None:
+        for hour in (WINDOW_END_HOUR, 0, 3):
             with self.subTest(hour=hour):
                 assert is_within_window(self._at(hour)) is False
 
-    def test_would_overflow_true_when_finish_past_23(self) -> None:
+    def test_would_overflow_true_when_finish_past_end(self) -> None:
         # 22:55 + 10 min job → finish at 23:05 → overflow.
-        now = self._at(22, 55)
+        now = self._at(WINDOW_END_HOUR - 1, 55)
         assert would_overflow(600, now=now) is True
 
-    def test_would_overflow_false_when_finish_before_23(self) -> None:
-        # 13:00 + 2 min job → finish at 13:02 → safe.
-        now = self._at(13, 0)
+    def test_would_overflow_false_when_finish_before_end(self) -> None:
+        # WINDOW_START_HOUR + 2 min job → finish 2 min later → safe.
+        now = self._at(WINDOW_START_HOUR, 0)
         assert would_overflow(120, now=now) is False
 
     def test_would_overflow_true_when_window_already_closed(self) -> None:
         # Outside the window, even a 1-second job "overflows" because
         # it can't start at all.
-        now = self._at(23, 30)
+        now = self._at(WINDOW_END_HOUR, 30)
         assert would_overflow(1, now=now) is True
 
     def test_time_until_window_opens_zero_when_open(self) -> None:
-        now = self._at(15, 0)
+        # Pick the midpoint of the window so we're firmly inside it.
+        midpoint = (WINDOW_START_HOUR + WINDOW_END_HOUR) // 2
+        now = self._at(midpoint, 0)
         assert time_until_window_opens(now) == dt.timedelta(0)
 
     def test_time_until_window_opens_same_day_when_pre_window(self) -> None:
-        now = self._at(9, 0)
+        # Two hours before the window opens.
+        now = self._at(WINDOW_START_HOUR - 2, 0)
         delta = time_until_window_opens(now)
-        assert delta == dt.timedelta(hours=4)
+        assert delta == dt.timedelta(hours=2)
 
     def test_time_until_window_opens_next_day_when_post_window(self) -> None:
-        now = self._at(23, 30)
+        # 30 min after the window closes → next open is the next day.
+        now = self._at(WINDOW_END_HOUR, 30)
         delta = time_until_window_opens(now)
-        # 23:30 → 13:00 next day = 13.5 hours.
-        assert delta == dt.timedelta(hours=13, minutes=30)
+        # (WINDOW_END_HOUR : 30) → (WINDOW_START_HOUR : 00) next day
+        # = (24 - WINDOW_END_HOUR) + WINDOW_START_HOUR hours, minus 30 min.
+        expected_hours = (24 - WINDOW_END_HOUR) + WINDOW_START_HOUR - 1
+        assert delta == dt.timedelta(hours=expected_hours, minutes=30)
 
     def test_seconds_remaining_in_window(self) -> None:
-        now = self._at(22, 55)
+        now = self._at(WINDOW_END_HOUR - 1, 55)
         assert seconds_remaining_in_window(now) == 5 * 60
 
     def test_seconds_remaining_zero_outside_window(self) -> None:
+        # 8 a.m. is before WINDOW_START_HOUR (11) so it's outside.
         now = self._at(8, 0)
         assert seconds_remaining_in_window(now) == 0
 

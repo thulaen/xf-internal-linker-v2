@@ -372,38 +372,54 @@ def run_trustrank_auto_seeder(job, checkpoint) -> None:
         checkpoint(progress_pct=100.0, message="Empty graph — skip")
         return
 
-    # Operator-tunable parameters with helper-provided defaults.
-    def _setting_int(key: str, default: int) -> int:
+    # A.3 — batch all five AppSetting reads into one ``filter(key__in=...)``
+    # query so the daily run does ONE round-trip instead of five.
+    _SETTING_KEYS = (
+        "trustrank_auto_seeder.candidate_pool_size",
+        "trustrank_auto_seeder.seed_count_k",
+        "trustrank_auto_seeder.post_quality_min",
+        "trustrank_auto_seeder.readability_grade_max",
+        "trustrank_auto_seeder.spam_content_value_floor",
+    )
+    _settings_raw = dict(
+        AppSetting.objects.filter(key__in=_SETTING_KEYS).values_list("key", "value")
+    )
+
+    def _coerce_int(key: str, default: int) -> int:
+        raw = _settings_raw.get(key)
+        if raw is None:
+            return default
         try:
-            row = AppSetting.objects.filter(key=key).first()
-            return int(row.value) if row else default
+            return int(raw)
         except (TypeError, ValueError):
             return default
 
-    def _setting_float(key: str, default: float) -> float:
+    def _coerce_float(key: str, default: float) -> float:
+        raw = _settings_raw.get(key)
+        if raw is None:
+            return default
         try:
-            row = AppSetting.objects.filter(key=key).first()
-            return float(row.value) if row else default
+            return float(raw)
         except (TypeError, ValueError):
             return default
 
-    candidate_pool_size = _setting_int(
+    candidate_pool_size = _coerce_int(
         "trustrank_auto_seeder.candidate_pool_size", DEFAULT_CANDIDATE_POOL_SIZE
     )
-    seed_count_k = _setting_int(
+    seed_count_k = _coerce_int(
         "trustrank_auto_seeder.seed_count_k", DEFAULT_SEED_COUNT_K
     )
-    post_quality_min = _setting_float(
+    post_quality_min = _coerce_float(
         "trustrank_auto_seeder.post_quality_min", DEFAULT_POST_QUALITY_MIN
     )
-    readability_grade_max = _setting_float(
+    readability_grade_max = _coerce_float(
         "trustrank_auto_seeder.readability_grade_max",
         DEFAULT_READABILITY_GRADE_MAX,
     )
     # Spam flagging — no dedicated column, so we treat very low
     # content_value_score as the proxy. Tunable via AppSetting; 0.0
     # disables the spam filter entirely.
-    spam_quality_floor = _setting_float(
+    spam_quality_floor = _coerce_float(
         "trustrank_auto_seeder.spam_content_value_floor", 0.15
     )
 
@@ -1744,3 +1760,45 @@ def run_jobalert_dedup_cleanup(job, checkpoint) -> None:
     checkpoint(progress_pct=0.0, message="Pruning old alerts")
     purged = prune_resolved_alerts()
     checkpoint(progress_pct=100.0, message=f"Purged {purged} old alerts")
+
+
+# ────────────────────────────────────────────────────────────────────
+# Daily data retention — moved into the operator window per the
+# laptop-sleep constraint. The 22:30 slot is the last 30 minutes
+# before the window closes at 23:00, so it runs after every higher-
+# priority job has had the rest of the window. The window guard
+# refuses to start it past 22:30 if its 30-min estimate would
+# overflow 23:00; missed runs surface as a deduped JobAlert and the
+# operator catches up via the Run Now button. Roaring `cardinality_
+# preview` makes the queue depth visible from the dashboard.
+# ────────────────────────────────────────────────────────────────────
+
+
+@scheduled_job(
+    "daily_data_retention",
+    display_name="Data retention sweep",
+    cadence_seconds=DAY,
+    estimate_seconds=30 * 60,
+    priority=JOB_PRIORITY_LOW,
+)
+def run_daily_data_retention(job, checkpoint) -> None:
+    """Run the same body as ``apps.pipeline.tasks.nightly_data_retention``.
+
+    The function name is kept inside ``tasks.py`` (despite the
+    ``nightly_`` prefix) so the existing ``.run()`` invocation from
+    ``apps.diagnostics.views`` and the manual-run UI continue to
+    work without churn. This @scheduled_job wrapper is the cadence
+    path — the celery beat entry has been removed in favour of this
+    runner-managed flow so the laptop-sleep window guard, progress
+    bar, and missed-job alerts all apply.
+
+    Progress callback wires the function's existing
+    ``progress_callback`` parameter into the runner's ``checkpoint``
+    so the dashboard renders a live progress bar.
+    """
+    from apps.pipeline.tasks import nightly_data_retention
+
+    def _bridge(pct: float, message: str) -> None:
+        checkpoint(progress_pct=float(pct), message=str(message))
+
+    nightly_data_retention(progress_callback=_bridge)

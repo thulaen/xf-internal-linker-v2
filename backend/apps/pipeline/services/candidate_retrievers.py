@@ -43,12 +43,17 @@ from .ranker import ContentKey, ContentRecord
 logger = logging.getLogger(__name__)
 
 
-@dataclass(frozen=True)
+@dataclass
 class RetrievalContext:
     """Shared inputs every retriever may need.
 
-    Bundled in a frozen dataclass so we can extend the surface area
-    in Groups C.2/C.3 without changing the protocol signature.
+    Bundled in a dataclass so we can extend the surface area in
+    Groups C.2/C.3 without changing the protocol signature.
+
+    *Mutable on purpose:* the per-pass token-bag cache
+    (``_host_token_bags_cache``) lives on the context so two
+    retrievers in the same run share the cost of tokenising every
+    host's title + scope. See A.1 in the compute-waste plan.
     """
 
     destination_keys: tuple[ContentKey, ...]
@@ -57,6 +62,12 @@ class RetrievalContext:
     content_to_sentence_ids: dict[ContentKey, list[int]]
     top_k: int
     block_size: int
+    #: Lazily-filled cache of host-key → token bag, keyed by the
+    #: ``min_length`` parameter so multiple retrievers using
+    #: different token-length floors don't collide. Filled by
+    #: :func:`_build_host_token_bags` on first call. ``None`` until
+    #: any retriever asks for tokens.
+    _host_token_bags_cache: dict[int, dict[ContentKey, set[str]]] | None = None
 
 
 class CandidateRetriever(Protocol):
@@ -140,7 +151,17 @@ def _build_host_token_bags(
     Only emits hosts that have at least one usable token *and* a
     non-empty sentence-ID list — sources that can't contribute
     candidates are filtered out at the bag-build stage.
+
+    A.1: the result is cached on ``context._host_token_bags_cache``
+    keyed by ``min_length``. When LexicalRetriever and
+    QueryExpansionRetriever both run, the second call short-circuits
+    to the cached dict instead of re-tokenising every host.
     """
+    if context._host_token_bags_cache is None:
+        context._host_token_bags_cache = {}
+    cached = context._host_token_bags_cache.get(min_length)
+    if cached is not None:
+        return cached
     host_tokens: dict[ContentKey, set[str]] = {}
     for key, record in context.content_records.items():
         if key not in context.content_to_sentence_ids:
@@ -154,6 +175,7 @@ def _build_host_token_bags(
         )
         if tokens:
             host_tokens[key] = tokens
+    context._host_token_bags_cache[min_length] = host_tokens
     return host_tokens
 
 
@@ -170,7 +192,17 @@ def _rank_hosts_by_overlap(
     Ties broken on the host's index in ``host_keys_ordered`` for
     determinism. ``skip_key`` is excluded (typically the destination
     itself, so the retriever doesn't return a self-link).
+
+    A.2: top-K selection uses ``heapq.nsmallest`` so the cost is
+    O(H · log K) instead of the O(H · log H) we'd pay if we sorted
+    the full scored list. At H = 50k hosts and K = 10, that's a ~4×
+    speed-up per destination per retriever. The output ordering is
+    identical to the prior full-sort path because we sort the K
+    survivors at the end (heapq doesn't guarantee ordering of its
+    output beyond "smallest first").
     """
+    import heapq
+
     scored: list[tuple[int, int, ContentKey]] = []
     for idx, host_key in enumerate(host_keys_ordered):
         if host_key == skip_key:
@@ -181,8 +213,16 @@ def _rank_hosts_by_overlap(
         scored.append((-overlap, idx, host_key))
     if not scored:
         return []
-    scored.sort()
-    return [hk for _, _, hk in scored[:top_k]]
+    if len(scored) <= top_k:
+        # Cheaper to sort directly than build a heap when we'll
+        # return everything anyway.
+        scored.sort()
+        return [hk for _, _, hk in scored]
+    # heapq.nsmallest internally builds a heap of size K and sorts
+    # the survivors before returning, so the resulting order is
+    # byte-identical to scored.sort()[:top_k] above.
+    top = heapq.nsmallest(top_k, scored)
+    return [hk for _, _, hk in top]
 
 
 # ── Concrete: LexicalRetriever (Group C.2) ───────────────────────

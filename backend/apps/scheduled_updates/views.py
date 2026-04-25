@@ -168,7 +168,7 @@ class ScheduledJobRunNowView(views.APIView):
     """POST /api/scheduled-updates/jobs/<id>/run-now
 
     Nudges a job to be picked by the runner at its next tick.
-    Respects the window guard: if we're outside 13:00-23:00 or the
+    Respects the window guard: if we're outside 11:00-23:00 or the
     job's duration_estimate would overflow 23:00, returns 409 with
     a helpful time-until-open hint.
     """
@@ -182,7 +182,7 @@ class ScheduledJobRunNowView(views.APIView):
             return Response(
                 {
                     "detail": (
-                        "Outside the 13:00-23:00 window. "
+                        "Outside the 11:00-23:00 window. "
                         f"Opens in {int(delta.total_seconds() // 60)} minute(s)."
                     ),
                     "seconds_until_window_opens": int(delta.total_seconds()),

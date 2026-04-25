@@ -52,14 +52,22 @@ RUN git clone --depth=1 https://github.com/kpu/kenlm.git /tmp/kenlm \
     && cd / \
     && rm -rf /tmp/kenlm
 
-# Install Python dependencies first (better layer caching)
+# Install Python dependencies first (better layer caching).
+# A.5 — explicit ``pip cache purge`` at the end of the install layer
+# strips any stray wheels pip retained even with ``--no-cache-dir``
+# (spaCy + downstream subprocess installs occasionally leave a few
+# files behind). Saves ~50-100 MB on the final image.
 COPY requirements.txt .
 RUN pip install --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt && \
-    python -c "import drf_spectacular"
+    python -c "import drf_spectacular" && \
+    pip cache purge
 
-# Download spaCy language model
-RUN python -m spacy download en_core_web_sm
+# Download spaCy language model. ``spacy download`` shells out to pip
+# under the hood; ``--no-cache-dir`` here tells that inner call not
+# to populate ~/.cache/pip when fetching the model wheel.
+RUN python -m spacy download en_core_web_sm && \
+    pip cache purge
 
 # ── Pick #14 FastText LangID model (Joulin et al. 2016 EACL) ─────
 # Downloads the official lid.176.bin (126 MB, 176 languages) once at

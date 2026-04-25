@@ -2,7 +2,7 @@
 
 The runner will only start a job when both of these are True:
 
-1. The current local time is between 13:00 and 23:00.
+1. The current local time is between 11:00 and 23:00.
 2. The job's ``duration_estimate_sec`` would NOT push completion past 23:00.
 
 Rule (2) is the "no new jobs past 22:55 for a 10-minute job" safety net
@@ -12,6 +12,13 @@ an overrun job will never finish.
 A job that's already running past the cutoff is not interrupted — the
 plan's acceptable trade in PR-A is *state preservation > strict window*.
 Only NEW starts are refused.
+
+History
+-------
+2026-04-25: Window opening time widened from 13:00 → 11:00 to give the
+operator two extra hours of capacity per day. The laptop typically
+wakes around 10:00 and sleeps after 23:00; opening at 11:00 leaves a
+1-hour buffer for boot/login/morning admin before scheduled work fires.
 """
 
 from __future__ import annotations
@@ -22,8 +29,9 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 
 #: Local hour the window opens at (inclusive). Jobs may start at or after
-#: this hour if everything else checks out.
-WINDOW_START_HOUR: int = 13
+#: this hour if everything else checks out. Widened from 13 → 11 on
+#: 2026-04-25 per operator request.
+WINDOW_START_HOUR: int = 11
 
 #: Local hour the window closes at (exclusive). Jobs must COMPLETE by
 #: this hour — a 10-minute job at 22:55 would finish at 23:05 and is
@@ -63,7 +71,7 @@ def _to_local(now: datetime | None) -> datetime:
 
 
 def is_within_window(now: datetime | None = None) -> bool:
-    """Return True when *now* (default: current local time) is in [13:00, 23:00)."""
+    """Return True when *now* (default: current local time) is in [11:00, 23:00)."""
     local = _to_local(now)
     return WINDOW_START_HOUR <= local.hour < WINDOW_END_HOUR
 
@@ -92,7 +100,7 @@ def would_overflow(duration_sec: int, now: datetime | None = None) -> bool:
 
 
 def time_until_window_opens(now: datetime | None = None) -> timedelta:
-    """How long until 13:00 local from *now*.
+    """How long until 11:00 local from *now*.
 
     Returns ``timedelta(0)`` when the window is already open. Used by the
     dashboard's "next window opens in HH:MM" label.

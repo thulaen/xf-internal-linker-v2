@@ -37,6 +37,124 @@ Be specific — the next agent has no memory of your session. Explain the *why*,
 
 ---
 
+## 2026-04-25 (6) Agent: Claude — Retention into runner window + Roaring B.5/B.6/B.7 prune + Tier-A waste fixes + Phase 6 dispatcher (VADER first wired pick)
+
+### What I did
+Continuation of (5) — same uncommitted master tree. Four big slices land on top of the scheduler widening, all green.
+
+| Slice | Surface | Change |
+|---|---|---|
+| **2** Retention into runner window | `apps/pipeline/tasks.py::nightly_data_retention` | Now accepts an optional `progress_callback`; new `apps/scheduled_updates/jobs.py::run_daily_data_retention` `@scheduled_job` wrapper at daily 22:30 (LOW priority, 30-min budget). Beat entry deleted from `celery_schedules.py`. The function name is kept (despite the `nightly_` prefix) so `apps/diagnostics/views.py::nightly_data_retention.run()` still works. |
+| **3** Roaring waste-bitmap wiring | `apps/pipeline/tasks.py` | Three new prune blocks: B.5 SuggestionImpression 90-day, B.6 SuggestionPresentation 180-day, B.7 pending/stale Suggestion 365-day. Approved/applied/verified Suggestion is the operator audit trail and is **never** pruned. B.5/B.6 use `waste_bitmaps.bitmap_from_pks` for the prune-set cardinality preview; B.7 uses `.count()` because Suggestion's PK is a UUID (Roaring is uint32-only). New AppSetting keys persist cardinality preview + last-run timestamp for the dashboard. |
+| **4** Tier-A compute-waste | `apps/pipeline/services/candidate_retrievers.py` | A.1 host-token-bag bags now cached on the (newly mutable) `RetrievalContext` keyed by `min_length` so two retrievers in the same pipeline pass share tokenisation. A.2 `_rank_hosts_by_overlap` swaps `scored.sort()` for `heapq.nsmallest` — O(H log K) vs O(H log H), ~4× win at H=50k K=10. |
+| **4** Tier-A compute-waste | `apps/scheduled_updates/jobs.py::run_trustrank_auto_seeder` | A.3 5 separate `AppSetting.objects.filter(key=...).first()` calls collapsed into one `filter(key__in=[...])` query. Local helpers reshape the dict-of-strings into typed scalars. |
+| **4** Tier-A compute-waste | `.gitignore` + `backend/Dockerfile` + `apps/suggestions/migrations/0045_add_suggestion_indexes.py` | A.4 `coverage-html/` + `backend/coverage-html/` ignored (no tracked files to remove — already untracked). A.5 `pip cache purge` after the requirements + spaCy install layers. A.6 + A.7 three new B-tree indexes on Suggestion: `(status, candidate_origin)`, `(updated_at)`, `(status, updated_at)`. Migration runs cleanly. |
+| **5** Phase 6 ranker dispatcher | `apps/pipeline/services/phase6_ranker_contribution.py` (new) | A `Phase6RankerContribution` (mirrors `GraphSignalRanker`) with a `_ADAPTERS` registry of (pick_name, callable) entries. Dispatcher is wired into `ranker.score_destination_matches` as a sidecar additive contribution, and built once per pipeline pass in `pipeline.py`. **VADER #22 is the first wired adapter** — the host sentence's compound score becomes a `weight × compound` contribution to `score_final`. KenLM/LDA/Node2Vec/BPR/FM slot in via additional `_ADAPTERS` registrations; their adapter signatures are documented in the module. |
+| **5** Phase 6 weight default | `apps/suggestions/recommended_weights.py` | New `vader_sentiment.ranking_weight` key (default `0.0` so cold-start has byte-identical ranking; operator must raise it explicitly to start using). |
+| **5** Wire the contribution end-to-end | `apps/pipeline/services/{pipeline.py, pipeline_stages.py, ranker.py}` | New `phase6_contribution` kwarg threaded through `_score_all_destinations` → `_score_single_destination` → `score_destination_matches`. Inside the per-candidate loop, the contribution is added to `score_final` after `fr099_contribution` and `graph_signal_contribution`. Failures inside an adapter are caught and logged so a broken helper can't poison the ranker pass. |
+| Test files added | `apps/pipeline/test_data_retention.py`, `apps/pipeline/test_phase6_ranker_contribution.py` | 13 retention tests (B.5/B.6/B.7 + scheduled-job wrapper + progress callback + UUID-PK fallback) + 17 Phase 6 dispatcher tests (VADER adapter, weighting math, build-from-AppSetting, cache invalidation). |
+
+### Test status
+- `apps.pipeline` → **651 / 651 pass** + **17 new Phase 6 dispatcher tests pass** + **13 new retention tests pass**.
+- `apps.scheduled_updates` → 104 / 104 pass.
+- Full backend sweep → **1281 / 1281 pass** (5 skipped — pre-existing). Was 1251 before this commit; +30 new.
+- `backend/scripts/check_phantom_references.py` → OK, scanned 165 banned tokens, no phantoms.
+
+### Key decisions and WHY
+- **Roaring uint32 vs UUID PKs.** SuggestionImpression and SuggestionPresentation have integer PKs and pack into Roaring bitmaps cleanly (B.5/B.6 take that path). Suggestion uses UUID PK — Roaring would silently drop every row. B.7 falls back to direct queryset DELETE + `.count()` and the cardinality-preview AppSetting still gets the right number. Documented this in-line so future refactors don't accidentally try to bitmap the UUID path.
+- **B.7 keeps approved Suggestions forever.** They're the operator's audit trail. Only `pending`/`stale` rows past 365 days are pruned. Test `test_old_approved_is_kept_indefinitely` asserts a 2000-day-old approved Suggestion survives the prune.
+- **Phase 6 dispatcher takes the FR-099..105 / GraphSignalRanker shape.** Two patterns are already proven in the codebase ("sidecar additive contribution" and "crawler middleware"); adding a third would have been the spaghetti the Anti-Spaghetti Charter forbids. The dispatcher follows pattern A exactly: build once outside the per-candidate loop, contribute additively per candidate.
+- **VADER ranking_weight defaults to 0.0.** Setting it to a positive number is an editorial choice (positive sentiment → boost). Defaulting to 0.0 means flipping `vader_sentiment.enabled` to true does NOT auto-perturb `score_final` — the operator must explicitly raise the weight in a future Settings UI commit. This is the conservative pattern from FR-099 and avoids surprising operators with a behavior change.
+- **`RetrievalContext` is no longer frozen.** Required for the A.1 cache field. It's still passed by reference to retrievers and the only mutation is the lazy `_host_token_bags_cache`. Mutability is private (leading underscore) and documented at the dataclass docstring.
+- **A.6/A.7 indexes named with `sug_` prefix.** Postgres identifier limit forces ≤ 30 chars; `suggestions_status_updated_at_idx` is 32. `sug_status_updated_at_idx` fits.
+- **Retention timestamp + cardinality persisted separately.** The dashboard panel renders both — `last_count` (what just got pruned) and the post-prune queue (always ~0 right after a successful run). Two AppSetting rows per table, one for each.
+
+### What I tried that didn't work
+- **Initial Phase 6 dispatcher tests caught a Django-cache leak across tests.** `runtime_flags.is_enabled` caches per-key for 60s by default; tests that flipped a pick's `enabled` AppSetting to false were leaving the cached `False` in place for subsequent tests. Fixed by adding a `_invalidate_pick_caches` setUp helper that drops every wired pick's cache key.
+- **Initial test fixtures used wrong field names** (`forum_id` / `post_id` / `host_content_item`) on `ContentItem` / `Suggestion`. The actual fields are `content_id` / `content_type` / `host` / `destination` / `host_sentence`. Fixed by mirroring the working `apps/pipeline/test_adaptive_conformal_producer.py::AciProducerTests.setUp` fixture builder. Took two iterations — left a `_make_suggestion` helper in the new retention test file that callers can reuse.
+- **Roaring `bitmap_from_pks` silently dropped all Suggestion rows** because Suggestion's PK is a UUID. Fixed B.7 to use `.count()` + direct queryset delete; logged the in-line note explaining why.
+
+### What I explicitly ruled out
+- **Adding `score_<pick>` columns to Suggestion for VADER / KenLM / etc.** Would have meant 6+ new columns + migrations + ScoredCandidate signature changes + test ripple. The dispatcher pattern adds ONLY to `score_final` so cold-start is byte-stable. Per-pick observability columns are a clean follow-up.
+- **Wiring KenLM / LDA / Node2Vec / BPR / FM in this commit.** Each requires its own adapter implementation + test pass. The framework is built; adding each pick is a clean ~1-PR job. Going faster would have meant testing them less rigorously than VADER.
+- **Parse-pipeline integration for PySBD / YAKE / FastText / Trafilatura.** Different integration shape (pre-ranker, in distiller / crawler). Not a ranker-time contribution; out of scope for the dispatcher pattern. Each is its own follow-up commit.
+
+### Context the next agent must know
+- **Master is +115 commits over `origin/master` plus the (5) + (6) uncommitted diff.** Big diff. User asked me to "do all this carefully" but didn't say "commit"; respect the rule that commits happen only on explicit operator request.
+- **Phase 6 dispatcher is built, ONE pick wired (VADER), framework ready for the others.** To add KenLM next: write `_kenlm_anchor_fluency_adapter(host_text, dest_text) -> float` in `phase6_ranker_contribution.py`, register in `_ADAPTERS`, add `kenlm.ranking_weight` default `"0.0"` to `recommended_weights.py`, add tests. Same shape applies to LDA / Node2Vec / BPR / FM.
+- **B.7 prune test passes only because Suggestion.STATUS_CHOICES contains "pending" + "stale".** If the choices ever change, update the prune `status__in` list to match.
+- **`waste_bitmaps` cleanly returns empty bitmap when PKs are UUIDs (it logs a warning per row).** Means future bitmap-based prune attempts on Suggestion will silently no-op rather than crash — a deliberate cold-start safety, not a bug to "fix" by force-converting UUIDs to ints.
+- **Beat `nightly-data-retention` entry is gone — the @scheduled_job replaces it.** Anyone scrolling through `celery_schedules.py` looking for it will find a comment block explaining where it moved.
+
+### Pending / next steps
+- [ ] **Phase 6 follow-ups (one PR per pick):** KenLM #23 → anchor fluency, LDA #18 → topic similarity, Node2Vec #37 → graph affinity, BPR #38 → personalised, FM #39 → feature cross. Each adapter ≤ ~30 lines + ~6 tests. Pattern documented in `phase6_ranker_contribution.py` `_ADAPTERS` block.
+- [ ] **Parse-time picks:** PySBD #15 in `distiller.py`, YAKE #17 keyword diagnostics, FastText LangID #14 candidate filter, Trafilatura #7 in the crawler. These are NOT dispatcher candidates — they live earlier in the pipeline.
+- [ ] **Settings UI for `vader_sentiment.ranking_weight`** — the `phase6-picks` Settings tab from Polish.A only has a single toggle; needs a slider or numeric input for the weight. Out of scope for this commit.
+- [ ] **Tier-A.6 / A.7 index utilisation verification:** after this lands in prod, run `EXPLAIN ANALYZE` on the B.7 query to confirm Postgres picks `sug_status_updated_at_idx` over the older single-column ones.
+- [ ] **Tier-B / C waste fixes** — bigger surface, separate PRs.
+
+### Open questions / blockers
+- None for this slice. The dispatcher framework is in place; user can ask for any of the remaining 5 ranker-time picks next.
+
+---
+
+## 2026-04-25 (5) Agent: Claude — Scheduler 11 am – 11 pm widening + Roaring waste-bitmaps primitive
+
+### What I did
+Two intertwined changes — both still **uncommitted on master**, awaiting operator review.
+
+| Surface | Change |
+|---|---|
+| `apps/scheduled_updates/window.py` | `WINDOW_START_HOUR` 13 → 11. Docstrings + `time_until_window_opens` doc updated. `WINDOW_END_HOUR` unchanged at 23. |
+| `config/settings/celery_schedules.py` | Two crontab strings widened: `hour="13-22"` → `hour="11-22"` (runner tick + stalled detector). One out-of-window cron moved: `daily-gsc-spike-check` from `crontab(hour=8, minute=0)` → `crontab(hour=11, minute=0)`. The 8 am slot was the only entry that fired while the laptop was asleep (sleeps after 23:00, wakes ~10:00). |
+| `apps/pipeline/tasks_embedding_audit.py` | The fortnightly accuracy audit had a hard-coded `13 <= now < 23` window gate. Now imports `WINDOW_START_HOUR` / `WINDOW_END_HOUR` from `apps.scheduled_updates.window` so it auto-tracks the canonical window constants. |
+| `apps/scheduled_updates/{runner.py, views.py, __init__.py, tests_beat.py, tests_runner.py}` | Updated docstrings, error messages, and tests so anything that mentioned "13:00-23:00" or "1 pm – 11 pm" now says "11:00-23:00" or "11 am – 11 pm". Tests now derive the window range from the constants instead of hard-coding `range(13, 23)`. |
+| `apps/pipeline/services/trustrank_auto_seeder.py` | Docstring update: "13:00-23:00 runner" → "11:00-23:00 runner". |
+| `frontend/src/app/app.component.ts` + `scheduled-updates.component.html` | Three user-facing strings updated: nav tooltip, window-status label, run-now disabled tooltip. |
+| `apps/pipeline/services/waste_bitmaps.py` (new, ~250 lines) | Roaring-bitmap waste-management primitive backed by Lemire et al. 2018 *Software: Practice and Experience* 48(4) — wraps the existing `pyroaring==1.0.4` pin (pinned in `requirements.txt:73`, already used by `pipeline_data.py` for sentence-ID sets). Public surface: `empty_bitmap`, `bitmap_from_iterable`, `bitmap_from_pks` (queryset → bitmap), `bitmap_difference / intersection / union`, `cardinality_preview`, `contains`, `serialize_bitmap` / `deserialize_bitmap`. All cold-start safe — failed DB reads / corrupt blobs / empty inputs return an empty bitmap rather than raising. |
+| `apps/pipeline/test_waste_bitmaps.py` (new, ~190 lines) | 30 unit tests covering construction, set algebra, inspection, persistence (round-trip), cold-start fallback (broken queryset, garbage blob), and a 1M-id scale spot-check. |
+| `docs/READY-TODAY.md` | "Last updated" footer now records the 11 am widening. The "Eventually" section now says "Daily 11:00–23:00" with a footnote explaining the move and the GSC spike check shift. |
+
+### Test status
+- `apps.pipeline.test_waste_bitmaps` → **30 / 30 pass** in 0.085 s on first run (after a small fix using `set(bm)` instead of `assertNotIn(-1, bm)` because pyroaring's `__contains__` raises `OverflowError` on negative ints — exactly the case the wrapper guards against).
+- `apps.scheduled_updates` → **104 / 104 pass** after the window-constant refactor.
+- `apps.pipeline` → **638 / 638 pass** (2 skipped — pre-existing).
+- Full backend sweep → **1251 / 1251 pass** (5 skipped — pre-existing).
+- `backend/scripts/check_phantom_references.py` → **OK, scanned 165 banned tokens, no phantoms.**
+
+### Key decisions and WHY
+- **Operator-window widening is laser-focused.** I deliberately did NOT do the rest of the bigger plan (Roaring-backed retention, Tier-A/B compute waste fixes, Phase 6 ranker wiring, etc.) in the same change. The scheduler change is the only thing the user explicitly flagged as urgent ("nightly data is tricky because laptop might be off after 11 pm, gotta sleep") so I kept the diff small.
+- **Reuse `pyroaring` rather than a new C++ extension.** `pyroaring` is already pinned and imported from `pipeline_data.py`. Writing a new `backend/extensions/*.cpp` would duplicate CRoaring (the canonical Lemire library, 5k+ stars, MIT licence) — the C++ part of the user's "lightweight C++ algo" requirement is satisfied by the underlying library, and the wrapper is the thin Python surface. See the plan file for the longer rationale and the open risk note about future API stability.
+- **One narrow public surface.** The 10 functions in `waste_bitmaps.py` are the only ones consumers should touch. If we ever swap pyroaring for another set-algebra library (e.g. CRoaring's pure-C bindings, or `bitarray`), all the call sites stay put.
+- **Tests reference the constants, not literal hours.** `tests_runner.py` and `tests_beat.py` now derive window expectations from `WINDOW_START_HOUR` / `WINDOW_END_HOUR` so a future widening to e.g. 10–23 only needs the constant edit.
+- **Embedding audit task now imports the window constants.** Was hard-coded `(13 <= hour < 23)` — that drifted out of sync with the scheduler module twice already in this codebase. Now the audit auto-tracks the canonical constants.
+
+### What I tried that didn't work
+- **First waste_bitmaps test run threw OverflowError** on `assertNotIn(-1, bm)` and `assertNotIn(1 << 32, bm)` because pyroaring's `__contains__` raises rather than returning False for out-of-range ints. Switched the negative/overflow tests to `set(bm)` materialisation, which works around the C-extension's stricter behaviour without weakening the test intent.
+
+### What I explicitly ruled out (deferred to follow-up commits)
+- **Folding `nightly_data_retention` into `@scheduled_job`.** The plan says move it to 22:30 inside the runner. I left the celery beat entry at 14:00 UTC (already inside the window — no laptop-sleep risk) for this commit because the plumbing change has its own integration risk and deserves its own PR.
+- **Wiring waste_bitmaps into Tier-B B.5/B.6/B.7 retention.** New primitive shipped, but no consumers yet. The follow-up retention PR will plug it into `nightly_data_retention` for impression / presentation / non-approved-suggestion pruning.
+- **Phase 6 → ranker wiring.** Still deferred (per the senior-dev review consensus). All 10 helpers remain in the "installed but not yet a live scoring contributor" tier of `docs/READY-TODAY.md`.
+- **Tier-A compute-waste fixes** (heap-based top-K, hoisted host-token-bags, batched AppSetting reads) — separate PR.
+
+### Context the next agent must know
+- **Master is +115 commits over `origin/master`.** This work adds another diff on top — uncommitted as I write this. The senior-dev review fixes from earlier in this session ARE committed (commit `8b7c112` per the prior summary).
+- **Window timezone is local-tz per `settings.TIME_ZONE`.** The setting is `"UTC"` so the window runs 11:00-23:00 UTC. If the operator wants the window in their local wall clock, change `TIME_ZONE` in `backend/config/settings/base.py:449`.
+- **The plan file at `~/.claude/plans/check-how-many-pending-tidy-iverson.md`** is huge (~1900 lines) and covers far more than this commit — laptop-sleep absorption, 18 wider waste items, Phase 6 ranker wiring, etc. This commit is just the slice the user explicitly named urgent. Future sessions can pick up any other slice from that file.
+- **`waste_bitmaps.bitmap_from_pks` is the integration point** for the eventual retention rewrite. It accepts any Django queryset and returns a Roaring bitmap of PKs — caller decides the filter. Cold-start safe.
+
+### Pending / next steps
+- [ ] **Move `nightly_data_retention` into the operator window** (rename callsite to `daily_data_retention`, register via `@scheduled_job` at 22:30, add `cardinality_preview` panel to the Scheduled Updates dashboard). The plumbing matters; the laptop-sleep concern is already addressed by today's widening because 14:00 UTC is inside [11, 23).
+- [ ] **Wire `waste_bitmaps` into B.5/B.6/B.7 retention** for SuggestionImpression (90-day), SuggestionPresentation (180-day), and pending/stale Suggestion (365-day) pruning.
+- [ ] **Tier-A waste fixes** (A.1 hoist host-token-bags, A.2 heap-based top-K, A.3 batched AppSetting reads, A.4 .gitignore coverage-html, A.5 Dockerfile pip cache cleanup, A.6 + A.7 compound + updated_at indexes).
+- [ ] **Phase 6 helper → ranker wiring** (the long tail of the senior-dev review's "still not yet called from the per-Suggestion ranker" finding).
+
+### Open questions / blockers
+- None for this slice. The window widening is byte-stable behaviour change for any test that uses the window constants directly; only one test (the next-day-opens timing assertion) had to be updated to use the constants symbolically.
+
+---
+
 ## 2026-04-25 (4) Agent: Claude — Polish A/B/C: operator toggles + automated NDCG eval + plain-English status
 
 ### What I did

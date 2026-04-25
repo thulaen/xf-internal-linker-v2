@@ -334,7 +334,7 @@ export class AppComponent implements OnInit {
           label: 'Scheduled Updates',
           icon: 'schedule',
           route: '/scheduled-updates',
-          tooltip: 'Background refresh jobs (1 pm – 11 pm serial runner)',
+          tooltip: 'Background refresh jobs (11 am – 11 pm serial runner)',
         },
         {
           label: 'Web Crawler',

@@ -34,6 +34,17 @@ _DISTILLED_TEXT_BULK_UPDATE_BATCH = 200  # maxsize for distilled-text bulk_updat
 # Data-retention cutoffs
 _RETENTION_12_MONTHS = 365  # days
 _RETENTION_6_MONTHS = 180  # days
+_RETENTION_3_MONTHS = 90  # days
+
+# AppSetting keys that surface the most recent prune cardinality to
+# the dashboard ("Retention queue" panel). Each value is the count
+# of rows that the *next* prune run would delete; the dashboard reads
+# them via ``apps.core.runtime_flags`` / a lightweight diagnostics
+# endpoint to render the operator-facing "X rows pending prune" line.
+RETENTION_PREVIEW_KEY_IMPRESSIONS = "retention.queue.suggestion_impressions"
+RETENTION_PREVIEW_KEY_PRESENTATIONS = "retention.queue.suggestion_presentations"
+RETENTION_PREVIEW_KEY_NON_APPROVED = "retention.queue.non_approved_suggestions"
+RETENTION_PREVIEW_KEY_LAST_RUN_AT = "retention.queue.last_run_at"
 
 # Percentage multiplier for lift calculations
 _PCT_MULTIPLIER = 100  # maxsize for percentage conversion
@@ -1088,10 +1099,16 @@ def run_clustering_pass(job_id: str | None = None) -> dict:
 @shared_task(
     name="pipeline.nightly_data_retention", time_limit=1800, soft_time_limit=1740
 )
-def nightly_data_retention():
+def nightly_data_retention(progress_callback=None):
     """Purge stale data rows according to the retention policy.
 
-    Scheduled daily at 03:00 UTC.
+    Runs daily at 22:30 inside the operator window via
+    ``apps.scheduled_updates.jobs.run_daily_data_retention`` (the
+    primary caller). Also callable manually via
+    ``nightly_data_retention.run()`` from the diagnostics manual-run
+    view. The function name is kept (despite the ``nightly_`` prefix)
+    for backward compatibility with the existing manual-run path and
+    docstring references throughout the codebase.
 
     Retention policy:
         SearchMetric rows           — 12 months
@@ -1101,9 +1118,18 @@ def nightly_data_retention():
         AuditEntry                  — 6 months (180 days)
         ErrorLog                    — 30 days
         WebhookReceipt              — 30 days
+        SuggestionImpression        — 90 days  (B.5 — IPS / Cascade lookback)
+        SuggestionPresentation      — 180 days (B.6 — IPW lookback)
+        Pending / stale Suggestion  — 365 days (B.7 — non-approved trail)
         ImpactReport                — FOREVER (never purged)
-        Suggestion (non-superseded) — FOREVER (never purged)
+        Approved Suggestion         — FOREVER (never purged — operator audit trail)
         WeightAdjustmentHistory     — FOREVER (never purged)
+
+    *progress_callback*, when provided, is invoked as
+    ``progress_callback(progress_pct: float, message: str)`` after each
+    prune block so the scheduled-updates dashboard can render a live
+    progress bar. Defaults to a no-op so the existing Celery / manual
+    paths see no behavior change.
     """
     import traceback
     from datetime import timedelta
@@ -1111,9 +1137,23 @@ def nightly_data_retention():
     from django.utils import timezone
 
     from apps.audit.models import ErrorLog
+    from apps.pipeline.services import waste_bitmaps
+
+    def _report(pct: float, message: str) -> None:
+        if progress_callback is not None:
+            try:
+                progress_callback(pct, message)
+            except Exception:  # pragma: no cover — defensive
+                logger.warning(
+                    "[nightly_data_retention] progress_callback raised "
+                    "for pct=%s message=%s; continuing",
+                    pct,
+                    message,
+                )
 
     now = timezone.now()
     results: dict[str, int] = {}
+    _report(0.0, "Starting data retention sweep")
 
     try:
         from apps.analytics.models import SearchMetric
@@ -1261,8 +1301,214 @@ def nightly_data_retention():
             why="Check database connectivity and the sync.WebhookReceipt table.",
         )
 
+    _report(60.0, "Pruning IPS / Cascade impressions (B.5)")
+
+    # --- SuggestionImpression: 90 days (B.5) ---
+    # Pick #33 (IPS) and #34 (Cascade Click) read recent impressions
+    # over a 90-day lookback to fit propensity / relevance estimates.
+    # Anything older than 90 days is no longer in any producer's
+    # window so it can be pruned without losing fidelity.
+    #
+    # Roaring bitmap pattern: build the prune-set first (one O(N)
+    # scan), log its cardinality for the dashboard, then DELETE WHERE
+    # pk IN (...). Cardinality preview is O(1) on the bitmap so the
+    # dashboard can render it cheaply.
+    try:
+        from apps.suggestions.models import SuggestionImpression
+
+        cutoff_b5 = now - timedelta(days=_RETENTION_3_MONTHS)
+        prune_qs = SuggestionImpression.objects.filter(
+            impressed_at__lt=cutoff_b5
+        )
+        bitmap = waste_bitmaps.bitmap_from_pks(prune_qs)
+        pending = waste_bitmaps.cardinality_preview(bitmap)
+        if pending:
+            deleted, _ = SuggestionImpression.objects.filter(
+                pk__in=list(bitmap)
+            ).delete()
+        else:
+            deleted = 0
+        results["suggestion_impressions_deleted"] = deleted
+        logger.info(
+            "[nightly_data_retention] (B.5) Deleted %d SuggestionImpression rows "
+            "older than 90 days (bitmap cardinality preview was %d).",
+            deleted,
+            pending,
+        )
+        _persist_retention_preview(
+            RETENTION_PREVIEW_KEY_IMPRESSIONS,
+            value=0,  # post-prune ⇒ none currently aged-out
+            last_count=pending,
+        )
+    except (DatabaseError, IntegrityError):
+        raw = traceback.format_exc()
+        logger.exception(
+            "[nightly_data_retention] SuggestionImpression purge failed."
+        )
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="suggestion_impression_purge",
+            error_message="SuggestionImpression retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the suggestions.SuggestionImpression table.",
+        )
+
+    _report(75.0, "Pruning IPW presentations (B.6)")
+
+    # --- SuggestionPresentation: 180 days (B.6) ---
+    # Joachims 2017 IPW reranker reads a 180-day window of presentations
+    # to estimate exposure denominators. Older rows fall out of every
+    # producer's active window and can be pruned safely.
+    try:
+        from apps.suggestions.models import SuggestionPresentation
+
+        cutoff_b6 = (now - timedelta(days=_RETENTION_6_MONTHS)).date()
+        prune_qs = SuggestionPresentation.objects.filter(
+            presented_date__lt=cutoff_b6
+        )
+        bitmap = waste_bitmaps.bitmap_from_pks(prune_qs)
+        pending = waste_bitmaps.cardinality_preview(bitmap)
+        if pending:
+            deleted, _ = SuggestionPresentation.objects.filter(
+                pk__in=list(bitmap)
+            ).delete()
+        else:
+            deleted = 0
+        results["suggestion_presentations_deleted"] = deleted
+        logger.info(
+            "[nightly_data_retention] (B.6) Deleted %d SuggestionPresentation rows "
+            "older than 180 days (bitmap cardinality preview was %d).",
+            deleted,
+            pending,
+        )
+        _persist_retention_preview(
+            RETENTION_PREVIEW_KEY_PRESENTATIONS,
+            value=0,
+            last_count=pending,
+        )
+    except (DatabaseError, IntegrityError):
+        raw = traceback.format_exc()
+        logger.exception(
+            "[nightly_data_retention] SuggestionPresentation purge failed."
+        )
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="suggestion_presentation_purge",
+            error_message="SuggestionPresentation retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the suggestions.SuggestionPresentation table.",
+        )
+
+    _report(90.0, "Pruning aged-out non-approved Suggestions (B.7)")
+
+    # --- Pending / stale Suggestions: 365 days (B.7) ---
+    # Approved / applied / verified rows are kept indefinitely as the
+    # operator audit trail. Pending / stale rows that have aged out
+    # for a year without operator action are noise and can be pruned.
+    # ``superseded`` is already handled by the 30-day block above.
+    #
+    # NOTE: Suggestion uses a UUID primary key, so we can't pack PKs
+    # into a Roaring bitmap (uint32-only). Use the queryset directly
+    # for both the count preview and the delete. Cardinality preview
+    # for the dashboard is the matched count from ``.count()``.
+    try:
+        from apps.suggestions.models import Suggestion
+
+        cutoff_b7 = now - timedelta(days=_RETENTION_12_MONTHS)
+        prune_qs = Suggestion.objects.filter(
+            status__in=("pending", "stale"),
+            updated_at__lt=cutoff_b7,
+        )
+        pending = prune_qs.count()
+        if pending:
+            deleted, _ = prune_qs.delete()
+        else:
+            deleted = 0
+        results["non_approved_suggestions_deleted"] = deleted
+        logger.info(
+            "[nightly_data_retention] (B.7) Deleted %d pending/stale Suggestion rows "
+            "older than 365 days (UUID PK ⇒ direct queryset delete; preview was %d).",
+            deleted,
+            pending,
+        )
+        _persist_retention_preview(
+            RETENTION_PREVIEW_KEY_NON_APPROVED,
+            value=0,
+            last_count=pending,
+        )
+    except (DatabaseError, IntegrityError):
+        raw = traceback.format_exc()
+        logger.exception(
+            "[nightly_data_retention] Pending/stale Suggestion purge failed."
+        )
+        ErrorLog.objects.create(
+            job_type="data_retention",
+            step="non_approved_suggestion_purge",
+            error_message="Pending/stale Suggestion retention purge failed.",
+            raw_exception=raw,
+            why="Check database connectivity and the suggestions.Suggestion table.",
+        )
+
+    _persist_retention_run_timestamp(now.isoformat())
+    _report(100.0, "Data retention complete")
     logger.info("[nightly_data_retention] Complete. Results: %s", results)
     return results
+
+
+def _persist_retention_preview(key: str, *, value: int, last_count: int) -> None:
+    """Write ``key`` and ``key.last_count`` to AppSetting for the dashboard.
+
+    *value* is the post-prune cardinality (always ~0 right after a
+    successful prune); *last_count* is what the prune just acted on.
+    The dashboard panel renders both — "0 rows pending now, last
+    sweep deleted 12,480" — so the operator sees both freshness and
+    historical volume at a glance.
+    """
+    try:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key=key,
+            defaults={
+                "value": str(int(value)),
+                "value_type": "int",
+                "category": "retention",
+                "description": "Retention queue cardinality (post-prune).",
+            },
+        )
+        AppSetting.objects.update_or_create(
+            key=f"{key}.last_count",
+            defaults={
+                "value": str(int(last_count)),
+                "value_type": "int",
+                "category": "retention",
+                "description": "Rows the most recent prune actually deleted.",
+            },
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "_persist_retention_preview(%s) failed: %s", key, exc
+        )
+
+
+def _persist_retention_run_timestamp(iso: str) -> None:
+    """Write the last-run timestamp to AppSetting for the dashboard."""
+    try:
+        from apps.core.models import AppSetting
+
+        AppSetting.objects.update_or_create(
+            key=RETENTION_PREVIEW_KEY_LAST_RUN_AT,
+            defaults={
+                "value": iso,
+                "value_type": "str",
+                "category": "retention",
+                "description": "ISO-8601 timestamp of the last successful retention sweep.",
+            },
+        )
+    except Exception as exc:  # pragma: no cover — defensive
+        logger.warning(
+            "_persist_retention_run_timestamp(%s) failed: %s", iso, exc
+        )
 
 
 @shared_task(name="pipeline.cleanup_stuck_sync_jobs")

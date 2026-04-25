@@ -51,12 +51,24 @@ def embedding_accuracy_audit(self, *, fortnightly: bool = True, force: bool = Fa
             logger.info("fortnight gate: last run %s; skipping", last.isoformat())
             return {"skipped": "fortnight_gate"}
 
-    # Window gate (13:00–22:59 UTC per docs/PERFORMANCE.md §5) — only enforced
-    # in fortnightly mode so manual runs are never blocked.
+    # Window gate (operator window per apps/scheduled_updates/window.py and
+    # docs/PERFORMANCE.md §5) — only enforced in fortnightly mode so manual
+    # runs are never blocked. Source of truth is the constants in
+    # apps.scheduled_updates.window — keep this gate aligned there.
     if fortnightly and not force:
+        from apps.scheduled_updates.window import (
+            WINDOW_END_HOUR,
+            WINDOW_START_HOUR,
+        )
+
         now_utc = timezone.now().utctimetuple()
-        if not (13 <= now_utc.tm_hour < 23):
-            logger.info("outside 13:00-22:59 UTC window (hour=%d); deferring 5min", now_utc.tm_hour)
+        if not (WINDOW_START_HOUR <= now_utc.tm_hour < WINDOW_END_HOUR):
+            logger.info(
+                "outside %02d:00-%02d:59 UTC window (hour=%d); deferring 5min",
+                WINDOW_START_HOUR,
+                WINDOW_END_HOUR - 1,
+                now_utc.tm_hour,
+            )
             raise self.retry(countdown=300)
 
     from apps.pipeline.services.embeddings import (

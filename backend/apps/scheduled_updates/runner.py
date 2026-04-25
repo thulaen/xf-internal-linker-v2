@@ -2,7 +2,7 @@
 
 A single Celery task (``run_next_scheduled_job``) is the only thing
 that ever starts a ScheduledJob. Celery beat fires this task every
-5 minutes inside the 13:00-23:00 window. On each tick the runner:
+5 minutes inside the 11:00-23:00 window. On each tick the runner:
 
 1. Asks ``window.is_within_window()`` — outside the window, exit silently.
 2. Picks the highest-priority pending job whose duration_estimate_sec

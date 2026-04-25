@@ -70,7 +70,7 @@ LOCAL_APPS = [
     "apps.realtime",
     # Phase OF — Operations Feed.
     "apps.ops_feed",
-    # PR-B — Scheduled Updates orchestrator (1pm-11pm serial runner).
+    # PR-B — Scheduled Updates orchestrator (11am-11pm serial runner).
     "apps.scheduled_updates",
     # PR-C — Source-layer helpers (token bucket, backoff, bloom, HLL, etc).
     "apps.sources",

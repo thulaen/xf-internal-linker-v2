@@ -487,6 +487,54 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-25 (6) — Retention into runner window + Roaring B.5/B.6/B.7 prune + Tier-A waste fixes + Phase 6 dispatcher (Claude)
+
+- **AI/tool:** Claude (continuation of (5) — same uncommitted master tree).
+- **Why:** Operator asked to "do all this carefully" the four items I'd flagged as deferred follow-ups: fold `nightly_data_retention` into `@scheduled_job` at 22:30, wire `waste_bitmaps` into B.5/B.6/B.7 retention, ship Tier-A compute-waste fixes, and start Phase 6 ranker wiring.
+- **Relevant open findings disclosed in chat before touching code:** None in retention / candidate retrievers / ranker / Phase 6 area.
+- **Forward-clash check:** No clash with the next 3 queued phases. The ranker dispatcher is purely additive to `score_final`; default weights are 0.0; cold-start byte-stable.
+- **Intentional files changed (still uncommitted, on `master`):**
+  - `backend/apps/pipeline/tasks.py` — B.5/B.6/B.7 prune blocks; new `progress_callback` parameter; new AppSetting cardinality-preview keys; new `_persist_retention_*` helpers.
+  - `backend/apps/scheduled_updates/jobs.py` — new `@scheduled_job("daily_data_retention", ...)` wrapper; A.3 batched AppSetting reads in `run_trustrank_auto_seeder`.
+  - `backend/config/settings/celery_schedules.py` — `nightly-data-retention` beat entry removed (with explanatory comment).
+  - `backend/apps/pipeline/services/candidate_retrievers.py` — A.1 + A.2 (mutable `RetrievalContext`, lazy `_host_token_bags_cache`, `heapq.nsmallest`).
+  - `backend/apps/pipeline/services/phase6_ranker_contribution.py` (new, ~250 lines) — Phase 6 dispatcher; VADER adapter wired.
+  - `backend/apps/pipeline/services/{pipeline.py, pipeline_stages.py, ranker.py}` — thread `phase6_contribution` through; module-level `logger` in `ranker.py`.
+  - `backend/apps/suggestions/models.py` + `migrations/0045_add_suggestion_indexes.py` — A.6 + A.7 indexes.
+  - `backend/apps/suggestions/recommended_weights.py` — new `vader_sentiment.ranking_weight: "0.0"`.
+  - `.gitignore` — coverage-html / backend/coverage-html.
+  - `backend/Dockerfile` — `pip cache purge` after install layers.
+  - `backend/apps/pipeline/test_data_retention.py` (new, 13 tests) + `backend/apps/pipeline/test_phase6_ranker_contribution.py` (new, 17 tests).
+  - `docs/READY-TODAY.md` — new "VADER #22 sentiment" row in the live-in-the-ranker table; status row updated for the wired pick.
+  - `AGENT-HANDOFF.md` — entry `2026-04-25 (6)` appended.
+- **Test status:** Full backend sweep **1281/1281** (was 1251 — +30 new tests). Phantom gate clean.
+- **Docker prune note:** Test runs only — no Docker rebuild this session.
+- **Branch:** stayed on `master`. No branch transparency violation.
+
+### 2026-04-25 (5) — Scheduler 11 am – 11 pm widening + Roaring waste-bitmaps primitive (Claude)
+
+- **AI/tool:** Claude (continuation of session that earlier shipped commit `8b7c112` for the senior-dev-review must-fixes).
+- **Why:** Operator flagged that the 13–23 operator window assumed a workday that started in early afternoon, and that nightly tasks scheduled outside the window would silently miss because the laptop sleeps after 23:00. The fix is to widen the window two hours earlier (11–23) and move the one out-of-window cron entry inside, then ship the Roaring-bitmap primitive that the eventual retention rewrite will consume.
+- **Relevant open findings disclosed in chat before touching code:** None in the scheduler / retention / pyroaring area — confirmed via `Grep` against `docs/reports/REPORT-REGISTRY.md`.
+- **Forward-clash check:** The plan in `~/.claude/plans/check-how-many-pending-tidy-iverson.md` covers a much larger rewrite (Phase 6 ranker wiring, Tier-A/B compute waste, retention rework via @scheduled_job, etc.). This commit is the small "laser-focused" first slice; nothing here forecloses any of the larger items.
+- **Intentional files changed (uncommitted on `master`):**
+  - `backend/apps/scheduled_updates/window.py` — `WINDOW_START_HOUR` 13 → 11.
+  - `backend/config/settings/celery_schedules.py` — `hour="13-22"` → `hour="11-22"` for runner tick + stalled detector. `daily-gsc-spike-check` moved 08:00 → 11:00.
+  - `backend/apps/pipeline/tasks_embedding_audit.py` — hardcoded `13 <= h < 23` window gate now imports the canonical `WINDOW_START_HOUR` / `WINDOW_END_HOUR` constants.
+  - `backend/apps/scheduled_updates/{runner.py, views.py, __init__.py, tests_beat.py, tests_runner.py}` — docstrings, error messages, and tests updated; tests parameterised on the constants.
+  - `backend/apps/pipeline/services/trustrank_auto_seeder.py` — docstring `13:00–23:00` → `11:00–23:00`.
+  - `backend/config/settings/base.py` — INSTALLED_APPS comment `1pm-11pm` → `11am-11pm`.
+  - `frontend/src/app/app.component.ts` — nav tooltip.
+  - `frontend/src/app/scheduled-updates/scheduled-updates.component.html` — three user-facing strings.
+  - `backend/apps/pipeline/services/waste_bitmaps.py` (new, ~250 lines) — Roaring-bitmap primitive (Lemire et al. 2018 *Software: Practice and Experience* 48(4)) wrapping `pyroaring==1.0.4` (already pinned at requirements.txt:73; already imported by `pipeline_data.py`). Public surface: 10 narrow functions (construction, set algebra, inspection, persistence). Cold-start safe at every layer.
+  - `backend/apps/pipeline/test_waste_bitmaps.py` (new, ~190 lines) — 30 unit tests including 1M-id scale spot-check.
+  - `docs/READY-TODAY.md` — "Last updated" footer + "Daily 11:00–23:00" + GSC spike note.
+  - `AGENT-HANDOFF.md` — entry `2026-04-25 (5)` appended.
+- **Test status:** apps.scheduled_updates 104/104, apps.pipeline 638/638, apps.pipeline.test_waste_bitmaps 30/30, full backend sweep **1251/1251** (5 skipped — pre-existing).
+- **Phantom gate:** OK — scanned 165 banned tokens, no phantoms.
+- **Docker prune note:** No Docker rebuild this session (only test runs via `docker compose exec`); the safe-prune script may still be a courtesy at session end if any other cleanup is desired.
+- **Branch:** stayed on `master`. No branch transparency violation.
+
 ### 2026-04-24 — FR-099 through FR-105: 7 graph-topology ranking signals + dual session gates (Claude)
 
 - **AI/tool:** Claude

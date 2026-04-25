@@ -195,6 +195,13 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # ±0.05 lives in the helper as :attr:`SentimentResult.is_neutral`
     # (paper §3.2 "compound score thresholds for sentiment intensity").
     "vader_sentiment.enabled": "true",
+    # ranking_weight 0.0 = sentiment is computed but does NOT perturb
+    # ``score_final`` until the operator explicitly raises it. The
+    # ``apps.pipeline.services.phase6_ranker_contribution`` dispatcher
+    # multiplies VADER's compound score (∈ [-1, +1]) by this weight.
+    # 0.05-0.20 is a sane operator starting range — small enough that
+    # sentiment alone can't dominate the existing 15-component blend.
+    "vader_sentiment.ranking_weight": "0.0",
 
     # ── Pick #15 PySBD (Sadvilkar & Neumann 2020 ACL Demos) ────────
     # ``language=en`` matches our content; ``clean=False`` keeps the
