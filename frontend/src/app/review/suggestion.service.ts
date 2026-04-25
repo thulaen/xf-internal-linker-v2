@@ -121,6 +121,24 @@ export interface ScoreBreakdown {
   terms: ScoreBreakdownTerm[];
 }
 
+/** W4 — pick #47 explainability response. */
+export interface SuggestionFeatureContribution {
+  feature_name: string;
+  value: number;
+  shap_value: number;
+}
+
+/** Same shape as `apps.pipeline.services.shap_explainer.Explanation`. */
+export interface SuggestionExplanation {
+  predicted_value: number;
+  baseline: number;
+  contributions: SuggestionFeatureContribution[];
+  method: string;
+  /** Platt-calibrated probability when available; null when no
+   *  calibration has been fit yet (cold-start install). */
+  calibrated_probability: number | null;
+}
+
 export interface SuggestionTelemetryInstrumentation {
   status: 'instrumented' | 'plain_manual' | 'unknown';
   event_schema: string;
@@ -556,6 +574,16 @@ export class SuggestionService {
 
   apply(id: string): Observable<SuggestionDetail> {
     return this.http.post<SuggestionDetail>(`${this.base}${id}/apply/`, {});
+  }
+
+  /**
+   * W4 — fetch SHAP-style per-feature attributions for a suggestion.
+   * Backend returns the same shape as `apps.pipeline.services.shap_explainer`
+   * so the UI panel is method-agnostic (linear-attribution today, full
+   * Kernel SHAP later when the ranker exposes a pure score_fn).
+   */
+  explain(id: string): Observable<SuggestionExplanation> {
+    return this.http.get<SuggestionExplanation>(`${this.base}${id}/explain/`);
   }
 
   batchAction(

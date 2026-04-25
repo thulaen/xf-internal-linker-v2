@@ -2,7 +2,8 @@ import { ChangeDetectionStrategy, ChangeDetectorRef, Component, DestroyRef, OnIn
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
-import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialog, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
+import { ExplainPanelDialogComponent } from './explain-panel-dialog.component';
 import { MatButtonModule } from '@angular/material/button';
 import { MatChipsModule } from '@angular/material/chips';
 import { MatDividerModule } from '@angular/material/divider';
@@ -66,6 +67,16 @@ export class SuggestionDetailDialogComponent implements OnInit {
   readonly data: DialogData = inject(MAT_DIALOG_DATA);
   private svc = inject(SuggestionService);
   private snack = inject(MatSnackBar);
+  private dialog = inject(MatDialog);
+
+  /** W4 — open the Explain panel for this suggestion (pick #47). */
+  openExplain(): void {
+    this.dialog.open(ExplainPanelDialogComponent, {
+      data: { suggestionId: this.data.suggestionId },
+      width: '640px',
+      autoFocus: false,
+    });
+  }
   // Phase E2 / Gap 41 — cancel in-flight HTTP if dialog closes first.
   private destroyRef = inject(DestroyRef);
   // The template has ~60 interpolated expressions. With default CD

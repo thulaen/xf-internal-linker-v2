@@ -670,6 +670,12 @@
 <mat-dialog-actions align="end">
   <button mat-button (click)="cancel()">Close</button>
 
+  <!-- W4 — pick #47 Explain button. Opens the SHAP-style attribution panel. -->
+  <button mat-stroked-button (click)="openExplain()" matTooltip="Why did the ranker give this suggestion this score?">
+    <mat-icon>insights</mat-icon>
+    Explain
+  </button>
+
   @if (detail?.status === 'approved') {
     <button mat-stroked-button color="accent" [disabled]="saving" (click)="apply()">
       <mat-icon>done_all</mat-icon>

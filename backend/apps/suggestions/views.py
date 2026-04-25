@@ -450,6 +450,35 @@ class SuggestionViewSet(viewsets.ModelViewSet):
                 suggestion.suggestion_id,
             )
 
+    @action(detail=True, methods=["get"])
+    def explain(self, request, pk=None):
+        """Return SHAP-style per-feature attributions for this suggestion.
+
+        W4 wiring of pick #47 (Kernel SHAP). Uses direct linear
+        attribution from the persisted score columns + current
+        AppSetting weights — same response shape as the
+        :mod:`apps.pipeline.services.shap_explainer` helper but
+        without the 50-100 MB peak RAM cost. The Angular Explain
+        panel consumes this verbatim.
+        """
+        from apps.suggestions.services.suggestion_explainer import (
+            explain_suggestion,
+        )
+
+        suggestion = self.get_object()
+        explanation = explain_suggestion(suggestion)
+        # The W3a Platt calibrator turns the raw composite into a
+        # calibrated probability when calibration data is available.
+        try:
+            from apps.pipeline.services.score_calibrator import calibrate_score
+
+            calibrated = calibrate_score(explanation.predicted_value)
+        except Exception:
+            calibrated = None
+        payload = explanation.to_dict()
+        payload["calibrated_probability"] = calibrated
+        return Response(payload)
+
 
 class PipelineDiagnosticViewSet(viewsets.ReadOnlyModelViewSet):
     """
