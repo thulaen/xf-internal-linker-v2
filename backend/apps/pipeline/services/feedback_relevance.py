@@ -40,11 +40,7 @@ from datetime import timedelta
 from typing import Iterable
 
 from .cascade_click_model import ClickSession, estimate as cascade_estimate
-from .position_bias_ips import (
-    DEFAULT_MAX_WEIGHT,
-    DEFAULT_POWER_LAW_ETA,
-    ips_weight,
-)
+from .position_bias_ips import DEFAULT_MAX_WEIGHT, ips_weight
 
 logger = logging.getLogger(__name__)
 
@@ -116,10 +112,34 @@ def load_snapshot() -> FeedbackSnapshot | None:
 def cascade_relevance_for(destination_pk: int) -> float:
     """Return the Cascade-estimated relevance for *destination_pk*.
 
-    Cold-start fallback is ``0.5`` — neutral, not a fake "never
-    accepted" zero. Same convention used elsewhere for missing-data
-    feedback fields.
+    Two-source resolution (Group A.4 wiring):
+
+    1. **Preferred — impression-based** (``cascade_click_em_producer``).
+       Real cascade EM on per-viewport-impression click data. Empty
+       until the frontend hook lands and impressions accumulate.
+    2. **Fallback — review-queue based** (this module's ``compute_and_persist``).
+       Always-on data: each pipeline_run becomes one cascade session
+       built from operator approvals.
+    3. **Final fallback** — neutral 0.5 (the prior mean ``α / (α+β)``).
+
+    Cold-start safe at every layer: empty AppSetting → neutral 0.5,
+    same convention used elsewhere for missing-data feedback fields.
     """
+    # Delay-import to avoid producer↔consumer cycles at module load.
+    from .cascade_click_em_producer import (
+        load_relevance_table as load_impression_table,
+    )
+
+    impression_table = load_impression_table()
+    if impression_table:
+        # Impression-based table populated → use it.
+        if int(destination_pk) in impression_table:
+            return impression_table[int(destination_pk)]
+        # Impression-based exists but doesn't have this dest → fall
+        # through to the review-queue table rather than returning 0.5
+        # straight away. Combining the two sources is the most
+        # information-rich answer.
+
     snap = load_snapshot()
     if snap is None:
         return 0.5
@@ -229,10 +249,22 @@ def _build_observations(
 def _compute_ips_ctr(position_events: dict[int, list[bool]]) -> dict[int, float]:
     """Return per-position IPS-weighted CTR.
 
+    Group A.4 wiring: ``η`` is read from
+    ``position_bias_ips_producer.load_eta()`` so the IPS weights use
+    the data-fit power-law exponent when impression data has trained
+    one. Cold-start safe: ``load_eta()`` returns
+    ``DEFAULT_POWER_LAW_ETA = 1.0`` when no fit is persisted yet, so
+    this function's behaviour is identical to the pre-A.4 hardcoded
+    path until the producer's first successful fit lands.
+
     Result keyed by 1-based position, value in roughly the unit
     interval (could exceed 1 when a deep position has many approvals
     and the IPS weight expands them — caller is free to clip).
     """
+    # Delay-import to avoid producer↔consumer cycles at module load.
+    from .position_bias_ips_producer import load_eta
+
+    eta = load_eta()
     out: dict[int, float] = {}
     for position, events in position_events.items():
         if not events:
@@ -240,7 +272,7 @@ def _compute_ips_ctr(position_events: dict[int, list[bool]]) -> dict[int, float]
         approvals = sum(1 for e in events if e)
         weight = ips_weight(
             position=position,
-            eta=DEFAULT_POWER_LAW_ETA,
+            eta=eta,
             max_weight=DEFAULT_MAX_WEIGHT,
         )
         out[position] = (approvals / len(events)) * weight

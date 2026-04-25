@@ -106,3 +106,92 @@ class ComputeAndPersistTests(TestCase):
         loaded = load_snapshot()
         self.assertIsNotNone(loaded)
         self.assertEqual(loaded.training_runs, len(sessions))
+
+
+class ConsumerWireTests(TestCase):
+    """Group A.4 — consumer wiring: producer outputs flow to consumers."""
+
+    def test_cascade_relevance_for_prefers_impression_table(self) -> None:
+        """When the impression-based table is populated, it wins."""
+        from apps.core.models import AppSetting
+        from apps.pipeline.services.cascade_click_em_producer import (
+            KEY_RELEVANCE as IMPRESSION_KEY_RELEVANCE,
+        )
+
+        # Both tables populated with conflicting values for dest 42.
+        AppSetting.objects.update_or_create(
+            key=KEY_CASCADE_RELEVANCE,
+            defaults={"value": '{"42": 0.3}', "description": ""},
+        )
+        AppSetting.objects.update_or_create(
+            key=IMPRESSION_KEY_RELEVANCE,
+            defaults={"value": '{"42": 0.9}', "description": ""},
+        )
+        # Impression-based wins.
+        self.assertAlmostEqual(cascade_relevance_for(42), 0.9)
+
+    def test_cascade_relevance_falls_back_to_review_when_impression_missing(self) -> None:
+        """Impression table populated but missing this dest → review-queue."""
+        from apps.core.models import AppSetting
+        from apps.pipeline.services.cascade_click_em_producer import (
+            KEY_RELEVANCE as IMPRESSION_KEY_RELEVANCE,
+        )
+
+        AppSetting.objects.update_or_create(
+            key=KEY_CASCADE_RELEVANCE,
+            defaults={"value": '{"42": 0.65}', "description": ""},
+        )
+        # Impression table has *some* dest but not 42.
+        AppSetting.objects.update_or_create(
+            key=IMPRESSION_KEY_RELEVANCE,
+            defaults={"value": '{"99": 0.9}', "description": ""},
+        )
+        self.assertAlmostEqual(cascade_relevance_for(42), 0.65)
+
+    def test_cascade_relevance_neutral_when_both_empty(self) -> None:
+        """No producer has run yet → neutral 0.5."""
+        self.assertAlmostEqual(cascade_relevance_for(42), 0.5)
+
+    def test_compute_ips_ctr_reads_fitted_eta(self) -> None:
+        """When η is persisted, _compute_ips_ctr uses it instead of 1.0."""
+        from apps.core.models import AppSetting
+        from apps.pipeline.services.feedback_relevance import _compute_ips_ctr
+        from apps.pipeline.services.position_bias_ips import (
+            DEFAULT_MAX_WEIGHT,
+            ips_weight,
+        )
+        from apps.pipeline.services.position_bias_ips_producer import KEY_ETA
+
+        # Persist a fitted η of 0.5 (different from the default 1.0).
+        AppSetting.objects.update_or_create(
+            key=KEY_ETA, defaults={"value": "0.5", "description": ""}
+        )
+        # All-approved at position 4 → CTR 1.0 × IPS weight at η=0.5.
+        # ips_weight(4, eta=0.5) = 4^0.5 = 2.0; with eta=1.0 it would
+        # be 4.0. Difference proves the fitted value was used.
+        events = {4: [True, True, True, True]}
+        result = _compute_ips_ctr(events)
+        expected = 1.0 * ips_weight(
+            position=4, eta=0.5, max_weight=DEFAULT_MAX_WEIGHT
+        )
+        self.assertAlmostEqual(result[4], expected)
+        self.assertAlmostEqual(result[4], 2.0)
+
+    def test_compute_ips_ctr_uses_default_eta_on_cold_start(self) -> None:
+        """No fitted η persisted → falls back to the helper's default."""
+        from apps.pipeline.services.feedback_relevance import _compute_ips_ctr
+        from apps.pipeline.services.position_bias_ips import (
+            DEFAULT_MAX_WEIGHT,
+            DEFAULT_POWER_LAW_ETA,
+            ips_weight,
+        )
+
+        events = {4: [True, True, True, True]}
+        result = _compute_ips_ctr(events)
+        expected = 1.0 * ips_weight(
+            position=4,
+            eta=DEFAULT_POWER_LAW_ETA,
+            max_weight=DEFAULT_MAX_WEIGHT,
+        )
+        self.assertAlmostEqual(result[4], expected)
+        self.assertAlmostEqual(result[4], 4.0)
