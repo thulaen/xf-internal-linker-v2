@@ -200,8 +200,31 @@ def _build_suggestion_records(
     content_items: dict[int, Any],
     sentences: dict[int, Any],
 ) -> list[Any]:
-    """Build Suggestion model instances from scored candidates."""
+    """Build Suggestion model instances from scored candidates.
+
+    Pick #32 — every candidate's ``score_final`` is run through the
+    Platt calibrator (loaded **once** before the loop, not per row)
+    so the persisted ``Suggestion.calibrated_probability`` matches
+    what the Explain panel reads. Cold start safe: if no W3a Platt
+    snapshot exists yet, ``load_snapshot`` returns ``None`` and we
+    leave ``calibrated_probability`` NULL — the panel renders that
+    as a dash, never a fake percentage.
+    """
     from apps.suggestions.models import Suggestion
+    from apps.pipeline.services.score_calibrator import (
+        calibrate_score,
+        load_snapshot as load_calibration_snapshot,
+    )
+
+    # Single load per pipeline-pass — the snapshot is small and the
+    # cost is one AppSetting query, which is amortised across every
+    # Suggestion row we're about to build.
+    calibration_snapshot = None
+    try:
+        calibration_snapshot = load_calibration_snapshot()
+    except Exception:
+        # Calibration is advisory; never block suggestion writes on it.
+        pass
 
     records: list[Suggestion] = []
     for candidate in valid_candidates:
@@ -271,6 +294,16 @@ def _build_suggestion_records(
                 hgte_diagnostics=getattr(candidate, "hgte_diagnostics", {}) or {},
                 rsqva_diagnostics=getattr(candidate, "rsqva_diagnostics", {}) or {},
                 score_final=candidate.score_final,
+                # Pick #32 — Platt-calibrated probability. NULL when
+                # no snapshot exists; otherwise a [0, 1] probability.
+                calibrated_probability=(
+                    calibrate_score(
+                        float(candidate.score_final),
+                        snapshot=calibration_snapshot,
+                    )
+                    if calibration_snapshot is not None
+                    else None
+                ),
                 status="pending",
             )
         )

@@ -525,6 +525,20 @@ class Suggestion(TimestampedModel):
         db_index=True,
         help_text="Weighted composite of all score components. Used to rank suggestions.",
     )
+    # Pick #32 — Platt calibration of score_final → P(accepted | score).
+    # Populated at suggestion-write time when a Platt snapshot exists
+    # (apps.pipeline.services.score_calibrator). NULL = no calibration
+    # data yet (cold start, or W3a fit-job hasn't run); the Explain
+    # panel renders this as a dash so operators don't see a fake
+    # percentage.
+    calibrated_probability = models.FloatField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Platt-scaled (Platt 1999) probability of operator approval "
+            "given score_final. NULL = uncalibrated (no fit yet)."
+        ),
+    )
 
     # FR-021 Graph and Value Model
     candidate_origin = models.CharField(

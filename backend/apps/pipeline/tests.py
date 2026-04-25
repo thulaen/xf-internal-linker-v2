@@ -3292,9 +3292,11 @@ class PipelinePersistenceRegressionTests(TestCase):
         # 4 base queries + 2 for transaction.atomic() SAVEPOINT/RELEASE
         # + 1 constant-cost fetch for RejectedPair negative-memory suppression
         # + 1 constant-cost fetch for approved-suggestion dedup (commit 7011dc6)
+        # + 1 constant-cost fetch for the Platt calibration snapshot
+        #   (pick #32 wiring; loaded once per call, not per row).
         # (see pipeline_persist._persist_suggestions). O(1) per run regardless
         # of candidate count, so not an N+1 risk.
-        self.assertLessEqual(len(queries), 8)
+        self.assertLessEqual(len(queries), 9)
 
         suggestion_a = Suggestion.objects.get(destination=self.destination_a)
         suggestion_b = Suggestion.objects.get(destination=self.destination_b)
