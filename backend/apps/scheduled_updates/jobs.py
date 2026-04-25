@@ -882,7 +882,19 @@ def run_entity_salience_retrain(job, checkpoint) -> None:
     priority=JOB_PRIORITY_MEDIUM,
 )
 def run_product_quantization_refit(job, checkpoint) -> None:
-    """Monthly PQ codebook refit over BGE-M3 embeddings (pick #20, FAISS-skipped)."""
+    """Monthly PQ codebook refit over BGE-M3 embeddings (pick #20).
+
+    Reads the population of non-null ContentItem embeddings, fits a
+    FAISS IndexPQ codebook, persists the codebook bytes (base64) to
+    AppSetting, and backfills the ``ContentItem.pq_code`` +
+    ``pq_code_version`` columns for every encoded row.
+
+    Cold-start safe: returns immediately when FAISS isn't installed
+    or when fewer than ``MIN_TRAINING_ROWS`` (39 × Ks) embeddings
+    exist. Group B.2 will land the optional read-path swap that
+    short-circuits cosine similarity through PQ codes; Group B.1
+    only seeds the column.
+    """
     try:
         import faiss  # noqa: F401
     except ImportError:
@@ -892,11 +904,28 @@ def run_product_quantization_refit(job, checkpoint) -> None:
         )
         raise DeferredPickError("faiss not installed; PQ refit requires it")
 
-    checkpoint(
-        progress_pct=0.0,
-        message="FAISS available; embedding-path wiring lands in W2",
+    from apps.pipeline.services.product_quantization_producer import (
+        fit_and_persist_from_embeddings,
     )
-    checkpoint(progress_pct=100.0, message="PQ refit placeholder complete")
+
+    result = fit_and_persist_from_embeddings(progress_callback=checkpoint)
+    if result is None:
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                "Insufficient training data for PQ — keeping previous "
+                "codebook (cold-start safe)"
+            ),
+        )
+        return
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"PQ codebook v{result.snapshot.version} persisted; "
+            f"{result.rows_encoded} rows encoded, "
+            f"{result.snapshot.bytes_per_vector} bytes/vec"
+        ),
+    )
 
 
 @scheduled_job(

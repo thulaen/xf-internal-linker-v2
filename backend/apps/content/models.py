@@ -432,6 +432,36 @@ class ContentItem(TimestampedModel):
         help_text="FR-105 RSQVA: L2-normalized TF-IDF vector over this page's GSC query vocabulary, projected to 1024-dim via feature hashing. Null until first analytics sync.",
     )
 
+    # Pick #20 Product Quantization — compressed BGE-M3 embedding.
+    # 1024-dim float32 (4 KB) → m subvectors × 1 byte each (8 bytes
+    # default, configurable per the trained codebook). Populated by
+    # the monthly product_quantization_refit scheduled job; null
+    # until the first refit lands. Pair with the persisted codebook
+    # in AppSetting["product_quantization.codebook"] when decoding.
+    # See apps.sources.product_quantization for the FAISS wrapper
+    # and apps.pipeline.services.product_quantization_producer for
+    # the producer/backfill.
+    pq_code = models.BinaryField(
+        null=True,
+        blank=True,
+        editable=False,
+        help_text=(
+            "Pick #20: PQ-compressed embedding (~8 bytes). Null until "
+            "the first product_quantization_refit run encodes it. "
+            "Decode via apps.pipeline.services.product_quantization_producer."
+        ),
+    )
+    pq_code_version = models.CharField(
+        max_length=64,
+        null=True,
+        blank=True,
+        help_text=(
+            "Codebook version that produced pq_code. Re-encoded on "
+            "every refit; consumers must reject codes whose version "
+            "doesn't match the active codebook."
+        ),
+    )
+
     # Engagement metrics (mirrored from XenForo)
     view_count = models.IntegerField(
         default=0,
