@@ -228,19 +228,25 @@ def _persist_content_body(
     new_hash: str,
     first_post_id: int | None,
 ) -> None:
-    """Save Post, Sentences, and distilled text inside a transaction.
+    """Save Post, Sentences, distilled text, and entity salience.
 
-    Pick #19 — readability grades are computed from ``clean_text``
-    here (one call into ``apps.sources.readability.score``) and
-    persisted onto the Post row so the ranker doesn't have to
-    re-tokenise on every pipeline pass. Cold-start safe: empty body
-    yields 0.0/0.0 grades from the helper.
+    Pick #19 — readability grades from ``clean_text`` via
+    :func:`apps.sources.readability.score`, persisted on the Post row.
+
+    Pick #26 — top-K salient entities from the **same** spaCy Doc
+    that sentence-splitting builds, persisted on the ContentItem row
+    as ``salient_entities``. Reusing the Doc (via
+    ``split_sentence_spans_with_doc``) avoids a second NLP parse of
+    the same body.
     """
     from django.db import transaction
 
     from apps.content.models import Post, Sentence
     from apps.pipeline.services.distiller import distill_body
-    from apps.pipeline.services.sentence_splitter import split_sentence_spans
+    from apps.pipeline.services.sentence_splitter import (
+        split_sentence_spans_with_doc,
+    )
+    from apps.sources.entity_salience import rank_entities
     from apps.sources.readability import score as readability_score
 
     with transaction.atomic():
@@ -275,7 +281,42 @@ def _persist_content_body(
             ]
         )
 
-        spans = split_sentence_spans(clean_text)
+        # Reuse the same Doc for sentence boundaries AND entity
+        # ranking — splitting and entity-ranking are two consumers
+        # of one parse, the canonical anti-duplication move.
+        spans, doc = split_sentence_spans_with_doc(clean_text)
+
+        # Pick #26 — Gamon et al. 2013 entity salience. Top 10
+        # entities is plenty for downstream consumers (review UI,
+        # explain panel) and keeps the JSON payload bounded. Cold-
+        # start safe: regex-fallback (no spaCy) skips ranking and
+        # leaves salient_entities = []. Empty body yields the same.
+        if doc is not None:
+            try:
+                ranked = rank_entities(
+                    doc,
+                    title=content_item.title or None,
+                    top_k=10,
+                )
+                content_item.salient_entities = [
+                    {
+                        "text": e.text,
+                        "label": e.label,
+                        "salience": e.salience,
+                        "mention_count": e.mention_count,
+                    }
+                    for e in ranked
+                ]
+            except Exception:
+                # Salience is a feature-store optimisation, not a
+                # hard dependency. Log and carry on with the import.
+                logger.exception(
+                    "rank_entities failed for content_item=%s; "
+                    "leaving salient_entities unchanged",
+                    content_item.pk,
+                )
+        else:
+            content_item.salient_entities = []
         sentence_objs = [
             Sentence(
                 content_item=content_item,
@@ -297,8 +338,15 @@ def _persist_content_body(
         content_item.distilled_text = distill_body(
             [s.text for s in sentence_objs], max_sentences=5
         )
+        # ``salient_entities`` was set above in the same transaction
+        # (or left unchanged if NER failed) — include it in the save.
         content_item.save(
-            update_fields=["content_hash", "distilled_text", "updated_at"]
+            update_fields=[
+                "content_hash",
+                "distilled_text",
+                "salient_entities",
+                "updated_at",
+            ]
         )
 
 

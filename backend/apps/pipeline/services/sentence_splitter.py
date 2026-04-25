@@ -35,11 +35,36 @@ def split_sentences(text: str) -> list[str]:
 
 
 def split_sentence_spans(text: str) -> list[SentenceSpan]:
-    """Split cleaned text into sentence spans with character offsets."""
+    """Split cleaned text into sentence spans with character offsets.
+
+    Thin wrapper over :func:`split_sentence_spans_with_doc` that
+    discards the underlying spaCy ``Doc``. Use the wider function
+    when you also want entity / POS / dep info — the parse cost is
+    the same either way.
+    """
+    spans, _doc = split_sentence_spans_with_doc(text)
+    return spans
+
+
+def split_sentence_spans_with_doc(text: str):
+    """Split cleaned text and also return the underlying spaCy ``Doc``.
+
+    Returns ``(spans, doc)``. The ``doc`` is ``None`` when spaCy
+    isn't available (regex fallback) or when ``text`` is empty.
+    Callers that need further NLP (entity ranking, POS, deps) reuse
+    the same Doc so the text is parsed exactly once per import.
+
+    The return type is intentionally untyped (no ``Doc`` import
+    here) so this module stays importable in minimal containers
+    without spaCy. The ``_Doc`` protocol in
+    :mod:`apps.sources.entity_salience` is wide enough to type-check
+    against this output.
+    """
     if not text or not text.strip():
-        return []
+        return [], None
 
     nlp = get_spacy_nlp()
+    doc = None
     if nlp is not None:
         doc = nlp(text)
         raw_spans = [
@@ -61,7 +86,7 @@ def split_sentence_spans(text: str) -> list[SentenceSpan]:
                 )
             )
             position += 1
-    return spans
+    return spans, doc
 
 
 def _regex_split_with_offsets(text: str) -> list[tuple[str, int, int]]:

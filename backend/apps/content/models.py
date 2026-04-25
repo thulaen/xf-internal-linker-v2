@@ -304,6 +304,22 @@ class ContentItem(TimestampedModel):
             "composite. Kim et al. WSDM 2014 formula, not a new signal."
         ),
     )
+    # Pick #26 — Gamon et al. 2013 entity salience scores. List of
+    # ``{text, label, salience, mention_count}`` dicts for the top-K
+    # most central named entities in the post body, populated at
+    # import time from the spaCy NER + sentence-splitter Doc.
+    # Empty list = unscored (cold-start row, body without named
+    # entities, or import predates the wiring).
+    salient_entities = models.JSONField(
+        default=list,
+        blank=True,
+        help_text=(
+            "Top-K named entities by Gamon et al. 2013 salience score "
+            "(0.0-1.0). Each entry: {text, label, salience, "
+            "mention_count}. Populated by the importer's NER pass. "
+            "Empty list = no entities or unscored row."
+        ),
+    )
     engagement_quality_diagnostics = models.JSONField(
         default=dict,
         blank=True,
