@@ -14,8 +14,8 @@ interest — so the resulting scores rank the graph *from that
 topic's perspective*. Same recurrence, just a different teleport
 vector::
 
-    PR_personalised(v) = (1 - d) * p(v)
-                      + d * Σ_{u → v} PR(u) / outdeg(u)
+    PR_personalised(v) = (1 - alpha) * p(v)
+                      + alpha * Σ_{u → v} PR(u) / outdeg(u)
 
 where ``p(v)`` is the personalisation distribution (uniform over the
 seed set, zero elsewhere) instead of ``1/N`` everywhere.
@@ -26,29 +26,33 @@ emulate arbitrary topic mixes — useful for the linker since the
 same pre-computed vectors power both "recommend similar posts to
 X" and "surface topical authorities for query Q".
 
-This helper is a thin convenience over ``networkx.pagerank`` — the
-numerical heavy-lifting is delegated. What we add:
-
-- A validated wrapper that enforces the ``personalization`` dict
-  only names nodes that exist in the graph (networkx silently
-  ignores unknown keys, which masks bugs upstream).
-- A :class:`PersonalizedPageRankScores` dataclass with the seed
-  set retained for diagnostics.
-- A helper to build the uniform-over-seeds personalisation dict
-  callers usually want.
+Phase 5b: the numerical inner loop now runs through the C++ kernel
+:func:`extensions.pagerank.personalized_pagerank_step` (Phase 5a).
+Power-iterates from a uniform start to convergence with the same
+``tol`` / ``max_iter`` semantics ``networkx.pagerank`` had, but at
+the speed of the existing PageRank C++ kernel. The kernel uses
+this codebase's convention where ``damping`` is the **teleport
+probability** (textbook ``1 - alpha``); the wrapper converts.
 """
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Hashable, Iterable, Mapping
 
 import networkx as nx
+import numpy as np
+
+from .graph_csr_utils import nx_digraph_to_csr
+
+logger = logging.getLogger(__name__)
 
 
-#: Damping factor (teleport probability = 1 - damping). 0.85 is the
-#: Page-Brin-Haveliwala consensus value; lower values bias more
-#: toward the seed set, higher values emphasise graph structure.
+#: Damping factor (link-following probability — networkx convention).
+#: 0.85 is the Page-Brin-Haveliwala consensus value; lower values
+#: bias more toward the seed set, higher values emphasise graph
+#: structure. The C++ kernel uses ``1 - damping`` internally.
 DEFAULT_DAMPING: float = 0.85
 
 #: Convergence tolerance — sum of absolute per-node changes.
@@ -124,32 +128,65 @@ def compute(
         return PersonalizedPageRankScores(scores={}, seed_nodes=frozenset())
 
     seed_set = {s for s in seeds if graph.has_node(s)}
-    if not seed_set:
-        # Caller wants personalisation but no valid seeds — degenerate
-        # to un-personalised PageRank so we still produce usable scores.
-        personalisation = None
-    elif seed_weights is None:
-        weight = 1.0 / len(seed_set)
-        personalisation = {seed: weight for seed in seed_set}
-    else:
-        raw = {s: float(seed_weights.get(s, 0.0)) for s in seed_set}
-        total = sum(raw.values())
-        if total <= 0.0:
-            # All provided weights are zero → fall back to uniform.
-            weight = 1.0 / len(seed_set)
-            personalisation = {seed: weight for seed in seed_set}
+
+    # Build the per-node personalisation vector. Empty / invalid seed
+    # sets fall through to uniform 1/N, matching the prior behaviour
+    # when ``personalization=None`` was passed to networkx.
+    csr = nx_digraph_to_csr(graph, normalize_per_source=True)
+    n = csr.node_count
+    if n == 0:
+        return PersonalizedPageRankScores(scores={}, seed_nodes=frozenset())
+
+    personalization = np.full(n, 1.0 / n, dtype=np.float64)
+    if seed_set:
+        if seed_weights is None:
+            weight_per_seed = 1.0 / len(seed_set)
+            personalization = np.zeros(n, dtype=np.float64)
+            for seed in seed_set:
+                personalization[csr.index_for[seed]] = weight_per_seed
         else:
-            personalisation = {s: w / total for s, w in raw.items()}
+            raw = {s: float(seed_weights.get(s, 0.0)) for s in seed_set}
+            total = sum(raw.values())
+            if total <= 0.0:
+                # All-zero weights → degenerate; fall back to uniform
+                # over the seed set, same as the no-weights branch.
+                weight_per_seed = 1.0 / len(seed_set)
+                personalization = np.zeros(n, dtype=np.float64)
+                for seed in seed_set:
+                    personalization[csr.index_for[seed]] = weight_per_seed
+            else:
+                personalization = np.zeros(n, dtype=np.float64)
+                for seed, weight in raw.items():
+                    personalization[csr.index_for[seed]] = weight / total
 
-    scores = nx.pagerank(
-        graph,
-        alpha=damping,
-        personalization=personalisation,
-        tol=tolerance,
-        max_iter=max_iterations,
-    )
+    # Convert from networkx's "alpha" (link-following probability) to
+    # this codebase's "damping" (teleport probability) — see the
+    # pagerank_core.h header comment for the convention.
+    teleport_probability = 1.0 - damping
 
+    # Phase 5b — drive the C++ kernel's power iteration to convergence.
+    # Same loop shape ``weighted_pagerank.run_weighted_pagerank`` uses
+    # for the uniform variant.
+    from extensions import pagerank as pagerank_kernel  # local import
+
+    ranks = np.full(n, 1.0 / n, dtype=np.float64)
+    for _iteration in range(max_iterations):
+        next_ranks, delta = pagerank_kernel.personalized_pagerank_step(
+            csr.indptr,
+            csr.indices,
+            csr.data,
+            ranks,
+            csr.dangling,
+            personalization,
+            teleport_probability,
+            n,
+        )
+        ranks = next_ranks
+        if delta <= n * tolerance:
+            break
+
+    scores = {csr.node_keys[i]: float(ranks[i]) for i in range(n)}
     return PersonalizedPageRankScores(
-        scores=dict(scores),
+        scores=scores,
         seed_nodes=frozenset(seed_set),
     )
