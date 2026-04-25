@@ -120,11 +120,28 @@ def repo_root(start: Path | None = None) -> Path:
 
 
 def load_banned_tokens(data_path: Path) -> list[tuple[str, re.Pattern[str]]]:
-    """Read the deleted-tokens list and compile each entry as a word-boundary regex.
+    """Read the deleted-tokens list and compile each entry as a regex.
 
     One token per line; lines starting with # are comments.
-    Matching uses \\b boundaries so short acronyms (e.g. `pmi`) do not produce
-    false positives against unrelated words (`api_pmi_util`).
+
+    Matching is stricter than ``\\b...\\b``: the token must NOT be part of
+    a dotted path (e.g. ``graph_signals.hits_authority.ranking_weight``)
+    and must NOT be embedded in a longer identifier
+    (e.g. ``hits_authority_v2``). This lets the live picks (HITS, PPR,
+    TrustRank — picks #29 / #36 / #30) keep their canonical academic
+    output names as namespaced settings keys, while still catching any
+    bare reappearance of the deleted forward-declared signal name.
+
+    Concretely, the regex is::
+
+        (?<![\\w.]){escape(token)}(?![\\w.])
+
+    so before/after the token must be neither a word character nor a
+    dot. Examples (token = ``hits_authority``):
+
+    - ``"hits_authority": "0.05"``                  → MATCH (phantom)
+    - ``graph_signals.hits_authority.ranking_weight`` → no match (dotted path)
+    - ``hits_authority_v2``                          → no match (longer ident)
     """
     if not data_path.exists():
         print(
@@ -137,7 +154,7 @@ def load_banned_tokens(data_path: Path) -> list[tuple[str, re.Pattern[str]]]:
         stripped = line.strip()
         if not stripped or stripped.startswith("#"):
             continue
-        pattern = re.compile(rf"\b{re.escape(stripped)}\b")
+        pattern = re.compile(rf"(?<![\w.]){re.escape(stripped)}(?![\w.])")
         tokens.append((stripped, pattern))
     if not tokens:
         print(
