@@ -62,11 +62,62 @@ def _stage1_candidates(
     content_to_sentence_ids: dict[ContentKey, list[int]],
     top_k: int,
     block_size: int,
+    retrievers=None,
 ) -> dict[ContentKey, list[int]]:
-    """Stage 1: find top-K host content items per destination via cosine similarity.
+    """Stage 1: find top-K host content items per destination via the retriever registry.
 
-    Returns a mapping from destination_key -> flat list of candidate sentence IDs
-    (all sentences from the top-K host content items).
+    Group C.1 refactor: delegates to
+    :func:`apps.pipeline.services.candidate_retrievers.run_retrievers`
+    so the candidate pool can be assembled from multiple retrievers
+    (semantic, lexical, query-expanded). The default registry has a
+    single :class:`SemanticRetriever`, which makes this behaviorally
+    identical to the legacy single-source implementation.
+
+    ``retrievers`` is an optional iterable of
+    :class:`CandidateRetriever` — pass a custom list to override the
+    default for testing or experimentation. When omitted, the
+    registry returned by
+    :func:`candidate_retrievers.default_retrievers` is used.
+
+    Returns a mapping from destination_key -> flat list of candidate
+    sentence IDs (all sentences from the retrieved host content items).
+    """
+    from .candidate_retrievers import (
+        RetrievalContext,
+        default_retrievers,
+        run_retrievers,
+    )
+
+    active_retrievers = (
+        list(retrievers) if retrievers is not None else default_retrievers()
+    )
+    context = RetrievalContext(
+        destination_keys=destination_keys,
+        dest_embeddings=dest_embeddings,
+        content_records=content_records,
+        content_to_sentence_ids=content_to_sentence_ids,
+        top_k=top_k,
+        block_size=block_size,
+    )
+    return run_retrievers(active_retrievers, context=context)
+
+
+def _stage1_semantic_candidates(
+    *,
+    destination_keys: tuple[ContentKey, ...],
+    dest_embeddings: np.ndarray,
+    content_records: dict[ContentKey, ContentRecord],
+    content_to_sentence_ids: dict[ContentKey, list[int]],
+    top_k: int,
+    block_size: int,
+) -> dict[ContentKey, list[int]]:
+    """Semantic retriever body — FAISS-or-NumPy cosine over BGE-M3 embeddings.
+
+    This is the original ``_stage1_candidates`` logic, renamed and
+    invoked from :class:`SemanticRetriever`. Kept as a free function
+    so the FAISS bootstrap path (which has its own logging +
+    just-in-time index build) doesn't need to live inside the
+    retriever class.
     """
     # Build a host embedding matrix from content items that have sentence embeddings
     host_keys = [
