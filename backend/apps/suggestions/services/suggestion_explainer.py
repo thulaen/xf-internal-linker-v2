@@ -1,29 +1,31 @@
 """Per-suggestion explanation service — pick #47 Kernel SHAP wiring.
 
-Returns the same shape as
-:func:`apps.pipeline.services.shap_explainer.explain` (an
-:class:`Explanation` with ordered :class:`FeatureContribution` rows),
-but uses **direct linear attribution** from the persisted Suggestion
-score columns + the current AppSetting weights. The two methods are
-mathematically equivalent for a linear scoring model — and the
-existing ranker's score_final IS a weighted linear combination of
-the per-component scores. SHAP values reduce to ``weight * value``.
+Two explanation methods, picked at runtime:
 
-Why direct attribution rather than the full SHAP sampler:
+1. **Kernel SHAP** (Lundberg & Lee 2017) — the real deal. Samples
+   feature coalitions through a pure ranker score function
+   (:func:`apps.pipeline.services.ranker_score_fn.build_score_fn`) and
+   returns the same Shapley values that would come out of any
+   off-the-shelf SHAP implementation. Required when the ranker grows
+   non-linear post-processors (thin-page penalty, cluster
+   suppression, RRF fusion); for the current linear scorer the values
+   match direct linear attribution within sampling noise.
 
-- The ranker's per-component scores are already on the Suggestion
-  row (``score_semantic``, ``score_keyword``, …). No re-execution is
-  needed; the per-feature contribution is just ``weight × value``.
-- Kernel SHAP on this same linear model would cost 50-100 MB peak
-  RAM and 1-5 s per call to compute the same numbers. Skipping the
-  sampler is a 1000× speedup with no information loss.
-- Keeps the W4 endpoint snappy (< 50 ms response time) so operators
-  see the Explain panel "instantly" instead of after a spinner.
+2. **Linear attribution fallback** — direct ``contribution =
+   weight × (value − baseline)`` per component. Mathematically exact
+   for the current linear scorer; used when:
 
-When the ranker grows non-linear post-processing (thin-page penalty,
-cluster suppression, RRF fusion via W3d), the explanation contract
-stays the same shape — :func:`shap_explainer.explain` is a drop-in
-replacement that the endpoint can switch to without changing the UI.
+   - the ``shap`` library is unavailable in the runtime,
+   - the DB has < 5 reviewed Suggestions to build a stable Kernel SHAP
+     background,
+   - the Kernel SHAP call itself raises (numerical hiccup, OOM under
+     contention, etc.).
+
+The output shape (:class:`Explanation` + :class:`FeatureContribution`)
+is identical between the two methods so the W4 Angular panel doesn't
+need to know which one ran. The ``method`` field tells operators
+whether they're seeing real SHAP or the fallback ("kernel_shap" vs
+"linear_attribution").
 """
 
 from __future__ import annotations
@@ -32,27 +34,31 @@ import logging
 from dataclasses import asdict, dataclass
 from typing import Any
 
+import numpy as np
+
+# Import the module rather than its symbols so unit-test patches via
+# ``patch.object(ranker_score_fn, "load_background_features", ...)``
+# intercept calls from this module too.
+from apps.pipeline.services import ranker_score_fn
+from apps.pipeline.services.ranker_score_fn import (
+    DEFAULT_BACKGROUND_SIZE,
+    FEATURE_COLUMNS,
+)
+
 logger = logging.getLogger(__name__)
 
 
-#: The set of score-* columns we surface. Ordered to match the
-#: linear-blend convention used in
-#: :class:`apps.pipeline.services.ranker.ScoredCandidate`. Keeping the
-#: order stable makes the UI bar-chart consistent across requests.
-EXPLAINED_COMPONENTS: tuple[tuple[str, str, str], ...] = (
-    # (suggestion_field, weight_appsetting_key, display_label)
-    ("score_semantic", "w_semantic", "Semantic similarity"),
-    ("score_keyword", "w_keyword", "Keyword overlap"),
-    ("score_node_affinity", "w_node", "Node affinity"),
-    ("score_quality", "w_quality", "Host quality"),
-    ("score_phrase_relevance", "phrase_relevance.ranking_weight", "Phrase relevance"),
-    ("score_link_freshness", "link_freshness.ranking_weight", "Link freshness"),
-    ("score_field_aware_relevance", "field_aware_relevance.ranking_weight", "Field-aware relevance"),
-    ("score_rare_term_propagation", "rare_term_propagation.ranking_weight", "Rare-term propagation"),
-    ("score_learned_anchor_corroboration", "learned_anchor.ranking_weight", "Learned-anchor corroboration"),
-    ("score_ga4_gsc", "ga4_gsc.ranking_weight", "GA4/GSC engagement"),
-    ("score_click_distance", "click_distance.ranking_weight", "Click-distance prior"),
-)
+#: Backwards-compatible alias. Earlier W4 callers imported
+#: ``EXPLAINED_COMPONENTS`` from this module; the canonical home is
+#: now :data:`ranker_score_fn.FEATURE_COLUMNS` so the SHAP path and
+#: the linear-fallback path agree on column ordering.
+EXPLAINED_COMPONENTS = FEATURE_COLUMNS
+
+
+#: Number of Optuna-style coalition samples Kernel SHAP evaluates per
+#: explanation. Pick #47 spec §6 default — fits the < 1 s response
+#: budget and gives stable attributions on 11 features.
+DEFAULT_NSAMPLES: int = 200
 
 
 @dataclass(frozen=True)
@@ -90,21 +96,110 @@ class Explanation:
 
 
 def explain_suggestion(suggestion) -> Explanation:
-    """Return the feature attributions for a single Suggestion row.
+    """Return per-feature attributions for a single Suggestion.
 
-    Reads the per-component score columns directly + the current
-    AppSetting weights, then computes ``contribution = weight × value``
-    per component. Sorts contributions by absolute magnitude so the
-    UI bar chart shows the strongest drivers first.
-
-    The W4 endpoint and the W3a calibrator both consume this output;
-    the calibrator turns the raw ``predicted_value`` into a
-    "85 % chance of being approved" probability for the dashboard.
+    Tries Kernel SHAP first; falls back to direct linear attribution
+    when SHAP isn't available or the DB lacks enough background. Both
+    paths produce :class:`Explanation` with identical shape — the
+    ``method`` field tells operators which one ran.
     """
     weights = _load_weights()
+    shap_explanation = _try_kernel_shap(suggestion, weights=weights)
+    if shap_explanation is not None:
+        return shap_explanation
+    return _linear_attribution(suggestion, weights=weights)
+
+
+# ── Kernel SHAP path ──────────────────────────────────────────────
+
+
+def _try_kernel_shap(suggestion, *, weights: dict[str, float]) -> Explanation | None:
+    """Run Kernel SHAP through the pure ranker score_fn.
+
+    Returns ``None`` on any failure so the caller falls through to the
+    linear-attribution path. Failures are intentionally absorbed (just
+    logged at DEBUG) — the Explain endpoint never raises because of an
+    explainability hiccup.
+    """
+    try:
+        # Local import keeps the module importable in environments
+        # without ``shap`` (test harnesses, minimal containers).
+        from apps.pipeline.services.shap_explainer import (
+            HAS_SHAP,
+            SHAPUnavailable,
+            explain as kernel_shap_explain,
+        )
+    except Exception:
+        logger.debug("shap helper unavailable — using linear attribution")
+        return None
+
+    if not HAS_SHAP:
+        return None
+
+    try:
+        background = ranker_score_fn.load_background_features(
+            size=DEFAULT_BACKGROUND_SIZE,
+            exclude_pk=getattr(suggestion, "pk", None),
+        )
+    except Exception:
+        logger.debug(
+            "Kernel SHAP background load failed — using linear attribution",
+            exc_info=True,
+        )
+        return None
+
+    if background is None or background.shape[0] < 5:
+        # Too little history for a stable SHAP fit — the linear
+        # fallback gives exact answers for the current model anyway.
+        return None
+
+    subject = ranker_score_fn.extract_feature_vector(suggestion)
+    score_fn = ranker_score_fn.build_score_fn(weights)
+
+    try:
+        result = kernel_shap_explain(
+            score_fn=score_fn,
+            subject=subject,
+            background=background,
+            feature_names=ranker_score_fn.feature_display_names(),
+            nsamples=DEFAULT_NSAMPLES,
+        )
+    except SHAPUnavailable:
+        return None
+    except Exception:
+        logger.debug(
+            "Kernel SHAP raised — using linear attribution", exc_info=True
+        )
+        return None
+
+    contributions = [
+        FeatureContribution(
+            feature_name=row.feature_name,
+            value=row.value,
+            shap_value=row.shap_value,
+        )
+        for row in result.contributions
+    ]
+    return Explanation(
+        predicted_value=result.predicted_value,
+        baseline=result.baseline,
+        contributions=contributions,
+        method="kernel_shap",
+    )
+
+
+# ── Linear-attribution fallback ───────────────────────────────────
+
+
+def _linear_attribution(suggestion, *, weights: dict[str, float]) -> Explanation:
+    """Direct ``contribution = weight × (value − baseline)`` per component.
+
+    Exact for the current linear ranker. Used when Kernel SHAP can't
+    run (no shap dep, cold-start DB, transient SHAP error).
+    """
     contributions: list[FeatureContribution] = []
     total = 0.0
-    baseline = 0.5  # Neutral score before any feature contributes.
+    baseline = 0.5
     for field_name, weight_key, label in EXPLAINED_COMPONENTS:
         raw = getattr(suggestion, field_name, None)
         if raw is None:
@@ -112,9 +207,6 @@ def explain_suggestion(suggestion) -> Explanation:
         value = float(raw)
         weight = float(weights.get(weight_key, 0.0))
         if weight == 0.0:
-            # Component is disabled — surface it with zero contribution
-            # so the UI shows "considered, weight=0" rather than
-            # silently hiding it.
             contributions.append(
                 FeatureContribution(
                     feature_name=label,
@@ -123,10 +215,7 @@ def explain_suggestion(suggestion) -> Explanation:
                 )
             )
             continue
-        # Re-centre around the neutral baseline (0.5) so a value of
-        # 0.5 contributes 0 — same convention as the SHAP additive
-        # decomposition: ``predicted = baseline + Σ contributions``.
-        contribution = weight * (value - 0.5)
+        contribution = weight * (value - baseline)
         total += contribution
         contributions.append(
             FeatureContribution(
@@ -147,8 +236,8 @@ def explain_suggestion(suggestion) -> Explanation:
 def _load_weights() -> dict[str, float]:
     """Load ranker weights from AppSetting.
 
-    Falls back to a small dict of zeros on any failure — the explanation
-    still renders, just with all "weight=0" rows so operators see the
+    Falls back to an empty dict on any failure — the explanation still
+    renders, just with all "weight=0" rows so operators see the
     component list without a crash.
     """
     try:

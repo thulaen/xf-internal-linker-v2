@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
+import numpy as np
 from django.test import TestCase
 
 from apps.suggestions.services.suggestion_explainer import (
@@ -122,3 +125,125 @@ class ExplainSuggestionLogicTests(TestCase):
         # Only score_semantic surfaced; everything else absent.
         names = {c.feature_name for c in explanation.contributions}
         self.assertIn("Semantic similarity", names)
+
+
+class KernelShapPathTests(TestCase):
+    """Path tests that force the real Kernel SHAP branch + verify
+    fallback behaviour."""
+
+    def _stub_with_features(self, **scores) -> _StubSuggestion:
+        return _StubSuggestion(**scores)
+
+    def _balanced_background(self, n: int = 20) -> np.ndarray:
+        # Synthetic background: each row is a random plausible
+        # Suggestion feature vector. Stable seed for determinism.
+        rng = np.random.default_rng(0)
+        return rng.uniform(0.2, 0.8, size=(n, len(EXPLAINED_COMPONENTS)))
+
+    def test_kernel_shap_used_when_background_available(self) -> None:
+        """When DB has ≥ 5 background rows, the explainer should run
+        real Kernel SHAP and report ``method == "kernel_shap"``."""
+        from apps.core.models import AppSetting
+        from apps.pipeline.services import ranker_score_fn
+
+        AppSetting.objects.update_or_create(
+            key="w_semantic", defaults={"value": "0.4", "description": ""}
+        )
+        AppSetting.objects.update_or_create(
+            key="w_keyword", defaults={"value": "0.3", "description": ""}
+        )
+
+        suggestion = self._stub_with_features(
+            score_semantic=0.9,
+            score_keyword=0.7,
+        )
+        with patch.object(
+            ranker_score_fn,
+            "load_background_features",
+            return_value=self._balanced_background(20),
+        ):
+            explanation = explain_suggestion(suggestion)
+        self.assertEqual(explanation.method, "kernel_shap")
+        # SHAP returns 11 contributions matching the column count.
+        self.assertEqual(
+            len(explanation.contributions), len(EXPLAINED_COMPONENTS)
+        )
+
+    def test_kernel_shap_falls_back_when_background_too_small(self) -> None:
+        from apps.pipeline.services import ranker_score_fn
+
+        suggestion = self._stub_with_features(score_semantic=0.9)
+        # Background of size 3 — below the MIN 5 threshold → fallback.
+        with patch.object(
+            ranker_score_fn,
+            "load_background_features",
+            return_value=self._balanced_background(3),
+        ):
+            explanation = explain_suggestion(suggestion)
+        self.assertEqual(explanation.method, "linear_attribution")
+
+    def test_kernel_shap_falls_back_on_runtime_error(self) -> None:
+        from apps.pipeline.services import shap_explainer
+        from apps.pipeline.services import ranker_score_fn
+
+        suggestion = self._stub_with_features(score_semantic=0.7)
+        with patch.object(
+            ranker_score_fn,
+            "load_background_features",
+            return_value=self._balanced_background(20),
+        ), patch.object(
+            shap_explainer,
+            "explain",
+            side_effect=RuntimeError("simulated SHAP failure"),
+        ):
+            explanation = explain_suggestion(suggestion)
+        self.assertEqual(explanation.method, "linear_attribution")
+
+    def test_kernel_shap_and_linear_agree_on_linear_model(self) -> None:
+        """Sanity check: for the current linear ranker, Kernel SHAP and
+        linear attribution should produce the same ordering and very
+        close magnitudes (within sampling noise)."""
+        from apps.core.models import AppSetting
+        from apps.pipeline.services import ranker_score_fn
+
+        AppSetting.objects.update_or_create(
+            key="w_semantic", defaults={"value": "0.4", "description": ""}
+        )
+        AppSetting.objects.update_or_create(
+            key="w_keyword", defaults={"value": "0.3", "description": ""}
+        )
+        AppSetting.objects.update_or_create(
+            key="w_node", defaults={"value": "0.2", "description": ""}
+        )
+
+        suggestion = self._stub_with_features(
+            score_semantic=0.9,
+            score_keyword=0.6,
+            score_node_affinity=0.55,
+        )
+
+        # Kernel SHAP path.
+        with patch.object(
+            ranker_score_fn,
+            "load_background_features",
+            return_value=self._balanced_background(20),
+        ):
+            shap_explanation = explain_suggestion(suggestion)
+        self.assertEqual(shap_explanation.method, "kernel_shap")
+
+        # Linear path (force fallback by pretending no background).
+        with patch.object(
+            ranker_score_fn,
+            "load_background_features",
+            return_value=None,
+        ):
+            linear_explanation = explain_suggestion(suggestion)
+        self.assertEqual(linear_explanation.method, "linear_attribution")
+
+        # Top contribution by absolute magnitude must be the same
+        # across both methods — sampling noise can wobble the exact
+        # number but ordering is robust.
+        self.assertEqual(
+            shap_explanation.contributions[0].feature_name,
+            linear_explanation.contributions[0].feature_name,
+        )
