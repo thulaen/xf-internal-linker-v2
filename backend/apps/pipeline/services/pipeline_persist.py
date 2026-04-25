@@ -222,6 +222,9 @@ def _build_suggestion_records(
     is the corpus stats source — single corpus walk, two consumers.
     """
     from apps.suggestions.models import Suggestion
+    from apps.pipeline.services.conformal_predictor import (
+        load_snapshot as load_conformal_snapshot,
+    )
     from apps.pipeline.services.score_calibrator import (
         calibrate_score,
         load_snapshot as load_calibration_snapshot,
@@ -241,6 +244,15 @@ def _build_suggestion_records(
         calibration_snapshot = load_calibration_snapshot()
     except Exception:
         # Calibration is advisory; never block suggestion writes on it.
+        pass
+
+    # Pick #50 — load the conformal calibration once per call. None
+    # when no fit exists yet (cold start before the weekly conformal
+    # job has run).
+    conformal_snapshot = None
+    try:
+        conformal_snapshot = load_conformal_snapshot()
+    except Exception:
         pass
 
     # Pick #28 — build CollectionStatistics ONCE from the existing
@@ -312,6 +324,22 @@ def _build_suggestion_records(
             # numpy round-trip per row.
             p = float(calibrated_probability)
             uncertainty = 1.0 - max(p, 1.0 - p)
+
+        # Pick #50 — split-conformal interval from the persisted
+        # calibration. (lower, upper) = (None, None) on cold start so
+        # the review UI renders blanks until the weekly conformal
+        # fit-job has run.
+        confidence_lower: float | None
+        confidence_upper: float | None
+        if conformal_snapshot is None:
+            confidence_lower = None
+            confidence_upper = None
+        else:
+            interval = conformal_snapshot.to_calibration().predict_interval(
+                float(candidate.score_final)
+            )
+            confidence_lower = float(interval.lower)
+            confidence_upper = float(interval.upper)
 
         records.append(
             Suggestion(
@@ -387,6 +415,10 @@ def _build_suggestion_records(
                 # ``elo_rating_refresh`` scheduled job updates the
                 # source column from review-queue history.
                 score_elo_rating=float(getattr(dest_ci, "elo_rating", 1500.0) or 1500.0),
+                # Pick #50 — split-conformal confidence band on
+                # score_final. NULL on cold start.
+                confidence_lower_bound=confidence_lower,
+                confidence_upper_bound=confidence_upper,
                 status="pending",
             )
         )

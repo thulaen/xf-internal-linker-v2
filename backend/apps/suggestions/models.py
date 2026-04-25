@@ -586,6 +586,29 @@ class Suggestion(TimestampedModel):
             "scheduled elo_rating_refresh job."
         ),
     )
+    # Pick #50 — split-conformal confidence band on score_final.
+    # Computed at suggestion-write from the persisted conformal
+    # calibration (apps.pipeline.services.conformal_predictor) when
+    # one exists. Both fields NULL on cold start so the review UI can
+    # render "no calibration yet" honestly without showing
+    # degenerate ``[score, score]`` intervals.
+    confidence_lower_bound = models.FloatField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Lower edge of the (1-α) split-conformal interval around "
+            "score_final (Vovk-Gammerman-Shafer 2005). NULL = "
+            "uncalibrated (no fit yet)."
+        ),
+    )
+    confidence_upper_bound = models.FloatField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Upper edge of the (1-α) split-conformal interval around "
+            "score_final. NULL = uncalibrated."
+        ),
+    )
 
     # FR-021 Graph and Value Model
     candidate_origin = models.CharField(

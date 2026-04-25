@@ -563,6 +563,69 @@ def run_weight_tuner_lbfgs_tpe(job, checkpoint) -> None:
 
 
 @scheduled_job(
+    "conformal_prediction_refresh",
+    display_name="Conformal prediction calibration refresh",
+    cadence_seconds=WEEK,
+    estimate_seconds=2 * 60,
+    priority=JOB_PRIORITY_MEDIUM,
+)
+def run_conformal_prediction_refresh(job, checkpoint) -> None:
+    """Pick #50 + #52 — weekly conformal refresh with online α adaptation.
+
+    Two-step refresh that wires both picks in one scheduled job:
+
+    1. **Pick #52 (ACI)** — pull recent reviewed Suggestions whose
+       conformal bounds were populated, compute observed coverage,
+       update the persisted α via Gibbs-Candès Algorithm 1. Cold
+       start: no observations → α stays at the static target.
+    2. **Pick #50** — fit a fresh split-conformal calibration using
+       the (possibly adapted) α from step 1, persist the four
+       AppSetting rows the Suggestion-write consumer reads.
+
+    Either step can no-op without breaking the other — ACI returns
+    the prior α when there's nothing to observe, and the conformal
+    fit runs on whatever α it gets.
+    """
+    from apps.pipeline.services.adaptive_conformal_producer import (
+        update_alpha_from_recent_outcomes,
+    )
+    from apps.pipeline.services.conformal_predictor import (
+        fit_and_persist_from_history,
+    )
+
+    checkpoint(progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)")
+    aci = update_alpha_from_recent_outcomes()
+    if aci.observations_processed > 0:
+        logger.info(
+            "ACI: α %.4f → %.4f after %d observations (coverage %.2f)",
+            aci.previous_alpha,
+            aci.current_alpha,
+            aci.observations_processed,
+            aci.observed_coverage,
+        )
+
+    checkpoint(progress_pct=50.0, message="Fitting conformal calibration (pick #50)")
+    snapshot = fit_and_persist_from_history(alpha=aci.current_alpha)
+    if snapshot is None:
+        checkpoint(
+            progress_pct=100.0,
+            message=(
+                f"ACI updated (α={aci.current_alpha:.4f}); conformal fit "
+                "skipped (< 30 reviewed pairs)"
+            ),
+        )
+        return
+    checkpoint(
+        progress_pct=100.0,
+        message=(
+            f"Conformal calibration fit: half_width={snapshot.half_width:.4f} "
+            f"at α={snapshot.alpha:.4f} (ACI-adapted from "
+            f"{aci.previous_alpha:.4f}) over {snapshot.calibration_set_size} pairs"
+        ),
+    )
+
+
+@scheduled_job(
     "elo_rating_refresh",
     display_name="Elo rating refresh (per-destination)",
     cadence_seconds=DAY,
