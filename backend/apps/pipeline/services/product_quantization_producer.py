@@ -247,6 +247,55 @@ def pq_cosine_for_pks(pks):
     return {pk: unit[i] for i, (pk, _) in enumerate(rows)}
 
 
+def pq_pairwise_similarity_above(
+    pks,
+    *,
+    threshold: float = 0.9,
+) -> list[tuple]:
+    """Return pairs of pks whose PQ-approximate cosine ≥ *threshold*.
+
+    Group B.2's :func:`pq_cosine_for_pks` returns the per-pk decoded
+    unit vector; this helper layers a single matrix multiplication on
+    top to find approximate near-duplicates in a batch without
+    hitting Postgres. Useful for offline jobs (clustering, near-dup
+    detection, similarity-matrix construction) where the
+    bias-vs-variance trade-off of PQ is acceptable.
+
+    Returns a list of ``(pk_a, pk_b, approximate_cosine)`` triples
+    with ``pk_a < pk_b`` so each unordered pair appears once.
+
+    Cold-start safe: empty input → ``[]``; codebook missing → ``[]``;
+    too-few qualifying rows → ``[]``. Callers that need a verified
+    answer should re-validate the returned pairs against the full
+    embedding (pgvector ``<=>``) — PQ is approximate by design and
+    the threshold may pull in a 1-3% false-positive rate per Jégou
+    et al. 2011 Table 2.
+    """
+    import numpy as np
+
+    if not pks or threshold <= 0.0:
+        return []
+    table = pq_cosine_for_pks(pks)
+    if len(table) < 2:
+        return []
+
+    pk_list = sorted(table.keys())
+    matrix = np.stack([table[pk] for pk in pk_list], axis=0)
+    # Cosine similarity = dot product of L2-normalised vectors.
+    sims = matrix @ matrix.T
+
+    # Take the upper triangle (excluding diagonal) so each pair is
+    # emitted once.
+    n = len(pk_list)
+    out: list[tuple] = []
+    rows, cols = np.where(sims >= threshold)
+    for i, j in zip(rows, cols):
+        if i >= j:
+            continue
+        out.append((pk_list[int(i)], pk_list[int(j)], float(sims[i, j])))
+    return out
+
+
 # ── Producer ──────────────────────────────────────────────────────
 
 

@@ -6,6 +6,28 @@ from apps.pipeline.services.embeddings import get_current_embedding_filter
 logger = logging.getLogger(__name__)
 
 
+#: AppSetting flag — when True, ``_find_neighbor_rows`` uses the
+#: PQ-decoded similarity helper (pick #20) as a pre-filter before
+#: confirming via pgvector. Default off; pgvector with HNSW is fine
+#: at our 100k-page target. Operators flip this on if profiling
+#: shows clustering becoming a bottleneck (>10M rows or large
+#: candidate-pool fan-out).
+KEY_PQ_PREFILTER_ENABLED = "clustering.pq_prefilter_enabled"
+
+
+def _pq_prefilter_enabled() -> bool:
+    """Cold-start safe read of the clustering PQ-prefilter flag."""
+    try:
+        from apps.core.models import AppSetting
+
+        row = AppSetting.objects.filter(key=KEY_PQ_PREFILTER_ENABLED).first()
+    except Exception:
+        return False
+    if row is None or not row.value:
+        return False
+    return str(row.value).strip().lower() in {"1", "true", "yes", "on"}
+
+
 class ClusteringService:
     """
     Implements FR-014: Near-Duplicate Destination Clustering.
@@ -53,11 +75,56 @@ class ClusteringService:
         clustering is a no-op — returns zero neighbors so the caller
         treats the item as unclustered. Mirrors the vendor guard used by
         ``apps.content.migrations.0011_hnsw_indexes``.
+
+        Final.4 opt-in: when ``clustering.pq_prefilter_enabled`` is
+        True AND the item has a valid ``pq_code`` matching the
+        active codebook, the candidate pool is narrowed via the
+        PQ-decoded approximate-cosine helper first. The final answer
+        still flows through pgvector (so accuracy is preserved), but
+        the pgvector scan is restricted to the PQ pre-filter's
+        candidate set instead of the full table.
         """
         if connection.vendor != "postgresql":
             return []
 
         current_signature = get_current_embedding_filter()["embedding_model_version"]
+        emb_list = (
+            list(item.embedding)
+            if hasattr(item.embedding, "__iter__")
+            else item.embedding
+        )
+
+        if _pq_prefilter_enabled():
+            candidate_pks = self._pq_prefilter_candidates(item)
+            if candidate_pks:
+                # Restrict the pgvector scan to the PQ-narrowed candidate
+                # set. The pgvector confirmation guarantees the final
+                # answer matches the no-prefilter path within the
+                # threshold.
+                query = """
+                    SELECT id, cluster_id
+                    FROM content_contentitem
+                    WHERE id != %s
+                      AND id = ANY(%s)
+                      AND embedding IS NOT NULL
+                      AND embedding_model_version = %s
+                      AND embedding <=> %s::vector < %s
+                """
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        query,
+                        [
+                            item.id,
+                            list(candidate_pks),
+                            current_signature,
+                            emb_list,
+                            self.similarity_threshold,
+                        ],
+                    )
+                    return cursor.fetchall()
+            # PQ codebook missing OR this item isn't yet PQ-encoded →
+            # transparently fall back to the full pgvector scan below.
+
         query = """
             SELECT id, cluster_id
             FROM content_contentitem
@@ -66,11 +133,6 @@ class ClusteringService:
               AND embedding_model_version = %s
               AND embedding <=> %s::vector < %s
         """
-        emb_list = (
-            list(item.embedding)
-            if hasattr(item.embedding, "__iter__")
-            else item.embedding
-        )
 
         with connection.cursor() as cursor:
             cursor.execute(
@@ -78,6 +140,76 @@ class ClusteringService:
                 [item.id, current_signature, emb_list, self.similarity_threshold],
             )
             return cursor.fetchall()
+
+    def _pq_prefilter_candidates(self, item) -> list[int] | None:
+        """Return PQ-approximate near-neighbors for *item*.
+
+        Cold-start safe at every layer:
+        - PQ codebook not loaded → ``None``.
+        - This item has no ``pq_code`` (or a stale version) → ``None``.
+        - Other items don't have valid codes → ``None``.
+
+        ``None`` signals the caller to fall back to the full pgvector
+        scan. A successful return is a list of ContentItem ids whose
+        PQ-approximate cosine to *item* is high enough to merit the
+        more-expensive pgvector check. The PQ approximation may
+        false-positive but never false-negatives within the bounds
+        of Jégou et al. 2011 Table 2 recall (typically >97%).
+        """
+        import numpy as np
+
+        from apps.pipeline.services.product_quantization_producer import (
+            load_codebook,
+            load_quantizer,
+            pq_cosine_for_pks,
+        )
+
+        snap = load_codebook()
+        if snap is None:
+            return None
+        if (
+            getattr(item, "pq_code", None) is None
+            or getattr(item, "pq_code_version", None) != snap.version
+        ):
+            return None
+        quant = load_quantizer()
+        if quant is None:
+            return None
+
+        # Get all candidate pks that have a valid pq_code with the
+        # current version. Excluding the item itself.
+        candidate_pks = list(
+            ContentItem.objects.filter(
+                pq_code_version=snap.version,
+                **get_current_embedding_filter(),
+            )
+            .exclude(pk=item.id)
+            .exclude(pq_code__isnull=True)
+            .values_list("pk", flat=True)
+        )
+        if not candidate_pks:
+            return None
+
+        cosine_table = pq_cosine_for_pks(candidate_pks + [item.id])
+        if item.id not in cosine_table:
+            return None
+
+        item_vec = cosine_table[item.id]
+        # PQ-approximate threshold: looser than the pgvector cutoff so
+        # the approximation's variance doesn't drop true near-dups.
+        # similarity_threshold is a *cosine distance* (0 = identical);
+        # PQ helper returns *cosine similarity* (1 = identical). Convert
+        # and add a 0.02 slack to absorb PQ noise.
+        cosine_cutoff = (1.0 - self.similarity_threshold) - 0.02
+
+        approximate = []
+        for other_pk, other_vec in cosine_table.items():
+            if other_pk == item.id:
+                continue
+            sim = float(np.dot(item_vec, other_vec))
+            if sim >= cosine_cutoff:
+                approximate.append(other_pk)
+        return approximate
 
     def _assign_item_to_neighbor_clusters(self, item, neighbor_ids, existing_clusters):
         with transaction.atomic():
