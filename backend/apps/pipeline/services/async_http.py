@@ -125,6 +125,9 @@ async def fetch_urls(
     headers_by_url: dict[str, dict[str, str]] | None = None,
     rate_limiter_key: str | None = None,
     rate_limiter_timeout: float = 60.0,
+    max_attempts: int = 1,
+    backoff_base: float = 1.0,
+    backoff_cap: float = 30.0,
 ) -> list[dict[str, Any]]:
     """Fetch URL body chunks for crawling.
 
@@ -144,6 +147,19 @@ async def fetch_urls(
 
     ``rate_limiter_timeout`` caps how long a single request waits for a
     token before recording a ``rate_limited`` error and moving on.
+
+    ``max_attempts`` (pick #2 — Metcalfe & Boggs 1976 / AWS full-jitter
+    backoff) sets the total request attempts per URL. ``1`` (default)
+    disables retry, preserving prior single-shot behaviour. Values > 1
+    enable AWS full-jitter retry on transient HTTP errors only
+    (``httpx.TimeoutException``, ``httpx.RequestError`` — i.e. network
+    + timeout). Application-level 4xx/5xx are NOT retried by this
+    layer — that's the caller's policy decision (a 404 doesn't become
+    a 200 by retrying).
+
+    ``backoff_base`` and ``backoff_cap`` define the jitter window per
+    :func:`apps.sources.backoff.full_jitter_delay`: each retry sleeps a
+    random duration in ``[0, min(cap, base * 2 ** attempt)]``.
     """
     sem = asyncio.Semaphore(max_concurrency)
     results: list[dict[str, Any]] = []
@@ -155,6 +171,11 @@ async def fetch_urls(
         from apps.sources.token_bucket import DEFAULT_REGISTRY as _RATE_LIMITER
     else:
         _RATE_LIMITER = None
+
+    if max_attempts > 1:
+        from apps.sources.backoff import full_jitter_delay as _full_jitter_delay
+    else:
+        _full_jitter_delay = None
 
     async def fetch(url: str, client: httpx.AsyncClient):
         # Pick #1 — wait for a token before issuing the HTTP request.
@@ -181,42 +202,49 @@ async def fetch_urls(
                     }
                 )
                 return
-        try:
-            # We don't read the whole body if it is too massive, or limit by slicing.
-            # Using stream could be better but simplistic approach runs as follows.
-            extra_headers = headers_by_url.get(url) or {}
-            res = await _bounded_request(
-                sem, client, "GET", url, headers=extra_headers
-            )
-            etag_value = res.headers.get("ETag", "") or res.headers.get("etag", "")
-            lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
-                "last-modified", ""
-            )
-            # 304 responses have empty bodies — that's correct,
-            # the caller treats `status_code=304` as "unchanged".
-            if res.status_code == 304:
-                body = ""
-                encoding_used = ""
-            else:
-                # Pick #11 — explicit encoding detection beats httpx's
-                # heuristic on origins that don't declare charset.
-                body, encoding_used = _decode_response_body(
-                    res, max_body_bytes=max_body_bytes
+
+        # Pick #2 — AWS full-jitter retry loop. ``max_attempts == 1``
+        # makes the loop a single iteration with no sleep, which is
+        # the pre-pick-2 behaviour. ``last_error`` carries the row we
+        # would record if every attempt fails.
+        last_error: dict[str, Any] | None = None
+        for attempt in range(max_attempts):
+            try:
+                extra_headers = headers_by_url.get(url) or {}
+                res = await _bounded_request(
+                    sem, client, "GET", url, headers=extra_headers
                 )
-            results.append(
-                {
-                    "url": url,
-                    "status_code": res.status_code,
-                    "content": body,
-                    "error": None,
-                    "etag": etag_value,
-                    "last_modified": lm_value,
-                    "encoding": encoding_used,
-                }
-            )
-        except httpx.TimeoutException:
-            results.append(
-                {
+                etag_value = res.headers.get("ETag", "") or res.headers.get(
+                    "etag", ""
+                )
+                lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
+                    "last-modified", ""
+                )
+                # 304 responses have empty bodies — that's correct,
+                # the caller treats `status_code=304` as "unchanged".
+                if res.status_code == 304:
+                    body = ""
+                    encoding_used = ""
+                else:
+                    # Pick #11 — explicit encoding detection beats httpx's
+                    # heuristic on origins that don't declare charset.
+                    body, encoding_used = _decode_response_body(
+                        res, max_body_bytes=max_body_bytes
+                    )
+                results.append(
+                    {
+                        "url": url,
+                        "status_code": res.status_code,
+                        "content": body,
+                        "error": None,
+                        "etag": etag_value,
+                        "last_modified": lm_value,
+                        "encoding": encoding_used,
+                    }
+                )
+                return
+            except httpx.TimeoutException:
+                last_error = {
                     "url": url,
                     "status_code": 0,
                     "content": "",
@@ -225,10 +253,8 @@ async def fetch_urls(
                     "last_modified": "",
                     "encoding": "",
                 }
-            )
-        except httpx.RequestError as exc:
-            results.append(
-                {
+            except httpx.RequestError as exc:
+                last_error = {
                     "url": url,
                     "status_code": 0,
                     "content": "",
@@ -237,7 +263,17 @@ async def fetch_urls(
                     "last_modified": "",
                     "encoding": "",
                 }
-            )
+            # Sleep before next attempt (skipped on the final iteration
+            # because ``return`` after results.append below ends the
+            # coroutine — no point sleeping for nothing).
+            if _full_jitter_delay is not None and attempt < max_attempts - 1:
+                delay = _full_jitter_delay(
+                    attempt, base=backoff_base, cap=backoff_cap
+                )
+                await asyncio.sleep(delay)
+        # Loop exhausted — record the last failure.
+        if last_error is not None:
+            results.append(last_error)
 
     async with httpx.AsyncClient(
         http2=True, follow_redirects=True, timeout=timeout

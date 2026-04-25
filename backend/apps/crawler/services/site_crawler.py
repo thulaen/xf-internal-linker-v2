@@ -176,6 +176,13 @@ async def _execute_crawl_session(session_id) -> None:
         ),
     )
 
+    # Pick #2 — AWS full-jitter exponential backoff for transient
+    # network errors. Operator-tunable via session.config; defaults
+    # match the pick-2 spec (3 attempts total, 1 s base, 30 s cap).
+    backoff_attempts = int(session.config.get("backoff_max_attempts", 3))
+    backoff_base = float(session.config.get("backoff_base_seconds", 1.0))
+    backoff_cap = float(session.config.get("backoff_cap_seconds", 30.0))
+
     session.message = f"Crawling {len(to_crawl)} URLs at {rate_limit} req/s..."
     await session.asave(update_fields=["message"])
 
@@ -204,6 +211,9 @@ async def _execute_crawl_session(session_id) -> None:
             max_concurrency=rate_limit,
             headers_by_url=chunk_validators,
             rate_limiter_key=rate_limiter_key,
+            max_attempts=backoff_attempts,
+            backoff_base=backoff_base,
+            backoff_cap=backoff_cap,
         )
 
         for res in responses:
