@@ -803,13 +803,110 @@ def _deferred_pick_entrypoint(pick_name: str, pip_dep: str):
     return _entrypoint
 
 
-scheduled_job(
+@scheduled_job(
     "lda_topic_refresh",
     display_name="LDA topic refresh",
     cadence_seconds=WEEK,
     estimate_seconds=45 * 60,
     priority=JOB_PRIORITY_MEDIUM,
-)(_deferred_pick_entrypoint("LDA topic refresh", "gensim"))
+)
+def run_lda_topic_refresh(job, checkpoint) -> None:
+    """Weekly LDA topic-model refit over the corpus (pick #18, gensim).
+
+    Phase 6.3 wiring: if gensim is installed, train LDA over the
+    cleaned text of every ContentItem with a non-null
+    ``clean_text``. Persist the model + dictionary on disk and
+    point the AppSetting paths at them so :func:`lda_topics.infer_topics`
+    picks up the fresh model on the next call.
+
+    Cold-start safe: gensim missing → raises ``DeferredPickError``
+    so operators see the deferred state in the Scheduled Updates
+    History tab. Insufficient corpus (<2 docs) → no-op with progress
+    note.
+    """
+    from apps.pipeline.services import lda_topics
+
+    if not lda_topics.is_available():
+        checkpoint(
+            progress_pct=0.0,
+            message="LDA topic refresh deferred — install `gensim` to enable",
+        )
+        raise DeferredPickError(
+            "LDA topic refresh depends on `gensim` which is not installed."
+        )
+
+    import os
+
+    from apps.content.models import ContentItem
+    from apps.core.models import AppSetting
+    from django.conf import settings as django_settings
+
+    checkpoint(progress_pct=10.0, message="Loading corpus from ContentItem.clean_text")
+
+    # Tokenise via the existing simple word splitter so the
+    # vocabulary is consistent with the lexical retriever.
+    from apps.pipeline.services.text_tokens import (
+        STANDARD_ENGLISH_STOPWORDS,
+        TOKEN_RE,
+    )
+
+    documents: list[list[str]] = []
+    for clean_text in ContentItem.objects.exclude(
+        embedding__isnull=True
+    ).values_list("title", flat=True):
+        if not clean_text:
+            continue
+        toks = [
+            t.lower()
+            for t in TOKEN_RE.findall(clean_text)
+            if len(t) >= 3 and t.lower() not in STANDARD_ENGLISH_STOPWORDS
+        ]
+        if toks:
+            documents.append(toks)
+
+    if len(documents) < 2:
+        checkpoint(
+            progress_pct=100.0,
+            message=f"Only {len(documents)} corpus docs — refit skipped",
+        )
+        return
+
+    # Persist on the media volume so docker mounts survive rebuilds.
+    media_root = getattr(django_settings, "MEDIA_ROOT", "/app/media")
+    out_dir = os.path.join(media_root, "lda")
+    os.makedirs(out_dir, exist_ok=True)
+    model_path = os.path.join(out_dir, "lda.model")
+    dict_path = os.path.join(out_dir, "lda.dict")
+
+    checkpoint(progress_pct=40.0, message=f"Training LDA over {len(documents)} docs")
+    ok = lda_topics.fit_and_save(
+        documents,
+        model_path=model_path,
+        dict_path=dict_path,
+    )
+    if not ok:
+        checkpoint(progress_pct=100.0, message="LDA training reported failure")
+        return
+
+    for key, value in (
+        (lda_topics.KEY_MODEL_PATH, model_path),
+        (lda_topics.KEY_DICT_PATH, dict_path),
+    ):
+        AppSetting.objects.update_or_create(
+            key=key,
+            defaults={
+                "value": value,
+                "description": (
+                    "Pick #18 LDA topic model — refit weekly by "
+                    "lda_topic_refresh."
+                ),
+            },
+        )
+
+    checkpoint(
+        progress_pct=100.0,
+        message=f"LDA model refit complete — {len(documents)} docs trained",
+    )
 
 
 scheduled_job(
