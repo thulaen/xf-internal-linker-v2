@@ -74,6 +74,11 @@ LOCAL_APPS = [
     "apps.scheduled_updates",
     # PR-C — Source-layer helpers (token bucket, backoff, bloom, HLL, etc).
     "apps.sources",
+    # Phase 6.5 — Offline training stack (picks #41-46: L-BFGS-B, TPE,
+    # Cosine Annealing, LambdaLoss, SWA, OHEM). Per the Anti-Spaghetti
+    # Charter (52-pick plan) this is the single sanctioned new-app
+    # exception in the completion phase.
+    "apps.training",
 ]
 
 INSTALLED_APPS = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
