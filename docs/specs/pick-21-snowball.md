@@ -8,10 +8,11 @@
 | **Canonical name** | Snowball / Porter2 stemmer (Porter 1980 / 2001) |
 | **Settings prefix** | `snowball` |
 | **Pipeline stage** | Parse |
-| **Shipped in commit** | **DEFERRED** — needs `nltk` pip dep (for `SnowballStemmer`) |
-| **Helper module** | `backend/apps/parse/stem/snowball.py` (plan path) |
-| **Tests module** | pending |
+| **Shipped in commit** | helper + tests landed (pick-21 dep approval slice) |
+| **Helper module** | `backend/apps/sources/snowball_stem.py` |
+| **Tests module** | `backend/apps/sources/test_snowball_stem.py` |
 | **Benchmark module** | pending G6 |
+| **Dep approval** | `snowballstemmer==3.0.1` — pure-Python, zero transitive deps, ~250 KB. Chosen over NLTK to avoid NLTK's heavyweight tokeniser, downloader, and corpus dependencies. |
 
 ## 2 · Motivation
 
@@ -29,8 +30,8 @@ suffixes.
 | **Full citation** | Porter, M. F. (1980). "An algorithm for suffix stripping." *Program* 14(3): 130-137. Porter, M. F. (2001). "Snowball: A language for stemming algorithms." <https://snowballstem.org/texts/introduction.html> |
 | **Open-access link** | <https://tartarus.org/martin/PorterStemmer/def.txt> (Porter 1980); <https://snowballstem.org/algorithms/english/stemmer.html> (Porter2 rules) |
 | **Relevant section(s)** | Porter 1980 §2 — suffix-stripping rules; Snowball §3 — Porter2 differences. |
-| **What we faithfully reproduce** | We call `nltk.stem.SnowballStemmer("english")` — NLTK's Snowball is Porter's reference translation. |
-| **What we deliberately diverge on** | Nothing. |
+| **What we faithfully reproduce** | We call `snowballstemmer.stemmer("english").stemWord(token)` — the upstream Snowball package is Porter's reference translation, identical algorithm to NLTK's `SnowballStemmer`. |
+| **What we deliberately diverge on** | Nothing. We chose `snowballstemmer` over NLTK to avoid pulling in NLTK's tokeniser + corpus downloader; the algorithm itself is unchanged. |
 
 ## 4 · Input contract
 
@@ -57,19 +58,27 @@ suffixes.
 
 ## 7 · Pseudocode
 
-```
-from functools import lru_cache
-from nltk.stem import SnowballStemmer
+```python
+import snowballstemmer
 
-@lru_cache(maxsize=8)
-def _stemmer(language):
-    return SnowballStemmer(language, ignore_stopwords=True)
+# Per-language cache so we build the stemmer once per process.
+_STEMMER_CACHE: dict[str, Callable[[str], str]] = {}
 
-function stem(token):
-    if not token or not token.strip():
+def _get_stemmer(language: str):
+    if language not in _STEMMER_CACHE:
+        impl = snowballstemmer.stemmer(language)
+        _STEMMER_CACHE[language] = impl.stemWord
+    return _STEMMER_CACHE[language]
+
+def stem_token(token: str, *, language: str = "english") -> str:
+    if not token:
         return token
-    return _stemmer(settings.language).stem(token.lower())
+    return _get_stemmer(language)(token.lower())
 ```
+
+Cold-start safe: ``stem_token`` falls back to identity (with a one-time
+warning) when the upstream package isn't installed — keeps minimal
+test containers from crashing.
 
 ## 8 · Integration points
 
@@ -94,12 +103,20 @@ None — inline.
 
 ## 11 · Tests
 
+Located in ``backend/apps/sources/test_snowball_stem.py``.
+
 | Test name | Invariant verified |
 |---|---|
-| `test_runs_to_run` | Canonical case |
-| `test_fastest_to_fast` | Comparative |
-| `test_idempotent` | Invariant |
-| `test_empty_passthrough` | Degenerate |
+| `test_basic_inflection_collapses_to_stem` | runs / running / ran → same stem |
+| `test_idempotent` | `stem(stem(x)) == stem(x)` |
+| `test_case_insensitive` | `stem("Running") == stem("running")` |
+| `test_known_porter2_examples` | Reference Porter2 outputs match (agreed→agre, happy→happi) |
+| `test_empty_string_returns_empty` | Degenerate input passes through |
+| `test_splits_and_stems_each_token` | `stem_text` tokenises + stems each piece |
+| `test_collapses_morphological_variants_in_text` | "cat" / "cats" and "jumping" / "jumped" collapse in text |
+| `test_punctuation_only_input` | No alphanumeric runs → empty list |
+| `test_unknown_language_falls_back_to_identity` | Bogus language → identity, no crash |
+| `test_is_available_returns_bool` | Diagnostics predicate works regardless of dep |
 
 ## 12 · Benchmark inputs
 
@@ -130,15 +147,15 @@ None — inline.
 
 ## 15 · Governance checklist
 
-- [ ] Approve `nltk` pip dep (downloads ~40 MB NLTK data, mostly ignorable — we only use SnowballStemmer)
-- [ ] `snowball.enabled` seeded
-- [ ] Hyperparameters seeded
-- [ ] Migration upserts rows
+- [x] Approve `snowballstemmer` pip dep (~250 KB pure-Python, zero transitive deps; chosen over NLTK to avoid heavyweight tokeniser + corpus downloader)
+- [ ] `snowball.enabled` seeded — deferred until first wiring slice (helper currently exposed but not yet called from the ranker)
+- [ ] Hyperparameters seeded — same
+- [ ] Migration upserts rows — same
 - [ ] `FEATURE-REQUESTS.md` entry
 - [ ] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
-- [ ] Helper module written
+- [x] Helper module written — `backend/apps/sources/snowball_stem.py`
 - [ ] Benchmark module written
-- [ ] Test module written
-- [ ] Pipeline wired (W2)
+- [x] Test module written — `backend/apps/sources/test_snowball_stem.py` (10 tests)
+- [ ] Pipeline wired (separate slice — keeps this commit reversible)

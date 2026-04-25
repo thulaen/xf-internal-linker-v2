@@ -80,6 +80,14 @@ pynvml==11.5.3                       # NVIDIA GPU sampling (VRAM, temp, utilizat
 # suggestion. Pulls numba + llvmlite; ~60 MB added to image.
 shap==0.46.0
 
+# ── Stemming (pick #21) ───────────────────────────────────────────
+# Pure-Python Snowball / Porter2 stemmer (Porter 1980). 250 KB on disk,
+# zero transitive deps — chosen over NLTK to avoid pulling in NLTK's
+# heavyweight tokeniser, downloader, and corpus dependencies.
+# Used by apps.sources.snowball_stem for token normalisation; the live
+# ranker can opt in to stemmed-token comparisons in a future slice.
+snowballstemmer==3.0.1
+
 # ── Hyperparameter Optimisation ───────────────────────────────────
 # Optuna powers the weekly fully-automatic meta-HPO study (pick #42,
 # Option B). TPE sampler + MedianPruner across all 12 TPE-tuned
