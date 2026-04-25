@@ -129,6 +129,12 @@ class ContentRecord:
     grandparent_scope_title: str = ""
     cluster_id: int | None = None
     is_canonical: bool = False
+    # Pick #21 — Snowball/Porter2 stems of the same surface tokens.
+    # Populated by ``pipeline_data._load_content_records`` when the
+    # ``parse.stemmer.enabled`` setting is on (default off — empty).
+    # Consumers that opt in (e.g. rare-term propagation) read this
+    # for stem-based comparison; everyone else keeps using ``tokens``.
+    stemmed_tokens: frozenset[str] = frozenset()
 
     @property
     def key(self) -> ContentKey:
@@ -146,6 +152,8 @@ class SentenceRecord:
     char_count: int
     tokens: frozenset[str]
     position: int = 0  # zero-based sentence index within the post (Sentence.position)
+    # Pick #21 — Snowball stems of ``tokens``. See ``ContentRecord.stemmed_tokens``.
+    stemmed_tokens: frozenset[str] = frozenset()
 
     @property
     def content_key(self) -> ContentKey:

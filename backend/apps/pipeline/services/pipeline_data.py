@@ -38,7 +38,7 @@ from .ranker import (
     SentenceRecord,
     derive_march_2026_pagerank_bounds,
 )
-from .text_tokens import tokenize_text
+from .text_tokens import tokenize_text, tokenize_text_stemmed
 from .rare_term_propagation import build_rare_term_profiles
 
 logger = logging.getLogger(__name__)
@@ -487,6 +487,14 @@ def _load_content_records(
 
         text = _destination_text(ci.title, ci.distilled_text or "")
         key: ContentKey = (ci.pk, ci.content_type)
+        # Pick #21 — compute stems alongside the surface tokens.
+        # ``tokenize_text_stemmed`` reuses the same tokeniser path as
+        # ``tokenize_text`` (single source of truth) and only adds the
+        # per-token stemming pass on top, so there's no duplicate
+        # work. Consumers opt in via the ``parse.stemmer.enabled``
+        # setting; non-opted-in code keeps reading ``tokens`` and is
+        # behaviour-stable.
+        surface_tokens = tokenize_text(text)
         records[key] = ContentRecord(
             content_id=ci.pk,
             content_type=ci.content_type,
@@ -506,7 +514,8 @@ def _load_content_records(
             content_value_score=float(ci.content_value_score or 0.5),
             click_distance_score=float(ci.click_distance_score or 0.5),
             primary_post_char_count=primary_post_char_count,
-            tokens=tokenize_text(text),
+            tokens=surface_tokens,
+            stemmed_tokens=tokenize_text_stemmed(text),
             scope_title=scope.title if scope else "",
             parent_scope_title=parent.title if parent else "",
             grandparent_scope_title=grandparent.title if grandparent else "",
@@ -549,6 +558,7 @@ def _load_sentence_records(
             for sid, cid, ctype, text, char_count, position in rows:
                 text = text or ""
                 ckey: ContentKey = (cid, ctype)
+                # Pick #21 — same dual-tokens pattern as ContentRecord.
                 sentence_records[sid] = SentenceRecord(
                     sentence_id=sid,
                     content_id=cid,
@@ -556,6 +566,7 @@ def _load_sentence_records(
                     text=text,
                     char_count=char_count or len(text),
                     tokens=tokenize_text(text),
+                    stemmed_tokens=tokenize_text_stemmed(text),
                     position=position or 0,
                 )
                 content_to_sentence_ids[ckey].add(sid)

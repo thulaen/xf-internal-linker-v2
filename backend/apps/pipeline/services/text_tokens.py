@@ -216,3 +216,34 @@ def tokenize_text(text: str) -> frozenset[str]:
     if HAS_CPP_EXT:
         return texttok.tokenize_text_batch([text or ""], STANDARD_ENGLISH_STOPWORDS)[0]
     return tokenize_text_batch([text], STANDARD_ENGLISH_STOPWORDS)[0]
+
+
+def tokenize_text_stemmed(text: str) -> frozenset[str]:
+    """Tokenize text **and** reduce each token to its Snowball stem (pick #21).
+
+    Reuses :func:`tokenize_text` for the tokenisation pass — stopword
+    list, lowercasing, and the C++ texttok extension when present —
+    then maps each surviving token through
+    :func:`apps.sources.snowball_stem.stem_token`. Returns a
+    ``frozenset`` so callers can do set intersection / union the same
+    way they do with :func:`tokenize_text`.
+
+    Stemming collapses morphological variants (running, runs, run all
+    map to ``run``), increasing recall on inflectional matches at the
+    cost of slightly looser semantics. Consumers that opt in via the
+    ``parse.stemmer.enabled`` setting pick this up; the default ranker
+    pipeline uses the un-stemmed :func:`tokenize_text` and is
+    behaviour-stable.
+
+    Cold-start safe: when the ``snowballstemmer`` package is missing
+    (minimal test container), :func:`stem_token` falls back to the
+    identity function and this helper degrades to ``tokenize_text``.
+    """
+    # Local import — keeps text_tokens.py importable in containers
+    # that don't ship the source layer.
+    from apps.sources.snowball_stem import stem_token
+
+    base = tokenize_text(text)
+    if not base:
+        return frozenset()
+    return frozenset(stem_token(t) for t in base)
