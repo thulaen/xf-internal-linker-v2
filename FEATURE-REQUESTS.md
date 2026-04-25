@@ -2167,7 +2167,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 **Requested:** 2026-04-22
 **Target phase:** Phases 36–40 (PRs B–P + W1–W4)
-**Status:** In progress — helpers shipped for 26 picks (PRs B, C, D, E, K, L, M, N, O); specs landed for all 52 (G1a–G1e); wiring pending (W1–W4); governance catch-up in progress (G2–G6).
+**Status:** Helpers + W1 wirings complete for **all 52 picks** (2026-04-25). Phase 6 shipped the 11 missing helper wrappers across `apps.sources` + `apps.pipeline.services` + the new `apps.training` Django app. The four pip-deferred W1 producers (KenLM, Node2Vec, BPR, FM) now have real entrypoints that activate the moment their pip dep is installed. Specs landed for all 52 (G1a–G1e); benchmarks shipped for hot-path helpers (Phase 7.1, this FR). Remaining: governance catch-up (G3–G4 — BUSINESS-LOGIC + AI-CONTEXT entries) and on-prod NDCG smoke tests.
 **Priority:** High — foundational infrastructure covering every stage of the pipeline.
 **Research basis:** See `plans/check-how-many-pending-tidy-iverson.md` for the full decision record and per-pick citations. Every pick is backed by a peer-reviewed paper, IETF RFC, ACM/IEEE standard, or operator-approved patent.
 **Spec:** `docs/specs/scheduled-updates-architecture.md` + per-pick `docs/specs/pick-NN-*.md` (52 files). Template at `docs/specs/_spec-template.md`.
@@ -2196,52 +2196,52 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 | 4 | Bloom Filter | [pick-04](docs/specs/pick-04-bloom-filter.md) | Source | Shipped PR-C | no (correctness) | — |
 | 5 | HyperLogLog | [pick-05](docs/specs/pick-05-hyperloglog.md) | Source | Shipped PR-C | no (correctness) | — |
 | 6 | ETag / Conditional GET | [pick-06](docs/specs/pick-06-etag-conditional-get.md) | Source | Shipped PR-C | no (RFC) | — |
-| 7 | Trafilatura | [pick-07](docs/specs/pick-07-trafilatura.md) | Crawl | **Deferred** | yes | `trafilatura` |
-| 8 | URL Canonicalization (RFC 3986) | [pick-08](docs/specs/pick-08-url-canonicalization.md) | Crawl | To-ship | no (RFC) | — |
+| 7 | Trafilatura | [pick-07](docs/specs/pick-07-trafilatura.md) | Crawl | Shipped Phase 6.2 (lazy-import) | yes | `trafilatura` |
+| 8 | URL Canonicalization (RFC 3986) | [pick-08](docs/specs/pick-08-url-canonicalization.md) | Crawl | Shipped PR-D | no (RFC) | — |
 | 9 | Robots.txt Parser | [pick-09](docs/specs/pick-09-robots-txt.md) | Crawl | Shipped PR-D | partial | — |
 | 10 | Freshness Crawl Scheduling | [pick-10](docs/specs/pick-10-freshness-scheduler.md) | Crawl | Shipped PR-D | yes | — |
 | 11 | chardet / encoding detect | [pick-11](docs/specs/pick-11-encoding-detect.md) | Crawl | Shipped PR-D | yes | `charset-normalizer` (modern `chardet`) |
-| 12 | SHA-256 Page Fingerprint | [pick-12](docs/specs/pick-12-sha256-page-fingerprint.md) | Crawl | Partial (inline) | partial | — |
+| 12 | SHA-256 Page Fingerprint | [pick-12](docs/specs/pick-12-sha256-page-fingerprint.md) | Crawl | Shipped (inline + helper) | partial | — |
 | 13 | NFKC Unicode Normalization | [pick-13](docs/specs/pick-13-nfkc-normalization.md) | Parse | Shipped PR-E | no (UAX) | — |
-| 14 | FastText LangID (`lid.176.bin`) | [pick-14](docs/specs/pick-14-fasttext-langid.md) | Parse | **Deferred** | yes | `fasttext-langdetect` + 126 MB model |
-| 15 | PySBD | [pick-15](docs/specs/pick-15-pysbd.md) | Parse | Reused | no | — |
+| 14 | FastText LangID (`lid.176.bin`) | [pick-14](docs/specs/pick-14-fasttext-langid.md) | Parse | Shipped Phase 6.2 (lazy-import + AppSetting model path) | yes | `fasttext` + 126 MB model |
+| 15 | PySBD | [pick-15](docs/specs/pick-15-pysbd.md) | Parse | Shipped Phase 6.1 (lazy-import + regex fallback) | no | `pysbd` |
 | 16 | spaCy `en_core_web_sm` | [pick-16](docs/specs/pick-16-spacy-en-core-web-sm.md) | Parse | Reused | yes | — |
-| 17 | YAKE! | [pick-17](docs/specs/pick-17-yake.md) | Parse | **Deferred** | yes | `yake` |
-| 18 | LDA | [pick-18](docs/specs/pick-18-lda.md) | Parse | **Deferred** | yes | `gensim` |
+| 17 | YAKE! | [pick-17](docs/specs/pick-17-yake.md) | Parse | Shipped Phase 6.1 (lazy-import) | yes | `yake` |
+| 18 | LDA | [pick-18](docs/specs/pick-18-lda.md) | Parse | Shipped Phase 6.3 + W1 `lda_topic_refresh` wired | yes | `gensim` |
 | 19 | Readability (Flesch-Kincaid + Gunning Fog) | [pick-19](docs/specs/pick-19-readability.md) | Parse | Shipped PR-E | yes | — |
-| 20 | Product Quantization | [pick-20](docs/specs/pick-20-product-quantization.md) | Embed | Shipped PR-E | yes | (existing `faiss-gpu`) |
-| 21 | Snowball (Porter2) | [pick-21](docs/specs/pick-21-snowball.md) | Parse | **Deferred** | no | `nltk` |
-| 22 | VADER | [pick-22](docs/specs/pick-22-vader.md) | Parse | **Deferred** | yes | `vaderSentiment` |
-| 23 | KenLM trigram | [pick-23](docs/specs/pick-23-kenlm.md) | Parse | **Deferred** | yes | `kenlm` + `lmplz` |
+| 20 | Product Quantization | [pick-20](docs/specs/pick-20-product-quantization.md) | Embed | Shipped Group B.1+B.2 (producer + read-path helpers + `pq_code` column) | yes | (existing `faiss-gpu`) |
+| 21 | Snowball (Porter2) | [pick-21](docs/specs/pick-21-snowball.md) | Parse | Shipped (`apps.sources.snowball_stem`) | no | `nltk` |
+| 22 | VADER | [pick-22](docs/specs/pick-22-vader.md) | Parse | Shipped Phase 6.1 (lazy-import) | yes | `vaderSentiment` |
+| 23 | KenLM trigram | [pick-23](docs/specs/pick-23-kenlm.md) | Parse | Shipped Phase 6.3 + W1 `kenlm_retrain` wired (lmplz subprocess) | yes | `kenlm` + `lmplz` binary |
 | 24 | PMI / NPMI Collocations | [pick-24](docs/specs/pick-24-pmi-collocations.md) | Parse | Shipped PR-E | yes | — |
 | 25 | Passage Segmentation (Callan) | [pick-25](docs/specs/pick-25-passage-segmentation.md) | Parse | Shipped PR-E | yes | — |
 | 26 | Entity Salience (Gamon) | [pick-26](docs/specs/pick-26-entity-salience.md) | Parse | Shipped PR-E | yes | — |
-| 27 | BoW-PRF Query Expansion | [pick-27](docs/specs/pick-27-query-expansion-bow.md) | Score | Shipped PR-K | yes | — |
+| 27 | BoW-PRF Query Expansion | [pick-27](docs/specs/pick-27-query-expansion-bow.md) | Score | Shipped PR-K + Group C.3 (`QueryExpansionRetriever` in Stage-1) | yes | — |
 | 28 | QL + Dirichlet | [pick-28](docs/specs/pick-28-ql-dirichlet.md) | Score | Shipped PR-K | yes | — |
-| 29 | HITS | [pick-29](docs/specs/pick-29-hits.md) | Score | Shipped PR-M | yes | — |
+| 29 | HITS | [pick-29](docs/specs/pick-29-hits.md) | Score | Shipped PR-M (C++ kernel via `pagerank.cpp`) | yes | — |
 | 30 | TrustRank | [pick-30](docs/specs/pick-30-trustrank.md) | Score | Shipped PR-M | yes | — |
-| 31 | Reciprocal Rank Fusion | [pick-31](docs/specs/pick-31-rrf.md) | Score | Shipped PR-L | yes | — |
+| 31 | Reciprocal Rank Fusion | [pick-31](docs/specs/pick-31-rrf.md) | Score | Shipped PR-L + Group C.2 (Stage-1.5 fusion) | yes | — |
 | 32 | Platt Sigmoid Calibration | [pick-32](docs/specs/pick-32-platt-calibration.md) | Score | Shipped PR-L | yes | — |
-| 33 | Position-Bias IPS | [pick-33](docs/specs/pick-33-ips.md) | Score | Shipped PR-N | yes | — |
-| 34 | Cascade Click Model | [pick-34](docs/specs/pick-34-cascade-click-model.md) | Score | Shipped PR-N | yes | — |
+| 33 | Position-Bias IPS | [pick-33](docs/specs/pick-33-ips.md) | Score | Shipped Group A.2+A.4 (producer + consumer wire) | yes | — |
+| 34 | Cascade Click Model | [pick-34](docs/specs/pick-34-cascade-click-model.md) | Score | Shipped Group A.3+A.4 (producer + consumer wire) | yes | — |
 | 35 | Elo Rating | [pick-35](docs/specs/pick-35-elo.md) | Score | Shipped PR-N | yes | — |
-| 36 | Personalized PageRank | [pick-36](docs/specs/pick-36-personalized-pagerank.md) | Score | Shipped PR-M | yes | — |
-| 37 | Node2Vec | [pick-37](docs/specs/pick-37-node2vec.md) | Embed | **Deferred** | yes | `node2vec` / `gensim` |
-| 38 | BPR | [pick-38](docs/specs/pick-38-bpr.md) | Score | **Deferred** | yes | `implicit` |
-| 39 | Factorization Machines | [pick-39](docs/specs/pick-39-factorization-machines.md) | Score | **Deferred** | yes | `pyfm` / libFM |
+| 36 | Personalized PageRank | [pick-36](docs/specs/pick-36-personalized-pagerank.md) | Score | Shipped PR-M (C++ kernel) | yes | — |
+| 37 | Node2Vec | [pick-37](docs/specs/pick-37-node2vec.md) | Embed | Shipped Phase 6.4 + W1.1 `node2vec_walks` wired | yes | `node2vec` / `gensim` |
+| 38 | BPR | [pick-38](docs/specs/pick-38-bpr.md) | Score | Shipped Phase 6.4 + W1.2 `bpr_refit` wired | yes | `implicit` |
+| 39 | Factorization Machines | [pick-39](docs/specs/pick-39-factorization-machines.md) | Score | Shipped Phase 6.4 + W1.3 `factorization_machines_refit` wired | yes | `pyfm` / libFM |
 | 40 | EMA Feedback Aggregator | [pick-40](docs/specs/pick-40-ema-aggregator.md) | Feedback | Shipped PR-N | yes | — |
-| 41 | L-BFGS-B | [pick-41](docs/specs/pick-41-lbfgs-b.md) | Training | Reused | partial | — |
-| 42 | TPE (Option B meta-HPO) | [pick-42](docs/specs/pick-42-tpe-optuna.md) | Training | **To ship** | — | `optuna` |
-| 43 | Cosine Annealing | [pick-43](docs/specs/pick-43-cosine-annealing.md) | Training | **Deferred** (no torch loop) | yes | — |
-| 44 | LambdaLoss | [pick-44](docs/specs/pick-44-lambdaloss.md) | Training | **Deferred** (no torch loop) | yes | — |
-| 45 | SWA | [pick-45](docs/specs/pick-45-swa.md) | Training | **Deferred** (no torch loop) | yes | — |
-| 46 | OHEM | [pick-46](docs/specs/pick-46-ohem.md) | Training | **Deferred** (no torch loop) | yes | — |
+| 41 | L-BFGS-B | [pick-41](docs/specs/pick-41-lbfgs-b.md) | Training | Shipped Phase 6.5 (`apps.training.optim`) | partial | — |
+| 42 | TPE (Option B meta-HPO) | [pick-42](docs/specs/pick-42-tpe-optuna.md) | Training | Shipped Phase 6.5 (`apps.training.hpo`) | — | `optuna` (installed) |
+| 43 | Cosine Annealing | [pick-43](docs/specs/pick-43-cosine-annealing.md) | Training | Shipped Phase 6.5 (`apps.training.schedule`) | yes | — |
+| 44 | LambdaLoss | [pick-44](docs/specs/pick-44-lambdaloss.md) | Training | Shipped Phase 6.5 (`apps.training.loss`, hand-rolled NumPy) | yes | — |
+| 45 | SWA | [pick-45](docs/specs/pick-45-swa.md) | Training | Shipped Phase 6.5 (`apps.training.avg`) | yes | — |
+| 46 | OHEM | [pick-46](docs/specs/pick-46-ohem.md) | Training | Shipped Phase 6.5 (`apps.training.sample`) | yes | — |
 | 47 | Kernel SHAP | [pick-47](docs/specs/pick-47-kernel-shap.md) | Eval | Shipped PR-O | no (correctness) | `shap==0.46.0` (approved 2026-04-22) |
 | 48 | Reservoir Sampling | [pick-48](docs/specs/pick-48-reservoir-sampling.md) | Eval | Shipped PR-O | yes | — |
-| 49 | Uncertainty Sampling | [pick-49](docs/specs/pick-49-uncertainty-sampling.md) | Review | **To ship (PR-P)** | yes | — |
-| 50 | Conformal Prediction | [pick-50](docs/specs/pick-50-conformal-prediction.md) | Review | **To ship (PR-P)** | yes | — |
+| 49 | Uncertainty Sampling | [pick-49](docs/specs/pick-49-uncertainty-sampling.md) | Review | Shipped Phase 5c | yes | — |
+| 50 | Conformal Prediction | [pick-50](docs/specs/pick-50-conformal-prediction.md) | Review | Shipped Phase 5c | yes | — |
 | 51 | Inverse-PR Auto-Seeder | [pick-51](docs/specs/pick-51-trustrank-auto-seeder.md) | Score | Shipped PR-M | yes | — |
-| 52 | Adaptive Conformal Inference | [pick-52](docs/specs/pick-52-adaptive-conformal-inference.md) | Review | **To ship (PR-P)** | yes | — |
+| 52 | Adaptive Conformal Inference | [pick-52](docs/specs/pick-52-adaptive-conformal-inference.md) | Review | Shipped Phase 5c (wraps #50) | yes | — |
 
 ### Scheduled-updates architecture (infra for the roster)
 
