@@ -205,6 +205,18 @@ def _execute_pipeline_stages(
         link_farm_by_destination=data.get("link_farm_by_destination", {}),
         pagerank_bounds=data["march_2026_pagerank_bounds"],
     )
+    # W3c — load HITS / PPR / TrustRank snapshots once and bundle them with
+    # weights into a GraphSignalRanker. ``build_graph_signal_ranker`` returns
+    # None when the feature is disabled, every weight is zero, or no W1
+    # job has populated the store yet — in which case the ranker is a no-op.
+    from .graph_signal_ranker import build_graph_signal_ranker
+
+    graph_signal_settings = settings.get("graph_signals") or {}
+    graph_signal_ranker = build_graph_signal_ranker(
+        weights=graph_signal_settings.get("weights", {}),
+        enabled=bool(graph_signal_settings.get("enabled", True)),
+    )
+
     scoring_kwargs = dict(
         destination_keys=data["destination_keys"],
         dest_embeddings=data["dest_embeddings"],
@@ -221,6 +233,7 @@ def _execute_pipeline_stages(
         progress_fn=progress_fn,
         items_in_scope=data["items_in_scope"],
         fr099_fr105_caches=data.get("fr099_fr105_caches"),
+        graph_signal_ranker=graph_signal_ranker,
     )
     candidates_by_destination, diagnostics = _score_all_destinations(**scoring_kwargs)
 

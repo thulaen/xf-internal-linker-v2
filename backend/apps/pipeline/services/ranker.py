@@ -75,6 +75,7 @@ from .field_aware_relevance import (
     FieldAwareRelevanceSettings,
     evaluate_field_aware_relevance,
 )
+from .graph_signal_ranker import GraphSignalRanker
 from .anchor_diversity import (
     AnchorDiversitySettings,
     evaluate_anchor_diversity,
@@ -437,6 +438,7 @@ def score_destination_matches(
     min_semantic_score: float = 0.25,
     fr099_fr105_caches: object = None,
     fr099_fr105_settings: object = None,
+    graph_signal_ranker: GraphSignalRanker | None = None,
     min_sentence_chars: int = _DEFAULT_MIN_SENTENCE_CHARS,
     max_sentence_chars: int = _DEFAULT_MAX_SENTENCE_CHARS,
     min_host_chars: int = _DEFAULT_MIN_HOST_CHARS,
@@ -687,6 +689,18 @@ def score_destination_matches(
     if fr099_fr105_settings is not None and fr099_fr105_caches is not None:
         from .fr099_fr105_signals import evaluate_all_fr099_fr105 as _fr099_dispatcher
 
+    # W3c graph-signal contribution (picks #29 / #30 / #36).
+    # The HITS-authority / PPR / TrustRank scores are properties of the
+    # *destination* node, so the contribution is constant across every
+    # match for this destination — compute once outside the per-candidate
+    # loop. Cold-start safe: if no W1 job has populated the store yet,
+    # ``build_graph_signal_ranker`` returns None upstream and this stays 0.
+    graph_signal_contribution = (
+        graph_signal_ranker.contribution(destination.key)
+        if graph_signal_ranker is not None
+        else 0.0
+    )
+
     for pending_candidate, raw_score_final in zip(pending_candidates, score_finals):
         match = pending_candidate["match"]
         phrase_match = pending_candidate["phrase_match"]
@@ -747,6 +761,7 @@ def score_destination_matches(
             fr099_scores = fr099_eval.per_signal_scores
             fr099_diags = fr099_eval.per_signal_diagnostics
         score_final += fr099_contribution
+        score_final += graph_signal_contribution
 
         # FR-014 Clustering Suppression
         score_cluster_suppression = 0.0

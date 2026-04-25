@@ -73,6 +73,7 @@ def _load_all_pipeline_settings() -> dict[str, Any]:
         "clustering": _load_clustering_settings(),
         "slate_diversity": _load_slate_diversity_settings(),
         "fr099_fr105": _load_fr099_fr105_settings(),
+        "graph_signals": _load_graph_signal_settings(),
         "max_host_reuse": _get_max_host_reuse(),
     }
 
@@ -579,3 +580,69 @@ def _load_fr099_fr105_settings() -> FR099FR105Settings:
             "Failed to load FR-099 through FR-105 settings; using dataclass defaults."
         )
         return FR099FR105Settings()
+
+
+def _load_graph_signal_settings() -> dict[str, Any]:
+    """Load W3c graph-signal ranker settings (picks #29 / #30 / #36).
+
+    Reads the four keys seeded in ``recommended_weights.py``:
+
+    - ``graph_signals.enabled`` — feature flag (default ``true``).
+    - ``graph_signals.hits_authority.ranking_weight``
+    - ``graph_signals.personalized_pagerank.ranking_weight``
+    - ``graph_signals.trustrank.ranking_weight``
+
+    The actual snapshot loading happens in ``pipeline.py`` via
+    :func:`apps.pipeline.services.graph_signal_ranker.build_graph_signal_ranker`.
+    This loader only returns the weight bag and enabled flag — separating the
+    concerns keeps the settings dict serialisable and makes the wiring point
+    obvious in the dataflow.
+
+    Cold-start safe: weights default to recommended values, but with no
+    snapshots persisted yet ``build_graph_signal_ranker`` returns ``None``
+    so the ranker becomes a no-op until the W1 ``hits_refresh`` /
+    ``personalized_pagerank_refresh`` / ``trustrank_propagation`` jobs
+    populate the store.
+    """
+    from .graph_signal_store import (
+        SIGNAL_HITS_AUTHORITY,
+        SIGNAL_PPR,
+        SIGNAL_TRUSTRANK,
+    )
+
+    def _get(key: str, fallback_str: str) -> str:
+        try:
+            from apps.core.models import AppSetting
+
+            setting = AppSetting.objects.filter(key=key).first()
+            if setting is not None:
+                return setting.value
+        except Exception:
+            logger.exception("Failed to read AppSetting %s; using preset.", key)
+        return fallback_str
+
+    def _bool(key: str) -> bool:
+        default_str = "true" if recommended_bool(key) else "false"
+        return _get(key, default_str).strip().lower() == "true"
+
+    def _float(key: str) -> float:
+        return float(_get(key, str(recommended_float(key))))
+
+    try:
+        return {
+            "enabled": _bool("graph_signals.enabled"),
+            "weights": {
+                SIGNAL_HITS_AUTHORITY: _float(
+                    "graph_signals.hits_authority.ranking_weight"
+                ),
+                SIGNAL_PPR: _float(
+                    "graph_signals.personalized_pagerank.ranking_weight"
+                ),
+                SIGNAL_TRUSTRANK: _float(
+                    "graph_signals.trustrank.ranking_weight"
+                ),
+            },
+        }
+    except Exception:
+        logger.exception("Failed to load graph signal settings; disabling feature.")
+        return {"enabled": False, "weights": {}}

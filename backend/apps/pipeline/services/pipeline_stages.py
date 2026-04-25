@@ -19,6 +19,7 @@ try:
 except ImportError:
     HAS_CPP_SIMSEARCH = False
 
+from .graph_signal_ranker import GraphSignalRanker
 from .ranker import (
     ContentKey,
     ContentRecord,
@@ -289,6 +290,7 @@ def _score_all_destinations(
     progress_fn: Callable,
     items_in_scope: int,
     fr099_fr105_caches: Any = None,
+    graph_signal_ranker: GraphSignalRanker | None = None,
 ) -> tuple[dict[ContentKey, list[ScoredCandidate]], list[tuple]]:
     """Score every destination through Stage 2 + Stage 3, with reranking."""
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]] = {}
@@ -312,6 +314,7 @@ def _score_all_destinations(
             candidates_by_destination=candidates_by_destination,
             diagnostics=diagnostics,
             fr099_fr105_caches=fr099_fr105_caches,
+            graph_signal_ranker=graph_signal_ranker,
         )
 
         if dest_idx % _SCORING_PROGRESS_INTERVAL == 0 and dest_idx > 0:
@@ -339,6 +342,7 @@ def _score_single_destination(
     candidates_by_destination: dict[ContentKey, list[ScoredCandidate]],
     diagnostics: list[tuple],
     fr099_fr105_caches: Any = None,
+    graph_signal_ranker: GraphSignalRanker | None = None,
 ) -> None:
     """Score a single destination through Stage 2 + Stage 3."""
     destination = content_records[dest_key]
@@ -394,6 +398,7 @@ def _score_single_destination(
         min_semantic_score=MIN_SEMANTIC_SCORE,
         fr099_fr105_caches=fr099_fr105_caches,
         fr099_fr105_settings=settings.get("fr099_fr105"),
+        graph_signal_ranker=graph_signal_ranker,
     )
 
     _collect_destination_result(

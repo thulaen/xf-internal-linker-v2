@@ -47,6 +47,21 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "slate_diversity.diversity_lambda": "0.65",
     "slate_diversity.score_window": "0.30",
     "slate_diversity.similarity_cap": "0.90",
+    # ── W3c graph-signal ranker (picks #29 / #30 / #36) ──
+    # Reads HITS authority, Personalized PageRank, and TrustRank scores
+    # persisted by the W1 scheduled jobs (`hits_refresh`,
+    # `personalized_pagerank_refresh`, `trustrank_propagation`) and applies
+    # them as a small additive contribution to score_final. Cold-start safe:
+    # with no snapshots yet, the ranker is a no-op (build_graph_signal_ranker
+    # returns None). Weights chosen per Gate A in docs/RANKING-GATES.md:
+    #   - HITS authority (Kleinberg 1999): 0.04 — small but visible
+    #   - PPR (Haveliwala 2002): 0.04 — same tier as HITS
+    #   - TrustRank (Gyöngyi et al. 2004): 0.03 — slightly lower until
+    #     auto-seeder pick #51 ships and seeds are no longer hand-picked
+    "graph_signals.enabled": "true",
+    "graph_signals.hits_authority.ranking_weight": "0.04",
+    "graph_signals.personalized_pagerank.ranking_weight": "0.04",
+    "graph_signals.trustrank.ranking_weight": "0.03",
     "link_freshness.ranking_weight": "0.05",
     "link_freshness.recent_window_days": "30",
     "link_freshness.newest_peer_percent": "0.25",
