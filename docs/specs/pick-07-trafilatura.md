@@ -182,12 +182,12 @@ None — extraction runs inline with crawl / import.
 - [ ] `trafilatura.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
-- [ ] Helper module written
-- [ ] Benchmark module written
-- [ ] Test module written
+- [x] Helper module written
+- [x] Benchmark module written
+- [x] Test module written
 - [ ] TPE search space declared
 - [ ] Wired into crawler + import (W2)

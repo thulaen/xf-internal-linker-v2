@@ -162,13 +162,13 @@ function objective(trial):
 - [ ] `meta_hpo.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration creates `var/optuna/meta_hpo.db` directory
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
-- [ ] Helper module written
+- [x] Helper module written
 - [ ] Benchmark module written
-- [ ] Test module written
+- [x] Test module written
 - [ ] `meta_hyperparameter_hpo` scheduled job registered (W1)
 - [ ] TPE search space collected from all pick specs
 - [ ] Dashboard "Accept HPO result" card (W4)

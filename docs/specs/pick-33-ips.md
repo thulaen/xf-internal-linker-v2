@@ -143,13 +143,13 @@ function fit_eta_from_interventions(logs, eta_min, eta_max):
 - [ ] `position_bias_ips.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
 - [x] Helper module (PR-N)
 - [ ] Benchmark module
 - [x] Test module (PR-N)
-- [ ] `position_bias_ips_refit` scheduled job registered (W1)
+- [x] `position_bias_ips_refit` scheduled job registered (W1)
 - [ ] TPE search space declared
 - [ ] Weight tuner wired (W3)

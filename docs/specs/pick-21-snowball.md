@@ -151,11 +151,11 @@ Located in ``backend/apps/sources/test_snowball_stem.py``.
 - [ ] `snowball.enabled` seeded — deferred until first wiring slice (helper currently exposed but not yet called from the ranker)
 - [ ] Hyperparameters seeded — same
 - [ ] Migration upserts rows — same
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
 - [x] Helper module written — `backend/apps/sources/snowball_stem.py`
-- [ ] Benchmark module written
+- [x] Benchmark module written
 - [x] Test module written — `backend/apps/sources/test_snowball_stem.py` (10 tests)
 - [ ] Pipeline wired (separate slice — keeps this commit reversible)

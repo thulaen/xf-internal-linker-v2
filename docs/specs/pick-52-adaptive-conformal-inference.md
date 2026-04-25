@@ -142,13 +142,13 @@ or a dedicated pruning task.
 - [ ] `adaptive_conformal_inference.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows + coverage-log table
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry (< 1 MB RAM / < 1 MB disk)
-- [ ] Helper module (PR-P)
+- [x] Helper module (PR-P)
 - [ ] Benchmark module
-- [ ] Test module (PR-P)
+- [x] Test module (PR-P)
 - [ ] TPE search space declared
 - [ ] Feedback loop wired (W4)
 - [ ] Coverage log dashboard card (W4)

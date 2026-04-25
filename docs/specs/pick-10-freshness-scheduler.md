@@ -190,8 +190,8 @@ change history; the crawler itself follows the intervals each tick.
 - [ ] `freshness_scheduler.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows (+ `refresh_interval_seconds` column)
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
 - [x] Helper module (PR-D)

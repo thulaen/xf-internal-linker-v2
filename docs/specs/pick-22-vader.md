@@ -123,12 +123,12 @@ None — inline.
 - [ ] `vader.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
-- [ ] Helper module written
-- [ ] Benchmark module written
-- [ ] Test module written
+- [x] Helper module written
+- [x] Benchmark module written
+- [x] Test module written
 - [ ] TPE search space declared
 - [ ] Pipeline wired (W2)

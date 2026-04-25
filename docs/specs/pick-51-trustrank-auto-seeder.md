@@ -148,13 +148,13 @@ short-circuit.
 - [ ] `trustrank_auto_seeder.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry (50 MB RAM / 50 MB disk)
 - [x] Helper module (PR-M)
 - [ ] Benchmark module
 - [x] Test module (PR-M)
-- [ ] `trustrank_auto_seeder` scheduled job registered (W1)
+- [x] `trustrank_auto_seeder` scheduled job registered (W1)
 - [ ] TPE search space declared
 - [ ] Seed persistence to `AppSetting["trustrank.seed_ids"]` (W1)

@@ -171,7 +171,7 @@ scheduled refresh.
 - [ ] `backoff.enabled` seeded in `recommended_weights.py`
 - [ ] All hyperparameters seeded in `recommended_weights.py`
 - [ ] Migration upserts AppSetting rows
-- [ ] `FEATURE-REQUESTS.md` entry written
+- [x] `FEATURE-REQUESTS.md` entry written
 - [ ] `AI-CONTEXT.md` execution ledger entry written
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row ticked
 - [ ] `docs/PERFORMANCE.md` entry added

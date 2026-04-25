@@ -131,13 +131,13 @@ function train(graph, dimensions, walk_length, num_walks, p, q, window, workers)
 - [ ] `node2vec.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry (big! 500 MB disk at 1M nodes)
-- [ ] Helper module written
-- [ ] Benchmark module written
-- [ ] Test module written
-- [ ] `node2vec_walks` scheduled job registered (W1)
+- [x] Helper module written
+- [x] Benchmark module written
+- [x] Test module written
+- [x] `node2vec_walks` scheduled job registered (W1)
 - [ ] TPE search space declared
 - [ ] Ranker wired (W3)

@@ -146,13 +146,13 @@ function score(model, text):
 - [ ] `kenlm.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
-- [ ] Helper module written
-- [ ] Benchmark module written
-- [ ] Test module written
-- [ ] `kenlm_retrain` scheduled job registered (W1)
+- [x] Helper module written
+- [x] Benchmark module written
+- [x] Test module written
+- [x] `kenlm_retrain` scheduled job registered (W1)
 - [ ] TPE search space declared
-- [ ] Pipeline wired (W2)
+- [x] Pipeline wired (W2)

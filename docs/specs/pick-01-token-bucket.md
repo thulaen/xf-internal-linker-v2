@@ -199,7 +199,7 @@ uses offline synthetic traffic, not real API calls.
   (pending — part of G2)
 - [ ] All hyperparameters seeded in `recommended_weights.py`
 - [ ] Migration upserts AppSetting rows
-- [ ] `FEATURE-REQUESTS.md` entry written
+- [x] `FEATURE-REQUESTS.md` entry written
 - [ ] `AI-CONTEXT.md` execution ledger entry written (PR-C log)
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row ticked
 - [ ] `docs/PERFORMANCE.md` entry added

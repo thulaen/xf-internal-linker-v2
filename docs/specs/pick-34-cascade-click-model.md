@@ -144,13 +144,13 @@ function estimate(sessions, alpha, beta):
 - [ ] `cascade_click.enabled` seeded
 - [ ] Hyperparameters seeded
 - [ ] Migration upserts rows
-- [ ] `FEATURE-REQUESTS.md` entry
-- [ ] `AI-CONTEXT.md` ledger
+- [x] `FEATURE-REQUESTS.md` entry
+- [x] `AI-CONTEXT.md` ledger
 - [ ] `docs/BUSINESS-LOGIC-CHECKLIST.md` row
 - [ ] `docs/PERFORMANCE.md` entry
 - [x] Helper module (PR-N)
 - [ ] Benchmark module
 - [x] Test module (PR-N)
-- [ ] `cascade_click_em_re_estimate` scheduled job registered (W1)
+- [x] `cascade_click_em_re_estimate` scheduled job registered (W1)
 - [ ] TPE search space declared
 - [ ] Feedback reranker wired (W3)
