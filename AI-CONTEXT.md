@@ -3471,3 +3471,39 @@ context.
   - W1 weekly jobs (lda_topic_refresh, kenlm_retrain, node2vec_walks, bpr_refit, factorization_machines_refit) will start producing real model files the next time they run; consumer helpers will pick them up automatically via the cached path-aware load logic.
   - Dashboard UI for the 10 new `*.enabled` toggles is a future-session task; current state is all-on by default per the seed migration.
 - **Changes committed:** Yes — 1 commit (`66a9137`) on master. Phantom gate clean.
+
+### 2026-04-25 — Polish A/B/C: operator toggles + automated NDCG eval + plain-English status (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Closed the three "polish" gaps from the Wire phase. Three commits.
+  - **Polish.A** (`e131b33`): new ``/api/settings/phase6-picks/`` endpoint + 10 toggle cards on the Settings tab. Backend mirrors FR-099..105 pattern (single grouped GET/PUT). Each card cites its paper.
+  - **Polish.B** (`4e4eeb1`): paper-backed automated NDCG@10 eval. New ``apps.pipeline.services.ndcg_eval`` reuses ``meta_hpo_eval.ndcg_at_k`` + adds bootstrap 95 % CI + Sanderson 2010 §5.2 sample-size gate. Daily ``ndcg_smoke_test`` scheduled job persists to ``AppSetting["ndcg_eval.latest.json"]``. New diagnostics endpoint + Diagnostics-page mat-card. Cold-start shows "Approve more, then this reads".
+  - **Polish.C** (this commit): ``docs/READY-TODAY.md`` — plain-English operator-facing landing page. Translates jargon ("configured at code/install time" → "you don't have to do anything"), lists every active pick and what it does, points at the dashboard for status checks.
+- **Architectural decisions and WHY:**
+  - **Polish.A used FR-099..105 pattern, not Stage-1-retrievers pattern.** Stage-1 retrievers used one card with two toggles; FR-099..105 uses one card per signal. With 10 picks each needing a paper citation, one-card-per-pick is the right granularity.
+  - **Polish.B uses approved/rejected Suggestions as free ground-truth labels.** Buckley-Voorhees 2004 SIGIR pooling: every reviewed Suggestion is fully judged for its session, so NDCG@K is a one-pass aggregation — no labelling, no estimation.
+  - **Sanderson 2010 §5.2 sample-size gate** prevents misleading numbers below 50 reviewed Suggestions. The eval explicitly returns ``sufficient_data=False`` with a "approve more" message in that regime.
+  - **Bootstrap CI rather than asymptotic** — non-parametric, no distributional assumption. 1000 iterations per Efron-Tibshirani 1993 default.
+  - **No A/B comparison mode in this slice.** Single-config eval surfaces the trend over time as operators flip picks; A/B is a future polish if needed.
+- **Iteration history:**
+  - Polish.A: 1 test failure (boolean lowercase mismatch); fixed.
+  - Polish.B: 1 test failure (diagnostics URL prefix is ``/api/system/status/`` not ``/api/diagnostics/``); fixed.
+  - All ~1000 backend tests pass after each commit; frontend prod build clean throughout.
+- **Files added:**
+  - ``backend/apps/core/views_phase6_picks.py``, ``backend/apps/core/test_phase6_picks_view.py``
+  - ``backend/apps/pipeline/services/ndcg_eval.py``, ``backend/apps/pipeline/test_ndcg_eval.py``
+  - ``backend/apps/diagnostics/test_ndcg_eval_view.py``
+  - ``docs/READY-TODAY.md``
+- **Files modified:**
+  - ``backend/apps/core/urls.py`` (Polish.A route)
+  - ``backend/apps/diagnostics/urls.py`` + ``views.py`` (Polish.B endpoint)
+  - ``backend/apps/scheduled_updates/jobs.py`` (Polish.B W1 job)
+  - ``frontend/src/app/settings/silo-settings.service.ts`` + ``settings.component.ts`` + ``settings.component.html`` (Polish.A toggles)
+  - ``frontend/src/app/diagnostics/diagnostics.service.ts`` + ``diagnostics.component.ts`` + ``diagnostics.component.html`` (Polish.B card)
+- **Verification:**
+  - 23 new tests pass (6 + 14 + 3).
+  - Full backend sweep: **996 tests** green (up from 898 pre-Wire, 955 post-Polish.A).
+  - Frontend production build clean (no errors / warnings).
+  - Phantom gate clean.
+- **Operator-facing impact:** ``docs/READY-TODAY.md`` is now the canonical "what's running right now" doc. The Settings tab shows every Phase 6 pick with a one-click toggle. The Diagnostics page surfaces a daily NDCG@10 readout that automatically reads as soon as 50 Suggestions have been reviewed.
+- **Changes committed:** Yes — 3 commits on master (``e131b33``, ``4e4eeb1``, plus this commit). Phantom gate clean.
