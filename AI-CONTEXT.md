@@ -3426,3 +3426,48 @@ context.
   - Anti-Spaghetti Charter respected: only one new Django app (`apps.training`), no new C++ kernels, all helpers in `apps.sources` or `apps.pipeline.services`, Pattern A (sidecar) and Pattern B (lazy-import) — no third pattern invented.
   - Mandatory benchmark rule satisfied for all hot-path Phase 6 helpers via `backend/benchmarks/test_bench_phase6_helpers.py` — three input sizes per helper.
 - **Changes committed:** Yes — 20 commits ahead of origin/master on the master branch (no new branches per project rules). User asked for this session's work to be committed iteratively rather than as a single PR.
+
+### 2026-04-25 — Wire phase: install all 10 Phase 6 pip deps + spec-backed defaults (Claude)
+
+- **AI/tool:** Claude
+- **What was done:** Activated every Phase 6 wrapper that was previously cold-start-only. Installed all 10 optional pip deps in the production image, downloaded the 131 MB FastText lid.176.bin model + built KenLM's lmplz binary from source in the Dockerfile, and seeded ~40 spec-backed AppSetting rows so each pick fires on real data the moment it's consulted.
+- **Single commit:** `66a9137` (requirements.txt + Dockerfile + recommended_weights.py + migrations 0043/0044 + hand-rolled FM rewrite + W1 message tweak + FastText real-call test).
+- **Deps installed (all 10):**
+  - vaderSentiment 3.3.2, pysbd 0.3.4, yake 0.6.0, trafilatura 1.12.2 (pure-Python wheels)
+  - fasttext-wheel 0.9.2 + lid.176.bin (~131 MB) at /opt/models/
+  - gensim 4.3.3, node2vec 0.5.0, implicit 0.7.2 (Cython wheels for Python 3.12)
+  - kenlm Python module + lmplz binary built from kpu/kenlm@master in the Dockerfile
+  - Pick #39 FM hand-rolled in NumPy (~80 lines of Rendle 2010 §3.1 eq. 1-3) — the libFM family stalled on Python ≤ 3.11 builds, so no pip dep
+- **Architectural decisions and WHY:**
+  - **scipy pin moved 1.15.2 → 1.13.1:** gensim 4.3.3 requires scipy<1.14. All scipy uses in this codebase are stable APIs (`optimize`, `sparse`, `stats`) that work fine on 1.13.x. Verified by running the full test suite after the downgrade.
+  - **yake bumped 0.4.8 → 0.6.0 and node2vec 0.4.6 → 0.5.0** — the older pins required networkx<3, which conflicts with networkx==3.4.2 already in the project.
+  - **kenlm built from source in the Dockerfile, not via pip:** PyPI's `kenlm` wheel fails to compile on Python 3.12 inside pip's sandbox (cmake's BUILD_PYTHON_STANDALONE flag fails). The kpu/kenlm source clone gives both the lmplz training binary AND the Python module via `pip install .` from outside pip's sandbox.
+  - **lid.176.bin baked into `/opt/models`, NOT `/app/models`** — the prod compose stack bind-mounts `./backend → /app`, so anything at `/app/models/` baked into the image is hidden by the bind mount at runtime. Caught mid-session, fixed by moving to `/opt/` + a follow-up migration 0044 to repoint the AppSetting at `/opt/models/lid.176.bin`.
+  - **Pick #39 FM rewritten as ~80-line NumPy implementation** of Rendle 2010 §3.1 — SGD trainer with linear + pairwise factor terms, sigmoid+CE for classification, MSE for regression. Removes the brittle pyfm dep and gives us a fully-tested deterministic implementation.
+  - **Default `*.enabled` = true** for every pick so the picks fire on real data without any operator action. Helper-level cold-start fallbacks still protect against missing model files.
+- **Spec-backed defaults — migration 0043:** ~40 AppSetting rows, every value cited to the paper's table/section in the migration's per-row description. Highlights:
+  - VADER neutrality cutoff (±0.05) from Hutto & Gilbert 2014 §3.2.
+  - YAKE ngram_max=3, dedup_threshold=0.9 from Campos et al. 2020 §3.5.
+  - FastText min_confidence=0.4 sits below Joulin's reported ~0.998 mean confidence on clean inputs.
+  - LDA num_topics=50 (small-corpus default), passes=5, alpha/eta=auto from Blei-Ng-Jordan 2003 §6.
+  - KenLM order=3 (trigram, paper's headline benchmark).
+  - Node2Vec dimensions=64, walk_length=30, num_walks=200, p=q=1.0 from Grover-Leskovec 2016 KDD Table 1.
+  - BPR factors=50, learning_rate=0.01, regularization=0.01 from Rendle et al. 2009 UAI Table 2.
+  - FM factors=8, num_iter=50, learning_rate=0.001 from Rendle 2010 ICDM §3.1.
+- **Iteration history:**
+  - Build #1 (failed at 41 s): scipy 1.15.2 vs gensim 4.3.3 conflict.
+  - Build #2 (failed at 41 s): yake 0.4.8 + node2vec 0.4.6 vs networkx 3.4.2.
+  - Build #3 (failed at 350 s): kenlm pip wheel cmake error.
+  - Build #4 (succeeded ~24 min): full image but lid.176.bin hidden by bind mount.
+  - Build #5 (succeeded ~24 min): final shipping image.
+  - The "exporting layers" stage takes ~9 minutes per build because the image is 5.4 GB.
+- **Verification on the rebuilt prod stack:**
+  - `docker-compose exec backend python -c "import kenlm, fasttext, gensim, yake, pysbd, vaderSentiment.vaderSentiment, trafilatura, node2vec, implicit"` → all 10 import cleanly.
+  - `os.path.getsize("/opt/models/lid.176.bin")` → 131,266,198 bytes.
+  - `shutil.which("lmplz")` → `/usr/local/bin/lmplz`.
+  - Phase 6 test suite: 65 tests pass, 4 skipped (inverted cold-start tests that correctly skip when deps ARE present). Previously-skipped real-call tests now exercise actual code: VADER scores positive sentiment > 0.5, PySBD splits "Dr. Smith." into 2 sentences, YAKE extracts "reciprocal rank fusion" from a 3-mention corpus, Trafilatura strips nav+footer from real HTML, LDA full round-trip (fit + save + load + infer_topics), FastText classifies "The quick brown fox..." as `en` with confidence > 0.9, hand-rolled FM trains on `y = a + b + 2*a*b` and predicts correctly.
+  - Full backend sweep: 898 tests pass, 5 skipped. Phantom gate clean.
+- **Next steps for real-world data flow:**
+  - W1 weekly jobs (lda_topic_refresh, kenlm_retrain, node2vec_walks, bpr_refit, factorization_machines_refit) will start producing real model files the next time they run; consumer helpers will pick them up automatically via the cached path-aware load logic.
+  - Dashboard UI for the 10 new `*.enabled` toggles is a future-session task; current state is all-on by default per the seed migration.
+- **Changes committed:** Yes — 1 commit (`66a9137`) on master. Phantom gate clean.

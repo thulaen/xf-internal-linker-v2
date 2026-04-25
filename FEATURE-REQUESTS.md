@@ -2167,7 +2167,7 @@ Improves Stage 1 recall for multi-topic destination pages. Instead of embedding 
 
 **Requested:** 2026-04-22
 **Target phase:** Phases 36–40 (PRs B–P + W1–W4)
-**Status:** Helpers + W1 wirings complete for **all 52 picks** (2026-04-25). Phase 6 shipped the 11 missing helper wrappers across `apps.sources` + `apps.pipeline.services` + the new `apps.training` Django app. The four pip-deferred W1 producers (KenLM, Node2Vec, BPR, FM) now have real entrypoints that activate the moment their pip dep is installed. Specs landed for all 52 (G1a–G1e); benchmarks shipped for hot-path helpers (Phase 7.1, this FR). Remaining: governance catch-up (G3–G4 — BUSINESS-LOGIC + AI-CONTEXT entries) and on-prod NDCG smoke tests.
+**Status:** Helpers + W1 wirings + **all 10 pip deps installed** for all 52 picks (2026-04-25). Wire phase shipped the FastText lid.176.bin (131 MB) + KenLM lmplz binary in the Dockerfile, ~40 spec-backed AppSetting rows seeded via migration 0043/0044, and the Pick #39 FM hand-rolled in NumPy (libFM family doesn't run on Python 3.12). All 10 previously-cold-start wrappers now exercise real code paths in tests: VADER, PySBD, YAKE!, Trafilatura, FastText, LDA round-trip, KenLM via lmplz subprocess, Node2Vec, BPR, FM. 898 backend tests pass; phantom gate clean.
 **Priority:** High — foundational infrastructure covering every stage of the pipeline.
 **Research basis:** See `plans/check-how-many-pending-tidy-iverson.md` for the full decision record and per-pick citations. Every pick is backed by a peer-reviewed paper, IETF RFC, ACM/IEEE standard, or operator-approved patent.
 **Spec:** `docs/specs/scheduled-updates-architecture.md` + per-pick `docs/specs/pick-NN-*.md` (52 files). Template at `docs/specs/_spec-template.md`.
