@@ -260,10 +260,7 @@ def _build_suggestion_records(
     # stuffing detector). Cold start safe: skip QL when no baseline
     # was supplied or the corpus is empty.
     ql_stats: CollectionStatistics | None = None
-    if (
-        keyword_baseline is not None
-        and getattr(keyword_baseline, "total_terms", 0) > 0
-    ):
+    if keyword_baseline is not None and getattr(keyword_baseline, "total_terms", 0) > 0:
         try:
             ql_stats = CollectionStatistics(
                 collection_term_counts=keyword_baseline.term_counts,
@@ -414,7 +411,9 @@ def _build_suggestion_records(
                 # ``ContentItem.elo_rating`` (default 1500). The
                 # ``elo_rating_refresh`` scheduled job updates the
                 # source column from review-queue history.
-                score_elo_rating=float(getattr(dest_ci, "elo_rating", 1500.0) or 1500.0),
+                score_elo_rating=float(
+                    getattr(dest_ci, "elo_rating", 1500.0) or 1500.0
+                ),
                 # Pick #50 — split-conformal confidence band on
                 # score_final. NULL on cold start.
                 confidence_lower_bound=confidence_lower,

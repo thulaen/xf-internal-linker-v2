@@ -102,9 +102,8 @@ class FastTextLangIdTests(TestCase):
         self.assertTrue(result.is_undefined)
 
     @unittest.skipUnless(
-        fasttext_langid.HAS_FASTTEXT and __import__("os").path.exists(
-            "/opt/models/lid.176.bin"
-        ),
+        fasttext_langid.HAS_FASTTEXT
+        and __import__("os").path.exists("/opt/models/lid.176.bin"),
         "fasttext + lid.176.bin both required",
     )
     def test_real_prediction_classifies_english(self) -> None:

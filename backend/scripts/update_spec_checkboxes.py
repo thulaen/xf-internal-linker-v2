@@ -134,17 +134,17 @@ GLOBAL_CHECKBOXES: set[str] = {
 # The matching label substring is "scheduled job registered" — the spec
 # template wraps it as ``- [ ] \`<job_name>\` scheduled job registered (W1)``.
 W1_WIRED_PICKS: set[str] = {
-    "pick-18-",   # lda_topic_refresh
-    "pick-20-",   # product_quantization_refit
-    "pick-23-",   # kenlm_retrain
-    "pick-33-",   # position_bias_ips_refit
-    "pick-34-",   # cascade_click_em_re_estimate
-    "pick-37-",   # node2vec_walks
-    "pick-38-",   # bpr_refit
-    "pick-39-",   # factorization_machines_refit
-    "pick-50-",   # conformal_prediction_refresh
-    "pick-51-",   # trustrank_auto_seeder
-    "pick-52-",   # ACI alpha update (sub-job)
+    "pick-18-",  # lda_topic_refresh
+    "pick-20-",  # product_quantization_refit
+    "pick-23-",  # kenlm_retrain
+    "pick-33-",  # position_bias_ips_refit
+    "pick-34-",  # cascade_click_em_re_estimate
+    "pick-37-",  # node2vec_walks
+    "pick-38-",  # bpr_refit
+    "pick-39-",  # factorization_machines_refit
+    "pick-50-",  # conformal_prediction_refresh
+    "pick-51-",  # trustrank_auto_seeder
+    "pick-52-",  # ACI alpha update (sub-job)
 }
 W1_LABEL = "scheduled job registered"
 
@@ -199,7 +199,11 @@ def main() -> int:
     total_flipped = 0
     files_touched = 0
     for spec in sorted(SPEC_DIR.glob("pick-*.md")):
-        prefix = spec.name[: spec.name.find("-", 5) + 1] if spec.name.startswith("pick-") else ""
+        prefix = (
+            spec.name[: spec.name.find("-", 5) + 1]
+            if spec.name.startswith("pick-")
+            else ""
+        )
         # Match "pick-NN-" exactly.
         m = re.match(r"^(pick-\d{2}-)", spec.name)
         if not m:

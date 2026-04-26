@@ -34,9 +34,7 @@ class ExplainSuggestionLogicTests(TestCase):
         self.assertEqual(explanation.method, "linear_attribution")
         # All components surfaced — operators see "considered with
         # weight=0" rows even when nothing's persisted yet.
-        self.assertEqual(
-            len(explanation.contributions), len(EXPLAINED_COMPONENTS)
-        )
+        self.assertEqual(len(explanation.contributions), len(EXPLAINED_COMPONENTS))
 
     def test_baseline_is_neutral_half(self) -> None:
         # Spec convention — score 0.5 is neutral, contributions are
@@ -64,7 +62,8 @@ class ExplainSuggestionLogicTests(TestCase):
         explanation = explain_suggestion(suggestion)
         # 0.4 * (0.9 - 0.5) = 0.16 contribution from semantic.
         semantic_row = next(
-            c for c in explanation.contributions
+            c
+            for c in explanation.contributions
             if c.feature_name == "Semantic similarity"
         )
         self.assertAlmostEqual(semantic_row.shap_value, 0.16, places=5)
@@ -101,14 +100,10 @@ class ExplainSuggestionLogicTests(TestCase):
         self.assertIn("contributions", payload)
         self.assertIn("method", payload)
         self.assertEqual(payload["method"], "linear_attribution")
-        self.assertEqual(
-            len(payload["contributions"]), len(EXPLAINED_COMPONENTS)
-        )
+        self.assertEqual(len(payload["contributions"]), len(EXPLAINED_COMPONENTS))
 
     def test_feature_contribution_to_dict(self) -> None:
-        c = FeatureContribution(
-            feature_name="x", value=0.7, shap_value=0.1
-        )
+        c = FeatureContribution(feature_name="x", value=0.7, shap_value=0.1)
         d = c.to_dict()
         self.assertEqual(d["feature_name"], "x")
         self.assertEqual(d["value"], 0.7)
@@ -165,9 +160,7 @@ class KernelShapPathTests(TestCase):
             explanation = explain_suggestion(suggestion)
         self.assertEqual(explanation.method, "kernel_shap")
         # SHAP returns 11 contributions matching the column count.
-        self.assertEqual(
-            len(explanation.contributions), len(EXPLAINED_COMPONENTS)
-        )
+        self.assertEqual(len(explanation.contributions), len(EXPLAINED_COMPONENTS))
 
     def test_kernel_shap_falls_back_when_background_too_small(self) -> None:
         from apps.pipeline.services import ranker_score_fn
@@ -187,14 +180,17 @@ class KernelShapPathTests(TestCase):
         from apps.pipeline.services import ranker_score_fn
 
         suggestion = self._stub_with_features(score_semantic=0.7)
-        with patch.object(
-            ranker_score_fn,
-            "load_background_features",
-            return_value=self._balanced_background(20),
-        ), patch.object(
-            shap_explainer,
-            "explain",
-            side_effect=RuntimeError("simulated SHAP failure"),
+        with (
+            patch.object(
+                ranker_score_fn,
+                "load_background_features",
+                return_value=self._balanced_background(20),
+            ),
+            patch.object(
+                shap_explainer,
+                "explain",
+                side_effect=RuntimeError("simulated SHAP failure"),
+            ),
         ):
             explanation = explain_suggestion(suggestion)
         self.assertEqual(explanation.method, "linear_attribution")

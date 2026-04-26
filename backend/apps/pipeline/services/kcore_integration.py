@@ -57,7 +57,11 @@ def evaluate_kcib(
     if not settings.enabled:
         return KCIBEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
     if kcore_cache is None or kcore_cache.total_graph_nodes < settings.min_graph_nodes:

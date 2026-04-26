@@ -23,25 +23,19 @@ def _ema_batch(series_by_key):
 
 def test_bench_ema_small(benchmark):
     rng = random.Random(0)
-    data = {
-        f"k{i}": [rng.random() for _ in range(100)] for i in range(10)
-    }
+    data = {f"k{i}": [rng.random() for _ in range(100)] for i in range(10)}
     benchmark(_ema_batch, data)
 
 
 def test_bench_ema_medium(benchmark):
     rng = random.Random(0)
-    data = {
-        f"k{i}": [rng.random() for _ in range(365)] for i in range(1000)
-    }
+    data = {f"k{i}": [rng.random() for _ in range(365)] for i in range(1000)}
     benchmark(_ema_batch, data)
 
 
 def test_bench_ema_large(benchmark):
     rng = random.Random(0)
-    data = {
-        f"k{i}": [rng.random() for _ in range(365)] for i in range(10_000)
-    }
+    data = {f"k{i}": [rng.random() for _ in range(365)] for i in range(10_000)}
     benchmark(_ema_batch, data)
 
 

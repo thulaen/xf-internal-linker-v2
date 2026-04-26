@@ -100,9 +100,12 @@ class BackoffWiringTests(SimpleTestCase):
             client = _FlakyClient(fail_first_n=2, exception_class=Exception)
             httpx_mod.AsyncClient.return_value = client
 
-            with patch("asyncio.sleep", new_callable=AsyncMock) as sleep, patch(
-                "apps.sources.backoff.full_jitter_delay", return_value=0.0
-            ) as delay:
+            with (
+                patch("asyncio.sleep", new_callable=AsyncMock) as sleep,
+                patch(
+                    "apps.sources.backoff.full_jitter_delay", return_value=0.0
+                ) as delay,
+            ):
                 results = asyncio.run(
                     async_http.fetch_urls(
                         ["https://example.invalid/a"],
@@ -135,8 +138,9 @@ class BackoffWiringTests(SimpleTestCase):
             client = _FlakyClient(fail_first_n=99, exception_class=Exception)
             httpx_mod.AsyncClient.return_value = client
 
-            with patch("asyncio.sleep", new_callable=AsyncMock) as sleep, patch(
-                "apps.sources.backoff.full_jitter_delay", return_value=0.0
+            with (
+                patch("asyncio.sleep", new_callable=AsyncMock) as sleep,
+                patch("apps.sources.backoff.full_jitter_delay", return_value=0.0),
             ):
                 results = asyncio.run(
                     async_http.fetch_urls(

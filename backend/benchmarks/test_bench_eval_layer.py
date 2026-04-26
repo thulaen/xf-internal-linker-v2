@@ -40,6 +40,7 @@ def test_bench_reservoir_medium(benchmark):
 
 def test_bench_reservoir_large(benchmark):
     rng = random.Random(0)
+
     # Note: 1B items won't fit in memory; use a generator.
     def _gen():
         for i in range(100_000_000):
@@ -54,6 +55,7 @@ def test_bench_reservoir_large(benchmark):
 def _shap_available() -> bool:
     try:
         import shap  # noqa: F401
+
         return True
     except ImportError:
         return False

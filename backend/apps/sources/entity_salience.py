@@ -83,10 +83,10 @@ class EntitySalience:
     """Scored entity mention cluster (all spans of the same surface form)."""
 
     text: str
-    label: str                 # spaCy entity label, e.g. "PERSON" or "ORG"
+    label: str  # spaCy entity label, e.g. "PERSON" or "ORG"
     mention_count: int
-    first_offset: int          # earliest char offset of any mention
-    salience: float            # 0.0–1.0, higher = more central
+    first_offset: int  # earliest char offset of any mention
+    salience: float  # 0.0–1.0, higher = more central
 
     # Individual feature values (pre-weighting) — retained for
     # operators who want to inspect why an entity scored the way
@@ -177,9 +177,7 @@ def rank_entities(
         first_position = max(0.0, 1.0 - (first_offset / doc_len))
 
         # Feature: mention frequency — min-max over the doc.
-        frequency = (
-            mention_count / max_frequency if max_frequency > 0 else 0.0
-        )
+        frequency = mention_count / max_frequency if max_frequency > 0 else 0.0
 
         # Feature: sentence coverage.
         coverage = (
@@ -187,9 +185,7 @@ def rank_entities(
         )
 
         # Feature: title match.
-        title_match = (
-            1.0 if title_normalised and norm_text in title_normalised else 0.0
-        )
+        title_match = 1.0 if title_normalised and norm_text in title_normalised else 0.0
 
         salience = (
             final_weights["first_position"] * first_position

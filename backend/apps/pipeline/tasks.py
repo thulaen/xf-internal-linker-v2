@@ -1320,9 +1320,7 @@ def nightly_data_retention(progress_callback=None):
         from apps.suggestions.models import SuggestionImpression
 
         cutoff_b5 = now - timedelta(days=_RETENTION_3_MONTHS)
-        prune_qs = SuggestionImpression.objects.filter(
-            impressed_at__lt=cutoff_b5
-        )
+        prune_qs = SuggestionImpression.objects.filter(impressed_at__lt=cutoff_b5)
         # Cardinality preview only — bitmap is dropped after we read
         # its cardinality. SQL DELETE goes through the original
         # queryset so Postgres uses the indexed range scan.
@@ -1345,9 +1343,7 @@ def nightly_data_retention(progress_callback=None):
         )
     except (DatabaseError, IntegrityError):
         raw = traceback.format_exc()
-        logger.exception(
-            "[nightly_data_retention] SuggestionImpression purge failed."
-        )
+        logger.exception("[nightly_data_retention] SuggestionImpression purge failed.")
         ErrorLog.objects.create(
             job_type="data_retention",
             step="suggestion_impression_purge",
@@ -1367,9 +1363,7 @@ def nightly_data_retention(progress_callback=None):
         from apps.suggestions.models import SuggestionPresentation
 
         cutoff_b6 = (now - timedelta(days=_RETENTION_6_MONTHS)).date()
-        prune_qs = SuggestionPresentation.objects.filter(
-            presented_date__lt=cutoff_b6
-        )
+        prune_qs = SuggestionPresentation.objects.filter(presented_date__lt=cutoff_b6)
         bitmap = waste_bitmaps.bitmap_from_pks(prune_qs)
         pending = waste_bitmaps.cardinality_preview(bitmap)
         deleted = 0
@@ -1487,9 +1481,7 @@ def _persist_retention_preview(key: str, *, value: int, last_count: int) -> None
             },
         )
     except Exception as exc:  # pragma: no cover — defensive
-        logger.warning(
-            "_persist_retention_preview(%s) failed: %s", key, exc
-        )
+        logger.warning("_persist_retention_preview(%s) failed: %s", key, exc)
 
 
 def _persist_retention_run_timestamp(iso: str) -> None:
@@ -1507,9 +1499,7 @@ def _persist_retention_run_timestamp(iso: str) -> None:
             },
         )
     except Exception as exc:  # pragma: no cover — defensive
-        logger.warning(
-            "_persist_retention_run_timestamp(%s) failed: %s", iso, exc
-        )
+        logger.warning("_persist_retention_run_timestamp(%s) failed: %s", iso, exc)
 
 
 @shared_task(name="pipeline.cleanup_stuck_sync_jobs")

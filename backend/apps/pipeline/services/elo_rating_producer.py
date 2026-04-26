@@ -93,8 +93,7 @@ def derive_pairs_from_suggestion_history(
     cutoff = timezone.now() - timedelta(days=days_lookback)
     reviewed_q = Q(status__in=list(_POSITIVE_STATUSES | _NEGATIVE_STATUSES))
     rows = list(
-        Suggestion.objects.filter(reviewed_q, updated_at__gte=cutoff)
-        .values_list(
+        Suggestion.objects.filter(reviewed_q, updated_at__gte=cutoff).values_list(
             "host_sentence_id", "destination_id", "destination__content_type", "status"
         )
     )

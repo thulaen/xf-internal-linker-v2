@@ -128,9 +128,7 @@ class ProductQuantizer:
 
         arr = np.asarray(training_vectors, dtype=np.float32)
         if arr.ndim != 2:
-            raise ValueError(
-                f"training_vectors must be 2-D; got shape {arr.shape}"
-            )
+            raise ValueError(f"training_vectors must be 2-D; got shape {arr.shape}")
         if arr.shape[1] != self.dimension:
             raise ValueError(
                 f"training_vectors have dim {arr.shape[1]}, "
@@ -196,6 +194,5 @@ class ProductQuantizer:
     def _require_trained(self) -> None:
         if not self._trained or self._index is None:
             raise RuntimeError(
-                "ProductQuantizer: call fit(training_vectors) before "
-                "encode/decode."
+                "ProductQuantizer: call fit(training_vectors) before " "encode/decode."
             )

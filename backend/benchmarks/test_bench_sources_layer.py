@@ -17,7 +17,6 @@ from __future__ import annotations
 import random
 
 
-
 # ── Token Bucket (#01) ─────────────────────────────────────────────
 
 
@@ -219,9 +218,7 @@ def _build_and_extract_many(n, etag, lm):
 
 
 def test_bench_conditional_get_small(benchmark):
-    benchmark(
-        _build_and_extract_many, 10_000, '"abc"', "Wed, 22 Apr 2026 12:00:00 GMT"
-    )
+    benchmark(_build_and_extract_many, 10_000, '"abc"', "Wed, 22 Apr 2026 12:00:00 GMT")
 
 
 def test_bench_conditional_get_medium(benchmark):

@@ -117,9 +117,7 @@ def fit(
     n_pos = int(np.sum(label_arr == 1))
     n_neg = int(np.sum(label_arr == 0))
     if n_pos == 0 or n_neg == 0:
-        raise ValueError(
-            "need both positive and negative examples to fit a sigmoid"
-        )
+        raise ValueError("need both positive and negative examples to fit a sigmoid")
 
     # Platt §4 — soft targets that avoid saturation at y = 0 / y = 1.
     t_pos = (n_pos + 1) / (n_pos + 2)

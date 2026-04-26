@@ -114,9 +114,7 @@ class SHAPExplainerTests(SimpleTestCase):
     def setUpClass(cls) -> None:
         super().setUpClass()
         if not HAS_SHAP:
-            raise RuntimeError(
-                "shap library missing — required for PR-O tests"
-            )
+            raise RuntimeError("shap library missing — required for PR-O tests")
 
     def test_returns_explanation_with_contributions_per_feature(self) -> None:
         background = _linear_background()

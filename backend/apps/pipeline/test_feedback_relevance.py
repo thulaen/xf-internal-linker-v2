@@ -129,7 +129,9 @@ class ConsumerWireTests(TestCase):
         # Impression-based wins.
         self.assertAlmostEqual(cascade_relevance_for(42), 0.9)
 
-    def test_cascade_relevance_falls_back_to_review_when_impression_missing(self) -> None:
+    def test_cascade_relevance_falls_back_to_review_when_impression_missing(
+        self,
+    ) -> None:
         """Impression table populated but missing this dest → review-queue."""
         from apps.core.models import AppSetting
         from apps.pipeline.services.cascade_click_em_producer import (
@@ -170,9 +172,7 @@ class ConsumerWireTests(TestCase):
         # be 4.0. Difference proves the fitted value was used.
         events = {4: [True, True, True, True]}
         result = _compute_ips_ctr(events)
-        expected = 1.0 * ips_weight(
-            position=4, eta=0.5, max_weight=DEFAULT_MAX_WEIGHT
-        )
+        expected = 1.0 * ips_weight(position=4, eta=0.5, max_weight=DEFAULT_MAX_WEIGHT)
         self.assertAlmostEqual(result[4], expected)
         self.assertAlmostEqual(result[4], 2.0)
 

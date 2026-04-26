@@ -36,9 +36,7 @@ def normalize_performance_mode(raw: str | None, *, warn: bool = True) -> str:
         return canonical
 
     if warn:
-        logger.warning(
-            "Unknown performance mode '%s'; falling back to balanced.", raw
-        )
+        logger.warning("Unknown performance mode '%s'; falling back to balanced.", raw)
     return PERFORMANCE_MODE_BALANCED
 
 

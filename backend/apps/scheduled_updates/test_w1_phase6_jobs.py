@@ -57,12 +57,15 @@ class Node2VecW1Tests(TestCase):
         import networkx as nx
 
         empty_graph = nx.DiGraph()
-        with mock.patch(
-            "apps.pipeline.services.node2vec_embeddings.is_available",
-            return_value=True,
-        ), mock.patch(
-            "apps.scheduled_updates.jobs._load_networkx_graph",
-            return_value=empty_graph,
+        with (
+            mock.patch(
+                "apps.pipeline.services.node2vec_embeddings.is_available",
+                return_value=True,
+            ),
+            mock.patch(
+                "apps.scheduled_updates.jobs._load_networkx_graph",
+                return_value=empty_graph,
+            ),
         ):
             cp = _CheckpointRecorder()
             run_node2vec_walks(job=None, checkpoint=cp)  # should NOT raise
@@ -126,12 +129,15 @@ class KenlmW1Tests(TestCase):
     def test_deferred_when_neither_dep_present(self) -> None:
         from apps.scheduled_updates.jobs import run_kenlm_retrain
 
-        with mock.patch(
-            "apps.pipeline.services.kenlm_fluency.is_available",
-            return_value=False,
-        ), mock.patch(
-            "apps.pipeline.services.kenlm_fluency.lmplz_available",
-            return_value=False,
+        with (
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.is_available",
+                return_value=False,
+            ),
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.lmplz_available",
+                return_value=False,
+            ),
         ):
             cp = _CheckpointRecorder()
             with self.assertRaises(DeferredPickError):
@@ -142,12 +148,15 @@ class KenlmW1Tests(TestCase):
         """`kenlm` pip installed but `lmplz` binary missing → still deferred."""
         from apps.scheduled_updates.jobs import run_kenlm_retrain
 
-        with mock.patch(
-            "apps.pipeline.services.kenlm_fluency.is_available",
-            return_value=True,
-        ), mock.patch(
-            "apps.pipeline.services.kenlm_fluency.lmplz_available",
-            return_value=False,
+        with (
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.is_available",
+                return_value=True,
+            ),
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.lmplz_available",
+                return_value=False,
+            ),
         ):
             cp = _CheckpointRecorder()
             with self.assertRaises(DeferredPickError):
@@ -158,12 +167,15 @@ class KenlmW1Tests(TestCase):
         """Both deps present + empty Sentence table → clean skip."""
         from apps.scheduled_updates.jobs import run_kenlm_retrain
 
-        with mock.patch(
-            "apps.pipeline.services.kenlm_fluency.is_available",
-            return_value=True,
-        ), mock.patch(
-            "apps.pipeline.services.kenlm_fluency.lmplz_available",
-            return_value=True,
+        with (
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.is_available",
+                return_value=True,
+            ),
+            mock.patch(
+                "apps.pipeline.services.kenlm_fluency.lmplz_available",
+                return_value=True,
+            ),
         ):
             cp = _CheckpointRecorder()
             run_kenlm_retrain(job=None, checkpoint=cp)  # no exception

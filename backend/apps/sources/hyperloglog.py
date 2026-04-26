@@ -60,8 +60,7 @@ class HyperLogLog:
     def __init__(self, *, precision: int = 14) -> None:
         if not self.MIN_PRECISION <= precision <= self.MAX_PRECISION:
             raise ValueError(
-                f"precision must be in [{self.MIN_PRECISION}, "
-                f"{self.MAX_PRECISION}]"
+                f"precision must be in [{self.MIN_PRECISION}, " f"{self.MAX_PRECISION}]"
             )
         self._b = precision
         self._m = 1 << precision
@@ -97,7 +96,7 @@ class HyperLogLog:
         raw_sum = 0.0
         zero_registers = 0
         for r in self._registers:
-            raw_sum += 2.0 ** -r
+            raw_sum += 2.0**-r
             if r == 0:
                 zero_registers += 1
         est = self._alpha * m * m / raw_sum
@@ -174,6 +173,4 @@ class HyperLogLog:
         if isinstance(key, int):
             length = max(1, (key.bit_length() + 8) // 8)
             return key.to_bytes(length, "little", signed=True)
-        raise TypeError(
-            f"HLL key must be bytes/str/int, got {type(key).__name__}"
-        )
+        raise TypeError(f"HLL key must be bytes/str/int, got {type(key).__name__}")

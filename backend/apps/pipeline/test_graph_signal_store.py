@@ -33,9 +33,7 @@ class LoadSnapshotTests(TestCase):
 
 class ScoreForTests(TestCase):
     def test_cold_start_returns_neutral(self) -> None:
-        self.assertEqual(
-            score_for(SIGNAL_PPR, (1, "thread")), NEUTRAL_SCORE
-        )
+        self.assertEqual(score_for(SIGNAL_PPR, (1, "thread")), NEUTRAL_SCORE)
 
     def test_known_node_returns_persisted_value(self) -> None:
         persist_top_n(
@@ -49,9 +47,7 @@ class ScoreForTests(TestCase):
             signal=SIGNAL_PPR,
             scores={(7, "resource"): 0.42},
         )
-        self.assertEqual(
-            score_for(SIGNAL_PPR, (999, "thread")), NEUTRAL_SCORE
-        )
+        self.assertEqual(score_for(SIGNAL_PPR, (999, "thread")), NEUTRAL_SCORE)
 
 
 class PersistTopNTests(TestCase):
@@ -59,9 +55,7 @@ class PersistTopNTests(TestCase):
         # Build a 100-node table with descending scores; persist_top_n=10
         # should keep only the highest 10.
         scores = {(i, "thread"): float(100 - i) for i in range(100)}
-        written = persist_top_n(
-            signal=SIGNAL_TRUSTRANK, scores=scores, top_n=10
-        )
+        written = persist_top_n(signal=SIGNAL_TRUSTRANK, scores=scores, top_n=10)
         self.assertEqual(written, 10)
         snap = load_snapshot(SIGNAL_TRUSTRANK)
         self.assertEqual(len(snap.scores), 10)
@@ -69,9 +63,7 @@ class PersistTopNTests(TestCase):
         self.assertAlmostEqual(snap.lookup((0, "thread")), 100.0)
         self.assertAlmostEqual(snap.lookup((9, "thread")), 91.0)
         # Lower-scoring nodes drop to neutral.
-        self.assertEqual(
-            snap.lookup((50, "thread")), NEUTRAL_SCORE
-        )
+        self.assertEqual(snap.lookup((50, "thread")), NEUTRAL_SCORE)
 
     def test_empty_input_clears_snapshot(self) -> None:
         # Seed with data, then persist empty — old data should be gone.
@@ -79,11 +71,11 @@ class PersistTopNTests(TestCase):
             signal=SIGNAL_HITS_AUTHORITY,
             scores={(1, "thread"): 0.9},
         )
-        self.assertGreater(score_for(SIGNAL_HITS_AUTHORITY, (1, "thread")), NEUTRAL_SCORE)
-        persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores={})
-        self.assertEqual(
+        self.assertGreater(
             score_for(SIGNAL_HITS_AUTHORITY, (1, "thread")), NEUTRAL_SCORE
         )
+        persist_top_n(signal=SIGNAL_HITS_AUTHORITY, scores={})
+        self.assertEqual(score_for(SIGNAL_HITS_AUTHORITY, (1, "thread")), NEUTRAL_SCORE)
 
     def test_full_node_count_recorded(self) -> None:
         scores = {(i, "thread"): float(100 - i) for i in range(50)}

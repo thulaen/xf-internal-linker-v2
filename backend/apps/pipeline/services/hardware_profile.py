@@ -57,15 +57,13 @@ _RAM_BATCH_FRACTION = 0.15
 class HardwareProfile:
     ram_gb: float
     cpu_cores: int
-    vram_gb: float         # 0.0 if no CUDA device
+    vram_gb: float  # 0.0 if no CUDA device
     has_cuda: bool
     tier: Tier
 
     def describe(self) -> str:
         gpu_part = f"{self.vram_gb:.1f} GB VRAM" if self.has_cuda else "no GPU"
-        return (
-            f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores} {gpu_part}"
-        )
+        return f"tier={self.tier} ram={self.ram_gb:.1f}GB cores={self.cpu_cores} {gpu_part}"
 
 
 _cached_profile: HardwareProfile | None = None

@@ -60,16 +60,25 @@ def evaluate_berp(
     if not settings.enabled:
         return BERPEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
-    if bridge_cache is None or bridge_cache.total_graph_nodes < settings.min_graph_nodes:
+    if (
+        bridge_cache is None
+        or bridge_cache.total_graph_nodes < settings.min_graph_nodes
+    ):
         return BERPEvaluation(
             score_component=0.0,
             diagnostics={
                 "fallback_triggered": True,
                 "diagnostic": "insufficient_graph_data",
-                "graph_node_count": bridge_cache.total_graph_nodes if bridge_cache else 0,
+                "graph_node_count": bridge_cache.total_graph_nodes
+                if bridge_cache
+                else 0,
                 "path": "python",
             },
         )
@@ -90,7 +99,10 @@ def evaluate_berp(
     dest_bcc_size = int(bridge_cache.bcc_size_map.get(dest_bcc, 0))
 
     # Skip tiny BCCs — a 1-node BCC is just an isolated node; penalty is noise.
-    if host_bcc_size < settings.min_component_size or dest_bcc_size < settings.min_component_size:
+    if (
+        host_bcc_size < settings.min_component_size
+        or dest_bcc_size < settings.min_component_size
+    ):
         return BERPEvaluation(
             score_component=0.0,
             diagnostics={

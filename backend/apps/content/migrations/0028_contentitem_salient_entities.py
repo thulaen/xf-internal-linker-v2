@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0027_post_readability_grades'),
+        ("content", "0027_post_readability_grades"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='salient_entities',
-            field=models.JSONField(blank=True, default=list, help_text="Top-K named entities by Gamon et al. 2013 salience score (0.0-1.0). Each entry: {text, label, salience, mention_count}. Populated by the importer's NER pass. Empty list = no entities or unscored row."),
+            model_name="contentitem",
+            name="salient_entities",
+            field=models.JSONField(
+                blank=True,
+                default=list,
+                help_text="Top-K named entities by Gamon et al. 2013 salience score (0.0-1.0). Each entry: {text, label, salience, mention_count}. Populated by the importer's NER pass. Empty list = no entities or unscored row.",
+            ),
         ),
     ]

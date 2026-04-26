@@ -52,9 +52,21 @@ logger = logging.getLogger(__name__)
 
 # Model registry: dimension + pricing. Prices as of 2026-04 (USD per 1K tokens).
 _MODEL_REGISTRY: dict[str, dict[str, float | int]] = {
-    "text-embedding-3-small": {"dimension": 1536, "price_per_1k": 0.00002, "max_tokens": 8191},
-    "text-embedding-3-large": {"dimension": 3072, "price_per_1k": 0.00013, "max_tokens": 8191},
-    "text-embedding-ada-002": {"dimension": 1536, "price_per_1k": 0.00010, "max_tokens": 8191},
+    "text-embedding-3-small": {
+        "dimension": 1536,
+        "price_per_1k": 0.00002,
+        "max_tokens": 8191,
+    },
+    "text-embedding-3-large": {
+        "dimension": 3072,
+        "price_per_1k": 0.00013,
+        "max_tokens": 8191,
+    },
+    "text-embedding-ada-002": {
+        "dimension": 1536,
+        "price_per_1k": 0.00010,
+        "max_tokens": 8191,
+    },
 }
 
 _DEFAULT_MODEL = "text-embedding-3-small"
@@ -78,6 +90,7 @@ class OpenAIProvider:
     def _read_setting(self, key: str, default: str = "") -> str:
         try:
             from apps.core.models import AppSetting
+
             row = AppSetting.objects.filter(key=key).first()
             return str(row.value) if row and row.value is not None else default
         except Exception:
@@ -87,8 +100,7 @@ class OpenAIProvider:
     def model_name(self) -> str:
         if self._cached_model is None:
             self._cached_model = (
-                self._read_setting("embedding.model", _DEFAULT_MODEL)
-                or _DEFAULT_MODEL
+                self._read_setting("embedding.model", _DEFAULT_MODEL) or _DEFAULT_MODEL
             )
         return self._cached_model
 
@@ -146,6 +158,7 @@ class OpenAIProvider:
             return self._tokenizer
         try:
             import tiktoken
+
             self._tokenizer = tiktoken.get_encoding(self.tokenizer_name)
         except Exception:
             self._tokenizer = None
@@ -241,9 +254,7 @@ class OpenAIProvider:
         consumed_tokens = 0
         for batch_start in range(0, len(processed), bs):
             if self.should_pause():
-                raise ProviderError(
-                    "paused_mid_embed", reason="paused"
-                )
+                raise ProviderError("paused_mid_embed", reason="paused")
             batch_slice = processed[batch_start : batch_start + bs]
             resp = self._call_with_retry(
                 client=client,
@@ -319,7 +330,11 @@ class OpenAIProvider:
                 return [text]
             overlap = max_chars // 10
             stride = max_chars - overlap
-            return [text[i : i + max_chars] for i in range(0, len(text), stride) if text[i : i + max_chars]]
+            return [
+                text[i : i + max_chars]
+                for i in range(0, len(text), stride)
+                if text[i : i + max_chars]
+            ]
 
         ids = tokenizer.encode(text)
         if len(ids) <= self.max_tokens:

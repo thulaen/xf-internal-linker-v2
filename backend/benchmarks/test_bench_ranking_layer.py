@@ -135,8 +135,7 @@ def test_bench_rrf_medium(benchmark):
 
 def test_bench_rrf_large(benchmark):
     rankings = {
-        f"r{i}": list(range(i * 100_000, i * 100_000 + 1_000_000))
-        for i in range(5)
+        f"r{i}": list(range(i * 100_000, i * 100_000 + 1_000_000)) for i in range(5)
     }
     benchmark(_rrf_workload, rankings)
 

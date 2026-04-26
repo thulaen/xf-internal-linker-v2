@@ -117,14 +117,20 @@ def _make_corpus():
     # relevance based on how well its title matches the destination.
     truth = {
         (1, "thread"): {  # python tutorial
-            1000: 3, 1010: 3,  # 100, 101 (best)
-            1020: 2, 1030: 2,  # 102, 103 (okay)
+            1000: 3,
+            1010: 3,  # 100, 101 (best)
+            1020: 2,
+            1030: 2,  # 102, 103 (okay)
         },
         (2, "thread"): {  # ML intro
-            1100: 3, 1110: 3, 1120: 3,
+            1100: 3,
+            1110: 3,
+            1120: 3,
         },
         (3, "thread"): {  # ruby rails guide
-            1130: 3, 1140: 3, 1150: 2,
+            1130: 3,
+            1140: 3,
+            1150: 2,
         },
     }
     return records, sentence_ids, truth
@@ -133,10 +139,7 @@ def _make_corpus():
 def _measure(retrievers, context, truth) -> dict:
     """Run *retrievers* through ``run_retrievers`` and return per-dest NDCG@10."""
     fused = run_retrievers(retrievers, context=context)
-    return {
-        dest: _ndcg_at_k(fused.get(dest, []), truth[dest])
-        for dest in truth
-    }
+    return {dest: _ndcg_at_k(fused.get(dest, []), truth[dest]) for dest in truth}
 
 
 class Stage1FusionNdcgTests(SimpleTestCase):
@@ -236,7 +239,10 @@ class Stage1FusionNdcgTests(SimpleTestCase):
         # one is noise.
         truth = {
             (1, "thread"): {
-                100: 3, 110: 3, 120: 2, 130: 2,
+                100: 3,
+                110: 3,
+                120: 2,
+                130: 2,
             },
         }
         keys = tuple(truth.keys())

@@ -119,7 +119,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # misaligned boundaries, gaps between polygons, overlapping polygons.
     # Full specs in docs/specs/fr099-*.md through docs/specs/fr105-*.md.
     # Gate A + Gate B in docs/RANKING-GATES.md applied to every default below.
-
     # FR-099 — Dangling Authority Redistribution Bonus (DARB)
     # Baseline: Page, Brin, Motwani, Winograd 1999, Stanford InfoLab 1999-66
     # §2.5 "Dangling Links" + §3.2 eq. 1. Weight 0.04 ≈ 40% of weighted_authority
@@ -128,7 +127,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "darb.ranking_weight": "0.04",
     "darb.out_degree_saturation": "5",
     "darb.min_host_value": "0.5",
-
     # FR-100 — Katz Marginal Information Gain (KMIG)
     # Baseline: Katz 1953, Psychometrika 18(1) §2 eq. 2 + §3 attenuation β < 1/λ₁.
     # β=0.5 from Pigueiral 2017 EuroCG'17 truncated-Katz default.
@@ -137,7 +135,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "kmig.ranking_weight": "0.05",
     "kmig.attenuation": "0.5",
     "kmig.max_hops": "2",
-
     # FR-101 — Tarjan Articulation Point Boost (TAPB)
     # Baseline: Tarjan 1972, SIAM J. Computing 1(2) §3 articulation-point DFS.
     # Weight 0.03 matches link_farm.ranking_weight (another rare-event structural
@@ -145,7 +142,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "tapb.enabled": "true",
     "tapb.ranking_weight": "0.03",
     "tapb.apply_to_articulation_node_only": "true",
-
     # FR-102 — K-Core Integration Boost (KCIB)
     # Baseline: Seidman 1983, Social Networks 5(3) §2 eq. 1 k-core definition.
     # Modern impl: Batagelj & Zaversnik 2003 O(m) algorithm via networkx.
@@ -153,7 +149,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "kcib.enabled": "true",
     "kcib.ranking_weight": "0.03",
     "kcib.min_kcore_spread": "1",
-
     # FR-103 — Bridge-Edge Redundancy Penalty (BERP)
     # Baseline: Hopcroft & Tarjan 1973, CACM 16(6) §2 Algorithm 3 bridge-detection.
     # Weight 0.04 penalty matches keyword_stuffing.ranking_weight penalty band.
@@ -161,7 +156,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "berp.enabled": "true",
     "berp.ranking_weight": "0.04",
     "berp.min_component_size": "5",
-
     # FR-104 — Host-Graph Topic Entropy Boost (HGTE)
     # Baseline: Shannon 1948, BSTJ 27(3) §6 eq. 4 entropy formula.
     # Weight 0.04 matches rare_term_propagation.ranking_weight (another
@@ -170,7 +164,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "hgte.enabled": "true",
     "hgte.ranking_weight": "0.04",
     "hgte.min_host_out_degree": "3",
-
     # FR-105 — Reverse Search-Query Vocabulary Alignment (RSQVA)
     # Baseline: Salton & Buckley 1988, IP&M 24(5) §3 eq. 1 + §4 cosine similarity.
     # Click-weighting from Järvelin & Kekäläinen 2002 ACM TOIS 20(4) §2.1.
@@ -181,14 +174,12 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "rsqva.min_queries_per_page": "5",
     "rsqva.min_query_clicks": "1",
     "rsqva.max_vocab_size": "10000",
-
     # ════════════════════════════════════════════════════════════════
     # 52-pick optional helpers — Wire phase defaults
     # All values cited to the matching academic source. Each ``*.enabled``
     # is True so the pick fires on real data the moment the helper is
     # consulted.
     # ════════════════════════════════════════════════════════════════
-
     # ── Pick #22 VADER (Hutto & Gilbert 2014 ICWSM) ─────────────────
     # No tunable thresholds at the helper level — VADER's ``compound``
     # score is consulted directly by callers. The neutrality cutoff
@@ -203,14 +194,12 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # scores in social media routinely span ±0.5, so weight 0.05
     # bounds the per-candidate sentiment shift to ~ ±0.025.
     "vader_sentiment.ranking_weight": "0.05",
-
     # ── Pick #15 PySBD (Sadvilkar & Neumann 2020 ACL Demos) ────────
     # ``language=en`` matches our content; ``clean=False`` keeps the
     # caller in charge of post-processing (paper §3.1 — segmentation
     # is meant to be reversible by default).
     "pysbd_segmenter.enabled": "true",
     "pysbd_segmenter.language": "en",
-
     # ── Pick #17 YAKE! (Campos et al. 2020 Inf. Sci. §3.5) ─────────
     # ngram_max=3 captures the trigram phrases the paper Table 4
     # reports; dedup_threshold=0.9 mirrors Campos et al.'s LM-distance
@@ -220,7 +209,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "yake_keywords.dedup_threshold": "0.9",
     "yake_keywords.top_k": "20",
     "yake_keywords.language": "en",
-
     # ── Pick #7 Trafilatura (Barbaresi 2021 ACL Demos) ─────────────
     # Default profile (favor_recall=False) is the precision-tuned
     # extractor that the paper recommends for downstream NLP. Tables
@@ -231,7 +219,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "trafilatura_extractor.favor_recall": "false",
     "trafilatura_extractor.include_comments": "false",
     "trafilatura_extractor.include_tables": "true",
-
     # ── Pick #14 FastText LangID (Joulin et al. 2016 EACL §3) ─────
     # min_confidence=0.4 sits well below the paper's reported
     # ~0.998 mean confidence on clean inputs; we use 0.4 specifically
@@ -240,7 +227,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "fasttext_langid.enabled": "true",
     "fasttext_langid.model_path": "/opt/models/lid.176.bin",
     "fasttext_langid.min_confidence": "0.4",
-
     # ── Pick #18 LDA (Blei, Ng, Jordan 2003 JMLR §6) ──────────────
     # num_topics=50 is a small-corpus default — the paper's Wikipedia
     # experiment used 100 over 16k docs, but our forum corpus is
@@ -262,7 +248,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # gets a slightly larger weight than the unary signals (VADER /
     # KenLM) but stays under the dominant semantic + keyword inputs.
     "lda.ranking_weight": "0.10",
-
     # ── Pick #23 KenLM (Heafield 2011 WMT) ────────────────────────
     # order=3 = trigram (the paper's headline benchmark). Empty
     # model_path until the W1 ``kenlm_retrain`` job runs and writes
@@ -279,7 +264,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # the 0.05 weight intentionally keeps fluency a small "fine-tune"
     # signal rather than a primary ranker.
     "kenlm.ranking_weight": "0.05",
-
     # ── Pick #37 Node2Vec (Grover & Leskovec 2016 KDD §4 Table 1) ──
     # dimensions=64 + walk_length=30 + num_walks=200 + p=q=1.0 is the
     # "balanced community + structural" preset from the paper's
@@ -299,7 +283,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # via ``score_node_affinity`` — Node2Vec adds the dyadic
     # community-structure signal but doesn't need to dominate.
     "node2vec.ranking_weight": "0.05",
-
     # ── Pick #38 BPR (Rendle et al. 2009 UAI §5) ──────────────────
     # factors=50 keeps the latent matrix small at our scale; iterations,
     # learning_rate, regularization match Rendle et al.'s reported
@@ -316,7 +299,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # 2009 §5 evaluates BPR on personalised LTR with similar
     # weighting in mixed-feature LTR pipelines (Table 2 baselines).
     "bpr.ranking_weight": "0.05",
-
     # ── Pick #39 Factorization Machines (Rendle 2010 ICDM §3.1) ───
     # factors=8 keeps latent vectors tiny — fine for our small
     # feature space (~10 score columns + categorical anchor_confidence).
@@ -335,7 +317,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # a slightly larger share than the unary sentiment / fluency
     # picks.
     "factorization_machines.ranking_weight": "0.10",
-
     # ────────────────────────────────────────────────────────────────
     # Phase 6 ranker dispatcher — operator killswitch.
     # When false, the entire dispatcher short-circuits regardless of
@@ -343,7 +324,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # six paper-backed signals contribute on a fresh install.
     # ────────────────────────────────────────────────────────────────
     "phase6_ranker.enabled": "true",
-
     # ════════════════════════════════════════════════════════════════
     # PR-Anchor — anti-generic / pro-descriptive anchor signals.
     # Three composable algorithms feeding one additive contribution
@@ -353,7 +333,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # algos returns a non-neutral value. See
     # apps/pipeline/services/anchor_garbage_signals.py for the math.
     # ════════════════════════════════════════════════════════════════
-
     # Master toggle — operator killswitch for the entire dispatcher.
     "anchor_garbage_signals.enabled": "true",
     # Dispatcher ranking weight. ``0.05`` matches the VADER / KenLM /
@@ -363,7 +342,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     # becomes a bigger concern; lowering to 0.0 disables without
     # touching individual algo flags.
     "anchor_garbage_signals.ranking_weight": "0.05",
-
     # ── Algo 1 — Aho-Corasick generic-anchor blacklist ───────────
     # Aho & Corasick (1975) CACM. Curated lexicon of ~120 generic
     # phrases ships at apps/sources/generic_anchors.txt; operators
@@ -373,7 +351,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "generic_anchor_matcher.enabled": "true",
     "generic_anchor_matcher.lexicon_path": "",  # "" → use default path
     "generic_anchor_matcher.extra_phrases": "",  # newline-separated
-
     # ── Algo 2 — Damerau-Levenshtein + char-trigram Jaccard ──────
     # Damerau (1964) CACM + Broder (1997) SEQUENCES. Two
     # complementary string-similarity signals weighted equally
@@ -383,7 +360,6 @@ RECOMMENDED_PRESET_WEIGHTS: dict[str, str] = {
     "anchor_descriptiveness.enabled": "true",
     "anchor_descriptiveness.edit_distance_weight": "0.5",
     "anchor_descriptiveness.jaccard_weight": "0.5",
-
     # ── Algo 3 — Shannon entropy + Iglewicz-Hoaglin modified z ───
     # Shannon (1948) Bell Sys. Tech. J. + Iglewicz-Hoaglin (1993)
     # ASTM. Detects template-y (low entropy) and adversarial

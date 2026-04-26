@@ -181,9 +181,7 @@ def _key_to_token(key: Hashable) -> str:
     )
 
 
-def _persist_raw(
-    *, signal: str, scores: dict[str, float], full_node_count: int
-) -> int:
+def _persist_raw(*, signal: str, scores: dict[str, float], full_node_count: int) -> int:
     from django.utils import timezone
 
     from apps.core.models import AppSetting

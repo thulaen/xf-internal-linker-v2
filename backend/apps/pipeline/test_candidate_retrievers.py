@@ -84,12 +84,8 @@ class RunRetrieversTests(SimpleTestCase):
 
     def test_two_retrievers_unify_with_dedup_preserving_order(self) -> None:
         """fuse_with_rrf=False → C.1 dedup-preserving-order semantics."""
-        ret_a = _FakeRetriever(
-            "a", {("d1", "thread"): [10, 20, 30]}
-        )
-        ret_b = _FakeRetriever(
-            "b", {("d1", "thread"): [20, 40, 30, 50]}
-        )
+        ret_a = _FakeRetriever("a", {("d1", "thread"): [10, 20, 30]})
+        ret_b = _FakeRetriever("b", {("d1", "thread"): [20, 40, 30, 50]})
         result = run_retrievers(
             [ret_a, ret_b], context=_make_context(), fuse_with_rrf=False
         )
@@ -129,9 +125,7 @@ class RunRetrieversTests(SimpleTestCase):
         ret_a = _FakeRetriever("a", {("d1", "thread"): [10]})
         ret_b = _BoomRetriever()
         ret_c = _FakeRetriever("c", {("d1", "thread"): [20]})
-        result = run_retrievers(
-            [ret_a, ret_b, ret_c], context=_make_context()
-        )
+        result = run_retrievers([ret_a, ret_b, ret_c], context=_make_context())
         # A and C still contribute; B's exception is swallowed.
         self.assertEqual(result, {("d1", "thread"): [10, 20]})
 
@@ -349,9 +343,7 @@ class QueryExpansionRetrieverTests(SimpleTestCase):
             (2, "thread"): self._record("python beginner"),
         }
         sentence_ids = {(1, "thread"): [10], (2, "thread"): [20]}
-        ret = QueryExpansionRetriever(
-            enabled=True, prf_top_n=10, expansion_terms=5
-        )
+        ret = QueryExpansionRetriever(enabled=True, prf_top_n=10, expansion_terms=5)
         result = ret.retrieve(
             _make_context(
                 destination_keys=((1, "thread"),),

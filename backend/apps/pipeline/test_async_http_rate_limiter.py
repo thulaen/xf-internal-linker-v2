@@ -39,9 +39,7 @@ class TokenBucketWiringTests(SimpleTestCase):
         # actual HTTP. The fetch code path will hit the
         # ``wait_and_acquire`` branch and then the real HTTP attempt
         # will fail — that's expected; we only care about the gate.
-        with patch.object(
-            RATE_LIMITER, "wait_and_acquire", return_value=True
-        ) as gate:
+        with patch.object(RATE_LIMITER, "wait_and_acquire", return_value=True) as gate:
             asyncio.run(
                 async_http.fetch_urls(
                     [
@@ -72,9 +70,7 @@ class TokenBucketWiringTests(SimpleTestCase):
             BucketConfig(tokens_per_second=1000.0, burst_capacity=1000.0),
         )
 
-        with patch.object(
-            RATE_LIMITER, "wait_and_acquire", return_value=True
-        ) as gate:
+        with patch.object(RATE_LIMITER, "wait_and_acquire", return_value=True) as gate:
             asyncio.run(
                 async_http.fetch_urls(
                     ["https://example.invalid/a"],
@@ -93,9 +89,7 @@ class TokenBucketWiringTests(SimpleTestCase):
         )
 
         # Force every acquisition to fail.
-        with patch.object(
-            RATE_LIMITER, "wait_and_acquire", return_value=False
-        ):
+        with patch.object(RATE_LIMITER, "wait_and_acquire", return_value=False):
             results = asyncio.run(
                 async_http.fetch_urls(
                     ["https://example.invalid/a"],

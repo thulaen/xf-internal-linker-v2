@@ -89,9 +89,7 @@ class FactorizationMachinesTests(TestCase):
         self.assertEqual(factorization_machines.predict([]), [])
 
     def test_predict_cold_start_returns_none(self) -> None:
-        result = factorization_machines.predict(
-            [{"feature1": 1.0, "feature2": 0.5}]
-        )
+        result = factorization_machines.predict([{"feature1": 1.0, "feature2": 0.5}])
         self.assertIsNone(result)
 
     def test_invalid_path_returns_empty_snapshot(self) -> None:
@@ -230,8 +228,8 @@ class FactorizationMachinesTests(TestCase):
             # model cannot — it would need to put (1,1) above (0,0)
             # AND below (0,1) simultaneously, which no linear function
             # can.
-            same_avg = (preds[0] + preds[3]) / 2.0     # both (a==b)
-            diff_avg = (preds[1] + preds[2]) / 2.0     # both (a!=b)
+            same_avg = (preds[0] + preds[3]) / 2.0  # both (a==b)
+            diff_avg = (preds[1] + preds[2]) / 2.0  # both (a!=b)
             self.assertGreater(
                 diff_avg - same_avg,
                 0.3,
@@ -241,12 +239,10 @@ class FactorizationMachinesTests(TestCase):
             )
             # Also assert the residual MSE is below what a linear-only
             # baseline (mean(y) ≈ 0.5) would achieve.
-            mse_fm = sum(
-                (p - t) ** 2 for p, t in zip(preds, [0.0, 1.0, 1.0, 0.0])
-            ) / 4.0
-            mse_baseline = sum(
-                (0.5 - t) ** 2 for t in [0.0, 1.0, 1.0, 0.0]
-            ) / 4.0
+            mse_fm = (
+                sum((p - t) ** 2 for p, t in zip(preds, [0.0, 1.0, 1.0, 0.0])) / 4.0
+            )
+            mse_baseline = sum((0.5 - t) ** 2 for t in [0.0, 1.0, 1.0, 0.0]) / 4.0
             self.assertLess(
                 mse_fm,
                 mse_baseline,

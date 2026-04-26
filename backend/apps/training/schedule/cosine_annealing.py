@@ -37,7 +37,7 @@ class CosineAnnealingSchedule:
 
     lr_max: float
     lr_min: float
-    cycle_length: int       # T — steps per cycle (paper's T_i)
+    cycle_length: int  # T — steps per cycle (paper's T_i)
     cycle_multiplier: float = 1.0  # T_mult — multiply T after each restart
 
 
@@ -68,6 +68,4 @@ def learning_rate_at_step(
     # Within-cycle cosine.
     progress = remaining / max(1, current_T)
     cosine_term = 0.5 * (1.0 + math.cos(math.pi * progress))
-    return float(
-        schedule.lr_min + (schedule.lr_max - schedule.lr_min) * cosine_term
-    )
+    return float(schedule.lr_min + (schedule.lr_max - schedule.lr_min) * cosine_term)

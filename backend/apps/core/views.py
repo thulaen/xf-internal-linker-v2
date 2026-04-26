@@ -2998,11 +2998,13 @@ class DashboardView(APIView):
         # not the drain-and-resume runtime switch target row.
         runtime_mode = "CPU"
         try:
-            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
-
-            runtime_mode = (
-                get_effective_runtime_resolution()["effective_runtime_mode"].upper()
+            from apps.pipeline.services.embeddings import (
+                get_effective_runtime_resolution,
             )
+
+            runtime_mode = get_effective_runtime_resolution()[
+                "effective_runtime_mode"
+            ].upper()
         except Exception:
             logger.debug("Embedding runtime unavailable, using default runtime_mode")
 
@@ -3616,7 +3618,9 @@ class RuntimeSettingsView(APIView):
                 .first()
             )
             master_pause = (master_pause_val or "false").lower() == "true"
-            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
+            from apps.pipeline.services.embeddings import (
+                get_effective_runtime_resolution,
+            )
 
             effective_runtime_mode = get_effective_runtime_resolution()[
                 "effective_runtime_mode"
@@ -3707,7 +3711,9 @@ class RuntimeSwitchView(APIView):
         )
 
         try:
-            from apps.pipeline.services.embeddings import get_effective_runtime_resolution
+            from apps.pipeline.services.embeddings import (
+                get_effective_runtime_resolution,
+            )
 
             effective_runtime_mode = get_effective_runtime_resolution()[
                 "effective_runtime_mode"

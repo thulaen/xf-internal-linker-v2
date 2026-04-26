@@ -102,7 +102,14 @@ def test_bench_personalized_pagerank_small(benchmark):
     p = _seed_personalization(100)
     benchmark(
         pr.personalized_pagerank_step,
-        indptr, indices, data, ranks, dangling, p, 0.15, 100,
+        indptr,
+        indices,
+        data,
+        ranks,
+        dangling,
+        p,
+        0.15,
+        100,
     )
 
 
@@ -112,7 +119,14 @@ def test_bench_personalized_pagerank_medium(benchmark):
     p = _seed_personalization(10_000)
     benchmark(
         pr.personalized_pagerank_step,
-        indptr, indices, data, ranks, dangling, p, 0.15, 10_000,
+        indptr,
+        indices,
+        data,
+        ranks,
+        dangling,
+        p,
+        0.15,
+        10_000,
     )
 
 
@@ -122,7 +136,14 @@ def test_bench_personalized_pagerank_large(benchmark):
     p = _seed_personalization(100_000)
     benchmark(
         pr.personalized_pagerank_step,
-        indptr, indices, data, ranks, dangling, p, 0.15, 100_000,
+        indptr,
+        indices,
+        data,
+        ranks,
+        dangling,
+        p,
+        0.15,
+        100_000,
     )
 
 

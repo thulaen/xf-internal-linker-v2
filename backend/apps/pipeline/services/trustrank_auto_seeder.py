@@ -116,9 +116,9 @@ def pick_seeds(
 
     # 1. Inverse PageRank.
     inverse_pr = nx.pagerank(graph.reverse(copy=False))
-    candidates = sorted(
-        inverse_pr.items(), key=lambda pair: (-pair[1], str(pair[0]))
-    )[:candidate_pool_size]
+    candidates = sorted(inverse_pr.items(), key=lambda pair: (-pair[1], str(pair[0])))[
+        :candidate_pool_size
+    ]
 
     survivors: list[Hashable] = []
     rejected = 0

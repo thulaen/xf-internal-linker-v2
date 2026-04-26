@@ -89,7 +89,9 @@ class _Fixture:
                 status = "approved" if i < approved_count else "rejected"
             else:
                 status = (
-                    "approved" if i % int(round(1 / approved_ratio)) == 0 else "rejected"
+                    "approved"
+                    if i % int(round(1 / approved_ratio)) == 0
+                    else "rejected"
                 )
             rows.append(
                 Suggestion(

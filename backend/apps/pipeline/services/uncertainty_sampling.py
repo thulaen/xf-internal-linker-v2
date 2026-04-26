@@ -127,7 +127,12 @@ def score(
 def _to_2d_probabilities(
     probabilities: Iterable[Sequence[float]] | np.ndarray,
 ) -> np.ndarray:
-    arr = np.asarray(list(probabilities) if not isinstance(probabilities, np.ndarray) else probabilities, dtype=float)
+    arr = np.asarray(
+        list(probabilities)
+        if not isinstance(probabilities, np.ndarray)
+        else probabilities,
+        dtype=float,
+    )
     if arr.size == 0:
         return arr.reshape(0, 0)
     if arr.ndim == 1:

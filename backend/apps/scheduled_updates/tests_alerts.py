@@ -239,9 +239,7 @@ class DetectMissedJobsTests(TestCase):
         )
         transitioned = detect_missed_jobs(now=NOW)
         assert transitioned == []
-        assert (
-            JobAlert.objects.filter(job_key="on-demand").count() == 0
-        )
+        assert JobAlert.objects.filter(job_key="on-demand").count() == 0
 
     def test_running_jobs_not_flagged(self) -> None:
         # A job currently executing is not "stale" even with an old
@@ -262,15 +260,19 @@ class DetectStalledJobsTests(TestCase):
             key="long-runner",
             display_name="Long Runner",
             state=JOB_STATE_RUNNING,
-            started_at=NOW - dt.timedelta(hours=STALLED_JOB_THRESHOLD_SECONDS // 3600 + 1),
+            started_at=NOW
+            - dt.timedelta(hours=STALLED_JOB_THRESHOLD_SECONDS // 3600 + 1),
         )
         detected = detect_stalled_jobs(now=NOW)
 
         assert [j.pk for j in detected] == [running.pk]
-        assert JobAlert.objects.filter(
-            job_key="long-runner",
-            alert_type=ALERT_TYPE_STALLED,
-        ).count() == 1
+        assert (
+            JobAlert.objects.filter(
+                job_key="long-runner",
+                alert_type=ALERT_TYPE_STALLED,
+            ).count()
+            == 1
+        )
 
         running.refresh_from_db()
         # State is NOT changed — operator decides whether to pause/cancel.

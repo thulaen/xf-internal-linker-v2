@@ -4,15 +4,19 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0038_suggestion_score_query_likelihood'),
+        ("suggestions", "0038_suggestion_score_query_likelihood"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='uncertainty_score',
-            field=models.FloatField(blank=True, db_index=True, help_text='Lewis-Gale 1994 uncertainty (least-confidence on the binary calibrated_probability). Higher = more uncertain → review first. NULL when calibrated_probability is NULL.', null=True),
+            model_name="suggestion",
+            name="uncertainty_score",
+            field=models.FloatField(
+                blank=True,
+                db_index=True,
+                help_text="Lewis-Gale 1994 uncertainty (least-confidence on the binary calibrated_probability). Higher = more uncertain → review first. NULL when calibrated_probability is NULL.",
+                null=True,
+            ),
         ),
     ]

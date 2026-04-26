@@ -121,7 +121,15 @@ def update_alpha_from_recent_outcomes(
     # Pull the most recent reviewed Suggestions whose bounds are set.
     rows = list(
         Suggestion.objects.filter(
-            status__in=["approved", "applied", "verified", "rejected", "declined", "dismissed", "superseded"],
+            status__in=[
+                "approved",
+                "applied",
+                "verified",
+                "rejected",
+                "declined",
+                "dismissed",
+                "superseded",
+            ],
             confidence_lower_bound__isnull=False,
             confidence_upper_bound__isnull=False,
         )

@@ -104,9 +104,7 @@ def canonicalize(
 
     parts = urlsplit(url)
     if not parts.scheme or not parts.netloc:
-        raise ValueError(
-            f"URL must be absolute (scheme + host required): {url!r}"
-        )
+        raise ValueError(f"URL must be absolute (scheme + host required): {url!r}")
 
     scheme = parts.scheme.lower()
     host = (parts.hostname or "").lower()
@@ -126,9 +124,7 @@ def canonicalize(
     if strip_tracking_params:
         prefixes = tuple(tracking_prefixes)
         qs_pairs = [
-            (k, v)
-            for (k, v) in qs_pairs
-            if not _matches_tracking_prefix(k, prefixes)
+            (k, v) for (k, v) in qs_pairs if not _matches_tracking_prefix(k, prefixes)
         ]
     if sort_query_params:
         qs_pairs.sort()

@@ -113,9 +113,7 @@ class NdcgResult:
             "confidence_upper": self.confidence_upper,
             "message": self.message,
             "fitted_at": self.fitted_at,
-            "breakdown_by_candidate_origin": dict(
-                self.breakdown_by_candidate_origin
-            ),
+            "breakdown_by_candidate_origin": dict(self.breakdown_by_candidate_origin),
         }
 
 

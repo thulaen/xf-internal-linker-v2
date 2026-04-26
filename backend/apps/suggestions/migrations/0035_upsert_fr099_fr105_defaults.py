@@ -28,38 +28,32 @@ NEW_VALUES = {
     "darb.ranking_weight": "0.04",
     "darb.out_degree_saturation": "5",
     "darb.min_host_value": "0.5",
-
     # FR-100 Katz Marginal Information Gain
     # Baseline: Katz 1953, Psychometrika 18(1) §2 eq. 2 + §3; β=0.5 from Pigueiral 2017 EuroCG'17
     "kmig.enabled": "true",
     "kmig.ranking_weight": "0.05",
     "kmig.attenuation": "0.5",
     "kmig.max_hops": "2",
-
     # FR-101 Tarjan Articulation Point Boost
     # Baseline: Tarjan 1972, SIAM J. Computing 1(2) §3 eq. 3.2
     "tapb.enabled": "true",
     "tapb.ranking_weight": "0.03",
     "tapb.apply_to_articulation_node_only": "true",
-
     # FR-102 K-Core Integration Boost
     # Baseline: Seidman 1983, Social Networks 5(3) §2 eq. 1; Batagelj-Zaversnik 2003 O(m) algorithm
     "kcib.enabled": "true",
     "kcib.ranking_weight": "0.03",
     "kcib.min_kcore_spread": "1",
-
     # FR-103 Bridge-Edge Redundancy Penalty
     # Baseline: Hopcroft & Tarjan 1973, CACM 16(6) §2 Algorithm 3
     "berp.enabled": "true",
     "berp.ranking_weight": "0.04",
     "berp.min_component_size": "5",
-
     # FR-104 Host-Graph Topic Entropy Boost
     # Baseline: Shannon 1948, Bell System Tech Journal 27(3) §6 eq. 4
     "hgte.enabled": "true",
     "hgte.ranking_weight": "0.04",
     "hgte.min_host_out_degree": "3",
-
     # FR-105 Reverse Search-Query Vocabulary Alignment
     # Baseline: Salton & Buckley 1988, IP&M 24(5) §3 eq. 1 + §4 cosine;
     # Järvelin-Kekäläinen 2002 ACM TOIS 20(4) §2.1 click-weighted CG

@@ -63,7 +63,7 @@ class ReadabilityScores:
     sentence_count: int
     syllable_count: int
     complex_word_count: int
-    avg_sentence_length: float      # words / sentences
+    avg_sentence_length: float  # words / sentences
     avg_syllables_per_word: float
     flesch_kincaid_grade: float
     gunning_fog: float
@@ -100,15 +100,8 @@ def score(text: str) -> ReadabilityScores:
     avg_sentence_length = word_count / sentences
     avg_syll_per_word = syllable_total / word_count
 
-    fkgl = (
-        0.39 * avg_sentence_length
-        + 11.8 * avg_syll_per_word
-        - 15.59
-    )
-    fog = 0.4 * (
-        avg_sentence_length
-        + 100 * (complex_word_count / word_count)
-    )
+    fkgl = 0.39 * avg_sentence_length + 11.8 * avg_syll_per_word - 15.59
+    fog = 0.4 * (avg_sentence_length + 100 * (complex_word_count / word_count))
     return ReadabilityScores(
         word_count=word_count,
         sentence_count=sentences,

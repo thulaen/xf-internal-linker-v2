@@ -4,20 +4,26 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('cooccurrence', '0003_add_log_likelihood_score'),
+        ("cooccurrence", "0003_add_log_likelihood_score"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='sessioncooccurrencepair',
-            name='npmi_score',
-            field=models.FloatField(default=0.0, help_text='Bouma 2009 normalised PMI in [-1, 1]. Easier to threshold across corpora of different sizes than raw PMI.'),
+            model_name="sessioncooccurrencepair",
+            name="npmi_score",
+            field=models.FloatField(
+                default=0.0,
+                help_text="Bouma 2009 normalised PMI in [-1, 1]. Easier to threshold across corpora of different sizes than raw PMI.",
+            ),
         ),
         migrations.AddField(
-            model_name='sessioncooccurrencepair',
-            name='pmi_score',
-            field=models.FloatField(db_index=True, default=0.0, help_text='Church & Hanks 1990 Pointwise Mutual Information (base-2). Positive = co-occur more than chance; 0 = independent; negative = less than chance. Same counts as G².'),
+            model_name="sessioncooccurrencepair",
+            name="pmi_score",
+            field=models.FloatField(
+                db_index=True,
+                default=0.0,
+                help_text="Church & Hanks 1990 Pointwise Mutual Information (base-2). Positive = co-occur more than chance; 0 = independent; negative = less than chance. Same counts as G².",
+            ),
         ),
     ]

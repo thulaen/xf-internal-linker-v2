@@ -12,7 +12,9 @@ from __future__ import annotations
 import numpy as np
 
 
-def _scan_inner_loop(vectors: np.ndarray, target_dim: int, norm_tolerance: float) -> dict[str, int]:
+def _scan_inner_loop(
+    vectors: np.ndarray, target_dim: int, norm_tolerance: float
+) -> dict[str, int]:
     """Replicates the hot inner path of ``scan_embedding_health`` (norm + dim gate).
 
     Kept here as a pure function so the benchmark does not need a populated DB.

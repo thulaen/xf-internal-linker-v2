@@ -183,15 +183,11 @@ def _coerce_bool(value, fallback: bool) -> bool:
     return fallback
 
 
-def _validate_pick(
-    pick: str, payload: dict, current: dict
-) -> dict[str, bool]:
+def _validate_pick(pick: str, payload: dict, current: dict) -> dict[str, bool]:
     out: dict[str, bool] = {}
     for field, default_value in _PICK_DEFAULTS[pick].items():
         incoming = payload.get(field, current.get(field, default_value))
-        out[field] = _coerce_bool(
-            incoming, bool(current.get(field, default_value))
-        )
+        out[field] = _coerce_bool(incoming, bool(current.get(field, default_value)))
     return out
 
 

@@ -832,13 +832,9 @@ def score_destination_matches(
                     host_key=host_key,
                     destination_key=destination.key,
                     score_components=phase6_score_components,
-                    anchor_confidence=getattr(
-                        phrase_match, "anchor_confidence", None
-                    ),
+                    anchor_confidence=getattr(phrase_match, "anchor_confidence", None),
                 )
-                score_final += float(
-                    phase6_contribution.contribute_total(phase6_ctx)
-                )
+                score_final += float(phase6_contribution.contribute_total(phase6_ctx))
             except Exception as exc:  # pragma: no cover — defensive
                 logger.warning(
                     "phase6_contribution.contribute_total raised: %s",
@@ -856,9 +852,7 @@ def score_destination_matches(
         if anchor_garbage_dispatcher is not None:
             try:
                 anchor_text = phrase_match.anchor_phrase or ""
-                dest_title_for_anchor = (
-                    getattr(destination, "title", "") or ""
-                )
+                dest_title_for_anchor = getattr(destination, "title", "") or ""
                 # URL slug: parse from the destination's URL when
                 # available; defaults to "" so the descriptiveness
                 # algorithm short-circuits the slug check.

@@ -30,11 +30,11 @@ from scipy.optimize import minimize
 class LbfgsBResult:
     """Outcome of a single L-BFGS-B run."""
 
-    x: list[float]               # final parameter vector
-    fun: float                   # final objective value
-    converged: bool              # scipy's ``success`` flag
-    iterations: int              # iteration count
-    message: str                 # scipy's status message
+    x: list[float]  # final parameter vector
+    fun: float  # final objective value
+    converged: bool  # scipy's ``success`` flag
+    iterations: int  # iteration count
+    message: str  # scipy's status message
 
 
 def minimize_lbfgs_b(

@@ -79,7 +79,11 @@ def evaluate_hgte(
     if not settings.enabled:
         return HGTEEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
     if silo_cache is None:

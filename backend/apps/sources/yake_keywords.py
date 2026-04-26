@@ -60,9 +60,7 @@ def is_available() -> bool:
 _EXTRACTOR_CACHE: dict[tuple[str, int, float, int], object] = {}
 
 
-def _get_extractor(
-    language: str, ngram_max: int, dedup_threshold: float, top_k: int
-):
+def _get_extractor(language: str, ngram_max: int, dedup_threshold: float, top_k: int):
     """Return a cached :class:`yake.KeywordExtractor` for the params.
 
     Different parameter combinations get their own cached instance —

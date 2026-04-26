@@ -121,7 +121,9 @@ KEY_CORPUS_ENTROPY_MAD = "anchor_self_information.corpus_entropy_mad"
 #: Path the lexicon ships at by default. Operators can point at a
 #: different file via ``KEY_GENERIC_LEXICON_PATH``.
 _DEFAULT_LEXICON_PATH = os.path.join(
-    os.path.dirname(os.path.dirname(__file__)),  # apps/pipeline/services → apps/pipeline → apps
+    os.path.dirname(
+        os.path.dirname(__file__)
+    ),  # apps/pipeline/services → apps/pipeline → apps
     "..",
     "sources",
     "generic_anchors.txt",
@@ -195,9 +197,7 @@ def _load_lexicon(*, lexicon_path: str | None = None) -> tuple[str, ...]:
     try:
         from apps.core.models import AppSetting
 
-        extra_row = AppSetting.objects.filter(
-            key=KEY_GENERIC_EXTRA_PHRASES
-        ).first()
+        extra_row = AppSetting.objects.filter(key=KEY_GENERIC_EXTRA_PHRASES).first()
         if extra_row and extra_row.value:
             for raw in extra_row.value.splitlines():
                 line = raw.strip().lower()
@@ -233,7 +233,9 @@ def _compiled_lexicon(lexicon_path: str | None) -> tuple[tuple[str, ...], object
     return phrases, None
 
 
-def generic_score(anchor: str, *, lexicon_path: str | None = None) -> GenericMatchResult:
+def generic_score(
+    anchor: str, *, lexicon_path: str | None = None
+) -> GenericMatchResult:
     """Return matched generic phrases + a [0, 1] genericness ratio.
 
     Cold-start safe: empty anchor / disabled toggle / missing
@@ -306,7 +308,7 @@ class DescriptivenessResult:
 
     edit_distance_ratio: float  # [0, 1]; 0 = identical, 1 = no overlap
     char_trigram_jaccard: float  # [0, 1]; high = lexically descriptive
-    score: float                  # [-1, +1]; positive = descriptive
+    score: float  # [-1, +1]; positive = descriptive
 
 
 def descriptiveness_score(
@@ -366,9 +368,8 @@ def descriptiveness_score(
     # Composite. Manufactured = (1 - edit_distance_ratio) is high
     # when anchor ≈ slug. Subtract its weight; add the Jaccard
     # weight. Clamp to [-1, 1].
-    raw = (
-        jaccard_weight * char_jaccard
-        - edit_distance_weight * (1.0 - edit_distance_ratio)
+    raw = jaccard_weight * char_jaccard - edit_distance_weight * (
+        1.0 - edit_distance_ratio
     )
     score = max(-1.0, min(1.0, raw))
     return DescriptivenessResult(
@@ -404,17 +405,12 @@ def _damerau_levenshtein(a: str, b: str) -> int:
         for j in range(1, m + 1):
             cost = 0 if a[i - 1] == b[j - 1] else 1
             curr_row[j] = min(
-                curr_row[j - 1] + 1,        # insertion
-                prev_row[j] + 1,            # deletion
-                prev_row[j - 1] + cost,     # substitution
+                curr_row[j - 1] + 1,  # insertion
+                prev_row[j] + 1,  # deletion
+                prev_row[j - 1] + cost,  # substitution
             )
             # Damerau extension — adjacent transposition.
-            if (
-                i > 1
-                and j > 1
-                and a[i - 1] == b[j - 2]
-                and a[i - 2] == b[j - 1]
-            ):
+            if i > 1 and j > 1 and a[i - 1] == b[j - 2] and a[i - 2] == b[j - 1]:
                 curr_row[j] = min(curr_row[j], prev_prev_row[j - 2] + cost)
         prev_prev_row, prev_row, curr_row = prev_row, curr_row, prev_prev_row
     return prev_row[m]
@@ -488,18 +484,14 @@ def self_information_score(
 
     entropy = _bigram_entropy(anchor.lower())
 
-    median, mad, thresh = _resolve_corpus_stats(
-        corpus_median, corpus_mad, threshold
-    )
+    median, mad, thresh = _resolve_corpus_stats(corpus_median, corpus_mad, threshold)
 
     # Iglewicz-Hoaglin 1993 §2: M_i = 0.6745 × (x_i - median) / MAD.
     # Guard MAD ≥ epsilon so the divide can't blow up.
     if mad < 1e-9:
         modified_z = 0.0
     else:
-        modified_z = (
-            _IGLEWICZ_HOAGLIN_CONSTANT * (entropy - median) / mad
-        )
+        modified_z = _IGLEWICZ_HOAGLIN_CONSTANT * (entropy - median) / mad
 
     anomaly = abs(modified_z) > thresh
     # Penalty magnitude — bounded so a single off-distribution anchor
@@ -524,7 +516,9 @@ def _bigram_entropy(text: str) -> float:
     H(X) = -Σ p(x) log₂ p(x) over the bigram distribution. C++
     fast-path falls through to pure Python when not built.
     """
-    if _HAS_CPP_SELF_INFO and _cpp_self_info is not None:  # pragma: no cover — needs build
+    if (
+        _HAS_CPP_SELF_INFO and _cpp_self_info is not None
+    ):  # pragma: no cover — needs build
         try:
             return float(_cpp_self_info.bigram_entropy(text))  # type: ignore[union-attr]
         except Exception as exc:
@@ -575,15 +569,15 @@ def _resolve_corpus_stats(
             return fallback
 
     return (
-        median if median is not None else _f(
-            rows.get(KEY_CORPUS_ENTROPY_MEDIAN), DEFAULT_CORPUS_ENTROPY_MEDIAN
-        ),
-        mad if mad is not None else _f(
-            rows.get(KEY_CORPUS_ENTROPY_MAD), DEFAULT_CORPUS_ENTROPY_MAD
-        ),
-        threshold if threshold is not None else _f(
-            rows.get(KEY_SELF_INFO_THRESHOLD), DEFAULT_MODIFIED_Z_THRESHOLD
-        ),
+        median
+        if median is not None
+        else _f(rows.get(KEY_CORPUS_ENTROPY_MEDIAN), DEFAULT_CORPUS_ENTROPY_MEDIAN),
+        mad
+        if mad is not None
+        else _f(rows.get(KEY_CORPUS_ENTROPY_MAD), DEFAULT_CORPUS_ENTROPY_MAD),
+        threshold
+        if threshold is not None
+        else _f(rows.get(KEY_SELF_INFO_THRESHOLD), DEFAULT_MODIFIED_Z_THRESHOLD),
     )
 
 
@@ -673,9 +667,7 @@ def build_anchor_garbage_signals() -> AnchorGarbageDispatcher | None:
 
         if not is_enabled(KEY_DISPATCHER_ENABLED, default=True):
             return None
-        row = AppSetting.objects.filter(
-            key=KEY_DISPATCHER_WEIGHT
-        ).first()
+        row = AppSetting.objects.filter(key=KEY_DISPATCHER_WEIGHT).first()
     except Exception:
         return None
     if row is None or not row.value:

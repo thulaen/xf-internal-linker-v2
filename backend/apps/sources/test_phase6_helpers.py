@@ -31,22 +31,16 @@ class VaderSentimentTests(SimpleTestCase):
         self.assertEqual(n.negative, 0.0)
         self.assertEqual(n.neutral, 1.0)
 
-    @unittest.skipUnless(
-        vader_sentiment.HAS_VADER, "vaderSentiment not installed"
-    )
+    @unittest.skipUnless(vader_sentiment.HAS_VADER, "vaderSentiment not installed")
     def test_positive_text_has_positive_compound(self) -> None:
-        result = vader_sentiment.score(
-            "This is a wonderful, amazing, fantastic day!"
-        )
+        result = vader_sentiment.score("This is a wonderful, amazing, fantastic day!")
         self.assertGreater(result.compound, 0.5)
         self.assertFalse(result.is_neutral)
 
     def test_cold_start_when_dep_missing_still_returns_neutral(self) -> None:
         """Documents the documented cold-start behaviour."""
         if not vader_sentiment.HAS_VADER:
-            self.assertIs(
-                vader_sentiment.score("anything"), vader_sentiment.NEUTRAL
-            )
+            self.assertIs(vader_sentiment.score("anything"), vader_sentiment.NEUTRAL)
         else:
             self.skipTest("VADER is installed — cold-start test n/a")
 

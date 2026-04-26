@@ -102,9 +102,7 @@ def load_snapshot() -> IpsSnapshot | None:
             fitted_at=rows.get(KEY_FITTED_AT),
         )
     except (TypeError, ValueError):
-        logger.warning(
-            "position_bias_ips_producer: malformed AppSetting row, ignoring"
-        )
+        logger.warning("position_bias_ips_producer: malformed AppSetting row, ignoring")
         return None
 
 
@@ -121,9 +119,7 @@ def ips_weight_for_position(
     snap = snapshot if snapshot is not None else load_snapshot()
     if snap is None:
         return ips_weight(position=position)
-    return ips_weight(
-        position=position, eta=snap.eta, max_weight=snap.max_weight
-    )
+    return ips_weight(position=position, eta=snap.eta, max_weight=snap.max_weight)
 
 
 # ── Producer ──────────────────────────────────────────────────────
@@ -203,8 +199,7 @@ def fit_and_persist_from_impressions(
         by_position[log.shown_position].append(log.clicked)
     if len(by_position) < 2:
         logger.info(
-            "position_bias_ips_producer: only %d distinct positions, "
-            "skipping fit",
+            "position_bias_ips_producer: only %d distinct positions, " "skipping fit",
             len(by_position),
         )
         return None

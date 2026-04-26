@@ -207,8 +207,7 @@ def fit_and_persist_from_impressions(
     )
     if len(rows) < min_impressions:
         logger.info(
-            "cascade_click_em_producer: %d impressions (< %d minimum), "
-            "skipping fit",
+            "cascade_click_em_producer: %d impressions (< %d minimum), " "skipping fit",
             len(rows),
             min_impressions,
         )

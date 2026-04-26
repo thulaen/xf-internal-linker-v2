@@ -55,11 +55,11 @@ class EmbeddingProvider(Protocol):
     lifetime of a single call (changing mid-call would cause dim mismatches).
     """
 
-    name: str                # "local" | "openai" | "gemini"
-    signature: str           # matches embedding_model_version
-    dimension: int           # vector length
-    max_tokens: int          # model context limit
-    tokenizer_name: str      # e.g. "cl100k_base", "bge-m3"
+    name: str  # "local" | "openai" | "gemini"
+    signature: str  # matches embedding_model_version
+    dimension: int  # vector length
+    max_tokens: int  # model context limit
+    tokenizer_name: str  # e.g. "cl100k_base", "bge-m3"
 
     def embed(
         self,

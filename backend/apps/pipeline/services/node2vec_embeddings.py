@@ -188,17 +188,14 @@ def fit_and_save(
         )
         model = n2v.fit(window=window, min_count=1, batch_words=4)
         vectors = {
-            str(node): [float(x) for x in model.wv[str(node)]]
-            for node in graph.nodes()
+            str(node): [float(x) for x in model.wv[str(node)]] for node in graph.nodes()
         }
     except Exception as exc:
         logger.warning("node2vec_embeddings.fit_and_save failed: %s", exc)
         return False
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
     with open(output_path, "wb") as fh:
-        pickle.dump(
-            {"vectors": vectors, "dimension": dimension}, fh, protocol=4
-        )
+        pickle.dump({"vectors": vectors, "dimension": dimension}, fh, protocol=4)
     # Clear the cache so the next load picks up the fresh file.
     global _CACHE
     _CACHE = None

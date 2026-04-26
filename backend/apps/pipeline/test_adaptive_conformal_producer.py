@@ -87,9 +87,7 @@ class AciProducerTests(TestCase):
         )
 
         for _ in range(DEFAULT_WINDOW_SIZE):
-            self._seed_reviewed(
-                score=0.5, status="approved", lower=0.4, upper=0.6
-            )
+            self._seed_reviewed(score=0.5, status="approved", lower=0.4, upper=0.6)
         # label=1.0 falls outside [0.4, 0.6] → not covered.
         result = update_alpha_from_recent_outcomes()
         self.assertGreater(result.observations_processed, 0)
@@ -104,9 +102,7 @@ class AciProducerTests(TestCase):
 
         # Bounds [-1, 2] always contain 0 and 1 → always covered.
         for _ in range(DEFAULT_WINDOW_SIZE):
-            self._seed_reviewed(
-                score=0.5, status="approved", lower=-1.0, upper=2.0
-            )
+            self._seed_reviewed(score=0.5, status="approved", lower=-1.0, upper=2.0)
         result = update_alpha_from_recent_outcomes()
         self.assertGreater(result.observations_processed, 0)
         self.assertLess(result.current_alpha, DEFAULT_TARGET_ALPHA)
@@ -119,9 +115,7 @@ class AciProducerTests(TestCase):
         )
 
         for _ in range(DEFAULT_WINDOW_SIZE):
-            self._seed_reviewed(
-                score=0.5, status="approved", lower=0.4, upper=0.6
-            )
+            self._seed_reviewed(score=0.5, status="approved", lower=0.4, upper=0.6)
         result = update_alpha_from_recent_outcomes()
         self.assertGreaterEqual(result.current_alpha, DEFAULT_CLIP_MIN)
         self.assertLessEqual(result.current_alpha, DEFAULT_CLIP_MAX)

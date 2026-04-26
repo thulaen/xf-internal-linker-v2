@@ -237,9 +237,7 @@ def predict_batch(texts: list[str]) -> list[LangPrediction]:
         code = label.replace("__label__", "")
         confidence = float(probs[0])
         if confidence < threshold:
-            out[orig_idx] = LangPrediction(
-                language=UND_LANGUAGE, confidence=confidence
-            )
+            out[orig_idx] = LangPrediction(language=UND_LANGUAGE, confidence=confidence)
         else:
             out[orig_idx] = LangPrediction(language=code, confidence=confidence)
     return out

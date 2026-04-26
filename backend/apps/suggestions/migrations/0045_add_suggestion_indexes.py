@@ -31,32 +31,31 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0031_contentitem_pq_code_contentitem_pq_code_version'),
-        ('suggestions', '0044_fasttext_path_to_opt'),
+        ("content", "0031_contentitem_pq_code_contentitem_pq_code_version"),
+        ("suggestions", "0044_fasttext_path_to_opt"),
     ]
 
     operations = [
         migrations.AddIndex(
-            model_name='suggestion',
+            model_name="suggestion",
             index=models.Index(
-                fields=['status', 'candidate_origin'],
-                name='sug_status_origin_idx',
+                fields=["status", "candidate_origin"],
+                name="sug_status_origin_idx",
             ),
         ),
         migrations.AddIndex(
-            model_name='suggestion',
+            model_name="suggestion",
             index=models.Index(
-                fields=['updated_at'],
-                name='sug_updated_at_idx',
+                fields=["updated_at"],
+                name="sug_updated_at_idx",
             ),
         ),
         migrations.AddIndex(
-            model_name='suggestion',
+            model_name="suggestion",
             index=models.Index(
-                fields=['status', 'updated_at'],
-                name='sug_status_updated_at_idx',
+                fields=["status", "updated_at"],
+                name="sug_status_updated_at_idx",
             ),
         ),
     ]

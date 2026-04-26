@@ -92,7 +92,9 @@ def embedding_status(request: Request) -> Response:
     profile = detect_profile()
     batch_size = recommended_batch_size(dimension=dimension or 1024, profile=profile)
 
-    first_of_month = timezone.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    first_of_month = timezone.now().replace(
+        day=1, hour=0, minute=0, second=0, microsecond=0
+    )
     spent_rows = (
         EmbeddingCostLedger.objects.filter(created_at__gte=first_of_month)
         .values("provider")
@@ -137,7 +139,9 @@ def embedding_status(request: Request) -> Response:
             "coverage": {
                 "total": total_items,
                 "embedded": with_embedding,
-                "pct": round(100.0 * with_embedding / total_items, 2) if total_items else 0.0,
+                "pct": round(100.0 * with_embedding / total_items, 2)
+                if total_items
+                else 0.0,
             },
             "spend_this_month": spent_by_provider,
             "recommended_provider": _get_setting("embedding.recommended_provider"),
@@ -190,7 +194,9 @@ def embedding_provider(request: Request) -> Response:
         )
     name = str(request.data.get("name") or "").strip().lower()
     if name not in ("local", "openai", "gemini"):
-        return Response({"detail": "invalid provider"}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(
+            {"detail": "invalid provider"}, status=status.HTTP_400_BAD_REQUEST
+        )
 
     from apps.core.models import AppSetting
     from apps.pipeline.services.embedding_providers import clear_cache

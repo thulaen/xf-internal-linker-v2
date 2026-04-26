@@ -23,7 +23,9 @@ def _unit(vec: list[float]) -> np.ndarray:
 class _StubProvider:
     """Returns a pre-set vector from embed_single; records call count."""
 
-    def __init__(self, vector: np.ndarray, *, raise_exc: Exception | None = None) -> None:
+    def __init__(
+        self, vector: np.ndarray, *, raise_exc: Exception | None = None
+    ) -> None:
         self._vector = vector
         self._raise = raise_exc
         self.calls = 0
@@ -178,4 +180,6 @@ class GateDecisionDataclassTests(SimpleTestCase):
         d = GateDecision("REPLACE", "passed_all_gates", 0.05)
         with self.assertRaises(Exception):
             d.action = "REJECT"  # type: ignore[misc]
-        self.assertEqual(hash(d), hash(GateDecision("REPLACE", "passed_all_gates", 0.05)))
+        self.assertEqual(
+            hash(d), hash(GateDecision("REPLACE", "passed_all_gates", 0.05))
+        )

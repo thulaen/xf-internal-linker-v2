@@ -49,7 +49,7 @@ class _ReservoirItem:
 
     suggestion_id: int
     score: float
-    label: float   # 1.0 = accepted, 0.0 = rejected, ignored when None.
+    label: float  # 1.0 = accepted, 0.0 = rejected, ignored when None.
 
 
 def load_reservoir_items() -> list[_ReservoirItem]:
@@ -79,9 +79,7 @@ def load_reservoir_items() -> list[_ReservoirItem]:
     if not ids:
         return []
 
-    rows = Suggestion.objects.filter(pk__in=ids).values(
-        "pk", "score", "status"
-    )
+    rows = Suggestion.objects.filter(pk__in=ids).values("pk", "score", "status")
     items: list[_ReservoirItem] = []
     for row in rows:
         status = row.get("status")
@@ -97,7 +95,9 @@ def load_reservoir_items() -> list[_ReservoirItem]:
     return items
 
 
-def ndcg_at_k(scores_and_labels: list[tuple[float, float]], *, k: int = DEFAULT_K) -> float:
+def ndcg_at_k(
+    scores_and_labels: list[tuple[float, float]], *, k: int = DEFAULT_K
+) -> float:
     """Compute NDCG@k over a list of ``(predicted_score, label)`` pairs.
 
     Plain Burges-formulation: DCG uses ``(2**label − 1) / log2(rank + 1)``.
@@ -109,12 +109,12 @@ def ndcg_at_k(scores_and_labels: list[tuple[float, float]], *, k: int = DEFAULT_
     # Rank by predicted score descending (stable for determinism).
     ranked = sorted(scores_and_labels, key=lambda p: -p[0])[:k]
     dcg = sum(
-        (2.0**pair[1] - 1.0) / math.log2(rank + 2.0)
+        (2.0 ** pair[1] - 1.0) / math.log2(rank + 2.0)
         for rank, pair in enumerate(ranked)
     )
     ideal = sorted(scores_and_labels, key=lambda p: -p[1])[:k]
     idcg = sum(
-        (2.0**pair[1] - 1.0) / math.log2(rank + 2.0)
+        (2.0 ** pair[1] - 1.0) / math.log2(rank + 2.0)
         for rank, pair in enumerate(ideal)
     )
     if idcg == 0.0:

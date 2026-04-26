@@ -136,9 +136,13 @@ def _make_checkpoint(job: ScheduledJob):
     def checkpoint(*, progress_pct: float, message: str = "") -> None:
         # Re-fetch pause_token from the DB — the request that flipped
         # it may have happened after the runner started.
-        fresh = ScheduledJob.objects.filter(pk=job.pk).values(
-            "pause_token",
-        ).first()
+        fresh = (
+            ScheduledJob.objects.filter(pk=job.pk)
+            .values(
+                "pause_token",
+            )
+            .first()
+        )
         if fresh is None:
             # Job row was deleted out from under us. Treat as failure
             # — continuing would be lying to the caller about state.
@@ -214,9 +218,9 @@ def _execute_job(job: ScheduledJob, definition: JobDefinition) -> str:
         tb = traceback.format_exc()
         logger.exception("scheduled_updates: job %s failed", job.key)
         failure_ts = timezone.now()
-        prior = ScheduledJob.objects.filter(pk=job.pk).values(
-            "log_tail"
-        ).first() or {"log_tail": ""}
+        prior = ScheduledJob.objects.filter(pk=job.pk).values("log_tail").first() or {
+            "log_tail": ""
+        }
         new_tail = (
             (prior["log_tail"] or "")
             + f"\n[FAIL {failure_ts.isoformat()}] {exc.__class__.__name__}: {exc}\n"
@@ -314,9 +318,7 @@ def run_next_scheduled_job() -> dict:
     # 23:00 that would block tomorrow's first tick).
     ttl = max(
         MIN_LOCK_TTL_SECONDS,
-        job.duration_estimate_sec
-        + LOCK_TTL_OVERHEAD_SECONDS
-        + OVERFLOW_GRACE_SECONDS,
+        job.duration_estimate_sec + LOCK_TTL_OVERHEAD_SECONDS + OVERFLOW_GRACE_SECONDS,
     )
     remaining = seconds_remaining_in_window()
     if remaining:

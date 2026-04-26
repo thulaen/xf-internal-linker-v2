@@ -96,7 +96,9 @@ def fit(
     scores = np.asarray(list(calibration_scores), dtype=float)
     labels = np.asarray(list(calibration_labels), dtype=float)
     if scores.shape != labels.shape:
-        raise ValueError("calibration_scores and calibration_labels must have matching shapes")
+        raise ValueError(
+            "calibration_scores and calibration_labels must have matching shapes"
+        )
     if scores.size == 0:
         raise ValueError("calibration set must have at least one pair")
 

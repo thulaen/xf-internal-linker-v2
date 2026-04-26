@@ -257,8 +257,7 @@ class RunnerBroadcastWiringTests(TestCase):
         _execute_job(job, JOB_REGISTRY["bcast-progress"])
 
         progress_events = [
-            c for c in mock_bcast.call_args_list
-            if c.kwargs["event"] == "job.progress"
+            c for c in mock_bcast.call_args_list if c.kwargs["event"] == "job.progress"
         ]
         assert len(progress_events) == 4
         pcts = [c.kwargs["payload"]["progress_pct"] for c in progress_events]
@@ -329,7 +328,8 @@ class AlertsBroadcastWiringTests(TestCase):
         acknowledge(alert.pk)
 
         events = [
-            c.kwargs["event"] for c in mock_bcast.call_args_list
+            c.kwargs["event"]
+            for c in mock_bcast.call_args_list
             if c.kwargs["event"] == "alert.acknowledged"
         ]
         assert len(events) == 1

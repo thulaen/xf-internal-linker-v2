@@ -112,18 +112,14 @@ def fuse_candidates(
             else None
         )
         for signal_name in graph_signals:
-            ranking = _ranking_from_graph_signal(
-                signal_name, universe=universe_set
-            )
+            ranking = _ranking_from_graph_signal(signal_name, universe=universe_set)
             if ranking:
                 rankings[f"graph:{signal_name}"] = ranking
                 contributing.append(f"graph:{signal_name}")
                 used_signals.append(signal_name)
 
     if not rankings:
-        return FusionResult(
-            fused=[], contributing_rankers=[], graph_signals_used=[]
-        )
+        return FusionResult(fused=[], contributing_rankers=[], graph_signals_used=[])
 
     fused_items = fuse(rankings, k=k, top_n=top_n)
     return FusionResult(

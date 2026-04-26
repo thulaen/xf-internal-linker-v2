@@ -104,9 +104,7 @@ class SuggestionImpressionEndpointTests(TestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_post_empty_array_returns_zero(self) -> None:
-        resp = self.client.post(
-            "/api/suggestions/impressions/", [], format="json"
-        )
+        resp = self.client.post("/api/suggestions/impressions/", [], format="json")
         self.assertEqual(resp.status_code, 200)
         self.assertEqual(resp.json()["written"], 0)
 
@@ -180,9 +178,7 @@ class SuggestionImpressionEndpointTests(TestCase):
 
     def test_post_requires_authentication(self) -> None:
         self.client.force_authenticate(user=None)
-        resp = self.client.post(
-            "/api/suggestions/impressions/", [], format="json"
-        )
+        resp = self.client.post("/api/suggestions/impressions/", [], format="json")
         # DRF returns 403 Forbidden (not 401) when no credentials are
         # provided and the view's permission class is IsAuthenticated.
         # That's the standard DRF behaviour — see

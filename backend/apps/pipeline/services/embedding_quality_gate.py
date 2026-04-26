@@ -49,9 +49,9 @@ _DEFAULT_STABILITY = 0.99
 class GateDecision:
     """Outcome of ``QualityGate.evaluate``. Hashable for set membership."""
 
-    action: str          # "REPLACE" | "REJECT" | "NOOP" | "ACCEPT_NEW"
-    reason: str          # short code
-    score_delta: float   # interpretation depends on which gate fired
+    action: str  # "REPLACE" | "REJECT" | "NOOP" | "ACCEPT_NEW"
+    reason: str  # short code
+    score_delta: float  # interpretation depends on which gate fired
 
 
 class QualityGate:
@@ -125,7 +125,9 @@ class QualityGate:
                 logger.debug("Gate 3 stability sample failed: %s", exc)
                 # If we cannot verify stability, accept rather than block; the
                 # audit / bake-off will catch regressions later.
-                return GateDecision("REPLACE", "passed_without_stability_check", float(delta))
+                return GateDecision(
+                    "REPLACE", "passed_without_stability_check", float(delta)
+                )
             if sample2.shape[0] != new_vec.shape[0]:
                 return GateDecision(
                     "REJECT", "stability_dimension_mismatch", float(delta)
@@ -164,6 +166,7 @@ def load_provider_ranking() -> dict[str, float]:
 
 def load_gate_thresholds() -> tuple[float, float, float]:
     """Return ``(quality_delta, noop_cosine, stability)`` from AppSettings."""
+
     def _f(key: str, fallback: float) -> float:
         try:
             from apps.core.models import AppSetting

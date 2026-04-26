@@ -109,12 +109,15 @@ class FilterContentRecordsTests(TestCase):
                 return LangPrediction(language="de", confidence=0.97)
             return LangPrediction(language="en", confidence=0.99)
 
-        with patch(
-            "apps.sources.fasttext_langid.is_available",
-            return_value=True,
-        ), patch(
-            "apps.sources.fasttext_langid.predict",
-            side_effect=fake_predict,
+        with (
+            patch(
+                "apps.sources.fasttext_langid.is_available",
+                return_value=True,
+            ),
+            patch(
+                "apps.sources.fasttext_langid.predict",
+                side_effect=fake_predict,
+            ),
         ):
             kept = language_filter.filter_english_content_records(records)
 

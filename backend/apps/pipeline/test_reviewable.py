@@ -38,7 +38,7 @@ class UncertaintySamplingTests(SimpleTestCase):
     def test_least_confidence_orders_low_max_probability_first(self) -> None:
         probs = [
             [0.9, 0.05, 0.05],  # confident — uncertainty 0.1
-            [0.5, 0.3, 0.2],    # uncertain — uncertainty 0.5
+            [0.5, 0.3, 0.2],  # uncertain — uncertainty 0.5
             [0.7, 0.15, 0.15],  # middle — uncertainty 0.3
         ]
         order = rank_by_uncertainty(probs, strategy="least_confidence")
@@ -48,7 +48,7 @@ class UncertaintySamplingTests(SimpleTestCase):
         probs = [
             [0.9, 0.05, 0.05],  # margin 0.85
             [0.45, 0.44, 0.11],  # margin 0.01 — most uncertain
-            [0.7, 0.2, 0.1],    # margin 0.5
+            [0.7, 0.2, 0.1],  # margin 0.5
         ]
         order = rank_by_uncertainty(probs, strategy="margin")
         self.assertEqual(order[0], 1)
@@ -159,9 +159,7 @@ class ConformalPredictionTests(SimpleTestCase):
 
     def test_mismatched_shape_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            conformal_fit(
-                calibration_scores=[1.0, 2.0], calibration_labels=[1.0]
-            )
+            conformal_fit(calibration_scores=[1.0, 2.0], calibration_labels=[1.0])
 
     def test_coverage_indicator_boundary_inclusive(self) -> None:
         interval = ConformalInterval(
@@ -219,7 +217,7 @@ class AdaptiveConformalInferenceTests(SimpleTestCase):
     def test_clip_prevents_runaway(self) -> None:
         aci = AdaptiveConformalInference(
             window_size=10,
-            learning_rate_gamma=10.0,   # pathological γ
+            learning_rate_gamma=10.0,  # pathological γ
         )
         for _ in range(100):
             aci.update(False)
@@ -252,6 +250,4 @@ class AdaptiveConformalInferenceTests(SimpleTestCase):
         with self.assertRaises(ValueError):
             AdaptiveConformalInference(clip_min=0.5, clip_max=0.2)
         with self.assertRaises(ValueError):
-            AdaptiveConformalInference(
-                target_alpha=0.05, clip_min=0.1, clip_max=0.5
-            )
+            AdaptiveConformalInference(target_alpha=0.05, clip_min=0.1, clip_max=0.5)

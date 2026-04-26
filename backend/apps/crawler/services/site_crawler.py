@@ -49,6 +49,7 @@ def _get_host_breaker(domain: str) -> CircuitBreaker:
         _HOST_BREAKERS[domain] = breaker
     return breaker
 
+
 logger = logging.getLogger(__name__)
 
 #: One per-process robots checker — its 24-h TTL cache amortises per-origin

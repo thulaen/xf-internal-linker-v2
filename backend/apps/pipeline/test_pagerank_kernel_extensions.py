@@ -160,12 +160,24 @@ class PersonalizedPageRankParityTests(SimpleTestCase):
         py_ranks = ranks.copy()
         for _ in range(20):
             cpp_next, cpp_delta = pagerank.personalized_pagerank_step(
-                indptr, indices, data, cpp_ranks, dangling, personalization,
-                damping, n,
+                indptr,
+                indices,
+                data,
+                cpp_ranks,
+                dangling,
+                personalization,
+                damping,
+                n,
             )
             py_next, py_delta = _ppr_reference(
-                indptr, indices, data, py_ranks, dangling, personalization,
-                damping, n,
+                indptr,
+                indices,
+                data,
+                py_ranks,
+                dangling,
+                personalization,
+                damping,
+                n,
             )
             np.testing.assert_allclose(cpp_next, py_next, atol=1e-9, rtol=0.0)
             self.assertAlmostEqual(cpp_delta, py_delta, places=9)
@@ -183,10 +195,23 @@ class PersonalizedPageRankParityTests(SimpleTestCase):
         damping = 0.15
 
         ppr_next, _ = pagerank.personalized_pagerank_step(
-            indptr, indices, data, ranks, dangling, uniform, damping, n,
+            indptr,
+            indices,
+            data,
+            ranks,
+            dangling,
+            uniform,
+            damping,
+            n,
         )
         plain_next, _ = pagerank.pagerank_step(
-            indptr, indices, data, ranks, dangling, damping, n,
+            indptr,
+            indices,
+            data,
+            ranks,
+            dangling,
+            damping,
+            n,
         )
         # Both formulations should converge to the same numbers within
         # rounding because PPR with uniform p[i]=1/N is mathematically
@@ -206,8 +231,14 @@ class PersonalizedPageRankParityTests(SimpleTestCase):
         seed_4 = ranks.copy()
         for _ in range(50):
             seed_4, _ = pagerank.personalized_pagerank_step(
-                indptr, indices, data, seed_4, dangling, personalization,
-                damping, n,
+                indptr,
+                indices,
+                data,
+                seed_4,
+                dangling,
+                personalization,
+                damping,
+                n,
             )
         # Node 4 should outscore at least one other node when it gets
         # all the teleport mass.
@@ -226,10 +257,20 @@ class HitsParityTests(SimpleTestCase):
 
         for _ in range(10):
             cpp_a, cpp_h = pagerank.hits_step(
-                indptr, indices, data, authority, hub, n,
+                indptr,
+                indices,
+                data,
+                authority,
+                hub,
+                n,
             )
             py_a, py_h = _hits_reference(
-                indptr, indices, data, authority, hub, n,
+                indptr,
+                indices,
+                data,
+                authority,
+                hub,
+                n,
             )
             np.testing.assert_allclose(cpp_a, py_a, atol=1e-9, rtol=0.0)
             np.testing.assert_allclose(cpp_h, py_h, atol=1e-9, rtol=0.0)
@@ -253,7 +294,12 @@ class HitsParityTests(SimpleTestCase):
         # bug where the kernel forgets to zero its outputs and
         # leaves NaN / stale values.
         out_a, out_h = pagerank.hits_step(
-            indptr, indices, data, authority, hub, n,
+            indptr,
+            indices,
+            data,
+            authority,
+            hub,
+            n,
         )
         np.testing.assert_array_equal(out_a, np.zeros(n))
         np.testing.assert_array_equal(out_h, np.zeros(n))
@@ -276,7 +322,12 @@ class HitsParityTests(SimpleTestCase):
         hub = np.full(n, 1.0 / n, dtype=np.float64)
         for _ in range(50):
             authority, hub = pagerank.hits_step(
-                indptr, indices, data, authority, hub, n,
+                indptr,
+                indices,
+                data,
+                authority,
+                hub,
+                n,
             )
             a_sum = authority.sum()
             h_sum = hub.sum()

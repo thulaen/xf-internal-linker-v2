@@ -4,20 +4,27 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0040_suggestion_score_elo_rating'),
+        ("suggestions", "0040_suggestion_score_elo_rating"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='confidence_lower_bound',
-            field=models.FloatField(blank=True, help_text='Lower edge of the (1-α) split-conformal interval around score_final (Vovk-Gammerman-Shafer 2005). NULL = uncalibrated (no fit yet).', null=True),
+            model_name="suggestion",
+            name="confidence_lower_bound",
+            field=models.FloatField(
+                blank=True,
+                help_text="Lower edge of the (1-α) split-conformal interval around score_final (Vovk-Gammerman-Shafer 2005). NULL = uncalibrated (no fit yet).",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='suggestion',
-            name='confidence_upper_bound',
-            field=models.FloatField(blank=True, help_text='Upper edge of the (1-α) split-conformal interval around score_final. NULL = uncalibrated.', null=True),
+            model_name="suggestion",
+            name="confidence_upper_bound",
+            field=models.FloatField(
+                blank=True,
+                help_text="Upper edge of the (1-α) split-conformal interval around score_final. NULL = uncalibrated.",
+                null=True,
+            ),
         ),
     ]

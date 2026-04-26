@@ -62,14 +62,20 @@ class DistillerYakeBoostTests(SimpleTestCase):
             idx=0,
             total=1,
             yake_keywords_lower=[
-                "alpha", "beta", "gamma", "delta", "epsilon",
-                "zeta", "eta", "theta", "iota", "kappa",
+                "alpha",
+                "beta",
+                "gamma",
+                "delta",
+                "epsilon",
+                "zeta",
+                "eta",
+                "theta",
+                "iota",
+                "kappa",
             ],
         )
         # Boost ≤ cap regardless of keyword count.
-        self.assertLessEqual(
-            boosted - baseline, distiller.YAKE_BOOST_CAP + 1e-9
-        )
+        self.assertLessEqual(boosted - baseline, distiller.YAKE_BOOST_CAP + 1e-9)
 
     def test_score_sentence_no_keyword_match_no_boost(self) -> None:
         sentence = "The opening sentence."
@@ -89,9 +95,7 @@ class DistillerYakeBoostTests(SimpleTestCase):
         (per ``_yake_keywords_lower``'s length guard)."""
         with patch(
             "apps.sources.yake_keywords.extract",
-            side_effect=AssertionError(
-                "extract() must NOT be called on short input"
-            ),
+            side_effect=AssertionError("extract() must NOT be called on short input"),
         ):
             # 22 chars total — under the 32-char threshold.
             distilled = distiller.distill_body(["A short sentence here."])
@@ -106,8 +110,10 @@ class DistillerYakeBoostTests(SimpleTestCase):
             return_value=[KeywordHit(keyword="example", score=0.01)],
         ) as mock_extract:
             distiller.distill_body(
-                ["First long enough sentence in this list.",
-                 "Second long enough sentence with example word."],
+                [
+                    "First long enough sentence in this list.",
+                    "Second long enough sentence with example word.",
+                ],
                 max_sentences=1,
             )
 
@@ -168,17 +174,20 @@ class CrawlerTrafilaturaWiringTests(SimpleTestCase):
         from apps.crawler.services import site_crawler
         from apps.sources.trafilatura_extractor import ExtractedDocument
 
-        with patch(
-            "apps.sources.trafilatura_extractor.is_available",
-            return_value=True,
-        ), patch(
-            "apps.sources.trafilatura_extractor.extract",
-            return_value=ExtractedDocument(
-                text="The actual article text with the real signal.",
-                title=None,
-                author=None,
-                date=None,
-                source_url="https://x/y",
+        with (
+            patch(
+                "apps.sources.trafilatura_extractor.is_available",
+                return_value=True,
+            ),
+            patch(
+                "apps.sources.trafilatura_extractor.extract",
+                return_value=ExtractedDocument(
+                    text="The actual article text with the real signal.",
+                    title=None,
+                    author=None,
+                    date=None,
+                    source_url="https://x/y",
+                ),
             ),
         ):
             meta = self._make_meta()

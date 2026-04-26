@@ -105,12 +105,16 @@ def raise_alert(
     if created:
         logger.info(
             "scheduled_updates.alert RAISE job=%s type=%s date=%s",
-            job_key, alert_type, calendar_date,
+            job_key,
+            alert_type,
+            calendar_date,
         )
     else:
         logger.debug(
             "scheduled_updates.alert RETRIGGER job=%s type=%s date=%s",
-            job_key, alert_type, calendar_date,
+            job_key,
+            alert_type,
+            calendar_date,
         )
     broadcast_alert_raised(alert, reopened=reopened and not created)
     return alert, created
@@ -132,7 +136,8 @@ def resolve_open_alerts_for_job(job_key: str, *, now: dt.datetime | None = None)
     if updated:
         logger.info(
             "scheduled_updates.alert RESOLVE job=%s count=%s",
-            job_key, updated,
+            job_key,
+            updated,
         )
         broadcast_alerts_resolved(job_key, updated)
     return updated
@@ -270,7 +275,8 @@ def prune_resolved_alerts(*, now: dt.datetime | None = None) -> int:
     if deleted:
         logger.info(
             "scheduled_updates.alert PRUNE deleted=%s cutoff=%s",
-            deleted, cutoff.isoformat(),
+            deleted,
+            cutoff.isoformat(),
         )
     return deleted
 

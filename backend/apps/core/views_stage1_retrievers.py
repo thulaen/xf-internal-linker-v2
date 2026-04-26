@@ -113,9 +113,7 @@ class Stage1RetrieverSettingsView(APIView):
         validated: dict[str, bool] = {}
         for field, default in _SETTINGS_DEFAULTS.items():
             incoming = payload.get(field, current.get(field, default))
-            validated[field] = _coerce_bool(
-                incoming, bool(current.get(field, default))
-            )
+            validated[field] = _coerce_bool(incoming, bool(current.get(field, default)))
         _persist_settings(
             "stage1",
             validated,

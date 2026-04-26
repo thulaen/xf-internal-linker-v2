@@ -87,10 +87,11 @@ class NdcgEvalViewTests(TestCase):
                     anchor_start=0,
                     anchor_end=6,
                     anchor_confidence="strong",
-                    score_final=(SANDERSON_BASIC_FLOOR + 5 - i) / float(
-                        SANDERSON_BASIC_FLOOR + 5
-                    ),
-                    status="approved" if i < (SANDERSON_BASIC_FLOOR // 2) else "rejected",
+                    score_final=(SANDERSON_BASIC_FLOOR + 5 - i)
+                    / float(SANDERSON_BASIC_FLOOR + 5),
+                    status="approved"
+                    if i < (SANDERSON_BASIC_FLOOR // 2)
+                    else "rejected",
                     candidate_origin="semantic",
                 )
             )

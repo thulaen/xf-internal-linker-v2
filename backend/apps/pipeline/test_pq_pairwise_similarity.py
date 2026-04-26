@@ -47,9 +47,9 @@ class PqPairwiseSimilarityTests(TestCase):
         )
         labels = rng.integers(0, 3, size=count)
         # Tiny per-item noise so PQ has something to quantise.
-        vectors = (centres[labels] + 0.05 * rng.normal(size=(count, self.SMALL_DIM))).astype(
-            "float32"
-        )
+        vectors = (
+            centres[labels] + 0.05 * rng.normal(size=(count, self.SMALL_DIM))
+        ).astype("float32")
         items = []
         self._cluster_ids: list[int] = []
         for i in range(count):
@@ -78,9 +78,7 @@ class PqPairwiseSimilarityTests(TestCase):
             pq_pairwise_similarity_above,
         )
 
-        self.assertEqual(
-            pq_pairwise_similarity_above([1, 2, 3], threshold=0.0), []
-        )
+        self.assertEqual(pq_pairwise_similarity_above([1, 2, 3], threshold=0.0), [])
 
     @unittest.skipUnless(_faiss_available(), "FAISS not installed")
     def test_finds_pairs_in_same_synthetic_cluster(self) -> None:

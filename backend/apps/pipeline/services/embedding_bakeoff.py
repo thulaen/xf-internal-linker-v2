@@ -50,7 +50,9 @@ class BakeoffRun:
     latency_ms_p95: int = 0
 
 
-def sample_ground_truth(sample_size: int = _DEFAULT_SAMPLE_SIZE) -> tuple[
+def sample_ground_truth(
+    sample_size: int = _DEFAULT_SAMPLE_SIZE,
+) -> tuple[
     list[tuple[int, int]],
     list[tuple[int, int]],
 ]:
@@ -76,8 +78,16 @@ def sample_ground_truth(sample_size: int = _DEFAULT_SAMPLE_SIZE) -> tuple[
         )
     )
     rng = random.Random(42)
-    pos = positives_qs if len(positives_qs) <= sample_size else rng.sample(positives_qs, sample_size)
-    neg = negatives_qs if len(negatives_qs) <= sample_size else rng.sample(negatives_qs, sample_size)
+    pos = (
+        positives_qs
+        if len(positives_qs) <= sample_size
+        else rng.sample(positives_qs, sample_size)
+    )
+    neg = (
+        negatives_qs
+        if len(negatives_qs) <= sample_size
+        else rng.sample(negatives_qs, sample_size)
+    )
     return pos, neg
 
 
@@ -137,9 +147,7 @@ def score_provider(
         )
 
     # Destination pool: every destination that appears in positives or negatives.
-    pool_ids = sorted(
-        {d for _, d in positives} | {d for _, d in negatives}
-    )
+    pool_ids = sorted({d for _, d in positives} | {d for _, d in negatives})
     if destination_pool_vectors is None:
         destination_pool_vectors = {}
 
@@ -318,7 +326,9 @@ def update_provider_ranking(runs: list[BakeoffRun]) -> None:
 
         from apps.core.models import AppSetting
 
-        ranking = {run.signature: float(run.ndcg_at_10) for run in runs if run.signature}
+        ranking = {
+            run.signature: float(run.ndcg_at_10) for run in runs if run.signature
+        }
         # Normalise to [0, 1] so deltas are interpretable even if NDCG scores are all low.
         max_v = max(ranking.values()) if ranking else 0.0
         if max_v > 0:

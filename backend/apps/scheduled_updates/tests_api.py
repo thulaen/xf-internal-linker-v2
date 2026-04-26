@@ -55,9 +55,11 @@ class JobListDetailTests(_AuthedTestCase):
         resp = self.client.get("/api/scheduled-updates/jobs/")
         assert resp.status_code == status.HTTP_200_OK
 
-        keys = {row["key"] for row in resp.data["results"]} if "results" in resp.data else {
-            row["key"] for row in resp.data
-        }
+        keys = (
+            {row["key"] for row in resp.data["results"]}
+            if "results" in resp.data
+            else {row["key"] for row in resp.data}
+        )
         assert keys == {"a", "b"}
 
     def test_detail_returns_single_job(self) -> None:

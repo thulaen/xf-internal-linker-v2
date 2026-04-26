@@ -60,11 +60,11 @@ DEFAULT_OVERLAP_TOKENS: int = 30
 class Passage:
     """One fixed-window slice of a source document."""
 
-    index: int             # 0-based position in the list returned
-    text: str              # raw passage text with whitespace preserved
-    token_start: int       # inclusive
-    token_end: int         # exclusive
-    token_count: int       # end - start
+    index: int  # 0-based position in the list returned
+    text: str  # raw passage text with whitespace preserved
+    token_start: int  # inclusive
+    token_end: int  # exclusive
+    token_count: int  # end - start
 
 
 # ── Token-window segmentation ────────────────────────────────────────

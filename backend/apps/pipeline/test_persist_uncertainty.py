@@ -175,11 +175,13 @@ class UncertaintyScoreWiringTests(TestCase):
                 key=key, defaults={"value": value, "description": ""}
             )
 
-        records = self._build(candidates=[
-            self._candidate(score_final=0.0),  # p ≈ 0.5 → high uncertainty
-            self._candidate(score_final=0.4),  # p ≈ 0.881 → lower uncertainty
-            self._candidate(score_final=0.6),  # p ≈ 0.953 → lowest uncertainty
-        ])
+        records = self._build(
+            candidates=[
+                self._candidate(score_final=0.0),  # p ≈ 0.5 → high uncertainty
+                self._candidate(score_final=0.4),  # p ≈ 0.881 → lower uncertainty
+                self._candidate(score_final=0.6),  # p ≈ 0.953 → lowest uncertainty
+            ]
+        )
         u0, u1, u2 = (r.uncertainty_score for r in records)
         # Uncertainty ordering: closer-to-0.5 first.
         self.assertGreater(u0, u1)

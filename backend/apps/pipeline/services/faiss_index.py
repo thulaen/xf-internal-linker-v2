@@ -25,7 +25,10 @@ import threading
 
 import numpy as np
 
-from apps.core.performance_mode import PERFORMANCE_MODE_HIGH, get_requested_performance_mode
+from apps.core.performance_mode import (
+    PERFORMANCE_MODE_HIGH,
+    get_requested_performance_mode,
+)
 from apps.pipeline.services.embeddings import (
     get_current_embedding_dimension,
     get_current_embedding_filter,

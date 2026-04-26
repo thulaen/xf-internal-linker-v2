@@ -38,9 +38,7 @@ class _Fixture:
     def make_suggestion():
         from apps.suggestions.models import PipelineRun, Suggestion
 
-        scope = ScopeItem.objects.create(
-            scope_id=33, scope_type="node", title="ips"
-        )
+        scope = ScopeItem.objects.create(scope_id=33, scope_type="node", title="ips")
         host = ContentItem.objects.create(
             content_id=3300, content_type="thread", title="host", scope=scope
         )
@@ -197,12 +195,8 @@ class FitAndPersistTests(TestCase):
     def test_below_minimum_impressions_returns_none(self) -> None:
         suggestion = _Fixture.make_suggestion()
         # Fewer than MIN_IMPRESSIONS_FOR_FIT rows.
-        _Fixture.seed_impressions(
-            suggestion, position=0, count=10, click_rate=0.5
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=1, count=10, click_rate=0.3
-        )
+        _Fixture.seed_impressions(suggestion, position=0, count=10, click_rate=0.5)
+        _Fixture.seed_impressions(suggestion, position=1, count=10, click_rate=0.3)
         self.assertLess(20, MIN_IMPRESSIONS_FOR_FIT)
         result = fit_and_persist_from_impressions()
         self.assertIsNone(result)
@@ -229,21 +223,11 @@ class FitAndPersistTests(TestCase):
         # Synthesize a realistic click-by-position curve. Higher
         # positions get fewer clicks. ~250 rows total spread across
         # 5 positions clears the MIN_IMPRESSIONS_FOR_FIT bar.
-        _Fixture.seed_impressions(
-            suggestion, position=0, count=60, click_rate=0.50
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=1, count=60, click_rate=0.30
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=2, count=60, click_rate=0.15
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=3, count=40, click_rate=0.08
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=4, count=40, click_rate=0.04
-        )
+        _Fixture.seed_impressions(suggestion, position=0, count=60, click_rate=0.50)
+        _Fixture.seed_impressions(suggestion, position=1, count=60, click_rate=0.30)
+        _Fixture.seed_impressions(suggestion, position=2, count=60, click_rate=0.15)
+        _Fixture.seed_impressions(suggestion, position=3, count=40, click_rate=0.08)
+        _Fixture.seed_impressions(suggestion, position=4, count=40, click_rate=0.04)
         result = fit_and_persist_from_impressions()
         self.assertIsNotNone(result)
         # The fitter is bounded to [0.1, 3.0] — anything inside there
@@ -265,22 +249,18 @@ class FitAndPersistTests(TestCase):
         from apps.core.models import AppSetting
 
         suggestion = _Fixture.make_suggestion()
-        _Fixture.seed_impressions(
-            suggestion, position=0, count=60, click_rate=0.50
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=1, count=60, click_rate=0.20
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=2, count=80, click_rate=0.10
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=3, count=40, click_rate=0.05
-        )
+        _Fixture.seed_impressions(suggestion, position=0, count=60, click_rate=0.50)
+        _Fixture.seed_impressions(suggestion, position=1, count=60, click_rate=0.20)
+        _Fixture.seed_impressions(suggestion, position=2, count=80, click_rate=0.10)
+        _Fixture.seed_impressions(suggestion, position=3, count=40, click_rate=0.05)
         first = fit_and_persist_from_impressions()
-        rows_first = AppSetting.objects.filter(key__startswith="position_bias_ips.").count()
+        rows_first = AppSetting.objects.filter(
+            key__startswith="position_bias_ips."
+        ).count()
         second = fit_and_persist_from_impressions()
-        rows_second = AppSetting.objects.filter(key__startswith="position_bias_ips.").count()
+        rows_second = AppSetting.objects.filter(
+            key__startswith="position_bias_ips."
+        ).count()
         self.assertEqual(rows_first, rows_second)
         # Same data → same η (within scipy's tolerance).
         self.assertAlmostEqual(first.eta, second.eta, places=5)
@@ -295,12 +275,8 @@ class FitAndPersistTests(TestCase):
 
         suggestion = _Fixture.make_suggestion()
         # Seed enough fresh rows so the producer would fit.
-        _Fixture.seed_impressions(
-            suggestion, position=0, count=120, click_rate=0.5
-        )
-        _Fixture.seed_impressions(
-            suggestion, position=1, count=120, click_rate=0.3
-        )
+        _Fixture.seed_impressions(suggestion, position=0, count=120, click_rate=0.5)
+        _Fixture.seed_impressions(suggestion, position=1, count=120, click_rate=0.3)
         # Now back-date them all to 200 days ago.
         old_cutoff = timezone.now() - timedelta(days=200)
         SuggestionImpression.objects.update(impressed_at=old_cutoff)

@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0039_suggestion_uncertainty_score'),
+        ("suggestions", "0039_suggestion_uncertainty_score"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='score_elo_rating',
-            field=models.FloatField(default=1500.0, help_text='Elo rating of the destination at suggestion-write time (Elo 1978). 1500 = no information; updated by the scheduled elo_rating_refresh job.'),
+            model_name="suggestion",
+            name="score_elo_rating",
+            field=models.FloatField(
+                default=1500.0,
+                help_text="Elo rating of the destination at suggestion-write time (Elo 1978). 1500 = no information; updated by the scheduled elo_rating_refresh job.",
+            ),
         ),
     ]

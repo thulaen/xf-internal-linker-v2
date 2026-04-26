@@ -4,20 +4,25 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0026_add_gsc_query_tfidf_vector'),
+        ("content", "0026_add_gsc_query_tfidf_vector"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='post',
-            name='flesch_kincaid_grade',
-            field=models.FloatField(default=0.0, help_text='Flesch-Kincaid Grade Level (Kincaid et al. 1975). Higher = more reading skill required. Computed from clean_text at import time. 0.0 = unscored.'),
+            model_name="post",
+            name="flesch_kincaid_grade",
+            field=models.FloatField(
+                default=0.0,
+                help_text="Flesch-Kincaid Grade Level (Kincaid et al. 1975). Higher = more reading skill required. Computed from clean_text at import time. 0.0 = unscored.",
+            ),
         ),
         migrations.AddField(
-            model_name='post',
-            name='gunning_fog_grade',
-            field=models.FloatField(default=0.0, help_text='Gunning Fog Index (Gunning 1952). Higher = more complex vocabulary. Computed from clean_text at import time. 0.0 = unscored.'),
+            model_name="post",
+            name="gunning_fog_grade",
+            field=models.FloatField(
+                default=0.0,
+                help_text="Gunning Fog Index (Gunning 1952). Higher = more complex vocabulary. Computed from clean_text at import time. 0.0 = unscored.",
+            ),
         ),
     ]

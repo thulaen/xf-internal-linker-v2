@@ -74,7 +74,11 @@ def evaluate_rsqva(
     if not settings.enabled:
         return RSQVAEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
     if query_cache is None:
@@ -101,7 +105,10 @@ def evaluate_rsqva(
 
     host_qc = int(query_cache.page_query_counts.get(host_key, 0))
     dest_qc = int(query_cache.page_query_counts.get(destination_key, 0))
-    if host_qc < settings.min_queries_per_page or dest_qc < settings.min_queries_per_page:
+    if (
+        host_qc < settings.min_queries_per_page
+        or dest_qc < settings.min_queries_per_page
+    ):
         return RSQVAEvaluation(
             score_component=0.0,
             diagnostics={

@@ -185,8 +185,10 @@ class ScheduledJob(TimestampedModel):
             overflow = len(self.log_tail) - self.LOG_TAIL_MAX_CHARS
             # Keep the TAIL (most recent output), drop the head.
             self.log_tail = (
-                "...[truncated " + str(overflow) + " chars]\n"
-                + self.log_tail[-(self.LOG_TAIL_MAX_CHARS - 80):]
+                "...[truncated "
+                + str(overflow)
+                + " chars]\n"
+                + self.log_tail[-(self.LOG_TAIL_MAX_CHARS - 80) :]
             )
         super().save(*args, **kwargs)
 

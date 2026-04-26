@@ -33,7 +33,9 @@ class KMIGSettings:
     enabled: bool = True
     ranking_weight: float = 0.05
     attenuation: float = 0.5  # β — Pigueiral 2017 truncated-Katz default
-    max_hops: int = 2  # Hardware budget — k=3 blows RAM (docs/specs/fr100 §Hardware Budget)
+    max_hops: int = (
+        2  # Hardware budget — k=3 blows RAM (docs/specs/fr100 §Hardware Budget)
+    )
     # Below this edge count the graph is too sparse for meaningful reachability.
     min_graph_edges: int = 100
 
@@ -81,7 +83,11 @@ def evaluate_kmig(
     if not settings.enabled:
         return KMIGEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
     if katz_cache is None:

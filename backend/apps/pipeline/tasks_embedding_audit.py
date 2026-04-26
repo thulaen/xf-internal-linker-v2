@@ -21,7 +21,7 @@ logger = logging.getLogger(__name__)
     bind=True,
     name="pipeline.embedding_accuracy_audit",
     queue="pipeline",
-    soft_time_limit=60 * 60,   # 1h soft
+    soft_time_limit=60 * 60,  # 1h soft
     time_limit=60 * 60 + 300,  # hard + 5m grace
     max_retries=0,
 )

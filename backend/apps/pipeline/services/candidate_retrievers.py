@@ -83,10 +83,7 @@ class CandidateRetriever(Protocol):
 
     name: str
 
-    def retrieve(
-        self, context: RetrievalContext
-    ) -> dict[ContentKey, list[int]]:
-        ...
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]: ...
 
 
 # ── Concrete: SemanticRetriever ──────────────────────────────────
@@ -102,9 +99,7 @@ class SemanticRetriever:
 
     name: str = "semantic"
 
-    def retrieve(
-        self, context: RetrievalContext
-    ) -> dict[ContentKey, list[int]]:
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
         # Inline import keeps the module load cheap when this
         # retriever isn't constructed (e.g. tests that stub the
         # registry).
@@ -257,15 +252,11 @@ class LexicalRetriever:
         self.enabled = enabled
         self.min_token_length = min_token_length
 
-    def retrieve(
-        self, context: RetrievalContext
-    ) -> dict[ContentKey, list[int]]:
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
         if not self.enabled:
             return {}
 
-        host_tokens = _build_host_token_bags(
-            context, min_length=self.min_token_length
-        )
+        host_tokens = _build_host_token_bags(context, min_length=self.min_token_length)
         if not host_tokens:
             return {}
         host_keys_ordered = list(host_tokens.keys())
@@ -292,9 +283,7 @@ class LexicalRetriever:
             )
             sentence_ids: list[int] = []
             for host_key in top_hosts:
-                sentence_ids.extend(
-                    context.content_to_sentence_ids.get(host_key, [])
-                )
+                sentence_ids.extend(context.content_to_sentence_ids.get(host_key, []))
             if sentence_ids:
                 result[dest_key] = sentence_ids
         return result
@@ -351,9 +340,7 @@ class QueryExpansionRetriever:
         self.expansion_terms = expansion_terms
         self.min_document_frequency = min_document_frequency
 
-    def retrieve(
-        self, context: RetrievalContext
-    ) -> dict[ContentKey, list[int]]:
+    def retrieve(self, context: RetrievalContext) -> dict[ContentKey, list[int]]:
         if not self.enabled:
             return {}
 
@@ -362,9 +349,7 @@ class QueryExpansionRetriever:
         from .query_expansion_bow import rank_expansion_terms
         from .text_tokens import STANDARD_ENGLISH_STOPWORDS
 
-        host_tokens = _build_host_token_bags(
-            context, min_length=self.min_token_length
-        )
+        host_tokens = _build_host_token_bags(context, min_length=self.min_token_length)
         if not host_tokens:
             return {}
         host_keys_ordered = list(host_tokens.keys())
@@ -426,9 +411,7 @@ class QueryExpansionRetriever:
 
             sentence_ids: list[int] = []
             for host_key in top_hosts:
-                sentence_ids.extend(
-                    context.content_to_sentence_ids.get(host_key, [])
-                )
+                sentence_ids.extend(context.content_to_sentence_ids.get(host_key, []))
             if sentence_ids:
                 result[dest_key] = sentence_ids
         return result

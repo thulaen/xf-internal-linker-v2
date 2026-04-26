@@ -50,7 +50,9 @@ logger = logging.getLogger(__name__)
 
 
 #: Default XF Internal Linker user agent — callers override if needed.
-DEFAULT_USER_AGENT: str = "XFInternalLinker/2.0 (+https://github.com/thulaen/xf-internal-linker-v2)"
+DEFAULT_USER_AGENT: str = (
+    "XFInternalLinker/2.0 (+https://github.com/thulaen/xf-internal-linker-v2)"
+)
 
 #: Seconds until a cached robots.txt entry is considered stale.
 DEFAULT_CACHE_TTL_SECONDS: int = 24 * 60 * 60  # 24 h
@@ -229,9 +231,7 @@ class RobotsChecker:
         if len(self._cache) <= self._capacity:
             return
         # Sort by fetched_at ascending, drop the oldest N over capacity.
-        sorted_items = sorted(
-            self._cache.items(), key=lambda kv: kv[1].fetched_at
-        )
+        sorted_items = sorted(self._cache.items(), key=lambda kv: kv[1].fetched_at)
         overflow = len(self._cache) - self._capacity
         for key, _ in sorted_items[:overflow]:
             self._cache.pop(key, None)

@@ -114,9 +114,8 @@ def _load_histories(urls: list[str]) -> dict[str, _UrlHistory]:
     """One bulk query that returns per-URL crawl + change stats."""
     from apps.crawler.models import CrawledPageMeta
 
-    rows = (
-        CrawledPageMeta.objects.filter(url__in=urls, http_status=200)
-        .values("url", "content_hash", "created_at")
+    rows = CrawledPageMeta.objects.filter(url__in=urls, http_status=200).values(
+        "url", "content_hash", "created_at"
     )
     # Group in Python rather than via ORM aggregation so we can count
     # distinct hashes per URL (Django's `.distinct()` + `.count()` is
@@ -162,9 +161,7 @@ def _decision_for(
         # this branch with an explicit `bootstrap` reason.
         observation = None
     else:
-        span = (
-            history.newest_crawl - history.oldest_crawl
-        ).total_seconds()
+        span = (history.newest_crawl - history.oldest_crawl).total_seconds()
         if span <= 0:
             return None
         average_interval = span / max(1, history.crawl_count - 1)
@@ -177,6 +174,4 @@ def _decision_for(
             changes=min(changes, history.crawl_count),
             average_interval_seconds=average_interval,
         )
-    return next_refresh_interval_seconds(
-        observation, importance=importance
-    )
+    return next_refresh_interval_seconds(observation, importance=importance)

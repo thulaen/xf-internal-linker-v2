@@ -160,9 +160,7 @@ def next_refresh_interval_seconds(
     if min_interval_seconds <= 0:
         raise ValueError("min_interval_seconds must be > 0")
     if max_interval_seconds < min_interval_seconds:
-        raise ValueError(
-            "max_interval_seconds must be >= min_interval_seconds"
-        )
+        raise ValueError("max_interval_seconds must be >= min_interval_seconds")
 
     if observation is None or observation.crawls == 0:
         return FreshnessDecision(

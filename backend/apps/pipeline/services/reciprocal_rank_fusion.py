@@ -54,8 +54,8 @@ class FusedItem:
     """One document's place in the fused ranking."""
 
     doc_id: Hashable
-    score: float                         # sum of reciprocal-rank contributions
-    contributions: dict[str, float]      # per-ranker reciprocal-rank contribution
+    score: float  # sum of reciprocal-rank contributions
+    contributions: dict[str, float]  # per-ranker reciprocal-rank contribution
 
 
 def fuse(

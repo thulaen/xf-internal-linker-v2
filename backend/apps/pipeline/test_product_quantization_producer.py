@@ -247,8 +247,9 @@ class ProductQuantizationProducerTests(TestCase):
         )
 
         pks = list(
-            ContentItem.objects.exclude(pq_code__isnull=True)
-            .values_list("pk", flat=True)[:10]
+            ContentItem.objects.exclude(pq_code__isnull=True).values_list(
+                "pk", flat=True
+            )[:10]
         )
         result = pq_cosine_for_pks(pks)
         self.assertEqual(set(result.keys()), set(pks))
@@ -275,8 +276,9 @@ class ProductQuantizationProducerTests(TestCase):
             pq_code_version="stale-version"
         )
         pks = list(
-            ContentItem.objects.exclude(pq_code__isnull=True)
-            .values_list("pk", flat=True)[:10]
+            ContentItem.objects.exclude(pq_code__isnull=True).values_list(
+                "pk", flat=True
+            )[:10]
         )
         # All rows now have the wrong version → returns empty.
         self.assertEqual(pq_cosine_for_pks(pks), {})
@@ -313,7 +315,5 @@ class ProductQuantizationProducerTests(TestCase):
         # With k=4 centroids covering the whole vector space, the
         # reconstruction error is high but bounded; check it's in
         # the same ballpark.
-        err = np.linalg.norm(recon[0] - original) / (
-            np.linalg.norm(original) + 1e-9
-        )
+        err = np.linalg.norm(recon[0] - original) / (np.linalg.norm(original) + 1e-9)
         self.assertLess(err, 2.0)  # generous bound for 4-centroid PQ

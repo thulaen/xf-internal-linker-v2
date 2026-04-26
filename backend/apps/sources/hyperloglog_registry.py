@@ -94,9 +94,7 @@ class HyperLogLogRegistry:
         """Persist *bucket* (or all buckets) to disk. Returns count saved."""
         with self._lock:
             saved = 0
-            buckets = (
-                [bucket] if bucket is not None else list(self._buckets)
-            )
+            buckets = [bucket] if bucket is not None else list(self._buckets)
             for key in buckets:
                 hll = self._buckets.get(key)
                 if hll is None:

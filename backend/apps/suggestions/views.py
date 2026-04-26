@@ -911,9 +911,9 @@ class SuggestionImpressionLogView(views.APIView):
         # objects against str representations.
         valid_ids = set(
             str(pk)
-            for pk in Suggestion.objects.filter(
-                pk__in=list(candidate_ids)
-            ).values_list("pk", flat=True)
+            for pk in Suggestion.objects.filter(pk__in=list(candidate_ids)).values_list(
+                "pk", flat=True
+            )
         )
         impressions = [
             SuggestionImpression(
@@ -928,6 +928,4 @@ class SuggestionImpressionLogView(views.APIView):
         if not impressions:
             return Response({"written": 0}, status=status.HTTP_200_OK)
         SuggestionImpression.objects.bulk_create(impressions, batch_size=500)
-        return Response(
-            {"written": len(impressions)}, status=status.HTTP_201_CREATED
-        )
+        return Response({"written": len(impressions)}, status=status.HTTP_201_CREATED)

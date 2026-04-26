@@ -72,7 +72,11 @@ def evaluate_tapb(
     if not settings.enabled:
         return TAPBEvaluation(
             score_component=0.0,
-            diagnostics={"fallback_triggered": True, "diagnostic": "disabled", "path": "python"},
+            diagnostics={
+                "fallback_triggered": True,
+                "diagnostic": "disabled",
+                "path": "python",
+            },
         )
 
     if articulation_cache is None:

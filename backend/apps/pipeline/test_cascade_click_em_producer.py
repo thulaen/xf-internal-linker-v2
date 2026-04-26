@@ -30,9 +30,7 @@ class _Fixture:
 
     @staticmethod
     def make_scope():
-        return ScopeItem.objects.create(
-            scope_id=34, scope_type="node", title="cascade"
-        )
+        return ScopeItem.objects.create(scope_id=34, scope_type="node", title="cascade")
 
     @staticmethod
     def make_content_item(*, scope, content_id: int, title: str):
@@ -48,9 +46,7 @@ class _Fixture:
         host = _Fixture.make_content_item(
             scope=scope, content_id=content_id, title=f"host-{content_id}"
         )
-        post = Post.objects.create(
-            content_item=host, raw_bbcode="x", clean_text="x"
-        )
+        post = Post.objects.create(content_item=host, raw_bbcode="x", clean_text="x")
         sentence = Sentence.objects.create(
             content_item=host,
             post=post,
@@ -181,9 +177,7 @@ class FitAndPersistTests(TestCase):
         scope = _Fixture.make_scope()
         host, sentence = _Fixture.make_host_with_sentence(scope, 1000)
         dests = [
-            _Fixture.make_content_item(
-                scope=scope, content_id=2000 + i, title=f"d{i}"
-            )
+            _Fixture.make_content_item(scope=scope, content_id=2000 + i, title=f"d{i}")
             for i in range(5)
         ]
         # Only 5 sessions × 5 impressions = 25 rows, well below the
@@ -208,9 +202,7 @@ class FitAndPersistTests(TestCase):
         # 250 destinations all in a single pipeline_run → 250
         # impressions but 1 session.
         dests = [
-            _Fixture.make_content_item(
-                scope=scope, content_id=3000 + i, title=f"d{i}"
-            )
+            _Fixture.make_content_item(scope=scope, content_id=3000 + i, title=f"d{i}")
             for i in range(MIN_IMPRESSIONS_FOR_FIT + 50)
         ]
         _, suggs = _Fixture.make_run_with_destinations(
@@ -231,9 +223,7 @@ class FitAndPersistTests(TestCase):
         host, sentence = _Fixture.make_host_with_sentence(scope, 1200)
         # 10 destinations shared across all sessions.
         dests = [
-            _Fixture.make_content_item(
-                scope=scope, content_id=4000 + i, title=f"d{i}"
-            )
+            _Fixture.make_content_item(scope=scope, content_id=4000 + i, title=f"d{i}")
             for i in range(10)
         ]
         # 30 sessions × 10 impressions = 300 rows. Make dest 0 the
@@ -274,9 +264,7 @@ class FitAndPersistTests(TestCase):
         scope = _Fixture.make_scope()
         host, sentence = _Fixture.make_host_with_sentence(scope, 1300)
         dests = [
-            _Fixture.make_content_item(
-                scope=scope, content_id=5000 + i, title=f"d{i}"
-            )
+            _Fixture.make_content_item(scope=scope, content_id=5000 + i, title=f"d{i}")
             for i in range(10)
         ]
         # All sessions are no-click.
@@ -303,9 +291,7 @@ class FitAndPersistTests(TestCase):
         scope = _Fixture.make_scope()
         host, sentence = _Fixture.make_host_with_sentence(scope, 1400)
         dests = [
-            _Fixture.make_content_item(
-                scope=scope, content_id=6000 + i, title=f"d{i}"
-            )
+            _Fixture.make_content_item(scope=scope, content_id=6000 + i, title=f"d{i}")
             for i in range(10)
         ]
         for run_index in range(MIN_SESSIONS_FOR_FIT + 10):

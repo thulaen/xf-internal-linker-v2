@@ -14,7 +14,6 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
         ("pipeline", "0001_add_job_lease"),
     ]
@@ -23,7 +22,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="EmbeddingCostLedger",
             fields=[
-                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("job_id", models.CharField(db_index=True, max_length=64)),
@@ -31,7 +38,10 @@ class Migration(migrations.Migration):
                 ("signature", models.CharField(max_length=64)),
                 ("items", models.IntegerField(default=0)),
                 ("tokens_input", models.BigIntegerField(default=0)),
-                ("cost_usd", models.DecimalField(decimal_places=6, default=0, max_digits=12)),
+                (
+                    "cost_usd",
+                    models.DecimalField(decimal_places=6, default=0, max_digits=12),
+                ),
             ],
             options={
                 "verbose_name": "Embedding Cost Ledger",
@@ -41,25 +51,56 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="embeddingcostledger",
-            index=models.Index(fields=["provider", "-created_at"], name="pipeline_emb_prov_cr_idx"),
+            index=models.Index(
+                fields=["provider", "-created_at"], name="pipeline_emb_prov_cr_idx"
+            ),
         ),
         migrations.CreateModel(
             name="EmbeddingBakeoffResult",
             fields=[
-                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("job_id", models.CharField(db_index=True, max_length=64)),
                 ("provider", models.CharField(max_length=32)),
                 ("signature", models.CharField(max_length=64)),
                 ("sample_size", models.IntegerField(default=0)),
-                ("mrr_at_10", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("ndcg_at_10", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("recall_at_10", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("mean_positive_cosine", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("mean_negative_cosine", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("separation_score", models.DecimalField(decimal_places=4, default=0, max_digits=6)),
-                ("cost_usd", models.DecimalField(decimal_places=6, default=0, max_digits=10)),
+                (
+                    "mrr_at_10",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "ndcg_at_10",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "recall_at_10",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "mean_positive_cosine",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "mean_negative_cosine",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "separation_score",
+                    models.DecimalField(decimal_places=4, default=0, max_digits=6),
+                ),
+                (
+                    "cost_usd",
+                    models.DecimalField(decimal_places=6, default=0, max_digits=10),
+                ),
                 ("latency_ms_p50", models.IntegerField(default=0)),
                 ("latency_ms_p95", models.IntegerField(default=0)),
             ],
@@ -76,7 +117,15 @@ class Migration(migrations.Migration):
         migrations.CreateModel(
             name="EmbeddingGateDecision",
             fields=[
-                ("id", models.AutoField(auto_created=True, primary_key=True, serialize=False, verbose_name="ID")),
+                (
+                    "id",
+                    models.AutoField(
+                        auto_created=True,
+                        primary_key=True,
+                        serialize=False,
+                        verbose_name="ID",
+                    ),
+                ),
                 ("created_at", models.DateTimeField(auto_now_add=True)),
                 ("updated_at", models.DateTimeField(auto_now=True)),
                 ("item_id", models.IntegerField(db_index=True)),
@@ -97,7 +146,10 @@ class Migration(migrations.Migration):
                     ),
                 ),
                 ("reason", models.CharField(max_length=64)),
-                ("score_delta", models.DecimalField(decimal_places=6, default=0, max_digits=8)),
+                (
+                    "score_delta",
+                    models.DecimalField(decimal_places=6, default=0, max_digits=8),
+                ),
             ],
             options={
                 "verbose_name": "Embedding Gate Decision",
@@ -106,6 +158,8 @@ class Migration(migrations.Migration):
         ),
         migrations.AddIndex(
             model_name="embeddinggatedecision",
-            index=models.Index(fields=["-created_at", "action"], name="pipeline_gate_cr_act_idx"),
+            index=models.Index(
+                fields=["-created_at", "action"], name="pipeline_gate_cr_act_idx"
+            ),
         ),
     ]

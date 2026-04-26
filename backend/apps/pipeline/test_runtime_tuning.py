@@ -85,13 +85,16 @@ class EmbeddingRuntimeTuningTests(TestCase):
         "apps.pipeline.services.embeddings._cuda_warmup_ok",
         return_value=True,
     )
-    @mock.patch.dict("sys.modules", {
-        "torch": SimpleNamespace(
-            cuda=SimpleNamespace(
-                is_available=lambda: True,
+    @mock.patch.dict(
+        "sys.modules",
+        {
+            "torch": SimpleNamespace(
+                cuda=SimpleNamespace(
+                    is_available=lambda: True,
+                )
             )
-        )
-    })
+        },
+    )
     def test_high_mode_resolves_to_cuda_when_available(
         self,
         _warmup_ok,
@@ -134,13 +137,16 @@ class EmbeddingRuntimeTuningTests(TestCase):
     @mock.patch(
         "apps.pipeline.services.embeddings._emit_gpu_fallback_alert",
     )
-    @mock.patch.dict("sys.modules", {
-        "torch": SimpleNamespace(
-            cuda=SimpleNamespace(
-                is_available=lambda: False,
+    @mock.patch.dict(
+        "sys.modules",
+        {
+            "torch": SimpleNamespace(
+                cuda=SimpleNamespace(
+                    is_available=lambda: False,
+                )
             )
-        )
-    })
+        },
+    )
     def test_high_mode_falls_back_to_cpu_when_cuda_unavailable(
         self,
         emit_alert,
@@ -219,7 +225,10 @@ class EmbeddingRuntimeTuningTests(TestCase):
         self.assertIn("BAAI/bge-m3::cuda", embeddings._model_cache)
         embeddings._model_cache.clear()
 
-    @mock.patch("apps.pipeline.services.faiss_index.get_current_embedding_filter", return_value={})
+    @mock.patch(
+        "apps.pipeline.services.faiss_index.get_current_embedding_filter",
+        return_value={},
+    )
     @mock.patch(
         "apps.pipeline.services.pipeline._coerce_embedding_vector",
         side_effect=lambda emb: np.asarray(emb, dtype=np.float32),
@@ -258,7 +267,10 @@ class EmbeddingRuntimeTuningTests(TestCase):
 
         fake_faiss.index_cpu_to_gpu.assert_called_once()
 
-    @mock.patch("apps.pipeline.services.faiss_index.get_current_embedding_filter", return_value={})
+    @mock.patch(
+        "apps.pipeline.services.faiss_index.get_current_embedding_filter",
+        return_value={},
+    )
     @mock.patch(
         "apps.pipeline.services.pipeline._coerce_embedding_vector",
         side_effect=lambda emb: np.asarray(emb, dtype=np.float32),

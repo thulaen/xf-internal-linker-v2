@@ -62,9 +62,7 @@ class SearchSpaceTests(SimpleTestCase):
         self.assertLessEqual(clipped["reciprocal_rank_fusion.k"], 300)
         self.assertGreaterEqual(clipped["trustrank.damping"], 0.6)
         # Categorical snaps to first choice.
-        self.assertEqual(
-            clipped["uncertainty_sampling.strategy"], "least_confidence"
-        )
+        self.assertEqual(clipped["uncertainty_sampling.strategy"], "least_confidence")
 
     def test_keys_returns_list_of_strings(self) -> None:
         all_keys = keys()
@@ -149,7 +147,9 @@ class ImprovementGateTests(SimpleTestCase):
 class ClampParamChangeTests(SimpleTestCase):
     def test_small_change_passes_through(self) -> None:
         clamped = clamp_param_change(
-            key="x", current_value=1.0, proposed_value=1.1,
+            key="x",
+            current_value=1.0,
+            proposed_value=1.1,
             max_change_fraction=0.25,
         )
         self.assertEqual(clamped, 1.1)
@@ -157,23 +157,25 @@ class ClampParamChangeTests(SimpleTestCase):
     def test_large_change_halfway_clamped(self) -> None:
         # Current 1.0, cap is 25% = 0.25 → clamped value is 1.25.
         clamped = clamp_param_change(
-            key="x", current_value=1.0, proposed_value=2.0,
+            key="x",
+            current_value=1.0,
+            proposed_value=2.0,
             max_change_fraction=0.25,
         )
         self.assertAlmostEqual(clamped, 1.25)
 
     def test_large_negative_change_halfway_clamped(self) -> None:
         clamped = clamp_param_change(
-            key="x", current_value=10.0, proposed_value=1.0,
+            key="x",
+            current_value=10.0,
+            proposed_value=1.0,
             max_change_fraction=0.25,
         )
         self.assertAlmostEqual(clamped, 7.5)
 
     def test_zero_baseline_passes_through(self) -> None:
         # Avoids division-by-zero; logs but allows.
-        clamped = clamp_param_change(
-            key="x", current_value=0.0, proposed_value=5.0
-        )
+        clamped = clamp_param_change(key="x", current_value=0.0, proposed_value=5.0)
         self.assertEqual(clamped, 5.0)
 
 

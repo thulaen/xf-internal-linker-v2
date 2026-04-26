@@ -85,9 +85,7 @@ def run_feedback_aggregator_ema_refresh(job, checkpoint) -> None:
         .iterator(chunk_size=5000)
     ):
         key = str(row["destination_id"])
-        stream.setdefault(key, []).append(
-            1.0 if row["status"] == "approved" else 0.0
-        )
+        stream.setdefault(key, []).append(1.0 if row["status"] == "approved" else 0.0)
 
     checkpoint(progress_pct=50.0, message=f"Smoothing {len(stream)} series")
     summaries = ema_per_key(stream, alpha=0.1)
@@ -609,7 +607,9 @@ def run_conformal_prediction_refresh(job, checkpoint) -> None:
         fit_and_persist_from_history,
     )
 
-    checkpoint(progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)")
+    checkpoint(
+        progress_pct=10.0, message="ACI: updating α from recent outcomes (pick #52)"
+    )
     aci = update_alpha_from_recent_outcomes()
     if aci.observations_processed > 0:
         logger.info(
@@ -754,9 +754,7 @@ def run_meta_hpo_rollback_watchdog(job, checkpoint) -> None:
     try:
         applied_at = datetime.fromisoformat(applied_at_raw)
     except ValueError:
-        logger.warning(
-            "meta_hpo_rollback_watchdog: bad applied_at: %s", applied_at_raw
-        )
+        logger.warning("meta_hpo_rollback_watchdog: bad applied_at: %s", applied_at_raw)
         checkpoint(progress_pct=100.0, message="Malformed applied_at — skip")
         return
 
@@ -867,9 +865,9 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
     )
 
     documents: list[list[str]] = []
-    for clean_text in ContentItem.objects.exclude(
-        embedding__isnull=True
-    ).values_list("title", flat=True):
+    for clean_text in ContentItem.objects.exclude(embedding__isnull=True).values_list(
+        "title", flat=True
+    ):
         if not clean_text:
             continue
         toks = [
@@ -913,8 +911,7 @@ def run_lda_topic_refresh(job, checkpoint) -> None:
             defaults={
                 "value": value,
                 "description": (
-                    "Pick #18 LDA topic model — refit weekly by "
-                    "lda_topic_refresh."
+                    "Pick #18 LDA topic model — refit weekly by " "lda_topic_refresh."
                 ),
             },
         )
@@ -1040,7 +1037,9 @@ def run_kenlm_retrain(job, checkpoint) -> None:
             ),
         },
     )
-    half_state = "" if pip_ok else " (kenlm pip dep still missing — install for inference)"
+    half_state = (
+        "" if pip_ok else " (kenlm pip dep still missing — install for inference)"
+    )
     checkpoint(
         progress_pct=100.0,
         message=f"KenLM ARPA persisted from {len(corpus_lines)} sentences{half_state}",
@@ -1486,9 +1485,7 @@ def run_factorization_machines_refit(job, checkpoint) -> None:
             "score_rare_term_propagation": float(
                 row.get("score_rare_term_propagation") or 0.0
             ),
-            "score_anchor_diversity": float(
-                row.get("score_anchor_diversity") or 0.0
-            ),
+            "score_anchor_diversity": float(row.get("score_anchor_diversity") or 0.0),
             f"anchor_confidence={row.get('anchor_confidence') or 'none'}": 1.0,
         }
         features.append(feats)
@@ -1869,7 +1866,11 @@ def run_anchor_self_information_corpus_stats_refresh(job, checkpoint) -> None:
     )
     entropies = sorted(_bigram_entropy(a.lower()) for a in anchors)
     n = len(entropies)
-    median = entropies[n // 2] if n % 2 else (entropies[n // 2 - 1] + entropies[n // 2]) / 2.0
+    median = (
+        entropies[n // 2]
+        if n % 2
+        else (entropies[n // 2 - 1] + entropies[n // 2]) / 2.0
+    )
     abs_dev = sorted(abs(e - median) for e in entropies)
     mad = abs_dev[n // 2] if n % 2 else (abs_dev[n // 2 - 1] + abs_dev[n // 2]) / 2.0
 

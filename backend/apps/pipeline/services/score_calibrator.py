@@ -104,7 +104,9 @@ def load_snapshot() -> CalibrationSnapshot | None:
     )
 
 
-def calibrate_score(raw_score: float, *, snapshot: CalibrationSnapshot | None = None) -> float:
+def calibrate_score(
+    raw_score: float, *, snapshot: CalibrationSnapshot | None = None
+) -> float:
     """Return the calibrated probability for *raw_score*, or *raw_score*
     unchanged when no calibration is available.
 
@@ -149,9 +151,7 @@ def fit_and_persist_from_history(
 
     scores, labels = zip(*pairs)
     if len(set(labels)) < 2:
-        logger.info(
-            "score_calibrator: training set has only one class — skip fit"
-        )
+        logger.info("score_calibrator: training set has only one class — skip fit")
         return None
 
     calibration = platt_fit(scores=list(scores), labels=list(labels))
@@ -173,9 +173,7 @@ def fit_and_persist_from_history(
 # ── Internals ────────────────────────────────────────────────────
 
 
-def _collect_training_pairs(
-    *, lookback_days: int
-) -> Iterable[tuple[float, int]]:
+def _collect_training_pairs(*, lookback_days: int) -> Iterable[tuple[float, int]]:
     """Yield ``(score_final, label)`` pairs from reviewed suggestions.
 
     ``label`` is 1 when the operator approved, 0 when rejected.
@@ -189,13 +187,15 @@ def _collect_training_pairs(
         return
 
     cutoff = timezone.now() - timedelta(days=lookback_days)
-    qs = (
-        Suggestion.objects.filter(
-            status__in=["approved", "rejected"],
-            reviewed_at__gte=cutoff,
-        )
-        .values("score_semantic", "score_keyword", "score_node_affinity",
-                "score_quality", "status")
+    qs = Suggestion.objects.filter(
+        status__in=["approved", "rejected"],
+        reviewed_at__gte=cutoff,
+    ).values(
+        "score_semantic",
+        "score_keyword",
+        "score_node_affinity",
+        "score_quality",
+        "status",
     )
     for row in qs.iterator(chunk_size=2000):
         # Use the average of available score components as the proxy

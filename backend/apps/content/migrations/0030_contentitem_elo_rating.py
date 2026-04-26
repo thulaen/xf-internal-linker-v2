@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0029_contentitem_passages'),
+        ("content", "0029_contentitem_passages"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='elo_rating',
-            field=models.FloatField(db_index=True, default=1500.0, help_text='Elo rating (Elo 1978) updated from operator approve / reject pairs sharing the same host sentence. 1500 = no information yet (chess convention).'),
+            model_name="contentitem",
+            name="elo_rating",
+            field=models.FloatField(
+                db_index=True,
+                default=1500.0,
+                help_text="Elo rating (Elo 1978) updated from operator approve / reject pairs sharing the same host sentence. 1500 = no information yet (chess convention).",
+            ),
         ),
     ]

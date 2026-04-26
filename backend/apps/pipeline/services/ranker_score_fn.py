@@ -48,9 +48,21 @@ FEATURE_COLUMNS: tuple[tuple[str, str, str], ...] = (
     ("score_quality", "w_quality", "Host quality"),
     ("score_phrase_relevance", "phrase_relevance.ranking_weight", "Phrase relevance"),
     ("score_link_freshness", "link_freshness.ranking_weight", "Link freshness"),
-    ("score_field_aware_relevance", "field_aware_relevance.ranking_weight", "Field-aware relevance"),
-    ("score_rare_term_propagation", "rare_term_propagation.ranking_weight", "Rare-term propagation"),
-    ("score_learned_anchor_corroboration", "learned_anchor.ranking_weight", "Learned-anchor corroboration"),
+    (
+        "score_field_aware_relevance",
+        "field_aware_relevance.ranking_weight",
+        "Field-aware relevance",
+    ),
+    (
+        "score_rare_term_propagation",
+        "rare_term_propagation.ranking_weight",
+        "Rare-term propagation",
+    ),
+    (
+        "score_learned_anchor_corroboration",
+        "learned_anchor.ranking_weight",
+        "Learned-anchor corroboration",
+    ),
     ("score_ga4_gsc", "ga4_gsc.ranking_weight", "GA4/GSC engagement"),
     ("score_click_distance", "click_distance.ranking_weight", "Click-distance prior"),
 )
@@ -146,16 +158,11 @@ def load_background_features(
     if exclude_pk is not None:
         qs = qs.exclude(pk=exclude_pk)
     fields = [field_name for field_name, _, _ in FEATURE_COLUMNS]
-    rows = list(
-        qs.order_by("-created_at")[:size].values(*fields)
-    )
+    rows = list(qs.order_by("-created_at")[:size].values(*fields))
     if len(rows) < 5:
         return None
     matrix = np.asarray(
-        [
-            [float(row.get(field) or 0.5) for field in fields]
-            for row in rows
-        ],
+        [[float(row.get(field) or 0.5) for field in fields] for row in rows],
         dtype=np.float64,
     )
     return matrix

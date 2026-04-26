@@ -95,9 +95,7 @@ class PlattCalibrationWiringTests(TestCase):
             click_distance_diagnostics={},
         )
 
-    def _build(
-        self, candidates: list[ScoredCandidate]
-    ) -> list:
+    def _build(self, candidates: list[ScoredCandidate]) -> list:
         return _build_suggestion_records(
             run=self.run,
             valid_candidates=candidates,
@@ -139,15 +137,15 @@ class PlattCalibrationWiringTests(TestCase):
                 key=key, defaults={"value": value, "description": ""}
             )
 
-        records = self._build([
-            self._candidate(score_final=0.5),
-            self._candidate(score_final=0.0),
-        ])
+        records = self._build(
+            [
+                self._candidate(score_final=0.5),
+                self._candidate(score_final=0.0),
+            ]
+        )
         self.assertEqual(len(records), 2)
         self.assertIsNotNone(records[0].calibrated_probability)
-        self.assertAlmostEqual(
-            records[0].calibrated_probability, 0.924, places=2
-        )
+        self.assertAlmostEqual(records[0].calibrated_probability, 0.924, places=2)
         # Score 0.0 → sigmoid(0) = 0.5.
         self.assertAlmostEqual(records[1].calibrated_probability, 0.5, places=2)
 

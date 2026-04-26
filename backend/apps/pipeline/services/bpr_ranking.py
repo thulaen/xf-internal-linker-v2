@@ -150,9 +150,7 @@ def score_for_user(user_id: str, item_ids: list[str]) -> dict[str, float] | None
         if idx is None:
             continue
         try:
-            score = float(
-                model.user_factors[user_idx] @ model.item_factors[idx]
-            )
+            score = float(model.user_factors[user_idx] @ model.item_factors[idx])
         except Exception:
             continue
         out[item] = score

@@ -102,8 +102,7 @@ class TokenBucketTests(SimpleTestCase):
         self.reg.try_acquire("host-timeout")
         # 1 token/sec, want 10 tokens, timeout 0.05 s — must refuse.
         assert (
-            self.reg.wait_and_acquire("host-timeout", cost=10.0, timeout=0.05)
-            is False
+            self.reg.wait_and_acquire("host-timeout", cost=10.0, timeout=0.05) is False
         )
 
     def test_unknown_key_uses_safe_default(self) -> None:
@@ -642,14 +641,12 @@ class FreshnessSchedulerTests(SimpleTestCase):
     def test_high_change_rate_shortens_interval(self) -> None:
         # Loosen the floor so monotonicity is observable (the default
         # 6 h min clamps both short intervals to the same value).
-        volatile = CrawlObservation(
-            crawls=10, changes=9, average_interval_seconds=3600
-        )
-        static = CrawlObservation(
-            crawls=10, changes=1, average_interval_seconds=3600
-        )
+        volatile = CrawlObservation(crawls=10, changes=9, average_interval_seconds=3600)
+        static = CrawlObservation(crawls=10, changes=1, average_interval_seconds=3600)
         kw = {"min_interval_seconds": 1, "max_interval_seconds": 90 * 24 * 3600}
-        volatile_interval = next_refresh_interval_seconds(volatile, **kw).interval_seconds
+        volatile_interval = next_refresh_interval_seconds(
+            volatile, **kw
+        ).interval_seconds
         static_interval = next_refresh_interval_seconds(static, **kw).interval_seconds
         assert volatile_interval < static_interval
 
@@ -770,9 +767,7 @@ class CollocationsPMITests(SimpleTestCase):
             (50, 100, 100, 200),
             (1, 1000, 1000, 10_000),
         ]:
-            score = normalised_pmi(
-                joint_count=joint, count_a=a, count_b=b, total=total
-            )
+            score = normalised_pmi(joint_count=joint, count_a=a, count_b=b, total=total)
             assert -1.0 <= score <= 1.0
 
     def test_invalid_counts_rejected(self) -> None:
@@ -812,9 +807,7 @@ class PassageSegmentationTests(SimpleTestCase):
 
         # 50 tokens with window=20, overlap=5 → windows of 20, stride 15.
         tokens = " ".join(f"w{i}" for i in range(50))
-        passages = segment_by_tokens(
-            tokens, window_tokens=20, overlap_tokens=5
-        )
+        passages = segment_by_tokens(tokens, window_tokens=20, overlap_tokens=5)
         assert passages[0].token_start == 0
         assert passages[0].token_end == 20
         assert passages[1].token_start == 15
@@ -826,9 +819,7 @@ class PassageSegmentationTests(SimpleTestCase):
         from .passages import segment_by_tokens
 
         tokens = " ".join(str(i) for i in range(47))
-        passages = segment_by_tokens(
-            tokens, window_tokens=20, overlap_tokens=5
-        )
+        passages = segment_by_tokens(tokens, window_tokens=20, overlap_tokens=5)
         assert passages[-1].token_end == 47
 
     def test_invalid_window_params_rejected(self) -> None:
@@ -1020,16 +1011,16 @@ class ReadabilityTests(SimpleTestCase):
             "hello": 2,
             "beautiful": 3,
             "little": 2,
-            "make": 1,          # silent-e
+            "make": 1,  # silent-e
             "syllable": 3,
             "syllables": 3,
             "simple": 2,
             "the": 1,
         }
         for word, expected in cases.items():
-            assert count_syllables(word) == expected, (
-                f"{word!r}: got {count_syllables(word)}, expected {expected}"
-            )
+            assert (
+                count_syllables(word) == expected
+            ), f"{word!r}: got {count_syllables(word)}, expected {expected}"
 
     def test_score_counts_all_fields(self) -> None:
         from .readability import score
@@ -1044,9 +1035,9 @@ class ReadabilityTests(SimpleTestCase):
     def test_never_raises_on_weird_input(self) -> None:
         from .readability import score
 
-        score("123 456 789")   # digits only → zero words
-        score("!!! ??? ...")   # punctuation only
-        score("a")             # single char
+        score("123 456 789")  # digits only → zero words
+        score("!!! ??? ...")  # punctuation only
+        score("a")  # single char
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -1068,6 +1059,7 @@ class ProductQuantizationTests(SimpleTestCase):
         try:
             import faiss  # type: ignore[import-not-found]  # noqa: F401
             import numpy  # type: ignore[import-not-found]  # noqa: F401
+
             cls._faiss_available = True
         except ImportError:
             cls._faiss_available = False
@@ -1217,9 +1209,7 @@ class UrlCanonicalTests(SimpleTestCase):
     def test_idempotent(self) -> None:
         from .url_canonical import canonicalize
 
-        once = canonicalize(
-            "HTTP://Example.com:80//Foo/../Bar/?utm_source=x&z=1#frag"
-        )
+        once = canonicalize("HTTP://Example.com:80//Foo/../Bar/?utm_source=x&z=1#frag")
         twice = canonicalize(once)
         self.assertEqual(once, twice)
 
@@ -1244,9 +1234,7 @@ class UrlCanonicalTests(SimpleTestCase):
     def test_is_canonical_false_for_messy_form(self) -> None:
         from .url_canonical import is_canonical
 
-        self.assertFalse(
-            is_canonical("HTTP://Example.com/foo?utm_source=x")
-        )
+        self.assertFalse(is_canonical("HTTP://Example.com/foo?utm_source=x"))
 
     def test_is_canonical_does_not_raise_on_relative(self) -> None:
         from .url_canonical import is_canonical

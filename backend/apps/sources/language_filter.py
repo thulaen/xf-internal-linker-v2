@@ -59,9 +59,7 @@ def is_english(text: str) -> bool:
     try:
         from apps.core.runtime_flags import is_enabled
 
-        if not is_enabled(
-            "fasttext_langid.candidate_filter.enabled", default=True
-        ):
+        if not is_enabled("fasttext_langid.candidate_filter.enabled", default=True):
             return True
     except Exception:
         return True
@@ -106,9 +104,7 @@ def filter_english_content_records(
         from apps.core.runtime_flags import is_enabled
         from apps.sources import fasttext_langid
 
-        if not is_enabled(
-            "fasttext_langid.candidate_filter.enabled", default=True
-        ):
+        if not is_enabled("fasttext_langid.candidate_filter.enabled", default=True):
             return dict(records)
         if not fasttext_langid.is_available():
             return dict(records)

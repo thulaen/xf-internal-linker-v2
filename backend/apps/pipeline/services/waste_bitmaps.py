@@ -135,9 +135,7 @@ def bitmap_from_pks(queryset) -> pr.BitMap:
                     pk,
                 )
     except Exception as exc:  # pragma: no cover — DB-unreachable path
-        logger.warning(
-            "waste_bitmaps.bitmap_from_pks failed: %s", exc, exc_info=True
-        )
+        logger.warning("waste_bitmaps.bitmap_from_pks failed: %s", exc, exc_info=True)
         return pr.BitMap()
     return bitmap
 

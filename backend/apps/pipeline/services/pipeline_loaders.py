@@ -512,6 +512,7 @@ def _load_fr099_fr105_settings() -> FR099FR105Settings:
     See docs/specs/fr099-*.md through docs/specs/fr105-*.md for baseline
     citations. See docs/RANKING-GATES.md Gate A for the implementation gate.
     """
+
     def _get(key: str, fallback_str: str) -> str:
         """Read AppSetting override for key, else use the Recommended default."""
         try:
@@ -525,7 +526,10 @@ def _load_fr099_fr105_settings() -> FR099FR105Settings:
         return fallback_str
 
     def _bool(key: str) -> bool:
-        return _get(key, "true" if recommended_bool(key) else "false").strip().lower() == "true"
+        return (
+            _get(key, "true" if recommended_bool(key) else "false").strip().lower()
+            == "true"
+        )
 
     def _float(key: str) -> float:
         return float(_get(key, str(recommended_float(key))))
@@ -550,7 +554,9 @@ def _load_fr099_fr105_settings() -> FR099FR105Settings:
             tapb=TAPBSettings(
                 enabled=_bool("tapb.enabled"),
                 ranking_weight=_float("tapb.ranking_weight"),
-                apply_to_articulation_node_only=_bool("tapb.apply_to_articulation_node_only"),
+                apply_to_articulation_node_only=_bool(
+                    "tapb.apply_to_articulation_node_only"
+                ),
             ),
             kcib=KCIBSettings(
                 enabled=_bool("kcib.enabled"),
@@ -638,9 +644,7 @@ def _load_graph_signal_settings() -> dict[str, Any]:
                 SIGNAL_PPR: _float(
                     "graph_signals.personalized_pagerank.ranking_weight"
                 ),
-                SIGNAL_TRUSTRANK: _float(
-                    "graph_signals.trustrank.ranking_weight"
-                ),
+                SIGNAL_TRUSTRANK: _float("graph_signals.trustrank.ranking_weight"),
             },
         }
     except Exception:

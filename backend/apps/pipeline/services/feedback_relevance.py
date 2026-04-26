@@ -218,8 +218,7 @@ def _build_observations(
 
     cutoff = timezone.now() - timedelta(days=lookback_days)
     runs_with_suggestions = list(
-        PipelineRun.objects.filter(created_at__gte=cutoff)
-        .values_list("pk", flat=True)
+        PipelineRun.objects.filter(created_at__gte=cutoff).values_list("pk", flat=True)
     )
 
     sessions: list[ClickSession] = []

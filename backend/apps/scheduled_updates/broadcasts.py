@@ -78,9 +78,7 @@ def _alert_summary(alert: JobAlert) -> dict[str, Any]:
         "acknowledged_at": (
             alert.acknowledged_at.isoformat() if alert.acknowledged_at else None
         ),
-        "resolved_at": (
-            alert.resolved_at.isoformat() if alert.resolved_at else None
-        ),
+        "resolved_at": (alert.resolved_at.isoformat() if alert.resolved_at else None),
         "is_active": alert.is_active,
     }
 

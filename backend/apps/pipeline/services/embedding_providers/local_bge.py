@@ -59,6 +59,7 @@ class LocalBGEProvider:
     def model_name(self) -> str:
         if self._cached_model_name is None:
             from apps.pipeline.services.embeddings import _get_model_name
+
             self._cached_model_name = _get_model_name()
         return self._cached_model_name
 
@@ -68,6 +69,7 @@ class LocalBGEProvider:
             from apps.pipeline.services.embeddings import (
                 get_current_embedding_dimension,
             )
+
             self._cached_dim = int(
                 get_current_embedding_dimension(model_name=self.model_name)
             )
@@ -161,6 +163,7 @@ class LocalBGEProvider:
     def healthcheck(self) -> None:
         try:
             from apps.pipeline.services.embeddings import _load_model
+
             _load_model(self.model_name)
         except Exception as exc:
             raise ProviderError(f"Local model healthcheck failed: {exc}") from exc
@@ -178,6 +181,7 @@ class LocalBGEProvider:
         """
         try:
             from apps.pipeline.services.embeddings import _load_model
+
             model = _load_model(self.model_name)
             tokenizer = getattr(model, "tokenizer", None)
             if tokenizer is None:

@@ -60,12 +60,8 @@ class CalibrateScoreTests(TestCase):
         )
         # PlattCalibration.predict uses 1 / (1 + exp(slope*x + bias)).
         # slope=-2, bias=0 → score 0 → P=0.5; score 1 → P > 0.5.
-        self.assertAlmostEqual(
-            calibrate_score(0.0, snapshot=snapshot), 0.5
-        )
-        self.assertGreater(
-            calibrate_score(1.0, snapshot=snapshot), 0.5
-        )
+        self.assertAlmostEqual(calibrate_score(0.0, snapshot=snapshot), 0.5)
+        self.assertGreater(calibrate_score(1.0, snapshot=snapshot), 0.5)
 
 
 class FitAndPersistTests(TestCase):
@@ -102,8 +98,7 @@ class FitAndPersistTests(TestCase):
         # Balanced stream above MIN_TRAINING_PAIRS — Platt should fit
         # cleanly and the snapshot should round-trip.
         synthetic = [
-            (0.9, 1) if i % 2 == 0 else (0.1, 0)
-            for i in range(MIN_TRAINING_PAIRS + 20)
+            (0.9, 1) if i % 2 == 0 else (0.1, 0) for i in range(MIN_TRAINING_PAIRS + 20)
         ]
         with patch.object(
             score_calibrator,

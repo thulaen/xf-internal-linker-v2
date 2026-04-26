@@ -91,9 +91,7 @@ def ensure_storage_dir(storage_url: str) -> None:
 def _current_appsetting_value(key: str) -> str | None:
     from apps.core.models import AppSetting
 
-    return (
-        AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
-    )
+    return AppSetting.objects.filter(key=key).values_list("value", flat=True).first()
 
 
 def _current_snapshot() -> dict[str, Any]:
@@ -198,6 +196,7 @@ def run_study_and_maybe_apply(
     objective = build_objective(cached_items=items)
 
     if checkpoint:
+
         def _optuna_heartbeat(study, trial):
             # Report progress every 10 % of trials so dashboards have
             # something live to render.
@@ -236,9 +235,7 @@ def run_study_and_maybe_apply(
         min_improvement=NDCG_IMPROVEMENT_MIN,
     )
     if not gate.passes:
-        logger.info(
-            "meta_hpo: improvement gate blocked apply (%s)", gate.reason
-        )
+        logger.info("meta_hpo: improvement gate blocked apply (%s)", gate.reason)
         if checkpoint:
             checkpoint(
                 progress_pct=100.0,

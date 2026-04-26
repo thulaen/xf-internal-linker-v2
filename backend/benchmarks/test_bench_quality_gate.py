@@ -48,7 +48,10 @@ def test_bench_gate_small_dim(benchmark, dim):
     provider = _StubProvider(dim)
     old_vec, new_vec = _inputs(dim)
     gate = QualityGate(
-        provider_ranking={"local:BAAI/bge-m3:1024": 0.7, "openai:text-embedding-3-small:1536": 0.8},
+        provider_ranking={
+            "local:BAAI/bge-m3:1024": 0.7,
+            "openai:text-embedding-3-small:1536": 0.8,
+        },
         provider=provider,
     )
     benchmark(

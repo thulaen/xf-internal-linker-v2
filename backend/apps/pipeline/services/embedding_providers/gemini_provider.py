@@ -40,8 +40,16 @@ from .errors import (
 logger = logging.getLogger(__name__)
 
 _MODEL_REGISTRY: dict[str, dict[str, float | int]] = {
-    "text-embedding-004": {"dimension": 768, "price_per_1k": 0.000025, "max_tokens": 2048},
-    "gemini-embedding-exp-03-07": {"dimension": 3072, "price_per_1k": 0.00013, "max_tokens": 2048},
+    "text-embedding-004": {
+        "dimension": 768,
+        "price_per_1k": 0.000025,
+        "max_tokens": 2048,
+    },
+    "gemini-embedding-exp-03-07": {
+        "dimension": 3072,
+        "price_per_1k": 0.00013,
+        "max_tokens": 2048,
+    },
 }
 
 _DEFAULT_MODEL = "text-embedding-004"
@@ -65,6 +73,7 @@ class GeminiProvider:
     def _read_setting(self, key: str, default: str = "") -> str:
         try:
             from apps.core.models import AppSetting
+
             row = AppSetting.objects.filter(key=key).first()
             return str(row.value) if row and row.value is not None else default
         except Exception:
@@ -74,8 +83,7 @@ class GeminiProvider:
     def model_name(self) -> str:
         if self._cached_model is None:
             self._cached_model = (
-                self._read_setting("embedding.model", _DEFAULT_MODEL)
-                or _DEFAULT_MODEL
+                self._read_setting("embedding.model", _DEFAULT_MODEL) or _DEFAULT_MODEL
             )
         return self._cached_model
 
@@ -177,7 +185,9 @@ class GeminiProvider:
         # offline counters; use char heuristic which is acceptable for budget
         # pre-check — the post-call accounting uses the actual response tokens).
         est_tokens = sum(max(1, len(t or "") // 4) for t in texts_list)
-        price_per_1k = float(_MODEL_REGISTRY.get(self.model_name, {}).get("price_per_1k", 0.0))
+        price_per_1k = float(
+            _MODEL_REGISTRY.get(self.model_name, {}).get("price_per_1k", 0.0)
+        )
         estimated_cost = est_tokens * price_per_1k / 1000.0
         self._check_budget(estimated_cost)
 
@@ -223,7 +233,11 @@ class GeminiProvider:
                 consumed_tokens += self._extract_token_count(chunk_resp) or 0
 
         vectors = np.asarray(rows, dtype=np.float32)
-        actual_cost = consumed_tokens * price_per_1k / 1000.0 if consumed_tokens else estimated_cost
+        actual_cost = (
+            consumed_tokens * price_per_1k / 1000.0
+            if consumed_tokens
+            else estimated_cost
+        )
 
         return EmbedResult(
             vectors=vectors,
@@ -261,7 +275,11 @@ class GeminiProvider:
             return [text]
         overlap = max_chars // 10
         stride = max_chars - overlap
-        return [text[i : i + max_chars] for i in range(0, len(text), stride) if text[i : i + max_chars]]
+        return [
+            text[i : i + max_chars]
+            for i in range(0, len(text), stride)
+            if text[i : i + max_chars]
+        ]
 
     def _extract_embeddings(self, response) -> list[list[float]]:
         # Handle two common google-genai shapes:
@@ -282,10 +300,14 @@ class GeminiProvider:
         raise ProviderError("Unexpected Gemini response shape")
 
     def _extract_token_count(self, response) -> int | None:
-        usage = getattr(response, "usage_metadata", None) or getattr(response, "metadata", None)
+        usage = getattr(response, "usage_metadata", None) or getattr(
+            response, "metadata", None
+        )
         if usage is None:
             return None
-        return getattr(usage, "total_token_count", None) or getattr(usage, "total_tokens", None)
+        return getattr(usage, "total_token_count", None) or getattr(
+            usage, "total_tokens", None
+        )
 
     def _call_with_retry(self, client, texts: list[str]):
         max_attempts = 5
@@ -301,7 +323,12 @@ class GeminiProvider:
                 msg = str(exc).lower()
                 last_error = exc
                 # Classify by message — google-genai exceptions are generic.
-                if "401" in msg or "unauthor" in msg or "api key" in msg or "forbid" in msg:
+                if (
+                    "401" in msg
+                    or "unauthor" in msg
+                    or "api key" in msg
+                    or "forbid" in msg
+                ):
                     raise AuthenticationError(str(exc)) from exc
                 if "429" in msg or "rate" in msg or "quota" in msg:
                     if attempt == max_attempts:

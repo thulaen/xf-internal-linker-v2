@@ -41,9 +41,7 @@ class LbfgsBTests(SimpleTestCase):
         def objective(x):
             return float((x[0] - 3.0) ** 2)
 
-        result = minimize_lbfgs_b(
-            objective, x0=[0.0], bounds=[(0.0, 1.0)]
-        )
+        result = minimize_lbfgs_b(objective, x0=[0.0], bounds=[(0.0, 1.0)])
         self.assertAlmostEqual(result.x[0], 1.0, places=4)
 
     def test_callable_failure_returns_non_converged(self) -> None:
@@ -79,24 +77,18 @@ class TpeTests(SimpleTestCase):
 
 class CosineAnnealingTests(SimpleTestCase):
     def test_step_zero_returns_lr_max(self) -> None:
-        schedule = CosineAnnealingSchedule(
-            lr_max=0.1, lr_min=0.001, cycle_length=100
-        )
+        schedule = CosineAnnealingSchedule(lr_max=0.1, lr_min=0.001, cycle_length=100)
         self.assertAlmostEqual(learning_rate_at_step(0, schedule), 0.1)
 
     def test_step_at_cycle_length_returns_lr_min(self) -> None:
-        schedule = CosineAnnealingSchedule(
-            lr_max=0.1, lr_min=0.001, cycle_length=100
-        )
+        schedule = CosineAnnealingSchedule(lr_max=0.1, lr_min=0.001, cycle_length=100)
         # After cycle_length steps the cycle restarts → lr_max again.
         self.assertAlmostEqual(learning_rate_at_step(100, schedule), 0.1)
         # At step 99 we're near the end of the first cycle → near lr_min.
         self.assertLess(learning_rate_at_step(99, schedule), 0.01)
 
     def test_invalid_cycle_length_returns_lr_max(self) -> None:
-        schedule = CosineAnnealingSchedule(
-            lr_max=0.1, lr_min=0.001, cycle_length=0
-        )
+        schedule = CosineAnnealingSchedule(lr_max=0.1, lr_min=0.001, cycle_length=0)
         self.assertEqual(learning_rate_at_step(5, schedule), 0.1)
 
     def test_warm_restarts_extend_cycles(self) -> None:

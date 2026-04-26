@@ -44,7 +44,9 @@ def _read_provider_name() -> str:
         if setting and setting.value:
             return str(setting.value).strip().lower()
     except Exception:
-        logger.debug("AppSetting unavailable; using default provider 'local'", exc_info=True)
+        logger.debug(
+            "AppSetting unavailable; using default provider 'local'", exc_info=True
+        )
     return "local"
 
 
@@ -73,14 +75,17 @@ def get_provider(force_refresh: bool = False) -> EmbeddingProvider:
 def _instantiate(name: str) -> EmbeddingProvider:
     if name == "openai":
         from .openai_provider import OpenAIProvider
+
         return OpenAIProvider()
     if name == "gemini":
         from .gemini_provider import GeminiProvider
+
         return GeminiProvider()
     # default + unknown names fall back to local so a typo does not cost money
     if name != "local":
         logger.warning("Unknown embedding.provider=%r; falling back to local", name)
     from .local_bge import LocalBGEProvider
+
     return LocalBGEProvider()
 
 

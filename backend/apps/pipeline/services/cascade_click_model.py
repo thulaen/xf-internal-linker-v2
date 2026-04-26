@@ -76,8 +76,8 @@ class DocRelevance:
 
     doc_id: Hashable
     relevance: float
-    examinations: int     # times the user reached this doc
-    clicks: int           # times the user clicked this doc
+    examinations: int  # times the user reached this doc
+    clicks: int  # times the user clicked this doc
 
 
 def estimate(

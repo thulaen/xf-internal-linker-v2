@@ -166,9 +166,7 @@ def _try_kernel_shap(suggestion, *, weights: dict[str, float]) -> Explanation | 
     except SHAPUnavailable:
         return None
     except Exception:
-        logger.debug(
-            "Kernel SHAP raised — using linear attribution", exc_info=True
-        )
+        logger.debug("Kernel SHAP raised — using linear attribution", exc_info=True)
         return None
 
     contributions = [

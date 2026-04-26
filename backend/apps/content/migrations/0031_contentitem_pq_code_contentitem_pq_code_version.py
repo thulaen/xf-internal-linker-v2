@@ -4,20 +4,28 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('content', '0030_contentitem_elo_rating'),
+        ("content", "0030_contentitem_elo_rating"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='contentitem',
-            name='pq_code',
-            field=models.BinaryField(blank=True, help_text='Pick #20: PQ-compressed embedding (~8 bytes). Null until the first product_quantization_refit run encodes it. Decode via apps.pipeline.services.product_quantization_producer.', null=True),
+            model_name="contentitem",
+            name="pq_code",
+            field=models.BinaryField(
+                blank=True,
+                help_text="Pick #20: PQ-compressed embedding (~8 bytes). Null until the first product_quantization_refit run encodes it. Decode via apps.pipeline.services.product_quantization_producer.",
+                null=True,
+            ),
         ),
         migrations.AddField(
-            model_name='contentitem',
-            name='pq_code_version',
-            field=models.CharField(blank=True, help_text="Codebook version that produced pq_code. Re-encoded on every refit; consumers must reject codes whose version doesn't match the active codebook.", max_length=64, null=True),
+            model_name="contentitem",
+            name="pq_code_version",
+            field=models.CharField(
+                blank=True,
+                help_text="Codebook version that produced pq_code. Re-encoded on every refit; consumers must reject codes whose version doesn't match the active codebook.",
+                max_length=64,
+                null=True,
+            ),
         ),
     ]

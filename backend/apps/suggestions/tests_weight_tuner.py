@@ -59,12 +59,15 @@ class WeightTunerRunTests(TestCase):
     def _run_with_mocks(self) -> RankingChallenger | None:
         """Run the tuner against synthetic samples + a fixed weights dict."""
         samples = _synthetic_samples()
-        with patch(
-            "apps.suggestions.services.weight_tuner.get_current_weights",
-            return_value=self._current_weights,
-        ), patch(
-            "apps.suggestions.services.weight_tuner.Suggestion.objects.filter",
-        ) as filter_mock:
+        with (
+            patch(
+                "apps.suggestions.services.weight_tuner.get_current_weights",
+                return_value=self._current_weights,
+            ),
+            patch(
+                "apps.suggestions.services.weight_tuner.Suggestion.objects.filter",
+            ) as filter_mock,
+        ):
             filter_mock.return_value.values.return_value = samples
             tuner = WeightTuner(lookback_days=90)
             return tuner.run(run_id="test-run-001")
@@ -111,14 +114,18 @@ class WeightTunerRunTests(TestCase):
     def test_does_not_pass_stale_kwargs_to_create(self) -> None:
         """Belt-and-braces: assert the create() kwargs are exactly the live set."""
         samples = _synthetic_samples()
-        with patch(
-            "apps.suggestions.services.weight_tuner.get_current_weights",
-            return_value=self._current_weights,
-        ), patch(
-            "apps.suggestions.services.weight_tuner.Suggestion.objects.filter",
-        ) as filter_mock, patch(
-            "apps.suggestions.services.weight_tuner.RankingChallenger.objects.create"
-        ) as create_mock:
+        with (
+            patch(
+                "apps.suggestions.services.weight_tuner.get_current_weights",
+                return_value=self._current_weights,
+            ),
+            patch(
+                "apps.suggestions.services.weight_tuner.Suggestion.objects.filter",
+            ) as filter_mock,
+            patch(
+                "apps.suggestions.services.weight_tuner.RankingChallenger.objects.create"
+            ) as create_mock,
+        ):
             filter_mock.return_value.values.return_value = samples
             create_mock.return_value = RankingChallenger(run_id="test-run-002")
             WeightTuner(lookback_days=90).run(run_id="test-run-002")

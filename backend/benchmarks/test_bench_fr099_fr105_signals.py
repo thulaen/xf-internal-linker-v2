@@ -201,8 +201,7 @@ def test_bench_berp(benchmark, n):
 def test_bench_hgte(benchmark, n):
     """FR-104 HGTE: O(silo_count) per candidate — ~20 silos max."""
     host_silo_counts = {
-        (i, "thread"): {j: (i % (j + 1) + 1) for j in range(1, 6)}
-        for i in range(2 * n)
+        (i, "thread"): {j: (i % (j + 1) + 1) for j in range(1, 6)} for i in range(2 * n)
     }
     cache = HostSiloDistributionCache(
         host_silo_counts=host_silo_counts,
@@ -233,8 +232,7 @@ def test_bench_rsqva(benchmark, n):
         return (v / nrm).astype(np.float32) if nrm > 0 else v.astype(np.float32)
 
     page_vectors = {
-        (i, "thread"): _unit(rng.random(1024).astype(np.float32))
-        for i in range(2 * n)
+        (i, "thread"): _unit(rng.random(1024).astype(np.float32)) for i in range(2 * n)
     }
     cache = QueryTFIDFCache(
         page_vectors=page_vectors,

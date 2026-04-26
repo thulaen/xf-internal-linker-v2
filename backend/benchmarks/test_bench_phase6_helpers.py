@@ -90,8 +90,7 @@ def _pysbd_batch(texts):
 def test_bench_pysbd_small(benchmark):
     rng = random.Random(1)
     texts = [
-        ". ".join(_random_paragraph(rng, 30) for _ in range(5))
-        for _ in range(100)
+        ". ".join(_random_paragraph(rng, 30) for _ in range(5)) for _ in range(100)
     ]
     benchmark(_pysbd_batch, texts)
 
@@ -99,8 +98,7 @@ def test_bench_pysbd_small(benchmark):
 def test_bench_pysbd_medium(benchmark):
     rng = random.Random(1)
     texts = [
-        ". ".join(_random_paragraph(rng, 30) for _ in range(10))
-        for _ in range(1_000)
+        ". ".join(_random_paragraph(rng, 30) for _ in range(10)) for _ in range(1_000)
     ]
     benchmark(_pysbd_batch, texts)
 
@@ -108,8 +106,7 @@ def test_bench_pysbd_medium(benchmark):
 def test_bench_pysbd_large(benchmark):
     rng = random.Random(1)
     texts = [
-        ". ".join(_random_paragraph(rng, 30) for _ in range(20))
-        for _ in range(5_000)
+        ". ".join(_random_paragraph(rng, 30) for _ in range(20)) for _ in range(5_000)
     ]
     benchmark(_pysbd_batch, texts)
 
@@ -283,10 +280,7 @@ def _make_retriever_context(
 
     rng = random.Random(42)
     keys = [(i, "thread") for i in range(n_dest + n_host)]
-    records = {
-        k: _FakeRecord(_random_paragraph(rng, words_per_title))
-        for k in keys
-    }
+    records = {k: _FakeRecord(_random_paragraph(rng, words_per_title)) for k in keys}
     sentence_ids = {k: [k[0] * 100, k[0] * 100 + 1] for k in keys}
     import numpy as np
 

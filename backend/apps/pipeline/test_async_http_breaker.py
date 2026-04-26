@@ -112,11 +112,14 @@ class CircuitBreakerWiringTests(SimpleTestCase):
     def test_success_records_success_on_breaker(self) -> None:
         """Successful responses call breaker.record_success."""
         breaker = self._build_breaker()
-        with patch.object(
-            breaker, "record_success", wraps=breaker.record_success
-        ) as record_success, patch.object(
-            breaker, "record_failure", wraps=breaker.record_failure
-        ) as record_failure:
+        with (
+            patch.object(
+                breaker, "record_success", wraps=breaker.record_success
+            ) as record_success,
+            patch.object(
+                breaker, "record_failure", wraps=breaker.record_failure
+            ) as record_failure,
+        ):
             with patch.object(async_http, "httpx") as httpx_mod:
                 httpx_mod.TimeoutException = Exception
                 httpx_mod.RequestError = Exception

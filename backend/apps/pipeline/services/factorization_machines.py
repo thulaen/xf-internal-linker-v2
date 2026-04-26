@@ -74,18 +74,18 @@ class _FmModel:
     """Hand-rolled FM weights — ``w0`` + linear + pairwise factors."""
 
     w0: float
-    w: np.ndarray             # shape (n_features,)
-    V: np.ndarray             # shape (n_features, factors)
-    task: str                 # "regression" or "classification"
+    w: np.ndarray  # shape (n_features,)
+    V: np.ndarray  # shape (n_features, factors)
+    task: str  # "regression" or "classification"
 
     def predict_one(self, x: np.ndarray) -> float:
         """Score a single feature row using Rendle eq. 5 (linear-time)."""
         # Pairwise interaction term computed in O(k·n) via the trick
         # from Rendle §3.2 eq. 5:
         #   Σ_f [ (Σ_i v_i,f * x_i)² − Σ_i v_i,f² * x_i² ] / 2
-        Vx = self.V.T @ x          # shape (factors,)
-        VxSq = (self.V.T ** 2) @ (x ** 2)
-        pairwise = 0.5 * float(np.sum(Vx ** 2 - VxSq))
+        Vx = self.V.T @ x  # shape (factors,)
+        VxSq = (self.V.T**2) @ (x**2)
+        pairwise = 0.5 * float(np.sum(Vx**2 - VxSq))
         linear = float(np.dot(self.w, x)) + self.w0
         raw = linear + pairwise
         if self.task == "classification":
@@ -235,7 +235,7 @@ def fit_and_save(
                 xi = X[i]
                 # Forward pass — Rendle eq. 5 trick.
                 Vx = V.T @ xi
-                pairwise = 0.5 * float(np.sum(Vx ** 2 - (V.T ** 2) @ (xi ** 2)))
+                pairwise = 0.5 * float(np.sum(Vx**2 - (V.T**2) @ (xi**2)))
                 raw = w0 + float(np.dot(w, xi)) + pairwise
                 if is_clf:
                     pred = 1.0 / (1.0 + np.exp(-raw))
@@ -250,9 +250,7 @@ def fit_and_save(
                 # non-zero features (Rendle 2010 §3.2 eq. 4: gradient
                 # for w_i is x_i, which is 0 for zero features).
                 mask = xi != 0
-                w[mask] -= learning_rate * (
-                    grad * xi[mask] + regularization * w[mask]
-                )
+                w[mask] -= learning_rate * (grad * xi[mask] + regularization * w[mask])
                 # Latent factors — paper §3.2 eq. 6:
                 # ∂pairwise / ∂v_{i,f} = x_i (Σ_j v_{j,f} x_j) − x_i² v_{i,f}
                 # The x_i factor zeroes the gradient for zero
@@ -262,9 +260,7 @@ def fit_and_save(
                 # spurious regularisation drift on inactive features.
                 for f in range(factors):
                     sum_vfx = float(np.dot(V[:, f], xi))  # Σ_j v_{j,f} x_j
-                    deriv_active = xi[mask] * sum_vfx - (
-                        xi[mask] ** 2
-                    ) * V[mask, f]
+                    deriv_active = xi[mask] * sum_vfx - (xi[mask] ** 2) * V[mask, f]
                     V[mask, f] -= learning_rate * (
                         grad * deriv_active + regularization * V[mask, f]
                     )

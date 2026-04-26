@@ -533,7 +533,9 @@ class TestRSQVA(TestCase):
             settings=RSQVASettings(min_queries_per_page=5),
         )
         self.assertEqual(result.score_component, 0.0)
-        self.assertEqual(result.diagnostics["diagnostic"], "insufficient_queries_per_page")
+        self.assertEqual(
+            result.diagnostics["diagnostic"], "insufficient_queries_per_page"
+        )
 
     def test_neutral_below_data_floor(self):
         v = self._unit_vec([1.0])
@@ -597,7 +599,14 @@ class TestFR099FR105Dispatcher(TestCase):
         self.assertAlmostEqual(result.weighted_contribution, 0.04, places=6)
         self.assertAlmostEqual(result.per_signal_scores["score_darb"], 1.0, places=6)
         # Others stay neutral
-        for k in ("score_kmig", "score_tapb", "score_kcib", "score_berp", "score_hgte", "score_rsqva"):
+        for k in (
+            "score_kmig",
+            "score_tapb",
+            "score_kcib",
+            "score_berp",
+            "score_hgte",
+            "score_rsqva",
+        ):
             self.assertEqual(result.per_signal_scores[k], 0.0)
 
     def test_any_enabled_flag(self):

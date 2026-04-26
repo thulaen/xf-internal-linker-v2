@@ -115,8 +115,12 @@ class EmbeddingBakeoffResult(TimestampedModel):
     mrr_at_10 = models.DecimalField(max_digits=6, decimal_places=4, default=0)
     ndcg_at_10 = models.DecimalField(max_digits=6, decimal_places=4, default=0)
     recall_at_10 = models.DecimalField(max_digits=6, decimal_places=4, default=0)
-    mean_positive_cosine = models.DecimalField(max_digits=6, decimal_places=4, default=0)
-    mean_negative_cosine = models.DecimalField(max_digits=6, decimal_places=4, default=0)
+    mean_positive_cosine = models.DecimalField(
+        max_digits=6, decimal_places=4, default=0
+    )
+    mean_negative_cosine = models.DecimalField(
+        max_digits=6, decimal_places=4, default=0
+    )
     separation_score = models.DecimalField(max_digits=6, decimal_places=4, default=0)
     cost_usd = models.DecimalField(max_digits=10, decimal_places=6, default=0)
     latency_ms_p50 = models.IntegerField(default=0)

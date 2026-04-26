@@ -72,8 +72,8 @@ class FeatureContribution:
     """One feature's contribution to the explained prediction."""
 
     feature_name: str
-    value: float              # the raw feature value on the subject instance
-    shap_value: float         # signed contribution (+ / - direction)
+    value: float  # the raw feature value on the subject instance
+    shap_value: float  # signed contribution (+ / - direction)
 
 
 @dataclass(frozen=True)

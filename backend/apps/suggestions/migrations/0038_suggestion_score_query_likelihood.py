@@ -4,15 +4,17 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0037_suggestion_calibrated_probability'),
+        ("suggestions", "0037_suggestion_calibrated_probability"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='score_query_likelihood',
-            field=models.FloatField(default=0.0, help_text="QL-Dirichlet log-score (Zhai & Lafferty 2001). Reuses the corpus stats from the keyword baseline. Higher (closer to 0) means the destination's vocabulary fits the host sentence better. 0.0 = unscored."),
+            model_name="suggestion",
+            name="score_query_likelihood",
+            field=models.FloatField(
+                default=0.0,
+                help_text="QL-Dirichlet log-score (Zhai & Lafferty 2001). Reuses the corpus stats from the keyword baseline. Higher (closer to 0) means the destination's vocabulary fits the host sentence better. 0.0 = unscored.",
+            ),
         ),
     ]

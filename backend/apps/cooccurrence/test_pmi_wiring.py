@@ -88,7 +88,9 @@ class PmiUpsertWiringTests(TestCase):
             source_content_item=self.a, dest_content_item=self.b
         )
         expected_g2 = _compute_log_likelihood(10, 20, 15, 80)
-        self.assertAlmostEqual(pair.log_likelihood_score, round(expected_g2, 4), places=4)
+        self.assertAlmostEqual(
+            pair.log_likelihood_score, round(expected_g2, 4), places=4
+        )
         # And the older Jaccard / lift columns still land too.
         self.assertGreater(pair.jaccard_similarity, 0.0)
         self.assertGreater(pair.lift, 0.0)

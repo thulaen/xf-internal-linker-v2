@@ -68,10 +68,14 @@ class EvaluateWeightChallengerSourceTests(TestCase):
 
     def test_promotion_writes_auto_tune_source(self) -> None:
         # Mock AppSetting writes so we don't have to seed the full preset.
-        with patch("apps.suggestions.weight_preset_service.apply_weights"), patch(
-            "apps.suggestions.weight_preset_service.get_current_weights",
-            return_value=dict(_BASELINE_WEIGHTS),
-        ), self._force_sprt_promote():
+        with (
+            patch("apps.suggestions.weight_preset_service.apply_weights"),
+            patch(
+                "apps.suggestions.weight_preset_service.get_current_weights",
+                return_value=dict(_BASELINE_WEIGHTS),
+            ),
+            self._force_sprt_promote(),
+        ):
             result = evaluate_weight_challenger(run_id=self.run_id)
         self.assertEqual(result["status"], "promoted")
         history_rows = WeightAdjustmentHistory.objects.filter(r_run_id=self.run_id)
@@ -79,10 +83,14 @@ class EvaluateWeightChallengerSourceTests(TestCase):
         self.assertEqual(history_rows.first().source, "auto_tune")
 
     def test_no_path_writes_cs_auto_tune(self) -> None:
-        with patch("apps.suggestions.weight_preset_service.apply_weights"), patch(
-            "apps.suggestions.weight_preset_service.get_current_weights",
-            return_value=dict(_BASELINE_WEIGHTS),
-        ), self._force_sprt_promote():
+        with (
+            patch("apps.suggestions.weight_preset_service.apply_weights"),
+            patch(
+                "apps.suggestions.weight_preset_service.get_current_weights",
+                return_value=dict(_BASELINE_WEIGHTS),
+            ),
+            self._force_sprt_promote(),
+        ):
             evaluate_weight_challenger(run_id=self.run_id)
         self.assertFalse(
             WeightAdjustmentHistory.objects.filter(source="cs_auto_tune").exists()
@@ -136,9 +144,12 @@ class CheckWeightRollbackSourceTests(TestCase):
             )
 
     def test_rollback_writes_auto_tune_source(self) -> None:
-        with patch("apps.suggestions.weight_preset_service.apply_weights"), patch(
-            "apps.suggestions.weight_preset_service.get_current_weights",
-            return_value=dict(_CANDIDATE_WEIGHTS),
+        with (
+            patch("apps.suggestions.weight_preset_service.apply_weights"),
+            patch(
+                "apps.suggestions.weight_preset_service.get_current_weights",
+                return_value=dict(_CANDIDATE_WEIGHTS),
+            ),
         ):
             _check_single_rollback(self.challenger)
 
@@ -149,9 +160,12 @@ class CheckWeightRollbackSourceTests(TestCase):
         self.assertEqual(history_rows.first().source, "auto_tune")
 
     def test_rollback_never_writes_cs_auto_tune(self) -> None:
-        with patch("apps.suggestions.weight_preset_service.apply_weights"), patch(
-            "apps.suggestions.weight_preset_service.get_current_weights",
-            return_value=dict(_CANDIDATE_WEIGHTS),
+        with (
+            patch("apps.suggestions.weight_preset_service.apply_weights"),
+            patch(
+                "apps.suggestions.weight_preset_service.get_current_weights",
+                return_value=dict(_CANDIDATE_WEIGHTS),
+            ),
         ):
             _check_single_rollback(self.challenger)
         self.assertFalse(

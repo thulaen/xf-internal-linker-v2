@@ -89,9 +89,11 @@ class GraphSignalRankerMathTests(SimpleTestCase):
     def test_contribution_zero_with_zero_weight(self) -> None:
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.0},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
+                )
+            },
         )
         self.assertEqual(ranker.contribution((1, "thread")), 0.0)
 
@@ -99,9 +101,11 @@ class GraphSignalRankerMathTests(SimpleTestCase):
         # score == 0.5 is the project-wide neutral baseline → contribution = 0
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.5}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.5}
+                )
+            },
         )
         self.assertAlmostEqual(ranker.contribution((1, "thread")), 0.0)
 
@@ -109,9 +113,11 @@ class GraphSignalRankerMathTests(SimpleTestCase):
         # 0.10 * (0.9 - 0.5) = 0.04
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
+                )
+            },
         )
         self.assertAlmostEqual(ranker.contribution((1, "thread")), 0.04, places=6)
 
@@ -119,9 +125,11 @@ class GraphSignalRankerMathTests(SimpleTestCase):
         # 0.10 * (0.1 - 0.5) = -0.04
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.1}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.1}
+                )
+            },
         )
         self.assertAlmostEqual(ranker.contribution((1, "thread")), -0.04, places=6)
 
@@ -140,31 +148,31 @@ class GraphSignalRankerMathTests(SimpleTestCase):
                     SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
                 ),
                 SIGNAL_PPR: _snapshot(SIGNAL_PPR, {"1:thread": 0.7}),
-                SIGNAL_TRUSTRANK: _snapshot(
-                    SIGNAL_TRUSTRANK, {"1:thread": 0.95}
-                ),
+                SIGNAL_TRUSTRANK: _snapshot(SIGNAL_TRUSTRANK, {"1:thread": 0.95}),
             },
         )
-        self.assertAlmostEqual(
-            ranker.contribution((1, "thread")), 0.05, places=6
-        )
+        self.assertAlmostEqual(ranker.contribution((1, "thread")), 0.05, places=6)
 
     def test_unknown_node_returns_neutral_per_signal(self) -> None:
         # Node not in any snapshot → all signals neutral → contribution 0
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"42:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"42:thread": 0.9}
+                )
+            },
         )
         self.assertAlmostEqual(ranker.contribution((999, "thread")), 0.0)
 
     def test_per_signal_scores_returns_neutral_for_missing(self) -> None:
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
+                )
+            },
         )
         scores = ranker.per_signal_scores((1, "thread"))
         self.assertAlmostEqual(scores[SIGNAL_HITS_AUTHORITY], 0.9)
@@ -175,18 +183,22 @@ class GraphSignalRankerMathTests(SimpleTestCase):
     def test_is_active_true_when_signal_has_weight_and_snapshot(self) -> None:
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.10},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
+                )
+            },
         )
         self.assertTrue(ranker.is_active)
 
     def test_is_active_false_when_zero_weight(self) -> None:
         ranker = GraphSignalRanker(
             weights={SIGNAL_HITS_AUTHORITY: 0.0},
-            snapshots={SIGNAL_HITS_AUTHORITY: _snapshot(
-                SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
-            )},
+            snapshots={
+                SIGNAL_HITS_AUTHORITY: _snapshot(
+                    SIGNAL_HITS_AUTHORITY, {"1:thread": 0.9}
+                )
+            },
         )
         self.assertFalse(ranker.is_active)
 
@@ -301,9 +313,7 @@ class GraphSignalRankerIntegrationTests(TestCase):
         }
         self.matches = [SentenceSemanticMatch(20, "thread", 20, 0.8)]
 
-    def _score(
-        self, *, graph_signal_ranker: GraphSignalRanker | None = None
-    ) -> float:
+    def _score(self, *, graph_signal_ranker: GraphSignalRanker | None = None) -> float:
         scored = score_destination_matches(
             self.destination,
             self.matches,

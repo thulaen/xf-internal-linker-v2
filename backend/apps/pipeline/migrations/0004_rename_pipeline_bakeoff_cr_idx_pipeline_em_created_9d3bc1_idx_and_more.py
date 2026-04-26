@@ -4,70 +4,87 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('pipeline', '0003_rename_monthly_cs_weight_tune_periodic_task'),
+        ("pipeline", "0003_rename_monthly_cs_weight_tune_periodic_task"),
     ]
 
     operations = [
         migrations.RenameIndex(
-            model_name='embeddingbakeoffresult',
-            new_name='pipeline_em_created_9d3bc1_idx',
-            old_name='pipeline_bakeoff_cr_idx',
+            model_name="embeddingbakeoffresult",
+            new_name="pipeline_em_created_9d3bc1_idx",
+            old_name="pipeline_bakeoff_cr_idx",
         ),
         migrations.RenameIndex(
-            model_name='embeddingcostledger',
-            new_name='pipeline_em_provide_d1249e_idx',
-            old_name='pipeline_emb_prov_cr_idx',
+            model_name="embeddingcostledger",
+            new_name="pipeline_em_provide_d1249e_idx",
+            old_name="pipeline_emb_prov_cr_idx",
         ),
         migrations.RenameIndex(
-            model_name='embeddinggatedecision',
-            new_name='pipeline_em_created_a1236c_idx',
-            old_name='pipeline_gate_cr_act_idx',
+            model_name="embeddinggatedecision",
+            new_name="pipeline_em_created_a1236c_idx",
+            old_name="pipeline_gate_cr_act_idx",
         ),
         migrations.AlterField(
-            model_name='embeddingbakeoffresult',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.'),
+            model_name="embeddingbakeoffresult",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, help_text="Timestamp when this record was created."
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddingbakeoffresult',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            model_name="embeddingbakeoffresult",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddingbakeoffresult',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.'),
+            model_name="embeddingbakeoffresult",
+            name="updated_at",
+            field=models.DateTimeField(
+                auto_now=True, help_text="Timestamp when this record was last modified."
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddingcostledger',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.'),
+            model_name="embeddingcostledger",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, help_text="Timestamp when this record was created."
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddingcostledger',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            model_name="embeddingcostledger",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddingcostledger',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.'),
+            model_name="embeddingcostledger",
+            name="updated_at",
+            field=models.DateTimeField(
+                auto_now=True, help_text="Timestamp when this record was last modified."
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddinggatedecision',
-            name='created_at',
-            field=models.DateTimeField(auto_now_add=True, help_text='Timestamp when this record was created.'),
+            model_name="embeddinggatedecision",
+            name="created_at",
+            field=models.DateTimeField(
+                auto_now_add=True, help_text="Timestamp when this record was created."
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddinggatedecision',
-            name='id',
-            field=models.BigAutoField(auto_created=True, primary_key=True, serialize=False, verbose_name='ID'),
+            model_name="embeddinggatedecision",
+            name="id",
+            field=models.BigAutoField(
+                auto_created=True, primary_key=True, serialize=False, verbose_name="ID"
+            ),
         ),
         migrations.AlterField(
-            model_name='embeddinggatedecision',
-            name='updated_at',
-            field=models.DateTimeField(auto_now=True, help_text='Timestamp when this record was last modified.'),
+            model_name="embeddinggatedecision",
+            name="updated_at",
+            field=models.DateTimeField(
+                auto_now=True, help_text="Timestamp when this record was last modified."
+            ),
         ),
     ]

@@ -223,6 +223,7 @@ def set_last_run_at(dt) -> None:
 
 def get_thresholds() -> tuple[float, float, int]:
     """Return ``(norm_tolerance, drift_threshold, resample_size)``."""
+
     def _f(key: str, fallback: float) -> float:
         try:
             from apps.core.models import AppSetting

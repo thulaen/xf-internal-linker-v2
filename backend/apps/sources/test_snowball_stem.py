@@ -80,12 +80,15 @@ class StemTextTests(SimpleTestCase):
     def test_splits_and_stems_each_token(self) -> None:
         stems = snowball_stem.stem_text("Running, jumps and ran!")
         # Punctuation is stripped, words lower-cased, and each piece stemmed.
-        self.assertEqual(stems, [
-            snowball_stem.stem_token("running"),
-            snowball_stem.stem_token("jumps"),
-            snowball_stem.stem_token("and"),
-            snowball_stem.stem_token("ran"),
-        ])
+        self.assertEqual(
+            stems,
+            [
+                snowball_stem.stem_token("running"),
+                snowball_stem.stem_token("jumps"),
+                snowball_stem.stem_token("and"),
+                snowball_stem.stem_token("ran"),
+            ],
+        )
 
     @skipUnless(HAS_SNOWBALL, "snowballstemmer not installed in this container")
     def test_collapses_morphological_variants_in_text(self) -> None:
@@ -95,7 +98,11 @@ class StemTextTests(SimpleTestCase):
         b = set(snowball_stem.stem_text("The cats jumped over a fence."))
         # "the" and "a" are not necessarily collapsed but the content
         # words ("cat", "jump", "fence") should overlap.
-        for content_word in ("cat", "jump", "fenc"):  # "fenc" is the Porter2 stem of fence/fences
+        for content_word in (
+            "cat",
+            "jump",
+            "fenc",
+        ):  # "fenc" is the Porter2 stem of fence/fences
             self.assertIn(content_word, a)
             self.assertIn(content_word, b)
 

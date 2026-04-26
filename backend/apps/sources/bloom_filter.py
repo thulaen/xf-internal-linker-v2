@@ -32,9 +32,7 @@ import math
 from typing import Iterable
 
 
-def optimal_params(
-    capacity: int, false_positive_rate: float
-) -> tuple[int, int]:
+def optimal_params(capacity: int, false_positive_rate: float) -> tuple[int, int]:
     """Return (num_bits, num_hashes) for the given capacity + FP rate."""
     if capacity <= 0:
         raise ValueError("capacity must be > 0")
@@ -157,6 +155,4 @@ class BloomFilter:
             # signed-safe encoding — negative ints get two's-complement.
             length = max(1, (key.bit_length() + 8) // 8)
             return key.to_bytes(length, "little", signed=True)
-        raise TypeError(
-            f"Bloom key must be bytes/str/int, got {type(key).__name__}"
-        )
+        raise TypeError(f"Bloom key must be bytes/str/int, got {type(key).__name__}")

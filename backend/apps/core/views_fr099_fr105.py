@@ -248,7 +248,9 @@ class FR099FR105SettingsView(APIView):
         validated: dict[str, dict[str, object]] = {}
         for signal in _SIGNAL_DEFAULTS:
             incoming = payload.get(signal) or {}
-            validated[signal] = _validate_signal_group(signal, incoming, current[signal])
+            validated[signal] = _validate_signal_group(
+                signal, incoming, current[signal]
+            )
 
         for signal, fields in validated.items():
             _persist_settings(

@@ -125,9 +125,7 @@ class CascadeClickTests(SimpleTestCase):
 
     def test_out_of_range_click_rejected(self) -> None:
         with self.assertRaises(ValueError):
-            cascade_estimate(
-                [ClickSession(ranked_docs=["a"], clicked_rank=5)]
-            )
+            cascade_estimate([ClickSession(ranked_docs=["a"], clicked_rank=5)])
 
     def test_prior_mean_uniform_default(self) -> None:
         self.assertAlmostEqual(prior_mean(), 0.5)

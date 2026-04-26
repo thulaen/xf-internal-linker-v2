@@ -42,12 +42,15 @@ class FallbackHelperTests(TestCase):
 
     def test_auth_error_triggers_provider_swap(self) -> None:
         fake_new_provider = mock.MagicMock(name="local-provider")
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache"
-        ) as clear, mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            return_value=fake_new_provider,
-        ) as getp:
+        with (
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.clear_cache"
+            ) as clear,
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                return_value=fake_new_provider,
+            ) as getp,
+        ):
             result = embeddings_module._attempt_graceful_fallback(
                 failing_provider_name="openai",
                 reason="401 Unauthorized",
@@ -60,11 +63,12 @@ class FallbackHelperTests(TestCase):
 
     def test_rate_limit_code_path_also_swaps(self) -> None:
         fake_new_provider = mock.MagicMock(name="local-provider")
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache"
-        ), mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            return_value=fake_new_provider,
+        with (
+            mock.patch("apps.pipeline.services.embedding_providers.clear_cache"),
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                return_value=fake_new_provider,
+            ),
         ):
             result = embeddings_module._attempt_graceful_fallback(
                 failing_provider_name="openai",
@@ -105,14 +109,20 @@ class FallbackHelperTests(TestCase):
             clear_order.append("checkpoint")
             return original_save(**kwargs)
 
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache",
-            side_effect=_record_clear,
-        ), mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            return_value=mock.MagicMock(),
-        ), mock.patch.object(
-            embeddings_module, "_save_fallback_checkpoint", side_effect=_recording_save
+        with (
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.clear_cache",
+                side_effect=_record_clear,
+            ),
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                return_value=mock.MagicMock(),
+            ),
+            mock.patch.object(
+                embeddings_module,
+                "_save_fallback_checkpoint",
+                side_effect=_recording_save,
+            ),
         ):
             embeddings_module._attempt_graceful_fallback(
                 failing_provider_name="openai",
@@ -141,7 +151,9 @@ class EncodeBatchFallbackTests(TestCase):
             key="embedding.fallback_provider", defaults={"value": "local"}
         )
 
-    def _build_provider(self, *, name: str, raise_exc: Exception | None, result_vectors):
+    def _build_provider(
+        self, *, name: str, raise_exc: Exception | None, result_vectors
+    ):
         provider = mock.MagicMock(name=f"{name}-provider")
         provider.name = name
         provider.signature = f"{name}:model:1024"
@@ -167,14 +179,19 @@ class EncodeBatchFallbackTests(TestCase):
             result_vectors=np.zeros((2, 1024), dtype=np.float32),
         )
 
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            side_effect=[failing, good],
-        ), mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache"
-        ), mock.patch.object(embeddings_module.time, "sleep") as fake_sleep:
+        with (
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                side_effect=[failing, good],
+            ),
+            mock.patch("apps.pipeline.services.embedding_providers.clear_cache"),
+            mock.patch.object(embeddings_module.time, "sleep") as fake_sleep,
+        ):
             vectors = embeddings_module._encode_batch_via_provider(
-                batch_texts=["a", "b"], model=None, batch_size=2, job_id=None,
+                batch_texts=["a", "b"],
+                model=None,
+                batch_size=2,
+                job_id=None,
             )
         self.assertEqual(vectors.shape, (2, 1024))
         failing.embed.assert_called_once()
@@ -197,14 +214,19 @@ class EncodeBatchFallbackTests(TestCase):
             result_vectors=np.zeros((1, 1024), dtype=np.float32),
         )
 
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            side_effect=[failing, good],
-        ), mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache"
-        ), mock.patch.object(embeddings_module.time, "sleep") as fake_sleep:
+        with (
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                side_effect=[failing, good],
+            ),
+            mock.patch("apps.pipeline.services.embedding_providers.clear_cache"),
+            mock.patch.object(embeddings_module.time, "sleep") as fake_sleep,
+        ):
             vectors = embeddings_module._encode_batch_via_provider(
-                batch_texts=["x"], model=None, batch_size=1, job_id=None,
+                batch_texts=["x"],
+                model=None,
+                batch_size=1,
+                job_id=None,
             )
         self.assertEqual(vectors.shape, (1, 1024))
         fake_sleep.assert_called_once()
@@ -223,7 +245,10 @@ class EncodeBatchFallbackTests(TestCase):
         ):
             with self.assertRaises(ProviderError):
                 embeddings_module._encode_batch_via_provider(
-                    batch_texts=["x"], model=None, batch_size=1, job_id=None,
+                    batch_texts=["x"],
+                    model=None,
+                    batch_size=1,
+                    job_id=None,
                 )
         # Provider must still be openai — no swap for unrecoverable errors.
         self.assertEqual(_get_setting("embedding.provider"), "openai")
@@ -242,14 +267,19 @@ class EncodeBatchFallbackTests(TestCase):
             result_vectors=np.zeros((1, 1024), dtype=np.float32),
         )
 
-        with mock.patch(
-            "apps.pipeline.services.embedding_providers.get_provider",
-            side_effect=[failing, good],
-        ), mock.patch(
-            "apps.pipeline.services.embedding_providers.clear_cache"
-        ), mock.patch.object(embeddings_module.time, "sleep") as fake_sleep:
+        with (
+            mock.patch(
+                "apps.pipeline.services.embedding_providers.get_provider",
+                side_effect=[failing, good],
+            ),
+            mock.patch("apps.pipeline.services.embedding_providers.clear_cache"),
+            mock.patch.object(embeddings_module.time, "sleep") as fake_sleep,
+        ):
             embeddings_module._encode_batch_via_provider(
-                batch_texts=["x"], model=None, batch_size=1, job_id=None,
+                batch_texts=["x"],
+                model=None,
+                batch_size=1,
+                job_id=None,
             )
 
         fake_sleep.assert_called_once_with(

@@ -119,27 +119,39 @@ class QueryLikelihoodWiringTests(TestCase):
         # ContentRecords — the same shape the production loader produces.
         recs = {
             (1, "thread"): ContentRecord(
-                content_id=1, content_type="thread",
-                title="t1", distilled_text=(
-                    "internal linking helps users find related content"
-                ),
-                scope_id=0, scope_type="", parent_id=None, parent_type="",
-                grandparent_id=None, grandparent_type="",
-                silo_group_id=None, silo_group_name="",
+                content_id=1,
+                content_type="thread",
+                title="t1",
+                distilled_text=("internal linking helps users find related content"),
+                scope_id=0,
+                scope_type="",
+                parent_id=None,
+                parent_type="",
+                grandparent_id=None,
+                grandparent_type="",
+                silo_group_id=None,
+                silo_group_name="",
                 reply_count=0,
                 march_2026_pagerank_score=0.0,
                 link_freshness_score=0.5,
                 primary_post_char_count=0,
-                tokens=frozenset({"internal", "linking", "users", "related", "content"}),
+                tokens=frozenset(
+                    {"internal", "linking", "users", "related", "content"}
+                ),
             ),
             (2, "thread"): ContentRecord(
-                content_id=2, content_type="thread",
-                title="t2", distilled_text=(
-                    "topical pages matter for rankings and seo"
-                ),
-                scope_id=0, scope_type="", parent_id=None, parent_type="",
-                grandparent_id=None, grandparent_type="",
-                silo_group_id=None, silo_group_name="",
+                content_id=2,
+                content_type="thread",
+                title="t2",
+                distilled_text=("topical pages matter for rankings and seo"),
+                scope_id=0,
+                scope_type="",
+                parent_id=None,
+                parent_type="",
+                grandparent_id=None,
+                grandparent_type="",
+                silo_group_id=None,
+                silo_group_name="",
                 reply_count=0,
                 march_2026_pagerank_score=0.0,
                 link_freshness_score=0.5,

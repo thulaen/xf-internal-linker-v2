@@ -244,9 +244,7 @@ async def fetch_urls(
                 res = await _bounded_request(
                     sem, client, "GET", url, headers=extra_headers
                 )
-                etag_value = res.headers.get("ETag", "") or res.headers.get(
-                    "etag", ""
-                )
+                etag_value = res.headers.get("ETag", "") or res.headers.get("etag", "")
                 lm_value = res.headers.get("Last-Modified", "") or res.headers.get(
                     "last-modified", ""
                 )
@@ -305,9 +303,7 @@ async def fetch_urls(
             # because ``return`` after results.append below ends the
             # coroutine — no point sleeping for nothing).
             if _full_jitter_delay is not None and attempt < max_attempts - 1:
-                delay = _full_jitter_delay(
-                    attempt, base=backoff_base, cap=backoff_cap
-                )
+                delay = _full_jitter_delay(attempt, base=backoff_base, cap=backoff_cap)
                 await asyncio.sleep(delay)
         # Loop exhausted — record the last failure.
         if last_error is not None:

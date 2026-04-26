@@ -59,7 +59,6 @@ CELERY_BEAT_SCHEDULE = {
         "schedule": crontab(hour=22, minute=45),
         "options": {"queue": "default"},
     },
-
     # ── Heavy tasks: 13:00–13:30 UTC daytime window ─────────────────
     # Moved from the 21:00-22:00 UTC evening window to 13:00-13:30 UTC so
     # tasks actually run on a laptop that's off overnight. Trade-off: heavy

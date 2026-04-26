@@ -306,9 +306,7 @@ class FMAdapterColdStartTests(SimpleTestCase):
             return_value=None,
         ):
             self.assertEqual(
-                p6._fm_adapter(
-                    _ctx(score_components={"score_semantic": 0.5})
-                ),
+                p6._fm_adapter(_ctx(score_components={"score_semantic": 0.5})),
                 0.0,
             )
 
@@ -415,9 +413,7 @@ class DispatcherWeightingTests(SimpleTestCase):
                 "pick_b": lambda ctx: -0.2,
             },
         ):
-            c = p6.Phase6RankerContribution(
-                weights={"pick_a": 1.0, "pick_b": 0.5}
-            )
+            c = p6.Phase6RankerContribution(weights={"pick_a": 1.0, "pick_b": 0.5})
             self.assertAlmostEqual(
                 c.contribute_total(_ctx()),
                 0.3 - 0.1,
@@ -428,12 +424,8 @@ class DispatcherWeightingTests(SimpleTestCase):
         def boom(ctx: AdapterContext) -> float:
             raise RuntimeError("simulated adapter outage")
 
-        with patch.dict(
-            p6._ADAPTERS, {"good": lambda ctx: 0.5, "bad": boom}
-        ):
-            c = p6.Phase6RankerContribution(
-                weights={"good": 1.0, "bad": 1.0}
-            )
+        with patch.dict(p6._ADAPTERS, {"good": lambda ctx: 0.5, "bad": boom}):
+            c = p6.Phase6RankerContribution(weights={"good": 1.0, "bad": 1.0})
             self.assertAlmostEqual(c.contribute_total(_ctx()), 0.5, places=6)
 
     def test_per_pick_breakdown_returns_raw_unweighted_scores(self) -> None:
@@ -444,9 +436,7 @@ class DispatcherWeightingTests(SimpleTestCase):
                 "pick_b": lambda ctx: -0.3,
             },
         ):
-            c = p6.Phase6RankerContribution(
-                weights={"pick_a": 100.0, "pick_b": 100.0}
-            )
+            c = p6.Phase6RankerContribution(weights={"pick_a": 100.0, "pick_b": 100.0})
             breakdown = c.per_pick_breakdown(_ctx())
             self.assertAlmostEqual(breakdown["pick_a"], 0.7, places=6)
             self.assertAlmostEqual(breakdown["pick_b"], -0.3, places=6)
@@ -468,9 +458,7 @@ class DispatcherCacheTests(SimpleTestCase):
             # Same host sentence, different destinations — VADER doesn't
             # care about destination, so adapter should fire once.
             for dest_pk in range(5):
-                c.contribute_total(
-                    _ctx(host="happy day", dest=f"dest-{dest_pk}")
-                )
+                c.contribute_total(_ctx(host="happy day", dest=f"dest-{dest_pk}"))
             self.assertEqual(call_counter["n"], 1)
             self.assertEqual(c.cache_size(), 1)
 
@@ -496,18 +484,12 @@ class DispatcherCacheTests(SimpleTestCase):
             call_counter["n"] += 1
             return 0.0
 
-        with patch.dict(
-            p6._ADAPTERS, {"factorization_machines": counting_adapter}
-        ):
-            c = p6.Phase6RankerContribution(
-                weights={"factorization_machines": 1.0}
-            )
+        with patch.dict(p6._ADAPTERS, {"factorization_machines": counting_adapter}):
+            c = p6.Phase6RankerContribution(weights={"factorization_machines": 1.0})
             # FM is per-candidate (no cache). Three calls = three
             # adapter invocations, even with the same context.
             for _ in range(3):
-                c.contribute_total(
-                    _ctx(score_components={"score_semantic": 0.5})
-                )
+                c.contribute_total(_ctx(score_components={"score_semantic": 0.5}))
             self.assertEqual(call_counter["n"], 3)
             self.assertEqual(c.cache_size(), 0)
 
@@ -521,23 +503,26 @@ class FastTextBatchTests(SimpleTestCase):
         from apps.sources import language_filter
         from apps.sources.fasttext_langid import LangPrediction
 
-        records = {
-            i: type("FakeRec", (), {"title": f"Title {i}"})()
-            for i in range(50)
-        }
+        records = {i: type("FakeRec", (), {"title": f"Title {i}"})() for i in range(50)}
 
         # All English → all kept.
-        with patch(
-            "apps.sources.fasttext_langid.is_available",
-            return_value=True,
-        ), patch(
-            "apps.sources.fasttext_langid.predict_batch",
-            return_value=[LangPrediction("en", 0.99)] * 50,
-        ) as mock_batch, patch(
-            "apps.sources.fasttext_langid.predict",
-            new=MagicMock(side_effect=AssertionError(
-                "predict() should NOT be called when batch path is hit"
-            )),
+        with (
+            patch(
+                "apps.sources.fasttext_langid.is_available",
+                return_value=True,
+            ),
+            patch(
+                "apps.sources.fasttext_langid.predict_batch",
+                return_value=[LangPrediction("en", 0.99)] * 50,
+            ) as mock_batch,
+            patch(
+                "apps.sources.fasttext_langid.predict",
+                new=MagicMock(
+                    side_effect=AssertionError(
+                        "predict() should NOT be called when batch path is hit"
+                    )
+                ),
+            ),
         ):
             kept = language_filter.filter_english_content_records(records)
 

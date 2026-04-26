@@ -29,7 +29,9 @@ logger = logging.getLogger(__name__)
     time_limit=60 * 60 + 300,
     max_retries=0,
 )
-def embedding_provider_bakeoff(self, *, sample_size: int | None = None, providers: list[str] | None = None):
+def embedding_provider_bakeoff(
+    self, *, sample_size: int | None = None, providers: list[str] | None = None
+):
     """Score every configured provider on approved/rejected qrels."""
     from apps.core.models import AppSetting
     from apps.pipeline.services.embedding_bakeoff import (

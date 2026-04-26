@@ -4,15 +4,18 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('suggestions', '0036_add_fr099_fr105_suggestion_columns'),
+        ("suggestions", "0036_add_fr099_fr105_suggestion_columns"),
     ]
 
     operations = [
         migrations.AddField(
-            model_name='suggestion',
-            name='calibrated_probability',
-            field=models.FloatField(blank=True, help_text='Platt-scaled (Platt 1999) probability of operator approval given score_final. NULL = uncalibrated (no fit yet).', null=True),
+            model_name="suggestion",
+            name="calibrated_probability",
+            field=models.FloatField(
+                blank=True,
+                help_text="Platt-scaled (Platt 1999) probability of operator approval given score_final. NULL = uncalibrated (no fit yet).",
+                null=True,
+            ),
         ),
     ]

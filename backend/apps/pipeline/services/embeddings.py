@@ -758,7 +758,9 @@ def _get_configured_batch_size() -> int:
             from apps.pipeline.services.embedding_providers import get_provider
 
             provider = get_provider()
-            dimension = int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
+            dimension = (
+                int(getattr(provider, "dimension", EMBEDDING_DIM)) or EMBEDDING_DIM
+            )
         except Exception:
             pass
         auto_batch = recommended_batch_size(dimension=dimension, profile=prof)
@@ -896,9 +898,7 @@ def _save_fallback_checkpoint(
             ),
         )
     except Exception:
-        logger.exception(
-            "Failed to persist fallback checkpoint for job_id=%s", job_id
-        )
+        logger.exception("Failed to persist fallback checkpoint for job_id=%s", job_id)
 
 
 def _record_embedding_backoff(
@@ -1103,8 +1103,12 @@ def _attempt_graceful_fallback(
     try:
         from apps.core.models import AppSetting
 
-        fallback_row = AppSetting.objects.filter(key="embedding.fallback_provider").first()
-        fallback_name = (str(fallback_row.value).strip().lower() if fallback_row else "local") or "local"
+        fallback_row = AppSetting.objects.filter(
+            key="embedding.fallback_provider"
+        ).first()
+        fallback_name = (
+            str(fallback_row.value).strip().lower() if fallback_row else "local"
+        ) or "local"
         if fallback_name == failing_provider_name:
             logger.warning(
                 "Fallback provider equals failing provider (%s); cannot recover",
@@ -1145,7 +1149,9 @@ def _attempt_graceful_fallback(
         )
         return new_provider
     except Exception:
-        logger.exception("Graceful fallback failed for provider=%s", failing_provider_name)
+        logger.exception(
+            "Graceful fallback failed for provider=%s", failing_provider_name
+        )
         return None
 
 
@@ -1236,6 +1242,7 @@ def _run_quality_gate(
     ranking = load_provider_ranking()
     try:
         from apps.pipeline.services.embedding_providers import get_provider
+
         provider = get_provider()
     except Exception:
         provider = None
@@ -1277,7 +1284,9 @@ def _run_quality_gate(
             new_vec=new_vec,
             new_sig=embedding_signature,
         )
-        decisions_to_log.append((pk, "content_item", decision, old_sig, embedding_signature))
+        decisions_to_log.append(
+            (pk, "content_item", decision, old_sig, embedding_signature)
+        )
         if decision.action in ("REPLACE", "ACCEPT_NEW"):
             kept_indices.append(idx)
             kept_pks.append(pk)

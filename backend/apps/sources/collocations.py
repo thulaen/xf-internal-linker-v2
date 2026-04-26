@@ -115,16 +115,12 @@ def normalised_pmi(
     return max(-1.0, min(1.0, pmi_nat / denom))
 
 
-def _guard_counts(
-    joint_count: int, count_a: int, count_b: int, total: int
-) -> None:
+def _guard_counts(joint_count: int, count_a: int, count_b: int, total: int) -> None:
     if total <= 0:
         raise ValueError("total must be > 0")
     if joint_count < 0 or count_a < 0 or count_b < 0:
         raise ValueError("counts must be >= 0")
     if joint_count > count_a or joint_count > count_b:
-        raise ValueError(
-            "joint_count cannot exceed either single-term marginal"
-        )
+        raise ValueError("joint_count cannot exceed either single-term marginal")
     if count_a > total or count_b > total:
         raise ValueError("single-term counts cannot exceed total")

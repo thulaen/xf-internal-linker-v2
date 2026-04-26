@@ -55,9 +55,12 @@ class _RetentionFixtureMixin:
         # is reset by Django's transaction rollback only if we tied
         # it to a model. Easier: derive from a count of existing
         # rows.
-        idx = ContentItem.objects.filter(
-            content_id__gte=70_000, content_id__lt=90_000
-        ).count() + 1
+        idx = (
+            ContentItem.objects.filter(
+                content_id__gte=70_000, content_id__lt=90_000
+            ).count()
+            + 1
+        )
 
         host = ContentItem.objects.create(
             content_id=70_000 + idx,
@@ -124,12 +127,8 @@ class SuggestionImpressionPruneTests(_RetentionFixtureMixin, TestCase):
         results = nightly_data_retention()
 
         self.assertEqual(results["suggestion_impressions_deleted"], 1)
-        self.assertFalse(
-            SuggestionImpression.objects.filter(pk=old.pk).exists()
-        )
-        self.assertTrue(
-            SuggestionImpression.objects.filter(pk=recent.pk).exists()
-        )
+        self.assertFalse(SuggestionImpression.objects.filter(pk=old.pk).exists())
+        self.assertTrue(SuggestionImpression.objects.filter(pk=recent.pk).exists())
 
     def test_persists_cardinality_preview_to_appsetting(self) -> None:
         from apps.core.models import AppSetting
@@ -178,12 +177,8 @@ class SuggestionPresentationPruneTests(_RetentionFixtureMixin, TestCase):
         results = nightly_data_retention()
 
         self.assertEqual(results["suggestion_presentations_deleted"], 1)
-        self.assertFalse(
-            SuggestionPresentation.objects.filter(pk=old.pk).exists()
-        )
-        self.assertTrue(
-            SuggestionPresentation.objects.filter(pk=recent.pk).exists()
-        )
+        self.assertFalse(SuggestionPresentation.objects.filter(pk=old.pk).exists())
+        self.assertTrue(SuggestionPresentation.objects.filter(pk=recent.pk).exists())
 
 
 class PendingStaleSuggestionPruneTests(_RetentionFixtureMixin, TestCase):
@@ -314,9 +309,7 @@ class ScheduledJobWrapperTests(_RetentionFixtureMixin, TestCase):
         run_daily_data_retention(job=None, checkpoint=fake_checkpoint)
 
         # Inner function ran (impression deleted).
-        self.assertFalse(
-            SuggestionImpression.objects.filter(pk=old.pk).exists()
-        )
+        self.assertFalse(SuggestionImpression.objects.filter(pk=old.pk).exists())
         # Checkpoint bridge fired at least once.
         self.assertGreaterEqual(len(progress), 1)
         self.assertEqual(progress[-1][0], 100.0)

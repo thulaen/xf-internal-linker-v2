@@ -131,8 +131,9 @@ def compute(
         if h_sum > 0.0:
             next_hub = next_hub / h_sum
         # Convergence: sum of absolute changes across both vectors.
-        delta = float(np.abs(next_authority - authority).sum()
-                      + np.abs(next_hub - hub).sum())
+        delta = float(
+            np.abs(next_authority - authority).sum() + np.abs(next_hub - hub).sum()
+        )
         authority = next_authority
         hub = next_hub
         if delta <= n * tolerance:

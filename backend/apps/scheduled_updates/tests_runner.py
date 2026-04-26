@@ -402,7 +402,9 @@ class RunNextScheduledJobTests(TestCase):
     @patch("apps.scheduled_updates.runner._redis_client")
     @patch("apps.scheduled_updates.runner.would_overflow", return_value=False)
     @patch("apps.scheduled_updates.runner.is_within_window", return_value=True)
-    def test_runs_next_pending_job_end_to_end(self, _mock_window, _mock_overflow, mock_redis):
+    def test_runs_next_pending_job_end_to_end(
+        self, _mock_window, _mock_overflow, mock_redis
+    ):
         mock_redis.return_value = self.redis
 
         @scheduled_job(
@@ -464,7 +466,9 @@ class RunNextScheduledJobTests(TestCase):
     @patch("apps.scheduled_updates.runner._redis_client")
     @patch("apps.scheduled_updates.runner.would_overflow", return_value=False)
     @patch("apps.scheduled_updates.runner.is_within_window", return_value=True)
-    def test_unregistered_key_marks_failed(self, _mock_window, _mock_overflow, mock_redis):
+    def test_unregistered_key_marks_failed(
+        self, _mock_window, _mock_overflow, mock_redis
+    ):
         mock_redis.return_value = self.redis
         # Deliberately no @scheduled_job for this key.
         ScheduledJob.objects.create(

@@ -194,9 +194,7 @@ def fit_and_persist_from_history(
 
     scores = [s for s, _ in pairs]
     labels = [y for _, y in pairs]
-    calibration = fit(
-        calibration_scores=scores, calibration_labels=labels, alpha=alpha
-    )
+    calibration = fit(calibration_scores=scores, calibration_labels=labels, alpha=alpha)
 
     fitted_at = timezone.now().isoformat()
     for key, value in (

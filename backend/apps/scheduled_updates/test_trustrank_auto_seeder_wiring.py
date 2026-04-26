@@ -85,15 +85,9 @@ class TrustRankAutoSeederSchedulerWiringTests(TestCase):
         for item in (self.item_a, self.item_b, self.item_c):
             g.add_node((item.pk, item.content_type))
         # Add a few edges so inverse-PageRank produces meaningful scores.
-        g.add_edge(
-            (self.item_a.pk, "thread"), (self.item_b.pk, "thread"), weight=1.0
-        )
-        g.add_edge(
-            (self.item_b.pk, "thread"), (self.item_c.pk, "thread"), weight=1.0
-        )
-        g.add_edge(
-            (self.item_c.pk, "thread"), (self.item_a.pk, "thread"), weight=1.0
-        )
+        g.add_edge((self.item_a.pk, "thread"), (self.item_b.pk, "thread"), weight=1.0)
+        g.add_edge((self.item_b.pk, "thread"), (self.item_c.pk, "thread"), weight=1.0)
+        g.add_edge((self.item_c.pk, "thread"), (self.item_a.pk, "thread"), weight=1.0)
         return g
 
     def _run_job_with_settings(self, **settings: str) -> str:
@@ -121,13 +115,15 @@ class TrustRankAutoSeederSchedulerWiringTests(TestCase):
                 fromlist=["pick_seeds"],
             ).pick_seeds,
         ) as pick:
-            self._run_job_with_settings(**{
-                "trustrank_auto_seeder.candidate_pool_size": "50",
-                "trustrank_auto_seeder.seed_count_k": "5",
-                "trustrank_auto_seeder.post_quality_min": "0.7",
-                "trustrank_auto_seeder.readability_grade_max": "12",
-                "trustrank_auto_seeder.spam_content_value_floor": "0.10",
-            })
+            self._run_job_with_settings(
+                **{
+                    "trustrank_auto_seeder.candidate_pool_size": "50",
+                    "trustrank_auto_seeder.seed_count_k": "5",
+                    "trustrank_auto_seeder.post_quality_min": "0.7",
+                    "trustrank_auto_seeder.readability_grade_max": "12",
+                    "trustrank_auto_seeder.spam_content_value_floor": "0.10",
+                }
+            )
 
         self.assertTrue(pick.called)
         _, kwargs = pick.call_args
@@ -180,9 +176,11 @@ class TrustRankAutoSeederSchedulerWiringTests(TestCase):
                 fromlist=["pick_seeds"],
             ).pick_seeds,
         ) as pick:
-            self._run_job_with_settings(**{
-                "trustrank_auto_seeder.spam_content_value_floor": "0.15",
-            })
+            self._run_job_with_settings(
+                **{
+                    "trustrank_auto_seeder.spam_content_value_floor": "0.15",
+                }
+            )
 
         _, kwargs = pick.call_args
         spam = kwargs["spam_flagged"]
@@ -201,9 +199,11 @@ class TrustRankAutoSeederSchedulerWiringTests(TestCase):
                 fromlist=["pick_seeds"],
             ).pick_seeds,
         ) as pick:
-            self._run_job_with_settings(**{
-                "trustrank_auto_seeder.spam_content_value_floor": "0.0",
-            })
+            self._run_job_with_settings(
+                **{
+                    "trustrank_auto_seeder.spam_content_value_floor": "0.0",
+                }
+            )
 
         _, kwargs = pick.call_args
         self.assertEqual(kwargs["spam_flagged"], set())

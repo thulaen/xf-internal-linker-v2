@@ -394,7 +394,11 @@ def fit_and_persist_from_embeddings(
             base64.b64encode(blob_bytes).decode("ascii"),
             "Pick #20 Product Quantization — base64-encoded FAISS IndexPQ codebook.",
         ),
-        (KEY_DIMENSION, str(dimension), "Embedding dimension the codebook was trained on."),
+        (
+            KEY_DIMENSION,
+            str(dimension),
+            "Embedding dimension the codebook was trained on.",
+        ),
         (KEY_M, str(m), "Number of subvectors per encoded vector."),
         (KEY_KS, str(ks), "Number of centroids per subvector codebook."),
         (
