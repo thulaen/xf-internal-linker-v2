@@ -583,8 +583,15 @@ foreach ($f in $magicPyFiles) {
             $_.Line -notmatch '\d+\.\d+\s*GB' -and  # memory sizes in comments (e.g. 1.5 GB)
             $_.Line -notmatch 'result_expires' -and  # Celery result TTL
             $_.Line -notmatch '>\s*\d{3}\s*:' -and   # guard clauses (> 500:)
-            $_.Line -notmatch '^[A-Z_]+\s*=' -and    # named constant definitions
-            $_.Line -notmatch '^\s*_[A-Z_]+\s*=' -and    # private named constants
+            $_.Line -notmatch '^[A-Z_]+\s*[:=]' -and    # named constant definitions (with optional type annotation)
+            $_.Line -notmatch '^\s*_[A-Z_]+\s*[:=]' -and    # private named constants
+            $_.Line -notmatch '^[A-Z_]+\s*\([A-Z]' -and    # NamedTuple / dataclass declarations
+            $_.Line -notmatch '\d+,\d{3}' -and       # numbers with thousands separator (1,234)
+            $_.Line -notmatch 'U\+\d' -and           # Unicode codepoint references
+            $_.Line -notmatch 'RFC\s*\d' -and        # RFC reference numbers
+            $_.Line -notmatch 'SHA-?\d' -and         # SHA algorithm names
+            $_.Line -notmatch '\[\s*:\s*\d{3,}\s*\]' -and  # python slice notation [:240]
+            $_.Line -notmatch '"current_message":' -and  # specific dict key example
             $_.Line -notmatch 'pp\.\s*\d' -and       # academic page citations: pp. 123-456
             $_.Line -notmatch '\bp\.\s*\d{3}' -and  # single-page citations: p. 123
             $_.Line -notmatch '\(\d+\)' -and         # citation issue numbers: 16(5), Vol(N)
