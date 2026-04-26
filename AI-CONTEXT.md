@@ -487,6 +487,25 @@ For FR-006 and later feature phases, spec parity is part of the workflow.
 
 ## Current Session Note
 
+### 2026-04-26 (1) — C# decommission live cleanup + Python auto-tuner runtime fixes (Claude)
+
+- **AI/tool:** Claude Opus 4.7 (1M context).
+- **Why:** Operator-requested follow-up to make the repo consistently Python/Celery/C++ only. Live runtime, docs, registry, generated schema, and frontend strings still talked as if the C# HttpWorker were alive. The Python auto-tuner that replaced FR-018's C# tuner was *also* silently broken: stale `proposed_weights` / `previous_weights` / `optimisation_meta` kwargs (none real fields), `cs_auto_tune` source values against a choice retired by migration 0028, and a missing `services/__init__.py` + a wrong relative import that meant `monthly_weight_tune` crashed at *import time* before bug #1 could fire.
+- **Relevant open findings disclosed in chat before any code changes:** RPT-001 findings #1, #4, #5 — flagged at the top of the session per the Silence-Is-Forbidden rule. Finding #1 closed as obsolete (the C# import lane no longer exists; live Python at `tasks_import.py` already enforces the cap correctly via AppSetting). Findings #4 and #5 stay OPEN but their affected-files columns now point at the live Python paths.
+- **Forward-clash check:** No clash with the next 3 queued phases (FR-020 Zero-Downtime Model Switching et al.). None touch `weight_tuner.py`, `evaluate_weight_challenger`, the renamed `monthly-python-weight-tune` schedule, or any of the spec docs in scope.
+- **Gate A justification (RANKING-GATES):** No new ranking signal, hyperparameter, or weight-preset key. Auto-tuner change was a runtime bug fix + persistence-layer rename; the L-BFGS-B objective and search space are unchanged. `champion_quality_score` and `predicted_quality_score` are computed via `quality = 1 / (1 + objective_loss)` using the existing optimizer-minimised function — both numbers consistent, suitable for the existing SPRT 1.05 ratio comparator. Note added to `docs/specs/fr018-auto-tuned-ranking-weights.md` under `## Gate Justifications`.
+- **Intentional files changed:** see the AGENT-HANDOFF.md entry dated `2026-04-26 05:00` for the complete file list (≈30 backend, 11 docs/specs, 2 frontend, 4 new migrations, 2 new test files).
+- **Test status:**
+  - Backend `apps.suggestions` (49) + `apps.diagnostics` (5) + `apps.benchmarks` (18) = 72/72 pass.
+  - Backend `apps.pipeline` = 741/741 pass (2 skipped, pre-existing).
+  - New auto-tuner regression tests = 8/8 pass.
+  - Frontend `npm run build:prod` succeeds; 2 pre-existing nullish-coalescing warnings on lines unrelated to this slice.
+  - Frontend `npm run test:ci` = 29 pass / 1 pre-existing failure (`SettingsComponent renders the telemetry settings cards on the WordPress sync tab` — `siloSvc.getFr099Fr105Settings is not a function` — flagged in handoff for a separate cleanup slice; I did not touch any settings file).
+  - `python manage.py makemigrations --check --dry-run` = "No changes detected."
+- **Pre-existing migration drift surfaced and fixed inline (operator-approved):** `EmbeddingBakeoffResult` / `EmbeddingCostLedger` / `EmbeddingGateDecision` had un-migrated TimestampedModel field-option drift + 3 index renames. Auto-generated `pipeline/0004_rename_pipeline_bakeoff_cr_idx_*` is mechanical and reversible.
+- **Branch:** stayed on `master` per Branch Transparency. Working tree currently dirty with this slice's changes; handoff lists every file. Not committed yet — operator decides whether to commit now.
+- **Docker prune:** No container builds happened this session (only `docker compose exec` for migrations / spectacular / tests). Per the Session Gate "If the session made no Docker changes (docs-only or config-only), this step may be skipped" — I skipped both `prune-verification-artifacts.ps1` and `docker_compact_vhd.ps1`. If the operator wants the prune anyway, run it manually.
+
 ### 2026-04-25 (7) — Phase 6 fully wired: 6 ranker-time adapters + 4 parse-time integrations, all paper-backed, all in Recommended preset (Claude)
 
 - **AI/tool:** Claude (continuation of (6)).

@@ -101,7 +101,7 @@ class JobProgressConsumer(AsyncJsonWebsocketConsumer):
         await self.send_json(event)
 
     async def _bridge_runtime_progress(self) -> None:
-        """Forward Redis Stream runtime progress events for C#-owned jobs."""
+        """Forward Redis Stream runtime progress events for Celery-owned jobs."""
         redis_client = redis_asyncio.from_url(
             settings.REDIS_URL,
             decode_responses=True,

@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/analytics/impacts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/analytics/impacts/ — chronological impact narrative. */
+        get: operations["analytics_impacts_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/oauth/authorize/": {
         parameters: {
             query?: never;
@@ -55,6 +72,23 @@ export interface paths {
         put?: never;
         /** @description Remove the saved Google OAuth refresh token. */
         post: operations["analytics_oauth_unlink_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/query-mismatch/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/analytics/query-mismatch/ — pages where search intent doesn't match landing page. */
+        get: operations["analytics_query_mismatch_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -269,6 +303,35 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics/telemetry/engagement-mix/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Return the Phase 2 engagement mix for the selected source + time window.
+         *
+         *     Surfaces the three new ``SuggestionTelemetryDaily`` columns
+         *     (``quick_exit_sessions``, ``dwell_30s_sessions``, ``dwell_60s_sessions``)
+         *     alongside the existing ``destination_views`` and ``engaged_sessions`` so
+         *     operators can see the dwell-tier distribution per source.
+         *
+         *     Rates are computed as ``<tier_count> / destination_views`` via the
+         *     existing ``_safe_rate`` helper (returns 0.0 on zero denominators). Tiers
+         *     are cumulative (a session that reaches 60s also fires the 30s event), so
+         *     the rates are independent tier-reach percentages, not stacked shares.
+         */
+        get: operations["analytics_telemetry_engagement_mix_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/analytics/telemetry/funnel/": {
         parameters: {
             query?: never;
@@ -439,6 +502,41 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/analytics/watched-pages/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET/POST /api/analytics/watched-pages/ — user's watched pages. */
+        get: operations["analytics_watched_pages_retrieve"];
+        put?: never;
+        /** @description GET/POST /api/analytics/watched-pages/ — user's watched pages. */
+        post: operations["analytics_watched_pages_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/analytics/watched-pages/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description DELETE /api/analytics/watched-pages/<id>/ — remove a watched page. */
+        delete: operations["analytics_watched_pages_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/audit-entries/": {
         parameters: {
             query?: never;
@@ -498,6 +596,59 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/active-users/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/auth/active-users/ — who has made an authenticated request recently.
+         *
+         *     Read by the dashboard's "whos on shift" widget. A user is considered
+         *     active if their last_seen_at is within ``ACTIVE_WINDOW_MIN`` minutes.
+         *     The caller is never omitted from the list — the frontend decides
+         *     whether to hide the widget when the only active user is "me".
+         */
+        get: operations["auth_active_users_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/local-verification-bootstrap/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Mint a localhost-only auth token for browser verification.
+         *
+         *     Three independent gates must all pass before a token is issued:
+         *     1. LOCAL_VERIFICATION_BOOTSTRAP_ENABLED must be True (opt-in, default False).
+         *     2. The request must carry the X-XFIL-Verification: playwright header.
+         *     3. The TCP peer IP (REMOTE_ADDR) must be the loopback address — this
+         *        cannot be spoofed via HTTP headers the way the Host header can.
+         *
+         *     The endpoint ONLY ever creates or repairs the 'playwright-local' throwaway
+         *     account. It never touches any other user's credentials or returns any other
+         *     user's token, regardless of what accounts exist in the database.
+         */
+        post: operations["auth_local_verification_bootstrap_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/logout/": {
         parameters: {
             query?: never;
@@ -529,6 +680,85 @@ export interface paths {
         get: operations["auth_me_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/begin/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Step 1 of login. Anonymous — returns PublicKeyCredentialRequestOptions.
+         *
+         *     A request-options bundle that does NOT list allowCredentials lets the
+         *     browser show the full account chooser. If you want to scope to a
+         *     specific username, POST {"username": "..."} and we'll pre-populate.
+         *
+         *     Also answers HEAD — the frontend uses a HEAD probe as a "is passkey
+         *     configured on this backend?" capability check. Any success or
+         *     auth-required response means yes; a not-found response means the
+         *     route isn't wired.
+         */
+        post: operations["auth_passkey_login_begin_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/login/finish/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Step 2 of login. Verifies assertion, issues DRF token. */
+        post: operations["auth_passkey_login_finish_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/register/begin/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Step 1 of registration. Returns PublicKeyCredentialCreationOptions. */
+        post: operations["auth_passkey_register_begin_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/passkey/register/finish/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Step 2 of registration. Verifies the attestation and stores the credential. */
+        post: operations["auth_passkey_register_finish_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1272,6 +1502,133 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/dashboard/mission-brief/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/dashboard/mission-brief/
+         *
+         *     Phase D1 / Gap 61 — a pinned three-sentence summary for the
+         *     dashboard header. Differs from StatusStoryView by timeframe:
+         *     Mission Brief is the morning executive summary (yesterday's
+         *     outcomes + today's priorities), Status Story is a rolling
+         *     present-tense snapshot.
+         *
+         *     Three sentences, plain English:
+         *       1. Yesterday: what the system did (counts).
+         *       2. Today: what's queued (counts).
+         *       3. Watch: the single most pressing thing to fix, if any.
+         */
+        get: operations["dashboard_mission_brief_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/resume-state/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/dashboard/resume-state/
+         *
+         *     Returns interrupted pipeline runs, last review position, and missed
+         *     tasks from the catch-up registry.
+         */
+        get: operations["dashboard_resume_state_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/story/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/dashboard/story/
+         *
+         *     Phase D1 / Gap 53 — a plain-English narrative summary for the
+         *     dashboard's "Status Story" card.
+         *
+         *     Composes one or two sentences from data the frontend already
+         *     has, plus counts that would be awkward to aggregate client-side.
+         *     Refreshed every 5 minutes by the caller (dashboard component).
+         *
+         *     Example output:
+         *         "This morning: 3 alerts fired, Celery is healthy, 47
+         *          suggestions are waiting for review."
+         *         "Quiet so far — no alerts, no broken links, 12 suggestions
+         *          ready."
+         */
+        get: operations["dashboard_story_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/today-actions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/dashboard/today-actions/
+         *
+         *     Returns up to 5 priority-ranked action items for the current day.
+         *     Priority waterfall: blocking alert > stale sync > pending review > idle.
+         */
+        get: operations["dashboard_today_actions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/dashboard/what-changed/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/dashboard/what-changed/
+         *
+         *     Returns counts of changes in the last 24 hours plus autotuner outcomes.
+         */
+        get: operations["dashboard_what_changed_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/diagnostics/": {
         parameters: {
             query?: never;
@@ -1298,6 +1655,387 @@ export interface paths {
         };
         /** @description List pipeline skip diagnostics for the 'why no suggestion?' explorer. */
         get: operations["diagnostics_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/audit/run/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Trigger a manual audit run (bypasses the fortnight gate). */
+        post: operations["embedding_audit_run_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/bakeoff/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description List recent bake-off results, newest first, capped at 50. */
+        get: operations["embedding_bakeoff_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/bakeoff/run/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Trigger a bake-off run asynchronously. */
+        post: operations["embedding_bakeoff_run_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/gate-decisions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Last 100 quality-gate decisions for the Audit tab. */
+        get: operations["embedding_gate_decisions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/hardware-profile/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Detected hardware tier plus recommended batch sizes for common dims.
+         *
+         *     Dedicated endpoint per FR-233 contract. Status endpoint exposes a subset
+         *     nested inside its response; this view returns the canonical shape for
+         *     clients that only need hardware info.
+         */
+        get: operations["embedding_hardware_profile_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/provider/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET: current + available provider list. POST: switch provider. */
+        get: operations["embedding_provider_retrieve"];
+        put?: never;
+        /** @description GET: current + available provider list. POST: switch provider. */
+        post: operations["embedding_provider_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/settings/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET: full config (API key masked). POST: bulk update allowed keys. */
+        get: operations["embedding_settings_retrieve"];
+        put?: never;
+        /** @description GET: full config (API key masked). POST: bulk update allowed keys. */
+        post: operations["embedding_settings_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Current provider, progress, budget spent, hardware profile. */
+        get: operations["embedding_status_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/embedding/test-connection/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Verify the given provider's credentials via a one-token ``healthcheck``. */
+        post: operations["embedding_test_connection_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-flags/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/feature-flags/
+         *
+         *     Returns the effective flag set for the requesting user. Anonymous
+         *     requests get only 100%-rollout flags.
+         */
+        get: operations["feature_flags_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-flags/exposures/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/feature-flags/exposures/
+         *
+         *     Records a "user saw flag X in variant Y" event. Payload::
+         *
+         *         { "key": "cta-copy", "variant": "new-cta" }
+         */
+        post: operations["feature_flags_exposures_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase GB / Gap 151 — Feature request inbox.
+         *
+         *     Endpoints::
+         *
+         *       GET  /api/feature-requests/                  list (any authenticated user)
+         *       POST /api/feature-requests/                  submit a new request
+         *       GET  /api/feature-requests/{id}/             detail
+         *       POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+         *       POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+         *       POST /api/feature-requests/{id}/reply/       maintainer reply
+         *
+         *     Write actions (update / destroy) on the record itself are only
+         *     permitted for staff. Regular users can only create and upvote.
+         */
+        get: operations["feature_requests_list"];
+        put?: never;
+        /**
+         * @description Phase GB / Gap 151 — Feature request inbox.
+         *
+         *     Endpoints::
+         *
+         *       GET  /api/feature-requests/                  list (any authenticated user)
+         *       POST /api/feature-requests/                  submit a new request
+         *       GET  /api/feature-requests/{id}/             detail
+         *       POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+         *       POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+         *       POST /api/feature-requests/{id}/reply/       maintainer reply
+         *
+         *     Write actions (update / destroy) on the record itself are only
+         *     permitted for staff. Regular users can only create and upvote.
+         */
+        post: operations["feature_requests_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase GB / Gap 151 — Feature request inbox.
+         *
+         *     Endpoints::
+         *
+         *       GET  /api/feature-requests/                  list (any authenticated user)
+         *       POST /api/feature-requests/                  submit a new request
+         *       GET  /api/feature-requests/{id}/             detail
+         *       POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+         *       POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+         *       POST /api/feature-requests/{id}/reply/       maintainer reply
+         *
+         *     Write actions (update / destroy) on the record itself are only
+         *     permitted for staff. Regular users can only create and upvote.
+         */
+        get: operations["feature_requests_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/{id}/reply/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Maintainer adds a public reply the submitter will see. */
+        post: operations["feature_requests_reply_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/{id}/set-status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Maintainer-only lifecycle transition. */
+        post: operations["feature_requests_set_status_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/{id}/unvote/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Phase GB / Gap 151 — Feature request inbox.
+         *
+         *     Endpoints::
+         *
+         *       GET  /api/feature-requests/                  list (any authenticated user)
+         *       POST /api/feature-requests/                  submit a new request
+         *       GET  /api/feature-requests/{id}/             detail
+         *       POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+         *       POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+         *       POST /api/feature-requests/{id}/reply/       maintainer reply
+         *
+         *     Write actions (update / destroy) on the record itself are only
+         *     permitted for staff. Regular users can only create and upvote.
+         */
+        post: operations["feature_requests_unvote_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/feature-requests/{id}/vote/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description Idempotent upvote — if the user has already voted, it's a no-op. */
+        post: operations["feature_requests_vote_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/glitchtip/events/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["glitchtip_events_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1629,6 +2367,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/health/disk/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/health/disk/ — database and embedding size estimates. */
+        get: operations["health_disk_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/health/gpu/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/health/gpu/ — GPU temperature, VRAM usage, utilization. */
+        get: operations["health_gpu_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health/summary/": {
         parameters: {
             query?: never;
@@ -1657,6 +2429,102 @@ export interface paths {
         put?: never;
         /** @description Accept a JSONL export file from the user's browser and start an import job. */
         post: operations["import_upload_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/quarantine/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/jobs/quarantine/ — quarantined items (first-class model, plan item 16).
+         *
+         *     Prefers the new `QuarantineRecord` table; for back-compat also folds in any
+         *     `PipelineRun.is_quarantined=True` rows that don't have a matching
+         *     QuarantineRecord yet.  Frontend reads from the same endpoint; no breaking
+         *     change.
+         */
+        get: operations["jobs_quarantine_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/jobs/queue/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/jobs/queue/ — active and queued tasks with ETA and lock status. */
+        get: operations["jobs_queue_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meta-algorithms/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase MS — list every meta-algorithm with current runtime state.
+         *
+         *     GET /api/meta-algorithms/
+         *
+         *     Query params (optional):
+         *       * `family` — filter by P1/P2/…/Q24/active/signal
+         *       * `status` — filter by active/forward-declared/disabled
+         *       * `q` — case-insensitive substring match on id/meta_code/title
+         *
+         *     No new backend state: reads the registry (derived from existing
+         *     `recommended_weights_phase2_*.py` files) and layers in current
+         *     `AppSetting` values for `<algo>.enabled` + `<algo>.ranking_weight`.
+         */
+        get: operations["meta_algorithms_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/meta-algorithms/{algo_id}/toggle/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Phase MS — flip `<algo>.enabled` for a single meta-algorithm.
+         *
+         *     POST /api/meta-algorithms/<id>/toggle/  body: {"enabled": true|false}
+         *
+         *     Writes through to the AppSetting row (created if missing). Broadcasts
+         *     on the `meta_algorithms.state` realtime topic so other operators see
+         *     the change instantly.
+         */
+        post: operations["meta_algorithms_toggle_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1714,6 +2582,23 @@ export interface paths {
         };
         /** @description List operator alerts with optional filters. */
         get: operations["notifications_alerts_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notifications/alerts/{alert_id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description Return one operator alert by public UUID. */
+        get: operations["notifications_alerts_retrieve_2"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1818,6 +2703,54 @@ export interface paths {
         put?: never;
         /** @description Fire a synthetic alert so the operator can test bell, toast, and sound. */
         post: operations["notifications_test_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/events/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/operations/events/ — paginated feed; realtime push does the rest.
+         *
+         *     The primary render path is the `operations.feed` realtime topic;
+         *     this endpoint exists so a page reload can hydrate the last ~500
+         *     events, and so non-realtime tooling (Playwright snapshots, Ops
+         *     Feed CSV export) has a canonical source.
+         */
+        get: operations["operations_events_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/events/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/operations/events/ — paginated feed; realtime push does the rest.
+         *
+         *     The primary render path is the `operations.feed` realtime topic;
+         *     this endpoint exists so a page reload can hydrate the last ~500
+         *     events, and so non-realtime tooling (Playwright snapshots, Ops
+         *     Feed CSV export) has a canonical source.
+         */
+        get: operations["operations_events_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1986,6 +2919,69 @@ export interface paths {
         patch: operations["plugins_settings_partial_update"];
         trace?: never;
     };
+    "/api/prune/safe/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET lists allowed targets. POST executes a prune (or dry-run). */
+        get: operations["prune_safe_retrieve"];
+        put?: never;
+        /** @description GET lists allowed targets. POST executes a prune (or dry-run). */
+        post: operations["prune_safe_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/stream/suggestions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/reports/stream/suggestions/
+         *
+         *     Returns a chunked ``text/html`` response that flushes one row at
+         *     a time. The browser renders progressively so the first rows are
+         *     visible almost immediately.
+         */
+        get: operations["reports_stream_suggestions_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reports/stream/suggestions.sse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/reports/stream/suggestions.sse
+         *
+         *     Returns a ``text/event-stream`` response. Each SSE event is
+         *     prefixed with ``data: `` and terminated with ``\n\n``.
+         */
+        get: operations["reports_stream_suggestions.sse_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/reviewer-scorecards/": {
         parameters: {
             query?: never;
@@ -2018,6 +3014,256 @@ export interface paths {
          *     GET /api/reviewer-scorecards/{id}/  — single scorecard
          */
         get: operations["reviewer_scorecards_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rum/summary/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/rum/summary/
+         *
+         *     Real User Monitoring roll-up for the last 24h. Returns:
+         *
+         *     ::
+         *
+         *         {
+         *           "window_hours": 24,
+         *           "metrics": {
+         *             "LCP":  { "p50": 1800, "p75": 2300, "p95": 3900, "n": 142 },
+         *             "INP":  { "p50":  120, "p75":  190, "p95":  420, "n": 138 },
+         *             ...
+         *           },
+         *           "routes": {
+         *             "/dashboard": {
+         *               "LCP": { "p75": 1900 },
+         *               ...
+         *             }
+         *           }
+         *         }
+         */
+        get: operations["rum_summary_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runbooks/{runbook_id}/execute/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/runbooks/<runbook_id>/execute/ — safe runbook dispatcher.
+         *
+         *     Request body:
+         *         {
+         *           "confirmed": true,       # required for destructive runbooks
+         *           "run_id": "...",          # runbook-specific args
+         *           ...
+         *         }
+         *
+         *     Response:
+         *         {
+         *           "ok": true,
+         *           "runbook_id": "...",
+         *           "action": "reset" | "unstuck" | "cleaned" | "already_done" | "preview_only" | "error",
+         *           ...  # runbook-specific details
+         *         }
+         */
+        post: operations["runbooks_execute_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/alerts/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/scheduled-updates/alerts/
+         *
+         *     Default: active only (not acknowledged, not resolved). Pass
+         *     ``?include=all`` for the full history, or ``?include=resolved``
+         *     for the resolved-and-dropped-off-the-badge rows.
+         */
+        get: operations["scheduled_updates_alerts_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/alerts/{id}/acknowledge/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/scheduled-updates/alerts/<id>/acknowledge */
+        post: operations["scheduled_updates_alerts_acknowledge_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/scheduled-updates/jobs/ */
+        get: operations["scheduled_updates_jobs_list"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/scheduled-updates/jobs/<id>/ */
+        get: operations["scheduled_updates_jobs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/{id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/scheduled-updates/jobs/<id>/cancel
+         *
+         *     Force-transitions a job to FAILED. Safe from any state; the runner
+         *     picks up the change at its next checkpoint (via pause_token) or
+         *     ignores the row (if not currently running).
+         */
+        post: operations["scheduled_updates_jobs_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/{id}/pause/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/scheduled-updates/jobs/<id>/pause */
+        post: operations["scheduled_updates_jobs_pause_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/{id}/resume/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/scheduled-updates/jobs/<id>/resume */
+        post: operations["scheduled_updates_jobs_resume_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/jobs/{id}/run-now/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/scheduled-updates/jobs/<id>/run-now
+         *
+         *     Nudges a job to be picked by the runner at its next tick.
+         *     Respects the window guard: if we're outside 11:00-23:00 or the
+         *     job's duration_estimate would overflow 23:00, returns 409 with
+         *     a helpful time-until-open hint.
+         */
+        post: operations["scheduled_updates_jobs_run_now_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/scheduled-updates/window/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/scheduled-updates/window/
+         *
+         *     Returns whether the orchestrator can currently start new jobs,
+         *     plus how long until the next transition. Drives the "next window
+         *     opens in HH:MM" label on the Scheduled Updates tab.
+         */
+        get: operations["scheduled_updates_window_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2068,6 +3314,22 @@ export interface paths {
         /** @description Return only enabled scope items. */
         get: operations["scopes_enabled_retrieve"];
         put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/anchor-diversity/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["settings_anchor_diversity_retrieve"];
+        put: operations["settings_anchor_diversity_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2271,6 +3533,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/fr099-fr105/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET/PUT for all 7 FR-099..105 signal settings in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "darb":  {"enabled": true, "ranking_weight": 0.04, ...},
+         *           "kmig":  {"enabled": true, "ranking_weight": 0.05, ...},
+         *           "tapb":  {...},
+         *           "kcib":  {...},
+         *           "berp":  {...},
+         *           "hgte":  {...},
+         *           "rsqva": {...}
+         *         }
+         */
+        get: operations["settings_fr099_fr105_retrieve"];
+        /**
+         * @description GET/PUT for all 7 FR-099..105 signal settings in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "darb":  {"enabled": true, "ranking_weight": 0.04, ...},
+         *           "kmig":  {"enabled": true, "ranking_weight": 0.05, ...},
+         *           "tapb":  {...},
+         *           "kcib":  {...},
+         *           "berp":  {...},
+         *           "hgte":  {...},
+         *           "rsqva": {...}
+         *         }
+         */
+        put: operations["settings_fr099_fr105_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/ga4-gsc/": {
         parameters: {
             query?: never;
@@ -2353,6 +3661,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/helpers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET/POST /api/settings/helpers/ — list and register helper nodes. */
+        get: operations["settings_helpers_retrieve"];
+        put?: never;
+        /** @description GET/POST /api/settings/helpers/ — list and register helper nodes. */
+        post: operations["settings_helpers_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/helpers/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description PATCH/DELETE /api/settings/helpers/<id>/ — update or remove a helper node. */
+        delete: operations["settings_helpers_destroy"];
+        options?: never;
+        head?: never;
+        /** @description PATCH/DELETE /api/settings/helpers/<id>/ — update or remove a helper node. */
+        patch: operations["settings_helpers_partial_update"];
+        trace?: never;
+    };
+    "/api/settings/helpers/{id}/heartbeat/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/settings/helpers/<id>/heartbeat/
+         *
+         *     Stub endpoint for helper nodes to report liveness. Updates
+         *     ``last_heartbeat`` and optionally merges ``capabilities`` and updates
+         *     ``status``. Returns 204 on success.
+         *
+         *     The helper-client side that calls this endpoint is forward-looking
+         *     (Stage 8 / multi-node). The endpoint exists so docs/PERFORMANCE.md §2
+         *     is not lying about it and so the next session that wires up the helper
+         *     client has a real route to POST to.
+         */
+        post: operations["settings_helpers_heartbeat_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/keyword-stuffing/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["settings_keyword_stuffing_retrieve"];
+        put: operations["settings_keyword_stuffing_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/learned-anchor/": {
         parameters: {
             query?: never;
@@ -2370,6 +3758,22 @@ export interface paths {
          *     PUT  /api/settings/learned-anchor/ - validates and persists those settings
          */
         put: operations["settings_learned_anchor_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/link-farm/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["settings_link_farm_retrieve"];
+        put: operations["settings_link_farm_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2436,6 +3840,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/settings/maintenance-mode/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET/POST /api/settings/maintenance-mode/ — operator-visible banner toggle.
+         *
+         *     Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
+         *
+         *         {"enabled": bool, "message": str, "started_at": ISO timestamp or null}
+         *
+         *     When ``enabled`` is true the frontend shell shows a persistent amber
+         *     banner and the active ``message``. ``started_at`` is stamped when the
+         *     toggle flips from false -> true and cleared when it flips back.
+         *
+         *     Kept deliberately minimal — no write-blocking middleware yet. The
+         *     frontend half is what ships today; a future slice can add backend
+         *     enforcement off the same flag.
+         */
+        get: operations["settings_maintenance_mode_retrieve"];
+        put?: never;
+        /**
+         * @description GET/POST /api/settings/maintenance-mode/ — operator-visible banner toggle.
+         *
+         *     Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
+         *
+         *         {"enabled": bool, "message": str, "started_at": ISO timestamp or null}
+         *
+         *     When ``enabled`` is true the frontend shell shows a persistent amber
+         *     banner and the active ``message``. ``started_at`` is stamped when the
+         *     toggle flips from false -> true and cleared when it flips back.
+         *
+         *     Kept deliberately minimal — no write-blocking middleware yet. The
+         *     frontend half is what ships today; a future slice can add backend
+         *     enforcement off the same flag.
+         */
+        post: operations["settings_maintenance_mode_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/master-pause/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/settings/master-pause/ — flip system.master_pause (plan item 28).
+         *
+         *     Request body (optional): {"paused": true|false}
+         *     If the body is empty the current value is TOGGLED.
+         *
+         *     Workers read ``system.master_pause`` at each batch boundary via
+         *     ``apps.core.pause_contract.should_pause_now()`` (plan item 29) and stop
+         *     taking new batches when it is truthy. Existing in-flight batches finish
+         *     normally and save their checkpoints.
+         */
+        post: operations["settings_master_pause_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/settings/notifications/": {
         parameters: {
             query?: never;
@@ -2447,6 +3924,64 @@ export interface paths {
         get: operations["settings_notifications_retrieve"];
         /** @description Read and update notification delivery preferences. */
         put: operations["settings_notifications_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/phase6-picks/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET/PUT for all 10 Phase 6 pick toggles in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "vader_sentiment":        {"enabled": true},
+         *           "pysbd_segmenter":        {"enabled": true},
+         *           "yake_keywords":          {"enabled": true},
+         *           "trafilatura_extractor":  {"enabled": true},
+         *           "fasttext_langid":        {"enabled": true},
+         *           "lda":                    {"enabled": true},
+         *           "kenlm":                  {"enabled": true},
+         *           "node2vec":               {"enabled": true},
+         *           "bpr":                    {"enabled": true},
+         *           "factorization_machines": {"enabled": true}
+         *         }
+         *
+         *     PUT accepts the same shape (or any subset). Picks not in the
+         *     payload keep their current value.
+         */
+        get: operations["settings_phase6_picks_retrieve"];
+        /**
+         * @description GET/PUT for all 10 Phase 6 pick toggles in one request.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "vader_sentiment":        {"enabled": true},
+         *           "pysbd_segmenter":        {"enabled": true},
+         *           "yake_keywords":          {"enabled": true},
+         *           "trafilatura_extractor":  {"enabled": true},
+         *           "fasttext_langid":        {"enabled": true},
+         *           "lda":                    {"enabled": true},
+         *           "kenlm":                  {"enabled": true},
+         *           "node2vec":               {"enabled": true},
+         *           "bpr":                    {"enabled": true},
+         *           "factorization_machines": {"enabled": true}
+         *         }
+         *
+         *     PUT accepts the same shape (or any subset). Picks not in the
+         *     payload keep their current value.
+         */
+        put: operations["settings_phase6_picks_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2495,6 +4030,211 @@ export interface paths {
          *     PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
          */
         put: operations["settings_rare_term_propagation_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/settings/runtime/ — current runtime mode and state.
+         *
+         *     In addition to `runtime_mode` and `performance_mode`, also returns the
+         *     optional expiry fields set by the time-bound chips (plan item 8). Frontend
+         *     hydrates the chip selection from these fields on every page load so the
+         *     user sees the same state across tabs and restarts.
+         */
+        get: operations["settings_runtime_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime-config/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET/POST /api/settings/runtime-config/ — operator-safe runtime tunables. */
+        get: operations["settings_runtime_config_retrieve"];
+        put?: never;
+        /** @description GET/POST /api/settings/runtime-config/ — operator-safe runtime tunables. */
+        post: operations["settings_runtime_config_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/activity-resumed/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/settings/runtime/activity-resumed/ — user is active again.
+         *
+         *     Plan item 13 ("Until I come back"). The frontend's UserActivityService
+         *     calls this once the user starts typing/mousing after being idle while
+         *     High Performance + 'activity' expiry was active. The call is idempotent:
+         *     if no revert is needed the server returns {reverted: false}.
+         */
+        post: operations["settings_runtime_activity_resumed_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/models/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET/POST /api/settings/runtime/models/. */
+        get: operations["settings_runtime_models_retrieve"];
+        put?: never;
+        /** @description GET/POST /api/settings/runtime/models/. */
+        post: operations["settings_runtime_models_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/models/{id}/action/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** @description POST /api/settings/runtime/models/<id>/action/. */
+        post: operations["settings_runtime_models_action_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/models/placements/{id}/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** @description DELETE /api/settings/runtime/models/placements/<id>/. */
+        delete: operations["settings_runtime_models_placements_destroy"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/summary/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["settings_runtime_summary_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/switch/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/settings/runtime/switch/ — switch performance mode.
+         *
+         *     Accepts:
+         *       {
+         *         "mode": "safe" | "balanced" | "high",
+         *         "expiry": "none" | "activity" | "night",  # optional, only valid with mode=high
+         *         "expires_at": "2026-04-15T06:00:00-07:00"  # optional ISO 8601 for 'night'
+         *       }
+         *
+         *     Backend enforcement for the expiry is `core.auto_revert_performance_mode`
+         *     (plan items 12 + 14) running every 5 minutes via Celery Beat.
+         */
+        post: operations["settings_runtime_switch_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/switch-runtime/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/settings/runtime/switch-runtime/ — drain-and-resume runtime switch (plan item 23).
+         *
+         *     Request body:
+         *         {"target": "cpu" | "gpu", "wait_for_drain": true}
+         *
+         *     Response mirrors ``runtime_switcher.switch_runtime`` so the UI can show
+         *     exactly what happened (previous mode, drain seconds, warmup result).
+         */
+        post: operations["settings_runtime_switch_runtime_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/runtime/switch-status/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** @description GET /api/settings/runtime/switch-status/ — current mode + any in-flight switch. */
+        get: operations["settings_runtime_switch_status_retrieve"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2589,6 +4329,52 @@ export interface paths {
          *       positions of an already-selected one on the same host (default 3).
          */
         put: operations["settings_spam_guards_update"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/settings/stage1-retrievers/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET / PUT for the Stage-1 retriever flags.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "lexical_retriever_enabled": false,
+         *           "query_expansion_retriever_enabled": false
+         *         }
+         *
+         *     PUT accepts the same shape (or any subset). Missing keys keep
+         *     their current value. Each non-bool input is coerced via
+         *     :func:`_coerce_bool` (string "true"/"yes"/"on" or bool True →
+         *     True; everything else → False).
+         */
+        get: operations["settings_stage1_retrievers_retrieve"];
+        /**
+         * @description GET / PUT for the Stage-1 retriever flags.
+         *
+         *     Response shape::
+         *
+         *         {
+         *           "lexical_retriever_enabled": false,
+         *           "query_expansion_retriever_enabled": false
+         *         }
+         *
+         *     PUT accepts the same shape (or any subset). Missing keys keep
+         *     their current value. Each non-bool input is coerced via
+         *     :func:`_coerce_bool` (string "true"/"yes"/"on" or bool True →
+         *     True; everything else → False).
+         */
+        put: operations["settings_stage1_retrievers_update"];
         post?: never;
         delete?: never;
         options?: never;
@@ -2923,8 +4709,42 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Approve a pending suggestion. Optionally accepts anchor_edited. */
+        /**
+         * @description Approve a pending suggestion. Optionally accepts anchor_edited.
+         *
+         *     When the reviewer supplies an ``anchor_edited`` value that differs from
+         *     the system-generated ``anchor_phrase``, an additional ``edit_anchor``
+         *     AuditEntry is written alongside the ``approve`` entry. This turns
+         *     reviewer anchor edits into labelled training data for the
+         *     anchor-generator without otherwise changing approve semantics.
+         */
         post: operations["suggestions_approve_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/{suggestion_id}/explain/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Return SHAP-style per-feature attributions for this suggestion.
+         *
+         *     W4 wiring of pick #47 (Kernel SHAP). Uses direct linear
+         *     attribution from the persisted score columns + current
+         *     AppSetting weights — same response shape as the
+         *     :mod:`apps.pipeline.services.shap_explainer` helper but
+         *     without the 50-100 MB peak RAM cost. The Angular Explain
+         *     panel consumes this verbatim.
+         */
+        get: operations["suggestions_explain_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2940,7 +4760,14 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** @description Reject a pending suggestion with an optional reason. */
+        /**
+         * @description Reject a pending suggestion with an optional reason.
+         *
+         *     Also upserts a ``RejectedPair`` row for (host, destination) so the
+         *     candidate generator suppresses this pair on future pipeline runs for
+         *     ``REJECTED_PAIR_SUPPRESSION_DAYS`` days. RejectedPair failures are
+         *     logged but never block the reject flow.
+         */
         post: operations["suggestions_reject_create"];
         delete?: never;
         options?: never;
@@ -2963,6 +4790,69 @@ export interface paths {
          *     Request body: {"action": "approve|reject|skip", "ids": ["uuid1", "uuid2", ...]}
          */
         post: operations["suggestions_batch_action_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/impressions/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Bulk-accept impression observations from the review-queue UI.
+         *
+         *     Picks #33 (IPS Position Bias) and #34 (Cascade Click Model) both
+         *     feed off this stream. The frontend POSTs a list of
+         *     ``{suggestion_id, position, clicked, dwell_ms?}`` rows whenever a
+         *     batch of suggestions enters / leaves the operator's viewport.
+         *     Server-side we ``bulk_create`` them — no per-row write contention.
+         *
+         *     Idempotency: callers can send the same payload twice (page
+         *     refresh, retry) without mass-corrupting the calibration set.
+         *     Each row gets a fresh timestamp via ``auto_now_add``, so the
+         *     producer scheduled jobs only see real impression events; double-
+         *     submits show up as two impressions at slightly different times,
+         *     which is the truth (the suggestion was indeed in viewport at
+         *     both moments).
+         *
+         *     Cold-start safe: empty payload → 200 with ``{written: 0}``;
+         *     invalid suggestion ids → silently skipped (don't reject the
+         *     whole batch on one stale row).
+         */
+        post: operations["suggestions_impressions_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/suggestions/readiness/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase SR — single endpoint the Review page consults before showing suggestions.
+         *
+         *     Returns a compact `{ready, prerequisites, blocking, updated_at}` payload.
+         *     Every prerequisite reuses an existing health / AppSetting source of truth;
+         *     no new telemetry is introduced. Root-cause dedup is applied inside
+         *     `apps.suggestions.readiness.assemble_prerequisites()`, so when the
+         *     pipeline gate blocks, the operator sees one root explanation instead of
+         *     five downstream echoes.
+         */
+        get: operations["suggestions_readiness_retrieve"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2997,6 +4887,81 @@ export interface paths {
         get: operations["sync_jobs_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync-jobs/{job_id}/cancel/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Cancel a running sync job.
+         *
+         *     POST /api/sync-jobs/{job_id}/cancel/
+         *
+         *     Sets status to 'cancelled' and revokes the Celery task with SIGTERM.
+         *     The job remains resumable if it had a checkpoint.
+         */
+        post: operations["sync_jobs_cancel_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync-jobs/{job_id}/pause/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Graceful pause (plan item 27).
+         *
+         *     POST /api/sync-jobs/{job_id}/pause/
+         *
+         *     Requests a graceful pause at the next safe checkpoint boundary. Unlike
+         *     cancel, pause preserves the job row and keeps ``is_resumable=True`` so
+         *     the worker or user can pick up the same job later via the resume endpoint.
+         *     The worker reads ``system.master_pause`` AND its own per-job pause flag
+         *     (stored on the SyncJob row) and stops at the next safe boundary.
+         */
+        post: operations["sync_jobs_pause_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sync-jobs/{job_id}/resume/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Resume a paused or failed resumable job (plan item 27).
+         *
+         *     POST /api/sync-jobs/{job_id}/resume/
+         *
+         *     Queues ``import_content`` with the original job id so the worker reads
+         *     the stored checkpoint and continues without duplicating completed work.
+         */
+        post: operations["sync_jobs_resume_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3061,6 +5026,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sync/preview/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description POST /api/sync/preview/ — dry-run sampler (plan item 24).
+         *
+         *     Request body:
+         *         {"source": "api" | "wp", "mode": "full" | "delta", "sample_size": 10}
+         *
+         *     Response mirrors ``run_preview``; see that function for the shape.
+         */
+        post: operations["sync_preview_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sync/webhooks/wordpress/": {
         parameters: {
             query?: never;
@@ -3111,6 +5100,64 @@ export interface paths {
         /** @description POST /api/sync/wordpress/run/ - enqueue a manual WordPress sync job. */
         post: operations["sync_wordpress_run_create"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/metrics/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GET /api/system/metrics/ — live CPU, RAM, and GPU sampling for the dashboard.
+         *
+         *     Combines psutil (CPU + RAM) and pynvml (GPU) into one lightweight call so
+         *     the frontend can poll a single endpoint every 10 seconds. All fields are
+         *     fail-soft: if a sampler is unavailable, the field is null rather than
+         *     raising an error.
+         */
+        get: operations["system_metrics_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/safe-mode-boot/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+         *
+         *     Use case: the app is misbehaving under High Performance mode and the user wants a
+         *     one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+         */
+        get: operations["system_safe_mode_boot_retrieve"];
+        put?: never;
+        /**
+         * @description POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+         *
+         *     Use case: the app is misbehaving under High Performance mode and the user wants a
+         *     one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+         */
+        post: operations["system_safe_mode_boot_create"];
+        /**
+         * @description POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+         *
+         *     Use case: the app is misbehaving under High Performance mode and the user wants a
+         *     one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+         */
+        delete: operations["system_safe_mode_boot_destroy"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3212,6 +5259,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/status/errors/{id}/rerun/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Phase GT Step 8 — re-dispatch the original failing Celery task.
+         *
+         *     Supports a small whitelist of re-dispatchable job types
+         *     (`pipeline`, `sync`, `import`). On successful dispatch the error
+         *     row is auto-acknowledged so the Error Log clears. Out-of-scope
+         *     job types return a Bad Request error instead of silently queuing nothing.
+         */
+        post: operations["system_status_errors_rerun_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/status/features/": {
         parameters: {
             query?: never;
@@ -3244,6 +5315,108 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/status/mission-critical/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase MC — single aggregator the dashboard's Mission Critical tab reads.
+         *
+         *     Returns a flat list of tile descriptors. Each tile entry is:
+         *
+         *         {
+         *             "id": "pipeline",
+         *             "name": "Pipeline",
+         *             "state": "WORKING" | "IDLE" | "PAUSED" | "DEGRADED" | "FAILED",
+         *             "plain_english": "One-line status.",
+         *             "last_action_at": "ISO8601" | None,
+         *             "progress": 0..1 | None,
+         *             "actions": ["Resume", "Pause", ...],
+         *             "group": "algorithms" | None,
+         *             "root_cause": "<tile_id>" | None,
+         *         }
+         *
+         *     Dedup rules (from the approved plan):
+         *       * When the pipeline gate is blocked, dependent tiles (pipeline /
+         *         embeddings / signals / meta / cooccurrence) mark `root_cause` =
+         *         'pipeline_gate' so the UI collapses them under the root.
+         *       * The five meta-algorithm tiles are flagged with `group='algorithms'`
+         *         so the UI can render one green summary row when all five are
+         *         healthy, expanding only on degrade.
+         *
+         *     Reuses existing health checks + AppSettings — no new telemetry.
+         */
+        get: operations["system_status_mission_critical_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/ndcg-eval/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Latest NDCG@K reading over the reviewed-Suggestion stream.
+         *
+         *     GET-only — populated daily by the ``ndcg_smoke_test`` scheduled
+         *     job (Polish.B). Returns the full :class:`NdcgResult` shape from
+         *     ``apps.pipeline.services.ndcg_eval``:
+         *
+         *     - ``ndcg``: NDCG@10 point estimate.
+         *     - ``confidence_lower`` / ``confidence_upper``: bootstrap 95 % CI.
+         *     - ``sample_size``: number of reviewed suggestions in the window.
+         *     - ``sufficient_data`` / ``sufficient_for_pairwise``: Sanderson
+         *       §5.2 sample-size gates.
+         *     - ``message``: human-readable status line for the dashboard.
+         *     - ``breakdown_by_candidate_origin``: per-origin NDCG (only
+         *       origins above the basic floor).
+         *     - ``fitted_at``: ISO timestamp of the last run.
+         *
+         *     Cold-start (no scheduled job has run yet) → returns
+         *     ``{"available": false, ...}`` so the dashboard renders a
+         *     "Eval pending — first run within 24 h" banner.
+         */
+        get: operations["system_status_ndcg_eval_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/nodes/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description One row per known node (primary + every slave that has written an
+         *     ErrorLog in the last 24 hours). Powers the GT-G13 nodes strip on
+         *     the Diagnostics page. No separate heartbeat table — slaves self-
+         *     announce by writing errors tagged with their NODE_ID env var.
+         */
+        get: operations["system_status_nodes_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/status/overview/": {
         parameters: {
             query?: never;
@@ -3260,6 +5433,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/status/pipeline-gate/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description GT-G14 — single go/no-go verdict for the ranking pipeline.
+         *
+         *     Reuses the existing checks in apps.health.services — does NOT
+         *     introduce new detection logic. Returns `can_run` + a list of
+         *     `blockers` each with plain-English explanation and next step, so
+         *     the UI banner can render the fix instructions directly.
+         */
+        get: operations["system_status_pipeline_gate_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/status/resources/": {
         parameters: {
             query?: never;
@@ -3268,6 +5465,27 @@ export interface paths {
             cookie?: never;
         };
         get: operations["system_status_resources_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/runtime-context/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Snapshot of the current runtime — GPU / CUDA / embedding / spaCy /
+         *     node. Consumed by the Live Runtime Health strip at the top of the
+         *     Diagnostics Error Log.
+         */
+        get: operations["system_status_runtime_context_retrieve"];
         put?: never;
         post?: never;
         delete?: never;
@@ -3324,6 +5542,134 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/system/status/signal-queue/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase SEQ — ranking signal execution queue visibility.
+         *
+         *     Returns the current lock-holder (if any) and the list of pending
+         *     signal-compute tasks. Consumed by:
+         *     - Mission Critical "Ranking Signals" tile (Phase MC)
+         *     - Meta Algorithm Settings tab "Run now" button (Phase MS)
+         *     - Operations Feed signal-start/finish events (Phase OF)
+         *
+         *     No new backend state — reads directly from the `task_lock.py`
+         *     cache namespace. Pending task count is a stub today (Celery doesn't
+         *     expose queue inspection without broker introspection tools); a
+         *     follow-up can populate it via `celery inspect scheduled` data.
+         */
+        get: operations["system_status_signal_queue_retrieve"];
+        put?: never;
+        /**
+         * @description Phase MX1 — operator controls for the signal queue.
+         *
+         *     Payload: `{"action": "pause_after_current"|"resume"|"abort_all"}`.
+         *     All three manipulate a small set of cache flags the decorator
+         *     + future queue-scheduler consult on every run boundary.
+         */
+        post: operations["system_status_signal_queue_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/suppressed-pairs/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Phase 1v — small Diagnostics-page surface for the ``RejectedPair``
+         *     negative-memory table.
+         *
+         *     Exposed at ``GET /api/system/status/suppressed-pairs/`` via the
+         *     ``apps.diagnostics`` URL include. Answers the operator's "is my negative
+         *     memory doing anything right now?" question with three counts and a
+         *     recency timestamp:
+         *
+         *     - ``active_suppressed_pairs`` — rows whose ``last_rejected_at`` falls
+         *       within the suppression window (see ``REJECTED_PAIR_SUPPRESSION_DAYS``).
+         *       These (host, destination) pairs are currently being skipped by the
+         *       candidate generator.
+         *     - ``total_rejected_pairs`` — total row count, including rows past the
+         *       suppression window that haven't been pruned yet.
+         *     - ``total_rejections_lifetime`` — sum of ``rejection_count`` across all
+         *       rows; each reject increments its pair's counter.
+         *     - ``most_recent_rejection_at`` — timestamp of the freshest rejection on
+         *       record in ISO format, or ``null`` if the table is empty.
+         *
+         *     Read-only and cheap (3 aggregations, no joins). Frontend polls at page
+         *     load; no WebSocket needed.
+         */
+        get: operations["system_status_suppressed_pairs_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/suppressed-pairs/{pair_id}/clear/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Tier 2 slice 4 — manual clear action for a single ``RejectedPair``.
+         *
+         *     ``POST /api/system/status/suppressed-pairs/<int:pair_id>/clear/``.
+         *     Deletes the row outright so a future rejection starts a fresh
+         *     90-day suppression window (rather than silently resetting an
+         *     existing row) and writes an ``AuditEntry`` so the operator's action
+         *     is visible on the Audit page. Returns HTTP ``not found`` if the
+         *     pair id is missing.
+         */
+        post: operations["system_status_suppressed_pairs_clear_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/status/suppressed-pairs/list/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * @description Tier 2 slice 4 — paginated list of individual ``RejectedPair`` rows
+         *     for the Diagnostics page drilldown.
+         *
+         *     Exposed at ``GET /api/system/status/suppressed-pairs/list/``. Complements
+         *     the counter endpoint by letting operators inspect which specific
+         *     (host, destination) pairs are currently being suppressed, sorted newest
+         *     first. Includes both the host and destination's human-readable title so
+         *     the UI doesn't need a second round-trip.
+         */
+        get: operations["system_status_suppressed_pairs_list_retrieve"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/status/weights/": {
         parameters: {
             query?: never;
@@ -3339,6 +5685,64 @@ export interface paths {
         get: operations["system_status_weights_retrieve"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/client-errors/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Phase U1 / Gap 26 — ingest endpoint for unhandled frontend
+         *     exceptions captured by the Angular `GlobalErrorHandler`.
+         *
+         *     `POST /api/telemetry/client-errors/`
+         *
+         *     Auth-optional: the endpoint must accept errors from unauthenticated
+         *     pages too (login page JS bug, token-expired states), but we still
+         *     record the user id when available.
+         *
+         *     Rate-limited per PYTHON-RULES §9.7 — a runaway render loop in the
+         *     frontend could otherwise spam the backend. Both anon and user
+         *     throttles use DRF's built-in classes (configured project-wide).
+         */
+        post: operations["telemetry_client_errors_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/telemetry/web-vitals/": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * @description Phase E2 / Gap 51 — ingest endpoint for Core Web Vitals beacons.
+         *
+         *     `POST /api/telemetry/web-vitals/`
+         *
+         *     Fires from `frontend/src/app/core/services/web-vitals.service.ts`
+         *     via `navigator.sendBeacon` (preferred) or `HttpClient` fallback.
+         *     One row per metric fire per page-load.
+         *
+         *     Auth-optional (same rationale as ClientErrorLogView — we want
+         *     vitals on the login page too) but rate-limited to prevent abuse.
+         */
+        post: operations["telemetry_web_vitals_create"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3580,9 +5984,17 @@ export interface components {
          *     * `pipeline_complete` - Pipeline run completed
          *     * `sync_start` - Sync started
          *     * `sync_complete` - Sync completed
+         *     * `clear_suppression` - Cleared rejected-pair suppression
          * @enum {string}
          */
-        ActionEnum: "approve" | "reject" | "apply" | "verify" | "edit_anchor" | "mark_stale" | "supersede" | "note" | "setting_change" | "plugin_toggle" | "pipeline_start" | "pipeline_complete" | "sync_start" | "sync_complete";
+        ActionEnum: "approve" | "reject" | "apply" | "verify" | "edit_anchor" | "mark_stale" | "supersede" | "note" | "setting_change" | "plugin_toggle" | "pipeline_start" | "pipeline_complete" | "sync_start" | "sync_complete" | "clear_suppression";
+        /**
+         * @description * `missed` - Missed
+         *     * `failed` - Failed
+         *     * `stalled` - Stalled
+         * @enum {string}
+         */
+        AlertTypeEnum: "missed" | "failed" | "stalled";
         /**
          * @description * `strong` - Strong (exact phrase match)
          *     * `weak` - Weak (partial / fallback)
@@ -3609,6 +6021,7 @@ export interface components {
              *     * `pipeline_complete` - Pipeline run completed
              *     * `sync_start` - Sync started
              *     * `sync_complete` - Sync completed
+             *     * `clear_suppression` - Cleared rejected-pair suppression
              */
             readonly action: components["schemas"]["ActionEnum"];
             /** @description The model/entity type affected, e.g. 'suggestion', 'setting', 'plugin'. */
@@ -3766,7 +6179,7 @@ export interface components {
             readonly link_freshness_score: number;
             /**
              * Format: double
-             * @description Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.
+             * @description GA4 + Matomo + GSC composite score for linking value. 0.5 = neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores via the pure formula compute_content_value_raw. Phase 3a/3c extension credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s) and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites see no behaviour change.
              */
             readonly content_value_score: number;
             readonly freshness_bucket: string;
@@ -3857,7 +6270,7 @@ export interface components {
             readonly link_freshness_score: number;
             /**
              * Format: double
-             * @description Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.
+             * @description GA4 + Matomo + GSC composite score for linking value. 0.5 = neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores via the pure formula compute_content_value_raw. Phase 3a/3c extension credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s) and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites see no behaviour change.
              */
             readonly content_value_score: number;
             readonly freshness_bucket: string;
@@ -4068,8 +6481,24 @@ export interface components {
          * @enum {string}
          */
         EntityTypeEnum: "keyword" | "named_entity" | "topic_tag";
+        /**
+         * @description Phase GT Step 6. Adds two derived fields to every ErrorLog row:
+         *
+         *     - `error_trend` — 7-day bucket counts per fingerprint so the UI can
+         *       render a sparkline showing whether this error is trending up or dying.
+         *     - `related_error_ids` — up to 10 ids of other errors that fired within
+         *       ±5 minutes so the operator doesn't waste time fixing 10 symptoms
+         *       of one root cause.
+         *
+         *     The derived fields are computed per row, so keep them cheap: indexed
+         *     lookups only, no `.all()` scans.
+         */
         ErrorLog: {
             readonly id: number;
+            readonly error_trend: {
+                [key: string]: unknown;
+            }[];
+            readonly related_error_ids: number[];
             /** @description Type of job that failed, e.g. 'import', 'embed', 'pipeline', 'sync'. */
             job_type: string;
             /** @description The specific step or function where the error occurred. */
@@ -4087,7 +6516,157 @@ export interface components {
              * @description When this error was recorded.
              */
             readonly created_at: string;
+            /**
+             * @description Origin of this entry: internal (Celery tasks) or glitchtip (sync task).
+             *
+             *     * `internal` - Internal
+             *     * `glitchtip` - GlitchTip
+             */
+            source?: components["schemas"]["ErrorLogSourceEnum"];
+            /** @description Issue id from GlitchTip when source='glitchtip'. */
+            glitchtip_issue_id?: string | null;
+            /**
+             * Format: uri
+             * @description Deep link to the GlitchTip issue detail page.
+             */
+            glitchtip_url?: string | null;
+            /** @description Normalised hash used to dedupe repeat occurrences. Internal: sha1(job|step|normalize(message)). GlitchTip: their fingerprint. */
+            fingerprint: string | null;
+            /** @description Number of times this fingerprint has been seen on this node. */
+            occurrence_count?: number;
+            severity?: components["schemas"]["SeverityD90Enum"];
+            /** @description Plain-English fix suggestion surfaced to the operator. */
+            how_to_fix?: string;
+            /**
+             * @description Identifier of the node that produced this error.
+             * @default primary
+             */
+            node_id: string;
+            node_role?: components["schemas"]["NodeRoleEnum"];
+            node_hostname?: string;
+            /** @description Snapshot produced by apps.audit.runtime_context.snapshot() — GPU/CUDA/embedding/spaCy/python/node at the moment of failure. */
+            runtime_context?: unknown;
         };
+        /**
+         * @description * `internal` - Internal
+         *     * `glitchtip` - GlitchTip
+         * @enum {string}
+         */
+        ErrorLogSourceEnum: "internal" | "glitchtip";
+        /**
+         * @description Phase GB / Gap 151 — serializer for the in-app feature-request inbox.
+         *
+         *     Read path exposes aggregated vote count and the submitter's username.
+         *     Write path restricts the fields an operator can set — ``status``,
+         *     ``votes``, and ``admin_reply`` are maintainer-only and mutated via
+         *     the viewset's dedicated actions.
+         */
+        FeatureRequest: {
+            readonly id: number;
+            /** Format: date-time */
+            readonly created_at: string;
+            /** Format: date-time */
+            readonly updated_at: string;
+            readonly author: number | null;
+            readonly author_username: string;
+            title: string;
+            body: string;
+            category?: string;
+            priority?: components["schemas"]["FeatureRequestPriorityEnum"];
+            readonly status: components["schemas"]["FeatureRequestStatusEnum"];
+            context?: unknown;
+            readonly votes: number;
+            readonly admin_reply: string;
+            readonly has_voted: boolean;
+        };
+        /**
+         * @description * `low` - Low — nice to have
+         *     * `medium` - Medium — would help regularly
+         *     * `high` - High — blocks my workflow
+         * @enum {string}
+         */
+        FeatureRequestPriorityEnum: "low" | "medium" | "high";
+        /**
+         * @description * `new` - New
+         *     * `accepted` - Accepted
+         *     * `planned` - Planned
+         *     * `shipped` - Shipped
+         *     * `declined` - Declined
+         *     * `duplicate` - Duplicate
+         * @enum {string}
+         */
+        FeatureRequestStatusEnum: "new" | "accepted" | "planned" | "shipped" | "declined" | "duplicate";
+        JobAlert: {
+            readonly id: number;
+            readonly job_key: string;
+            readonly alert_type: components["schemas"]["AlertTypeEnum"];
+            /**
+             * Format: date
+             * @description The local-time date the alert refers to (missed window, failure day, etc.).
+             */
+            readonly calendar_date: string;
+            readonly message: string;
+            /** Format: date-time */
+            readonly first_raised_at: string;
+            /** Format: date-time */
+            readonly last_seen_at: string;
+            /**
+             * Format: date-time
+             * @description Set when an operator clicks the ✕ in the UI. Hides from active list.
+             */
+            readonly acknowledged_at: string | null;
+            /**
+             * Format: date-time
+             * @description Set automatically when the job's next successful run completes. Resolved alerts drop out of the active list and are pruned after 30 days by jobalert_dedup_cleanup.
+             */
+            readonly resolved_at: string | null;
+            readonly is_active: boolean;
+            /**
+             * Format: date-time
+             * @description Timestamp when this record was created.
+             */
+            readonly created_at: string;
+            /**
+             * Format: date-time
+             * @description Timestamp when this record was last modified.
+             */
+            readonly updated_at: string;
+        };
+        /**
+         * @description * `primary` - Primary
+         *     * `worker` - Worker
+         *     * `celery` - Celery
+         *     * `lightsail` - Lightsail
+         *     * `k8s` - K8s Pod
+         *     * `slave` - Slave
+         *     * `unknown` - Unknown
+         * @enum {string}
+         */
+        NodeRoleEnum: "primary" | "worker" | "celery" | "lightsail" | "k8s" | "slave" | "unknown";
+        OperationEvent: {
+            readonly id: number;
+            /** Format: date-time */
+            readonly timestamp: string;
+            readonly event_type: string;
+            /** @description Which subsystem emitted this (e.g. 'pipeline', 'crawler'). */
+            readonly source: string;
+            /** @description Operator-facing sentence the UI renders verbatim. */
+            readonly plain_english: string;
+            readonly severity: components["schemas"]["OperationEventSeverityEnum"];
+            readonly related_entity_type: string;
+            readonly related_entity_id: string;
+            readonly runtime_context: unknown;
+            readonly occurrence_count: number;
+            readonly error_log_id: number | null;
+        };
+        /**
+         * @description * `info` - Info
+         *     * `warning` - Warning
+         *     * `error` - Error
+         *     * `success` - Success
+         * @enum {string}
+         */
+        OperationEventSeverityEnum: "info" | "warning" | "error" | "success";
         /** @description Extends the content list serializer with inbound link count for the audit table. */
         OrphanAudit: {
             readonly id: number;
@@ -4134,7 +6713,7 @@ export interface components {
             readonly link_freshness_score: number;
             /**
              * Format: double
-             * @description Neutral future-facing GA4/GSC composite placeholder score. 0.5 = neutral. Written by external analytics layer.
+             * @description GA4 + Matomo + GSC composite score for linking value. 0.5 = neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores via the pure formula compute_content_value_raw. Phase 3a/3c extension credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s) and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites see no behaviour change.
              */
             readonly content_value_score: number;
             readonly freshness_bucket: string;
@@ -4220,6 +6799,51 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["EntityNode"][];
+        };
+        PaginatedFeatureRequestList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["FeatureRequest"][];
+        };
+        PaginatedJobAlertList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["JobAlert"][];
+        };
+        PaginatedOperationEventList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["OperationEvent"][];
         };
         PaginatedOrphanAuditList: {
             /** @example 123 */
@@ -4310,6 +6934,21 @@ export interface components {
              */
             previous?: string | null;
             results: components["schemas"]["ReviewerScorecard"][];
+        };
+        PaginatedScheduledJobList: {
+            /** @example 123 */
+            count: number;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=4
+             */
+            next?: string | null;
+            /**
+             * Format: uri
+             * @example http://api.example.org/accounts/?page=2
+             */
+            previous?: string | null;
+            results: components["schemas"]["ScheduledJob"][];
         };
         PaginatedSuggestionListList: {
             /** @example 123 */
@@ -4676,6 +7315,7 @@ export interface components {
              *     * `circular_suppressed` - Circular candidate suppressed
              *     * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
              *     * `paragraph_cluster` - Host paragraph already has a suggestion
+             *     * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
              *     * `other` - Other
              */
             readonly skip_reason: components["schemas"]["SkipReasonEnum"];
@@ -4734,6 +7374,10 @@ export interface components {
             destination_scope?: unknown;
             /** @description Frozen ML weights and settings at the time this run started. */
             readonly config_snapshot: unknown;
+            /** @description Ordered list of pipeline phase entries: [{"phase": "fetch_content", "started_at": "...", "completed_at": "...", "item_count": 0, "status": "completed"}] */
+            phase_log?: unknown;
+            /** @description True if this run has been quarantined after repeated failures (>3 consecutive). */
+            is_quarantined?: boolean;
             /**
              * Format: date-time
              * @description Timestamp when this record was created.
@@ -4796,9 +7440,17 @@ export interface components {
             /** @description If True, the value is masked in the admin UI. */
             is_secret?: boolean;
         };
+        /**
+         * @description * `critical` - Critical
+         *     * `high` - High
+         *     * `medium` - Medium
+         *     * `low` - Low
+         * @enum {string}
+         */
+        PriorityD90Enum: "critical" | "high" | "medium" | "low";
         RankingChallenger: {
             readonly id: number;
-            /** @description Opaque identifier from the C# tune run (e.g. a GUID). */
+            /** @description Opaque identifier from the Python auto-tune run (UUID4). */
             readonly run_id: string;
             /**
              * @description Lifecycle state of this challenger.
@@ -4811,11 +7463,11 @@ export interface components {
             readonly status: components["schemas"]["RankingChallengerStatusEnum"];
             /** @description Flat key→value map of the four tunable weights proposed by the optimizer: w_semantic, w_keyword, w_node, w_quality. */
             readonly candidate_weights: unknown;
-            /** @description Snapshot of the four active weights at the moment C# submitted this challenger. */
+            /** @description Snapshot of the four active weights at the moment the auto-tuner submitted this challenger. */
             readonly baseline_weights: unknown;
             /**
              * Format: double
-             * @description Predicted link-quality score from the C# optimizer for the candidate weights.
+             * @description Predicted link-quality score from the Python L-BFGS-B optimizer for the candidate weights (1 / (1 + BCE-loss)).
              */
             readonly predicted_quality_score: number | null;
             /**
@@ -4916,6 +7568,81 @@ export interface components {
          * @enum {string}
          */
         RunStateEnum: "queued" | "running" | "completed" | "failed" | "cancelled";
+        /**
+         * @description Summary payload for list + detail endpoints.
+         *
+         *     Read-only — state transitions happen through the explicit
+         *     pause/resume/cancel/run-now actions, never a generic PATCH.
+         */
+        ScheduledJob: {
+            readonly id: number;
+            /** @description Stable identifier for this job, e.g. 'pagerank_refresh' or 'lda_topic_refresh'. Code looks the job up by this key. */
+            readonly key: string;
+            /** @description Human-readable label shown in the Scheduled Updates tab. */
+            readonly display_name: string;
+            /**
+             * @description Runner orders pending jobs by this.
+             *
+             *     * `critical` - Critical
+             *     * `high` - High
+             *     * `medium` - Medium
+             *     * `low` - Low
+             */
+            readonly priority: components["schemas"]["PriorityD90Enum"];
+            readonly state: components["schemas"]["ScheduledJobStateEnum"];
+            /**
+             * Format: double
+             * @description 0-100. Set by job code via report_progress().
+             */
+            readonly progress_pct: number;
+            /** @description Short status string the UI shows next to the progress bar. */
+            readonly current_message: string;
+            /** Format: date-time */
+            readonly started_at: string | null;
+            /** Format: date-time */
+            readonly finished_at: string | null;
+            /**
+             * Format: date-time
+             * @description When the job last *started*, regardless of outcome.
+             */
+            readonly last_run_at: string | null;
+            /**
+             * Format: date-time
+             * @description When the job last *completed successfully*. Null until first success.
+             */
+            readonly last_success_at: string | null;
+            /**
+             * Format: date-time
+             * @description When the job's next run is planned. The runner uses this plus the priority to decide what to start next. Null = on-demand only.
+             */
+            readonly scheduled_for: string | null;
+            /** @description Expected gap between successful runs. The catch-up detector flags the job as missed when now - last_success_at exceeds this. */
+            readonly cadence_seconds: number;
+            readonly duration_estimate_sec: number;
+            readonly pause_token: boolean;
+            /** @description Last ~4 KB of output. Truncated in save(). */
+            readonly log_tail: string;
+            /**
+             * Format: date-time
+             * @description Timestamp when this record was created.
+             */
+            readonly created_at: string;
+            /**
+             * Format: date-time
+             * @description Timestamp when this record was last modified.
+             */
+            readonly updated_at: string;
+        };
+        /**
+         * @description * `pending` - Pending
+         *     * `running` - Running
+         *     * `paused` - Paused
+         *     * `completed` - Completed
+         *     * `failed` - Failed
+         *     * `missed` - Missed
+         * @enum {string}
+         */
+        ScheduledJobStateEnum: "pending" | "running" | "paused" | "completed" | "failed" | "missed";
         /** @description Serializes forum nodes, resource categories, and WordPress scopes. */
         ScopeItem: {
             readonly id: number;
@@ -4967,6 +7694,7 @@ export interface components {
             readonly status: components["schemas"]["ServiceHealthRecordStatusEnum"];
             /** @description Short plain-English summary of current status. */
             readonly status_label: string;
+            readonly config_tier: string;
             /**
              * Format: date-time
              * @description When the last attempt was made to check this service.
@@ -5009,7 +7737,7 @@ export interface components {
          *     * `celery_worker` - Celery Worker
          *     * `celery_beat` - Celery Beat
          *     * `channels` - Channels / WebSockets
-         *     * `http_worker` - C# HttpWorker
+         *     * `http_worker` - Decommissioned HTTP worker (legacy)
          *     * `xenforo_sync` - XenForo Sync
          *     * `wordpress_sync` - WordPress Sync
          *     * `ga4` - GA4
@@ -5020,7 +7748,7 @@ export interface components {
          *     * `local_model` - Local Embedding/Model Runtime
          *     * `matomo` - Matomo
          *     * `runtime_lanes` - Runtime Lanes
-         *     * `scheduler_lane` - C# Scheduler Lane
+         *     * `scheduler_lane` - Task Scheduler
          *     * `native_scoring` - Native C++ Scoring
          *     * `slate_diversity_runtime` - Slate Diversity Runtime
          *     * `embedding_specialist` - Python Embedding Specialist
@@ -5040,7 +7768,7 @@ export interface components {
              */
             readonly updated_at: string;
             service_name: components["schemas"]["ServiceNameEnum"];
-            state?: components["schemas"]["StateEnum"];
+            state?: components["schemas"]["ServiceStatusStateEnum"];
             /** @description Plain-English explanation of the state. */
             explanation?: string;
             /** Format: date-time */
@@ -5054,6 +7782,28 @@ export interface components {
             /** @description Extra data like version, latency, etc. */
             metadata?: unknown;
         };
+        /**
+         * @description * `healthy` - Healthy
+         *     * `degraded` - Degraded
+         *     * `failed` - Failed
+         *     * `disabled` - Disabled
+         *     * `not_configured` - Not Configured
+         *     * `not_installed` - Not Installed
+         *     * `planned_only` - Planned Only
+         *     * `spec_missing` - Spec Missing
+         *     * `spec_exists_not_implemented` - Spec Exists but Not Implemented
+         *     * `partial_or_conflicting` - Partial or Conflicting
+         * @enum {string}
+         */
+        ServiceStatusStateEnum: "healthy" | "degraded" | "failed" | "disabled" | "not_configured" | "not_installed" | "planned_only" | "spec_missing" | "spec_exists_not_implemented" | "partial_or_conflicting";
+        /**
+         * @description * `critical` - Critical
+         *     * `high` - High
+         *     * `medium` - Medium
+         *     * `low` - Low
+         * @enum {string}
+         */
+        SeverityD90Enum: "critical" | "high" | "medium" | "low";
         /** @description Serialize silo-group CRUD payloads. */
         SiloGroup: {
             readonly id: number;
@@ -5117,10 +7867,11 @@ export interface components {
          *     * `circular_suppressed` - Circular candidate suppressed
          *     * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
          *     * `paragraph_cluster` - Host paragraph already has a suggestion
+         *     * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
          *     * `other` - Other
          * @enum {string}
          */
-        SkipReasonEnum: "already_has_pending" | "no_semantic_matches" | "all_candidates_filtered" | "no_host_sentences" | "score_too_low" | "no_embedding" | "max_links_reached" | "anchor_banned" | "anchor_too_long" | "short_post" | "host_reuse_cap" | "circular_suppressed" | "cross_silo_blocked" | "paragraph_cluster" | "other";
+        SkipReasonEnum: "already_has_pending" | "no_semantic_matches" | "all_candidates_filtered" | "no_host_sentences" | "score_too_low" | "no_embedding" | "max_links_reached" | "anchor_banned" | "anchor_too_long" | "short_post" | "host_reuse_cap" | "circular_suppressed" | "cross_silo_blocked" | "paragraph_cluster" | "anchor_diversity_blocked" | "other";
         /**
          * @description * `api` - XenForo API
          *     * `jsonl` - JSONL File
@@ -5128,20 +7879,6 @@ export interface components {
          * @enum {string}
          */
         Source88aEnum: "api" | "jsonl" | "wp";
-        /**
-         * @description * `healthy` - Healthy
-         *     * `degraded` - Degraded
-         *     * `failed` - Failed
-         *     * `disabled` - Disabled
-         *     * `not_configured` - Not Configured
-         *     * `not_installed` - Not Installed
-         *     * `planned_only` - Planned Only
-         *     * `spec_missing` - Spec Missing
-         *     * `spec_exists_not_implemented` - Spec Exists but Not Implemented
-         *     * `partial_or_conflicting` - Partial or Conflicting
-         * @enum {string}
-         */
-        StateEnum: "healthy" | "degraded" | "failed" | "disabled" | "not_configured" | "not_installed" | "planned_only" | "spec_missing" | "spec_exists_not_implemented" | "partial_or_conflicting";
         /**
          * @description * `pending` - Pending Review
          *     * `approved` - Approved
@@ -5260,6 +7997,21 @@ export interface components {
             readonly score_cluster_suppression: number;
             /**
              * Format: double
+             * @description FR-045 anchor-diversity anti-spam score. 0.5 = neutral, lower values mean the anchor is too repetitive for the destination.
+             */
+            readonly score_anchor_diversity: number;
+            /**
+             * Format: double
+             * @description FR-198 keyword-stuffing anti-spam score. 0.5 = neutral, lower values mean the destination text looks more stuffed.
+             */
+            readonly score_keyword_stuffing: number;
+            /**
+             * Format: double
+             * @description FR-197 link-farm anti-spam score. 0.5 = neutral, lower values mean the destination sits in a suspicious reciprocal ring.
+             */
+            readonly score_link_farm: number;
+            /**
+             * Format: double
              * @description FR-015 MMR diversity score for this suggestion's slot in the host slate. Null when diversity reranking is disabled.
              */
             readonly score_slate_diversity: number | null;
@@ -5362,6 +8114,12 @@ export interface components {
             readonly field_aware_diagnostics: unknown;
             /** @description Explainable FR-012 click-distance context for review and debugging. */
             readonly click_distance_diagnostics: unknown;
+            /** @description Explainable FR-045 anchor-diversity details for review and debugging. */
+            readonly anchor_diversity_diagnostics: unknown;
+            /** @description Explainable FR-198 keyword-stuffing details for review and debugging. */
+            readonly keyword_stuffing_diagnostics: unknown;
+            /** @description Explainable FR-197 reciprocal-ring details for review and debugging. */
+            readonly link_farm_diagnostics: unknown;
             /** @description Explainable FR-013 explore/exploit details for review and debugging. */
             readonly explore_exploit_diagnostics: unknown;
             /** @description Explainable FR-014 near-duplicate clustering details for review and debugging. */
@@ -5388,6 +8146,18 @@ export interface components {
             /** @description Explainable random walk details (steps, seeds, visit counts) for graph candidates. */
             readonly graph_walk_diagnostics: unknown;
             readonly telemetry_instrumentation: string;
+            /**
+             * Format: double
+             * @default 0.5
+             */
+            readonly destination_content_value_score: number;
+            /**
+             * Format: double
+             * @default 0.5
+             */
+            readonly destination_engagement_quality_score: number;
+            readonly destination_content_value_diagnostics: unknown;
+            readonly destination_engagement_quality_diagnostics: unknown;
             /**
              * Format: date-time
              * @description Timestamp when this record was created.
@@ -5549,6 +8319,8 @@ export interface components {
             readonly source: components["schemas"]["Source88aEnum"];
             readonly mode: string;
             readonly file_name: string | null;
+            /** @description Saved upload path for file-backed imports that can resume. */
+            readonly file_path: string;
             /** Format: double */
             readonly progress: number;
             readonly message: string;
@@ -5559,6 +8331,14 @@ export interface components {
             readonly spacy_items_completed: number;
             readonly embedding_items_completed: number;
             readonly error_message: string;
+            /** @description Pipeline stage when checkpoint was saved (e.g. 'ingest', 'spacy', 'embed', 'pipeline'). */
+            readonly checkpoint_stage: string;
+            /** @description ID of the last content item successfully processed before interruption. */
+            readonly checkpoint_last_item_id: number | null;
+            /** @description Total items processed before interruption. Used to calculate remaining work on resume. */
+            readonly checkpoint_items_processed: number;
+            /** @description True if this job was interrupted and can be resumed from its checkpoint. */
+            readonly is_resumable: boolean;
             /** Format: date-time */
             readonly started_at: string | null;
             /** Format: date-time */
@@ -5569,11 +8349,13 @@ export interface components {
         /**
          * @description * `pending` - Pending
          *     * `running` - Running
+         *     * `paused` - Paused
          *     * `completed` - Completed
          *     * `failed` - Failed
+         *     * `cancelled` - Cancelled
          * @enum {string}
          */
-        SyncJobStatusEnum: "pending" | "running" | "completed" | "failed";
+        SyncJobStatusEnum: "pending" | "running" | "paused" | "completed" | "failed" | "cancelled";
         SystemConflict: {
             readonly id: number;
             /**
@@ -5663,6 +8445,9 @@ export interface components {
             readonly sync_job: string | null;
             /** Format: date-time */
             readonly created_at: string;
+            readonly occurrence_count: number;
+            /** Format: date-time */
+            readonly last_seen_at: string;
         };
         WeightAdjustmentHistory: {
             readonly id: number;
@@ -5685,7 +8470,7 @@ export interface components {
             readonly delta: unknown;
             /** @description Plain-English summary, e.g. 'Preset: Recommended applied by admin'. */
             readonly reason: string;
-            /** @description Reference to the R analytics run (populated by FR-018 when active). */
+            /** @description Reference to the auto-tune run (populated by FR-018 when active). */
             readonly r_run_id: string;
             /**
              * Format: date-time
@@ -5728,6 +8513,24 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    analytics_impacts_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     analytics_oauth_authorize_retrieve: {
         parameters: {
             query?: never;
@@ -5765,6 +8568,24 @@ export interface operations {
         };
     };
     analytics_oauth_unlink_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    analytics_query_mismatch_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -6072,6 +8893,24 @@ export interface operations {
             };
         };
     };
+    analytics_telemetry_engagement_mix_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     analytics_telemetry_funnel_retrieve: {
         parameters: {
             query?: never;
@@ -6252,6 +9091,62 @@ export interface operations {
             };
         };
     };
+    analytics_watched_pages_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    analytics_watched_pages_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    analytics_watched_pages_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     audit_entries_list: {
         parameters: {
             query?: {
@@ -6272,8 +9167,9 @@ export interface operations {
                  *     * `pipeline_complete` - Pipeline run completed
                  *     * `sync_start` - Sync started
                  *     * `sync_complete` - Sync completed
+                 *     * `clear_suppression` - Cleared rejected-pair suppression
                  */
-                action?: "apply" | "approve" | "edit_anchor" | "mark_stale" | "note" | "pipeline_complete" | "pipeline_start" | "plugin_toggle" | "reject" | "setting_change" | "supersede" | "sync_complete" | "sync_start" | "verify";
+                action?: "apply" | "approve" | "clear_suppression" | "edit_anchor" | "mark_stale" | "note" | "pipeline_complete" | "pipeline_start" | "plugin_toggle" | "reject" | "setting_change" | "supersede" | "sync_complete" | "sync_start" | "verify";
                 /** @description Which field to use when ordering the results. */
                 ordering?: string;
                 /** @description A page number within the paginated result set. */
@@ -6339,6 +9235,42 @@ export interface operations {
             };
         };
     };
+    auth_active_users_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_local_verification_bootstrap_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_logout_create: {
         parameters: {
             query?: never;
@@ -6358,6 +9290,78 @@ export interface operations {
         };
     };
     auth_me_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_login_begin_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_login_finish_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_register_begin_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_register_finish_create: {
         parameters: {
             query?: never;
             header?: never;
@@ -7503,6 +10507,96 @@ export interface operations {
             };
         };
     };
+    dashboard_mission_brief_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dashboard_resume_state_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dashboard_story_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dashboard_today_actions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    dashboard_what_changed_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     diagnostics_list: {
         parameters: {
             query?: {
@@ -7527,9 +10621,10 @@ export interface operations {
                  *     * `circular_suppressed` - Circular candidate suppressed
                  *     * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
                  *     * `paragraph_cluster` - Host paragraph already has a suggestion
+                 *     * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
                  *     * `other` - Other
                  */
-                skip_reason?: "all_candidates_filtered" | "already_has_pending" | "anchor_banned" | "anchor_too_long" | "circular_suppressed" | "cross_silo_blocked" | "host_reuse_cap" | "max_links_reached" | "no_embedding" | "no_host_sentences" | "no_semantic_matches" | "other" | "paragraph_cluster" | "score_too_low" | "short_post";
+                skip_reason?: "all_candidates_filtered" | "already_has_pending" | "anchor_banned" | "anchor_diversity_blocked" | "anchor_too_long" | "circular_suppressed" | "cross_silo_blocked" | "host_reuse_cap" | "max_links_reached" | "no_embedding" | "no_host_sentences" | "no_semantic_matches" | "other" | "paragraph_cluster" | "score_too_low" | "short_post";
             };
             header?: never;
             path?: never;
@@ -7566,6 +10661,443 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["PipelineDiagnostic"];
                 };
+            };
+        };
+    };
+    embedding_audit_run_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_bakeoff_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_bakeoff_run_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_gate_decisions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_hardware_profile_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_provider_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_provider_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_settings_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_settings_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_status_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    embedding_test_connection_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    feature_flags_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    feature_flags_exposures_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    feature_requests_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedFeatureRequestList"];
+                };
+            };
+        };
+    };
+    feature_requests_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeatureRequest"];
+                "multipart/form-data": components["schemas"]["FeatureRequest"];
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    feature_requests_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Feature Request. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    feature_requests_reply_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Feature Request. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeatureRequest"];
+                "multipart/form-data": components["schemas"]["FeatureRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    feature_requests_set_status_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Feature Request. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeatureRequest"];
+                "multipart/form-data": components["schemas"]["FeatureRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    feature_requests_unvote_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Feature Request. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeatureRequest"];
+                "multipart/form-data": components["schemas"]["FeatureRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    feature_requests_vote_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Feature Request. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeatureRequest"];
+                "application/x-www-form-urlencoded": components["schemas"]["FeatureRequest"];
+                "multipart/form-data": components["schemas"]["FeatureRequest"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeatureRequest"];
+                };
+            };
+        };
+    };
+    glitchtip_events_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -7868,6 +11400,42 @@ export interface operations {
             };
         };
     };
+    health_disk_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    health_gpu_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     health_summary_retrieve: {
         parameters: {
             query?: never;
@@ -7892,6 +11460,80 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    jobs_quarantine_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    jobs_queue_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    meta_algorithms_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    meta_algorithms_toggle_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                algo_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -7946,6 +11588,26 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    notifications_alerts_retrieve_2: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                alert_id: string;
+            };
             cookie?: never;
         };
         requestBody?: never;
@@ -8070,6 +11732,54 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    operations_events_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedOperationEventList"];
+                };
+            };
+        };
+    };
+    operations_events_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Operation Event. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OperationEvent"];
+                };
             };
         };
     };
@@ -8283,6 +11993,78 @@ export interface operations {
             };
         };
     };
+    prune_safe_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    prune_safe_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    reports_stream_suggestions_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    "reports_stream_suggestions.sse_retrieve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     reviewer_scorecards_list: {
         parameters: {
             query?: {
@@ -8328,6 +12110,235 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ReviewerScorecard"];
                 };
+            };
+        };
+    };
+    rum_summary_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    runbooks_execute_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                runbook_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_alerts_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedJobAlertList"];
+                };
+            };
+        };
+    };
+    scheduled_updates_alerts_acknowledge_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_jobs_list: {
+        parameters: {
+            query?: {
+                /** @description Which field to use when ordering the results. */
+                ordering?: string;
+                /** @description A page number within the paginated result set. */
+                page?: number;
+                /** @description A search term. */
+                search?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaginatedScheduledJobList"];
+                };
+            };
+        };
+    };
+    scheduled_updates_jobs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduledJob"];
+                };
+            };
+        };
+    };
+    scheduled_updates_jobs_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_jobs_pause_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_jobs_resume_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_jobs_run_now_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    scheduled_updates_window_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8430,6 +12441,42 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["ScopeItem"];
                 };
+            };
+        };
+    };
+    settings_anchor_diversity_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_anchor_diversity_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -8721,6 +12768,42 @@ export interface operations {
             };
         };
     };
+    settings_fr099_fr105_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_fr099_fr105_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     settings_ga4_gsc_retrieve: {
         parameters: {
             query?: never;
@@ -8829,6 +12912,138 @@ export interface operations {
             };
         };
     };
+    settings_helpers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_helpers_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_helpers_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_helpers_partial_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_helpers_heartbeat_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_keyword_stuffing_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_keyword_stuffing_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     settings_learned_anchor_retrieve: {
         parameters: {
             query?: never;
@@ -8848,6 +13063,42 @@ export interface operations {
         };
     };
     settings_learned_anchor_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_link_farm_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_link_farm_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -8955,6 +13206,60 @@ export interface operations {
             };
         };
     };
+    settings_maintenance_mode_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_maintenance_mode_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_master_pause_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     settings_notifications_retrieve: {
         parameters: {
             query?: never;
@@ -8974,6 +13279,42 @@ export interface operations {
         };
     };
     settings_notifications_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_phase6_picks_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_phase6_picks_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -9046,6 +13387,226 @@ export interface operations {
         };
     };
     settings_rare_term_propagation_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_config_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_config_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_activity_resumed_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_models_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_models_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_models_action_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_models_placements_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_summary_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_switch_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_switch_runtime_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_runtime_switch_status_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -9154,6 +13715,42 @@ export interface operations {
         };
     };
     settings_spam_guards_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_stage1_retrievers_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    settings_stage1_retrievers_update: {
         parameters: {
             query?: never;
             header?: never;
@@ -9756,6 +14353,27 @@ export interface operations {
             };
         };
     };
+    suggestions_explain_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                suggestion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SuggestionList"];
+                };
+            };
+        };
+    };
     suggestions_reject_create: {
         parameters: {
             query?: never;
@@ -9808,6 +14426,42 @@ export interface operations {
             };
         };
     };
+    suggestions_impressions_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    suggestions_readiness_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     sync_jobs_list: {
         parameters: {
             query?: {
@@ -9843,6 +14497,90 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncJob"];
+                };
+            };
+        };
+    };
+    sync_jobs_cancel_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this sync job. */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncJob"];
+                "application/x-www-form-urlencoded": components["schemas"]["SyncJob"];
+                "multipart/form-data": components["schemas"]["SyncJob"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncJob"];
+                };
+            };
+        };
+    };
+    sync_jobs_pause_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this sync job. */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncJob"];
+                "application/x-www-form-urlencoded": components["schemas"]["SyncJob"];
+                "multipart/form-data": components["schemas"]["SyncJob"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncJob"];
+                };
+            };
+        };
+    };
+    sync_jobs_resume_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A UUID string identifying this sync job. */
+                job_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["SyncJob"];
+                "application/x-www-form-urlencoded": components["schemas"]["SyncJob"];
+                "multipart/form-data": components["schemas"]["SyncJob"];
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -9923,6 +14661,24 @@ export interface operations {
             };
         };
     };
+    sync_preview_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     sync_webhooks_wordpress_create: {
         parameters: {
             query?: never;
@@ -9970,6 +14726,78 @@ export interface operations {
         responses: {
             /** @description No response body */
             200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_metrics_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_safe_mode_boot_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_safe_mode_boot_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_safe_mode_boot_destroy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            204: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10224,6 +15052,34 @@ export interface operations {
             };
         };
     };
+    system_status_errors_rerun_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description A unique integer value identifying this Error Log Entry. */
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ErrorLog"];
+                "application/x-www-form-urlencoded": components["schemas"]["ErrorLog"];
+                "multipart/form-data": components["schemas"]["ErrorLog"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorLog"];
+                };
+            };
+        };
+    };
     system_status_features_retrieve: {
         parameters: {
             query?: never;
@@ -10260,6 +15116,60 @@ export interface operations {
             };
         };
     };
+    system_status_mission_critical_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_ndcg_eval_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_nodes_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     system_status_overview_retrieve: {
         parameters: {
             query?: never;
@@ -10278,7 +15188,43 @@ export interface operations {
             };
         };
     };
+    system_status_pipeline_gate_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     system_status_resources_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_runtime_context_retrieve: {
         parameters: {
             query?: never;
             header?: never;
@@ -10367,7 +15313,135 @@ export interface operations {
             };
         };
     };
+    system_status_signal_queue_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_signal_queue_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_suppressed_pairs_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_suppressed_pairs_clear_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pair_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    system_status_suppressed_pairs_list_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     system_status_weights_retrieve: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    telemetry_client_errors_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No response body */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    telemetry_web_vitals_create: {
         parameters: {
             query?: never;
             header?: never;

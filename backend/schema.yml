@@ -4,6 +4,18 @@ info:
   version: 1.0.0
   description: REST API for the XenForo internal linking tool.
 paths:
+  /api/analytics/impacts/:
+    get:
+      operationId: analytics_impacts_retrieve
+      description: GET /api/analytics/impacts/ — chronological impact narrative.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/analytics/oauth/authorize/:
     get:
       operationId: analytics_oauth_authorize_retrieve
@@ -36,6 +48,19 @@ paths:
     post:
       operationId: analytics_oauth_unlink_create
       description: Remove the saved Google OAuth refresh token.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/query-mismatch/:
+    get:
+      operationId: analytics_query_mismatch_retrieve
+      description: GET /api/analytics/query-mismatch/ — pages where search intent
+        doesn't match landing page.
       tags:
       - analytics
       security:
@@ -240,6 +265,29 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/analytics/telemetry/engagement-mix/:
+    get:
+      operationId: analytics_telemetry_engagement_mix_retrieve
+      description: |-
+        Return the Phase 2 engagement mix for the selected source + time window.
+
+        Surfaces the three new ``SuggestionTelemetryDaily`` columns
+        (``quick_exit_sessions``, ``dwell_30s_sessions``, ``dwell_60s_sessions``)
+        alongside the existing ``destination_views`` and ``engaged_sessions`` so
+        operators can see the dwell-tier distribution per source.
+
+        Rates are computed as ``<tier_count> / destination_views`` via the
+        existing ``_safe_rate`` helper (returns 0.0 on zero denominators). Tiers
+        are cumulative (a session that reaches 60s also fires the 30s event), so
+        the rates are independent tier-reach percentages, not stacked shares.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/analytics/telemetry/funnel/:
     get:
       operationId: analytics_telemetry_funnel_retrieve
@@ -365,6 +413,47 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/analytics/watched-pages/:
+    get:
+      operationId: analytics_watched_pages_retrieve
+      description: GET/POST /api/analytics/watched-pages/ — user's watched pages.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: analytics_watched_pages_create
+      description: GET/POST /api/analytics/watched-pages/ — user's watched pages.
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/analytics/watched-pages/{id}/:
+    delete:
+      operationId: analytics_watched_pages_destroy
+      description: DELETE /api/analytics/watched-pages/<id>/ — remove a watched page.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - analytics
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/audit-entries/:
     get:
       operationId: audit_entries_list
@@ -380,6 +469,7 @@ paths:
           enum:
           - apply
           - approve
+          - clear_suppression
           - edit_anchor
           - mark_stale
           - note
@@ -409,6 +499,7 @@ paths:
           * `pipeline_complete` - Pipeline run completed
           * `sync_start` - Sync started
           * `sync_complete` - Sync completed
+          * `clear_suppression` - Cleared rejected-pair suppression
       - name: ordering
         required: false
         in: query
@@ -485,6 +576,44 @@ paths:
               schema:
                 $ref: '#/components/schemas/AuditEntry'
           description: ''
+  /api/auth/active-users/:
+    get:
+      operationId: auth_active_users_retrieve
+      description: |-
+        GET /api/auth/active-users/ — who has made an authenticated request recently.
+
+        Read by the dashboard's "whos on shift" widget. A user is considered
+        active if their last_seen_at is within ``ACTIVE_WINDOW_MIN`` minutes.
+        The caller is never omitted from the list — the frontend decides
+        whether to hide the widget when the only active user is "me".
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/local-verification-bootstrap/:
+    post:
+      operationId: auth_local_verification_bootstrap_create
+      description: |-
+        Mint a localhost-only auth token for browser verification.
+
+        Three independent gates must all pass before a token is issued:
+        1. LOCAL_VERIFICATION_BOOTSTRAP_ENABLED must be True (opt-in, default False).
+        2. The request must carry the X-XFIL-Verification: playwright header.
+        3. The TCP peer IP (REMOTE_ADDR) must be the loopback address — this
+           cannot be spoofed via HTTP headers the way the Host header can.
+
+        The endpoint ONLY ever creates or repairs the 'playwright-local' throwaway
+        account. It never touches any other user's credentials or returns any other
+        user's token, regardless of what accounts exist in the database.
+      tags:
+      - auth
+      responses:
+        '200':
+          description: No response body
   /api/auth/logout/:
     post:
       operationId: auth_logout_create
@@ -504,6 +633,67 @@ paths:
       description: |-
         Returns the currently authenticated user's profile.
         Returns 401 when no valid token is provided.
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/passkey/login/begin/:
+    post:
+      operationId: auth_passkey_login_begin_create
+      description: |-
+        Step 1 of login. Anonymous — returns PublicKeyCredentialRequestOptions.
+
+        A request-options bundle that does NOT list allowCredentials lets the
+        browser show the full account chooser. If you want to scope to a
+        specific username, POST {"username": "..."} and we'll pre-populate.
+
+        Also answers HEAD — the frontend uses a HEAD probe as a "is passkey
+        configured on this backend?" capability check. Any success or
+        auth-required response means yes; a not-found response means the
+        route isn't wired.
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/passkey/login/finish/:
+    post:
+      operationId: auth_passkey_login_finish_create
+      description: Step 2 of login. Verifies assertion, issues DRF token.
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/auth/passkey/register/begin/:
+    post:
+      operationId: auth_passkey_register_begin_create
+      description: Step 1 of registration. Returns PublicKeyCredentialCreationOptions.
+      tags:
+      - auth
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/auth/passkey/register/finish/:
+    post:
+      operationId: auth_passkey_register_finish_create
+      description: Step 2 of registration. Verifies the attestation and stores the
+        credential.
       tags:
       - auth
       security:
@@ -1741,6 +1931,103 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/dashboard/mission-brief/:
+    get:
+      operationId: dashboard_mission_brief_retrieve
+      description: |-
+        GET /api/dashboard/mission-brief/
+
+        Phase D1 / Gap 61 — a pinned three-sentence summary for the
+        dashboard header. Differs from StatusStoryView by timeframe:
+        Mission Brief is the morning executive summary (yesterday's
+        outcomes + today's priorities), Status Story is a rolling
+        present-tense snapshot.
+
+        Three sentences, plain English:
+          1. Yesterday: what the system did (counts).
+          2. Today: what's queued (counts).
+          3. Watch: the single most pressing thing to fix, if any.
+      tags:
+      - dashboard
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dashboard/resume-state/:
+    get:
+      operationId: dashboard_resume_state_retrieve
+      description: |-
+        GET /api/dashboard/resume-state/
+
+        Returns interrupted pipeline runs, last review position, and missed
+        tasks from the catch-up registry.
+      tags:
+      - dashboard
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dashboard/story/:
+    get:
+      operationId: dashboard_story_retrieve
+      description: |-
+        GET /api/dashboard/story/
+
+        Phase D1 / Gap 53 — a plain-English narrative summary for the
+        dashboard's "Status Story" card.
+
+        Composes one or two sentences from data the frontend already
+        has, plus counts that would be awkward to aggregate client-side.
+        Refreshed every 5 minutes by the caller (dashboard component).
+
+        Example output:
+            "This morning: 3 alerts fired, Celery is healthy, 47
+             suggestions are waiting for review."
+            "Quiet so far — no alerts, no broken links, 12 suggestions
+             ready."
+      tags:
+      - dashboard
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dashboard/today-actions/:
+    get:
+      operationId: dashboard_today_actions_retrieve
+      description: |-
+        GET /api/dashboard/today-actions/
+
+        Returns up to 5 priority-ranked action items for the current day.
+        Priority waterfall: blocking alert > stale sync > pending review > idle.
+      tags:
+      - dashboard
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/dashboard/what-changed/:
+    get:
+      operationId: dashboard_what_changed_retrieve
+      description: |-
+        GET /api/dashboard/what-changed/
+
+        Returns counts of changes in the last 24 hours plus autotuner outcomes.
+      tags:
+      - dashboard
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/diagnostics/:
     get:
       operationId: diagnostics_list
@@ -1766,6 +2053,7 @@ paths:
           - all_candidates_filtered
           - already_has_pending
           - anchor_banned
+          - anchor_diversity_blocked
           - anchor_too_long
           - circular_suppressed
           - cross_silo_blocked
@@ -1795,6 +2083,7 @@ paths:
           * `circular_suppressed` - Circular candidate suppressed
           * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
           * `paragraph_cluster` - Host paragraph already has a suggestion
+          * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
           * `other` - Other
       tags:
       - diagnostics
@@ -1831,6 +2120,464 @@ paths:
               schema:
                 $ref: '#/components/schemas/PipelineDiagnostic'
           description: ''
+  /api/embedding/audit/run/:
+    post:
+      operationId: embedding_audit_run_create
+      description: Trigger a manual audit run (bypasses the fortnight gate).
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/bakeoff/:
+    get:
+      operationId: embedding_bakeoff_retrieve
+      description: List recent bake-off results, newest first, capped at 50.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/bakeoff/run/:
+    post:
+      operationId: embedding_bakeoff_run_create
+      description: Trigger a bake-off run asynchronously.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/gate-decisions/:
+    get:
+      operationId: embedding_gate_decisions_retrieve
+      description: Last 100 quality-gate decisions for the Audit tab.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/hardware-profile/:
+    get:
+      operationId: embedding_hardware_profile_retrieve
+      description: |-
+        Detected hardware tier plus recommended batch sizes for common dims.
+
+        Dedicated endpoint per FR-233 contract. Status endpoint exposes a subset
+        nested inside its response; this view returns the canonical shape for
+        clients that only need hardware info.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/provider/:
+    get:
+      operationId: embedding_provider_retrieve
+      description: 'GET: current + available provider list. POST: switch provider.'
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: embedding_provider_create
+      description: 'GET: current + available provider list. POST: switch provider.'
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/settings/:
+    get:
+      operationId: embedding_settings_retrieve
+      description: 'GET: full config (API key masked). POST: bulk update allowed keys.'
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: embedding_settings_create
+      description: 'GET: full config (API key masked). POST: bulk update allowed keys.'
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/status/:
+    get:
+      operationId: embedding_status_retrieve
+      description: Current provider, progress, budget spent, hardware profile.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/embedding/test-connection/:
+    post:
+      operationId: embedding_test_connection_create
+      description: Verify the given provider's credentials via a one-token ``healthcheck``.
+      tags:
+      - embedding
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/feature-flags/:
+    get:
+      operationId: feature_flags_retrieve
+      description: |-
+        GET /api/feature-flags/
+
+        Returns the effective flag set for the requesting user. Anonymous
+        requests get only 100%-rollout flags.
+      tags:
+      - feature-flags
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/feature-flags/exposures/:
+    post:
+      operationId: feature_flags_exposures_create
+      description: |-
+        POST /api/feature-flags/exposures/
+
+        Records a "user saw flag X in variant Y" event. Payload::
+
+            { "key": "cta-copy", "variant": "new-cta" }
+      tags:
+      - feature-flags
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/feature-requests/:
+    get:
+      operationId: feature_requests_list
+      description: |-
+        Phase GB / Gap 151 — Feature request inbox.
+
+        Endpoints::
+
+          GET  /api/feature-requests/                  list (any authenticated user)
+          POST /api/feature-requests/                  submit a new request
+          GET  /api/feature-requests/{id}/             detail
+          POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+          POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+          POST /api/feature-requests/{id}/reply/       maintainer reply
+
+        Write actions (update / destroy) on the record itself are only
+        permitted for staff. Regular users can only create and upvote.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - feature-requests
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedFeatureRequestList'
+          description: ''
+    post:
+      operationId: feature_requests_create
+      description: |-
+        Phase GB / Gap 151 — Feature request inbox.
+
+        Endpoints::
+
+          GET  /api/feature-requests/                  list (any authenticated user)
+          POST /api/feature-requests/                  submit a new request
+          GET  /api/feature-requests/{id}/             detail
+          POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+          POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+          POST /api/feature-requests/{id}/reply/       maintainer reply
+
+        Write actions (update / destroy) on the record itself are only
+        permitted for staff. Regular users can only create and upvote.
+      tags:
+      - feature-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/feature-requests/{id}/:
+    get:
+      operationId: feature_requests_retrieve
+      description: |-
+        Phase GB / Gap 151 — Feature request inbox.
+
+        Endpoints::
+
+          GET  /api/feature-requests/                  list (any authenticated user)
+          POST /api/feature-requests/                  submit a new request
+          GET  /api/feature-requests/{id}/             detail
+          POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+          POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+          POST /api/feature-requests/{id}/reply/       maintainer reply
+
+        Write actions (update / destroy) on the record itself are only
+        permitted for staff. Regular users can only create and upvote.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Feature Request.
+        required: true
+      tags:
+      - feature-requests
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/feature-requests/{id}/reply/:
+    post:
+      operationId: feature_requests_reply_create
+      description: Maintainer adds a public reply the submitter will see.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Feature Request.
+        required: true
+      tags:
+      - feature-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/feature-requests/{id}/set-status/:
+    post:
+      operationId: feature_requests_set_status_create
+      description: Maintainer-only lifecycle transition.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Feature Request.
+        required: true
+      tags:
+      - feature-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/feature-requests/{id}/unvote/:
+    post:
+      operationId: feature_requests_unvote_create
+      description: |-
+        Phase GB / Gap 151 — Feature request inbox.
+
+        Endpoints::
+
+          GET  /api/feature-requests/                  list (any authenticated user)
+          POST /api/feature-requests/                  submit a new request
+          GET  /api/feature-requests/{id}/             detail
+          POST /api/feature-requests/{id}/vote/        upvote (idempotent per user)
+          POST /api/feature-requests/{id}/set-status/  maintainer-only triage
+          POST /api/feature-requests/{id}/reply/       maintainer reply
+
+        Write actions (update / destroy) on the record itself are only
+        permitted for staff. Regular users can only create and upvote.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Feature Request.
+        required: true
+      tags:
+      - feature-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/feature-requests/{id}/vote/:
+    post:
+      operationId: feature_requests_vote_create
+      description: Idempotent upvote — if the user has already voted, it's a no-op.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Feature Request.
+        required: true
+      tags:
+      - feature-requests
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/FeatureRequest'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeatureRequest'
+          description: ''
+  /api/glitchtip/events/:
+    get:
+      operationId: glitchtip_events_retrieve
+      tags:
+      - glitchtip
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/graph/entities/:
     get:
       operationId: graph_entities_list
@@ -2204,6 +2951,30 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServiceHealthRecord'
           description: ''
+  /api/health/disk/:
+    get:
+      operationId: health_disk_retrieve
+      description: GET /api/health/disk/ — database and embedding size estimates.
+      tags:
+      - health
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/health/gpu/:
+    get:
+      operationId: health_gpu_retrieve
+      description: GET /api/health/gpu/ — GPU temperature, VRAM usage, utilization.
+      tags:
+      - health
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/health/summary/:
     get:
       operationId: health_summary_retrieve
@@ -2227,6 +2998,86 @@ paths:
         import job.
       tags:
       - import
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/jobs/quarantine/:
+    get:
+      operationId: jobs_quarantine_retrieve
+      description: |-
+        GET /api/jobs/quarantine/ — quarantined items (first-class model, plan item 16).
+
+        Prefers the new `QuarantineRecord` table; for back-compat also folds in any
+        `PipelineRun.is_quarantined=True` rows that don't have a matching
+        QuarantineRecord yet.  Frontend reads from the same endpoint; no breaking
+        change.
+      tags:
+      - jobs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/jobs/queue/:
+    get:
+      operationId: jobs_queue_retrieve
+      description: GET /api/jobs/queue/ — active and queued tasks with ETA and lock
+        status.
+      tags:
+      - jobs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/meta-algorithms/:
+    get:
+      operationId: meta_algorithms_retrieve
+      description: |-
+        Phase MS — list every meta-algorithm with current runtime state.
+
+        GET /api/meta-algorithms/
+
+        Query params (optional):
+          * `family` — filter by P1/P2/…/Q24/active/signal
+          * `status` — filter by active/forward-declared/disabled
+          * `q` — case-insensitive substring match on id/meta_code/title
+
+        No new backend state: reads the registry (derived from existing
+        `recommended_weights_phase2_*.py` files) and layers in current
+        `AppSetting` values for `<algo>.enabled` + `<algo>.ranking_weight`.
+      tags:
+      - meta-algorithms
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/meta-algorithms/{algo_id}/toggle/:
+    post:
+      operationId: meta_algorithms_toggle_create
+      description: |-
+        Phase MS — flip `<algo>.enabled` for a single meta-algorithm.
+
+        POST /api/meta-algorithms/<id>/toggle/  body: {"enabled": true|false}
+
+        Writes through to the AppSetting row (created if missing). Broadcasts
+        on the `meta_algorithms.state` realtime topic so other operators see
+        the change instantly.
+      parameters:
+      - in: path
+        name: algo_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - meta-algorithms
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -2267,6 +3118,25 @@ paths:
     get:
       operationId: notifications_alerts_retrieve
       description: List operator alerts with optional filters.
+      tags:
+      - notifications
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/notifications/alerts/{alert_id}/:
+    get:
+      operationId: notifications_alerts_retrieve_2
+      description: Return one operator alert by public UUID.
+      parameters:
+      - in: path
+        name: alert_id
+        schema:
+          type: string
+          format: uuid
+        required: true
       tags:
       - notifications
       security:
@@ -2369,6 +3239,76 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/operations/events/:
+    get:
+      operationId: operations_events_list
+      description: |-
+        GET /api/operations/events/ — paginated feed; realtime push does the rest.
+
+        The primary render path is the `operations.feed` realtime topic;
+        this endpoint exists so a page reload can hydrate the last ~500
+        events, and so non-realtime tooling (Playwright snapshots, Ops
+        Feed CSV export) has a canonical source.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - operations
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedOperationEventList'
+          description: ''
+  /api/operations/events/{id}/:
+    get:
+      operationId: operations_events_retrieve
+      description: |-
+        GET /api/operations/events/ — paginated feed; realtime push does the rest.
+
+        The primary render path is the `operations.feed` realtime topic;
+        this endpoint exists so a page reload can hydrate the last ~500
+        events, and so non-realtime tooling (Playwright snapshots, Ops
+        Feed CSV export) has a canonical source.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Operation Event.
+        required: true
+      tags:
+      - operations
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OperationEvent'
+          description: ''
   /api/pipeline-runs/:
     get:
       operationId: pipeline_runs_list
@@ -2683,6 +3623,62 @@ paths:
               schema:
                 $ref: '#/components/schemas/Plugin'
           description: ''
+  /api/prune/safe/:
+    get:
+      operationId: prune_safe_retrieve
+      description: GET lists allowed targets. POST executes a prune (or dry-run).
+      tags:
+      - prune
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: prune_safe_create
+      description: GET lists allowed targets. POST executes a prune (or dry-run).
+      tags:
+      - prune
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/reports/stream/suggestions/:
+    get:
+      operationId: reports_stream_suggestions_retrieve
+      description: |-
+        GET /api/reports/stream/suggestions/
+
+        Returns a chunked ``text/html`` response that flushes one row at
+        a time. The browser renders progressively so the first rows are
+        visible almost immediately.
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/reports/stream/suggestions.sse:
+    get:
+      operationId: reports_stream_suggestions.sse_retrieve
+      description: |-
+        GET /api/reports/stream/suggestions.sse
+
+        Returns a ``text/event-stream`` response. Each SSE event is
+        prefixed with ``data: `` and terminated with ``\n\n``.
+      tags:
+      - reports
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/reviewer-scorecards/:
     get:
       operationId: reviewer_scorecards_list
@@ -2745,6 +3741,287 @@ paths:
               schema:
                 $ref: '#/components/schemas/ReviewerScorecard'
           description: ''
+  /api/rum/summary/:
+    get:
+      operationId: rum_summary_retrieve
+      description: |-
+        GET /api/rum/summary/
+
+        Real User Monitoring roll-up for the last 24h. Returns:
+
+        ::
+
+            {
+              "window_hours": 24,
+              "metrics": {
+                "LCP":  { "p50": 1800, "p75": 2300, "p95": 3900, "n": 142 },
+                "INP":  { "p50":  120, "p75":  190, "p95":  420, "n": 138 },
+                ...
+              },
+              "routes": {
+                "/dashboard": {
+                  "LCP": { "p75": 1900 },
+                  ...
+                }
+              }
+            }
+      tags:
+      - rum
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/runbooks/{runbook_id}/execute/:
+    post:
+      operationId: runbooks_execute_create
+      description: |-
+        POST /api/runbooks/<runbook_id>/execute/ — safe runbook dispatcher.
+
+        Request body:
+            {
+              "confirmed": true,       # required for destructive runbooks
+              "run_id": "...",          # runbook-specific args
+              ...
+            }
+
+        Response:
+            {
+              "ok": true,
+              "runbook_id": "...",
+              "action": "reset" | "unstuck" | "cleaned" | "already_done" | "preview_only" | "error",
+              ...  # runbook-specific details
+            }
+      parameters:
+      - in: path
+        name: runbook_id
+        schema:
+          type: string
+        required: true
+      tags:
+      - runbooks
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/alerts/:
+    get:
+      operationId: scheduled_updates_alerts_list
+      description: |-
+        GET /api/scheduled-updates/alerts/
+
+        Default: active only (not acknowledged, not resolved). Pass
+        ``?include=all`` for the full history, or ``?include=resolved``
+        for the resolved-and-dropped-off-the-badge rows.
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedJobAlertList'
+          description: ''
+  /api/scheduled-updates/alerts/{id}/acknowledge/:
+    post:
+      operationId: scheduled_updates_alerts_acknowledge_create
+      description: POST /api/scheduled-updates/alerts/<id>/acknowledge
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/jobs/:
+    get:
+      operationId: scheduled_updates_jobs_list
+      description: GET /api/scheduled-updates/jobs/
+      parameters:
+      - name: ordering
+        required: false
+        in: query
+        description: Which field to use when ordering the results.
+        schema:
+          type: string
+      - name: page
+        required: false
+        in: query
+        description: A page number within the paginated result set.
+        schema:
+          type: integer
+      - name: search
+        required: false
+        in: query
+        description: A search term.
+        schema:
+          type: string
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedScheduledJobList'
+          description: ''
+  /api/scheduled-updates/jobs/{id}/:
+    get:
+      operationId: scheduled_updates_jobs_retrieve
+      description: GET /api/scheduled-updates/jobs/<id>/
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ScheduledJob'
+          description: ''
+  /api/scheduled-updates/jobs/{id}/cancel/:
+    post:
+      operationId: scheduled_updates_jobs_cancel_create
+      description: |-
+        POST /api/scheduled-updates/jobs/<id>/cancel
+
+        Force-transitions a job to FAILED. Safe from any state; the runner
+        picks up the change at its next checkpoint (via pause_token) or
+        ignores the row (if not currently running).
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/jobs/{id}/pause/:
+    post:
+      operationId: scheduled_updates_jobs_pause_create
+      description: POST /api/scheduled-updates/jobs/<id>/pause
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/jobs/{id}/resume/:
+    post:
+      operationId: scheduled_updates_jobs_resume_create
+      description: POST /api/scheduled-updates/jobs/<id>/resume
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/jobs/{id}/run-now/:
+    post:
+      operationId: scheduled_updates_jobs_run_now_create
+      description: |-
+        POST /api/scheduled-updates/jobs/<id>/run-now
+
+        Nudges a job to be picked by the runner at its next tick.
+        Respects the window guard: if we're outside 11:00-23:00 or the
+        job's duration_estimate would overflow 23:00, returns 409 with
+        a helpful time-until-open hint.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/scheduled-updates/window/:
+    get:
+      operationId: scheduled_updates_window_retrieve
+      description: |-
+        GET /api/scheduled-updates/window/
+
+        Returns whether the orchestrator can currently start new jobs,
+        plus how long until the next transition. Drives the "next window
+        opens in HH:MM" label on the Scheduled Updates tab.
+      tags:
+      - scheduled-updates
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/scopes/:
     get:
       operationId: scopes_list
@@ -2863,6 +4140,27 @@ paths:
               schema:
                 $ref: '#/components/schemas/ScopeItem'
           description: ''
+  /api/settings/anchor-diversity/:
+    get:
+      operationId: settings_anchor_diversity_retrieve
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_anchor_diversity_update
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/settings/appearance/:
     get:
       operationId: settings_appearance_retrieve
@@ -3075,6 +4373,55 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/settings/fr099-fr105/:
+    get:
+      operationId: settings_fr099_fr105_retrieve
+      description: |-
+        GET/PUT for all 7 FR-099..105 signal settings in one request.
+
+        Response shape::
+
+            {
+              "darb":  {"enabled": true, "ranking_weight": 0.04, ...},
+              "kmig":  {"enabled": true, "ranking_weight": 0.05, ...},
+              "tapb":  {...},
+              "kcib":  {...},
+              "berp":  {...},
+              "hgte":  {...},
+              "rsqva": {...}
+            }
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_fr099_fr105_update
+      description: |-
+        GET/PUT for all 7 FR-099..105 signal settings in one request.
+
+        Response shape::
+
+            {
+              "darb":  {"enabled": true, "ranking_weight": 0.04, ...},
+              "kmig":  {"enabled": true, "ranking_weight": 0.05, ...},
+              "tapb":  {...},
+              "kcib":  {...},
+              "berp":  {...},
+              "hgte":  {...},
+              "rsqva": {...}
+            }
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/settings/ga4-gsc/:
     get:
       operationId: settings_ga4_gsc_retrieve
@@ -3155,6 +4502,115 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/settings/helpers/:
+    get:
+      operationId: settings_helpers_retrieve
+      description: GET/POST /api/settings/helpers/ — list and register helper nodes.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: settings_helpers_create
+      description: GET/POST /api/settings/helpers/ — list and register helper nodes.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/helpers/{id}/:
+    patch:
+      operationId: settings_helpers_partial_update
+      description: PATCH/DELETE /api/settings/helpers/<id>/ — update or remove a helper
+        node.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: settings_helpers_destroy
+      description: PATCH/DELETE /api/settings/helpers/<id>/ — update or remove a helper
+        node.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/settings/helpers/{id}/heartbeat/:
+    post:
+      operationId: settings_helpers_heartbeat_create
+      description: |-
+        POST /api/settings/helpers/<id>/heartbeat/
+
+        Stub endpoint for helper nodes to report liveness. Updates
+        ``last_heartbeat`` and optionally merges ``capabilities`` and updates
+        ``status``. Returns 204 on success.
+
+        The helper-client side that calls this endpoint is forward-looking
+        (Stage 8 / multi-node). The endpoint exists so docs/PERFORMANCE.md §2
+        is not lying about it and so the next session that wires up the helper
+        client has a real route to POST to.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/keyword-stuffing/:
+    get:
+      operationId: settings_keyword_stuffing_retrieve
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_keyword_stuffing_update
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/settings/learned-anchor/:
     get:
       operationId: settings_learned_anchor_retrieve
@@ -3174,6 +4630,27 @@ paths:
       description: |-
         GET  /api/settings/learned-anchor/ - returns FR-009 learned-anchor settings
         PUT  /api/settings/learned-anchor/ - validates and persists those settings
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/link-farm/:
+    get:
+      operationId: settings_link_farm_retrieve
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_link_farm_update
       tags:
       - settings
       security:
@@ -3247,6 +4724,76 @@ paths:
       responses:
         '204':
           description: No response body
+  /api/settings/maintenance-mode/:
+    get:
+      operationId: settings_maintenance_mode_retrieve
+      description: |-
+        GET/POST /api/settings/maintenance-mode/ — operator-visible banner toggle.
+
+        Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
+
+            {"enabled": bool, "message": str, "started_at": ISO timestamp or null}
+
+        When ``enabled`` is true the frontend shell shows a persistent amber
+        banner and the active ``message``. ``started_at`` is stamped when the
+        toggle flips from false -> true and cleared when it flips back.
+
+        Kept deliberately minimal — no write-blocking middleware yet. The
+        frontend half is what ships today; a future slice can add backend
+        enforcement off the same flag.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: settings_maintenance_mode_create
+      description: |-
+        GET/POST /api/settings/maintenance-mode/ — operator-visible banner toggle.
+
+        Stored as a JSON AppSetting under ``system.maintenance_mode``. Shape:
+
+            {"enabled": bool, "message": str, "started_at": ISO timestamp or null}
+
+        When ``enabled`` is true the frontend shell shows a persistent amber
+        banner and the active ``message``. ``started_at`` is stamped when the
+        toggle flips from false -> true and cleared when it flips back.
+
+        Kept deliberately minimal — no write-blocking middleware yet. The
+        frontend half is what ships today; a future slice can add backend
+        enforcement off the same flag.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/master-pause/:
+    post:
+      operationId: settings_master_pause_create
+      description: |-
+        POST /api/settings/master-pause/ — flip system.master_pause (plan item 28).
+
+        Request body (optional): {"paused": true|false}
+        If the body is empty the current value is TOGGLED.
+
+        Workers read ``system.master_pause`` at each batch boundary via
+        ``apps.core.pause_contract.should_pause_now()`` (plan item 29) and stop
+        taking new batches when it is truthy. Existing in-flight batches finish
+        normally and save their checkpoints.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/settings/notifications/:
     get:
       operationId: settings_notifications_retrieve
@@ -3262,6 +4809,67 @@ paths:
     put:
       operationId: settings_notifications_update
       description: Read and update notification delivery preferences.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/phase6-picks/:
+    get:
+      operationId: settings_phase6_picks_retrieve
+      description: |-
+        GET/PUT for all 10 Phase 6 pick toggles in one request.
+
+        Response shape::
+
+            {
+              "vader_sentiment":        {"enabled": true},
+              "pysbd_segmenter":        {"enabled": true},
+              "yake_keywords":          {"enabled": true},
+              "trafilatura_extractor":  {"enabled": true},
+              "fasttext_langid":        {"enabled": true},
+              "lda":                    {"enabled": true},
+              "kenlm":                  {"enabled": true},
+              "node2vec":               {"enabled": true},
+              "bpr":                    {"enabled": true},
+              "factorization_machines": {"enabled": true}
+            }
+
+        PUT accepts the same shape (or any subset). Picks not in the
+        payload keep their current value.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_phase6_picks_update
+      description: |-
+        GET/PUT for all 10 Phase 6 pick toggles in one request.
+
+        Response shape::
+
+            {
+              "vader_sentiment":        {"enabled": true},
+              "pysbd_segmenter":        {"enabled": true},
+              "yake_keywords":          {"enabled": true},
+              "trafilatura_extractor":  {"enabled": true},
+              "fasttext_langid":        {"enabled": true},
+              "lda":                    {"enabled": true},
+              "kenlm":                  {"enabled": true},
+              "node2vec":               {"enabled": true},
+              "bpr":                    {"enabled": true},
+              "factorization_machines": {"enabled": true}
+            }
+
+        PUT accepts the same shape (or any subset). Picks not in the
+        payload keep their current value.
       tags:
       - settings
       security:
@@ -3316,6 +4924,192 @@ paths:
       description: |-
         GET  /api/settings/rare-term-propagation/ - returns FR-010 rare-term settings
         PUT  /api/settings/rare-term-propagation/ - validates and persists those settings
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/:
+    get:
+      operationId: settings_runtime_retrieve
+      description: |-
+        GET /api/settings/runtime/ — current runtime mode and state.
+
+        In addition to `runtime_mode` and `performance_mode`, also returns the
+        optional expiry fields set by the time-bound chips (plan item 8). Frontend
+        hydrates the chip selection from these fields on every page load so the
+        user sees the same state across tabs and restarts.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime-config/:
+    get:
+      operationId: settings_runtime_config_retrieve
+      description: GET/POST /api/settings/runtime-config/ — operator-safe runtime
+        tunables.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: settings_runtime_config_create
+      description: GET/POST /api/settings/runtime-config/ — operator-safe runtime
+        tunables.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/activity-resumed/:
+    post:
+      operationId: settings_runtime_activity_resumed_create
+      description: |-
+        POST /api/settings/runtime/activity-resumed/ — user is active again.
+
+        Plan item 13 ("Until I come back"). The frontend's UserActivityService
+        calls this once the user starts typing/mousing after being idle while
+        High Performance + 'activity' expiry was active. The call is idempotent:
+        if no revert is needed the server returns {reverted: false}.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/models/:
+    get:
+      operationId: settings_runtime_models_retrieve
+      description: GET/POST /api/settings/runtime/models/.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: settings_runtime_models_create
+      description: GET/POST /api/settings/runtime/models/.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/models/{id}/action/:
+    post:
+      operationId: settings_runtime_models_action_create
+      description: POST /api/settings/runtime/models/<id>/action/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/models/placements/{id}/:
+    delete:
+      operationId: settings_runtime_models_placements_destroy
+      description: DELETE /api/settings/runtime/models/placements/<id>/.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/settings/runtime/summary/:
+    get:
+      operationId: settings_runtime_summary_retrieve
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/switch/:
+    post:
+      operationId: settings_runtime_switch_create
+      description: |-
+        POST /api/settings/runtime/switch/ — switch performance mode.
+
+        Accepts:
+          {
+            "mode": "safe" | "balanced" | "high",
+            "expiry": "none" | "activity" | "night",  # optional, only valid with mode=high
+            "expires_at": "2026-04-15T06:00:00-07:00"  # optional ISO 8601 for 'night'
+          }
+
+        Backend enforcement for the expiry is `core.auto_revert_performance_mode`
+        (plan items 12 + 14) running every 5 minutes via Celery Beat.
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/switch-runtime/:
+    post:
+      operationId: settings_runtime_switch_runtime_create
+      description: |-
+        POST /api/settings/runtime/switch-runtime/ — drain-and-resume runtime switch (plan item 23).
+
+        Request body:
+            {"target": "cpu" | "gpu", "wait_for_drain": true}
+
+        Response mirrors ``runtime_switcher.switch_runtime`` so the UI can show
+        exactly what happened (previous mode, drain seconds, warmup result).
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/runtime/switch-status/:
+    get:
+      operationId: settings_runtime_switch_status_retrieve
+      description: GET /api/settings/runtime/switch-status/ — current mode + any in-flight
+        switch.
       tags:
       - settings
       security:
@@ -3419,6 +5213,55 @@ paths:
           (default 4, matching Google's 2–5 word recommendation).
         * paragraph_window — block a second suggestion within this many sentence
           positions of an already-selected one on the same host (default 3).
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/settings/stage1-retrievers/:
+    get:
+      operationId: settings_stage1_retrievers_retrieve
+      description: |-
+        GET / PUT for the Stage-1 retriever flags.
+
+        Response shape::
+
+            {
+              "lexical_retriever_enabled": false,
+              "query_expansion_retriever_enabled": false
+            }
+
+        PUT accepts the same shape (or any subset). Missing keys keep
+        their current value. Each non-bool input is coerced via
+        :func:`_coerce_bool` (string "true"/"yes"/"on" or bool True →
+        True; everything else → False).
+      tags:
+      - settings
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    put:
+      operationId: settings_stage1_retrievers_update
+      description: |-
+        GET / PUT for the Stage-1 retriever flags.
+
+        Response shape::
+
+            {
+              "lexical_retriever_enabled": false,
+              "query_expansion_retriever_enabled": false
+            }
+
+        PUT accepts the same shape (or any subset). Missing keys keep
+        their current value. Each non-bool input is coerced via
+        :func:`_coerce_bool` (string "true"/"yes"/"on" or bool True →
+        True; everything else → False).
       tags:
       - settings
       security:
@@ -3984,7 +5827,14 @@ paths:
   /api/suggestions/{suggestion_id}/approve/:
     post:
       operationId: suggestions_approve_create
-      description: Approve a pending suggestion. Optionally accepts anchor_edited.
+      description: |-
+        Approve a pending suggestion. Optionally accepts anchor_edited.
+
+        When the reviewer supplies an ``anchor_edited`` value that differs from
+        the system-generated ``anchor_phrase``, an additional ``edit_anchor``
+        AuditEntry is written alongside the ``approve`` entry. This turns
+        reviewer anchor edits into labelled training data for the
+        anchor-generator without otherwise changing approve semantics.
       parameters:
       - in: path
         name: suggestion_id
@@ -4016,10 +5866,48 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuggestionReview'
           description: ''
+  /api/suggestions/{suggestion_id}/explain/:
+    get:
+      operationId: suggestions_explain_retrieve
+      description: |-
+        Return SHAP-style per-feature attributions for this suggestion.
+
+        W4 wiring of pick #47 (Kernel SHAP). Uses direct linear
+        attribution from the persisted score columns + current
+        AppSetting weights — same response shape as the
+        :mod:`apps.pipeline.services.shap_explainer` helper but
+        without the 50-100 MB peak RAM cost. The Angular Explain
+        panel consumes this verbatim.
+      parameters:
+      - in: path
+        name: suggestion_id
+        schema:
+          type: string
+          format: uuid
+          description: Unique identifier for this suggestion.
+        required: true
+      tags:
+      - suggestions
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestionList'
+          description: ''
   /api/suggestions/{suggestion_id}/reject/:
     post:
       operationId: suggestions_reject_create
-      description: Reject a pending suggestion with an optional reason.
+      description: |-
+        Reject a pending suggestion with an optional reason.
+
+        Also upserts a ``RejectedPair`` row for (host, destination) so the
+        candidate generator suppresses this pair on future pipeline runs for
+        ``REJECTED_PAIR_SUPPRESSION_DAYS`` days. RejectedPair failures are
+        logged but never block the reject flow.
       parameters:
       - in: path
         name: suggestion_id
@@ -4081,6 +5969,57 @@ paths:
               schema:
                 $ref: '#/components/schemas/SuggestionList'
           description: ''
+  /api/suggestions/impressions/:
+    post:
+      operationId: suggestions_impressions_create
+      description: |-
+        Bulk-accept impression observations from the review-queue UI.
+
+        Picks #33 (IPS Position Bias) and #34 (Cascade Click Model) both
+        feed off this stream. The frontend POSTs a list of
+        ``{suggestion_id, position, clicked, dwell_ms?}`` rows whenever a
+        batch of suggestions enters / leaves the operator's viewport.
+        Server-side we ``bulk_create`` them — no per-row write contention.
+
+        Idempotency: callers can send the same payload twice (page
+        refresh, retry) without mass-corrupting the calibration set.
+        Each row gets a fresh timestamp via ``auto_now_add``, so the
+        producer scheduled jobs only see real impression events; double-
+        submits show up as two impressions at slightly different times,
+        which is the truth (the suggestion was indeed in viewport at
+        both moments).
+
+        Cold-start safe: empty payload → 200 with ``{written: 0}``;
+        invalid suggestion ids → silently skipped (don't reject the
+        whole batch on one stale row).
+      tags:
+      - suggestions
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/suggestions/readiness/:
+    get:
+      operationId: suggestions_readiness_retrieve
+      description: |-
+        Phase SR — single endpoint the Review page consults before showing suggestions.
+
+        Returns a compact `{ready, prerequisites, blocking, updated_at}` payload.
+        Every prerequisite reuses an existing health / AppSetting source of truth;
+        no new telemetry is introduced. Root-cause dedup is applied inside
+        `apps.suggestions.readiness.assemble_prerequisites()`, so when the
+        pipeline gate blocks, the operator sees one root explanation instead of
+        five downstream echoes.
+      tags:
+      - suggestions
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/sync-jobs/:
     get:
       operationId: sync_jobs_list
@@ -4126,6 +6065,132 @@ paths:
         required: true
       tags:
       - sync-jobs
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+          description: ''
+  /api/sync-jobs/{job_id}/cancel/:
+    post:
+      operationId: sync_jobs_cancel_create
+      description: |-
+        Cancel a running sync job.
+
+        POST /api/sync-jobs/{job_id}/cancel/
+
+        Sets status to 'cancelled' and revokes the Celery task with SIGTERM.
+        The job remains resumable if it had a checkpoint.
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this sync job.
+        required: true
+      tags:
+      - sync-jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+          description: ''
+  /api/sync-jobs/{job_id}/pause/:
+    post:
+      operationId: sync_jobs_pause_create
+      description: |-
+        Graceful pause (plan item 27).
+
+        POST /api/sync-jobs/{job_id}/pause/
+
+        Requests a graceful pause at the next safe checkpoint boundary. Unlike
+        cancel, pause preserves the job row and keeps ``is_resumable=True`` so
+        the worker or user can pick up the same job later via the resume endpoint.
+        The worker reads ``system.master_pause`` AND its own per-job pause flag
+        (stored on the SyncJob row) and stops at the next safe boundary.
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this sync job.
+        required: true
+      tags:
+      - sync-jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SyncJob'
+          description: ''
+  /api/sync-jobs/{job_id}/resume/:
+    post:
+      operationId: sync_jobs_resume_create
+      description: |-
+        Resume a paused or failed resumable job (plan item 27).
+
+        POST /api/sync-jobs/{job_id}/resume/
+
+        Queues ``import_content`` with the original job id so the worker reads
+        the stored checkpoint and continues without duplicating completed work.
+      parameters:
+      - in: path
+        name: job_id
+        schema:
+          type: string
+          format: uuid
+        description: A UUID string identifying this sync job.
+        required: true
+      tags:
+      - sync-jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SyncJob'
       security:
       - cookieAuth: []
       - tokenAuth: []
@@ -4211,6 +6276,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/SyncJob'
           description: ''
+  /api/sync/preview/:
+    post:
+      operationId: sync_preview_create
+      description: |-
+        POST /api/sync/preview/ — dry-run sampler (plan item 24).
+
+        Request body:
+            {"source": "api" | "wp", "mode": "full" | "delta", "sample_size": 10}
+
+        Response mirrors ``run_preview``; see that function for the shape.
+      tags:
+      - sync
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/sync/webhooks/wordpress/:
     post:
       operationId: sync_webhooks_wordpress_create
@@ -4244,6 +6327,70 @@ paths:
       - tokenAuth: []
       responses:
         '200':
+          description: No response body
+  /api/system/metrics/:
+    get:
+      operationId: system_metrics_retrieve
+      description: |-
+        GET /api/system/metrics/ — live CPU, RAM, and GPU sampling for the dashboard.
+
+        Combines psutil (CPU + RAM) and pynvml (GPU) into one lightweight call so
+        the frontend can poll a single endpoint every 10 seconds. All fields are
+        fail-soft: if a sampler is unavailable, the field is null rather than
+        raising an error.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/safe-mode-boot/:
+    get:
+      operationId: system_safe_mode_boot_retrieve
+      description: |-
+        POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+
+        Use case: the app is misbehaving under High Performance mode and the user wants a
+        one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: system_safe_mode_boot_create
+      description: |-
+        POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+
+        Use case: the app is misbehaving under High Performance mode and the user wants a
+        one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    delete:
+      operationId: system_safe_mode_boot_destroy
+      description: |-
+        POST /api/system/safe-mode-boot/ — arm a flag that forces 'safe' mode on next backend startup.
+
+        Use case: the app is misbehaving under High Performance mode and the user wants a
+        one-shot recovery. Reading & clearing happens in apps.core.apps.CoreConfig.ready().
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '204':
           description: No response body
   /api/system/status/conflicts/:
     get:
@@ -4518,6 +6665,47 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorLog'
           description: ''
+  /api/system/status/errors/{id}/rerun/:
+    post:
+      operationId: system_status_errors_rerun_create
+      description: |-
+        Phase GT Step 8 — re-dispatch the original failing Celery task.
+
+        Supports a small whitelist of re-dispatchable job types
+        (`pipeline`, `sync`, `import`). On successful dispatch the error
+        row is auto-acknowledged so the Error Log clears. Out-of-scope
+        job types return a Bad Request error instead of silently queuing nothing.
+      parameters:
+      - in: path
+        name: id
+        schema:
+          type: integer
+        description: A unique integer value identifying this Error Log Entry.
+        required: true
+      tags:
+      - system
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ErrorLog'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ErrorLog'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ErrorLog'
+        required: true
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorLog'
+          description: ''
   /api/system/status/features/:
     get:
       operationId: system_status_features_retrieve
@@ -4537,6 +6725,90 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/system/status/mission-critical/:
+    get:
+      operationId: system_status_mission_critical_retrieve
+      description: |-
+        Phase MC — single aggregator the dashboard's Mission Critical tab reads.
+
+        Returns a flat list of tile descriptors. Each tile entry is:
+
+            {
+                "id": "pipeline",
+                "name": "Pipeline",
+                "state": "WORKING" | "IDLE" | "PAUSED" | "DEGRADED" | "FAILED",
+                "plain_english": "One-line status.",
+                "last_action_at": "ISO8601" | None,
+                "progress": 0..1 | None,
+                "actions": ["Resume", "Pause", ...],
+                "group": "algorithms" | None,
+                "root_cause": "<tile_id>" | None,
+            }
+
+        Dedup rules (from the approved plan):
+          * When the pipeline gate is blocked, dependent tiles (pipeline /
+            embeddings / signals / meta / cooccurrence) mark `root_cause` =
+            'pipeline_gate' so the UI collapses them under the root.
+          * The five meta-algorithm tiles are flagged with `group='algorithms'`
+            so the UI can render one green summary row when all five are
+            healthy, expanding only on degrade.
+
+        Reuses existing health checks + AppSettings — no new telemetry.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/ndcg-eval/:
+    get:
+      operationId: system_status_ndcg_eval_retrieve
+      description: |-
+        Latest NDCG@K reading over the reviewed-Suggestion stream.
+
+        GET-only — populated daily by the ``ndcg_smoke_test`` scheduled
+        job (Polish.B). Returns the full :class:`NdcgResult` shape from
+        ``apps.pipeline.services.ndcg_eval``:
+
+        - ``ndcg``: NDCG@10 point estimate.
+        - ``confidence_lower`` / ``confidence_upper``: bootstrap 95 % CI.
+        - ``sample_size``: number of reviewed suggestions in the window.
+        - ``sufficient_data`` / ``sufficient_for_pairwise``: Sanderson
+          §5.2 sample-size gates.
+        - ``message``: human-readable status line for the dashboard.
+        - ``breakdown_by_candidate_origin``: per-origin NDCG (only
+          origins above the basic floor).
+        - ``fitted_at``: ISO timestamp of the last run.
+
+        Cold-start (no scheduled job has run yet) → returns
+        ``{"available": false, ...}`` so the dashboard renders a
+        "Eval pending — first run within 24 h" banner.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/nodes/:
+    get:
+      operationId: system_status_nodes_retrieve
+      description: |-
+        One row per known node (primary + every slave that has written an
+        ErrorLog in the last 24 hours). Powers the GT-G13 nodes strip on
+        the Diagnostics page. No separate heartbeat table — slaves self-
+        announce by writing errors tagged with their NODE_ID env var.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/system/status/overview/:
     get:
       operationId: system_status_overview_retrieve
@@ -4548,9 +6820,42 @@ paths:
       responses:
         '200':
           description: No response body
+  /api/system/status/pipeline-gate/:
+    get:
+      operationId: system_status_pipeline_gate_retrieve
+      description: |-
+        GT-G14 — single go/no-go verdict for the ranking pipeline.
+
+        Reuses the existing checks in apps.health.services — does NOT
+        introduce new detection logic. Returns `can_run` + a list of
+        `blockers` each with plain-English explanation and next step, so
+        the UI banner can render the fix instructions directly.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/system/status/resources/:
     get:
       operationId: system_status_resources_retrieve
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/runtime-context/:
+    get:
+      operationId: system_status_runtime_context_retrieve
+      description: |-
+        Snapshot of the current runtime — GPU / CUDA / embedding / spaCy /
+        node. Consumed by the Live Runtime Health strip at the top of the
+        Diagnostics Error Log.
       tags:
       - system
       security:
@@ -4638,6 +6943,125 @@ paths:
               schema:
                 $ref: '#/components/schemas/ServiceStatus'
           description: ''
+  /api/system/status/signal-queue/:
+    get:
+      operationId: system_status_signal_queue_retrieve
+      description: |-
+        Phase SEQ — ranking signal execution queue visibility.
+
+        Returns the current lock-holder (if any) and the list of pending
+        signal-compute tasks. Consumed by:
+        - Mission Critical "Ranking Signals" tile (Phase MC)
+        - Meta Algorithm Settings tab "Run now" button (Phase MS)
+        - Operations Feed signal-start/finish events (Phase OF)
+
+        No new backend state — reads directly from the `task_lock.py`
+        cache namespace. Pending task count is a stub today (Celery doesn't
+        expose queue inspection without broker introspection tools); a
+        follow-up can populate it via `celery inspect scheduled` data.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+    post:
+      operationId: system_status_signal_queue_create
+      description: |-
+        Phase MX1 — operator controls for the signal queue.
+
+        Payload: `{"action": "pause_after_current"|"resume"|"abort_all"}`.
+        All three manipulate a small set of cache flags the decorator
+        + future queue-scheduler consult on every run boundary.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/suppressed-pairs/:
+    get:
+      operationId: system_status_suppressed_pairs_retrieve
+      description: |-
+        Phase 1v — small Diagnostics-page surface for the ``RejectedPair``
+        negative-memory table.
+
+        Exposed at ``GET /api/system/status/suppressed-pairs/`` via the
+        ``apps.diagnostics`` URL include. Answers the operator's "is my negative
+        memory doing anything right now?" question with three counts and a
+        recency timestamp:
+
+        - ``active_suppressed_pairs`` — rows whose ``last_rejected_at`` falls
+          within the suppression window (see ``REJECTED_PAIR_SUPPRESSION_DAYS``).
+          These (host, destination) pairs are currently being skipped by the
+          candidate generator.
+        - ``total_rejected_pairs`` — total row count, including rows past the
+          suppression window that haven't been pruned yet.
+        - ``total_rejections_lifetime`` — sum of ``rejection_count`` across all
+          rows; each reject increments its pair's counter.
+        - ``most_recent_rejection_at`` — timestamp of the freshest rejection on
+          record in ISO format, or ``null`` if the table is empty.
+
+        Read-only and cheap (3 aggregations, no joins). Frontend polls at page
+        load; no WebSocket needed.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/suppressed-pairs/{pair_id}/clear/:
+    post:
+      operationId: system_status_suppressed_pairs_clear_create
+      description: |-
+        Tier 2 slice 4 — manual clear action for a single ``RejectedPair``.
+
+        ``POST /api/system/status/suppressed-pairs/<int:pair_id>/clear/``.
+        Deletes the row outright so a future rejection starts a fresh
+        90-day suppression window (rather than silently resetting an
+        existing row) and writes an ``AuditEntry`` so the operator's action
+        is visible on the Audit page. Returns HTTP ``not found`` if the
+        pair id is missing.
+      parameters:
+      - in: path
+        name: pair_id
+        schema:
+          type: integer
+        required: true
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/system/status/suppressed-pairs/list/:
+    get:
+      operationId: system_status_suppressed_pairs_list_retrieve
+      description: |-
+        Tier 2 slice 4 — paginated list of individual ``RejectedPair`` rows
+        for the Diagnostics page drilldown.
+
+        Exposed at ``GET /api/system/status/suppressed-pairs/list/``. Complements
+        the counter endpoint by letting operators inspect which specific
+        (host, destination) pairs are currently being suppressed, sorted newest
+        first. Includes both the host and destination's human-readable title so
+        the UI doesn't need a second round-trip.
+      tags:
+      - system
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
   /api/system/status/weights/:
     get:
       operationId: system_status_weights_retrieve
@@ -4650,6 +7074,54 @@ paths:
       security:
       - cookieAuth: []
       - tokenAuth: []
+      responses:
+        '200':
+          description: No response body
+  /api/telemetry/client-errors/:
+    post:
+      operationId: telemetry_client_errors_create
+      description: |-
+        Phase U1 / Gap 26 — ingest endpoint for unhandled frontend
+        exceptions captured by the Angular `GlobalErrorHandler`.
+
+        `POST /api/telemetry/client-errors/`
+
+        Auth-optional: the endpoint must accept errors from unauthenticated
+        pages too (login page JS bug, token-expired states), but we still
+        record the user id when available.
+
+        Rate-limited per PYTHON-RULES §9.7 — a runaway render loop in the
+        frontend could otherwise spam the backend. Both anon and user
+        throttles use DRF's built-in classes (configured project-wide).
+      tags:
+      - telemetry
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
+      responses:
+        '200':
+          description: No response body
+  /api/telemetry/web-vitals/:
+    post:
+      operationId: telemetry_web_vitals_create
+      description: |-
+        Phase E2 / Gap 51 — ingest endpoint for Core Web Vitals beacons.
+
+        `POST /api/telemetry/web-vitals/`
+
+        Fires from `frontend/src/app/core/services/web-vitals.service.ts`
+        via `navigator.sendBeacon` (preferred) or `HttpClient` fallback.
+        One row per metric fire per page-load.
+
+        Auth-optional (same rationale as ClientErrorLogView — we want
+        vitals on the login page too) but rate-limited to prevent abuse.
+      tags:
+      - telemetry
+      security:
+      - cookieAuth: []
+      - tokenAuth: []
+      - {}
       responses:
         '200':
           description: No response body
@@ -5105,6 +7577,7 @@ components:
       - pipeline_complete
       - sync_start
       - sync_complete
+      - clear_suppression
       type: string
       description: |-
         * `approve` - Approved suggestion
@@ -5121,6 +7594,17 @@ components:
         * `pipeline_complete` - Pipeline run completed
         * `sync_start` - Sync started
         * `sync_complete` - Sync completed
+        * `clear_suppression` - Cleared rejected-pair suppression
+    AlertTypeEnum:
+      enum:
+      - missed
+      - failed
+      - stalled
+      type: string
+      description: |-
+        * `missed` - Missed
+        * `failed` - Failed
+        * `stalled` - Stalled
     AnchorConfidenceEnum:
       enum:
       - strong
@@ -5158,6 +7642,7 @@ components:
             * `pipeline_complete` - Pipeline run completed
             * `sync_start` - Sync started
             * `sync_complete` - Sync completed
+            * `clear_suppression` - Cleared rejected-pair suppression
         target_type:
           type: string
           readOnly: true
@@ -5409,8 +7894,13 @@ components:
           type: number
           format: double
           readOnly: true
-          description: Neutral future-facing GA4/GSC composite placeholder score.
-            0.5 = neutral. Written by external analytics layer.
+          description: GA4 + Matomo + GSC composite score for linking value. 0.5 =
+            neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores
+            via the pure formula compute_content_value_raw. Phase 3a/3c extension
+            credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s)
+            and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms
+            are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites
+            see no behaviour change.
         freshness_bucket:
           type: string
           readOnly: true
@@ -5581,8 +8071,13 @@ components:
           type: number
           format: double
           readOnly: true
-          description: Neutral future-facing GA4/GSC composite placeholder score.
-            0.5 = neutral. Written by external analytics layer.
+          description: GA4 + Matomo + GSC composite score for linking value. 0.5 =
+            neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores
+            via the pure formula compute_content_value_raw. Phase 3a/3c extension
+            credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s)
+            and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms
+            are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites
+            see no behaviour change.
         freshness_bucket:
           type: string
           readOnly: true
@@ -6035,9 +8530,31 @@ components:
         * `topic_tag` - Topic Tag
     ErrorLog:
       type: object
+      description: |-
+        Phase GT Step 6. Adds two derived fields to every ErrorLog row:
+
+        - `error_trend` — 7-day bucket counts per fingerprint so the UI can
+          render a sparkline showing whether this error is trending up or dying.
+        - `related_error_ids` — up to 10 ids of other errors that fired within
+          ±5 minutes so the operator doesn't waste time fixing 10 symptoms
+          of one root cause.
+
+        The derived fields are computed per row, so keep them cheap: indexed
+        lookups only, no `.all()` scans.
       properties:
         id:
           type: integer
+          readOnly: true
+        error_trend:
+          type: array
+          items:
+            type: object
+            additionalProperties: {}
+          readOnly: true
+        related_error_ids:
+          type: array
+          items:
+            type: integer
           readOnly: true
         job_type:
           type: string
@@ -6065,12 +8582,314 @@ components:
           format: date-time
           readOnly: true
           description: When this error was recorded.
+        source:
+          allOf:
+          - $ref: '#/components/schemas/ErrorLogSourceEnum'
+          description: |-
+            Origin of this entry: internal (Celery tasks) or glitchtip (sync task).
+
+            * `internal` - Internal
+            * `glitchtip` - GlitchTip
+        glitchtip_issue_id:
+          type: string
+          nullable: true
+          description: Issue id from GlitchTip when source='glitchtip'.
+          maxLength: 100
+        glitchtip_url:
+          type: string
+          format: uri
+          nullable: true
+          description: Deep link to the GlitchTip issue detail page.
+          maxLength: 200
+        fingerprint:
+          type: string
+          nullable: true
+          description: 'Normalised hash used to dedupe repeat occurrences. Internal:
+            sha1(job|step|normalize(message)). GlitchTip: their fingerprint.'
+          maxLength: 255
+        occurrence_count:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Number of times this fingerprint has been seen on this node.
+        severity:
+          $ref: '#/components/schemas/SeverityD90Enum'
+        how_to_fix:
+          type: string
+          description: Plain-English fix suggestion surfaced to the operator.
+        node_id:
+          type: string
+          default: primary
+          description: Identifier of the node that produced this error.
+          maxLength: 100
+        node_role:
+          $ref: '#/components/schemas/NodeRoleEnum'
+        node_hostname:
+          type: string
+          maxLength: 255
+        runtime_context:
+          description: Snapshot produced by apps.audit.runtime_context.snapshot()
+            — GPU/CUDA/embedding/spaCy/python/node at the moment of failure.
       required:
       - created_at
       - error_message
+      - error_trend
+      - fingerprint
       - id
       - job_type
+      - related_error_ids
       - step
+    ErrorLogSourceEnum:
+      enum:
+      - internal
+      - glitchtip
+      type: string
+      description: |-
+        * `internal` - Internal
+        * `glitchtip` - GlitchTip
+    FeatureRequest:
+      type: object
+      description: |-
+        Phase GB / Gap 151 — serializer for the in-app feature-request inbox.
+
+        Read path exposes aggregated vote count and the submitter's username.
+        Write path restricts the fields an operator can set — ``status``,
+        ``votes``, and ``admin_reply`` are maintainer-only and mutated via
+        the viewset's dedicated actions.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        author:
+          type: integer
+          readOnly: true
+          nullable: true
+        author_username:
+          type: string
+          readOnly: true
+        title:
+          type: string
+          maxLength: 160
+        body:
+          type: string
+        category:
+          type: string
+          maxLength: 40
+        priority:
+          $ref: '#/components/schemas/FeatureRequestPriorityEnum'
+        status:
+          allOf:
+          - $ref: '#/components/schemas/FeatureRequestStatusEnum'
+          readOnly: true
+        context: {}
+        votes:
+          type: integer
+          readOnly: true
+        admin_reply:
+          type: string
+          readOnly: true
+        has_voted:
+          type: boolean
+          readOnly: true
+      required:
+      - admin_reply
+      - author
+      - author_username
+      - body
+      - created_at
+      - has_voted
+      - id
+      - status
+      - title
+      - updated_at
+      - votes
+    FeatureRequestPriorityEnum:
+      enum:
+      - low
+      - medium
+      - high
+      type: string
+      description: |-
+        * `low` - Low — nice to have
+        * `medium` - Medium — would help regularly
+        * `high` - High — blocks my workflow
+    FeatureRequestStatusEnum:
+      enum:
+      - new
+      - accepted
+      - planned
+      - shipped
+      - declined
+      - duplicate
+      type: string
+      description: |-
+        * `new` - New
+        * `accepted` - Accepted
+        * `planned` - Planned
+        * `shipped` - Shipped
+        * `declined` - Declined
+        * `duplicate` - Duplicate
+    JobAlert:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        job_key:
+          type: string
+          readOnly: true
+        alert_type:
+          allOf:
+          - $ref: '#/components/schemas/AlertTypeEnum'
+          readOnly: true
+        calendar_date:
+          type: string
+          format: date
+          readOnly: true
+          description: The local-time date the alert refers to (missed window, failure
+            day, etc.).
+        message:
+          type: string
+          readOnly: true
+        first_raised_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_seen_at:
+          type: string
+          format: date-time
+          readOnly: true
+        acknowledged_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Set when an operator clicks the ✕ in the UI. Hides from active
+            list.
+        resolved_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: Set automatically when the job's next successful run completes.
+            Resolved alerts drop out of the active list and are pruned after 30 days
+            by jobalert_dedup_cleanup.
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when this record was created.
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when this record was last modified.
+      required:
+      - acknowledged_at
+      - alert_type
+      - calendar_date
+      - created_at
+      - first_raised_at
+      - id
+      - is_active
+      - job_key
+      - last_seen_at
+      - message
+      - resolved_at
+      - updated_at
+    NodeRoleEnum:
+      enum:
+      - primary
+      - worker
+      - celery
+      - lightsail
+      - k8s
+      - slave
+      - unknown
+      type: string
+      description: |-
+        * `primary` - Primary
+        * `worker` - Worker
+        * `celery` - Celery
+        * `lightsail` - Lightsail
+        * `k8s` - K8s Pod
+        * `slave` - Slave
+        * `unknown` - Unknown
+    OperationEvent:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        timestamp:
+          type: string
+          format: date-time
+          readOnly: true
+        event_type:
+          type: string
+          readOnly: true
+        source:
+          type: string
+          readOnly: true
+          description: Which subsystem emitted this (e.g. 'pipeline', 'crawler').
+        plain_english:
+          type: string
+          readOnly: true
+          description: Operator-facing sentence the UI renders verbatim.
+        severity:
+          allOf:
+          - $ref: '#/components/schemas/OperationEventSeverityEnum'
+          readOnly: true
+        related_entity_type:
+          type: string
+          readOnly: true
+        related_entity_id:
+          type: string
+          readOnly: true
+        runtime_context:
+          readOnly: true
+        occurrence_count:
+          type: integer
+          readOnly: true
+        error_log_id:
+          type: integer
+          readOnly: true
+          nullable: true
+      required:
+      - error_log_id
+      - event_type
+      - id
+      - occurrence_count
+      - plain_english
+      - related_entity_id
+      - related_entity_type
+      - runtime_context
+      - severity
+      - source
+      - timestamp
+    OperationEventSeverityEnum:
+      enum:
+      - info
+      - warning
+      - error
+      - success
+      type: string
+      description: |-
+        * `info` - Info
+        * `warning` - Warning
+        * `error` - Error
+        * `success` - Success
     OrphanAudit:
       type: object
       description: Extends the content list serializer with inbound link count for
@@ -6142,8 +8961,13 @@ components:
           type: number
           format: double
           readOnly: true
-          description: Neutral future-facing GA4/GSC composite placeholder score.
-            0.5 = neutral. Written by external analytics layer.
+          description: GA4 + Matomo + GSC composite score for linking value. 0.5 =
+            neutral (no activity in the lookback window). Written by analytics.sync._refresh_content_value_scores
+            via the pure formula compute_content_value_raw. Phase 3a/3c extension
+            credits the dwell gradient (half-weight dwell-30s + full-weight dwell-60s)
+            and penalises quick-exit rate per Kim et al. WSDM 2014 — all three terms
+            are zero when Phase 2 telemetry is unavailable, so pre-Phase 3a sites
+            see no behaviour change.
         freshness_bucket:
           type: string
           readOnly: true
@@ -6293,6 +9117,75 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/EntityNode'
+    PaginatedFeatureRequestList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeatureRequest'
+    PaginatedJobAlertList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobAlert'
+    PaginatedOperationEventList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/OperationEvent'
     PaginatedOrphanAuditList:
       type: object
       required:
@@ -6431,6 +9324,29 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/ReviewerScorecard'
+    PaginatedScheduledJobList:
+      type: object
+      required:
+      - count
+      - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJob'
     PaginatedSuggestionListList:
       type: object
       required:
@@ -6995,6 +9911,7 @@ components:
             * `circular_suppressed` - Circular candidate suppressed
             * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
             * `paragraph_cluster` - Host paragraph already has a suggestion
+            * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
             * `other` - Other
         detail:
           readOnly: true
@@ -7082,6 +9999,14 @@ components:
         config_snapshot:
           readOnly: true
           description: Frozen ML weights and settings at the time this run started.
+        phase_log:
+          description: 'Ordered list of pipeline phase entries: [{"phase": "fetch_content",
+            "started_at": "...", "completed_at": "...", "item_count": 0, "status":
+            "completed"}]'
+        is_quarantined:
+          type: boolean
+          description: True if this run has been quarantined after repeated failures
+            (>3 consecutive).
         created_at:
           type: string
           format: date-time
@@ -7207,6 +10132,18 @@ components:
       - id
       - key
       - value_type
+    PriorityD90Enum:
+      enum:
+      - critical
+      - high
+      - medium
+      - low
+      type: string
+      description: |-
+        * `critical` - Critical
+        * `high` - High
+        * `medium` - Medium
+        * `low` - Low
     RankingChallenger:
       type: object
       properties:
@@ -7216,7 +10153,7 @@ components:
         run_id:
           type: string
           readOnly: true
-          description: Opaque identifier from the C# tune run (e.g. a GUID).
+          description: Opaque identifier from the Python auto-tune run (UUID4).
         status:
           allOf:
           - $ref: '#/components/schemas/RankingChallengerStatusEnum'
@@ -7234,15 +10171,15 @@ components:
             the optimizer: w_semantic, w_keyword, w_node, w_quality.'
         baseline_weights:
           readOnly: true
-          description: Snapshot of the four active weights at the moment C# submitted
-            this challenger.
+          description: Snapshot of the four active weights at the moment the auto-tuner
+            submitted this challenger.
         predicted_quality_score:
           type: number
           format: double
           readOnly: true
           nullable: true
-          description: Predicted link-quality score from the C# optimizer for the
-            candidate weights.
+          description: Predicted link-quality score from the Python L-BFGS-B optimizer
+            for the candidate weights (1 / (1 + BCE-loss)).
         champion_quality_score:
           type: number
           format: double
@@ -7395,6 +10332,140 @@ components:
         * `completed` - Completed
         * `failed` - Failed
         * `cancelled` - Cancelled
+    ScheduledJob:
+      type: object
+      description: |-
+        Summary payload for list + detail endpoints.
+
+        Read-only — state transitions happen through the explicit
+        pause/resume/cancel/run-now actions, never a generic PATCH.
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        key:
+          type: string
+          readOnly: true
+          description: Stable identifier for this job, e.g. 'pagerank_refresh' or
+            'lda_topic_refresh'. Code looks the job up by this key.
+        display_name:
+          type: string
+          readOnly: true
+          description: Human-readable label shown in the Scheduled Updates tab.
+        priority:
+          allOf:
+          - $ref: '#/components/schemas/PriorityD90Enum'
+          readOnly: true
+          description: |-
+            Runner orders pending jobs by this.
+
+            * `critical` - Critical
+            * `high` - High
+            * `medium` - Medium
+            * `low` - Low
+        state:
+          allOf:
+          - $ref: '#/components/schemas/ScheduledJobStateEnum'
+          readOnly: true
+        progress_pct:
+          type: number
+          format: double
+          readOnly: true
+          description: 0-100. Set by job code via report_progress().
+        current_message:
+          type: string
+          readOnly: true
+          description: Short status string the UI shows next to the progress bar.
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        finished_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_run_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When the job last *started*, regardless of outcome.
+        last_success_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When the job last *completed successfully*. Null until first
+            success.
+        scheduled_for:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+          description: When the job's next run is planned. The runner uses this plus
+            the priority to decide what to start next. Null = on-demand only.
+        cadence_seconds:
+          type: integer
+          readOnly: true
+          description: Expected gap between successful runs. The catch-up detector
+            flags the job as missed when now - last_success_at exceeds this.
+        duration_estimate_sec:
+          type: integer
+          readOnly: true
+        pause_token:
+          type: boolean
+          readOnly: true
+        log_tail:
+          type: string
+          readOnly: true
+          description: Last ~4 KB of output. Truncated in save().
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when this record was created.
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+          description: Timestamp when this record was last modified.
+      required:
+      - cadence_seconds
+      - created_at
+      - current_message
+      - display_name
+      - duration_estimate_sec
+      - finished_at
+      - id
+      - key
+      - last_run_at
+      - last_success_at
+      - log_tail
+      - pause_token
+      - priority
+      - progress_pct
+      - scheduled_for
+      - started_at
+      - state
+      - updated_at
+    ScheduledJobStateEnum:
+      enum:
+      - pending
+      - running
+      - paused
+      - completed
+      - failed
+      - missed
+      type: string
+      description: |-
+        * `pending` - Pending
+        * `running` - Running
+        * `paused` - Paused
+        * `completed` - Completed
+        * `failed` - Failed
+        * `missed` - Missed
     ScopeItem:
       type: object
       description: Serializes forum nodes, resource categories, and WordPress scopes.
@@ -7501,6 +10572,9 @@ components:
           type: string
           readOnly: true
           description: Short plain-English summary of current status.
+        config_tier:
+          type: string
+          readOnly: true
         last_check_at:
           type: string
           format: date-time
@@ -7535,6 +10609,7 @@ components:
           description: Service-specific metrics (e.g. lag hours, row counts, ping
             latency).
       required:
+      - config_tier
       - issue_description
       - last_check_at
       - last_error_at
@@ -7596,7 +10671,7 @@ components:
         * `celery_worker` - Celery Worker
         * `celery_beat` - Celery Beat
         * `channels` - Channels / WebSockets
-        * `http_worker` - C# HttpWorker
+        * `http_worker` - Decommissioned HTTP worker (legacy)
         * `xenforo_sync` - XenForo Sync
         * `wordpress_sync` - WordPress Sync
         * `ga4` - GA4
@@ -7607,7 +10682,7 @@ components:
         * `local_model` - Local Embedding/Model Runtime
         * `matomo` - Matomo
         * `runtime_lanes` - Runtime Lanes
-        * `scheduler_lane` - C# Scheduler Lane
+        * `scheduler_lane` - Task Scheduler
         * `native_scoring` - Native C++ Scoring
         * `slate_diversity_runtime` - Slate Diversity Runtime
         * `embedding_specialist` - Python Embedding Specialist
@@ -7630,7 +10705,7 @@ components:
         service_name:
           $ref: '#/components/schemas/ServiceNameEnum'
         state:
-          $ref: '#/components/schemas/StateEnum'
+          $ref: '#/components/schemas/ServiceStatusStateEnum'
         explanation:
           type: string
           description: Plain-English explanation of the state.
@@ -7657,6 +10732,42 @@ components:
       - last_check
       - service_name
       - updated_at
+    ServiceStatusStateEnum:
+      enum:
+      - healthy
+      - degraded
+      - failed
+      - disabled
+      - not_configured
+      - not_installed
+      - planned_only
+      - spec_missing
+      - spec_exists_not_implemented
+      - partial_or_conflicting
+      type: string
+      description: |-
+        * `healthy` - Healthy
+        * `degraded` - Degraded
+        * `failed` - Failed
+        * `disabled` - Disabled
+        * `not_configured` - Not Configured
+        * `not_installed` - Not Installed
+        * `planned_only` - Planned Only
+        * `spec_missing` - Spec Missing
+        * `spec_exists_not_implemented` - Spec Exists but Not Implemented
+        * `partial_or_conflicting` - Partial or Conflicting
+    SeverityD90Enum:
+      enum:
+      - critical
+      - high
+      - medium
+      - low
+      type: string
+      description: |-
+        * `critical` - Critical
+        * `high` - High
+        * `medium` - Medium
+        * `low` - Low
     SiloGroup:
       type: object
       description: Serialize silo-group CRUD payloads.
@@ -7767,6 +10878,7 @@ components:
       - circular_suppressed
       - cross_silo_blocked
       - paragraph_cluster
+      - anchor_diversity_blocked
       - other
       type: string
       description: |-
@@ -7784,6 +10896,7 @@ components:
         * `circular_suppressed` - Circular candidate suppressed
         * `cross_silo_blocked` - Cross-silo candidate blocked by strict mode
         * `paragraph_cluster` - Host paragraph already has a suggestion
+        * `anchor_diversity_blocked` - Anchor diversity guard blocked the candidate
         * `other` - Other
     Source88aEnum:
       enum:
@@ -7795,30 +10908,6 @@ components:
         * `api` - XenForo API
         * `jsonl` - JSONL File
         * `wp` - WordPress API
-    StateEnum:
-      enum:
-      - healthy
-      - degraded
-      - failed
-      - disabled
-      - not_configured
-      - not_installed
-      - planned_only
-      - spec_missing
-      - spec_exists_not_implemented
-      - partial_or_conflicting
-      type: string
-      description: |-
-        * `healthy` - Healthy
-        * `degraded` - Degraded
-        * `failed` - Failed
-        * `disabled` - Disabled
-        * `not_configured` - Not Configured
-        * `not_installed` - Not Installed
-        * `planned_only` - Planned Only
-        * `spec_missing` - Spec Missing
-        * `spec_exists_not_implemented` - Spec Exists but Not Implemented
-        * `partial_or_conflicting` - Partial or Conflicting
     Status6f0Enum:
       enum:
       - pending
@@ -7958,6 +11047,24 @@ components:
           readOnly: true
           description: FR-014 near-duplicate clustering suppression score. Negative
             values indicate suppression.
+        score_anchor_diversity:
+          type: number
+          format: double
+          readOnly: true
+          description: FR-045 anchor-diversity anti-spam score. 0.5 = neutral, lower
+            values mean the anchor is too repetitive for the destination.
+        score_keyword_stuffing:
+          type: number
+          format: double
+          readOnly: true
+          description: FR-198 keyword-stuffing anti-spam score. 0.5 = neutral, lower
+            values mean the destination text looks more stuffed.
+        score_link_farm:
+          type: number
+          format: double
+          readOnly: true
+          description: FR-197 link-farm anti-spam score. 0.5 = neutral, lower values
+            mean the destination sits in a suspicious reciprocal ring.
         score_slate_diversity:
           type: number
           format: double
@@ -8134,6 +11241,17 @@ components:
         click_distance_diagnostics:
           readOnly: true
           description: Explainable FR-012 click-distance context for review and debugging.
+        anchor_diversity_diagnostics:
+          readOnly: true
+          description: Explainable FR-045 anchor-diversity details for review and
+            debugging.
+        keyword_stuffing_diagnostics:
+          readOnly: true
+          description: Explainable FR-198 keyword-stuffing details for review and
+            debugging.
+        link_farm_diagnostics:
+          readOnly: true
+          description: Explainable FR-197 reciprocal-ring details for review and debugging.
         explore_exploit_diagnostics:
           readOnly: true
           description: Explainable FR-013 explore/exploit details for review and debugging.
@@ -8176,6 +11294,20 @@ components:
         telemetry_instrumentation:
           type: string
           readOnly: true
+        destination_content_value_score:
+          type: number
+          format: double
+          readOnly: true
+          default: 0.5
+        destination_engagement_quality_score:
+          type: number
+          format: double
+          readOnly: true
+          default: 0.5
+        destination_content_value_diagnostics:
+          readOnly: true
+        destination_engagement_quality_diagnostics:
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -8188,6 +11320,7 @@ components:
           description: Timestamp when this record was last modified.
       required:
       - anchor_confidence
+      - anchor_diversity_diagnostics
       - anchor_end
       - anchor_phrase
       - anchor_start
@@ -8198,6 +11331,10 @@ components:
       - created_at
       - destination
       - destination_content_type
+      - destination_content_value_diagnostics
+      - destination_content_value_score
+      - destination_engagement_quality_diagnostics
+      - destination_engagement_quality_score
       - destination_silo_group
       - destination_silo_group_name
       - destination_source_label
@@ -8214,13 +11351,16 @@ components:
       - host_silo_group_name
       - host_source_label
       - host_title
+      - keyword_stuffing_diagnostics
       - learned_anchor_diagnostics
+      - link_farm_diagnostics
       - link_freshness_diagnostics
       - phrase_match_diagnostics
       - pipeline_run
       - rare_term_diagnostics
       - repeated_anchor
       - same_silo
+      - score_anchor_diversity
       - score_click_distance
       - score_cluster_suppression
       - score_explore_exploit
@@ -8228,7 +11368,9 @@ components:
       - score_final
       - score_ga4_gsc
       - score_keyword
+      - score_keyword_stuffing
       - score_learned_anchor_corroboration
+      - score_link_farm
       - score_link_freshness
       - score_march_2026_pagerank
       - score_node_affinity
@@ -8505,6 +11647,10 @@ components:
           type: string
           readOnly: true
           nullable: true
+        file_path:
+          type: string
+          readOnly: true
+          description: Saved upload path for file-backed imports that can resume.
         progress:
           type: number
           format: double
@@ -8533,6 +11679,26 @@ components:
         error_message:
           type: string
           readOnly: true
+        checkpoint_stage:
+          type: string
+          readOnly: true
+          description: Pipeline stage when checkpoint was saved (e.g. 'ingest', 'spacy',
+            'embed', 'pipeline').
+        checkpoint_last_item_id:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: ID of the last content item successfully processed before interruption.
+        checkpoint_items_processed:
+          type: integer
+          readOnly: true
+          description: Total items processed before interruption. Used to calculate
+            remaining work on resume.
+        is_resumable:
+          type: boolean
+          readOnly: true
+          description: True if this job was interrupted and can be resumed from its
+            checkpoint.
         started_at:
           type: string
           format: date-time
@@ -8548,11 +11714,16 @@ components:
           format: date-time
           readOnly: true
       required:
+      - checkpoint_items_processed
+      - checkpoint_last_item_id
+      - checkpoint_stage
       - completed_at
       - created_at
       - embedding_items_completed
       - error_message
       - file_name
+      - file_path
+      - is_resumable
       - items_synced
       - items_updated
       - job_id
@@ -8569,14 +11740,18 @@ components:
       enum:
       - pending
       - running
+      - paused
       - completed
       - failed
+      - cancelled
       type: string
       description: |-
         * `pending` - Pending
         * `running` - Running
+        * `paused` - Paused
         * `completed` - Completed
         * `failed` - Failed
+        * `cancelled` - Cancelled
     SystemConflict:
       type: object
       properties:
@@ -8752,10 +11927,19 @@ components:
           type: string
           format: date-time
           readOnly: true
+        occurrence_count:
+          type: integer
+          readOnly: true
+        last_seen_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
       - created_at
       - error_message
       - event_type
+      - last_seen_at
+      - occurrence_count
       - payload
       - receipt_id
       - source
@@ -8803,8 +11987,7 @@ components:
         r_run_id:
           type: string
           readOnly: true
-          description: Reference to the R analytics run (populated by FR-018 when
-            active).
+          description: Reference to the auto-tune run (populated by FR-018 when active).
         created_at:
           type: string
           format: date-time

@@ -75,7 +75,7 @@ Ordered list of page_ids to crawl, sorted by priority_value descending.
 
 ### Architecture alignment
 - Python service in `backend/apps/crawler/services/crawl_priority.py`
-- Called from C# via Celery task dispatch (existing pattern: C# enqueues job, Python executes)
+- Dispatched as a Celery task and consumed by the Python worker (post-2026-04 the C# HttpWorker is decommissioned; all crawl orchestration is Celery-only)
 - OR-Tools runs in Python process (`pip install ortools` in backend/requirements.txt)
 - C++ is NOT used here -- OR-Tools provides its own C++ solver behind the Python API
 
@@ -83,7 +83,7 @@ Ordered list of page_ids to crawl, sorted by priority_value descending.
 - `backend/apps/crawler/services/crawl_priority.py` (NEW) -- priority scheduler
 - `backend/apps/crawler/tasks.py` -- add crawl_priority task
 - `backend/requirements.txt` -- add `ortools>=9.9`
-- `services/http-worker/src/HttpWorker.Services/CrawlSessionService.cs` -- call priority scheduler before building frontier
+- `backend/apps/crawler/services/crawl_session.py` -- call priority scheduler before building the frontier (legacy `services/http-worker/.../CrawlSessionService.cs` was decommissioned 2026-04)
 - `backend/apps/core/migrations/` -- add settings keys
 - `frontend/src/app/settings/` -- add crawl priority settings card
 

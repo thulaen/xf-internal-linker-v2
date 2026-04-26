@@ -62,7 +62,7 @@ class WeightAdjustmentHistory(models.Model):
     Bulk audit record for every event that changes ranking weights.
 
     One row is written each time weights change — whether triggered by a preset
-    apply, a manual settings save, or the monthly R auto-tune task.
+    apply, a manual settings save, or the monthly Python auto-tune task (FR-018).
 
     This is additive to AuditEntry: AuditEntry still fires per-key for every
     individual AppSetting.key that changes.  WeightAdjustmentHistory adds a
@@ -108,7 +108,7 @@ class WeightAdjustmentHistory(models.Model):
     r_run_id = models.CharField(
         max_length=200,
         blank=True,
-        help_text="Reference to the R analytics run (populated by FR-018 when active).",
+        help_text="Reference to the auto-tune run (populated by FR-018 when active).",
     )
     created_at = models.DateTimeField(
         auto_now_add=True,
@@ -148,7 +148,7 @@ class RankingChallenger(TimestampedModel):
     run_id = models.CharField(
         max_length=200,
         unique=True,
-        help_text="Opaque identifier from the C# tune run (e.g. a GUID).",
+        help_text="Opaque identifier from the Python auto-tune run (UUID4).",
     )
     status = models.CharField(
         max_length=20,
@@ -166,12 +166,12 @@ class RankingChallenger(TimestampedModel):
     )
     baseline_weights = models.JSONField(
         default=dict,
-        help_text="Snapshot of the four active weights at the moment C# submitted this challenger.",
+        help_text="Snapshot of the four active weights at the moment the auto-tuner submitted this challenger.",
     )
     predicted_quality_score = models.FloatField(
         null=True,
         blank=True,
-        help_text="Predicted link-quality score from the C# optimizer for the candidate weights.",
+        help_text="Predicted link-quality score from the Python L-BFGS-B optimizer for the candidate weights (1 / (1 + BCE-loss)).",
     )
     champion_quality_score = models.FloatField(
         null=True,

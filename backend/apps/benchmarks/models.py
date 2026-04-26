@@ -2,7 +2,7 @@ from django.db import models
 
 
 class BenchmarkRun(models.Model):
-    """A single benchmark execution covering C++, Python, and/or C#."""
+    """A single benchmark execution covering C++ and/or Python."""
 
     TRIGGER_CHOICES = [
         ("scheduled", "Scheduled"),

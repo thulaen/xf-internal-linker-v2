@@ -90,7 +90,7 @@ class BayesianTrendAttributor:
         # Probability that post-CTR > (base-CTR * site-trend)
         prob_uplift = float(np.mean(post_samples > (base_samples * trend)))
 
-        # 4. Labeling Logic (Parity with legacy C#)
+        # 4. Labeling Logic
         lift_pct = 0.0
         if target_clicks_base > 0:
             # Expected lift normalized by trend

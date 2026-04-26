@@ -1,4 +1,4 @@
-"""Orchestrates benchmark execution for C++, Python, and C#."""
+"""Orchestrates benchmark execution for C++ and Python."""
 
 from __future__ import annotations
 

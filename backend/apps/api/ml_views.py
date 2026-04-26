@@ -1,9 +1,9 @@
 """
-Stateless ML endpoints for C# worker compute dependencies.
+Stateless ML compute endpoints for Celery workers and external integrations.
 
 These endpoints provide advanced NLP (spaCy) and sentence embedding
-capabilities to the C# HttpWorker without tightly coupling the orchestrator
-to Python state or persistence.
+capabilities as a network-accessible service so callers do not need to
+load the heavy models in their own process.
 
 They do NOT touch the database or hold any runtime orchestration logic.
 """

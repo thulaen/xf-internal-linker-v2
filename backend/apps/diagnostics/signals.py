@@ -13,9 +13,10 @@ How it works
   without a separate mapping.
 - `ServiceStatusSnapshot` rows where `service_name == "http_worker"` are
   excluded from the broadcast because the REST view excludes them too
-  (stale decommissioned-C# row; see `apps/diagnostics/views.py`). Without
-  this guard a legacy http_worker row re-surfaces whenever it touches the
-  DB, even though the UI filters it out.
+  (stale decommissioned http_worker row; see ISS-009 and
+  `apps/diagnostics/views.py`). Without this guard a legacy http_worker
+  row re-surfaces whenever it touches the DB, even though the UI filters
+  it out.
 - `post_delete` fires an `entity.deleted` event so the frontend can drop
   the row without a full re-fetch.
 
@@ -51,7 +52,7 @@ TOPIC = "diagnostics"
 def _on_service_status_saved(
     sender, instance: ServiceStatusSnapshot, created: bool, **kwargs: object
 ) -> None:
-    # Hide the same row the REST view hides (stale C# decommission leftover).
+    # Hide the same row the REST view hides (stale http_worker decommission leftover; ISS-009).
     if instance.service_name == "http_worker":
         return
     broadcast(

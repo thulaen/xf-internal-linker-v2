@@ -13,7 +13,7 @@ Run this first. Before writing a single line of code. If any answer is YES, stop
 - [ ] Does this feature duplicate an existing FR in `FEATURE-REQUESTS.md` or `AI-CONTEXT.md`? → **Stop.**
 - [ ] Does this feature lack a primary source (peer-reviewed paper with DOI, IETF RFC, or US/EU patent number)? → **Stop.**
 - [ ] Does this feature mix two or more independent concepts into one composite score without a published formula that combines them the same way? → **Stop.**
-- [ ] Can you name the exact Python, C++, or C# file and variable that this feature reads as input? If not → **Stop.**
+- [ ] Can you name the exact Python or C++ file and variable that this feature reads as input? If not → **Stop.**
 - [ ] Does this feature have no neutral fallback — meaning if it produces garbage output, the rest of the pipeline cannot continue as if the feature is absent? → **Stop.**
 - [ ] Does this feature produce no reviewer-visible diagnostic (a score that appears in the suggestion detail view, health page, or diagnostics panel)? → **Stop.**
 - [ ] Can you state what specific user harm this feature prevents OR what measurable business value it improves? If not → **Stop.**
@@ -56,14 +56,14 @@ Before writing any formula or algorithm:
 Every new tunable weight, threshold, or hyperparameter needs a published baseline so that a non-expert operator has somewhere to start.
 
 - [ ] Look up a published baseline value from the primary source or a closely related empirical study (e.g., "the paper reports that α = 0.6 performs well on short-document corpora").
-- [ ] Write that baseline as the `WeightPreset` default (Django) or `appsettings.json` default (C#) with a comment: `# Baseline: <Author YYYY, Table N>` or `// Baseline: <Author YYYY, Table N>`.
-- [ ] State whether auto-tuning (`WeightObjectiveFunction.cs`) covers this parameter. If it does, confirm the parameter is included in the L-BFGS search space. If it does not, document why and what an operator should watch to tune it manually.
+- [ ] Write that baseline as the `WeightPreset` default with an inline comment: `# Baseline: <Author YYYY, Table N>`.
+- [ ] State whether auto-tuning (`backend/apps/suggestions/services/weight_tuner.py`) covers this parameter. If it does, confirm the parameter is included in the L-BFGS-B search space. If it does not, document why and what an operator should watch to tune it manually.
 - [ ] The baseline must produce reasonable results without the operator understanding the internal math.
 
 ### 1.4 Regression risk
 
-- [ ] List every scoring signal or DB field that feeds the changed code path. Reference the composite score formula in `ranker.py` or the objective in `WeightObjectiveFunction.cs`.
-- [ ] State which existing benchmark files cover those signals (`backend/benchmarks/test_bench_*.py`, `backend/extensions/benchmarks/bench_*.cpp`, `services/http-worker/benchmarks/*Benchmarks.cs`).
+- [ ] List every scoring signal or DB field that feeds the changed code path. Reference the composite score formula in `ranker.py` or the objective in `backend/apps/suggestions/services/weight_tuner.py`.
+- [ ] State which existing benchmark files cover those signals (`backend/benchmarks/test_bench_*.py`, `backend/extensions/benchmarks/bench_*.cpp`).
 - [ ] If no benchmark exists for the changed signal, create one before merging. Three input sizes are required: small (10 candidates), medium (100 candidates), large (500 candidates). Cite the paper's reported time complexity if available.
 
 ---
@@ -80,9 +80,9 @@ The paper or patent is the immutable spec. Code follows it, not the other way ar
   score = click / propensity
   ```
   or
-  ```csharp
+  ```cpp
   // Source: Patent US8407231B2, claim 3 — freshness decay
-  double decay = Math.Exp(-lambda * daysSinceLastSeen);
+  double decay = std::exp(-lambda * days_since_last_seen);
   ```
 - [ ] If the implementation diverges from the source formula (clamped denominator, added epsilon, changed exponent), add a second comment: `# Divergence: <reason>` and update the spec accordingly.
 - [ ] If you are tempted to change the formula without a new source, treat that as a drift signal — stop and ask the user.
@@ -101,7 +101,7 @@ A paper can describe a correct algorithm that is too slow or too memory-intensiv
 |---|---|
 | Hot-path scoring loop (>1 k calls per pipeline run) | C++ extension — Python fallback only if C++ unavailable |
 | ML inference, embedding generation | Python |
-| External HTTP I/O, crawling, import | C# HTTP Worker |
+| External HTTP I/O, crawling, import | Python (Celery worker) |
 | UI orchestration | Angular |
 
 - [ ] New code is in the correct lane. Hot-path Python prototypes must be tagged `# PERF: must port to C++ before merge`.
@@ -177,10 +177,10 @@ If this session changed any of the following files, create a dated report in `do
 |---|---|
 | `backend/apps/pipeline/services/ranker.py` | Composite score formula or new signals |
 | `backend/apps/analytics/impact_engine.py` | Attribution model |
-| `services/http-worker/.../GSCAttributionService.cs` | Attribution model |
-| `services/http-worker/.../PipelineServices.cs` | Crawl page cap or frontier logic |
+| `backend/apps/pipeline/tasks_import.py` | Crawl page cap or frontier logic |
 | `backend/apps/pipeline/services/feedback_rerank.py` | Feedback reranking |
-| `services/http-worker/.../WeightObjectiveFunction.cs` | Weight optimization objective |
+| `backend/apps/suggestions/services/weight_tuner.py` | Weight optimization objective |
+| `backend/apps/pipeline/tasks.py` (auto-tune chain) | Weight challenger evaluation / promotion / rollback |
 
 The report must state: what changed, what academic source justifies it, what the known regression risk is, and what benchmark confirms it.
 
@@ -188,7 +188,7 @@ The report must state: what changed, what academic source justifies it, what the
 
 ## Section 5 — CI and Static Analysis Compliance
 
-- [ ] The magic-number checker passes with no new violations. Every new numeric constant is either a named constant with a source citation, or a tunable parameter in `WeightPreset` / `appsettings.json`.
+- [ ] The magic-number checker passes with no new violations. Every new numeric constant is either a named constant with a source citation, or a tunable parameter in `WeightPreset` / `AppSetting`.
 - [ ] The duplicate-block detector passes. No copy-pasted scoring logic across files.
 - [ ] The N+1 query detector passes for any new ORM call.
 - [ ] All three benchmark sizes exist for new hot-path functions (small / medium / large).
@@ -216,7 +216,7 @@ Before merging any new feature, measure it against all of these:
 
 - [ ] Python hot-path signal: < 50 ms per pipeline run on a 500-candidate batch (single core, sustained).
 - [ ] C++ hot-path: < 5 ms per pipeline run on a 500-candidate batch.
-- [ ] C# import / attribution: < 2 s per page batch.
+- [ ] Python Celery import / attribution worker: < 2 s per page batch.
 - [ ] Embedding batch (BAAI/bge-m3): < 500 ms per 32-document batch on GPU; < 2 s on CPU fallback.
 - [ ] FAISS index rebuild: < 30 s for up to 50 k vectors on RTX 3050.
 - [ ] RAM headroom: Django + 2 Celery workers + PostgreSQL must stay under 10 GB combined during a pipeline run. Verify with `docker stats`.
@@ -258,7 +258,7 @@ Pruning must never drop below these values. Below the floor, the subsystem must 
 | Co-occurrence signal (`cooccurrence/services.py`) | 50 `ContentCooccurrence` pairs | Signal returns 0 (neutral); diagnostic: "cooccurrence: insufficient sessions" |
 | GSC attribution (`impact_engine.py`) | 7 days of `SearchMetric` rows for the target page | Attribution shows `None`; health panel warning |
 | Link freshness (`link_freshness.py`) | 14 days of `LinkFreshnessEdge` history | Freshness set to neutral 0.5; diagnostic: "freshness: cold start" |
-| Weight auto-tuning (`WeightObjectiveFunction.cs`) | 30 days of outcome data | Tuner skips cycle, keeps existing weights; logs "auto-tune: insufficient window" |
+| Weight auto-tuning (`backend/apps/suggestions/services/weight_tuner.py`) | 30 days of outcome data | Tuner skips cycle, keeps existing weights; logs "auto-tune: insufficient window" |
 
 ### 6.5 Disk-space monitoring
 

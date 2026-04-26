@@ -20,7 +20,6 @@ from apps.pipeline.services.circuit_breaker import (
     CircuitBreaker,
     CircuitState,
     ga4_breaker,
-    http_worker_breaker,
     wordpress_breaker,
     xenforo_breaker,
 )
@@ -29,7 +28,6 @@ __all__ = [
     "CircuitBreaker",
     "CircuitState",
     "ga4_breaker",
-    "http_worker_breaker",
     "wordpress_breaker",
     "xenforo_breaker",
 ]

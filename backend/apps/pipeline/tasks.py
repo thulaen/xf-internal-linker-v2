@@ -1683,7 +1683,7 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Part 8 — FR-18 C# auto-tune tasks
+# Part 8 — FR-018 Python auto-tune tasks
 # ---------------------------------------------------------------------------
 
 
@@ -1696,9 +1696,9 @@ def sync_single_wp_item(post_id: int, content_type: str = "post") -> dict:
 )
 @with_weight_lock("medium")
 def monthly_weight_tune(self):
-    """Trigger a FR-18 weight-tune run via the native WeightTuner, then evaluate.
+    """Trigger an FR-018 weight-tune run via the Python WeightTuner, then evaluate.
 
-    Scheduled at 02:30 on the first Sunday of every month.
+    Scheduled at 13:45 UTC on the first Sunday of every month.
     """
     import traceback
     import uuid as _uuid
@@ -1753,7 +1753,7 @@ def evaluate_weight_challenger(self, *, run_id: str):
     If it does not qualify, the challenger is marked 'rejected'.
 
     Called automatically after monthly_weight_tune, or manually via
-    POST /api/settings/cs-tune/trigger/.
+    POST /api/settings/weight-tune/trigger/.
     """
     import traceback
 
@@ -1783,8 +1783,10 @@ def evaluate_weight_challenger(self, *, run_id: str):
         cand_score = challenger.predicted_quality_score
         champ_score = challenger.champion_quality_score
 
-        # If C# did not supply scores, fall back to approving automatically
-        # (the bounds validation in WeightChallengerInternalView already guarantees safety).
+        # WeightTuner now always populates both quality scores. This branch
+        # handles legacy challenger rows created before that fix where the
+        # scores remained NULL (the bounds validation in
+        # WeightChallengerInternalView already guarantees safety).
         if cand_score is None or champ_score is None:
             logger.info(
                 "[evaluate_weight_challenger] No quality scores on challenger %s — auto-promoting.",
@@ -1848,10 +1850,10 @@ def evaluate_weight_challenger(self, *, run_id: str):
         new_weights = get_current_weights()
 
         history_row = write_history(
-            source="cs_auto_tune",
+            source="auto_tune",
             previous_weights=previous_weights,
             new_weights=new_weights,
-            reason=f"FR-18 C# auto-tune promoted challenger {run_id[:_RUN_ID_PREVIEW_LEN]}",
+            reason=f"FR-018 Python auto-tune promoted challenger {run_id[:_RUN_ID_PREVIEW_LEN]}",
             r_run_id=run_id,
         )
 
@@ -2004,11 +2006,11 @@ def _check_single_rollback(challenger):
 
         new_weights = get_current_weights()
         write_history(
-            source="cs_auto_tune",
+            source="auto_tune",
             previous_weights=previous_weights,
             new_weights=new_weights,
             reason=(
-                f"FR-18 auto-rollback: challenger {challenger.run_id[:_RUN_ID_PREVIEW_LEN]} "
+                f"FR-018 auto-rollback: challenger {challenger.run_id[:_RUN_ID_PREVIEW_LEN]} "
                 f"caused GSC regression (post/pre={ratio:.2f})."
             ),
             r_run_id=challenger.run_id,

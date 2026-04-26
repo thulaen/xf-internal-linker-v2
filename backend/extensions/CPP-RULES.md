@@ -664,7 +664,7 @@ Every C++ extension PR must pass ALL of these before merge:
 - For writes: buffer in userspace and flush in batches (OPT-56).
 
 ### Network Socket Blocking
-- Extensions must never open network sockets. All network I/O happens in Python or C#.
+- Extensions must never open network sockets. All network I/O happens in Python.
 
 ### Orphaned / Zombie Processes
 - Extensions must never `fork()` or `exec()` child processes. Process management is Python's responsibility.

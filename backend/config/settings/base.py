@@ -199,7 +199,6 @@ CELERY_TASK_ROUTES = {
 # ── Stored Periodic Schedule Seeds ────────────────────────────────
 # Nightly auto-sync from XenForo API at 02:00 UTC.
 # Only runs when XENFORO_API_KEY and XENFORO_BASE_URL are configured.
-# The C# scheduler may read these django_celery_beat rows directly during migration.
 
 from .celery_schedules import CELERY_BEAT_SCHEDULE  # noqa: E402, F401
 
@@ -475,8 +474,8 @@ WORDPRESS_USERNAME = env("WORDPRESS_USERNAME", default="")
 WORDPRESS_APP_PASSWORD = env("WORDPRESS_APP_PASSWORD", default="")
 
 
-# All heavy I/O and CPU tasks are now owned by Celery (Python/C++).
-# The legacy C# HttpWorker has been decommissioned.
+# All heavy I/O and CPU tasks are owned by Celery (Python/C++).
+# The legacy HTTP worker (decommissioned 2026-04-12) is no longer running.
 
 RUNTIME_PROGRESS_STREAM_PREFIX = (
     env("RUNTIME_PROGRESS_STREAM_PREFIX", default="runtime:progress").strip()

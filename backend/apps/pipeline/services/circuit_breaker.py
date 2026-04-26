@@ -1,10 +1,10 @@
 """
 Lightweight circuit breaker for external service calls.
 
-Prevents cascading failures when an external service (C# HTTP Worker,
-GA4, XenForo API, WordPress API) goes down.  Instead of waiting for
-timeouts on every request, the breaker opens after N consecutive failures
-and rejects calls immediately until a recovery probe succeeds.
+Prevents cascading failures when an external service (GA4, XenForo API,
+WordPress API) goes down.  Instead of waiting for timeouts on every
+request, the breaker opens after N consecutive failures and rejects calls
+immediately until a recovery probe succeeds.
 
 State machine: CLOSED → OPEN → HALF_OPEN → CLOSED
 """
@@ -164,13 +164,6 @@ class CircuitBreaker:
 
 # ── Pre-configured breakers for each external service ──────────
 
-http_worker_breaker = CircuitBreaker(
-    name="http_worker",
-    failure_threshold=5,
-    recovery_timeout=60,
-    success_threshold=2,
-    expected_exceptions=[TimeoutError, OSError, ConnectionError],
-)
 
 ga4_breaker = CircuitBreaker(
     name="ga4",

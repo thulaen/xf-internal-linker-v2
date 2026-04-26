@@ -105,7 +105,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
               <dd>nightly-xenforo-sync, monthly-xenforo-full-sync, monthly-wordpress-full-sync</dd>
 
               <dt><mat-chip class="policy-chip weight-medium" disableRipple>Medium</mat-chip></dt>
-              <dd>monthly-cs-weight-tune, weekly-session-cooccurrence</dd>
+              <dd>monthly-python-weight-tune, weekly-session-cooccurrence</dd>
 
               <dt><mat-chip class="policy-chip weight-light" disableRipple>Light</mat-chip></dt>
               <dd>

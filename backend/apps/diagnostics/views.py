@@ -687,7 +687,7 @@ class SchedulerDispatchView(views.APIView):
             {
                 "detail": (
                     f"Scheduler task '{task_name}' is not supported by the Django control plane yet. "
-                    "Add an explicit dispatcher before letting the C# scheduler own it."
+                    "Add an explicit dispatcher before letting Celery Beat own it."
                 ),
             },
             status=status.HTTP_400_BAD_REQUEST,

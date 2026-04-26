@@ -9,7 +9,7 @@
   - GA4 and GSC settings already exist but no connection-status check is surfaced in the UI;
   - XenForo sync already exists (`apps/sync/`) but no live health status is exposed;
   - WordPress sync already exists (`apps/sync/services/wordpress_api.py`) but no live health status is exposed;
-  - R analytics service has been removed and replaced by the C# Analytics Worker inside `services/http-worker/`;
+  - R analytics service has been removed; analytics now run in-process inside the Python Celery worker (`backend/apps/analytics/`). The interim 2026-Q1 C# Analytics Worker was decommissioned 2026-04;
   - `AppSetting` stores connection credentials and config but no "last successful connection" or "last error" status fields;
   - `ErrorLog` stores background failures but they are not surfaced as per-source health indicators;
   - `FR-019` adds the notification center and alert system that this FR connects into;
@@ -41,8 +41,8 @@
 
 ### External services
 
-- `services/r-analytics/` — standalone R + Shiny Docker service.
-- `services/http-worker/` — .NET 9 HttpWorker for broken-link scanning, URL fetching, health checking, sitemap crawling.
+- `services/r-analytics/` — decommissioned (R + Shiny stack retired before the C# worker landed).
+- `services/http-worker/` — decommissioned 2026-04. Broken-link scanning, URL fetching, health checking, and sitemap crawling are now Celery tasks under `backend/apps/crawler/` and `backend/apps/sync/`.
 
 ### Pipeline and algorithm
 
@@ -247,29 +247,29 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 5. C# Analytics Worker Health Card
+### 5. Analytics Worker Health Card
 
-**Purpose:** Confirm the C# Analytics Worker inside `services/http-worker` is running and producing content-value scores and weight-tuning runs. The former R analytics service has been removed; this card replaces it.
+**Purpose:** Confirm the in-process Python analytics worker (`backend/apps/analytics/`) is producing content-value scores and weight-tuning runs. Replaces the retired R analytics service and the decommissioned-2026-04 C# Analytics Worker — analytics now run inside the standard Celery worker, so this card surfaces task-level health rather than a separate-process ping.
 
 **Status indicators:**
 
-- `Running` — HTTP ping to `http-worker-api` health endpoint returns 200 and analytics worker reports healthy.
-- `Down` — HTTP ping fails or times out.
-- `Stale` — Service is reachable but last content-value computation run was more than N hours ago.
-- `Not configured` — Analytics worker is not enabled in settings.
+- `Running` — last `analytics.compute_content_value` Celery task within the configured freshness window AND last `pipeline.monthly_weight_tune` (FR-018) within its expected cadence.
+- `Down` — Celery worker has not consumed the analytics task in the freshness window (delegate to FR-022 §10 "Celery Workers Health Card" for queue-level diagnostics).
+- `Stale` — Worker reachable but last content-value computation run was more than N hours ago.
+- `Not configured` — Analytics task is disabled in settings.
 
 **Displayed fields:**
 
-- Connection status badge.
+- Status badge.
 - Last successful content-value computation run: timestamp + count of content items scored.
 - Last weight-tuning run: timestamp + champion weight version promoted (if any).
 - Last error: message + timestamp.
-- MathNet.Numerics version (from assembly metadata).
+- numpy / scipy version (from `pip freeze` in the running container).
 
 **Actions:**
 
-- "Ping Service" — lightweight HTTP health check against `http-worker-api`.
-- "Trigger Computation Run" — POST to analytics worker trigger endpoint.
+- "Ping Worker" — issue a low-priority Celery `analytics.health_ping` task and wait for the result.
+- "Trigger Computation Run" — POST to `/api/analytics/compute-content-value/` to enqueue an immediate run.
 
 **Alert integration (`FR-019`):**
 
@@ -445,32 +445,9 @@ The fix is a dedicated health dashboard page with one card per data source and s
 
 ---
 
-### 11. HttpWorker Service Health Card
+### 11. HTTP Worker Service Health Card (decommissioned)
 
-**Purpose:** Confirm the .NET 9 HttpWorker microservice (broken-link scanner, URL fetcher, sitemap crawler) is reachable.
-
-**Status indicators:**
-
-- `Running` — HTTP health endpoint returns 200.
-- `Down` — ping fails or times out.
-- `Not configured` — HttpWorker URL is not set.
-
-**Displayed fields:**
-
-- Status badge.
-- HttpWorker base URL.
-- Last successful task: type + timestamp.
-- Last error: message + timestamp.
-- Version / build info (if exposed by the service).
-
-**Actions:**
-
-- "Ping Service" — lightweight HTTP health check.
-- "Go to Link Health" — links to the broken-link scanner page.
-
-**Alert integration (`FR-019`):**
-
-- Emit `service.http_worker_down` when ping fails.
+> **Status (2026-04):** The .NET 9 HttpWorker microservice was decommissioned in 2026-04. Broken-link scanning, URL fetching, and sitemap crawling all moved to Celery tasks under `backend/apps/crawler/` and `backend/apps/sync/`. This card is **no longer applicable** — the crawler/sync health is covered by §10 "Celery Workers Health Card" and §6 "Pipeline Health Card". Kept here as a tombstone so future readers see why the original FR-022 plan listed an `HttpWorker` card.
 
 ---
 
@@ -679,8 +656,8 @@ Label in nav: **System Health**
 | XenForo | `data_source.xenforo_stale` | Sync overdue |
 | WordPress | `data_source.wordpress_sync_error` | Sync failed |
 | WordPress | `data_source.wordpress_stale` | Sync overdue |
-| C# Analytics | `service.analytics_worker_down` | Ping failed |
-| C# Analytics | `service.analytics_worker_stale` | No run for 24h |
+| Analytics | `service.analytics_worker_down` | Ping failed |
+| Analytics | `service.analytics_worker_stale` | No run for 24h |
 | Matomo | `service.matomo_down` | Ping failed |
 | Matomo | `service.matomo_no_data` | No data for 48h |
 | Pipeline | `pipeline.run_failed` | Pipeline failed |
@@ -688,7 +665,6 @@ Label in nav: **System Health**
 | Auto-Tuning | `autotuning.promotion_blocked` | Gates failed |
 | Celery | `worker.no_workers` | No workers |
 | Celery | `worker.queue_backed_up` | Queue > 50 |
-| HttpWorker | `service.http_worker_down` | Ping failed |
 | Database | `system.db_connection_error` | Connection failed |
 | Database | `system.pending_migrations` | Unapplied migrations |
 | Redis | `system.redis_down` | Ping failed |
@@ -718,7 +694,7 @@ All alerts use dedupe keys so a persistently-down service does not flood the ale
 ### Manual verification
 
 - Disable GA4 credentials and verify `ga4` card shows `Auth error` and an FR-019 alert fires.
-- Stop the C# Analytics Worker and verify `analytics_worker` card shows `Down`.
+- Pause the Celery analytics queue and verify `analytics_worker` card shows `Down`.
 - Revoke the Matomo API token and verify `matomo` card shows `Auth error`.
 - Let XenForo sync go overdue and verify `xenforo` card shows `Stale`.
 - Restore each service and verify card returns to `Healthy` and alert resolves.

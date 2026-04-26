@@ -1,27 +1,31 @@
 # OPT-90 -- Pixie Weighted Random Walk
 
 ## Overview
-**Category:** C# native interop -- graph
-**Extension file:** `pixie_walk.cpp` (NEW) + C# P/Invoke in `ScoringInterop.cs`
-**Expected speedup:** >=3x over C# single-threaded LINQ-based PixieWalk()
+**Category:** Python pybind11 native extension -- graph
+**Extension file:** `backend/extensions/pixie_walk.cpp` (NEW) + pybind11 module bindings
+**Expected speedup:** >=3x over a single-threaded NumPy-based PixieWalk reference path
 **RAM:** <5 MB | **Disk:** <1 MB
 **Research basis:** Eksombatchai C. et al., "Pixie: A System for Recommending 3+ Billion Items to 200+ Million Users in Real-Time", Pinterest, WWW 2018. Walker alias method for O(1) weighted sampling (Walker, 1977).
+
+> **Provenance note (2026-04-26):** This spec was originally written for the C# HttpWorker era when hot-path C++ extensions were called from C# via P/Invoke (`ScoringInterop.cs`). After the 2026-04 C# decommission, all hot-path extensions are pybind11 modules called directly from Python. The mathematical content and benchmarks are unchanged.
 
 ## Algorithm
 
 Build CSR adjacency with edge weights from the graph. For each query node, perform N random walks of length L. At each step, select next node via Walker alias method (O(1) per sample vs O(degree) for linear scan). Accumulate visit counts. TBB parallel_for over walks with thread-local xoshiro256** PRNG. Return top-K visited nodes by count.
 
-## C++ Interface (exported as C function for P/Invoke)
+## C++ Interface (pybind11)
 
 ```cpp
-// pixie_walk.cpp
-// extern "C" int32_t cpixie_walk(
-//     const uint32_t* indptr, const uint32_t* indices, const float* weights,
-//     uint32_t num_nodes, uint32_t query_node,
-//     uint32_t num_walks, uint32_t walk_length, uint32_t top_k,
-//     uint32_t* out_node_ids, float* out_scores);
+// pixie_walk.cpp — exported as a pybind11 module function
+// PYBIND11_MODULE(pixie_walk, m) {
+//     m.def("walk",
+//         [](py::array_t<uint32_t> indptr, py::array_t<uint32_t> indices,
+//            py::array_t<float> weights, uint32_t num_nodes, uint32_t query_node,
+//            uint32_t num_walks, uint32_t walk_length, uint32_t top_k)
+//         -> py::tuple { /* returns (node_ids, scores) */ });
+// }
 //
-// C# P/Invoke signature in ScoringInterop.cs.
+// Python caller imports `pixie_walk` and gets back numpy arrays directly.
 ```
 
 ## Memory Budget
@@ -29,7 +33,7 @@ Build CSR adjacency with edge weights from the graph. For each query node, perfo
 - Disk: <1 MB
 
 ## Performance Target
-- Target: >=3x faster than C# single-threaded LINQ-based PixieWalk()
+- Target: >=3x faster than a single-threaded NumPy-based PixieWalk Python reference
 - Benchmark: 2K walks x 10 steps x 50K nodes
 
 ## Pre-Implementation Safety Checklist
@@ -71,8 +75,8 @@ Build CSR adjacency with edge weights from the graph. For each query node, perfo
 
 ## Dependencies
 - TBB (Linux) or std::execution::par (Windows)
-- C# calls via P/Invoke following existing ScoringInterop.cs pattern
+- pybind11 binding registered in `backend/extensions/setup.py`
 
 ## Test Plan
-- Visit distribution matches C# reference within statistical tolerance (chi-squared, p>0.01)
+- Visit distribution matches the Python reference within statistical tolerance (chi-squared, p>0.01) — see `backend/tests/test_parity_pixie_walk.py`
 - Edge cases: isolated node, fully connected graph, self-loops, zero-weight edges

@@ -95,7 +95,6 @@ async def probe_urls(
             status_code = 0
             redirect_url = ""
 
-        # Tuple structure matches what scan_via_http_worker previously returned.
         result = (status_code, redirect_url)
         results[url] = result
 

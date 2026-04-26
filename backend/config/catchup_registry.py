@@ -68,7 +68,7 @@ CATCHUP_REGISTRY: dict[str, CatchupEntry] = {
         queue="pipeline",
         weight_class="medium",
     ),
-    "monthly-cs-weight-tune": CatchupEntry(
+    "monthly-python-weight-tune": CatchupEntry(
         threshold_hours=35 * 24,
         priority=90,
         queue="pipeline",

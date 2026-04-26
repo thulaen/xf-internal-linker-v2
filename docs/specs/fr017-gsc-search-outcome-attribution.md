@@ -8,10 +8,10 @@
   - **Significance**: 95% Credible Intervals for lift and T-Tests for position delta significance.
 - **Metric Interpretation**: Bounded delayed reward signals (positive/neutral/negative) used as ground truth for the FR-018 auto-tuning layer.
 
-## Architecture: Hybrid Core
-- **Data Ingestion (Python)**: Use `google-api-python-client` in a Celery task to pull daily performance rows. Python is chosen for its superior GSC API library support.
-- **Attribution Engine (C#)**: Use the .NET `http-worker` with `MathNet.Numerics` to perform the heavy statistical lift and P-value computations. C# is chosen for its performance in high-frequency math and alignment with the Analytics Worker strategy.
-- **Persistence (PostgreSQL)**: Shared storage in the main Django database handles the final attribution snapshots.
+## Architecture: Python-Native Core
+- **Data Ingestion (Python)**: Use `google-api-python-client` in a Celery task to pull daily performance rows.
+- **Attribution Engine (Python)**: Live implementation at `backend/apps/analytics/impact_engine.py` uses `scipy.stats` (Gamma + Poisson) and `numpy` for the Bayesian causal-lift Monte Carlo. The interim 2026-Q1 C# implementation (`MathNet.Numerics` inside the `http-worker`) was decommissioned 2026-04 and is no longer authoritative.
+- **Persistence (PostgreSQL)**: Shared storage in the main Django database handles the final attribution snapshots via the Django ORM.
 
 ## Implementation Spec
 
@@ -47,7 +47,7 @@ Stores the calculated attribution for a specific applied suggestion.
 - **Batching**: Importer looks back 5 days to ensure no gaps are left by the lag.
 - **OAuth**: Google Service Account or OAuth2 token stored in `AppSetting`.
 
-### 3. Attribution Engine Math (C# / MathNet.Numerics)
+### 3. Attribution Engine Math (Python / scipy.stats)
 
 #### Bayesian Smoothing (CTR)
 To avoid high CTR noise on low impressions:
@@ -74,7 +74,7 @@ To avoid high CTR noise on low impressions:
 
 ## Test Plan
 - **Mock GSC Data**: Verify the importer handles the "lag window" by merging existing rows without duplicates.
-- **Statistical Unit Tests (C#)**: 
+- **Statistical Unit Tests (Python)**:
   - Ensure $CTR_{smoothed}$ stays within (0,1).
   - Verify that a 0-click, 1-impression page does not get a 0% CTR (it should be pulled toward the site average).
 - **Regression**: Ensure that GSC work does not block the main pipeline run if the Google API is down.
@@ -92,9 +92,9 @@ To avoid high CTR noise on low impressions:
 - The Celery task for GSC sync.
 - Handling the 48h lag logic.
 
-### Slice 4: Statistical Brain (C#)
-- Implement `GSCAttributionLogic` class in `HttpWorker.Services`.
-- Expose an internal API for the backend to trigger attribution runs.
+### Slice 4: Statistical Brain (Python)
+- Implement `analyze_uplift` and the Gamma-Poisson Monte Carlo in `backend/apps/analytics/impact_engine.py`.
+- Wrap it in a Celery task in `backend/apps/analytics/tasks.py` so the backend can trigger attribution runs end-to-end without a separate process.
 
 ### Slice 5: Reporting UI (Angular)
 - The "Search Impact" tab and Chart.js integration.

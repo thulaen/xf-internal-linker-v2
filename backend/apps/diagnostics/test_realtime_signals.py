@@ -97,9 +97,10 @@ class DiagnosticsRealtimeSignalsTests(TransactionTestCase):
 
     async def test_http_worker_service_status_is_suppressed(self):
         """
-        http_worker is the decommissioned C# row. REST view filters it out
-        (see apps/diagnostics/views.py). The signal must also suppress it so
-        the same stale row doesn't slip through the WebSocket.
+        http_worker is the decommissioned HTTP-worker row (ISS-009). REST
+        view filters it out (see apps/diagnostics/views.py). The signal must
+        also suppress it so the same stale row doesn't slip through the
+        WebSocket.
         """
         comm = await self._connect()
         await self._create_service(service_name="http_worker", state="failed")

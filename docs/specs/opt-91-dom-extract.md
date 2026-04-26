@@ -1,27 +1,28 @@
 # OPT-91 -- HTML Content Extractor + CETR
 
 ## Overview
-**Category:** C# native interop -- HTML
-**Extension file:** `dom_extract.cpp` (NEW) + C# P/Invoke
-**Expected speedup:** >=3x over AngleSharp multi-pass DOM extraction
+**Category:** Python pybind11 native extension -- HTML
+**Extension file:** `backend/extensions/dom_extract.cpp` (NEW) + pybind11 module bindings
+**Expected speedup:** >=3x over a BeautifulSoup / lxml multi-pass DOM extraction reference
 **RAM:** <10 MB | **Disk:** <3 MB
 **Research basis:** Weninger T. et al., "CETR -- Content Extraction via Tag Ratios", WWW 2010. Single-pass HTML5 tokenization without full DOM construction.
+
+> **Provenance note (2026-04-26):** Originally written for the C# HttpWorker era when this extension would have been called from C# via P/Invoke and compared against AngleSharp. After the 2026-04 C# decommission, the extension is a pybind11 module called from Python and benchmarked against a BeautifulSoup / lxml reference. The math and gates are unchanged.
 
 ## Algorithm
 
 Single-pass HTML5 tokenizer (not a full DOM parser). Scans raw HTML byte-by-byte tracking: (1) tag depth and type, (2) text content per block, (3) tag-to-text ratio per block (CETR), (4) link density per block, (5) heading extraction (h1-h6). Blocks with text density above threshold and link density below threshold are content. Boilerplate (nav, footer, sidebar) filtered by tag semantics. Returns structured result: title, headings[], content_text, links[(url, anchor)], meta_description.
 
-## C++ Interface (exported as C function for P/Invoke)
+## C++ Interface (pybind11)
 
 ```cpp
-// dom_extract.cpp
-// extern "C" int32_t cdom_extract(
-//     const char* html, uint32_t html_len,
-//     char* out_json, uint32_t out_json_capacity,
-//     uint32_t* out_json_len);
-// Returns extraction result as JSON string.
+// dom_extract.cpp — exported as a pybind11 module function
+// PYBIND11_MODULE(dom_extract, m) {
+//     m.def("extract",
+//         [](py::str html) -> py::dict { /* returns {title, headings, content_text, links, meta_description} */ });
+// }
 //
-// C# deserializes JSON result into ContentExtractionResult struct.
+// Python caller imports `dom_extract` and gets a dict directly — no JSON serialization round-trip.
 ```
 
 ## Memory Budget
@@ -29,7 +30,7 @@ Single-pass HTML5 tokenizer (not a full DOM parser). Scans raw HTML byte-by-byte
 - Disk: <3 MB
 
 ## Performance Target
-- Target: >=3x faster than AngleSharp multi-pass DOM extraction
+- Target: >=3x faster than a BeautifulSoup / lxml multi-pass DOM extraction Python reference
 - Benchmark: 1K HTML pages x 100KB average
 
 ## Pre-Implementation Safety Checklist
@@ -73,5 +74,5 @@ Single-pass HTML5 tokenizer (not a full DOM parser). Scans raw HTML byte-by-byte
 - None (standalone single-pass tokenizer, no external HTML parser library)
 
 ## Test Plan
-- Extracted text matches AngleSharp reference output within 95% F1 score
+- Extracted text matches a BeautifulSoup / lxml Python reference within 95% F1 score (parity test in `backend/tests/test_parity_dom_extract.py`)
 - Edge cases: empty HTML, malformed HTML, huge single-line minified HTML, pages with no content (all navigation), pages with deeply nested tables

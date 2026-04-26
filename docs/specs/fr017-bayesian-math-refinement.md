@@ -1,6 +1,6 @@
 # Spec: FR-017 Slice 4 (Bayesian Math Refinement)
 
-This document defines the mathematical and technical requirements for the GSC Search Outcome Attribution engine in the C# `http-worker`. It aims to deliver a high-fidelity "Probability of Uplift" signal for internal link experiments.
+This document defines the mathematical and technical requirements for the GSC Search Outcome Attribution engine implemented in `backend/apps/analytics/impact_engine.py`. It aims to deliver a high-fidelity "Probability of Uplift" signal for internal link experiments. The interim 2026-Q1 C# implementation in `services/http-worker/` was decommissioned 2026-04; this spec now describes the live Python implementation.
 
 ## 1. Problem Statement
 Raw GSC data is noisy. A 100% lift on a 1-click page is statistically meaningless. Conversely, a 5% drop on a growing site is actually a significant loss. We need a model that:
@@ -35,16 +35,16 @@ We model the target page's performance as a Poisson or Negative Binomial process
 -   **Neutral**: Prob between 5-95%.
 -   **Inconclusive**: Total impressions < threshold (e.g., 100 in window).
 
-## 3. Implementation Details (C#)
--   **Library**: `MathNet.Numerics` (already confirmed in `GSCAttributionService.cs`).
--   **Service**: `GSCAttributionService`.
--   **Method**: `AnalyzeUpliftAsync`.
+## 3. Implementation Details (Python)
+-   **Library**: `scipy.stats` (Gamma + Poisson distributions) and `numpy` for the Monte Carlo sampling.
+-   **Module**: `backend/apps/analytics/impact_engine.py`.
+-   **Method**: `analyze_uplift(target_pre, target_post, control_pre, control_post)` (synchronous; called from a Celery task — see §4).
 
 ## 4. Integration Strategy
-- **Worker Job**: Triggered via Redis `JobQueue` by the Django Celery task `sync_gsc_performance`.
-- **Persistence**: Results are PUT back to the Django API and stored in `GSCImpactSnapshot`.
+- **Worker Job**: Runs inside the Python Celery worker, triggered by `sync_gsc_performance` and consumed by tasks in `backend/apps/analytics/tasks.py`.
+- **Persistence**: Results are written directly via the Django ORM to `GSCImpactSnapshot`.
 
 ## 5. Anti-Duplication Note
-- **DO NOT** rebuild the GSC Importer (already in Python).
-- **DO NOT** rebuild the Settings UI (already in Angular).
-- **FOCUS** strictly on the `AnalyzeUpliftAsync` logic and the communication bridge between Python and C#.
+- **DO NOT** rebuild the GSC Importer — already lives in `backend/apps/analytics/services/gsc_importer.py`.
+- **DO NOT** rebuild the Settings UI — already in Angular.
+- **FOCUS** strictly on the `analyze_uplift` logic in `impact_engine.py` and its Celery task wrapper.

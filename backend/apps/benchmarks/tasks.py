@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 @shared_task(time_limit=1800, soft_time_limit=1700)
 def run_all_benchmarks(run_id: int | None = None, trigger: str = "scheduled"):
-    """Execute all benchmarks (C++, Python, C#) and store results."""
+    """Execute all benchmarks (C++ and Python) and store results."""
     from .models import BenchmarkResult, BenchmarkRun
     from .services.runner import (
         classify_results,
@@ -50,7 +50,6 @@ def run_all_benchmarks(run_id: int | None = None, trigger: str = "scheduled"):
             "languages": {
                 "cpp": sum(1 for r in all_results if r.language == "cpp"),
                 "python": sum(1 for r in all_results if r.language == "python"),
-                "csharp": sum(1 for r in all_results if r.language == "csharp"),
             },
         }
         run.status = "completed"

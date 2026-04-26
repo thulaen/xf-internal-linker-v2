@@ -73,7 +73,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     # Part 6.5 — monthly baseline refresh: 1st of every month.
     # Forces a full re-embedding to ensure zero drift from live sites.
-    # Separated from monthly-cs-weight-tune to avoid slot collision.
+    # Separated from monthly-python-weight-tune to avoid slot collision.
     "monthly-xenforo-full-sync": {
         "task": "pipeline.import_content",
         "schedule": crontab(hour=13, minute=30, day_of_month="1"),
@@ -88,7 +88,7 @@ CELERY_BEAT_SCHEDULE = {
     },
     # ── Medium tasks: 13:30–13:45 UTC ───────────────────────────────
     # FR-018 — monthly auto-tuner: 13:45 UTC on the first Sunday of every month.
-    "monthly-cs-weight-tune": {
+    "monthly-python-weight-tune": {
         "task": "pipeline.monthly_weight_tune",
         "schedule": crontab(hour=13, minute=45, day_of_week=0, day_of_month="1-7"),
         "options": {"queue": "pipeline"},

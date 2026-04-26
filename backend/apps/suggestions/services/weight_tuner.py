@@ -5,16 +5,17 @@ from django.utils import timezone
 from scipy.optimize import minimize
 
 from apps.suggestions.models import Suggestion, RankingChallenger
-from .weight_preset_service import get_current_weights
+from apps.suggestions.weight_preset_service import get_current_weights
 
 logger = logging.getLogger(__name__)
 
 
 class WeightTuner:
-    """FR-018: L-BFGS weight optimizer for ranking blend.
+    """FR-018: Python L-BFGS-B weight optimizer for the ranking blend.
 
-    Ported from C# HTTP-Worker. Finds optimal weights for (semantic, keyword,
-    node, quality) by maximizing the likelihood of human approvals.
+    Pure-Python implementation per FR-018 spec. Finds optimal weights for
+    (semantic, keyword, node, quality) by maximizing the likelihood of human
+    approvals via ``scipy.optimize.minimize`` with bounded drift.
     """
 
     def __init__(self, lookback_days: int = 90):
@@ -37,7 +38,7 @@ class WeightTuner:
 
         if len(samples) < 50:
             logger.info(
-                f"[WeightTuner] Insufficient samples ({len(samples)}) for tuning."
+                "[WeightTuner] Insufficient samples (%d) for tuning.", len(samples)
             )
             return None
 
@@ -81,34 +82,49 @@ class WeightTuner:
         res = minimize(objective, w_init, args=(X, y), method="L-BFGS-B", bounds=bounds)
 
         if not res.success:
-            logger.warning(f"[WeightTuner] Optimization failed: {res.message}")
+            logger.warning("[WeightTuner] Optimization failed: %s", res.message)
             return None
 
         w_opt = res.x
         w_opt = w_opt / np.sum(w_opt)  # Final normalization
 
         # 4. Create Challenger
-        proposed = {self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(4)}
+        candidate = {self.weight_keys[i]: round(float(w_opt[i]), 4) for i in range(4)}
+        baseline = {self.weight_keys[i]: float(w_init[i]) for i in range(4)}
 
         # Check if change is significant (> 0.001)
         if np.allclose(w_init, w_opt, atol=1e-3):
             logger.info("[WeightTuner] No significant weight improvement found.")
             return None
 
+        # Compute predicted vs champion quality scores using the same objective
+        # the optimizer minimised. Both numbers come from the same function so
+        # the SPRT comparator in evaluate_weight_challenger sees a fair ratio.
+        # quality = 1 / (1 + loss) is bounded in (0, 1] and monotonically
+        # decreasing in loss.
+        champion_loss = float(objective(w_init, X, y))
+        candidate_loss = float(res.fun)
+        champion_quality = 1.0 / (1.0 + champion_loss)
+        predicted_quality = 1.0 / (1.0 + candidate_loss)
+
         challenger = RankingChallenger.objects.create(
             run_id=run_id,
             status="pending",
-            proposed_weights=proposed,
-            previous_weights={self.weight_keys[i]: float(w_init[i]) for i in range(4)},
-            optimisation_meta={
-                "sample_count": len(y),
-                "approval_rate": float(np.mean(y)),
-                "success": res.success,
-                "iterations": res.nit,
-                "final_loss": float(res.fun),
-            },
+            candidate_weights=candidate,
+            baseline_weights=baseline,
+            predicted_quality_score=predicted_quality,
+            champion_quality_score=champion_quality,
         )
         logger.info(
-            f"[WeightTuner] Created challenger {challenger.pk} for run_id {run_id}"
+            "[WeightTuner] Created challenger %s for run_id %s "
+            "(samples=%d, approval_rate=%.3f, iterations=%d, "
+            "champion_loss=%.4f, candidate_loss=%.4f).",
+            challenger.pk,
+            run_id,
+            len(y),
+            float(np.mean(y)),
+            res.nit,
+            champion_loss,
+            candidate_loss,
         )
         return challenger

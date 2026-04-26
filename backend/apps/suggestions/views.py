@@ -615,9 +615,9 @@ class RankingChallengerViewSet(viewsets.ReadOnlyModelViewSet):
         return Response({"detail": f"Challenger {challenger.run_id[:16]} rejected."})
 
 
-# ── FR-018: Internal write endpoint for C# auto-tuner ────────────────────────
+# ── FR-018: Internal write endpoint for the Python auto-tuner ────────────────
 
-# The four weights the C# L-BFGS optimizer is allowed to propose.
+# The four weights the Python L-BFGS-B optimizer is allowed to propose.
 _TUNABLE_KEYS = frozenset({"w_semantic", "w_keyword", "w_node", "w_quality"})
 
 # second line of defence).

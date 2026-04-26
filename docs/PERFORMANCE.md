@@ -103,7 +103,7 @@ Headroom: ~1.5 GB
 | `nightly-xenforo-sync` | 26 h | 10 | Heavy | pipeline |
 | `monthly-xenforo-full-sync` | 35 d | 20 | Heavy | pipeline |
 | `monthly-wordpress-full-sync` | 35 d | 25 | Heavy | pipeline |
-| `monthly-cs-weight-tune` | 35 d | 90 | Medium | pipeline |
+| `monthly-python-weight-tune` | 35 d | 90 | Medium | pipeline |
 | `weekly-session-cooccurrence` | 8 d | 70 | Medium | pipeline |
 | `nightly-data-retention` | 26 h | 50 | Light | default |
 | `cleanup-stuck-sync-jobs` | 26 h | 55 | Light | default |
