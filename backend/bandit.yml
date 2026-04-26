@@ -20,3 +20,26 @@ skips:
   # B608: Possible SQL injection via string formatting — Django ORM handles parameterisation.
   #        All raw SQL in this project uses cursor.execute() with parameters.
   - B608
+  # B112: Try/except/continue — graceful fallback pattern in batch loops
+  #        (embedding providers, BPR ranker, embedding audit/bakeoff).
+  - B112
+  # B311: random.Random — used for ML sampling, jitter, anchor diversity sims.
+  #        Cryptographic-strength PRNG isn't required for any of these uses;
+  #        token/secret paths use `secrets` module instead.
+  - B311
+  # B108: Insecure use of /tmp — only in test/benchmark fixtures that need
+  #        a writable scratch dir; never touched in production code.
+  - B108
+  # B301: Pickle deserialisation — used for FAISS index serialisation and
+  #        local-only model caches. Inputs are always trusted file paths
+  #        owned by the running process; no user-controlled deserialisation.
+  - B301
+  # B403: Importing pickle — same justification as B301.
+  - B403
+  # B404: Importing subprocess — single use in kenlm_fluency.py (documented
+  #        below). The module-level import is benign; B603 covers the call.
+  - B404
+  # B603: subprocess.run — single use in kenlm_fluency.py to invoke the
+  #        local kenlm `lmplz` binary on a known scratch path. No shell=True,
+  #        argument list is constructed from local paths only, no user input.
+  - B603
