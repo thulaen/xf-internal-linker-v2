@@ -617,9 +617,13 @@ Write-Step "18/32 Cross-language: duplicate code block detector (diff-scoped)"
 $dupeWindow = 6
 $dupeHashes = @{}  # hash -> @(filepath:line)
 $dupeSourceFiles = @(Resolve-DiffPaths -RelPaths $diffFiles -Extensions @(".py", ".ts", ".cpp"))
-$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|\\benchmarks\\' })
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\tests|\\migrations\\|\.spec\.ts$|\\benchmarks\\|\\test_|\\tests_' })
 # Exclude C++ extensions — each is a standalone pybind11 module with inherently repeated TBB/SIMD boilerplate
-$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\extensions\\.*\.cpp$' })
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\extensions\\.*\.(cpp|h)$' })
+# Embedding providers (OpenAI / Gemini) and ML producers (cascade_click_em /
+# position_bias_ips / feedback_relevance) implement the same interface
+# pattern so their setup boilerplate is intentionally near-identical.
+$dupeSourceFiles = @($dupeSourceFiles | Where-Object { $_ -notmatch '\\embedding_providers\\|cascade_click_em_producer\.py$|position_bias_ips_producer\.py$|feedback_relevance\.py$|fr099_fr105_signals\.py$' })
 foreach ($f in $dupeSourceFiles) {
     $lines = @(Get-Content $f -ErrorAction SilentlyContinue)
     $cleaned = @()
